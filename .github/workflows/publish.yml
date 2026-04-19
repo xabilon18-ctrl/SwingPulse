@@ -3,7 +3,7 @@ name: SwingPulse Daily Publish
 on:
   # Auto-run weekdays at 21:00 UTC = 23:00 SAST (after market close)
   schedule:
-    - cron: '0 21 * * 1-5'
+    - cron: '30 3 * * 1-5'
 
   # Manual trigger — tap "Run workflow" in GitHub app or website
   workflow_dispatch:
