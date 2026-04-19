@@ -48,11 +48,13 @@ jobs:
 
       # ── 5. Google Sheets credentials (optional — skipped if not set) ─────
       - name: Write Google service account
-        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' }}
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          mkdir -p swing_generator/credentials
-          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' \
-            > swing_generator/credentials/service_account.json
+          if [ -n "$SA_JSON" ]; then
+            mkdir -p swing_generator/credentials
+            echo "$SA_JSON" > swing_generator/credentials/service_account.json
+          fi
 
       # ── 6. Run the full pipeline ─────────────────────────────────────────
       - name: Fetch data + compute signals + publish to R2
