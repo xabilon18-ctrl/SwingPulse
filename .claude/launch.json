@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "swingpulse",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["proxy.js"],
+      "port": 5051
+    }
+  ]
+}

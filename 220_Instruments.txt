@@ -1,0 +1,332 @@
+═══════════════════════════════════════════════════════════════════════════════
+  GANN SCANNER — FULL INSTRUMENT LIST (241)
+  Generated: 18 April 2026
+═══════════════════════════════════════════════════════════════════════════════
+
+FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector                    | Industry
+
+═══════════════════════════════════════════════════════════════════════════════
+  COMMODITIES (3)
+═══════════════════════════════════════════════════════════════════════════════
+  1  | GC=F          | GOLD          | Commodity     | Commodities               | Precious Metals
+  2  | SI=F          | SILVER        | Commodity     | Commodities               | Precious Metals
+  3  | CL=F          | USOIL         | Commodity     | Commodities               | Energy
+
+═══════════════════════════════════════════════════════════════════════════════
+  CRYPTO (20)
+═══════════════════════════════════════════════════════════════════════════════
+  4  | BTC-USD       | BTCUSD        | Crypto        | Crypto                    | Layer 1
+  5  | ETH-USD       | ETHUSD        | Crypto        | Crypto                    | Layer 1
+  6  | XRP-USD       | XRPUSDT       | Crypto        | Crypto                    | Layer 1
+  7  | LINK-USD      | LINKUSD       | Crypto        | Crypto                    | Oracle
+  8  | ALGO-USD      | ALGOUSDT      | Crypto        | Crypto                    | Layer 1
+  9  | APE-USD       | APEUSDT       | Crypto        | Crypto                    | NFT / Gaming
+ 10  | APT-USD       | APTUSDT       | Crypto        | Crypto                    | Layer 1
+ 11  | ATOM-USD      | ATOMUSDT      | Crypto        | Crypto                    | Layer 0
+ 12  | AVAX-USD      | AVAXUSDT      | Crypto        | Crypto                    | Layer 1
+ 13  | BNB-USD       | BNBUSDT       | Crypto        | Crypto                    | Exchange Token
+ 14  | DOGE-USD      | DOGEUSDT      | Crypto        | Crypto                    | Meme
+ 15  | DOT-USD       | DOTUSDT       | Crypto        | Crypto                    | Layer 0
+ 16  | DYDX-USD      | DYDXUSDT      | Crypto        | Crypto                    | DeFi
+ 17  | SHIB-USD      | SHIBUSDT      | Crypto        | Crypto                    | Meme
+ 18  | SOL-USD       | SOLUSDT       | Crypto        | Crypto                    | Layer 1
+ 19  | UNI-USD       | UNIUSDT       | Crypto        | Crypto                    | DeFi
+ 20  | MASK-USD      | MASKUSDT      | Crypto        | Crypto                    | Social
+ 21  | OP-USD        | OPUSDT        | Crypto        | Crypto                    | Layer 2
+ 22  | CHZ-USD       | CHZUSDT       | Crypto        | Crypto                    | Sports / Fan Token
+ 23  | TWT-USD       | TWTUSDT       | Crypto        | Crypto                    | Wallet
+
+═══════════════════════════════════════════════════════════════════════════════
+  US INDICES (4)
+═══════════════════════════════════════════════════════════════════════════════
+ 24  | ^GSPC         | US500         | US Index      | Index                     | S&P 500
+ 25  | ^NDX          | US100         | US Index      | Index                     | Nasdaq 100
+ 26  | ^DJI          | US30          | US Index      | Index                     | Dow Jones 30
+ 27  | ^RUT          | RUSSELL       | US Index      | Index                     | Russell 2000
+
+═══════════════════════════════════════════════════════════════════════════════
+  EUROPEAN INDICES (8)
+═══════════════════════════════════════════════════════════════════════════════
+ 28  | ^IBEX         | SPAIN35       | EU Index      | Index                     | IBEX 35
+ 29  | ^FTSE         | UK100         | EU Index      | Index                     | FTSE 100
+ 30  | ^AEX          | NETH25        | EU Index      | Index                     | AEX 25
+ 31  | FTSEMIB.MI    | IT40          | EU Index      | Index                     | FTSE MIB 40
+ 32  | ^STOXX50E     | EU50EUR       | EU Index      | Index                     | Euro Stoxx 50
+ 33  | ^GDAXI        | DAX           | EU Index      | Index                     | DAX 40
+ 34  | ^FCHI         | FRA40         | EU Index      | Index                     | CAC 40
+ 35  | ^SSMI         | SW20          | EU Index      | Index                     | SMI 20
+
+═══════════════════════════════════════════════════════════════════════════════
+  ASIAN INDICES (5)
+═══════════════════════════════════════════════════════════════════════════════
+ 36  | ^TWII         | NQTW          | Asia Index    | Index                     | Taiwan Weighted
+ 37  | ^N225         | NI225         | Asia Index    | Index                     | Nikkei 225
+ 38  | 000001.SS     | XINHUA        | Asia Index    | Index                     | Shanghai Composite
+ 39  | ^HSI          | HANGSENG      | Asia Index    | Index                     | Hang Seng
+ 40  | ^STI          | SG30SGD       | Asia Index    | Index                     | Straits Times
+
+═══════════════════════════════════════════════════════════════════════════════
+  SEMICONDUCTORS (20)
+═══════════════════════════════════════════════════════════════════════════════
+ 41  | ^SOX          | SOX           | US100         | Technology                | Semiconductor Index
+ 42  | ASML          | ASML          | US100         | Technology                | Semiconductor Equipment
+ 43  | LRCX          | LRCX          | US100         | Technology                | Semiconductor Equipment
+ 44  | AMAT          | AMAT          | US100         | Technology                | Semiconductor Equipment
+ 45  | TSM           | TSM           | NYSE          | Technology                | Semiconductors
+ 46  | MU            | MU            | US100         | Technology                | Semiconductors
+ 47  | QCOM          | QCOM          | US100         | Technology                | Semiconductors
+ 48  | MRVL          | MRVL          | US100         | Technology                | Semiconductors
+ 49  | TXN           | TXN           | US30/US100    | Technology                | Semiconductors
+ 50  | INTC          | INTC          | US100         | Technology                | Semiconductors
+ 51  | AMD           | AMD           | US100         | Technology                | Semiconductors
+ 52  | AVGO          | AVGO          | US100         | Technology                | Semiconductors
+ 53  | NXPI          | NXPI          | US100         | Technology                | Semiconductors
+ 54  | ADI           | ADI           | US100         | Technology                | Semiconductors
+ 55  | KLAC          | KLAC          | US100         | Technology                | Semiconductor Equipment
+ 56  | MCHP          | MCHP          | US100         | Technology                | Semiconductors
+ 57  | SWKS          | SWKS          | US100         | Technology                | Semiconductors
+ 58  | CDNS          | CDNS          | US100         | Technology                | EDA Software
+ 59  | SNPS          | SNPS          | US100         | Technology                | EDA Software
+ 60  | ON            | ON            | US100         | Technology                | Semiconductors
+
+═══════════════════════════════════════════════════════════════════════════════
+  TECH STOCKS (11)
+═══════════════════════════════════════════════════════════════════════════════
+ 61  | TSLA          | TSLA          | US100         | Consumer Cyclical         | Auto Manufacturers
+ 62  | PLTR          | PLTR          | US100         | Technology                | Software - Infrastructure
+ 63  | AMZN          | AMZN          | US30/US100    | Consumer Cyclical         | Internet Retail
+ 64  | ARM           | ARM           | US100         | Technology                | Semiconductors
+ 65  | META          | META          | US100         | Communication Services    | Internet Content
+ 66  | NVDA          | NVDA          | US30/US100    | Technology                | Semiconductors
+ 67  | APO           | APOLLO        | NYSE          | Financial Services        | Asset Management
+ 68  | ORCL          | ORCL          | NYSE          | Technology                | Software - Infrastructure
+ 69  | IBM           | IBM           | US30          | Technology                | IT Services
+ 70  | GOOGL         | GOOGL         | US100         | Communication Services    | Internet Content
+ 71  | MSFT          | MSFT          | US30/US100    | Technology                | Software - Infrastructure
+
+═══════════════════════════════════════════════════════════════════════════════
+  US30 DOW JONES — NEW (18)
+═══════════════════════════════════════════════════════════════════════════════
+ 72  | AAPL          | AAPL          | US30/US100    | Technology                | Consumer Electronics
+ 73  | AXP           | AXP           | US30          | Financial Services        | Credit Services
+ 74  | BA            | BA            | US30          | Industrials               | Aerospace & Defense
+ 75  | CAT           | CAT           | US30          | Industrials               | Heavy Construction
+ 76  | CRM           | CRM           | US30          | Technology                | Software - Application
+ 77  | CSCO          | CSCO          | US30/US100    | Technology                | Communication Equipment
+ 78  | CVX           | CVX           | US30          | Energy                    | Oil & Gas Integrated
+ 79  | DIS           | DIS           | US30          | Communication Services    | Entertainment
+ 80  | DOW           | DOW           | US30          | Basic Materials           | Chemicals
+ 81  | GS            | GS            | US30          | Financial Services        | Capital Markets
+ 82  | HD            | HD            | US30          | Consumer Cyclical         | Home Improvement Retail
+ 83  | HON           | HON           | US30/US100    | Industrials               | Conglomerates
+ 84  | JNJ           | JNJ           | US30          | Healthcare                | Drug Manufacturers
+ 85  | JPM           | JPM           | US30          | Financial Services        | Banks
+ 86  | KO            | KO            | US30          | Consumer Defensive        | Beverages
+ 87  | MCD           | MCD           | US30          | Consumer Cyclical         | Restaurants
+ 88  | MMM           | MMM           | US30          | Industrials               | Conglomerates
+ 89  | MRK           | MRK           | US30          | Healthcare                | Drug Manufacturers
+ 90  | NKE           | NKE           | US30          | Consumer Cyclical         | Footwear
+ 91  | PCAR          | PCAR          | US30/US100    | Industrials               | Heavy Construction
+ 92  | PG            | PG            | US30          | Consumer Defensive        | Household Products
+ 93  | TRV           | TRV           | US30          | Financial Services        | Insurance
+ 94  | UNH           | UNH           | US30          | Healthcare                | Healthcare Plans
+ 95  | V             | V             | US30          | Financial Services        | Credit Services
+ 96  | VZ            | VZ            | US30          | Communication Services    | Telecom
+ 97  | WMT           | WMT           | US30/US100    | Consumer Defensive        | Discount Stores
+
+═══════════════════════════════════════════════════════════════════════════════
+  US100 NASDAQ — NEW (49)
+═══════════════════════════════════════════════════════════════════════════════
+ 98  | ADBE          | ADBE          | US100         | Technology                | Software - Application
+ 99  | ADP           | ADP           | US100         | Technology                | Software - Application
+100  | ADSK          | ADSK          | US100         | Technology                | Software - Application
+101  | AEP           | AEP           | US100         | Utilities                 | Utilities
+102  | ALGN          | ALGN          | US100         | Healthcare                | Medical Instruments
+103  | AMGN          | AMGN          | US30/US100    | Healthcare                | Drug Manufacturers
+104  | BIDU          | BIDU          | US100         | Communication Services    | Internet Content
+105  | BIIB          | BIIB          | US100         | Healthcare                | Drug Manufacturers
+106  | BKNG          | BKNG          | US100         | Consumer Cyclical         | Travel Services
+107  | CHKP          | CHKP          | US100         | Technology                | Software - Infrastructure
+108  | CHTR          | CHTR          | US100         | Communication Services    | Telecom
+109  | CMCSA         | CMCSA         | US100         | Communication Services    | Telecom
+110  | COST          | COST          | US100         | Consumer Defensive        | Discount Stores
+111  | CPRT          | CPRT          | US100         | Industrials               | Business Services
+112  | CRWD          | CRWD          | US100         | Technology                | Software - Infrastructure
+113  | CSX           | CSX           | US100         | Industrials               | Railroads
+114  | CTAS          | CTAS          | US100         | Industrials               | Business Services
+115  | CTSH          | CTSH          | US100         | Technology                | IT Services
+116  | DLTR          | DLTR          | US100         | Consumer Defensive        | Discount Stores
+117  | DOCU          | DOCU          | US100         | Technology                | Software - Application
+118  | DXCM          | DXCM          | US100         | Healthcare                | Medical Devices
+119  | EA            | EA            | US100         | Communication Services    | Gaming
+120  | EBAY          | EBAY          | US100         | Consumer Cyclical         | Internet Retail
+121  | GOOG          | GOOG          | US100         | Communication Services    | Internet Content
+122  | IDXX          | IDXX          | US100         | Healthcare                | Diagnostics
+123  | ILMN          | ILMN          | US100         | Healthcare                | Diagnostics
+124  | INCY          | INCY          | US100         | Healthcare                | Biotechnology
+125  | INTU          | INTU          | US100         | Technology                | Software - Application
+126  | ISRG          | ISRG          | US100         | Healthcare                | Medical Instruments
+127  | JD            | JD            | US100         | Consumer Cyclical         | Internet Retail
+128  | KDP           | KDP           | US100         | Consumer Defensive        | Beverages
+129  | KHC           | KHC           | US100         | Consumer Defensive        | Packaged Foods
+130  | LULU          | LULU          | US100         | Consumer Cyclical         | Apparel Retail
+131  | MAR           | MAR           | US100         | Consumer Cyclical         | Lodging
+132  | MDLZ          | MDLZ          | US100         | Consumer Defensive        | Confectioners
+133  | MELI          | MELI          | US100         | Consumer Cyclical         | Internet Retail
+134  | MNST          | MNST          | US100         | Consumer Defensive        | Beverages
+135  | MRNA          | MRNA          | US100         | Healthcare                | Biotechnology
+136  | ORLY          | ORLY          | US100         | Consumer Cyclical         | Auto Parts
+137  | PAYX          | PAYX          | US100         | Technology                | Software - Application
+138  | PDD           | PDD           | US100         | Consumer Cyclical         | Internet Retail
+139  | PEP           | PEP           | US100         | Consumer Defensive        | Beverages
+140  | PTON          | PTON          | US100         | Consumer Cyclical         | Leisure
+141  | PYPL          | PYPL          | US100         | Financial Services        | Credit Services
+142  | REGN          | REGN          | US100         | Healthcare                | Biotechnology
+143  | ROST          | ROST          | US100         | Consumer Cyclical         | Apparel Retail
+144  | SBUX          | SBUX          | US100         | Consumer Cyclical         | Restaurants
+145  | SIRI          | SIRI          | US100         | Communication Services    | Entertainment
+146  | SOFI          | SOFI          | US100         | Financial Services        | Credit Services
+147  | TCOM          | TCOM          | US100         | Consumer Cyclical         | Travel Services
+148  | TEAM          | TEAM          | US100         | Technology                | Software - Application
+149  | TMUS          | TMUS          | US100         | Communication Services    | Telecom
+150  | UBER          | UBER          | US500         | Technology                | Software - Application
+151  | VRSK          | VRSK          | US100         | Industrials               | Consulting
+152  | VRSN          | VRSN          | US100         | Technology                | Software - Infrastructure
+153  | VRTX          | VRTX          | US100         | Healthcare                | Biotechnology
+154  | WDAY          | WDAY          | US100         | Technology                | Software - Application
+155  | XEL           | XEL           | US100         | Utilities                 | Utilities
+
+═══════════════════════════════════════════════════════════════════════════════
+  US500 OTHER — NEW (1)
+═══════════════════════════════════════════════════════════════════════════════
+156  | BUD           | BUD           | US500         | Consumer Defensive        | Beverages - Brewers
+
+═══════════════════════════════════════════════════════════════════════════════
+  GER40 DAX — NEW (37)
+═══════════════════════════════════════════════════════════════════════════════
+157  | ADS.DE        | ADS           | GER40         | Consumer Cyclical         | Footwear
+158  | ALV.DE        | ALV           | GER40         | Financial Services        | Insurance
+159  | BAS.DE        | BAS           | GER40         | Basic Materials           | Chemicals
+160  | BAYN.DE       | BAYN          | GER40         | Healthcare                | Drug Manufacturers
+161  | BMW.DE        | BMW           | GER40         | Consumer Cyclical         | Auto Manufacturers
+162  | CON.DE        | CON           | GER40         | Consumer Cyclical         | Auto Parts
+163  | 1COV.DE       | 1COV          | GER40         | Basic Materials           | Chemicals
+164  | DHER.DE       | DHER          | GER40         | Consumer Cyclical         | Internet Retail
+165  | DTE.DE        | DTE_DE        | GER40         | Communication Services    | Telecom
+166  | DBK.DE        | DBK           | GER40         | Financial Services        | Banks
+167  | EOAN.DE       | EOAN          | GER40         | Utilities                 | Utilities
+168  | FRE.DE        | FRE           | GER40         | Healthcare                | Medical Care
+169  | FME.DE        | FME           | GER40         | Healthcare                | Medical Care
+170  | HEI.DE        | HEI           | GER40         | Basic Materials           | Building Materials
+171  | HEN3.DE       | HEN3          | GER40         | Consumer Defensive        | Household Products
+172  | IFX.DE        | IFX           | GER40         | Technology                | Semiconductors
+173  | MBG.DE        | MBG           | GER40         | Consumer Cyclical         | Auto Manufacturers
+174  | MRK.DE        | MRK_DE        | GER40         | Healthcare                | Drug Manufacturers
+175  | MUV2.DE       | MUV2          | GER40         | Financial Services        | Insurance
+176  | PUM.DE        | PUM           | GER40         | Consumer Cyclical         | Footwear
+177  | QIA.DE        | QIA           | GER40         | Healthcare                | Diagnostics
+178  | RWE.DE        | RWE           | GER40         | Utilities                 | Utilities
+179  | SAP.DE        | SAP_DE        | GER40         | Technology                | Software
+180  | SIE.DE        | SIE           | GER40         | Industrials               | Industrial Machinery
+181  | SHL.DE        | SHL           | GER40         | Healthcare                | Medical Devices
+182  | SY1.DE        | SY1           | GER40         | Basic Materials           | Specialty Chemicals
+183  | VOW3.DE       | VOW3          | GER40         | Consumer Cyclical         | Auto Manufacturers
+184  | VNA.DE        | VNA           | GER40         | Real Estate               | Real Estate
+185  | ZAL.DE        | ZAL           | GER40         | Consumer Cyclical         | Internet Retail
+186  | BEI.DE        | BEI           | GER40         | Consumer Defensive        | Household Products
+187  | BNR.DE        | BNR           | GER40         | Basic Materials           | Specialty Chemicals
+188  | ENR.DE        | ENR           | GER40         | Industrials               | Industrial Machinery
+189  | HFG.DE        | HFG           | GER40         | Consumer Cyclical         | Restaurants
+190  | LEG.DE        | LEG_DE        | GER40         | Real Estate               | Real Estate
+191  | RHM.DE        | RHM           | GER40         | Industrials               | Aerospace & Defense
+192  | SRT3.DE       | SRT3          | GER40         | Healthcare                | Medical Instruments
+193  | WCH.DE        | WCH           | GER40         | Basic Materials           | Specialty Chemicals
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — USD PAIRS (8)
+═══════════════════════════════════════════════════════════════════════════════
+194  | USDCHF=X      | USDCHF        | Forex         | Currency                  | USD/CHF
+195  | USDJPY=X      | USDJPY        | Forex         | Currency                  | USD/JPY
+196  | USDPLN=X      | USDPLN        | Forex         | Currency                  | USD/PLN
+197  | USDZAR=X      | USDZAR        | Forex         | Currency                  | USD/ZAR
+198  | USDCAD=X      | USDCAD        | Forex         | Currency                  | USD/CAD
+199  | NZDUSD=X      | NZDUSD        | Forex         | Currency                  | NZD/USD
+200  | AUDUSD=X      | USDAUD        | Forex         | Currency                  | AUD/USD
+201  | USDMXN=X      | USDMXN        | Forex         | Currency                  | USD/MXN
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — EUR PAIRS (10)
+═══════════════════════════════════════════════════════════════════════════════
+202  | EURJPY=X      | EURJPY        | Forex         | Currency                  | EUR/JPY
+203  | EURCHF=X      | EURCHF        | Forex         | Currency                  | EUR/CHF
+204  | EURGBP=X      | EURGBP        | Forex         | Currency                  | EUR/GBP
+205  | EURSEK=X      | EURSEK        | Forex         | Currency                  | EUR/SEK
+206  | EURZAR=X      | EURZAR        | Forex         | Currency                  | EUR/ZAR
+207  | EURCAD=X      | EURCAD        | Forex         | Currency                  | EUR/CAD
+208  | EURNZD=X      | EURNZD        | Forex         | Currency                  | EUR/NZD
+209  | EURUSD=X      | EURUSD        | Forex         | Currency                  | EUR/USD
+210  | EURAUD=X      | EURAUD        | Forex         | Currency                  | EUR/AUD
+211  | EURMXN=X      | EURMXN        | Forex         | Currency                  | EUR/MXN
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — GBP PAIRS (9)
+═══════════════════════════════════════════════════════════════════════════════
+212  | GBPJPY=X      | GBPJPY        | Forex         | Currency                  | GBP/JPY
+213  | GBPCHF=X      | GBPCHF        | Forex         | Currency                  | GBP/CHF
+214  | GBPSGD=X      | GBPSGD        | Forex         | Currency                  | GBP/SGD
+215  | GBPZAR=X      | GBPZAR        | Forex         | Currency                  | GBP/ZAR
+216  | GBPCAD=X      | GBPCAD        | Forex         | Currency                  | GBP/CAD
+217  | GBPNZD=X      | GBPNZD        | Forex         | Currency                  | GBP/NZD
+218  | GBPUSD=X      | GBPUSD        | Forex         | Currency                  | GBP/USD
+219  | GBPMXN=X      | GBPMXN        | Forex         | Currency                  | GBP/MXN
+220  | GBPAUD=X      | GBPAUD        | Forex         | Currency                  | GBP/AUD
+
+═══════════════════════════════════════════════════════════════════════════════
+  SEMICONDUCTORS — NEW ADDITIONS (9)
+═══════════════════════════════════════════════════════════════════════════════
+221  | SMCI          | SMCI          | US100         | US100                     | AI Server Infrastructure
+222  | MPWR          | MPWR          | US100         | US100                     | Analog / Power
+223  | TER           | TER           | US100         | US100                     | Chip Testing Equipment
+224  | ENTG          | ENTG          | US100         | US100                     | Semiconductor Materials
+225  | QRVO          | QRVO          | US100         | US100                     | RF Semiconductors
+226  | WOLF          | WOLF          | NYSE          | NYSE                      | Silicon Carbide / Power
+227  | STM           | STM           | NYSE          | NYSE                      | Semiconductors
+228  | CRUS          | CRUS          | US100         | US100                     | Audio Semiconductors
+229  | AMBA          | AMBA          | US100         | US100                     | AI Vision Chips
+
+═══════════════════════════════════════════════════════════════════════════════
+  TECH / AI PLATFORM — NEW ADDITIONS (12)
+═══════════════════════════════════════════════════════════════════════════════
+230  | APP           | APP           | US100         | US100                     | AI Ad-Tech
+231  | ANET          | ANET          | NYSE          | NYSE                      | AI Datacenter Networking
+232  | CRWD          | CRWD          | US100         | US100                     | AI Cybersecurity
+233  | PANW          | PANW          | US100         | US100                     | Cybersecurity Platform
+234  | NOW           | NOW           | NYSE          | NYSE                      | AI Enterprise Automation
+235  | SNOW          | SNOW          | NYSE          | NYSE                      | AI Data Cloud
+236  | DDOG          | DDOG          | US100         | US100                     | AI Observability
+237  | NET           | NET           | NYSE          | NYSE                      | AI Networking / Security
+238  | DELL          | DELL          | NYSE          | NYSE                      | AI Server Infrastructure
+239  | NFLX          | NFLX          | US100         | US100                     | Streaming / AI
+240  | INTU          | INTU          | US100         | US100                     | AI Financial Software
+241  | ZS            | ZS            | US100         | US100                     | Cloud Security
+
+═══════════════════════════════════════════════════════════════════════════════
+  SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+  Commodities ............   3
+  Crypto .................  20
+  US Indices .............   4
+  European Indices .......   8
+  Asian Indices ..........   5
+  Semiconductors .........  29  (+9 new: SMCI MPWR TER ENTG QRVO WOLF STM CRUS AMBA)
+  Tech Stocks ............  23  (+12 new: APP ANET CRWD PANW NOW SNOW DDOG NET DELL NFLX INTU ZS)
+  US30 Dow Jones .........  26
+  US100 Nasdaq ...........  58
+  US500 Other ............   1
+  GER40 DAX ..............  37
+  Forex USD ..............   8
+  Forex EUR ..............  10
+  Forex GBP ..............   9
+  ─────────────────────────────
+  TOTAL .................. 241
+═══════════════════════════════════════════════════════════════════════════════

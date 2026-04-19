@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwingPulse 2.0 — Design Concept</title>
+<style>
+/* ── Reset & Base ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:#050a14;
+  font-family:-apple-system,BlinkMacSystemFont,'Inter','SF Pro Display',sans-serif;
+  color:#e2eaff;
+  min-height:100vh;
+}
+
+/* ── Design tokens ── */
+:root{
+  --bg0:#050a14;
+  --bg1:#0b1120;
+  --bg2:#0f1729;
+  --bg3:#141e35;
+  --bg4:#1a2641;
+  --border:rgba(255,255,255,.07);
+  --border2:rgba(255,255,255,.12);
+  --buy:#00d97e;
+  --buy-soft:rgba(0,217,126,.1);
+  --sell:#ff4d6d;
+  --sell-soft:rgba(255,77,109,.1);
+  --accent:#4f9eff;
+  --accent-soft:rgba(79,158,255,.12);
+  --watch:#ffb547;
+  --t1:#e2eaff;
+  --t2:#8899bb;
+  --t3:#4a5878;
+  --r:16px;
+  --rs:10px;
+}
+
+/* ── Layout: 3 phone screens side by side ── */
+.stage{
+  display:flex;
+  gap:32px;
+  padding:40px 40px 80px;
+  justify-content:center;
+  align-items:flex-start;
+  min-width:1260px;
+}
+.phone{
+  width:390px;
+  min-height:844px;
+  background:var(--bg1);
+  border-radius:44px;
+  overflow:hidden;
+  position:relative;
+  box-shadow:0 40px 100px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08);
+  flex-shrink:0;
+}
+.phone-label{
+  text-align:center;
+  font-size:.72rem;
+  font-weight:700;
+  color:var(--t3);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin-bottom:14px;
+  margin-top:28px;
+}
+
+/* ── Status bar ── */
+.status-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px 0;
+  font-size:.72rem;font-weight:600;color:var(--t2);
+}
+.status-bar .time{font-size:.85rem;font-weight:700;color:var(--t1);}
+.status-icons{display:flex;align-items:center;gap:5px;}
+
+/* ── Top bar ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px 0;
+}
+.topbar-brand{
+  display:flex;flex-direction:column;
+}
+.brand-name{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color:var(--t1);}
+.brand-date{font-size:.62rem;color:var(--t3);margin-top:1px;}
+.topbar-actions{display:flex;gap:8px;}
+.icon-btn{
+  width:36px;height:36px;border-radius:12px;
+  background:var(--bg3);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--t2);
+}
+
+/* ── Sentiment Hero ── */
+.sentiment-hero{
+  margin:18px 16px 0;
+  background:linear-gradient(135deg,#0d1f3c 0%,#111c35 100%);
+  border:1px solid var(--border2);
+  border-radius:24px;
+  padding:22px 20px 18px;
+  position:relative;
+  overflow:hidden;
+}
+.sentiment-hero::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:180px;height:180px;border-radius:50%;
+  background:radial-gradient(circle,rgba(79,158,255,.08) 0%,transparent 70%);
+}
+.sh-top{display:flex;align-items:flex-start;justify-content:space-between;}
+.sh-label{font-size:.62rem;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+.sh-tf{
+  font-size:.6rem;font-weight:700;padding:3px 9px;
+  border-radius:20px;border:1.5px solid var(--accent);color:var(--accent);
+  letter-spacing:.06em;
+}
+.sh-main{display:flex;align-items:center;gap:16px;margin-top:12px;}
+.sh-radial{position:relative;width:88px;height:88px;flex-shrink:0;}
+.sh-radial svg{transform:rotate(-90deg);}
+.sh-radial .bg-ring{fill:none;stroke:rgba(255,255,255,.06);stroke-width:8;}
+.sh-radial .fg-ring{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1s ease;}
+.sh-score-wrap{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.sh-score{font-size:1.5rem;font-weight:900;line-height:1;letter-spacing:-.03em;}
+.sh-score-lbl{font-size:.5rem;font-weight:700;color:var(--t3);margin-top:1px;text-transform:uppercase;}
+.sh-stats{flex:1;}
+.sh-stat-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.sh-stat-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sh-stat-name{font-size:.68rem;color:var(--t2);flex:1;}
+.sh-stat-val{font-size:.78rem;font-weight:700;}
+.sh-stat-bar-wrap{height:3px;background:rgba(255,255,255,.07);border-radius:4px;margin-top:14px;overflow:hidden;}
+.sh-stat-bar-inner{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--sell),var(--watch),var(--buy));}
+
+/* ── Opportunities strip ── */
+.section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 20px 10px;
+}
+.section-title{font-size:.78rem;font-weight:700;color:var(--t1);}
+.section-action{font-size:.68rem;font-weight:600;color:var(--accent);}
+
+/* ── Opportunity cards (horizontal scroll) ── */
+.opp-scroll{
+  display:flex;gap:12px;
+  padding:0 20px 4px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.opp-scroll::-webkit-scrollbar{display:none;}
+.opp-card{
+  flex-shrink:0;width:150px;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:18px;padding:14px;
+  cursor:pointer;
+  position:relative;overflow:hidden;
+  transition:transform .15s;
+}
+.opp-card:active{transform:scale(.97);}
+.opp-card.buy-card{border-color:rgba(0,217,126,.2);}
+.opp-card.sell-card{border-color:rgba(255,77,109,.2);}
+.opp-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  border-radius:18px 18px 0 0;
+}
+.opp-card.buy-card::before{background:var(--buy);}
+.opp-card.sell-card::before{background:var(--sell);}
+.opp-name{font-size:.82rem;font-weight:800;color:var(--t1);}
+.opp-group{font-size:.58rem;color:var(--t3);margin-top:1px;}
+.opp-sig{
+  display:inline-flex;align-items:center;
+  font-size:.6rem;font-weight:800;padding:2px 7px;
+  border-radius:6px;margin-top:8px;
+}
+.opp-sig.buy{background:var(--buy-soft);color:var(--buy);}
+.opp-sig.sell{background:var(--sell-soft);color:var(--sell);}
+.opp-price{font-size:.95rem;font-weight:800;margin-top:8px;font-variant-numeric:tabular-nums;}
+.opp-change{font-size:.65rem;font-weight:600;margin-top:2px;}
+.opp-bars{display:flex;gap:2px;margin-top:10px;align-items:flex-end;height:20px;}
+.opp-bar{width:8px;border-radius:3px;background:rgba(255,255,255,.08);}
+.opp-bar.lit-buy{background:var(--buy);opacity:.7;}
+.opp-bar.lit-sell{background:var(--sell);opacity:.7;}
+
+/* ── Stat tiles ── */
+.stat-tiles{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:10px;margin:4px 16px 0;
+}
+.stat-tile{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:16px;padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.tile-icon{
+  width:36px;height:36px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:.9rem;
+}
+.tile-icon.buy{background:var(--buy-soft);}
+.tile-icon.sell{background:var(--sell-soft);}
+.tile-icon.vol{background:rgba(167,139,250,.1);}
+.tile-icon.watch{background:rgba(255,181,71,.1);}
+.tile-text{}
+.tile-val{font-size:1.4rem;font-weight:900;letter-spacing:-.03em;line-height:1;}
+.tile-lbl{font-size:.58rem;font-weight:600;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em;}
+
+/* ── Heatmap preview ── */
+.heatmap-wrap{margin:16px 16px 0;}
+.heatmap-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.heatmap-title{font-size:.78rem;font-weight:700;}
+.heatmap-filters{display:flex;gap:6px;}
+.hm-filter{
+  font-size:.6rem;font-weight:600;padding:3px 10px;
+  border-radius:20px;background:var(--bg4);border:1px solid var(--border);color:var(--t3);
+  cursor:pointer;
+}
+.hm-filter.active{background:var(--accent-soft);color:var(--accent);border-color:rgba(79,158,255,.3);}
+.heatmap-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:5px;
+}
+.hm-cell{
+  border-radius:12px;padding:8px 6px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  cursor:pointer;position:relative;transition:transform .1s;min-height:52px;
+  justify-content:center;
+}
+.hm-cell:active{transform:scale(.95);}
+.hm-cell.buy{background:rgba(0,217,126,.12);border:1px solid rgba(0,217,126,.2);}
+.hm-cell.sell{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.18);}
+.hm-cell.neutral{background:var(--bg3);border:1px solid var(--border);}
+.hm-cell.watch{background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.2);}
+.hm-cell-name{font-size:.55rem;font-weight:700;color:var(--t1);text-align:center;}
+.hm-cell-sig{
+  font-size:.48rem;font-weight:800;padding:1px 5px;border-radius:4px;
+}
+.hm-cell.buy .hm-cell-sig{background:var(--buy-soft);color:var(--buy);}
+.hm-cell.sell .hm-cell-sig{background:var(--sell-soft);color:var(--sell);}
+.hm-cell.watch .hm-cell-sig{background:rgba(255,181,71,.15);color:var(--watch);}
+.hm-3tf{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--accent);}
+
+/* ── Bottom Nav ── */
+.bottom-nav{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(10,16,32,.9);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);
+  padding:10px 8px 28px;
+  display:flex;align-items:center;justify-content:space-around;
+}
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:6px 14px;border-radius:14px;cursor:pointer;
+  transition:background .15s;flex:1;
+  position:relative;
+}
+.nav-item.active{background:var(--accent-soft);}
+.nav-item svg{opacity:.45;}
+.nav-item.active svg{opacity:1;color:var(--accent);}
+.nav-lbl{font-size:.52rem;font-weight:600;color:var(--t3);letter-spacing:.04em;}
+.nav-item.active .nav-lbl{color:var(--accent);}
+.nav-badge{
+  position:absolute;top:4px;right:14px;
+  background:var(--sell);color:#fff;
+  font-size:.45rem;font-weight:800;
+  width:14px;height:14px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* ══════════════════════════════════════════
+   SCREEN 2: Signals Tab
+══════════════════════════════════════════ */
+.filter-chips-row{
+  display:flex;gap:6px;padding:14px 16px 0;overflow-x:auto;scrollbar-width:none;
+}
+.filter-chips-row::-webkit-scrollbar{display:none;}
+.fchip{
+  flex-shrink:0;font-size:.65rem;font-weight:700;
+  padding:6px 14px;border-radius:20px;white-space:nowrap;cursor:pointer;
+  border:1.5px solid var(--border);color:var(--t2);background:transparent;
+  transition:all .15s;
+}
+.fchip.active.buy{background:var(--buy-soft);color:var(--buy);border-color:rgba(0,217,126,.3);}
+.fchip.active.sell{background:var(--sell-soft);color:var(--sell);border-color:rgba(255,77,109,.3);}
+.fchip.active.all{background:var(--accent-soft);color:var(--accent);border-color:rgba(79,158,255,.3);}
+
+.sig-list{padding:10px 16px;display:flex;flex-direction:column;gap:8px;}
+
+.sig-card{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:16px;padding:0;overflow:hidden;cursor:pointer;
+  transition:transform .1s;
+}
+.sig-card:active{transform:scale(.98);}
+.sig-card-strip{
+  height:3px;width:100%;
+}
+.sig-card-strip.buy{background:linear-gradient(90deg,var(--buy),rgba(0,217,126,.3));}
+.sig-card-strip.sell{background:linear-gradient(90deg,var(--sell),rgba(255,77,109,.3));}
+.sig-card-body{padding:12px 14px;}
+.sig-card-row1{display:flex;align-items:center;justify-content:space-between;}
+.sig-card-name{font-size:.92rem;font-weight:800;color:var(--t1);}
+.sig-card-price{font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.sig-card-row2{display:flex;align-items:center;gap:6px;margin-top:5px;}
+.sig-card-status{font-size:.65rem;color:var(--t2);flex:1;}
+.sig-badge{
+  font-size:.58rem;font-weight:800;padding:2px 7px;border-radius:6px;
+}
+.sig-badge.p1{background:rgba(0,217,126,.15);color:var(--buy);}
+.sig-badge.p2{background:rgba(0,217,126,.1);color:var(--buy);}
+.sig-badge.p3{background:rgba(255,181,71,.1);color:var(--watch);}
+.sig-badge.p4{background:rgba(255,77,109,.1);color:var(--sell);}
+.sig-badge.conf-high{background:rgba(79,158,255,.12);color:var(--accent);}
+.sig-badge.align{background:rgba(255,255,255,.05);color:var(--t2);}
+.sig-badge.age-fresh{background:rgba(0,217,126,.1);color:var(--buy);}
+.sig-badge.age-old{background:rgba(255,255,255,.04);color:var(--t3);}
+.sig-card-row3{
+  display:flex;align-items:center;gap:6px;margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--border);
+}
+.sig-mini-bar{flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;}
+.sig-mini-bar-fill{height:100%;border-radius:3px;}
+.sig-ma-label{font-size:.58rem;color:var(--t3);}
+.sig-roc{font-size:.65rem;font-weight:700;}
+.sig-roc.pos{color:var(--buy);}
+.sig-roc.neg{color:var(--sell);}
+
+/* ── AI Analysis card in sig ── */
+.ai-strip{
+  margin:0 16px 8px;
+  background:linear-gradient(135deg,rgba(79,158,255,.06),rgba(139,92,246,.06));
+  border:1px solid rgba(79,158,255,.15);border-left:3px solid var(--accent);
+  border-radius:12px;padding:10px 12px;
+}
+.ai-strip-label{font-size:.55rem;font-weight:800;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;gap:5px;}
+.ai-strip-text{font-size:.72rem;line-height:1.55;color:var(--t2);}
+
+/* ══════════════════════════════════════════
+   SCREEN 3: Instrument Modal
+══════════════════════════════════════════ */
+.modal-screen{
+  background:var(--bg2);
+  height:844px;overflow-y:auto;scrollbar-width:none;
+}
+.modal-screen::-webkit-scrollbar{display:none;}
+
+.modal-handle{
+  width:36px;height:4px;background:rgba(255,255,255,.15);
+  border-radius:4px;margin:12px auto 0;
+}
+
+.modal-hero{
+  margin:16px;
+  background:linear-gradient(135deg,#0d1f3c,#0f1c38);
+  border:1px solid var(--border2);border-radius:22px;padding:18px;
+  position:relative;overflow:hidden;
+}
+.modal-hero::after{
+  content:'';position:absolute;bottom:-30px;right:-30px;
+  width:130px;height:130px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,217,126,.07),transparent 70%);
+}
+.mh-top{display:flex;align-items:flex-start;justify-content:space-between;}
+.mh-name{font-size:1.5rem;font-weight:900;letter-spacing:-.03em;}
+.mh-group{font-size:.65rem;color:var(--t3);margin-top:2px;}
+.mh-signal{
+  display:flex;flex-direction:column;align-items:flex-end;gap:4px;
+}
+.mh-sig-badge{
+  font-size:.75rem;font-weight:800;padding:4px 12px;
+  border-radius:10px;
+}
+.mh-sig-badge.buy{background:var(--buy);color:#000;}
+.mh-sig-badge.sell{background:var(--sell);color:#fff;}
+.mh-price{font-size:1.8rem;font-weight:900;letter-spacing:-.04em;margin-top:12px;font-variant-numeric:tabular-nums;}
+.mh-price-sub{display:flex;align-items:center;gap:8px;margin-top:3px;}
+.mh-change{font-size:.72rem;font-weight:700;}
+.mh-change.pos{color:var(--buy);}
+.mh-change.neg{color:var(--sell);}
+.mh-conf{font-size:.6rem;color:var(--t3);}
+
+/* Modal tabs */
+.modal-tabs{
+  display:flex;gap:0;margin:0 16px;
+  background:var(--bg3);border-radius:14px;padding:4px;
+}
+.mtab{
+  flex:1;text-align:center;padding:8px 4px;
+  font-size:.68rem;font-weight:700;color:var(--t3);
+  border-radius:10px;cursor:pointer;transition:all .15s;
+}
+.mtab.active{background:var(--bg4);color:var(--t1);}
+
+/* Modal content */
+.modal-content{padding:14px 16px 100px;}
+
+.modal-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;
+}
+.mg-tile{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:14px;padding:11px 12px;
+}
+.mg-label{font-size:.55rem;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;}
+.mg-val{font-size:.9rem;font-weight:800;margin-top:4px;line-height:1.1;}
+.mg-val.buy{color:var(--buy);}
+.mg-val.sell{color:var(--sell);}
+.mg-val.accent{color:var(--accent);}
+
+/* Ribbon gauge */
+.ribbon-section{margin-bottom:14px;}
+.ribbon-section-title{font-size:.7rem;font-weight:700;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.ribbon-track{height:8px;background:rgba(255,255,255,.06);border-radius:8px;overflow:hidden;}
+.ribbon-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--sell),var(--watch),var(--buy));}
+.ribbon-labels{display:flex;justify-content:space-between;margin-top:5px;font-size:.6rem;color:var(--t3);}
+
+/* MA pills */
+.ma-section-title{font-size:.7rem;font-weight:700;color:var(--t2);margin-bottom:8px;}
+.ma-pills{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;}
+.ma-pill{
+  font-size:.58rem;font-weight:600;padding:3px 8px;border-radius:7px;
+}
+.ma-pill.above{background:rgba(0,217,126,.1);color:var(--buy);}
+.ma-pill.below{background:rgba(255,77,109,.08);color:var(--sell);}
+
+/* Notes */
+.notes-section-new{margin-top:4px;}
+.notes-title{font-size:.7rem;font-weight:700;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;gap:5px;}
+.notes-ta{
+  width:100%;min-height:72px;background:var(--bg3);
+  border:1px solid var(--border2);border-radius:12px;
+  color:var(--t1);font-size:.78rem;font-family:inherit;
+  padding:10px 12px;resize:none;outline:none;
+  transition:border-color .2s;
+}
+.notes-ta:focus{border-color:rgba(79,158,255,.4);}
+.notes-ta::placeholder{color:var(--t3);}
+
+/* Similar setups */
+.similar-row{display:flex;gap:8px;margin-top:4px;}
+.sim-mini{
+  flex:1;background:var(--bg3);border:1px solid var(--border);
+  border-radius:14px;padding:10px;cursor:pointer;
+  transition:border-color .15s;
+}
+.sim-mini:hover{border-color:var(--border2);}
+.sim-mini-name{font-size:.75rem;font-weight:800;}
+.sim-mini-sig{font-size:.58rem;font-weight:700;margin-top:4px;}
+.sim-mini-sig.buy{color:var(--buy);}
+.sim-mini-sig.sell{color:var(--sell);}
+.sim-mini-price{font-size:.68rem;color:var(--t3);margin-top:3px;font-variant-numeric:tabular-nums;}
+
+/* ── Page title ── */
+.page-title{
+  text-align:center;padding:32px 20px 8px;
+  font-size:1.1rem;font-weight:800;letter-spacing:-.02em;
+}
+.page-sub{text-align:center;font-size:.78rem;color:var(--t3);padding-bottom:24px;}
+</style>
+</head>
+<body>
+
+<div class="page-title">SwingPulse 2.0 — Design Concept</div>
+<div class="page-sub">15 years of design thinking applied to a trading signal tool</div>
+
+<div class="stage">
+
+  <!-- ══════════════════════════════════════
+       SCREEN 1: Dashboard
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="phone-label">1 — Dashboard</div>
+    <div class="phone">
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span class="time">9:41</span>
+        <div class="status-icons">
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><rect x="0" y="4" width="3" height="8" rx="1"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1"/><rect x="9" y="1" width="3" height="11" rx="1"/><rect x="13.5" y="0" width="2.5" height="12" rx="1" opacity=".3"/></svg>
+          <svg width="14" height="12" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6C4 3 8 1 12 1s8 2 11 5"/><path d="M4 10c2-2 5-3 8-3s6 1 8 3"/><path d="M8 14c1-1 3-2 4-2s3 1 4 2"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>
+          <svg width="24" height="12" viewBox="0 0 24 12" fill="currentColor"><rect x="0" y="1" width="21" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="1" opacity=".5"/><rect x="1.5" y="2.5" width="14" height="7" rx="1" fill="var(--buy)"/></svg>
+        </div>
+      </div>
+
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-name">SwingPulse</span>
+          <span class="brand-date">Thu 17 Apr · 09:41</span>
+        </div>
+        <div class="topbar-actions">
+          <div class="icon-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <div class="icon-btn" style="background:var(--accent-soft);border-color:rgba(79,158,255,.3)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-5.96"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sentiment Hero -->
+      <div class="sentiment-hero">
+        <div class="sh-top">
+          <span class="sh-label">Market Pulse</span>
+          <span class="sh-tf">DAILY</span>
+        </div>
+        <div class="sh-main">
+          <!-- Circular gauge -->
+          <div class="sh-radial">
+            <svg width="88" height="88" viewBox="0 0 88 88">
+              <circle class="bg-ring" cx="44" cy="44" r="36"/>
+              <circle class="fg-ring" cx="44" cy="44" r="36"
+                stroke="url(#scoreGrad)"
+                stroke-dasharray="226"
+                stroke-dashoffset="68"
+                style="transform:rotate(-90deg);transform-origin:44px 44px"/>
+              <defs>
+                <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#4f9eff"/>
+                  <stop offset="100%" stop-color="#00d97e"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="sh-score-wrap">
+              <span class="sh-score" style="color:var(--buy)">62</span>
+              <span class="sh-score-lbl">Score</span>
+            </div>
+          </div>
+          <div class="sh-stats">
+            <div class="sh-stat-row">
+              <div class="sh-stat-dot" style="background:var(--buy)"></div>
+              <span class="sh-stat-name">Uptrend</span>
+              <span class="sh-stat-val" style="color:var(--buy)">34</span>
+            </div>
+            <div class="sh-stat-row">
+              <div class="sh-stat-dot" style="background:var(--sell)"></div>
+              <span class="sh-stat-name">Downtrend</span>
+              <span class="sh-stat-val" style="color:var(--sell)">11</span>
+            </div>
+            <div class="sh-stat-row">
+              <div class="sh-stat-dot" style="background:var(--t3)"></div>
+              <span class="sh-stat-name">Neutral</span>
+              <span class="sh-stat-val" style="color:var(--t2)">22</span>
+            </div>
+            <div class="sh-stat-bar-wrap">
+              <div class="sh-stat-bar-inner" style="width:60%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Today's Opportunities -->
+      <div class="section-header">
+        <span class="section-title">Today's Opportunities</span>
+        <span class="section-action">See all →</span>
+      </div>
+      <div class="opp-scroll">
+        <!-- Card 1 -->
+        <div class="opp-card buy-card">
+          <div class="opp-name">GOLD</div>
+          <div class="opp-group">Commodities</div>
+          <div class="opp-sig buy">P2 BUY</div>
+          <div class="opp-price" style="color:var(--buy)">3,321.40</div>
+          <div class="opp-change" style="color:var(--buy)">▲ +1.8% · Triple Bull</div>
+          <div class="opp-bars">
+            <div class="opp-bar" style="height:8px"></div>
+            <div class="opp-bar lit-buy" style="height:12px"></div>
+            <div class="opp-bar lit-buy" style="height:16px"></div>
+            <div class="opp-bar lit-buy" style="height:20px"></div>
+            <div class="opp-bar lit-buy" style="height:14px"></div>
+          </div>
+        </div>
+        <!-- Card 2 -->
+        <div class="opp-card sell-card">
+          <div class="opp-name">PLTR</div>
+          <div class="opp-group">NYSE</div>
+          <div class="opp-sig sell">P4 SELL</div>
+          <div class="opp-price" style="color:var(--sell)">112.45</div>
+          <div class="opp-change" style="color:var(--sell)">▼ −3.2% · Triple Bear</div>
+          <div class="opp-bars">
+            <div class="opp-bar lit-sell" style="height:20px"></div>
+            <div class="opp-bar lit-sell" style="height:16px"></div>
+            <div class="opp-bar lit-sell" style="height:12px"></div>
+            <div class="opp-bar" style="height:10px"></div>
+            <div class="opp-bar" style="height:8px"></div>
+          </div>
+        </div>
+        <!-- Card 3 -->
+        <div class="opp-card buy-card">
+          <div class="opp-name">EURUSD</div>
+          <div class="opp-group">Forex</div>
+          <div class="opp-sig buy">P3 BUY</div>
+          <div class="opp-price" style="color:var(--buy)">1.1342</div>
+          <div class="opp-change" style="color:var(--buy)">▲ +0.6% · Aligned</div>
+          <div class="opp-bars">
+            <div class="opp-bar" style="height:6px"></div>
+            <div class="opp-bar" style="height:10px"></div>
+            <div class="opp-bar lit-buy" style="height:14px"></div>
+            <div class="opp-bar lit-buy" style="height:18px"></div>
+            <div class="opp-bar lit-buy" style="height:20px"></div>
+          </div>
+        </div>
+        <!-- Card 4 -->
+        <div class="opp-card sell-card">
+          <div class="opp-name">ADBE</div>
+          <div class="opp-group">US100</div>
+          <div class="opp-sig sell">P4 SELL</div>
+          <div class="opp-price" style="color:var(--sell)">364.20</div>
+          <div class="opp-change" style="color:var(--sell)">▼ −2.1%</div>
+          <div class="opp-bars">
+            <div class="opp-bar lit-sell" style="height:18px"></div>
+            <div class="opp-bar lit-sell" style="height:14px"></div>
+            <div class="opp-bar" style="height:10px"></div>
+            <div class="opp-bar" style="height:7px"></div>
+            <div class="opp-bar" style="height:5px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat Tiles -->
+      <div class="stat-tiles">
+        <div class="stat-tile">
+          <div class="tile-icon buy">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--buy)" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </div>
+          <div class="tile-text">
+            <div class="tile-val" style="color:var(--buy)">11</div>
+            <div class="tile-lbl">Buy Signals</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="tile-icon sell">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sell)" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+          </div>
+          <div class="tile-text">
+            <div class="tile-val" style="color:var(--sell)">10</div>
+            <div class="tile-lbl">Sell Signals</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="tile-icon vol">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div class="tile-text">
+            <div class="tile-val" style="color:#a78bfa">8</div>
+            <div class="tile-lbl">Vol Spikes</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="tile-icon watch">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--watch)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div class="tile-text">
+            <div class="tile-val" style="color:var(--watch)">5</div>
+            <div class="tile-lbl">Alerts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mini Heatmap -->
+      <div class="heatmap-wrap">
+        <div class="heatmap-header">
+          <span class="heatmap-title">Market Heatmap</span>
+          <div class="heatmap-filters">
+            <div class="hm-filter active">All</div>
+            <div class="hm-filter">Forex</div>
+            <div class="hm-filter">Crypto</div>
+          </div>
+        </div>
+        <div class="heatmap-grid">
+          <div class="hm-cell buy"><div class="hm-3tf"></div><div class="hm-cell-name">GOLD</div><div class="hm-cell-sig">P2</div></div>
+          <div class="hm-cell sell"><div class="hm-cell-name">PLTR</div><div class="hm-cell-sig">P4</div></div>
+          <div class="hm-cell buy"><div class="hm-cell-name">EURUSD</div><div class="hm-cell-sig">P3</div></div>
+          <div class="hm-cell sell"><div class="hm-3tf"></div><div class="hm-cell-name">ADBE</div><div class="hm-cell-sig">P4</div></div>
+          <div class="hm-cell neutral"><div class="hm-cell-name">BTC</div></div>
+          <div class="hm-cell buy"><div class="hm-cell-name">GBPUSD</div><div class="hm-cell-sig">P2</div></div>
+          <div class="hm-cell neutral"><div class="hm-cell-name">SILVER</div></div>
+          <div class="hm-cell watch"><div class="hm-cell-name">US100</div><div class="hm-cell-sig">W</div></div>
+          <div class="hm-cell sell"><div class="hm-cell-name">BA</div><div class="hm-cell-sig">P2</div></div>
+          <div class="hm-cell neutral"><div class="hm-cell-name">ETH</div></div>
+        </div>
+      </div>
+
+      <!-- Bottom Nav -->
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span class="nav-lbl">Dashboard</span>
+        </div>
+        <div class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div class="nav-badge">21</div>
+          <span class="nav-lbl">Signals</span>
+        </div>
+        <div class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="nav-lbl">Scanner</span>
+        </div>
+        <div class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="nav-lbl">Watchlist</span>
+        </div>
+        <div class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          <span class="nav-lbl">Trends</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SCREEN 2: Signals Tab
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="phone-label">2 — Signals Tab</div>
+    <div class="phone">
+      <div class="status-bar">
+        <span class="time">9:41</span>
+        <div class="status-icons">
+          <svg width="24" height="12" viewBox="0 0 24 12" fill="currentColor"><rect x="0" y="1" width="21" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="1" opacity=".5"/><rect x="1.5" y="2.5" width="14" height="7" rx="1" fill="var(--buy)"/></svg>
+        </div>
+      </div>
+      <div class="topbar" style="padding-bottom:4px;">
+        <span class="brand-name">Signals</span>
+        <span style="font-size:.68rem;color:var(--t3);font-weight:600">21 active · Daily</span>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="filter-chips-row">
+        <div class="fchip active all">All</div>
+        <div class="fchip">Buy</div>
+        <div class="fchip">Sell</div>
+        <div class="fchip">Best</div>
+        <div class="fchip">P1</div>
+        <div class="fchip">P2</div>
+        <div class="fchip">Squeeze</div>
+      </div>
+
+      <div class="sig-list" style="padding-top:12px;">
+
+        <!-- GOLD signal card -->
+        <div class="sig-card">
+          <div class="sig-card-strip buy"></div>
+          <div class="sig-card-body">
+            <div class="sig-card-row1">
+              <span class="sig-card-name">GOLD</span>
+              <span class="sig-card-price" style="color:var(--buy)">3,321.40</span>
+            </div>
+            <div class="sig-card-row2">
+              <span class="sig-card-status">Bullish confirmation · 34d uptrend</span>
+            </div>
+            <div class="sig-card-row2" style="margin-top:6px;flex-wrap:wrap;gap:4px;">
+              <span class="sig-badge p2">P2</span>
+              <span class="sig-badge conf-high">HIGH</span>
+              <span class="sig-badge align">Triple Bull</span>
+              <span class="sig-badge age-fresh" style="background:rgba(0,217,126,.1);color:var(--buy)">Today</span>
+            </div>
+            <div class="sig-card-row3">
+              <span class="sig-ma-label">MA 94%</span>
+              <div class="sig-mini-bar">
+                <div class="sig-mini-bar-fill" style="width:94%;background:var(--buy);"></div>
+              </div>
+              <span class="sig-roc pos">ROC +4.2%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Analysis strip for GOLD -->
+        <div class="ai-strip">
+          <div class="ai-strip-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/></svg>
+            Analysis
+          </div>
+          <div class="ai-strip-text">P2 bullish MA re-entry pullback, 34-day uptrend — all three timeframes aligned bullish; volume spike confirms institutional participation. Hold while price stays above the MA ribbon; invalidated on a close below MA40.</div>
+        </div>
+
+        <!-- PLTR sell card -->
+        <div class="sig-card">
+          <div class="sig-card-strip sell"></div>
+          <div class="sig-card-body">
+            <div class="sig-card-row1">
+              <span class="sig-card-name">PLTR</span>
+              <span class="sig-card-price" style="color:var(--sell)">112.45</span>
+            </div>
+            <div class="sig-card-row2">
+              <span class="sig-card-status">Bearish confirmation · 7d downtrend</span>
+            </div>
+            <div class="sig-card-row2" style="margin-top:6px;flex-wrap:wrap;gap:4px;">
+              <span class="sig-badge p4">P4</span>
+              <span class="sig-badge align" style="background:rgba(255,77,109,.08);color:var(--sell);border:none">Triple Bear</span>
+              <span class="sig-badge age-old">3d ago</span>
+            </div>
+            <div class="sig-card-row3">
+              <span class="sig-ma-label">MA 8%</span>
+              <div class="sig-mini-bar">
+                <div class="sig-mini-bar-fill" style="width:8%;background:var(--sell);"></div>
+              </div>
+              <span class="sig-roc neg">ROC −3.2%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- EURUSD buy card -->
+        <div class="sig-card">
+          <div class="sig-card-strip buy"></div>
+          <div class="sig-card-body">
+            <div class="sig-card-row1">
+              <span class="sig-card-name">EURUSD</span>
+              <span class="sig-card-price" style="color:var(--buy)">1.1342</span>
+            </div>
+            <div class="sig-card-row2">
+              <span class="sig-card-status">Bullish confirmation · 12d uptrend</span>
+            </div>
+            <div class="sig-card-row2" style="margin-top:6px;flex-wrap:wrap;gap:4px;">
+              <span class="sig-badge p3">P3</span>
+              <span class="sig-badge align">Aligned Bull</span>
+              <span class="sig-badge age-fresh">1d ago</span>
+            </div>
+            <div class="sig-card-row3">
+              <span class="sig-ma-label">MA 81%</span>
+              <div class="sig-mini-bar">
+                <div class="sig-mini-bar-fill" style="width:81%;background:var(--buy);"></div>
+              </div>
+              <span class="sig-roc pos">ROC +0.6%</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Nav -->
+      <div class="bottom-nav">
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nav-lbl">Dashboard</span></div>
+        <div class="nav-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><div class="nav-badge">21</div><span class="nav-lbl">Signals</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span class="nav-lbl">Scanner</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span class="nav-lbl">Watchlist</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span class="nav-lbl">Trends</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SCREEN 3: Instrument Modal
+  ══════════════════════════════════════════ -->
+  <div>
+    <div class="phone-label">3 — Instrument Modal</div>
+    <div class="phone">
+      <div class="modal-screen">
+        <div class="modal-handle"></div>
+
+        <!-- Modal Hero -->
+        <div class="modal-hero">
+          <div class="mh-top">
+            <div>
+              <div class="mh-name">GOLD</div>
+              <div class="mh-group">Commodities · TVC</div>
+            </div>
+            <div class="mh-signal">
+              <div class="mh-sig-badge buy">BUY P2</div>
+              <div style="font-size:.58rem;color:var(--t3);margin-top:2px">High confidence</div>
+            </div>
+          </div>
+          <div class="mh-price">3,321.40</div>
+          <div class="mh-price-sub">
+            <span class="mh-change pos">▲ +58.20 (+1.8%)</span>
+            <span class="mh-conf">vs prev close</span>
+          </div>
+        </div>
+
+        <!-- Modal Tabs -->
+        <div class="modal-tabs">
+          <div class="mtab active">Overview</div>
+          <div class="mtab">Chart</div>
+          <div class="mtab">Analysis</div>
+          <div class="mtab">Notes</div>
+        </div>
+
+        <!-- Modal Content: Overview tab -->
+        <div class="modal-content">
+
+          <!-- Quick stats -->
+          <div class="modal-grid">
+            <div class="mg-tile">
+              <div class="mg-label">Trend</div>
+              <div class="mg-val buy">UPTREND</div>
+            </div>
+            <div class="mg-tile">
+              <div class="mg-label">Run Days</div>
+              <div class="mg-val">34d</div>
+            </div>
+            <div class="mg-tile">
+              <div class="mg-label">MA Order</div>
+              <div class="mg-val buy">15/16</div>
+            </div>
+            <div class="mg-tile">
+              <div class="mg-label">Alignment</div>
+              <div class="mg-val accent" style="font-size:.72rem">Triple Bull</div>
+            </div>
+            <div class="mg-tile">
+              <div class="mg-label">Momentum</div>
+              <div class="mg-val buy">+4.2%</div>
+            </div>
+            <div class="mg-tile">
+              <div class="mg-label">Vol Spike</div>
+              <div class="mg-val buy">YES</div>
+            </div>
+          </div>
+
+          <!-- Ribbon -->
+          <div class="ribbon-section">
+            <div class="ribbon-section-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/></svg>
+              MA Ribbon Position
+            </div>
+            <div class="ribbon-track">
+              <div class="ribbon-fill" style="width:94%"></div>
+            </div>
+            <div class="ribbon-labels">
+              <span>Below all MAs</span>
+              <span style="color:var(--buy);font-weight:700">94% above · spread 8.3%</span>
+              <span>Above all</span>
+            </div>
+          </div>
+
+          <!-- AI Analysis in modal -->
+          <div style="margin-bottom:14px">
+            <div class="ribbon-section-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/></svg>
+              <span style="color:var(--t2)">Analysis</span>
+              <span style="font-size:.55rem;background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:6px;margin-left:auto">Auto</span>
+            </div>
+            <div class="ai-strip" style="margin:0">
+              <div class="ai-strip-text">P2 bullish MA re-entry pullback, 34-day uptrend — all three timeframes aligned bullish; volume spike confirms institutional participation. Hold while price stays above the MA ribbon; invalidated on a close below MA40.</div>
+            </div>
+          </div>
+
+          <!-- MA Pills -->
+          <div class="ma-section-title">MA Values</div>
+          <div class="ma-pills">
+            <span class="ma-pill above">40: 3,201</span>
+            <span class="ma-pill above">50: 3,180</span>
+            <span class="ma-pill above">60: 3,155</span>
+            <span class="ma-pill above">80: 3,090</span>
+            <span class="ma-pill above">100: 3,020</span>
+            <span class="ma-pill above">120: 2,968</span>
+            <span class="ma-pill above">150: 2,890</span>
+            <span class="ma-pill above">200: 2,740</span>
+          </div>
+
+          <!-- Notes preview -->
+          <div class="notes-section-new">
+            <div class="notes-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              My Notes
+            </div>
+            <textarea class="notes-ta" placeholder="Add trade notes, entry ideas, levels to watch…"></textarea>
+          </div>
+
+          <!-- Similar setups -->
+          <div style="margin-top:16px">
+            <div class="ribbon-section-title">Similar Setups Now</div>
+            <div class="similar-row">
+              <div class="sim-mini">
+                <div class="sim-mini-name">SILVER</div>
+                <div class="sim-mini-sig buy">P2 BUY · Triple Bull</div>
+                <div class="sim-mini-price">32.41</div>
+              </div>
+              <div class="sim-mini">
+                <div class="sim-mini-name">GBPUSD</div>
+                <div class="sim-mini-sig buy">P2 BUY · Aligned</div>
+                <div class="sim-mini-price">1.3284</div>
+              </div>
+              <div class="sim-mini">
+                <div class="sim-mini-name">USOIL</div>
+                <div class="sim-mini-sig buy">P3 BUY</div>
+                <div class="sim-mini-price">62.80</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

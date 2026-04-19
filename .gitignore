@@ -1,0 +1,28 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# ── Credentials — NEVER commit these ──────────────────────────────────────
+swing_generator/credentials/service_account.json
+credentials/
+*.json.key
+
+# ── Large data cache (parquet files — persisted by GitHub Actions cache) ──
+swing_generator/cache/
+
+# ── Generated output (rebuilt on every run) ───────────────────────────────
+swing_generator/output/
+swing_generator/webapp/publish/
+
+# ── macOS ──────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+logs/
+*.log

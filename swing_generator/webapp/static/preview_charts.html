@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chart Preview — SwingPulse</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-base: #0a0e17; --bg-surface: #111827; --bg-elevated: #1a2332;
+    --bg-card: #151e2d; --bg-hover: #1e293b; --border: #1e293b;
+    --border-active: #334155; --text-primary: #f1f5f9; --text-secondary: #94a3b8;
+    --text-muted: #64748b; --accent: #6366f1; --accent-glow: rgba(99,102,241,.25);
+    --buy: #10b981; --buy-soft: rgba(16,185,129,.12);
+    --sell: #ef4444; --sell-soft: rgba(239,68,68,.12);
+    --watch: #f59e0b; --neutral: #475569;
+    --radius: 14px; --radius-sm: 8px; --shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-base); color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    padding: 20px; min-height: 100vh;
+  }
+
+  h1 { font-size: 1rem; color: var(--text-muted); margin-bottom: 20px; letter-spacing: .05em; text-transform: uppercase; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    max-width: 1100px;
+  }
+
+  /* ── Card shell ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .card-title { font-size: .9rem; font-weight: 700; color: var(--text-primary); }
+  .tf-badge {
+    font-size: .62rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 20px; border: 1.5px solid var(--accent);
+    color: var(--accent); letter-spacing: .05em;
+  }
+
+  /* ─────────────────────────────────────────────
+     CHART 1: Market Strength Gauge
+  ───────────────────────────────────────────── */
+  .gauge-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0 4px;
+  }
+  .gauge-svg { overflow: visible; }
+  .gauge-score {
+    font-size: 2rem; font-weight: 800; margin-top: -10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .gauge-label { font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+  .gauge-zones {
+    display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; justify-content: center;
+  }
+  .gz { font-size: .62rem; padding: 2px 8px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .gz-weak  { background: rgba(239,68,68,.12); color: #ef4444; }
+  .gz-mixed { background: rgba(245,158,11,.12); color: #f59e0b; }
+  .gz-strong{ background: rgba(99,102,241,.12); color: #6366f1; }
+  .gz-bull  { background: rgba(16,185,129,.12); color: #10b981; }
+  .gauge-breakdown {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px; margin-top: 14px; width: 100%;
+  }
+  .gb-item {
+    background: var(--bg-elevated); border-radius: var(--radius-sm);
+    padding: 7px 10px; text-align: center;
+  }
+  .gb-val { font-size: .95rem; font-weight: 700; }
+  .gb-lbl { font-size: .58rem; color: var(--text-muted); margin-top: 1px; }
+  .gb-up   { color: var(--buy); }
+  .gb-down { color: var(--sell); }
+  .gb-neut { color: var(--text-muted); }
+
+  /* ─────────────────────────────────────────────
+     CHART 2: Signal Breakdown (split bars)
+  ───────────────────────────────────────────── */
+  .sig-chart-wrap { height: 220px; position: relative; }
+  .sig-filter-info {
+    font-size: .68rem; color: var(--text-muted); margin-top: 8px;
+    text-align: center; height: 16px; transition: opacity .2s;
+  }
+  .sig-active-info { color: var(--accent); font-weight: 600; }
+  .sig-legend {
+    display: flex; justify-content: center; gap: 14px; margin-top: 10px;
+  }
+  .sl-item { display: flex; align-items: center; gap: 5px; font-size: .68rem; color: var(--text-secondary); }
+  .sl-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .sl-buy  { background: var(--buy); }
+  .sl-sell { background: var(--sell); }
+
+  /* ─────────────────────────────────────────────
+     CHART 3: Sector Chart (clickable)
+  ───────────────────────────────────────────── */
+  .sector-chart-wrap { height: 240px; position: relative; }
+  .sector-hint {
+    font-size: .65rem; color: var(--text-muted); margin-top: 6px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .sector-hint svg { color: var(--accent); }
+  .sector-selected {
+    background: var(--bg-elevated); border-radius: var(--radius-sm);
+    padding: 8px 12px; margin-top: 10px;
+    font-size: .72rem; display: none;
+  }
+  .ss-name { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .ss-instruments {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;
+  }
+  .ss-chip {
+    background: var(--bg-hover); padding: 2px 8px; border-radius: 6px;
+    font-size: .62rem; cursor: pointer; border: 1px solid var(--border);
+    transition: border-color .15s;
+  }
+  .ss-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .ss-buy-chip  { border-color: rgba(16,185,129,.3); color: var(--buy); }
+  .ss-sell-chip { border-color: rgba(239,68,68,.3);  color: var(--sell); }
+
+  /* ── Label strip ── */
+  .label-strip {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;
+  }
+  .ls-pill {
+    font-size: .6rem; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; cursor: pointer; transition: opacity .15s;
+    border: 1px solid transparent;
+  }
+  .ls-pill:hover { opacity: .8; }
+  .ls-buy  { background: var(--buy-soft);  color: var(--buy);  border-color: rgba(16,185,129,.2); }
+  .ls-sell { background: var(--sell-soft); color: var(--sell); border-color: rgba(239,68,68,.2); }
+  .ls-neut { background: rgba(71,85,105,.15); color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<h1>Chart Redesign Preview</h1>
+
+<div class="grid">
+
+  <!-- ══════════════════════════════════════════
+       CARD 1 — Market Strength Gauge (NEW)
+  ══════════════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Market Strength</span>
+      <span class="tf-badge">DAILY</span>
+    </div>
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" width="200" height="115" viewBox="0 0 200 115">
+        <defs>
+          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stop-color="#ef4444"/>
+            <stop offset="30%"  stop-color="#f97316"/>
+            <stop offset="55%"  stop-color="#f59e0b"/>
+            <stop offset="75%"  stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#10b981"/>
+          </linearGradient>
+        </defs>
+        <!-- Track -->
+        <path d="M 15 105 A 85 85 0 0 1 185 105" fill="none" stroke="#1e293b" stroke-width="16" stroke-linecap="round"/>
+        <!-- Colored arc (clipped to score) -->
+        <path id="gaugeArc" d="M 15 105 A 85 85 0 0 1 185 105" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="267" stroke-dashoffset="80"/>
+        <!-- Tick marks -->
+        <g stroke="#334155" stroke-width="1.5">
+          <line id="t0"  x1="15" y1="105"  x2="24" y2="105"  transform="rotate(-180 100 105)"/>
+          <line x1="15" y1="105" x2="23" y2="105" transform="rotate(-135 100 105)"/>
+          <line x1="15" y1="105" x2="23" y2="105" transform="rotate(-90 100 105)"/>
+          <line x1="15" y1="105" x2="23" y2="105" transform="rotate(-45 100 105)"/>
+          <line x1="15" y1="105" x2="24" y2="105" transform="rotate(0 100 105)"/>
+        </g>
+        <!-- Zone labels -->
+        <text x="10" y="108" fill="#ef4444" font-size="9" font-family="system-ui">Weak</text>
+        <text x="153" y="108" fill="#10b981" font-size="9" font-family="system-ui">Strong</text>
+        <!-- Needle -->
+        <g id="needle" transform="rotate(-30 100 105)">
+          <line x1="100" y1="105" x2="100" y2="28" stroke="#f1f5f9" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="100" cy="105" r="5" fill="#f1f5f9"/>
+          <circle cx="100" cy="105" r="2" fill="#0a0e17"/>
+        </g>
+        <!-- Score text -->
+        <text id="gaugeScoreText" x="100" y="85" fill="#f1f5f9" font-size="22" font-weight="800" text-anchor="middle" font-family="system-ui">62</text>
+      </svg>
+      <div class="gauge-label">Overall market strength score</div>
+      <div class="gauge-zones">
+        <span class="gz gz-weak">0–25 Weak</span>
+        <span class="gz gz-mixed">26–50 Mixed</span>
+        <span class="gz gz-strong">51–75 Strong</span>
+        <span class="gz gz-bull">76–100 Bullish</span>
+      </div>
+      <div class="gauge-breakdown">
+        <div class="gb-item"><div class="gb-val gb-up">34</div><div class="gb-lbl">Uptrend</div></div>
+        <div class="gb-item"><div class="gb-val" style="color:var(--accent)">22</div><div class="gb-lbl">Buy sig</div></div>
+        <div class="gb-item"><div class="gb-val gb-down">11</div><div class="gb-lbl">Sell sig</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       CARD 2 — Signal Breakdown (split buy/sell)
+  ══════════════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Signal Breakdown</span>
+      <span class="tf-badge">DAILY</span>
+    </div>
+    <div class="sig-chart-wrap">
+      <canvas id="sigChart"></canvas>
+    </div>
+    <div class="sig-filter-info" id="sigInfo">Click a bar to filter Signals tab →</div>
+    <div class="sig-legend">
+      <div class="sl-item"><div class="sl-dot sl-buy"></div>Buy signals</div>
+      <div class="sl-item"><div class="sl-dot sl-sell"></div>Sell signals</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       CARD 3 — Signals by Sector (clickable)
+  ══════════════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Signals by Sector</span>
+      <span class="tf-badge">DAILY</span>
+    </div>
+    <div class="sector-chart-wrap">
+      <canvas id="sectorChart"></canvas>
+    </div>
+    <div class="sector-hint">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h6v6M10 14L21 3M21 21H3V3"/></svg>
+      Click a sector row to jump to Scanner
+    </div>
+    <div class="sector-selected" id="sectorPanel">
+      <div class="ss-name" id="ssName"></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Active signals:</div>
+      <div class="ss-instruments" id="ssInstruments"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Mock data ──────────────────────────────────────────────
+const mockSignals = {
+  P1: { buy: 0, sell: 0 },
+  P2: { buy: 5, sell: 2 },
+  P3: { buy: 3, sell: 1 },
+  P4: { buy: 1, sell: 10 },
+};
+
+const mockSectors = [
+  { name: 'Forex',      buy: 4, sell: 2, neutral: 21, instruments: { buy: ['EURUSD','GBPUSD','AUDUSD','NZDUSD'], sell: ['USDJPY','USDCHF'] }},
+  { name: 'US100',      buy: 1, sell: 1, neutral: 75, instruments: { buy: ['AAPL'],   sell: ['TSLA'] }},
+  { name: 'Crypto',     buy: 1, sell: 2, neutral: 11, instruments: { buy: ['ETH'],     sell: ['BTC','SOL'] }},
+  { name: 'US30/US100', buy: 1, sell: 0, neutral: 7,  instruments: { buy: ['BA'],      sell: [] }},
+  { name: 'NYSE',       buy: 0, sell: 0, neutral: 4,  instruments: { buy: [],          sell: [] }},
+  { name: 'Asia Index', buy: 0, sell: 0, neutral: 2,  instruments: { buy: [],          sell: [] }},
+];
+
+// ── Gauge ──────────────────────────────────────────────────
+(function initGauge() {
+  const score  = 62;
+  const minAng = -180, maxAng = 0;
+  const angle  = minAng + (score / 100) * (maxAng - minAng);
+  document.getElementById('needle').setAttribute('transform', `rotate(${angle} 100 105)`);
+  // Arc dashoffset: full arc = 267px. offset = (1 - score/100) * 267
+  const offset = (1 - score / 100) * 267;
+  document.getElementById('gaugeArc').setAttribute('stroke-dashoffset', offset);
+  const color = score >= 76 ? '#10b981' : score >= 51 ? '#6366f1' : score >= 26 ? '#f59e0b' : '#ef4444';
+  document.getElementById('gaugeScoreText').setAttribute('fill', color);
+})();
+
+// ── Signal Breakdown Chart ─────────────────────────────────
+const sigCtx = document.getElementById('sigChart').getContext('2d');
+
+const buyData  = ['P1','P2','P3','P4'].map(k => mockSignals[k].buy);
+const sellData = ['P1','P2','P3','P4'].map(k => mockSignals[k].sell);
+
+const sigChart = new Chart(sigCtx, {
+  type: 'bar',
+  data: {
+    labels: ['P1','P2','P3','P4'],
+    datasets: [
+      {
+        label: 'Buy',
+        data: buyData,
+        backgroundColor: 'rgba(16,185,129,.75)',
+        borderRadius: { topLeft: 5, topRight: 5 },
+        barPercentage: .55,
+        categoryPercentage: .7,
+      },
+      {
+        label: 'Sell',
+        data: sellData,
+        backgroundColor: 'rgba(239,68,68,.75)',
+        borderRadius: { topLeft: 5, topRight: 5 },
+        barPercentage: .55,
+        categoryPercentage: .7,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        titleFont: { size: 12, weight: '700' },
+        bodyFont: { size: 11 },
+        padding: 10, cornerRadius: 8,
+        callbacks: {
+          title: ctx => ctx[0].label + ' Signals',
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}`,
+          afterBody: ctx => {
+            const label = ctx[0].label;
+            const b = mockSignals[label].buy, s = mockSignals[label].sell;
+            const total = b + s;
+            return total ? [``, `Total: ${total}`, `Win bias: ${b > s ? '🟢 Buy' : s > b ? '🔴 Sell' : '⚪ Even'}`] : [];
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: '#94a3b8', font: { size: 11, weight: '600' } },
+        border: { color: '#1e293b' },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(30,41,59,.8)' },
+        ticks: { color: '#64748b', font: { size: 10 }, stepSize: 2 },
+        border: { color: 'transparent' },
+      }
+    },
+    onClick(e, els) {
+      if (!els.length) return;
+      const label = ['P1','P2','P3','P4'][els[0].index];
+      const dataset = els[0].datasetIndex === 0 ? 'Buy' : 'Sell';
+      const info = document.getElementById('sigInfo');
+      info.innerHTML = `<span class="sig-active-info">→ Signals tab filtered: ${dataset} ${label}</span>`;
+      // Highlight selected bar
+      sigChart.data.datasets.forEach((ds, di) => {
+        ds.backgroundColor = di === els[0].datasetIndex
+          ? (di === 0 ? 'rgba(16,185,129,.9)' : 'rgba(239,68,68,.9)')
+          : (di === 0 ? 'rgba(16,185,129,.25)' : 'rgba(239,68,68,.25)');
+        ds.data.forEach((_, i) => {
+          if (i !== els[0].index) {
+            ds.backgroundColor = Array.isArray(ds.backgroundColor)
+              ? ds.backgroundColor
+              : Array(4).fill(ds.backgroundColor);
+          }
+        });
+        const base = di === 0 ? [75,190,129] : [239,68,68];
+        ds.backgroundColor = [0,1,2,3].map(i =>
+          i === els[0].index && di === els[0].datasetIndex
+            ? `rgba(${base.join(',')},1)`
+            : `rgba(${base.join(',')},${di === els[0].datasetIndex ? '.3' : '.15'})`
+        );
+      });
+      sigChart.update();
+      setTimeout(() => {
+        sigChart.data.datasets[0].backgroundColor = 'rgba(16,185,129,.75)';
+        sigChart.data.datasets[1].backgroundColor = 'rgba(239,68,68,.75)';
+        sigChart.update();
+        info.innerHTML = 'Click a bar to filter Signals tab →';
+      }, 2200);
+    },
+    animation: { duration: 500 }
+  }
+});
+
+// ── Sector Chart ───────────────────────────────────────────
+const secCtx = document.getElementById('sectorChart').getContext('2d');
+const secLabels = mockSectors.map(s => s.name);
+
+const sectorChart = new Chart(secCtx, {
+  type: 'bar',
+  data: {
+    labels: secLabels,
+    datasets: [
+      { label: 'Buy',     data: mockSectors.map(s => s.buy),     backgroundColor: 'rgba(16,185,129,.8)',  borderRadius: 3, barPercentage: .6, categoryPercentage: .65 },
+      { label: 'Sell',    data: mockSectors.map(s => s.sell),    backgroundColor: 'rgba(239,68,68,.75)', borderRadius: 3, barPercentage: .6, categoryPercentage: .65 },
+      { label: 'Neutral', data: mockSectors.map(s => s.neutral), backgroundColor: 'rgba(71,85,105,.5)',  borderRadius: 3, barPercentage: .6, categoryPercentage: .65 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: {
+        display: true, position: 'bottom',
+        labels: { color: '#94a3b8', usePointStyle: true, pointStyleWidth: 8, font: { size: 10 }, padding: 12 }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        titleFont: { size: 11, weight: '700' },
+        bodyFont: { size: 11 },
+        padding: 10, cornerRadius: 8,
+        callbacks: {
+          afterBody: ctx => {
+            const sec = mockSectors[ctx[0].dataIndex];
+            const lines = [];
+            if (sec.instruments.buy.length)  lines.push(`🟢 ${sec.instruments.buy.join(', ')}`);
+            if (sec.instruments.sell.length) lines.push(`🔴 ${sec.instruments.sell.join(', ')}`);
+            return lines.length ? ['', '── Active signals ──', ...lines] : [];
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        stacked: true, beginAtZero: true,
+        grid: { color: 'rgba(30,41,59,.8)' },
+        ticks: { color: '#64748b', font: { size: 10 } },
+        border: { color: 'transparent' },
+      },
+      y: {
+        stacked: true,
+        grid: { display: false },
+        ticks: { color: '#94a3b8', font: { size: 10 } },
+        border: { color: '#1e293b' },
+      }
+    },
+    onClick(e, els) {
+      if (!els.length) return;
+      const idx = els[0].index;
+      const sec = mockSectors[idx];
+      const panel = document.getElementById('sectorPanel');
+      const ssName = document.getElementById('ssName');
+      const ssInst = document.getElementById('ssInstruments');
+
+      ssName.textContent = sec.name + ' — click to open Scanner';
+      const allInst = [
+        ...sec.instruments.buy.map(n  => `<span class="ss-chip ss-buy-chip">${n} ▲</span>`),
+        ...sec.instruments.sell.map(n => `<span class="ss-chip ss-sell-chip">${n} ▼</span>`),
+      ];
+      ssInst.innerHTML = allInst.length
+        ? allInst.join('')
+        : '<span style="color:var(--text-muted);font-size:.65rem">No active signals in this sector</span>';
+      panel.style.display = 'block';
+
+      // Flash row
+      sectorChart.data.datasets.forEach(ds => {
+        ds.backgroundColor = ds.backgroundColor instanceof Array
+          ? ds.backgroundColor
+          : Array(secLabels.length).fill(ds.backgroundColor);
+      });
+      sectorChart.update();
+    },
+    animation: { duration: 400 }
+  }
+});
+</script>
+</body>
+</html>
