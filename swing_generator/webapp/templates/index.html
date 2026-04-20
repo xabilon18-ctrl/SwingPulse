@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=41">
+  <link rel="stylesheet" href="/static/css/style.css?v=42">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>
@@ -123,6 +123,17 @@
         <span style="display:none" id="pulseAlignment"></span>
         <span style="display:none" id="gbBuy"></span>
         <span style="display:none" id="gbSell"></span>
+      </div>
+
+      <!-- ── P1 / P2 Trend Change Alert Banner ── -->
+      <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
+        <div class="trend-alert-header">
+          <span class="trend-alert-icon">⚡</span>
+          <span class="trend-alert-title">TREND CHANGE ALERTS</span>
+          <span class="trend-alert-count" id="trendAlertCount">0</span>
+          <button class="trend-alert-see-all" onclick="window.SP.navigateToTab('signals')">See all →</button>
+        </div>
+        <div class="trend-alert-scroll" id="trendAlertScroll"></div>
       </div>
 
       <!-- ── Today's Opportunities ── -->
@@ -650,6 +661,6 @@
     </button>
   </nav>
 
-  <script src="/static/js/app.js?v=37"></script>
+  <script src="/static/js/app.js?v=38"></script>
 </body>
 </html>

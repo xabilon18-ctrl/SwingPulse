@@ -667,12 +667,62 @@
     }, 100);
 
     renderTodayOpportunities();
+    renderAlertBanner();
     rebuildCharts();
     renderConfidenceBreakdown();
     renderHeatmap();
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
+  }
+
+  // ── P1 / P2 Trend Change Alert Banner ─────────────────────────────────
+  function renderAlertBanner() {
+    const banner = document.getElementById('trendAlertBanner');
+    const scroll = document.getElementById('trendAlertScroll');
+    const countEl = document.getElementById('trendAlertCount');
+    if (!banner || !scroll) return;
+
+    const alerts = allData.filter(d => {
+      const sig = d[f('primary_signal')];
+      return sig === 'P1' || sig === 'P2';
+    }).sort((a, b) => {
+      const pa = a[f('primary_signal')], pb = b[f('primary_signal')];
+      return pa === pb ? 0 : pa === 'P1' ? -1 : 1;
+    });
+
+    // Update P1/P2 filter chips with dot indicator
+    ['P1','P2'].forEach(sig => {
+      const chip = document.querySelector(`.sig-chip[data-filter="${sig}"]`);
+      if (!chip) return;
+      const hasIt = allData.some(d => d[f('primary_signal')] === sig);
+      chip.classList.toggle('has-signals', hasIt);
+    });
+
+    if (!alerts.length) { banner.style.display = 'none'; return; }
+
+    banner.style.display = '';
+    countEl.textContent = alerts.length;
+
+    scroll.innerHTML = alerts.map(item => {
+      const sig  = item[f('primary_signal')];
+      const buy  = isBuy(item);
+      const tick = item.instrument_name || '';
+      const name = instName(tick);
+      const dir  = buy ? '▲' : '▼';
+      const dCls = buy ? 'tci-buy' : 'tci-sell';
+      const pCls = sig === 'P1' ? 'tci-p1' : 'tci-p2';
+      const lbl  = sig === 'P1' ? 'Trend Change' : 'Strong Signal';
+      return `<div class="trend-alert-item ${dCls} ${pCls}" onclick="window.SP.openModal('${tick}')">
+        <span class="tci-badge">${sig}</span>
+        <span class="tci-dir">${dir}</span>
+        <span class="tci-name">
+          <span class="tci-ticker">${tick}</span>
+          ${name ? `<span class="tci-fullname">${name}</span>` : ''}
+        </span>
+        <span class="tci-label">${lbl}</span>
+      </div>`;
+    }).join('');
   }
 
   // ── Confidence Breakdown (Dashboard) ──────────────────────────────────
