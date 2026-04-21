@@ -2406,6 +2406,16 @@
     return out;
   }
 
+  // Rolling MA computed on an array of values
+  function computeMA3D(values, period) {
+    return values.map((_, i) => {
+      if (i < period - 1) return null;
+      const slice = values.slice(i - period + 1, i + 1);
+      const avg = slice.reduce((a, b) => a + b, 0) / period;
+      return Math.round(avg * 10000) / 10000;
+    });
+  }
+
   // Lazy-load Chart.js the first time the chart panel is opened
   function ensureChartJs() {
     if (window.Chart) return Promise.resolve();
@@ -2429,26 +2439,82 @@
         const json = await res.json();
         const bars = json.data || [];
         if (!bars.length) return;
-        const c3d = resampleTo3D(bars);
-        const isDark = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
+
+        const c3d      = resampleTo3D(bars);
+        const closes3d = c3d.map(b => b.close);
+        const isDark   = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
+        const textCol  = isDark ? '#94a3b8' : '#334155';
+
         const chart = LightweightCharts.createChart(container, {
           width:  container.clientWidth,
           height: 280,
-          layout: { background: { color: 'transparent' }, textColor: isDark ? '#94a3b8' : '#334155' },
-          grid:   { vertLines: { color: 'rgba(148,163,184,.1)' }, horzLines: { color: 'rgba(148,163,184,.1)' } },
+          layout: { background: { color: 'transparent' }, textColor: textCol },
+          grid:   { vertLines: { color: 'rgba(148,163,184,.08)' }, horzLines: { color: 'rgba(148,163,184,.08)' } },
           crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-          rightPriceScale: { borderColor: 'rgba(148,163,184,.2)' },
-          timeScale: { borderColor: 'rgba(148,163,184,.2)', timeVisible: true },
+          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)' },
+          timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
         });
+
+        // ── Candlesticks ──
         const candleSeries = chart.addCandlestickSeries({
           upColor: '#10b981', downColor: '#ef4444',
           borderUpColor: '#10b981', borderDownColor: '#ef4444',
           wickUpColor: '#10b981', wickDownColor: '#ef4444',
         });
         candleSeries.setData(c3d);
-        // Auto-fit all data
+
+        // ── MA lines (computed on 3D closes) ──
+        // With 600 daily bars → ~200 3D bars: MA40 ✓, MA100 ✓, MA180 ✓
+        const maConfigs = [
+          { period: 40,  color: '#6366f1', title: 'MA40'  },
+          { period: 100, color: '#f59e0b', title: 'MA100' },
+          { period: 180, color: '#ef4444', title: 'MA180' },
+        ];
+        maConfigs.forEach(({ period, color, title }) => {
+          if (c3d.length < period + 5) return;  // not enough bars — skip
+          const vals = computeMA3D(closes3d, period);
+          const data = c3d
+            .map((b, i) => vals[i] !== null ? { time: b.time, value: vals[i] } : null)
+            .filter(Boolean);
+          if (!data.length) return;
+          const line = chart.addLineSeries({
+            color, lineWidth: 1.5, priceLineVisible: false,
+            lastValueVisible: true, title,
+          });
+          line.setData(data);
+        });
+
+        // ── Key level horizontal lines ──
+        const levels = parseKeyLevels(item.key_levels_all);
+        levels.slice(0, 10).forEach(lv => {
+          candleSeries.createPriceLine({
+            price:     lv.price,
+            color:     lv.type === 'top' ? 'rgba(239,68,68,.55)' : 'rgba(16,185,129,.55)',
+            lineWidth: 1,
+            lineStyle: LightweightCharts.LineStyle.Dashed,
+            title:     lv.type === 'top' ? `R×${lv.touches}` : `S×${lv.touches}`,
+          });
+        });
+
+        // ── Signal marker at last known signal date ──
+        const lastSigDate = item[f('last_signal_date')];
+        const lastSigType = item[f('last_signal_type')] || item[f('primary_signal')] || '';
+        if (lastSigDate && lastSigType) {
+          // Find the 3D bar that contains or follows the signal date
+          const sigBar = c3d.find(b => b.time >= lastSigDate);
+          if (sigBar) {
+            const sigBuy = isBuy(item);
+            candleSeries.setMarkers([{
+              time:     sigBar.time,
+              position: sigBuy ? 'belowBar' : 'aboveBar',
+              color:    sigBuy ? '#10b981' : '#ef4444',
+              shape:    sigBuy ? 'arrowUp' : 'arrowDown',
+              text:     lastSigType,
+            }]);
+          }
+        }
+
         chart.timeScale().fitContent();
-        // Store reference so closeModal can clean up
         charts.modal3d = chart;
       } catch (e) { console.warn('3D chart error:', e); }
       return;

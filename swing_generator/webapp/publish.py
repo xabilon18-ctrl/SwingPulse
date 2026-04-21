@@ -101,13 +101,13 @@ def build_history(name, ticker):
     path = os.path.join(CACHE_DIR, _ticker_to_filename(ticker))
     if not os.path.exists(path):
         return None
-    df = pd.read_parquet(path).tail(250).copy()
+    df = pd.read_parquet(path).tail(600).copy()
     for p in MA_PERIODS:
         col = f'ma_{p}'
         if col not in df.columns:
             full      = pd.read_parquet(path)
             full[col] = full['Close'].rolling(p, min_periods=p).mean()
-            df[col]   = full[col].tail(250)
+            df[col]   = full[col].tail(600)
     df.index = df.index.strftime('%Y-%m-%d')
     records  = []
     for dt_str, row in df.iterrows():
