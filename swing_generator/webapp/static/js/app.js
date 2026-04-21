@@ -591,8 +591,9 @@
     if (!val && val !== 0) return '--';
     const n = parseFloat(val);
     if (isNaN(n)) return '--';
-    if (n > 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (n > 1) return n.toFixed(4);
+    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (n >= 10)   return n.toFixed(2);
+    if (n >= 1)    return n.toFixed(4);
     return n.toFixed(6);
   }
   function pctFromMa(item) {
@@ -1978,7 +1979,7 @@
       const tOrd = { UPTREND: 0, NEUTRAL: 1, DOWNTREND: 2 };
       filtered = [...filtered].sort((a, b) => (tOrd[a[f('trend_direction')]] ?? 1) - (tOrd[b[f('trend_direction')]] ?? 1));
     } else if (wlSort === 'age') {
-      filtered = [...filtered].sort((a, b) => (b.signal_date || '').localeCompare(a.signal_date || ''));
+      filtered = [...filtered].sort((a, b) => (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || ''));
     } else if (wlSort === 'alpha') {
       filtered = [...filtered].sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
     }
@@ -2124,7 +2125,7 @@
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const levels = parseKeyLevels(item.key_levels_all);
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : 'ma_';
+    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : timeframe === '3D' ? 'td_ma_' : 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -3014,12 +3015,13 @@
     const q = volSearch.trim().toLowerCase();
 
     // ── Filter ──────────────────────────────────────────────────────────
+    // Volume spike flags are always absolute column names (not TF-prefixed)
     let items = allData.filter(item => {
       if (q && !matchesSearch(item, q)) return false;
-      const spikeD  = ff(item, 'volume_spike_flag')    === 'yes';
-      const spike4h = ff(item, 'h4_volume_spike_flag') === 'yes';
-      const spikeW  = ff(item, 'w_volume_spike_flag')  === 'yes';
-      const spikeM  = ff(item, 'm_volume_spike_flag')  === 'yes';
+      const spikeD  = item.volume_spike_flag    === 'yes';
+      const spike4h = item.h4_volume_spike_flag === 'yes';
+      const spikeW  = item.w_volume_spike_flag  === 'yes';
+      const spikeM  = item.m_volume_spike_flag  === 'yes';
       const trend   = ff(item, 'trend_direction');
 
       if (activeVolFilter === 'spike_d')  return spikeD;
@@ -3032,8 +3034,10 @@
     });
 
     // ── Sort ─────────────────────────────────────────────────────────────
+    // Use direct column access — volume columns are absolute, not TF-prefixed
     const ratio = (item, volCol, avgCol) => {
-      const v = fv(item, volCol), a = fv(item, avgCol);
+      const v = parseFloat(item[volCol]) || 0;
+      const a = parseFloat(item[avgCol]) || 0;
       return a > 0 ? v / a : 0;
     };
     items.sort((a, b) => {
@@ -3062,11 +3066,11 @@
       const trend   = ff(item, 'trend_direction');
       const sig     = ff(item, 'primary_signal');
 
-      // Spike flags
-      const spikeD  = ff(item, 'volume_spike_flag')    === 'yes';
-      const spike4h = ff(item, 'h4_volume_spike_flag') === 'yes';
-      const spikeW  = ff(item, 'w_volume_spike_flag')  === 'yes';
-      const spikeM  = ff(item, 'm_volume_spike_flag')  === 'yes';
+      // Spike flags — absolute column names, not TF-prefixed
+      const spikeD  = item.volume_spike_flag    === 'yes';
+      const spike4h = item.h4_volume_spike_flag === 'yes';
+      const spikeW  = item.w_volume_spike_flag  === 'yes';
+      const spikeM  = item.m_volume_spike_flag  === 'yes';
       const anySpike = spikeD || spike4h || spikeW || spikeM;
 
       // Card state classes
@@ -3100,11 +3104,11 @@
         spikeM  ? `<span class="vol-spike-badge vsb-m">M⚡</span>`  : '',
       ].join('');
 
-      // Volume ratios — D, 4H, W, M (cap bar at 3× = 100%)
-      const dVol  = fv(item,'volume'),       dAvg  = fv(item,'volume_average');
-      const hVol  = fv(item,'h4_volume'),    hAvg  = fv(item,'h4_volume_average');
-      const wVol  = fv(item,'w_volume'),     wAvg  = fv(item,'w_volume_average');
-      const mVol  = fv(item,'m_volume'),     mAvg  = fv(item,'m_volume_average');
+      // Volume ratios — D, 4H, W, M (cap bar at 3× = 100%) — absolute column names
+      const dVol  = parseFloat(item.volume)           || 0,  dAvg = parseFloat(item.volume_average)           || 0;
+      const hVol  = parseFloat(item.h4_volume)        || 0,  hAvg = parseFloat(item.h4_volume_average)        || 0;
+      const wVol  = parseFloat(item.w_volume)         || 0,  wAvg = parseFloat(item.w_volume_average)         || 0;
+      const mVol  = parseFloat(item.m_volume)         || 0,  mAvg = parseFloat(item.m_volume_average)         || 0;
 
       const dRatio = dAvg > 0 ? dVol / dAvg : 0;
       const hRatio = hAvg > 0 ? hVol / hAvg : 0;
