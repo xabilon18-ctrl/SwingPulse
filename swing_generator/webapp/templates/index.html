@@ -34,7 +34,6 @@
       <div class="tf-toggle" id="tfToggle" title="Timeframe">
         <button class="tf-btn" data-tf="4H">4H</button>
         <button class="tf-btn active" data-tf="D">D</button>
-        <button class="tf-btn" data-tf="3D">3D</button>
         <button class="tf-btn" data-tf="W">W</button>
         <button class="tf-btn" data-tf="M">M</button>
       </div>
@@ -542,40 +541,6 @@
       </div>
     </section>
 
-    <!-- ========== VOLUME TAB ========== -->
-    <section class="tab-pane" id="pane-volume">
-
-      <!-- Sticky header -->
-      <div class="vol-header">
-        <div class="vol-header-row">
-          <span class="vol-header-count" id="volCount">-- instruments</span>
-          <div class="search-wrap vol-search-wrap">
-            <input type="text" class="search-input" id="volSearch" placeholder="Search...">
-          </div>
-          <select class="select-input vol-sort-select" id="volSort">
-            <option value="d_ratio">Daily Vol ↓</option>
-            <option value="w_ratio">Weekly Vol ↓</option>
-            <option value="m_ratio">Monthly Vol ↓</option>
-            <option value="spikes">Most Spikes</option>
-            <option value="alpha">A–Z</option>
-          </select>
-        </div>
-        <div class="vol-chips-row" id="volChips">
-          <button class="vol-chip active" data-filter="all">All</button>
-          <button class="vol-chip vol-chip-d"  data-filter="spike_d">⚡ Daily Spike</button>
-          <button class="vol-chip vol-chip-4h" data-filter="spike_4h">4H Spike</button>
-          <button class="vol-chip vol-chip-w"  data-filter="spike_w">Weekly Spike</button>
-          <button class="vol-chip vol-chip-m"  data-filter="spike_m">Monthly Spike</button>
-          <button class="vol-chip vol-chip-up" data-filter="up">↑ Uptrend</button>
-          <button class="vol-chip vol-chip-dn" data-filter="down">↓ Downtrend</button>
-        </div>
-      </div>
-
-      <!-- Card grid -->
-      <div class="vol-grid" id="volGrid"></div>
-
-    </section>
-
   </main>
 
   <!-- ===== IPHONE WIDGET INSTALL SHEET ===== -->
@@ -675,12 +640,8 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg>
       <span>Trends</span>
     </button>
-    <button class="nav-tab" data-tab="volume">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="13" width="4" height="8" rx="1"/><rect x="9" y="8" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/></svg>
-      <span>Volume</span>
-    </button>
   </nav>
 
-  <script src="/static/js/app.js?v=42"></script>
+  <script src="/static/js/app.js?v=43"></script>
 </body>
 </html>

@@ -32,9 +32,6 @@
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem('sp-notes') || '{}'); // instrument_name → note text
   let eventsData       = [];   // historical events (vol spikes + big moves) from all daily CSVs
-  let activeVolFilter  = 'all';
-  let volSearch        = '';
-  let volSortMode      = 'd_ratio';
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
 
   // ── Signal Performance Tracker ───────────────────────────────────────
@@ -279,7 +276,6 @@
   // Weekly columns are prefixed with 'w_' in the data.
   function f(field) {
     if (timeframe === '4H') return 'h4_' + field;
-    if (timeframe === '3D') return 'td_' + field;
     if (timeframe === 'W')  return 'w_' + field;
     if (timeframe === 'M')  return 'm_' + field;
     return field;
@@ -406,7 +402,6 @@
     renderTrendsInstrumentList();
     if (selectedTrendInst) renderTrendDetail(selectedTrendInst);
     renderTrendsSummary();
-    renderVolume();
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
@@ -2125,7 +2120,7 @@
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const levels = parseKeyLevels(item.key_levels_all);
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : timeframe === '3D' ? 'td_ma_' : 'ma_';
+    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -2277,11 +2272,7 @@
 
       <!-- ===== CHART PANEL ===== -->
       <div class="mh-panel mh-panel-hidden" id="mhPanel-chart">
-        ${timeframe === '3D' ? `
-        <div class="modal-section">
-          <div class="modal-section-title">3-Day Candlestick</div>
-          <div class="modal-chart-wrap lw-chart-wrap" id="lwChartContainer"></div>
-        </div>` : timeframe === 'D' ? `
+        ${timeframe === 'D' ? `
         <div class="modal-section">
           <div class="modal-section-title">Daily Chart · 100 days &nbsp;<span class="vol-spike-legend"><span class="vol-spike-dot"></span>Volume spike</span></div>
           <div class="modal-chart-wrap lw-chart-wrap lw-chart-wrap--tall" id="lwChartContainer"></div>
@@ -2398,39 +2389,12 @@
     }).filter(Boolean);
   }
 
-  // ── 3-Day resampler (groups daily OHLCV bars into 3-bar units) ──────────
-  function resampleTo3D(bars) {
-    const out = [];
-    for (let i = 0; i < bars.length; i += 3) {
-      const slice = bars.slice(i, Math.min(i + 3, bars.length));
-      if (!slice.length) continue;
-      out.push({
-        time:  slice[0].date,
-        open:  slice[0].open,
-        high:  Math.max(...slice.map(b => b.high)),
-        low:   Math.min(...slice.map(b => b.low)),
-        close: slice[slice.length - 1].close,
-      });
-    }
-    return out;
-  }
-
   // Volume spike detection: volume > 25-day rolling average
   function computeVolumeSpikes(bars, lookback = 25) {
     return bars.map((bar, i) => {
       const win = bars.slice(Math.max(0, i - lookback + 1), i + 1);
       const avg = win.reduce((s, b) => s + b.volume, 0) / win.length;
       return { ...bar, volumeAvg: avg, isSpike: bar.volume > avg };
-    });
-  }
-
-  // Rolling MA computed on an array of values
-  function computeMA3D(values, period) {
-    return values.map((_, i) => {
-      if (i < period - 1) return null;
-      const slice = values.slice(i - period + 1, i + 1);
-      const avg = slice.reduce((a, b) => a + b, 0) / period;
-      return Math.round(avg * 10000) / 10000;
     });
   }
 
@@ -2542,97 +2506,6 @@
         chart.timeScale().fitContent();
         charts.modalLw = chart;
       } catch (e) { console.warn('D chart error:', e); }
-      return;
-    }
-
-    // ── 3D: candlestick via Lightweight Charts ────────────────────────────
-    if (timeframe === '3D') {
-      const container = document.getElementById('lwChartContainer');
-      if (!container || !window.LightweightCharts) return;
-      try {
-        await new Promise(r => requestAnimationFrame(r));
-        const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
-        if (!res.ok) return;
-        const json = await res.json();
-        const bars = json.data || [];
-        if (!bars.length) return;
-
-        const c3d      = resampleTo3D(bars);
-        const closes3d = c3d.map(b => b.close);
-        const isDark   = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
-        const textCol  = isDark ? '#94a3b8' : '#334155';
-
-        const chart = LightweightCharts.createChart(container, {
-          autoSize: true,
-          layout: { background: { color: 'transparent' }, textColor: textCol },
-          grid:    { vertLines: { color: 'rgba(148,163,184,.08)' }, horzLines: { color: 'rgba(148,163,184,.08)' } },
-          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)' },
-          timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
-        });
-
-        // ── Candlesticks ──
-        const candleSeries = chart.addCandlestickSeries({
-          upColor: '#10b981', downColor: '#ef4444',
-          borderUpColor: '#10b981', borderDownColor: '#ef4444',
-          wickUpColor: '#10b981', wickDownColor: '#ef4444',
-        });
-        candleSeries.setData(c3d);
-
-        // ── MA lines (computed on 3D closes) ──
-        // With 600 daily bars → ~200 3D bars: MA40 ✓, MA100 ✓, MA180 ✓
-        const maConfigs = [
-          { period: 40,  color: '#6366f1', title: 'MA40'  },
-          { period: 100, color: '#f59e0b', title: 'MA100' },
-          { period: 180, color: '#ef4444', title: 'MA180' },
-        ];
-        maConfigs.forEach(({ period, color, title }) => {
-          if (c3d.length < period + 5) return;  // not enough bars — skip
-          const vals = computeMA3D(closes3d, period);
-          const data = c3d
-            .map((b, i) => vals[i] !== null ? { time: b.time, value: vals[i] } : null)
-            .filter(Boolean);
-          if (!data.length) return;
-          const line = chart.addLineSeries({
-            color, lineWidth: 1.5, priceLineVisible: false,
-            lastValueVisible: true, title,
-          });
-          line.setData(data);
-        });
-
-        // ── Key level horizontal lines ──
-        const levels = parseKeyLevels(item.key_levels_all);
-        levels.slice(0, 10).forEach(lv => {
-          candleSeries.createPriceLine({
-            price:     lv.price,
-            color:     lv.type === 'top' ? 'rgba(239,68,68,.55)' : 'rgba(16,185,129,.55)',
-            lineWidth: 1,
-            lineStyle: LightweightCharts.LineStyle.Dashed,
-            title:     lv.type === 'top' ? `R×${lv.touches}` : `S×${lv.touches}`,
-          });
-        });
-
-        // ── Signal marker at last known signal date ──
-        const lastSigDate = item[f('last_signal_date')];
-        const lastSigType = item[f('last_signal_type')] || item[f('primary_signal')] || '';
-        if (lastSigDate && lastSigType) {
-          // Find the 3D bar that contains or follows the signal date
-          const sigBar = c3d.find(b => b.time >= lastSigDate);
-          if (sigBar) {
-            const sigBuy = isBuy(item);
-            candleSeries.setMarkers([{
-              time:     sigBar.time,
-              position: sigBuy ? 'belowBar' : 'aboveBar',
-              color:    sigBuy ? '#10b981' : '#ef4444',
-              shape:    sigBuy ? 'arrowUp' : 'arrowDown',
-              text:     lastSigType,
-            }]);
-          }
-        }
-
-        chart.timeScale().fitContent();
-        charts.modalLw = chart;
-      } catch (e) { console.warn('3D chart error:', e); }
       return;
     }
 
@@ -2996,208 +2869,6 @@
 
   // ── Events Tab — Big Volume & Big Moves Tracker ──────────────────────
   // ── Volume Tab — Multi-Timeframe Volume Tracker ─────────────────────
-  function renderVolume() {
-    const grid    = document.getElementById('volGrid');
-    const countEl = document.getElementById('volCount');
-    if (!grid) return;
-
-    const ff = (item, col) => item[f(col)] || '';
-    const fv = (item, col) => parseFloat(item[f(col)]) || 0;
-
-    // Build a lookup: instrument_name → count of historical vol spikes (from eventsData)
-    const spikeHistory = {};
-    for (const ev of eventsData) {
-      if (ev.event_types && ev.event_types.includes('vol_spike')) {
-        spikeHistory[ev.instrument_name] = (spikeHistory[ev.instrument_name] || 0) + 1;
-      }
-    }
-
-    const q = volSearch.trim().toLowerCase();
-
-    // ── Filter ──────────────────────────────────────────────────────────
-    // Volume spike flags are always absolute column names (not TF-prefixed)
-    let items = allData.filter(item => {
-      if (q && !matchesSearch(item, q)) return false;
-      const spikeD  = item.volume_spike_flag    === 'yes';
-      const spike4h = item.h4_volume_spike_flag === 'yes';
-      const spikeW  = item.w_volume_spike_flag  === 'yes';
-      const spikeM  = item.m_volume_spike_flag  === 'yes';
-      const trend   = ff(item, 'trend_direction');
-
-      if (activeVolFilter === 'spike_d')  return spikeD;
-      if (activeVolFilter === 'spike_4h') return spike4h;
-      if (activeVolFilter === 'spike_w')  return spikeW;
-      if (activeVolFilter === 'spike_m')  return spikeM;
-      if (activeVolFilter === 'up')       return trend === 'UPTREND';
-      if (activeVolFilter === 'down')     return trend === 'DOWNTREND';
-      return true;
-    });
-
-    // ── Sort ─────────────────────────────────────────────────────────────
-    // Use direct column access — volume columns are absolute, not TF-prefixed
-    const ratio = (item, volCol, avgCol) => {
-      const v = parseFloat(item[volCol]) || 0;
-      const a = parseFloat(item[avgCol]) || 0;
-      return a > 0 ? v / a : 0;
-    };
-    items.sort((a, b) => {
-      if (volSortMode === 'd_ratio')  return ratio(b,'volume','volume_average') - ratio(a,'volume','volume_average');
-      if (volSortMode === 'w_ratio')  return ratio(b,'w_volume','w_volume_average') - ratio(a,'w_volume','w_volume_average');
-      if (volSortMode === 'm_ratio')  return ratio(b,'m_volume','m_volume_average') - ratio(a,'m_volume','m_volume_average');
-      if (volSortMode === 'spikes')   return (spikeHistory[b.instrument_name]||0) - (spikeHistory[a.instrument_name]||0);
-      return (a.instrument_name||'').localeCompare(b.instrument_name||'');
-    });
-
-    if (countEl) countEl.textContent = items.length + ' instrument' + (items.length !== 1 ? 's' : '');
-
-    if (!items.length) {
-      grid.innerHTML = `<div class="vol-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="13" width="4" height="8" rx="1"/><rect x="9" y="8" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/></svg>
-        <p>No instruments match this filter</p>
-      </div>`;
-      return;
-    }
-
-    grid.innerHTML = items.map(item => {
-      const name    = item.instrument_name || '';
-      const group   = item.group  || '';
-      const sector  = item.sector || '';
-      const industry= item.industry || '';
-      const trend   = ff(item, 'trend_direction');
-      const sig     = ff(item, 'primary_signal');
-
-      // Spike flags — absolute column names, not TF-prefixed
-      const spikeD  = item.volume_spike_flag    === 'yes';
-      const spike4h = item.h4_volume_spike_flag === 'yes';
-      const spikeW  = item.w_volume_spike_flag  === 'yes';
-      const spikeM  = item.m_volume_spike_flag  === 'yes';
-      const anySpike = spikeD || spike4h || spikeW || spikeM;
-
-      // Card state classes
-      let cardCls = 'vol-card';
-      if (spikeD)        cardCls += ' has-spike-d';
-      else if (spikeW)   cardCls += ' has-spike-w';
-      else if (spikeM)   cardCls += ' has-spike-m';
-      else               cardCls += ' no-spike';
-      if (trend === 'UPTREND')   cardCls += ' trend-up';
-      if (trend === 'DOWNTREND') cardCls += ' trend-down';
-
-      // Price
-      const px = fv(item, 'close');
-      const pxStr = px > 1000 ? px.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})
-                  : px > 1    ? px.toFixed(2) : px.toFixed(4);
-
-      // ROC (5-day)
-      const roc    = fv(item, 'roc');
-      const rocCls = roc > 0 ? 'pos' : roc < 0 ? 'neg' : 'neu';
-      const rocStr = (roc > 0 ? '+' : '') + roc.toFixed(1) + '%';
-
-      // Trend badge
-      const trendCls = trend === 'UPTREND' ? 'vtb-up' : trend === 'DOWNTREND' ? 'vtb-down' : 'vtb-neu';
-      const trendLbl = trend === 'UPTREND' ? '↑ Uptrend' : trend === 'DOWNTREND' ? '↓ Downtrend' : 'Neutral';
-
-      // Spike badges
-      const spikeBadges = [
-        spikeD  ? `<span class="vol-spike-badge vsb-d">D⚡</span>`  : '',
-        spike4h ? `<span class="vol-spike-badge vsb-4h">4H⚡</span>` : '',
-        spikeW  ? `<span class="vol-spike-badge vsb-w">W⚡</span>`  : '',
-        spikeM  ? `<span class="vol-spike-badge vsb-m">M⚡</span>`  : '',
-      ].join('');
-
-      // Volume ratios — D, 4H, W, M (cap bar at 3× = 100%) — absolute column names
-      const dVol  = parseFloat(item.volume)           || 0,  dAvg = parseFloat(item.volume_average)           || 0;
-      const hVol  = parseFloat(item.h4_volume)        || 0,  hAvg = parseFloat(item.h4_volume_average)        || 0;
-      const wVol  = parseFloat(item.w_volume)         || 0,  wAvg = parseFloat(item.w_volume_average)         || 0;
-      const mVol  = parseFloat(item.m_volume)         || 0,  mAvg = parseFloat(item.m_volume_average)         || 0;
-
-      const dRatio = dAvg > 0 ? dVol / dAvg : 0;
-      const hRatio = hAvg > 0 ? hVol / hAvg : 0;
-      const wRatio = wAvg > 0 ? wVol / wAvg : 0;
-      const mRatio = mAvg > 0 ? mVol / mAvg : 0;
-
-      const barPct = r => Math.min(r / 3 * 100, 100).toFixed(1);
-      const ratioStr = r => r > 0 ? (r >= 2 ? `<span class="vol-bar-ratio spike">${r.toFixed(1)}× avg</span>` : `<span class="vol-bar-ratio">${r.toFixed(1)}× avg</span>`) : `<span class="vol-bar-ratio">--</span>`;
-      const wRatioStr = r => r >= 2 ? `<span class="vol-bar-ratio spike-w">${r.toFixed(1)}× avg</span>` : `<span class="vol-bar-ratio">${r > 0 ? r.toFixed(1) + '× avg' : '--'}</span>`;
-      const mRatioStr = r => r >= 2 ? `<span class="vol-bar-ratio spike-m">${r.toFixed(1)}× avg</span>` : `<span class="vol-bar-ratio">${r > 0 ? r.toFixed(1) + '× avg' : '--'}</span>`;
-
-      // Historical spikes footer
-      const histCount = spikeHistory[name] || 0;
-      const histHtml = histCount > 0
-        ? `<div class="vol-history">
-            <span class="vol-hist-item"><span class="vol-hist-dot"></span>${histCount} daily vol spike${histCount > 1 ? 's' : ''} in tracked history</span>
-            ${sig ? `<span class="vol-hist-item"><span class="vol-hist-dot move"></span>${sig} signal active</span>` : ''}
-           </div>`
-        : (sig ? `<div class="vol-history"><span class="vol-hist-item"><span class="vol-hist-dot move"></span>${sig} signal active</span></div>` : '');
-
-      return `<div class="${cardCls}" onclick="window.SP.openModal('${name}')">
-        <div class="vol-card-inner">
-          <div class="vol-top">
-            <div class="vol-name-wrap">
-              <span class="vol-name">${name}</span>
-              ${instName(name) ? `<span class="inst-fullname">${instName(name)}</span>` : ''}
-            </div>
-            <div class="vol-top-right">
-              <span class="vol-spike-badges">${spikeBadges}</span>
-              ${shareBtn(name)}
-            </div>
-          </div>
-          <div class="vol-group">${group} · ${industry || sector}</div>
-          <div class="vol-price-row">
-            <span class="vol-price">${pxStr}</span>
-            <span class="vol-roc ${rocCls}">${rocStr} 5d</span>
-            <span class="vol-trend-badge ${trendCls}">${trendLbl}</span>
-          </div>
-          <div class="vol-bars">
-            <div class="vol-bar-row">
-              <span class="vol-bar-tf">D</span>
-              <div class="vol-bar-track"><div class="vol-bar-fill d" style="width:${barPct(dRatio)}%"></div></div>
-              ${ratioStr(dRatio)}
-            </div>
-            <div class="vol-bar-row">
-              <span class="vol-bar-tf">4H</span>
-              <div class="vol-bar-track"><div class="vol-bar-fill h4" style="width:${barPct(hRatio)}%"></div></div>
-              ${ratioStr(hRatio)}
-            </div>
-            <div class="vol-bar-row">
-              <span class="vol-bar-tf">W</span>
-              <div class="vol-bar-track"><div class="vol-bar-fill w" style="width:${barPct(wRatio)}%"></div></div>
-              ${wRatioStr(wRatio)}
-            </div>
-            <div class="vol-bar-row">
-              <span class="vol-bar-tf">M</span>
-              <div class="vol-bar-track"><div class="vol-bar-fill m" style="width:${barPct(mRatio)}%"></div></div>
-              ${mRatioStr(mRatio)}
-            </div>
-          </div>
-          ${histHtml}
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // Wire Volume tab chips + search + sort
-  (function wireVolumeTab() {
-    const chips = document.getElementById('volChips');
-    if (chips) {
-      chips.addEventListener('click', e => {
-        const chip = e.target.closest('.vol-chip');
-        if (!chip) return;
-        chips.querySelectorAll('.vol-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        activeVolFilter = chip.dataset.filter;
-        renderVolume();
-      });
-    }
-    const srch = document.getElementById('volSearch');
-    if (srch) {
-      srch.addEventListener('input', () => { volSearch = srch.value; renderVolume(); });
-    }
-    const sortSel = document.getElementById('volSort');
-    if (sortSel) {
-      sortSel.addEventListener('change', () => { volSortMode = sortSel.value; renderVolume(); });
-    }
-  })();
-
   // ── Trends Tab — Historical Summary Bar ─────────────────────────────
   function renderTrendsSummary() {
     const el = id => document.getElementById(id);

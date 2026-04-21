@@ -34,7 +34,7 @@ swing_generator/
 │   ├── publish.py             # Build + deploy to R2 / Cloudflare Pages
 │   ├── templates/index.html   # Single-page app shell (CSS v44, JS v42)
 │   └── static/
-│       ├── js/app.js          # All frontend logic (~3300 lines, v42)
+│       ├── js/app.js          # All frontend logic (~3100 lines, v43)
 │       └── css/style.css      # All styles (v44)
 └── .github/workflows/         # GitHub Actions CI
 ```
@@ -44,14 +44,13 @@ swing_generator/
 ## Signal System
 
 ### Timeframes
-`D` (Daily) · `4H` (4-Hour) · `3D` (3-Day Gann) · `W` (Weekly) · `M` (Monthly)
+`D` (Daily) · `4H` (4-Hour) · `W` (Weekly) · `M` (Monthly)
 
 ### Column Prefix Convention
 | Timeframe | Prefix |
 |-----------|--------|
 | Daily     | *(none)* — e.g. `primary_signal` |
 | 4-Hour    | `h4_`  — e.g. `h4_primary_signal` |
-| 3-Day     | `td_`  — e.g. `td_primary_signal` |
 | Weekly    | `w_`   — e.g. `w_primary_signal` |
 | Monthly   | `m_`   — e.g. `m_primary_signal` |
 
@@ -81,7 +80,6 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 3. **Scanner** — Full instrument grid with all filters
 4. **Watchlist** — Starred instruments + alert sub-tabs (turning points, watch flags, key levels, vol)
 5. **Trends** — Trend history per instrument (timeline, stats, maturity)
-6. **Volume** — Multi-timeframe volume tracker (D/4H/W/M bars + spike badges)
 
 ---
 
@@ -126,7 +124,7 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## Version History (current)
-- `app.js` — **v42**
+- `app.js` — **v43**
 - `style.css` — **v44**
 - `index.html` — bump JS/CSS version numbers when deploying UI changes
 
