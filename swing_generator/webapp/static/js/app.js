@@ -163,8 +163,6 @@
       return;
     }
 
-    const BAR_HEIGHTS = [90, 65, 80, 55, 70, 85, 60, 75];
-
     el.innerHTML = signaled.map(item => {
       const name     = item.instrument_name;
       const buy      = isBuy(item);
@@ -191,8 +189,18 @@
       const tripleB  = isTriple
         ? `<span class="badge-3tf ${align.includes('Bull') ? 'badge-3tf-bull' : 'badge-3tf-bear'}">3TF</span>`
         : '';
+      // Meaningful sparkbar heights: each bar maps to a real data dimension
+      const maOrd = parseInt(item[f('ma_order_score')]);
+      const sigStr = { P1:100, P2:80, P3:55, P4:35, SEC:15 }[sigType] || 15;
+      const alignStr = align.toLowerCase().includes('triple') ? 100 : align.toLowerCase().includes('double') ? 65 : 35;
+      const volH   = item[f('volume_spike_flag')] === 'yes' ? 95 : 25;
+      const rocH   = Math.min(Math.round(Math.abs(roc) / 4 * 100), 95);
+      const sqzH   = item[f('ribbon_compression')] === 'yes' ? 80 : 35;
+      const confH  = { high:100, standard:60, low:28 }[(item[f('signal_confidence')]||'').toLowerCase()] || 20;
+      const maH    = !isNaN(maOrd) ? Math.round(maOrd / 16 * 100) : 50;
+      const REAL_HEIGHTS = [maH, sigStr, alignStr, volH, rocH || 30, sqzH, confH, Math.round(bars / 8 * 100)];
       const sparkbars = Array.from({ length: 8 }, (_, i) =>
-        `<span class="opp-bar${i < bars ? ` opp-bar-filled opp-bar-${dir}` : ''}" style="height:${BAR_HEIGHTS[i]}%"></span>`
+        `<span class="opp-bar${i < bars ? ` opp-bar-filled opp-bar-${dir}` : ''}" style="height:${Math.max(REAL_HEIGHTS[i], 12)}%"></span>`
       ).join('');
 
       return `<div class="opp-card opp-card-${dir}" onclick="window.SP.openModal('${name}')">
@@ -244,7 +252,8 @@
       lastSeen[name] = { signal: rec.signal, conf: rec.conf };
     }
     navigator.serviceWorker.ready.then(reg => {
-      reg.active && reg.active.postMessage({ type: 'CHECK_SIGNALS', starred, lastSeen });
+      if (!reg.active) return;
+      reg.active.postMessage({ type: 'CHECK_SIGNALS', starred, lastSeen });
     });
   }
 
@@ -270,8 +279,9 @@
   // Weekly columns are prefixed with 'w_' in the data.
   function f(field) {
     if (timeframe === '4H') return 'h4_' + field;
-    if (timeframe === 'W') return 'w_' + field;
-    if (timeframe === 'M') return 'm_' + field;
+    if (timeframe === '3D') return 'td_' + field;
+    if (timeframe === 'W')  return 'w_' + field;
+    if (timeframe === 'M')  return 'm_' + field;
     return field;
   }
 
@@ -414,6 +424,19 @@
     });
   });
 
+  // ── Gauge Info Tooltip ───────────────────────────────────────────────
+  (function wireGaugeInfo() {
+    const btn     = document.getElementById('gaugeInfoBtn');
+    const tooltip = document.getElementById('gaugeTooltip');
+    if (!btn || !tooltip) return;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const visible = tooltip.style.display !== 'none';
+      tooltip.style.display = visible ? 'none' : '';
+    });
+    document.addEventListener('click', () => { if (tooltip) tooltip.style.display = 'none'; });
+  })();
+
   // ── Refresh ──────────────────────────────────────────────────────────
   // ── iPhone Widget Install Sheet ───────────────────────────────────────
   (function wireWidgetSheet() {
@@ -495,6 +518,18 @@
       const dateStr = sumRes.date || '--';
       const timeStr = sumRes.fetched_at ? sumRes.fetched_at.split(' ')[1] : '';
       document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
+
+      // Staleness warning: show banner if data date isn't today
+      const today = new Date().toISOString().slice(0, 10);
+      const staleBanner = document.getElementById('staleBanner');
+      const staleText   = document.getElementById('staleBannerText');
+      if (staleBanner && dateStr !== '--' && dateStr !== today) {
+        staleText.textContent = `Data is from ${dateStr} — pipeline hasn't run yet today`;
+        staleBanner.style.display = '';
+      } else if (staleBanner) {
+        staleBanner.style.display = 'none';
+      }
+
       updateSignalHistory();
       checkAndNotifyNewSignals();
       renderAll();
@@ -1436,6 +1471,18 @@
     return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">3TF✓</span>`;
   }
 
+  // Trend maturity badge based on trend run days
+  function trendMaturityBadge(item) {
+    const days = parseInt(item[f('trend_run_days')]);
+    if (isNaN(days) || days < 1) return '';
+    let label, cls;
+    if      (days <= 7)  { label = '🌱 Young';     cls = 'maturity-young'; }
+    else if (days <= 21) { label = '📈 Developing'; cls = 'maturity-developing'; }
+    else if (days <= 60) { label = '🏔 Mature';     cls = 'maturity-mature'; }
+    else                 { label = '⚠️ Extended';   cls = 'maturity-extended'; }
+    return `<span class="sig-badge ${cls}" title="${days} days in trend">${label}</span>`;
+  }
+
   // ── Feature 9: Similar Setups ────────────────────────────────────────
   function similarityScore(a, b) {
     let s = 0;
@@ -1641,7 +1688,10 @@
               <div class="sig-card-right">
                 ${shareBtn(item.instrument_name)}
                 <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
-                <span class="sig-card-price" style="color:${priceColor}">${formatPrice(item[f('close')])}</span>
+                <div class="sig-price-stack">
+                  <span class="sig-card-price" style="color:${priceColor}">${formatPrice(item[f('close')])}</span>
+                  ${pct !== null ? `<span class="sig-entry-pct ${pct >= 0 ? 'pct-pos' : 'pct-neg'}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}
+                </div>
               </div>
             </div>
             <div class="sig-card-row2">
@@ -1653,6 +1703,7 @@
               ${alignBadge}
               ${badge3TF(item)}
               ${ageBadge}
+              ${trendMaturityBadge(item)}
             </div>
             ${maOrderPct !== null ? `<div class="sig-card-row3">
               <span class="sig-ma-label">MA ${maOrderPct}%</span>
@@ -2035,9 +2086,24 @@
   document.getElementById('modalClose').addEventListener('click', closeModal);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
+  // Swipe-down to close modal
+  (function wireModalSwipe() {
+    const modal = document.getElementById('instrumentModal');
+    if (!modal) return;
+    let swipeStartY = 0;
+    modal.addEventListener('touchstart', e => {
+      swipeStartY = e.touches[0].clientY;
+    }, { passive: true });
+    modal.addEventListener('touchend', e => {
+      const dy = e.changedTouches[0].clientY - swipeStartY;
+      if (dy > 80) closeModal();
+    }, { passive: true });
+  })();
+
   function closeModal() {
     overlay.classList.remove('open');
-    if (charts.modal) { charts.modal.destroy(); delete charts.modal; }
+    if (charts.modal)   { charts.modal.destroy();   delete charts.modal; }
+    if (charts.modal3d) { charts.modal3d.remove();  delete charts.modal3d; }
   }
 
   async function openModal(name) {
@@ -2206,16 +2272,15 @@
 
       <!-- ===== CHART PANEL ===== -->
       <div class="mh-panel mh-panel-hidden" id="mhPanel-chart">
+        ${timeframe === '3D' ? `
         <div class="modal-section">
-          <div class="modal-section-title">Chart Preview <a href="${tvChartUrl}" target="_blank" rel="noopener" class="tv-link-inline" onclick="event.stopPropagation()">Full chart</a></div>
-          <div class="modal-tv-chart-wrap">
-            <iframe id="tvFrame" data-src="${tvWidgetUrl(item.instrument_name)}" frameborder="0" allowtransparency="true" scrolling="no" allowfullscreen></iframe>
-          </div>
-        </div>
+          <div class="modal-section-title">3-Day Candlestick Chart</div>
+          <div class="modal-chart-wrap lw-chart-wrap" id="lwChartContainer"></div>
+        </div>` : `
         <div class="modal-section">
           <div class="modal-section-title">MA Ribbon (${timeframe==='M'?'250 months':timeframe==='W'?'250 weeks':'250 days'})</div>
           <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
-        </div>
+        </div>`}
       </div>
 
       <!-- ===== ANALYSIS PANEL ===== -->
@@ -2284,9 +2349,6 @@
         });
         if (panel === 'chart' && !mhChartLoaded) {
           mhChartLoaded = true;
-          // Lazy-load TV iframe only on first tap
-          const tvFrame = document.getElementById('tvFrame');
-          if (tvFrame && tvFrame.dataset.src) tvFrame.src = tvFrame.dataset.src;
           loadModalChart(item);
         }
       });
@@ -2327,7 +2389,73 @@
     }).filter(Boolean);
   }
 
+  // ── 3-Day resampler (groups daily OHLCV bars into 3-bar units) ──────────
+  function resampleTo3D(bars) {
+    const out = [];
+    for (let i = 0; i < bars.length; i += 3) {
+      const slice = bars.slice(i, Math.min(i + 3, bars.length));
+      if (!slice.length) continue;
+      out.push({
+        time:  slice[0].date,
+        open:  slice[0].open,
+        high:  Math.max(...slice.map(b => b.high)),
+        low:   Math.min(...slice.map(b => b.low)),
+        close: slice[slice.length - 1].close,
+      });
+    }
+    return out;
+  }
+
+  // Lazy-load Chart.js the first time the chart panel is opened
+  function ensureChartJs() {
+    if (window.Chart) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function loadModalChart(item) {
+    // ── 3D: candlestick via Lightweight Charts ────────────────────────────
+    if (timeframe === '3D') {
+      const container = document.getElementById('lwChartContainer');
+      if (!container || !window.LightweightCharts) return;
+      try {
+        const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
+        if (!res.ok) return;
+        const json = await res.json();
+        const bars = json.data || [];
+        if (!bars.length) return;
+        const c3d = resampleTo3D(bars);
+        const isDark = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
+        const chart = LightweightCharts.createChart(container, {
+          width:  container.clientWidth,
+          height: 280,
+          layout: { background: { color: 'transparent' }, textColor: isDark ? '#94a3b8' : '#334155' },
+          grid:   { vertLines: { color: 'rgba(148,163,184,.1)' }, horzLines: { color: 'rgba(148,163,184,.1)' } },
+          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+          rightPriceScale: { borderColor: 'rgba(148,163,184,.2)' },
+          timeScale: { borderColor: 'rgba(148,163,184,.2)', timeVisible: true },
+        });
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#10b981', downColor: '#ef4444',
+          borderUpColor: '#10b981', borderDownColor: '#ef4444',
+          wickUpColor: '#10b981', wickDownColor: '#ef4444',
+        });
+        candleSeries.setData(c3d);
+        // Auto-fit all data
+        chart.timeScale().fitContent();
+        // Store reference so closeModal can clean up
+        charts.modal3d = chart;
+      } catch (e) { console.warn('3D chart error:', e); }
+      return;
+    }
+
+    // ── All other timeframes: MA Ribbon via Chart.js ──────────────────────
+    await ensureChartJs();
     const c = getThemeColors();
     try {
       const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));

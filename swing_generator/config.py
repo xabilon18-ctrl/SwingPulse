@@ -42,9 +42,10 @@ WATCH_APPROACH_PCT        = 0.015  # 1.5% from nearest MA edge = "approaching"
 MIDPOINT_BOUNCE_PCT       = 0.015  # 1.5% from ribbon midpoint = midpoint bounce
 
 # Max wick penetration past MA before the touch is rejected (per timeframe)
-MAX_PENETRATION_4H     = 0.020  # 2.0%
-MAX_PENETRATION_DAILY  = 0.015  # 1.5%
-MAX_PENETRATION_WEEKLY = 0.025  # 2.5%
+MAX_PENETRATION_4H      = 0.020  # 2.0%
+MAX_PENETRATION_DAILY   = 0.015  # 1.5%
+MAX_PENETRATION_3D      = 0.018  # 1.8%  (3-day bars — between daily and weekly)
+MAX_PENETRATION_WEEKLY  = 0.025  # 2.5%
 MAX_PENETRATION_MONTHLY = 0.030  # 3.0%
 
 # Touch tolerance per timeframe (monthly needs wider band for wide wicks)
@@ -53,6 +54,7 @@ TOUCH_TOLERANCE_MONTHLY = 0.005  # 0.5% (vs 0.1% default)
 # Signal lookback scaled per timeframe (how far back to find last signal)
 SIGNAL_LOOKBACK_4H      = 60   # 60 4H bars ≈ 10 trading days
 SIGNAL_LOOKBACK_DAILY   = 20   # 20 trading days
+SIGNAL_LOOKBACK_3D      = 30   # 30 3-day bars ≈ 90 trading days
 SIGNAL_LOOKBACK_WEEKLY  = 12   # 12 weeks ≈ 3 months
 SIGNAL_LOOKBACK_MONTHLY = 6    # 6 months
 
@@ -116,6 +118,8 @@ OUTPUT_COLUMNS = [
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
     *_tf_signal_columns('h4_'),
+    # ── 3-Day ──
+    *_tf_signal_columns('td_'),
     # ── Weekly ──
     *_tf_signal_columns('w_'),
     # ── Monthly ──

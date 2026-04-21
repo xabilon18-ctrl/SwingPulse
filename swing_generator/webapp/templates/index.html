@@ -12,8 +12,9 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=42">
+  <link rel="stylesheet" href="/static/css/style.css?v=44">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
@@ -33,6 +34,7 @@
       <div class="tf-toggle" id="tfToggle" title="Timeframe">
         <button class="tf-btn" data-tf="4H">4H</button>
         <button class="tf-btn active" data-tf="D">D</button>
+        <button class="tf-btn" data-tf="3D">3D</button>
         <button class="tf-btn" data-tf="W">W</button>
         <button class="tf-btn" data-tf="M">M</button>
       </div>
@@ -56,14 +58,32 @@
     <!-- ========== DASHBOARD TAB ========== -->
     <section class="tab-pane active" id="pane-dashboard">
 
+      <!-- ── Stale Data Warning Banner ── -->
+      <div class="stale-banner" id="staleBanner" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="staleBannerText">Data may be from a previous session</span>
+        <button class="stale-dismiss" onclick="document.getElementById('staleBanner').style.display='none'">✕</button>
+      </div>
+
       <!-- ── Market Pulse Card (gauge + breakdown) ── -->
       <div class="card mp-pulse-card" id="marketPulse">
         <div class="mp-card-header">
           <div>
             <span class="mp-card-title">MARKET PULSE</span>
+            <button class="gauge-info-btn" id="gaugeInfoBtn" title="How is the score calculated?">?</button>
             <span class="mp-card-hint">Tap row → filter heatmap</span>
           </div>
           <span class="chart-tf-badge" id="chartTfBadge1"></span>
+        </div>
+        <div class="gauge-tooltip" id="gaugeTooltip" style="display:none">
+          <strong>Market Pulse Score (0–100)</strong><br>
+          Combines 6 factors across all instruments:<br>
+          • Uptrend % of universe<br>
+          • Buy signal count (P1–P4)<br>
+          • High-confidence signals<br>
+          • Volume spikes<br>
+          • Triple-timeframe alignment<br>
+          • MA ribbon strength
         </div>
         <div class="mp-card-body">
           <div class="mp-gauge-wrap">
@@ -661,6 +681,6 @@
     </button>
   </nav>
 
-  <script src="/static/js/app.js?v=38"></script>
+  <script src="/static/js/app.js?v=40"></script>
 </body>
 </html>

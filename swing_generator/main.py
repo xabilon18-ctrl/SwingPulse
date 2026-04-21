@@ -26,9 +26,11 @@ import config
 from config import (
     MA_PERIODS, SMALL_MA_RANGE, OUTPUT_COLUMNS,
     MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
+    MAX_PENETRATION_3D,
     MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
     TOUCH_TOLERANCE_MONTHLY,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
+    SIGNAL_LOOKBACK_3D,
     SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_MONTHLY,
 )
 from instruments   import load_instruments, instruments_by_ticker
@@ -265,7 +267,7 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     Uses established_trend (which persists through NEUTRAL) for each TF.
     """
     trends = []
-    for prefix in ('', 'h4_', 'w_', 'm_'):
+    for prefix in ('', 'h4_', 'td_', 'w_', 'm_'):
         key = f'{prefix}established_trend' if prefix else 'established_trend'
         t = row.get(key, '')
         if t == 'UPTREND':
@@ -349,6 +351,26 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 if h4_data is None:
                     h4_data = {}
 
+        # ── 3-DAY ──
+        # Resample daily bars to 3-day bars.  ~4,000 daily bars → ~1,333 3D bars.
+        td = _resample(ohlcv, '3D')
+        td_data = {}
+        td_ma_periods = [p for p in MA_PERIODS if p <= len(td)]
+        if len(td_ma_periods) >= 3:
+            td_small = [p for p in SMALL_MA_RANGE if p in td_ma_periods]
+            if not td_small:
+                td_small = td_ma_periods[:min(7, len(td_ma_periods))]
+            td = add_all_indicators(td, ma_periods=td_ma_periods)
+            td = add_signals(td, ma_periods=td_ma_periods, small_ma_range=td_small,
+                             max_penetration=MAX_PENETRATION_3D)
+            td_data, _ = _extract_row(
+                td, run_date, prefix='td_',
+                ma_periods=td_ma_periods,
+                signal_lookback=SIGNAL_LOOKBACK_3D,
+            )
+            if td_data is None:
+                td_data = {}
+
         # ── WEEKLY ──
         # Clip MA periods to what fits in the weekly bar count.
         wk = _resample(ohlcv, 'W')
@@ -404,6 +426,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             **daily_data,
             **kl,
             **(h4_data or {}),
+            **(td_data or {}),
             **(weekly_data or {}),
             **(monthly_data or {}),
         }
