@@ -149,7 +149,24 @@
       "mcp__Claude_in_Chrome__tabs_context_mcp",
       "Bash(curl -s -X POST https://github.com/login/device/code -H 'Accept: application/json' -d 'client_id=178c6fc778ccc68e1d6a&scope=repo,read:org')",
       "Bash(curl -s -X POST https://github.com/login/oauth/access_token -H 'Accept: application/json' -d 'client_id=178c6fc778ccc68e1d6a&device_code=c7d5c79c3bba4862490a523ee51903f4f9118d66&grant_type=urn:ietf:params:oauth:grant-type:device_code')",
-      "Bash(pkill -f \"device_code=c7d5c79c3bba\")"
+      "Bash(pkill -f \"device_code=c7d5c79c3bba\")",
+      "Bash(/tmp/gh_bin/gh_2.67.0_macOS_arm64/bin/gh repo *)",
+      "Bash(curl -s -X POST https://github.com/login/device/code -H 'Accept: application/json' -d 'client_id=178c6fc778ccc68e1d6a&scope=repo,read:org,workflow')",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__form_input",
+      "Bash(/tmp/gh_bin/gh_2.67.0_macOS_arm64/bin/gh secret *)",
+      "Bash(/tmp/gh_bin/gh_2.67.0_macOS_arm64/bin/gh workflow *)",
+      "Bash(/tmp/gh_bin/gh_2.67.0_macOS_arm64/bin/gh run *)",
+      "Bash(curl -s \"https://pub-b542e8a3dd3f46b5a74dba1d2f894137.r2.dev/summary.json\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('date:', d.get\\('date'\\), 'generated:', d.get\\('generated_at','n/a'\\)\\)\")",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/summary.json\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('date:', d.get\\('date'\\), '| generated:', d.get\\('generated_at','n/a'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k not in ['signals','watchlist']}, indent=2\\)\\)\")",
+      "Bash(python3 -c \"from config import MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D; print\\('Config OK:', MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D\\)\")"
     ]
   }
 }

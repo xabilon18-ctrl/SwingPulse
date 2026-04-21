@@ -2447,24 +2447,27 @@
       const container = document.getElementById('lwChartContainer');
       if (!container || !window.LightweightCharts) return;
       try {
+        // Wait one animation frame so the panel transitions from display:none
+        // and the container has real dimensions before Lightweight Charts reads them
+        await new Promise(r => requestAnimationFrame(r));
+
         const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
         if (!res.ok) return;
         const json = await res.json();
         const allBars = json.data || [];
         if (!allBars.length) return;
 
-        const bars    = allBars.slice(-100);               // last 100 daily bars
+        const bars    = allBars.slice(-100);
         const spiked  = computeVolumeSpikes(bars);
         const isDark  = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
         const textCol = isDark ? '#94a3b8' : '#334155';
 
         const chart = LightweightCharts.createChart(container, {
-          width:  container.clientWidth,
-          height: container.clientHeight || 340,
+          autoSize: true,
           layout: { background: { color: 'transparent' }, textColor: textCol },
-          grid:   { vertLines: { color: 'rgba(148,163,184,.07)' }, horzLines: { color: 'rgba(148,163,184,.07)' } },
+          grid:    { vertLines: { color: 'rgba(148,163,184,.07)' }, horzLines: { color: 'rgba(148,163,184,.07)' } },
           crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)' },
+          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)', scaleMargins: { top: 0.05, bottom: 0.22 } },
           timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
         });
 
@@ -2522,10 +2525,9 @@
         // ── Volume histogram — amber bars on spike days ──
         const volSeries = chart.addHistogramSeries({
           priceFormat: { type: 'volume' },
-          priceScaleId: 'vol',
-          scaleMargins: { top: 0.78, bottom: 0 },
+          priceScaleId: 'vol_scale',
         });
-        volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+        chart.priceScale('vol_scale').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 }, visible: false });
         volSeries.setData(spiked.map(b => ({
           time:  b.date,
           value: b.volume,
@@ -2543,6 +2545,7 @@
       const container = document.getElementById('lwChartContainer');
       if (!container || !window.LightweightCharts) return;
       try {
+        await new Promise(r => requestAnimationFrame(r));
         const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
         if (!res.ok) return;
         const json = await res.json();
@@ -2555,10 +2558,9 @@
         const textCol  = isDark ? '#94a3b8' : '#334155';
 
         const chart = LightweightCharts.createChart(container, {
-          width:  container.clientWidth,
-          height: 280,
+          autoSize: true,
           layout: { background: { color: 'transparent' }, textColor: textCol },
-          grid:   { vertLines: { color: 'rgba(148,163,184,.08)' }, horzLines: { color: 'rgba(148,163,184,.08)' } },
+          grid:    { vertLines: { color: 'rgba(148,163,184,.08)' }, horzLines: { color: 'rgba(148,163,184,.08)' } },
           crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
           rightPriceScale: { borderColor: 'rgba(148,163,184,.15)' },
           timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
