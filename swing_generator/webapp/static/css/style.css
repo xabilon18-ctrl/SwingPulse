@@ -4074,13 +4074,49 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background: var(--buy);
 }
 
-/* ── 3D Lightweight Chart container ───────────────────────────────────── */
+/* ── Lightweight Chart containers ─────────────────────────────────────── */
 .lw-chart-wrap {
   height: 280px !important;
   min-height: 280px;
   background: transparent;
   border-radius: 8px;
   overflow: hidden;
+}
+.lw-chart-wrap--tall {
+  height: 340px !important;
+  min-height: 340px;
+}
+
+/* ── VOL+ confirmation chip (modal hero) ───────────────────────────────── */
+.vol-plus-chip {
+  display: inline-block;
+  font-size: .6rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(245,158,11,.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,.4);
+  vertical-align: middle;
+  margin-left: 4px;
+  letter-spacing: .03em;
+}
+
+/* ── Volume spike legend (chart section title) ─────────────────────────── */
+.vol-spike-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .65rem;
+  font-weight: 500;
+  color: #f59e0b;
+  opacity: .85;
+}
+.vol-spike-dot {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  background: #f59e0b;
+  flex-shrink: 0;
 }
 
 /* ── Stale Data Warning Banner ─────────────────────────────────────────── */

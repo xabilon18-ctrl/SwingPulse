@@ -2102,8 +2102,8 @@
 
   function closeModal() {
     overlay.classList.remove('open');
-    if (charts.modal)   { charts.modal.destroy();   delete charts.modal; }
-    if (charts.modal3d) { charts.modal3d.remove();  delete charts.modal3d; }
+    if (charts.modal)   { charts.modal.destroy();  delete charts.modal; }
+    if (charts.modalLw) { charts.modalLw.remove(); delete charts.modalLw; }
   }
 
   async function openModal(name) {
@@ -2159,7 +2159,7 @@
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
           </div>
           <div class="mh-sig-wrap">
-            ${sig ? `<div class="mh-sig-badge${buy ? ' buy' : sell ? ' sell' : ''}">${buy ? 'BUY' : 'SELL'} ${sig}</div>` : ''}
+            ${sig ? `<div class="mh-sig-badge${buy ? ' buy' : sell ? ' sell' : ''}">${buy ? 'BUY' : 'SELL'} ${sig}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-plus-chip">VOL+</span>' : ''}</div>` : ''}
             ${conf ? `<div class="mh-sig-conf">${conf} confidence</div>` : ''}
           </div>
         </div>
@@ -2274,11 +2274,15 @@
       <div class="mh-panel mh-panel-hidden" id="mhPanel-chart">
         ${timeframe === '3D' ? `
         <div class="modal-section">
-          <div class="modal-section-title">3-Day Candlestick Chart</div>
+          <div class="modal-section-title">3-Day Candlestick</div>
           <div class="modal-chart-wrap lw-chart-wrap" id="lwChartContainer"></div>
+        </div>` : timeframe === 'D' ? `
+        <div class="modal-section">
+          <div class="modal-section-title">Daily Chart · 100 days &nbsp;<span class="vol-spike-legend"><span class="vol-spike-dot"></span>Volume spike</span></div>
+          <div class="modal-chart-wrap lw-chart-wrap lw-chart-wrap--tall" id="lwChartContainer"></div>
         </div>` : `
         <div class="modal-section">
-          <div class="modal-section-title">MA Ribbon (${timeframe==='M'?'250 months':timeframe==='W'?'250 weeks':'250 days'})</div>
+          <div class="modal-section-title">MA Ribbon (${timeframe==='M'?'250 months':timeframe==='W'?'250 weeks':'250 periods'})</div>
           <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
         </div>`}
       </div>
@@ -2406,6 +2410,15 @@
     return out;
   }
 
+  // Volume spike detection: volume > 25-day rolling average
+  function computeVolumeSpikes(bars, lookback = 25) {
+    return bars.map((bar, i) => {
+      const win = bars.slice(Math.max(0, i - lookback + 1), i + 1);
+      const avg = win.reduce((s, b) => s + b.volume, 0) / win.length;
+      return { ...bar, volumeAvg: avg, isSpike: bar.volume > avg };
+    });
+  }
+
   // Rolling MA computed on an array of values
   function computeMA3D(values, period) {
     return values.map((_, i) => {
@@ -2429,6 +2442,102 @@
   }
 
   async function loadModalChart(item) {
+    // ── Daily: candlestick + volume spikes via Lightweight Charts ────────
+    if (timeframe === 'D') {
+      const container = document.getElementById('lwChartContainer');
+      if (!container || !window.LightweightCharts) return;
+      try {
+        const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
+        if (!res.ok) return;
+        const json = await res.json();
+        const allBars = json.data || [];
+        if (!allBars.length) return;
+
+        const bars    = allBars.slice(-100);               // last 100 daily bars
+        const spiked  = computeVolumeSpikes(bars);
+        const isDark  = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
+        const textCol = isDark ? '#94a3b8' : '#334155';
+
+        const chart = LightweightCharts.createChart(container, {
+          width:  container.clientWidth,
+          height: container.clientHeight || 340,
+          layout: { background: { color: 'transparent' }, textColor: textCol },
+          grid:   { vertLines: { color: 'rgba(148,163,184,.07)' }, horzLines: { color: 'rgba(148,163,184,.07)' } },
+          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)' },
+          timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
+        });
+
+        // ── Candlesticks — amber body on spike days ──
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#10b981', downColor: '#ef4444',
+          borderUpColor: '#10b981', borderDownColor: '#ef4444',
+          wickUpColor: '#6b7280', wickDownColor: '#6b7280',
+        });
+        candleSeries.setData(spiked.map(b => ({
+          time:  b.date,
+          open:  b.open, high: b.high, low: b.low, close: b.close,
+          ...(b.isSpike ? { color: '#f59e0b', borderColor: '#f59e0b', wickColor: '#f59e0b' } : {}),
+        })));
+
+        // ── MA lines from pre-computed history values ──
+        [
+          { key: 'ma_40',  color: '#6366f1', title: 'MA40'  },
+          { key: 'ma_100', color: '#0ea5e9', title: 'MA100' },
+          { key: 'ma_200', color: '#ef4444', title: 'MA200' },
+        ].forEach(({ key, color, title }) => {
+          const data = bars
+            .filter(b => b[key] != null)
+            .map(b => ({ time: b.date, value: b[key] }));
+          if (data.length < 2) return;
+          const line = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title });
+          line.setData(data);
+        });
+
+        // ── Key support / resistance levels ──
+        parseKeyLevels(item.key_levels_all).slice(0, 10).forEach(lv => {
+          candleSeries.createPriceLine({
+            price: lv.price,
+            color: lv.type === 'top' ? 'rgba(239,68,68,.5)' : 'rgba(16,185,129,.5)',
+            lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+            title: lv.type === 'top' ? `R×${lv.touches}` : `S×${lv.touches}`,
+          });
+        });
+
+        // ── Signal marker ──
+        const lsd = item['last_signal_date'], lst = item['last_signal_type'] || item['primary_signal'] || '';
+        if (lsd && lst) {
+          const sigBar = bars.find(b => b.date >= lsd);
+          if (sigBar) {
+            candleSeries.setMarkers([{
+              time: sigBar.date,
+              position: isBuy(item) ? 'belowBar' : 'aboveBar',
+              color:    isBuy(item) ? '#10b981' : '#ef4444',
+              shape:    isBuy(item) ? 'arrowUp'  : 'arrowDown',
+              text:     lst,
+            }]);
+          }
+        }
+
+        // ── Volume histogram — amber bars on spike days ──
+        const volSeries = chart.addHistogramSeries({
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'vol',
+          scaleMargins: { top: 0.78, bottom: 0 },
+        });
+        volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+        volSeries.setData(spiked.map(b => ({
+          time:  b.date,
+          value: b.volume,
+          color: b.isSpike ? 'rgba(245,158,11,.75)' : 'rgba(148,163,184,.22)',
+        })));
+
+        chart.timeScale().fitContent();
+        charts.modalLw = chart;
+      } catch (e) { console.warn('D chart error:', e); }
+      return;
+    }
+
     // ── 3D: candlestick via Lightweight Charts ────────────────────────────
     if (timeframe === '3D') {
       const container = document.getElementById('lwChartContainer');
@@ -2515,7 +2624,7 @@
         }
 
         chart.timeScale().fitContent();
-        charts.modal3d = chart;
+        charts.modalLw = chart;
       } catch (e) { console.warn('3D chart error:', e); }
       return;
     }
