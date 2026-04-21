@@ -550,6 +550,19 @@
     return n;
   }
 
+  // Universal search matcher — checks ticker, full name, group, sector, industry
+  function matchesSearch(item, query) {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (
+      (item.instrument_name || '').toLowerCase().includes(q) ||
+      (namesData[item.instrument_name] || '').toLowerCase().includes(q) ||
+      (item.group    || '').toLowerCase().includes(q) ||
+      (item.sector   || '').toLowerCase().includes(q) ||
+      (item.industry || '').toLowerCase().includes(q)
+    );
+  }
+
   function isBuy(item) {
     return (item[f('confirmation_status')] || '').toLowerCase().includes('buy');
   }
@@ -1546,13 +1559,7 @@
     const today = new Date(); today.setHours(0,0,0,0);
 
     let filtered = allData;
-    if (search) {
-      filtered = filtered.filter(d =>
-        (d.instrument_name || '').toLowerCase().includes(search) ||
-        (d.group || '').toLowerCase().includes(search) ||
-        (d.sector || '').toLowerCase().includes(search)
-      );
-    }
+    if (search) filtered = filtered.filter(d => matchesSearch(d, search));
 
     // ── Chip filters ──
     if (activeSignalFilter === 'buy')       filtered = filtered.filter(isBuy);
@@ -1775,10 +1782,7 @@
     const trend = document.getElementById('scannerTrendFilter').value;
 
     let filtered = allData;
-    if (search) filtered = filtered.filter(d =>
-      (d.instrument_name || '').toLowerCase().includes(search) ||
-      (d.group || '').toLowerCase().includes(search) ||
-      (d.sector || '').toLowerCase().includes(search));
+    if (search) filtered = filtered.filter(d => matchesSearch(d, search));
     if (group !== 'all')   filtered = filtered.filter(d => d.group === group);
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
@@ -2725,7 +2729,11 @@
       runDays: parseInt(d[f('trend_run_days')]) || 0,
     }));
 
-    if (search) items = items.filter(d => d.name.toLowerCase().includes(search) || d.group.toLowerCase().includes(search));
+    if (search) items = items.filter(d =>
+      d.name.toLowerCase().includes(search) ||
+      (namesData[d.name] || '').toLowerCase().includes(search) ||
+      d.group.toLowerCase().includes(search)
+    );
     if (groupVal !== 'all') items = items.filter(d => d.group === groupVal);
 
     // Sort
@@ -3007,12 +3015,7 @@
 
     // ── Filter ──────────────────────────────────────────────────────────
     let items = allData.filter(item => {
-      if (q) {
-        const name = (item.instrument_name || '').toLowerCase();
-        const grp  = (item.group || '').toLowerCase();
-        const sec  = (item.sector || '').toLowerCase();
-        if (!name.includes(q) && !grp.includes(q) && !sec.includes(q)) return false;
-      }
+      if (q && !matchesSearch(item, q)) return false;
       const spikeD  = ff(item, 'volume_spike_flag')    === 'yes';
       const spike4h = ff(item, 'h4_volume_spike_flag') === 'yes';
       const spikeW  = ff(item, 'w_volume_spike_flag')  === 'yes';
@@ -3228,27 +3231,6 @@
     el('trhAvgDownPct').textContent = '-' + avgDownPct + '%';
   }
 
-  // Wire Events tab chips + search
-  (function wireEventsTab() {
-    const chips = document.getElementById('evFilterChips');
-    if (chips) {
-      chips.addEventListener('click', e => {
-        const chip = e.target.closest('.ev-chip');
-        if (!chip) return;
-        chips.querySelectorAll('.ev-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        activeEvFilter = chip.dataset.filter;
-        renderEvents();
-      });
-    }
-    const srch = document.getElementById('evSearch');
-    if (srch) {
-      srch.addEventListener('input', () => {
-        evSearch = srch.value;
-        renderEvents();
-      });
-    }
-  })();
 
   // ── Share card ────────────────────────────────────────────────────────
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
