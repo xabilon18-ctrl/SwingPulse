@@ -166,7 +166,15 @@
       "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/summary.json\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('date:', d.get\\('date'\\), '| generated:', d.get\\('generated_at','n/a'\\)\\)\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k not in ['signals','watchlist']}, indent=2\\)\\)\")",
-      "Bash(python3 -c \"from config import MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D; print\\('Config OK:', MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D\\)\")"
+      "Bash(python3 -c \"from config import MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D; print\\('Config OK:', MAX_PENETRATION_3D, SIGNAL_LOOKBACK_3D\\)\")",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__file_upload",
+      "Bash([ -f \"$BASE/static/$f\" ])",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/intraday/signals.json\")",
+      "Bash(curl -sI -H \"Origin: https://swingpulse-intraday.pages.dev\" \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/intraday/signals.json\")",
+      "Bash(curl -sI -H \"Origin: https://swingpulse.pages.dev\" \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/signals.json\")",
+      "Bash(python3 webapp/publish.py --intraday --ui-only)"
     ]
   }
 }

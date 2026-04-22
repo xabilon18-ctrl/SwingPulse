@@ -42,8 +42,6 @@ WATCH_APPROACH_PCT        = 0.015  # 1.5% from nearest MA edge = "approaching"
 MIDPOINT_BOUNCE_PCT       = 0.015  # 1.5% from ribbon midpoint = midpoint bounce
 
 # Max wick penetration past MA before the touch is rejected (per timeframe)
-MAX_PENETRATION_1H      = 0.012  # 1.0% — tighter wicks on 1H
-MAX_PENETRATION_2H      = 0.015  # 1.5%
 MAX_PENETRATION_4H      = 0.020  # 2.0%
 MAX_PENETRATION_DAILY   = 0.015  # 1.5%
 MAX_PENETRATION_WEEKLY  = 0.025  # 2.5%
@@ -53,8 +51,6 @@ MAX_PENETRATION_MONTHLY = 0.030  # 3.0%
 TOUCH_TOLERANCE_MONTHLY = 0.005  # 0.5% (vs 0.1% default)
 
 # Signal lookback scaled per timeframe (how far back to find last signal)
-SIGNAL_LOOKBACK_1H      = 120   # 120 1H bars = 5 trading days
-SIGNAL_LOOKBACK_2H      = 80    # 80 2H bars ≈ 6.7 trading days
 SIGNAL_LOOKBACK_4H      = 60    # 60 4H bars ≈ 10 trading days
 SIGNAL_LOOKBACK_DAILY   = 20    # 20 trading days
 SIGNAL_LOOKBACK_WEEKLY  = 12    # 12 weeks ≈ 3 months
@@ -100,7 +96,7 @@ def _tf_signal_columns(prefix):
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ma_order_score', f'{p}roc',
     ]
 
-# Column order for the intraday app (1H · 2H · 4H · Daily)
+# Column order for the intraday app (4H · Daily)
 OUTPUT_COLUMNS_INTRADAY = [
     'instrument_name', 'group', 'sector', 'industry',
     # ── Daily ──
@@ -116,14 +112,10 @@ OUTPUT_COLUMNS_INTRADAY = [
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today',
     'key_levels_all',
-    # ── Multi-timeframe alignment (1H · 2H · 4H · Daily) ──
+    # ── Multi-timeframe alignment (4H · Daily) ──
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
     *_tf_signal_columns('h4_'),
-    # ── 2-Hour ──
-    *_tf_signal_columns('h2_'),
-    # ── 1-Hour ──
-    *_tf_signal_columns('h1_'),
 ]
 
 # Column order for the output sheet

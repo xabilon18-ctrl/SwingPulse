@@ -25,7 +25,7 @@
   let activeAlertTab = 'turning';
   let userStarred = new Set(JSON.parse(localStorage.getItem('swingpulse-starred') || '[]'));
   let charts = {};
-  let timeframe = 'D';      // 'D' = daily, '4H' = 4-hour, '2H' = 2-hour, '1H' = 1-hour
+  let timeframe = 'D';      // 'D' = daily, '4H' = 4-hour
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
@@ -276,8 +276,6 @@
   // Weekly columns are prefixed with 'w_' in the data.
   function f(field) {
     if (timeframe === '4H') return 'h4_' + field;
-    if (timeframe === '2H') return 'h2_' + field;
-    if (timeframe === '1H') return 'h1_' + field;
     return field;
   }
 
@@ -329,7 +327,7 @@
   // ── TradingView Helpers ──────────────────────────────────────────────
   function tvUrl(name) {
     const sym = tvMap[name] || name;
-    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', '2H': '&interval=120', '1H': '&interval=60' };
+    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240' };
     const interval = ivlMap[timeframe] || '&interval=D';
     return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}${interval}`;
   }
@@ -349,7 +347,7 @@
   function tvWidgetUrl(name) {
     const sym = tvMap[name] || name;
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const ivl = timeframe === '4H' ? '240' : timeframe === '2H' ? '120' : timeframe === '1H' ? '60' : 'D';
+    const ivl = timeframe === '4H' ? '240' : 'D';
     return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(sym)}&interval=${ivl}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%5D&theme=${theme}&style=1&timezone=exchange&withdateranges=1&hide_top_toolbar=0&hide_legend=0&allow_symbol_change=0&details=0&calendar=0`;
   }
 
@@ -970,7 +968,7 @@
     const s = computeSummary();
 
     // TF badges
-    const tfLabel = timeframe === '4H' ? '4H' : timeframe === '2H' ? '2H' : timeframe === '1H' ? '1H' : 'Daily';
+    const tfLabel = timeframe === '4H' ? '4H' : 'Daily';
     ['chartTfBadge1','chartTfBadge2','chartTfBadge3'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.textContent = tfLabel; el.dataset.tf = timeframe; }
@@ -2120,7 +2118,7 @@
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const levels = parseKeyLevels(item.key_levels_all);
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === '1H' ? 'h1_ma_' : timeframe === '2H' ? 'h2_ma_' : timeframe === '4H' ? 'h4_ma_' : 'ma_';
+    const maPrefix = timeframe === '4H' ? 'h4_ma_' : 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -2828,7 +2826,7 @@
     const webUrl = tvUrl(name);
     // Build tradingview:// deep link with exchange and symbol as separate params
     const tvSym  = tvMap[name] || name;
-    const ivlMap = { 'D': 'D', '4H': '240', '2H': '120', '1H': '60' };
+    const ivlMap = { 'D': 'D', '4H': '240' };
     const ivl    = ivlMap[timeframe] || 'D';
     let appUrl;
     if (tvSym.includes(':')) {

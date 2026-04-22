@@ -1,11 +1,11 @@
 """
-SwingPulse Intraday Signal Generator — hourly runner.
+SwingPulse Intraday Signal Generator — runs every 2 hours.
 
-Timeframes: 1H · 2H · 4H · Daily
-Updates every hour via GitHub Actions (07:00–22:00 UTC, Mon–Fri).
+Timeframes: 4H · Daily
+Updates every 2 hours via GitHub Actions (07:00–22:00 UTC, Mon–Fri).
 
 Usage:
-    python main_intraday.py                # normal hourly run (uses fresh hourly cache)
+    python main_intraday.py                # normal run (uses fresh hourly cache)
     python main_intraday.py --refresh      # force re-download all data from Yahoo Finance
     python main_intraday.py --date 2026-04-22  # backfill a specific date
 """
@@ -25,9 +25,7 @@ import pandas as pd
 import config
 from config import (
     MA_PERIODS, SMALL_MA_RANGE, OUTPUT_COLUMNS_INTRADAY,
-    MAX_PENETRATION_1H, MAX_PENETRATION_2H,
     MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
-    SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_2H,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
 )
 from instruments   import load_instruments, instruments_by_ticker
@@ -42,32 +40,6 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'output_intraday')
 # ---------------------------------------------------------------------------
 # Resampling
 # ---------------------------------------------------------------------------
-
-def _resample_1h(df_hourly: pd.DataFrame) -> pd.DataFrame:
-    """Prepare 1H bars — strip timezone, keep standard OHLCV columns."""
-    ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-    available = [c for c in ohlcv_cols if c in df_hourly.columns]
-    df_h = df_hourly[available].copy()
-    if df_h.index.tz is not None:
-        df_h.index = df_h.index.tz_localize(None)
-    return df_h.dropna(subset=['Close'])
-
-
-def _resample_2h(df_hourly: pd.DataFrame) -> pd.DataFrame:
-    """Resample hourly OHLCV to 2-hour bars."""
-    ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-    available = [c for c in ohlcv_cols if c in df_hourly.columns]
-    df_h = df_hourly[available].copy()
-    if df_h.index.tz is not None:
-        df_h.index = df_h.index.tz_localize(None)
-    return df_h.resample('2h').agg({
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum',
-    }).dropna(subset=['Close'])
-
 
 def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     """Resample hourly OHLCV to 4-hour bars."""
@@ -175,9 +147,9 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
 # ---------------------------------------------------------------------------
 
 def _compute_tf_alignment(row: dict) -> tuple[str, int]:
-    """Score alignment across 1H · 2H · 4H · Daily."""
+    """Score alignment across 4H · Daily."""
     trends = []
-    for prefix in ('', 'h4_', 'h2_', 'h1_'):
+    for prefix in ('', 'h4_'):
         key = f'{prefix}established_trend' if prefix else 'established_trend'
         t = row.get(key, '')
         if t == 'UPTREND':
@@ -238,8 +210,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         )
 
         h4_data = {}
-        h2_data = {}
-        h1_data = {}
 
         if hourly_df is not None and len(hourly_df) >= 200:
             # ── 4-HOUR ──
@@ -258,38 +228,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 if h4_data is None:
                     h4_data = {}
 
-            # ── 2-HOUR ──
-            h2 = _resample_2h(hourly_df)
-            h2_ma_periods = [p for p in MA_PERIODS if p <= len(h2)]
-            if len(h2_ma_periods) >= 3:
-                h2_small = [p for p in SMALL_MA_RANGE if p in h2_ma_periods] or h2_ma_periods[:min(7, len(h2_ma_periods))]
-                h2 = add_all_indicators(h2, ma_periods=h2_ma_periods)
-                h2 = add_signals(h2, ma_periods=h2_ma_periods, small_ma_range=h2_small,
-                                 max_penetration=MAX_PENETRATION_2H)
-                h2_data, _ = _extract_row(
-                    h2, run_date, prefix='h2_',
-                    ma_periods=h2_ma_periods,
-                    signal_lookback=SIGNAL_LOOKBACK_2H,
-                ) or ({}, None)
-                if h2_data is None:
-                    h2_data = {}
-
-            # ── 1-HOUR ──
-            h1 = _resample_1h(hourly_df)
-            h1_ma_periods = [p for p in MA_PERIODS if p <= len(h1)]
-            if len(h1_ma_periods) >= 3:
-                h1_small = [p for p in SMALL_MA_RANGE if p in h1_ma_periods] or h1_ma_periods[:min(7, len(h1_ma_periods))]
-                h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
-                h1 = add_signals(h1, ma_periods=h1_ma_periods, small_ma_range=h1_small,
-                                 max_penetration=MAX_PENETRATION_1H)
-                h1_data, _ = _extract_row(
-                    h1, run_date, prefix='h1_',
-                    ma_periods=h1_ma_periods,
-                    signal_lookback=SIGNAL_LOOKBACK_1H,
-                ) or ({}, None)
-                if h1_data is None:
-                    h1_data = {}
-
         row = {
             'instrument_name': inst_meta['name'],
             'group':           inst_meta.get('group', ''),
@@ -298,8 +236,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             **daily_data,
             **kl,
             **(h4_data or {}),
-            **(h2_data or {}),
-            **(h1_data or {}),
         }
 
         tf_label, tf_score = _compute_tf_alignment(row)
@@ -373,7 +309,7 @@ def main():
     )
 
     print('=' * 60)
-    print(f'  SwingPulse Intraday  [1H · 2H · 4H · D]  —  {run_date}')
+    print(f'  SwingPulse Intraday  [4H · D]  —  {run_date}')
     print('=' * 60)
 
     instruments  = load_instruments()
@@ -457,7 +393,7 @@ def _print_summary(df: pd.DataFrame) -> None:
     for status, count in counts.items():
         print(f'    {count:3d}  {status}')
     if 'tf_alignment' in df.columns:
-        print('\n  TIMEFRAME ALIGNMENT (1H · 2H · 4H · D):')
+        print('\n  TIMEFRAME ALIGNMENT (4H · D):')
         for label, cnt in df['tf_alignment'].value_counts().items():
             print(f'    {cnt:3d}  {label}')
 
