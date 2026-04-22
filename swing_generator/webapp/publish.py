@@ -6,6 +6,7 @@ Modes:
   python3 webapp/publish.py              → build data + upload to R2  (daily use, ~60 sec)
   python3 webapp/publish.py --ui-only    → build UI + deploy to Cloudflare Pages (UI changes only)
   python3 webapp/publish.py --build-only → build everything locally, no deploy
+  python3 webapp/publish.py --intraday   → build intraday data (1H·2H·4H·D) + upload to R2 intraday/ prefix
 """
 
 import argparse
@@ -27,17 +28,22 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output')
-CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache')
-PUBLISH_DIR = os.path.join(SCRIPT_DIR,  'publish')
+OUTPUT_DIR          = os.path.join(PROJECT_DIR, 'output')
+OUTPUT_DIR_INTRADAY = os.path.join(PROJECT_DIR, 'output_intraday')
+CACHE_DIR           = os.path.join(PROJECT_DIR, 'cache')
+PUBLISH_DIR         = os.path.join(SCRIPT_DIR,  'publish')
 
 MA_PERIODS = list(range(40, 201, 10))
 
 # ---------------------------------------------------------------------------
 # R2 config
 # ---------------------------------------------------------------------------
-R2_BUCKET     = 'swingpulse-data'
-R2_PUBLIC_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
+R2_BUCKET              = 'swingpulse-data'
+R2_PUBLIC_URL          = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
+R2_INTRADAY_PREFIX     = 'intraday'   # all intraday keys live under this prefix in the same bucket
+R2_INTRADAY_PUBLIC_URL = f'{R2_PUBLIC_URL}/{R2_INTRADAY_PREFIX}'
+PAGES_PROJECT          = 'swingpulse'
+PAGES_PROJECT_INTRADAY = 'swingpulse-intraday'
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -52,20 +58,22 @@ from server import build_tv_map, get_ticker_map, _ticker_to_filename
 # Data helpers  (unchanged from original)
 # ---------------------------------------------------------------------------
 
-def load_latest_signals():
-    files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_*.csv')))
+def load_latest_signals(src_dir=None):
+    d = src_dir or OUTPUT_DIR
+    files = sorted(glob.glob(os.path.join(d, 'signals_*.csv')))
     if not files:
         return pd.DataFrame(), '', ''
-    latest   = files[-1]
-    date_str = os.path.basename(latest).replace('signals_', '').replace('.csv', '')
-    mtime    = os.path.getmtime(latest)
+    latest     = files[-1]
+    date_str   = os.path.basename(latest).replace('signals_', '').replace('.csv', '')
+    mtime      = os.path.getmtime(latest)
     fetched_at = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
     df = pd.read_csv(latest).fillna('')
     return df, date_str, fetched_at
 
 
-def load_latest_trends(date_str):
-    path = os.path.join(OUTPUT_DIR, f'trends_{date_str}.json')
+def load_latest_trends(date_str, src_dir=None):
+    d    = src_dir or OUTPUT_DIR
+    path = os.path.join(d, f'trends_{date_str}.json')
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
@@ -559,12 +567,15 @@ def build_names():
 # Build data files into a local directory
 # ---------------------------------------------------------------------------
 
-def build_data(output_dir):
-    """Generate all JSON data files into output_dir. Returns (date_str, fetched_at)."""
+def build_data(output_dir, src_signals_dir=None):
+    """Generate all JSON data files into output_dir. Returns (date_str, fetched_at).
+
+    src_signals_dir — override where signals CSVs are read from (intraday pipeline).
+    """
     history_dir = os.path.join(output_dir, 'history')
     os.makedirs(history_dir, exist_ok=True)
 
-    df, dt, fetched_at = load_latest_signals()
+    df, dt, fetched_at = load_latest_signals(src_dir=src_signals_dir)
     print(f'  Signals date: {dt}')
     print(f'  Data fetched: {fetched_at}')
     print(f'  Instruments:  {len(df)}')
@@ -582,22 +593,19 @@ def build_data(output_dir):
     with open(os.path.join(output_dir, 'tv-map.json'), 'w') as f:
         json.dump(tv_map, f, separators=(',', ':'))
 
-    trends = load_latest_trends(dt)
+    trends = load_latest_trends(dt, src_dir=src_signals_dir)
     with open(os.path.join(output_dir, 'trends.json'), 'w') as f:
         json.dump(trends, f, separators=(',', ':'))
     print(f'  Trend histories: {len(trends)}')
 
-    # AI explanations (Haiku 3.5 — pre-generated, cached in R2)
     explanations = generate_explanations(df)
     with open(os.path.join(output_dir, 'explanations.json'), 'w') as f:
         json.dump(explanations, f, separators=(',', ':'), ensure_ascii=False)
 
-    # Historical events — big volume & big moves across all daily CSVs
     events = build_events()
     with open(os.path.join(output_dir, 'events.json'), 'w') as f:
         json.dump({'generated': dt, 'events': events}, f, separators=(',', ':'))
 
-    # Instrument display names (yfinance + manual overrides)
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
@@ -665,22 +673,28 @@ def _r2_put(local_path, r2_key, timeout=120):
         return False, r2_key
 
 
-def upload_to_r2(data_dir, max_workers=4, retries=2):
-    """Upload all files in data_dir to R2 using parallel workers with retry."""
+def upload_to_r2(data_dir, max_workers=4, retries=2, r2_prefix=''):
+    """Upload all files in data_dir to R2 using parallel workers with retry.
+
+    r2_prefix — optional path prefix for all R2 keys (e.g. 'intraday').
+    """
+    def _key(fname):
+        return f'{r2_prefix}/{fname}' if r2_prefix else fname
+
     files = []
 
     # Core data files
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'trends.json', 'explanations.json', 'events.json', 'names.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
-            files.append((p, fname))
+            files.append((p, _key(fname)))
 
     # History charts
     history_dir = os.path.join(data_dir, 'history')
     if os.path.exists(history_dir):
         for fname in os.listdir(history_dir):
             if fname.endswith('.json'):
-                files.append((os.path.join(history_dir, fname), f'history/{fname}'))
+                files.append((os.path.join(history_dir, fname), _key(f'history/{fname}')))
 
     total  = len(files)
     print(f'  Uploading {total} files to R2...', flush=True)
@@ -787,19 +801,70 @@ def build_ui():
     return ui_dir
 
 
-def deploy_ui_to_pages(ui_dir):
-    """Deploy UI-only directory to Cloudflare Pages."""
-    print('\n  Deploying UI to Cloudflare Pages...')
+def build_ui_intraday():
+    """Build the intraday UI directory (webapp/intraday/ sources → publish/ui-intraday/)."""
+    intraday_src = os.path.join(SCRIPT_DIR, 'intraday')
+    ui_dir       = os.path.join(PUBLISH_DIR, 'ui-intraday')
+    static_dst   = os.path.join(ui_dir, 'static')
+
+    os.makedirs(ui_dir, exist_ok=True)
+    if os.path.exists(static_dst):
+        shutil.rmtree(static_dst)
+    shutil.copytree(os.path.join(intraday_src, 'static'), static_dst)
+
+    with open(os.path.join(intraday_src, 'index.html')) as f:
+        html = f.read()
+    with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
+        f.write(html)
+
+    # Patch app.js: replace /api/* with intraday R2 URLs
+    app_js_path = os.path.join(static_dst, 'js', 'app.js')
+    with open(app_js_path) as f:
+        js = f.read()
+
+    base = R2_INTRADAY_PUBLIC_URL.rstrip('/')
+    js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
+    js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
+    js = js.replace("'/api/tv-map'",       f"'{base}/tv-map.json'")
+    js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
+    js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
+    js = js.replace("'/api/events'",       f"'{base}/events.json'")
+    js = js.replace("'/api/names'",        f"'{base}/names.json'")
+    js = js.replace(
+        "'/api/history/' + encodeURIComponent(item.instrument_name)",
+        f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"
+    )
+    js = js.replace(
+        "await fetch('/api/refresh', { method: 'POST' })",
+        "window.location.reload(); return"
+    )
+    with open(app_js_path, 'w') as f:
+        f.write(js)
+
+    # Copy manifest + service worker
+    for fname in ('manifest.json', 'sw.js'):
+        src = os.path.join(intraday_src, 'static', fname)
+        if os.path.exists(src):
+            shutil.copy2(src, ui_dir)
+
+    return ui_dir
+
+
+def deploy_ui_to_pages(ui_dir, project_name=None):
+    """Deploy UI directory to Cloudflare Pages."""
+    name = project_name or PAGES_PROJECT
+    print(f'\n  Deploying UI to Cloudflare Pages ({name})...')
     wrangler = _wrangler_bin()
     cmd = [wrangler] if wrangler else ['npx', 'wrangler']
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     result = subprocess.run(
-        cmd + ['pages', 'deploy', ui_dir, '--project-name', 'swingpulse'],
+        cmd + ['pages', 'deploy', ui_dir, '--project-name', name],
         capture_output=True, text=True, env=env,
     )
     output = result.stdout + result.stderr
     if result.returncode == 0:
-        print('  ✓ Pages deploy complete — https://swingpulse.pages.dev')
+        pages_url = f'https://{name}.pages.dev'
+        print(f'  ✓ Pages deploy complete — {pages_url}')
     else:
         print(f'  Pages deploy failed:\n{output}')
     return result.returncode == 0
@@ -815,14 +880,35 @@ def main():
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
+    parser.add_argument('--intraday', action='store_true',
+                        help='Build intraday (1H·2H·4H·D) data + upload under intraday/ R2 prefix')
     args = parser.parse_args()
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
         print('Building UI for Cloudflare Pages...')
-        ui_dir = build_ui()
-        print(f'  Output: {ui_dir}')
-        deploy_ui_to_pages(ui_dir)
+        if args.intraday:
+            ui_dir = build_ui_intraday()
+            print(f'  Output: {ui_dir}')
+            deploy_ui_to_pages(ui_dir, project_name=PAGES_PROJECT_INTRADAY)
+        else:
+            ui_dir = build_ui()
+            print(f'  Output: {ui_dir}')
+            deploy_ui_to_pages(ui_dir)
+        return
+
+    # ── Intraday data build + R2 upload ───────────────────────────────────
+    if args.intraday:
+        print('Building SwingPulse Intraday data...')
+        data_dir = os.path.join(PUBLISH_DIR, 'data-intraday')
+        os.makedirs(data_dir, exist_ok=True)
+        build_data(data_dir, src_signals_dir=OUTPUT_DIR_INTRADAY)
+        print(f'  Output: {data_dir}')
+        if args.build_only:
+            print('\n  Build complete. Files in: publish/data-intraday/')
+            return
+        upload_to_r2(data_dir, r2_prefix=R2_INTRADAY_PREFIX)
+        print(f'\n  Intraday app updated! https://swingpulse-intraday.pages.dev')
         return
 
     # ── Data build + R2 upload  (default daily workflow) ─────────────────

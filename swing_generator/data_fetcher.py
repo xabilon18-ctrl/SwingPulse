@@ -142,19 +142,20 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
 HOURLY_HISTORY_DAYS = 729   # Yahoo Finance max for 1h interval
 
 
-def fetch_hourly(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
+def fetch_hourly(ticker: str, force_refresh: bool = False,
+                 max_age_hours: int = 20) -> pd.DataFrame | None:
     """
     Return an hourly OHLCV DataFrame for *ticker*.
 
-    - force_refresh=True  → re-downloads full 729-day hourly history
-    - Normal daily run    → fetches last 5 days and appends new bars only
-    - Cache < 20 hrs old  → returned immediately
+    - force_refresh=True   → re-downloads full 729-day hourly history
+    - Normal daily run     → fetches last 5 days and appends new bars only
+    - Cache < max_age_hours → returned immediately (default 20h; use 1 for hourly pipelines)
     """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = _cache_path(ticker, suffix='1h')
 
     # ── Already fresh ─────────────────────────────────────────────────────
-    if not force_refresh and _is_fresh(path):
+    if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
         return pd.read_parquet(path)
 
     end = datetime.today()
@@ -220,7 +221,8 @@ def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str,
     return data
 
 
-def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
+def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False,
+                     max_age_hours: int = 20) -> dict[str, pd.DataFrame]:
     """Fetch hourly data for every instrument. Returns dict ticker → DataFrame."""
     data  = {}
     total = len(instruments)
@@ -230,7 +232,7 @@ def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False) -> di
         label  = f'{ticker:<15} ({inst["name"]:<12})'
         print(f'  [{i:3d}/{total}] {label}', end='  ', flush=True)
 
-        df = fetch_hourly(ticker, force_refresh)
+        df = fetch_hourly(ticker, force_refresh, max_age_hours=max_age_hours)
 
         if df is None:
             print('SKIP — no hourly data')
