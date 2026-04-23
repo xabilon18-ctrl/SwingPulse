@@ -59,6 +59,9 @@ SIGNAL_LOOKBACK_MONTHLY = 6     # 6 months
 # P3/P4 dedup: only suppress if last identical signal was within this many bars
 P3P4_DEDUP_WINDOW = 3
 
+# P2 dedup: suppress repeat 200 MA signals within this many bars (same direction)
+P2_DEDUP_WINDOW = 5
+
 # TTP cooldown: suppress repeated turning-point alerts for this many bars
 TTP_COOLDOWN_BARS = 30
 

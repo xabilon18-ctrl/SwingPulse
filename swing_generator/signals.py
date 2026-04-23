@@ -15,11 +15,17 @@ roc columns) and adds:
 
 Signal priority per row: P1 > P2 > P3 / P4 > secondary > watch > no signal.
 
-Confidence is determined by confluence of factors:
-    - Volume spike on signal bar → boost
-    - Key level touched at same price zone → boost
-    - No volume on signal → downgrade
-    - Counter-trend on higher timeframe → flag (handled in main.py)
+P1 fires on THREE paths:
+    A. Direct DOWNTREND → UPTREND  (no neutral in between)
+    B. Direct UPTREND   → DOWNTREND
+    C. DOWNTREND → NEUTRAL → UPTREND  (via neutral — most common for smooth instruments)
+    D. UPTREND   → NEUTRAL → DOWNTREND
+
+P2 dedup: same-direction P2 signals within P2_DEDUP_WINDOW bars are suppressed.
+P3/P4 suppressed when ribbon_compression is True (direction unknown during squeeze).
+P3/P4 confidence capped at 'low' when trend_run_days >= TREND_DURATION_THRESHOLD.
+Compression breakout watch fires on first bar ribbon expands after a squeeze.
+Exit labels appended when a signal closes the prior open position.
 """
 
 import pandas as pd
@@ -32,6 +38,7 @@ from config import (
     WATCH_APPROACH_PCT,
     MIDPOINT_BOUNCE_PCT,
     P3P4_DEDUP_WINDOW,
+    P2_DEDUP_WINDOW,
     TTP_COOLDOWN_BARS,
 )
 
@@ -52,16 +59,13 @@ def _touched_up(candle_low: float, ma_dict: dict,
     """
     Return (period, value) pairs where the candle's LOW touched or pierced
     the MA from above — i.e. the wick reached the MA line (buy-side touch).
-
-    max_penetration: if set, reject touches where the low is more than this
-    fraction below the MA (filters out gap-down crash-and-recover noise).
     """
     tol = tolerance if tolerance is not None else MA_TOUCH_TOLERANCE
     result = []
     for p, v in ma_dict.items():
         if candle_low <= v * (1 + tol):
             if max_penetration is not None and candle_low < v * (1 - max_penetration):
-                continue  # low is too far below the MA — not a genuine touch
+                continue
             result.append((p, v))
     return result
 
@@ -71,9 +75,6 @@ def _touched_down(candle_high: float, ma_dict: dict,
     """
     Return (period, value) pairs where the candle's HIGH touched or pierced
     the MA from below — i.e. the wick reached the MA line (sell-side touch).
-
-    max_penetration: if set, reject touches where the high is more than this
-    fraction above the MA.
     """
     tol = tolerance if tolerance is not None else MA_TOUCH_TOLERANCE
     result = []
@@ -87,24 +88,18 @@ def _touched_down(candle_high: float, ma_dict: dict,
 
 def _approaching_ma150(close: float, prev_close: float, ma_dict: dict,
                        direction: str) -> bool:
-    """
-    Watch flag: only trigger when price approaches the LONGEST MA (200),
-    not any MA in the ribbon. This avoids constant noise in trending markets
-    where price oscillates near short MAs.
-    """
+    """Watch flag: price approaching the longest MA (200) only."""
     max_period = max(ma_dict.keys()) if ma_dict else None
     if max_period is None:
         return False
     ma_val = ma_dict[max_period]
 
     if direction == 'UPTREND':
-        # Price falling toward ma_150 from above
         if close >= prev_close or close <= ma_val:
             return False
         dist = (close - ma_val) / ma_val
         return dist < WATCH_APPROACH_PCT
     else:
-        # Price rising toward ma_150 from below
         if close <= prev_close or close >= ma_val:
             return False
         dist = (ma_val - close) / ma_val
@@ -125,25 +120,27 @@ def _potential_turning_point(trend_run: int, close: float, ma_dict: dict) -> str
     return ''
 
 
-def _signal_confidence(primary: str, volume_spike: bool, at_key_level: bool) -> str:
+def _signal_confidence(primary: str, volume_spike: bool, at_key_level: bool,
+                       trend_run_days: int = 0) -> str:
     """
     Determine signal confidence based on confluence factors.
 
-    High:     Volume spike + signal (institutional participation)
-              OR signal at key level with 3+ touches (confluence)
-    Standard: Normal signal (default)
-    Low:      P3/P4 on below-average volume (weak bounce, likely to fail)
+    P3/P4 are capped at 'low' when the trend is very mature
+    (trend_run_days >= TREND_DURATION_THRESHOLD) — a long-running trend
+    is more likely to reverse than to continue cleanly on a pullback.
     """
     if not primary:
         return ''
+
+    # Mature-trend cap for pullback entries
+    if primary in ('P3', 'P4') and trend_run_days >= TREND_DURATION_THRESHOLD:
+        return 'low'
 
     if primary in ('P1', 'P2'):
         if volume_spike and at_key_level:
             return 'high'
         if volume_spike or at_key_level:
             return 'high'
-        if not volume_spike:
-            return 'standard'
         return 'standard'
 
     # P3 / P4
@@ -153,9 +150,39 @@ def _signal_confidence(primary: str, volume_spike: bool, at_key_level: bool) -> 
         return 'standard'
     if at_key_level:
         return 'standard'
-    if not volume_spike:
-        return 'low'
-    return 'standard'
+    return 'low'
+
+
+def _is_p2_dupe(primary: str, status: str,
+                primaries_so_far: list, statuses_so_far: list,
+                window: int) -> bool:
+    """
+    Return True if a same-direction P2 already fired within the last
+    `window` bars. A P1 anywhere in the window resets the dedup.
+    """
+    if primary != 'P2':
+        return False
+    curr_is_buy = 'buy' in status.lower()
+    lookback_start = max(0, len(primaries_so_far) - window)
+    for j in range(len(primaries_so_far) - 1, lookback_start - 1, -1):
+        if primaries_so_far[j] == 'P1':
+            return False
+        if primaries_so_far[j] == 'P2':
+            prev_is_buy = 'buy' in statuses_so_far[j].lower()
+            return curr_is_buy == prev_is_buy
+    return False
+
+
+def _maybe_exit_label(status: str, primary: str, last_side: str | None) -> str:
+    """Append [closes prior long/short] when the signal opposes the last primary."""
+    if not primary or not last_side:
+        return status
+    curr_is_buy = 'buy' in status.lower()
+    if last_side == 'BUY' and not curr_is_buy:
+        return status + ' [closes prior long]'
+    if last_side == 'SELL' and curr_is_buy:
+        return status + ' [closes prior short]'
+    return status
 
 
 # ---------------------------------------------------------------------------
@@ -164,54 +191,54 @@ def _signal_confidence(primary: str, volume_spike: bool, at_key_level: bool) -> 
 
 def _uptrend_signals(close, low, today_mas, prev_row, ttp,
                      small_ma_range=None, max_period=200,
-                     tolerance=None, max_penetration=None, ma_periods=None):
-    """Classify signal state for a row that is already confirmed UPTREND."""
+                     tolerance=None, max_penetration=None, ma_periods=None,
+                     ribbon_compression=False):
+    """Classify signal state for a row confirmed UPTREND."""
     _small = small_ma_range or SMALL_MA_RANGE
 
     today_touched = _touched_up(low, today_mas, tolerance=tolerance, max_penetration=max_penetration)
     small_touched = [(p, v) for p, v in today_touched if p in _small]
     ma_top_touched = [(p, v) for p, v in today_touched if p == max_period]
 
-    # --- P2: bounce off longest MA (200) ---
+    # P2: bounce off 200 MA — not suppressed by compression
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close > vtop:
             return ('Uptrend — primary buy signal confirmed [P2]', 'P2', '', '', ttp)
         return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- P3: bounce off small MA (40–100 daily, or equivalent) ---
-    if small_touched:
+    # P3: bounce off small MA — suppressed during ribbon compression
+    if small_touched and not ribbon_compression:
         confirmed = [(p, v) for p, v in small_touched if close > v]
         if confirmed:
             return ('Uptrend — primary buy signal confirmed [P3]', 'P3', '', '', ttp)
         return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Secondary: bounce off any MA in ribbon ---
+    # Secondary: bounce off any ribbon MA
     if today_touched:
         confirmed = [(p, v) for p, v in today_touched if close > v]
         if confirmed:
             return ('Uptrend — secondary buy signal confirmed', '', 'secondary', '', ttp)
         return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Check YESTERDAY for a pending touch that today resolves ---
+    # Check YESTERDAY for a pending touch that today resolves
     if prev_row is not None:
         prev_mas  = _ma_dict(prev_row, ma_periods=ma_periods)
         prev_low  = float(prev_row['Low'])
-        prev_touched = _touched_up(prev_low, prev_mas, tolerance=tolerance, max_penetration=max_penetration)
-
+        prev_touched = _touched_up(prev_low, prev_mas, tolerance=tolerance,
+                                   max_penetration=max_penetration)
         if prev_touched:
             for p, pv in prev_touched:
                 curr_v = today_mas.get(p)
                 if curr_v is not None and close > curr_v:
                     if p == max_period:
                         return ('Uptrend — primary buy signal confirmed [P2]', 'P2', '', '', ttp)
-                    if p in _small:
+                    if p in _small and not ribbon_compression:
                         return ('Uptrend — primary buy signal confirmed [P3]', 'P3', '', '', ttp)
                     return ('Uptrend — secondary buy signal confirmed', '', 'secondary', '', ttp)
-            # Touch was yesterday but close still hasn't confirmed
             return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Watch: approaching ma_200 only (not any MA) ---
+    # Watch: approaching 200 MA
     if prev_row is not None:
         if _approaching_ma150(close, float(prev_row['Close']), today_mas, 'UPTREND'):
             return (
@@ -224,53 +251,54 @@ def _uptrend_signals(close, low, today_mas, prev_row, ttp,
 
 def _downtrend_signals(close, high, today_mas, prev_row, ttp,
                        small_ma_range=None, max_period=200,
-                       tolerance=None, max_penetration=None, ma_periods=None):
-    """Classify signal state for a row that is already confirmed DOWNTREND."""
+                       tolerance=None, max_penetration=None, ma_periods=None,
+                       ribbon_compression=False):
+    """Classify signal state for a row confirmed DOWNTREND."""
     _small = small_ma_range or SMALL_MA_RANGE
 
     today_touched = _touched_down(high, today_mas, tolerance=tolerance, max_penetration=max_penetration)
     small_touched = [(p, v) for p, v in today_touched if p in _small]
     ma_top_touched = [(p, v) for p, v in today_touched if p == max_period]
 
-    # --- P2: rejection from longest MA ---
+    # P2: rejection from 200 MA — not suppressed by compression
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close < vtop:
             return ('Downtrend — primary sell signal confirmed [P2]', 'P2', '', '', ttp)
         return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- P4: rejection from small MA ---
-    if small_touched:
+    # P4: rejection from small MA — suppressed during ribbon compression
+    if small_touched and not ribbon_compression:
         confirmed = [(p, v) for p, v in small_touched if close < v]
         if confirmed:
             return ('Downtrend — primary sell signal confirmed [P4]', 'P4', '', '', ttp)
         return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Secondary: rejection from any MA ---
+    # Secondary: rejection from any ribbon MA
     if today_touched:
         confirmed = [(p, v) for p, v in today_touched if close < v]
         if confirmed:
             return ('Downtrend — secondary sell signal confirmed', '', 'secondary', '', ttp)
         return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Check YESTERDAY for a pending touch ---
+    # Check YESTERDAY
     if prev_row is not None:
         prev_mas  = _ma_dict(prev_row, ma_periods=ma_periods)
         prev_high = float(prev_row['High'])
-        prev_touched = _touched_down(prev_high, prev_mas, tolerance=tolerance, max_penetration=max_penetration)
-
+        prev_touched = _touched_down(prev_high, prev_mas, tolerance=tolerance,
+                                     max_penetration=max_penetration)
         if prev_touched:
             for p, pv in prev_touched:
                 curr_v = today_mas.get(p)
                 if curr_v is not None and close < curr_v:
                     if p == max_period:
                         return ('Downtrend — primary sell signal confirmed [P2]', 'P2', '', '', ttp)
-                    if p in _small:
+                    if p in _small and not ribbon_compression:
                         return ('Downtrend — primary sell signal confirmed [P4]', 'P4', '', '', ttp)
                     return ('Downtrend — secondary sell signal confirmed', '', 'secondary', '', ttp)
             return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # --- Watch: approaching ma_200 only ---
+    # Watch: approaching 200 MA
     if prev_row is not None:
         if _approaching_ma150(close, float(prev_row['Close']), today_mas, 'DOWNTREND'):
             return (
@@ -282,15 +310,14 @@ def _downtrend_signals(close, high, today_mas, prev_row, ttp,
 
 
 # ---------------------------------------------------------------------------
-# Neutral-zone P2 detection (pullback into ribbon, longest MA bounce)
+# Neutral-zone P2 detection
 # ---------------------------------------------------------------------------
 
 def _neutral_p2_check(row, prev_row, prior_trend, max_period=200,
                       tolerance=None, ma_periods=None):
     """
-    When price enters the NEUTRAL zone (inside the ribbon) from a prior
-    established trend, check for a P2 signal — bounce off the longest MA.
-    Only P2 signals are allowed in NEUTRAL (secondaries suppressed in chop).
+    When price is in NEUTRAL (inside ribbon) from a prior established trend,
+    check for a P2 — bounce/rejection off the longest MA.
     """
     if prior_trend is None or prev_row is None:
         return None
@@ -307,39 +334,24 @@ def _neutral_p2_check(row, prev_row, prior_trend, max_period=200,
     v_top = today_mas[max_period]
 
     if prior_trend == 'UPTREND':
-        # Check: did the candle's low touch the longest MA from above?
         if low <= v_top * (1 + _tol) and close > v_top:
-            return (
-                'Neutral (prior uptrend) — P2 buy signal: 200 MA bounce',
-                'P2', '', '', ''
-            )
-        # Also check yesterday's touch resolving today
+            return ('Neutral (prior uptrend) — P2 buy signal: 200 MA bounce', 'P2', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_low = float(prev_row['Low'])
             pv_top = prev_mas[max_period]
             if prev_low <= pv_top * (1 + _tol) and close > v_top:
-                return (
-                    'Neutral (prior uptrend) — P2 buy signal: 200 MA bounce',
-                    'P2', '', '', ''
-                )
+                return ('Neutral (prior uptrend) — P2 buy signal: 200 MA bounce', 'P2', '', '', '')
 
     elif prior_trend == 'DOWNTREND':
-        # Check: did the candle's high touch the longest MA from below?
         if high >= v_top * (1 - _tol) and close < v_top:
-            return (
-                'Neutral (prior downtrend) — P2 sell signal: 200 MA rejection',
-                'P2', '', '', ''
-            )
+            return ('Neutral (prior downtrend) — P2 sell signal: 200 MA rejection', 'P2', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_high = float(prev_row['High'])
             pv_top = prev_mas[max_period]
             if prev_high >= pv_top * (1 - _tol) and close < v_top:
-                return (
-                    'Neutral (prior downtrend) — P2 sell signal: 200 MA rejection',
-                    'P2', '', '', ''
-                )
+                return ('Neutral (prior downtrend) — P2 sell signal: 200 MA rejection', 'P2', '', '', '')
 
     return None
 
@@ -354,15 +366,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
     """
     Process the full instrument history and add signal columns.
     Iterates rows sequentially so each row can look at its predecessor.
-
-    Parameters:
-        ma_periods:       list of MA periods (default: config.MA_PERIODS)
-        small_ma_range:   list of "small" MA periods for P3/P4 (default: config.SMALL_MA_RANGE)
-        touch_tolerance:  fraction above/below MA to count as "touch" (default: 0.001)
-        max_penetration:  max fraction the wick can penetrate past the MA —
-                          if exceeded the touch is rejected (default: None = no limit).
-        key_levels_df:    DataFrame of key levels for confluence scoring (optional).
-                          Must have 'price' and 'touch_count' columns.
     """
     _ma_p   = ma_periods or MA_PERIODS
     _small  = small_ma_range or SMALL_MA_RANGE
@@ -370,7 +373,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
     _tol    = touch_tolerance if touch_tolerance is not None else MA_TOUCH_TOLERANCE
     _max_pen = max_penetration
 
-    # Pre-compute key level lookup for confluence scoring
     key_level_prices = []
     if key_levels_df is not None and not key_levels_df.empty:
         key_level_prices = [
@@ -390,8 +392,10 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
 
     trend_run  = 0
     last_trend = None
-    prior_established_trend = None
-    last_ttp_bar = -TTP_COOLDOWN_BARS - 1  # allow first TTP to fire
+    prior_established_trend  = None
+    prev_established_trend   = None   # saved before each bar updates prior_established_trend
+    last_primary_side        = None   # 'BUY' or 'SELL' — for exit labels
+    last_ttp_bar = -TTP_COOLDOWN_BARS - 1
 
     rows = df.reset_index(drop=False)
 
@@ -407,7 +411,9 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
         else:
             trend_run = 0
 
-        # Track what the established trend was before entering NEUTRAL
+        # Save established trend BEFORE this bar potentially changes it
+        prev_established_trend = prior_established_trend
+
         if trend != 'NEUTRAL':
             prior_established_trend = trend
         last_trend = trend
@@ -416,16 +422,14 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
 
         prev_row = rows.iloc[i - 1] if i >= 1 else None
 
-        # Volume state for this bar
-        vol_spike = bool(row.get('volume_spike_flag', False))
+        vol_spike    = bool(row.get('volume_spike_flag', False))
+        ribbon_comp  = bool(row.get('ribbon_compression', False))
 
-        # Check if price is at a key level (within 0.5% of a level with 3+ touches)
         close_val = float(row['Close']) if pd.notna(row.get('Close')) else 0
-        at_key_level = False
-        for kl_price, kl_touches in key_level_prices:
-            if kl_price > 0 and abs(close_val - kl_price) / kl_price < 0.005:
-                at_key_level = True
-                break
+        at_key_level = any(
+            kl_price > 0 and abs(close_val - kl_price) / kl_price < 0.005
+            for kl_price, _ in key_level_prices
+        )
 
         # ---- NEUTRAL -------------------------------------------------------
         if trend == 'NEUTRAL':
@@ -435,7 +439,21 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
             )
             if p2_result:
                 status, primary, secondary, watch, ttp = p2_result
-                conf = _signal_confidence(primary, vol_spike, at_key_level)
+
+                # P2 dedup in neutral zone
+                if _is_p2_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
+                    statuses.append('Neutral — no confirmed trend direction')
+                    primaries.append('')
+                    secondaries.append('')
+                    confidences.append('')
+                    watches.append('')
+                    ttps.append('')
+                    continue
+
+                conf   = _signal_confidence(primary, vol_spike, at_key_level, trend_run)
+                status = _maybe_exit_label(status, primary, last_primary_side)
+                if primary:
+                    last_primary_side = 'BUY' if 'buy' in status.lower() else 'SELL'
                 statuses.append(status)
                 primaries.append(primary)
                 secondaries.append(secondary)
@@ -457,7 +475,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
         high      = float(row['High'])
         today_mas = _ma_dict(row, ma_periods=_ma_p)
 
-        # Not enough MAs yet → treat as neutral
         if len(today_mas) < len(_ma_p) // 2:
             statuses.append('Neutral — no confirmed trend direction')
             primaries.append('')
@@ -467,33 +484,60 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
             ttps.append('')
             continue
 
-        # Potential turning point with cooldown
         ttp = ''
         raw_ttp = _potential_turning_point(trend_run, close, today_mas)
         if raw_ttp and (i - last_ttp_bar) >= TTP_COOLDOWN_BARS:
             ttp = raw_ttp
             last_ttp_bar = i
 
-        # ---- P1: trend reversal (highest priority) --------------------------
+        # ---- P1: trend reversal (highest priority) -------------------------
         if prev_row is not None:
             prev_trend = prev_row['trend_direction']
+
+            # Path A: direct DOWNTREND → UPTREND
             if trend == 'UPTREND' and prev_trend == 'DOWNTREND':
-                conf = _signal_confidence('P1', vol_spike, at_key_level)
-                statuses.append('Uptrend — primary buy signal confirmed [P1]')
-                primaries.append('P1')
-                secondaries.append('')
-                confidences.append(conf)
-                watches.append('')
-                ttps.append(ttp)
+                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
+                status = 'Uptrend — primary buy signal confirmed [P1]'
+                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                last_primary_side = 'BUY'
+                statuses.append(status); primaries.append('P1')
+                secondaries.append(''); confidences.append(conf)
+                watches.append(''); ttps.append(ttp)
                 continue
+
+            # Path B: direct UPTREND → DOWNTREND
             if trend == 'DOWNTREND' and prev_trend == 'UPTREND':
-                conf = _signal_confidence('P1', vol_spike, at_key_level)
-                statuses.append('Downtrend — primary sell signal confirmed [P1]')
-                primaries.append('P1')
-                secondaries.append('')
-                confidences.append(conf)
-                watches.append('')
-                ttps.append(ttp)
+                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
+                status = 'Downtrend — primary sell signal confirmed [P1]'
+                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                last_primary_side = 'SELL'
+                statuses.append(status); primaries.append('P1')
+                secondaries.append(''); confidences.append(conf)
+                watches.append(''); ttps.append(ttp)
+                continue
+
+            # Path C: DOWNTREND → NEUTRAL → UPTREND
+            if (trend == 'UPTREND' and prev_trend == 'NEUTRAL'
+                    and prev_established_trend == 'DOWNTREND'):
+                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
+                status = 'Uptrend — primary buy signal confirmed [P1] (via neutral)'
+                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                last_primary_side = 'BUY'
+                statuses.append(status); primaries.append('P1')
+                secondaries.append(''); confidences.append(conf)
+                watches.append(''); ttps.append(ttp)
+                continue
+
+            # Path D: UPTREND → NEUTRAL → DOWNTREND
+            if (trend == 'DOWNTREND' and prev_trend == 'NEUTRAL'
+                    and prev_established_trend == 'UPTREND'):
+                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
+                status = 'Downtrend — primary sell signal confirmed [P1] (via neutral)'
+                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                last_primary_side = 'SELL'
+                statuses.append(status); primaries.append('P1')
+                secondaries.append(''); confidences.append(conf)
+                watches.append(''); ttps.append(ttp)
                 continue
 
         # ---- P2 / P3 / P4 / secondary / watch ------------------------------
@@ -501,19 +545,19 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
             status, primary, secondary, watch, ttp_out = _uptrend_signals(
                 close, low, today_mas, prev_row, ttp,
                 small_ma_range=_small, max_period=_max_p,
-                tolerance=_tol, max_penetration=_max_pen, ma_periods=_ma_p
+                tolerance=_tol, max_penetration=_max_pen, ma_periods=_ma_p,
+                ribbon_compression=ribbon_comp,
             )
         else:
             status, primary, secondary, watch, ttp_out = _downtrend_signals(
                 close, high, today_mas, prev_row, ttp,
                 small_ma_range=_small, max_period=_max_p,
-                tolerance=_tol, max_penetration=_max_pen, ma_periods=_ma_p
+                tolerance=_tol, max_penetration=_max_pen, ma_periods=_ma_p,
+                ribbon_compression=ribbon_comp,
             )
 
-        # De-duplicate P3/P4 only within a short window (3 bars).
-        # Beyond 3 bars, a new touch is a fresh event (legitimate retest).
+        # P3/P4 dedup (3-bar window, reset on P1/P2)
         if primary in ('P3', 'P4'):
-            # Look back up to P3P4_DEDUP_WINDOW bars for the same signal
             is_dupe = False
             lookback_start = max(0, len(primaries) - P3P4_DEDUP_WINDOW)
             for j in range(len(primaries) - 1, lookback_start - 1, -1):
@@ -521,20 +565,31 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
                     is_dupe = True
                     break
                 if primaries[j] in ('P1', 'P2'):
-                    break  # higher-priority signal resets the dedup window
-
+                    break
             if is_dupe:
-                primary = ''
-                secondary = ''
-                watch = ''
-                if trend == 'UPTREND':
-                    status = 'Uptrend — no signal'
-                else:
-                    status = 'Downtrend — no signal'
+                primary = ''; secondary = ''; watch = ''
+                status  = 'Uptrend — no signal' if trend == 'UPTREND' else 'Downtrend — no signal'
                 ttp_out = ttp
 
-        # Compute confidence
-        conf = _signal_confidence(primary, vol_spike, at_key_level)
+        # P2 dedup (5-bar window, same direction, reset on P1)
+        if primary == 'P2' and _is_p2_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
+            primary = ''; secondary = ''; watch = ''
+            status  = 'Uptrend — no signal' if trend == 'UPTREND' else 'Downtrend — no signal'
+            ttp_out = ttp
+
+        # Compression breakout watch (first bar ribbon expands after a squeeze)
+        if prev_row is not None and not watch:
+            prev_comp = bool(prev_row.get('ribbon_compression', False))
+            if prev_comp and not ribbon_comp and trend != 'NEUTRAL':
+                direction = 'bullish' if trend == 'UPTREND' else 'bearish'
+                watch = f'Ribbon expansion — {direction} breakout from squeeze'
+
+        conf   = _signal_confidence(primary, vol_spike, at_key_level, trend_run)
+
+        # Exit label
+        if primary:
+            status = _maybe_exit_label(status, primary, last_primary_side)
+            last_primary_side = 'BUY' if 'buy' in status.lower() else 'SELL'
 
         statuses.append(status)
         primaries.append(primary)
