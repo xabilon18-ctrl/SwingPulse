@@ -88,7 +88,7 @@ def _touched_down(candle_high: float, ma_dict: dict,
 
 def _approaching_ma150(close: float, prev_close: float, ma_dict: dict,
                        direction: str) -> bool:
-    """Watch flag: price approaching the longest MA (200) only."""
+    """Watch flag: price approaching the longest MA only."""
     max_period = max(ma_dict.keys()) if ma_dict else None
     if max_period is None:
         return False
@@ -200,7 +200,7 @@ def _uptrend_signals(close, low, today_mas, prev_row, ttp,
     small_touched = [(p, v) for p, v in today_touched if p in _small]
     ma_top_touched = [(p, v) for p, v in today_touched if p == max_period]
 
-    # P2: bounce off 200 MA — not suppressed by compression
+    # P2: bounce off longest MA — not suppressed by compression
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close > vtop:
@@ -238,12 +238,12 @@ def _uptrend_signals(close, low, today_mas, prev_row, ttp,
                     return ('Uptrend — secondary buy signal confirmed', '', 'secondary', '', ttp)
             return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # Watch: approaching 200 MA
+    # Watch: approaching longest MA
     if prev_row is not None:
         if _approaching_ma150(close, float(prev_row['Close']), today_mas, 'UPTREND'):
             return (
-                'Uptrend — watch, approaching 200 MA', '', '',
-                'Watch — approaching 200 MA, potential buy setup', ttp
+                f'Uptrend — watch, approaching MA{max_period}', '', '',
+                f'Watch — approaching MA{max_period}, potential buy setup', ttp
             )
 
     return ('Uptrend — no signal', '', '', '', ttp)
@@ -260,7 +260,7 @@ def _downtrend_signals(close, high, today_mas, prev_row, ttp,
     small_touched = [(p, v) for p, v in today_touched if p in _small]
     ma_top_touched = [(p, v) for p, v in today_touched if p == max_period]
 
-    # P2: rejection from 200 MA — not suppressed by compression
+    # P2: rejection from longest MA — not suppressed by compression
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close < vtop:
@@ -298,12 +298,12 @@ def _downtrend_signals(close, high, today_mas, prev_row, ttp,
                     return ('Downtrend — secondary sell signal confirmed', '', 'secondary', '', ttp)
             return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
-    # Watch: approaching 200 MA
+    # Watch: approaching longest MA
     if prev_row is not None:
         if _approaching_ma150(close, float(prev_row['Close']), today_mas, 'DOWNTREND'):
             return (
-                'Downtrend — watch, approaching 200 MA', '', '',
-                'Watch — approaching 200 MA, potential sell setup', ttp
+                f'Downtrend — watch, approaching MA{max_period}', '', '',
+                f'Watch — approaching MA{max_period}, potential sell setup', ttp
             )
 
     return ('Downtrend — no signal', '', '', '', ttp)
@@ -335,23 +335,23 @@ def _neutral_p2_check(row, prev_row, prior_trend, max_period=200,
 
     if prior_trend == 'UPTREND':
         if low <= v_top * (1 + _tol) and close > v_top:
-            return ('Neutral (prior uptrend) — P2 buy signal: 200 MA bounce', 'P2', '', '', '')
+            return (f'Neutral (prior uptrend) — P2 buy signal: MA{max_period} bounce', 'P2', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_low = float(prev_row['Low'])
             pv_top = prev_mas[max_period]
             if prev_low <= pv_top * (1 + _tol) and close > v_top:
-                return ('Neutral (prior uptrend) — P2 buy signal: 200 MA bounce', 'P2', '', '', '')
+                return (f'Neutral (prior uptrend) — P2 buy signal: MA{max_period} bounce', 'P2', '', '', '')
 
     elif prior_trend == 'DOWNTREND':
         if high >= v_top * (1 - _tol) and close < v_top:
-            return ('Neutral (prior downtrend) — P2 sell signal: 200 MA rejection', 'P2', '', '', '')
+            return (f'Neutral (prior downtrend) — P2 sell signal: MA{max_period} rejection', 'P2', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_high = float(prev_row['High'])
             pv_top = prev_mas[max_period]
             if prev_high >= pv_top * (1 - _tol) and close < v_top:
-                return ('Neutral (prior downtrend) — P2 sell signal: 200 MA rejection', 'P2', '', '', '')
+                return (f'Neutral (prior downtrend) — P2 sell signal: MA{max_period} rejection', 'P2', '', '', '')
 
     return None
 

@@ -60,7 +60,7 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 
 ### Signal Types
 - **P1** — Trend reversal (full ribbon cross) — highest priority
-- **P2** — 200 MA bounce entry
+- **P2** — Longest MA bounce entry (MA101 with current scheme)
 - **P3** — MA pullback entry
 - **P4** — MA rejection short
 - **SEC** — Secondary signal
