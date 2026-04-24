@@ -101,28 +101,6 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ma_order_score', f'{p}roc',
     ]
 
-# Column order for the intraday app (4H · Daily)
-OUTPUT_COLUMNS_INTRADAY = [
-    'instrument_name', 'group', 'sector', 'industry',
-    # ── Daily ──
-    'date', 'open', 'high', 'low', 'close', 'volume',
-    'volume_average', 'volume_spike_flag',
-    *[f'ma_{p}' for p in MA_PERIODS],
-    'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
-    'primary_signal', 'secondary_signal',
-    'signal_confidence',
-    'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
-    'watch_flag', 'potential_turning_point_flag',
-    'ribbon_spread', 'ribbon_compression', 'ma_order_score', 'roc',
-    'key_level_price', 'key_level_type', 'key_level_date',
-    'key_level_touch_count', 'key_level_touched_today',
-    'key_levels_all',
-    # ── Multi-timeframe alignment (4H · Daily) ──
-    'tf_alignment', 'tf_alignment_score',
-    # ── 4-Hour ──
-    *_tf_signal_columns('h4_'),
-]
-
 # Column order for the output sheet
 OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry',

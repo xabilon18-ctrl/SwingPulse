@@ -6,7 +6,6 @@ Modes:
   python3 webapp/publish.py              → build data + upload to R2  (daily use, ~60 sec)
   python3 webapp/publish.py --ui-only    → build UI + deploy to Cloudflare Pages (UI changes only)
   python3 webapp/publish.py --build-only → build everything locally, no deploy
-  python3 webapp/publish.py --intraday   → build intraday data (1H·2H·4H·D) + upload to R2 intraday/ prefix
 """
 
 import argparse
@@ -28,22 +27,18 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR          = os.path.join(PROJECT_DIR, 'output')
-OUTPUT_DIR_INTRADAY = os.path.join(PROJECT_DIR, 'output_intraday')
-CACHE_DIR           = os.path.join(PROJECT_DIR, 'cache')
+OUTPUT_DIR = os.path.join(PROJECT_DIR, 'output')
+CACHE_DIR  = os.path.join(PROJECT_DIR, 'cache')
 PUBLISH_DIR         = os.path.join(SCRIPT_DIR,  'publish')
 
-MA_PERIODS = list(range(40, 201, 10))
+MA_PERIODS = list(range(10, 102, 7))   # must match config.py MA_PERIODS
 
 # ---------------------------------------------------------------------------
 # R2 config
 # ---------------------------------------------------------------------------
-R2_BUCKET              = 'swingpulse-data'
-R2_PUBLIC_URL          = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
-R2_INTRADAY_PREFIX     = 'intraday'   # all intraday keys live under this prefix in the same bucket
-R2_INTRADAY_PUBLIC_URL = f'{R2_PUBLIC_URL}/{R2_INTRADAY_PREFIX}'
-PAGES_PROJECT          = 'swingpulse'
-PAGES_PROJECT_INTRADAY = 'swingpulse-intraday'
+R2_BUCKET     = 'swingpulse-data'
+R2_PUBLIC_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
+PAGES_PROJECT = 'swingpulse'
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -801,55 +796,6 @@ def build_ui():
     return ui_dir
 
 
-def build_ui_intraday():
-    """Build the intraday UI directory (webapp/intraday/ sources → publish/ui-intraday/)."""
-    intraday_src = os.path.join(SCRIPT_DIR, 'intraday')
-    ui_dir       = os.path.join(PUBLISH_DIR, 'ui-intraday')
-    static_dst   = os.path.join(ui_dir, 'static')
-
-    os.makedirs(ui_dir, exist_ok=True)
-    if os.path.exists(static_dst):
-        shutil.rmtree(static_dst)
-    shutil.copytree(os.path.join(intraday_src, 'static'), static_dst)
-
-    with open(os.path.join(intraday_src, 'index.html')) as f:
-        html = f.read()
-    with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
-        f.write(html)
-
-    # Patch app.js: replace /api/* with intraday R2 URLs
-    app_js_path = os.path.join(static_dst, 'js', 'app.js')
-    with open(app_js_path) as f:
-        js = f.read()
-
-    base = R2_INTRADAY_PUBLIC_URL.rstrip('/')
-    js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
-    js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
-    js = js.replace("'/api/tv-map'",       f"'{base}/tv-map.json'")
-    js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
-    js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
-    js = js.replace("'/api/events'",       f"'{base}/events.json'")
-    js = js.replace("'/api/names'",        f"'{base}/names.json'")
-    js = js.replace(
-        "'/api/history/' + encodeURIComponent(item.instrument_name)",
-        f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"
-    )
-    js = js.replace(
-        "await fetch('/api/refresh', { method: 'POST' })",
-        "window.location.reload(); return"
-    )
-    with open(app_js_path, 'w') as f:
-        f.write(js)
-
-    # Copy manifest + service worker
-    for fname in ('manifest.json', 'sw.js'):
-        src = os.path.join(intraday_src, 'static', fname)
-        if os.path.exists(src):
-            shutil.copy2(src, ui_dir)
-
-    return ui_dir
-
-
 def deploy_ui_to_pages(ui_dir, project_name=None):
     """Deploy UI directory to Cloudflare Pages."""
     name = project_name or PAGES_PROJECT
@@ -880,35 +826,14 @@ def main():
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
-    parser.add_argument('--intraday', action='store_true',
-                        help='Build intraday (1H·2H·4H·D) data + upload under intraday/ R2 prefix')
     args = parser.parse_args()
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
         print('Building UI for Cloudflare Pages...')
-        if args.intraday:
-            ui_dir = build_ui_intraday()
-            print(f'  Output: {ui_dir}')
-            deploy_ui_to_pages(ui_dir, project_name=PAGES_PROJECT_INTRADAY)
-        else:
-            ui_dir = build_ui()
-            print(f'  Output: {ui_dir}')
-            deploy_ui_to_pages(ui_dir)
-        return
-
-    # ── Intraday data build + R2 upload ───────────────────────────────────
-    if args.intraday:
-        print('Building SwingPulse Intraday data...')
-        data_dir = os.path.join(PUBLISH_DIR, 'data-intraday')
-        os.makedirs(data_dir, exist_ok=True)
-        build_data(data_dir, src_signals_dir=OUTPUT_DIR_INTRADAY)
-        print(f'  Output: {data_dir}')
-        if args.build_only:
-            print('\n  Build complete. Files in: publish/data-intraday/')
-            return
-        upload_to_r2(data_dir, r2_prefix=R2_INTRADAY_PREFIX)
-        print(f'\n  Intraday app updated! https://swingpulse-intraday.pages.dev')
+        ui_dir = build_ui()
+        print(f'  Output: {ui_dir}')
+        deploy_ui_to_pages(ui_dir)
         return
 
     # ── Data build + R2 upload  (default daily workflow) ─────────────────
