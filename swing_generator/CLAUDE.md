@@ -68,7 +68,7 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 ### Key Computed Fields (per timeframe)
 `primary_signal`, `secondary_signal`, `confirmation_status`, `signal_confidence` (high/standard/low),
 `trend_direction` (UPTREND/DOWNTREND/NEUTRAL), `established_trend`, `trend_run_days`,
-`tf_alignment` (Triple Bull → Triple Bear), `ma_order_score` (0–16),
+`tf_alignment` (Triple Bull → Triple Bear), `ma_order_score` (0–13),
 `ribbon_compression` (yes/no), `ribbon_spread`, `volume_spike_flag` (yes/no),
 `roc` (5-day rate of change), `last_signal_date`, `last_signal_type`, `key_levels_all`
 
@@ -93,7 +93,7 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 | `/api/events` | `{ events: [{instrument_name, event_types, date, ...}] }` |
 | `/api/names` | `{ ticker: "Full Display Name" }` |
 | `/api/tv-map` | `{ instrument_name: "EXCHANGE:SYMBOL" }` for TradingView links |
-| `/api/history/{name}` | `{ ticker, data: [{date, open, high, low, close, volume, ma_40...ma_200}] }` — 600 bars |
+| `/api/history/{name}` | `{ ticker, data: [{date, open, high, low, close, volume, ma_10...ma_101}] }` — 600 bars |
 
 ---
 
