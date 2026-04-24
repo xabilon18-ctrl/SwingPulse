@@ -13,10 +13,6 @@ MA_PERIODS = list(range(10, 102, 7))
 SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 60]   # P3 / P4: fast MAs [10, 17, 24, 31, 38, 45, 52, 59]
 MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_59 — midpoint of ribbon
 
-# 4H keeps the original wider ribbon (unchanged)
-H4_MA_PERIODS     = list(range(40, 201, 10))          # [40, 50, ..., 200] — 17 values
-H4_SMALL_MA_RANGE = [p for p in H4_MA_PERIODS if p <= 100]  # [40, 50, 60, 70, 80, 90, 100]
-
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
@@ -124,7 +120,7 @@ OUTPUT_COLUMNS_INTRADAY = [
     # ── Multi-timeframe alignment (4H · Daily) ──
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
-    *_tf_signal_columns('h4_', H4_MA_PERIODS),
+    *_tf_signal_columns('h4_'),
 ]
 
 # Column order for the output sheet
@@ -146,7 +142,7 @@ OUTPUT_COLUMNS = [
     # ── Multi-timeframe alignment (computed from all TFs) ──
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
-    *_tf_signal_columns('h4_', H4_MA_PERIODS),
+    *_tf_signal_columns('h4_'),
     # ── Weekly ──
     *_tf_signal_columns('w_'),
     # ── Monthly ──

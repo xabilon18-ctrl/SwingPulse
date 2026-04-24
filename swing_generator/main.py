@@ -25,7 +25,6 @@ import pandas as pd
 import config
 from config import (
     MA_PERIODS, SMALL_MA_RANGE, OUTPUT_COLUMNS,
-    H4_MA_PERIODS, H4_SMALL_MA_RANGE,
     MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
     MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
     TOUCH_TOLERANCE_MONTHLY,
@@ -334,9 +333,9 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         h4_data = {}
         if hourly_df is not None and len(hourly_df) >= 200:
             h4 = _resample_4h(hourly_df)
-            h4_ma_periods = [p for p in H4_MA_PERIODS if p <= len(h4)]
+            h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
             if len(h4_ma_periods) >= 3:
-                h4_small = [p for p in H4_SMALL_MA_RANGE if p in h4_ma_periods]
+                h4_small = [p for p in SMALL_MA_RANGE if p in h4_ma_periods]
                 if not h4_small:
                     h4_small = h4_ma_periods[:min(7, len(h4_ma_periods))]
                 h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
