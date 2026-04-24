@@ -254,10 +254,9 @@
     });
   }
 
-  // Default MA periods (new scheme). Will be overwritten by auto-detection once
-  // data loads — this makes the app work correctly with both old CSV data (ma_38–
-  // 150) and new CSV data (ma_40–200) without any code change needed.
-  let detectedMaPeriods = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200];
+  // Default MA periods. Will be overwritten by auto-detection once data loads —
+  // this makes the app work correctly across MA scheme changes without code edits.
+  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101,108];
   function activeMaPeriods() {
     return detectedMaPeriods;
   }
@@ -2454,9 +2453,9 @@
 
         // ── MA lines from pre-computed history values ──
         [
-          { key: 'ma_40',  color: '#6366f1', title: 'MA40'  },
-          { key: 'ma_100', color: '#0ea5e9', title: 'MA100' },
-          { key: 'ma_200', color: '#ef4444', title: 'MA200' },
+          { key: 'ma_10',  color: '#6366f1', title: 'MA10'  },
+          { key: 'ma_52',  color: '#0ea5e9', title: 'MA52'  },
+          { key: 'ma_108', color: '#ef4444', title: 'MA108' },
         ].forEach(({ key, color, title }) => {
           const data = bars
             .filter(b => b[key] != null)

@@ -34,7 +34,7 @@ swing_generator/
 │   ├── publish.py             # Build + deploy to R2 / Cloudflare Pages
 │   ├── templates/index.html   # Single-page app shell (CSS v44, JS v42)
 │   └── static/
-│       ├── js/app.js          # All frontend logic (~3100 lines, v43)
+│       ├── js/app.js          # All frontend logic (~3100 lines, v44)
 │       └── css/style.css      # All styles (v44)
 └── .github/workflows/         # GitHub Actions CI
 ```
@@ -124,7 +124,7 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## Version History (current)
-- `app.js` — **v43**
+- `app.js` — **v44**
 - `style.css` — **v44**
 - `index.html` — bump JS/CSS version numbers when deploying UI changes
 

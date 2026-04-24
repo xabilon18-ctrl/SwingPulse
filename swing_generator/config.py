@@ -6,12 +6,16 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 # ---------------------------------------------------------------------------
 # MA Ribbon
 # ---------------------------------------------------------------------------
-# range(40, 201, 10) produces 17 values: 40, 50, 60, ..., 190, 200
-MA_PERIODS = list(range(40, 201, 10))
-# [40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+# range(10, 109, 7) produces 15 values: 10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101, 108
+MA_PERIODS = list(range(10, 109, 7))
+# [10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101, 108]
 
-SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 100]  # P3 / P4: [40, 50, 60, 70, 80, 90, 100]
-MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_120 — midpoint of ribbon
+SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 60]   # P3 / P4: fast MAs [10, 17, 24, 31, 38, 45, 52, 59]
+MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_59 — midpoint of ribbon
+
+# 4H keeps the original wider ribbon (unchanged)
+H4_MA_PERIODS     = list(range(40, 201, 10))          # [40, 50, ..., 200] — 17 values
+H4_SMALL_MA_RANGE = [p for p in H4_MA_PERIODS if p <= 100]  # [40, 50, 60, 70, 80, 90, 100]
 
 # ---------------------------------------------------------------------------
 # Data
@@ -19,7 +23,7 @@ MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_120 — midpoint of r
 HISTORY_YEARS         = 16   # 16 years ≈ 192 monthly bars (covers ma_40–ma_190 monthly)
 CACHE_DIR             = os.path.join(BASE_DIR, 'cache')
 INSTRUMENTS_FILE      = os.path.join(ROOT_DIR, '220_Instruments.txt')
-MIN_ROWS_REQUIRED     = 210   # need at least this many daily bars (longest MA is 200)
+MIN_ROWS_REQUIRED     = 120   # need at least this many daily bars (longest MA is 108)
 
 # ---------------------------------------------------------------------------
 # Volume
@@ -83,13 +87,15 @@ SPREADSHEET_NAME  = 'Swing Trading Signals'
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 
 # Helper: per-timeframe signal/indicator columns
-def _tf_signal_columns(prefix):
+def _tf_signal_columns(prefix, ma_periods=None):
     """Return signal-related column names for a timeframe prefix."""
+    if ma_periods is None:
+        ma_periods = MA_PERIODS
     p = prefix
     return [
         f'{p}date', f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
         f'{p}volume_average', f'{p}volume_spike_flag',
-        *[f'{p}ma_{per}' for per in MA_PERIODS],
+        *[f'{p}ma_{per}' for per in ma_periods],
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',
         f'{p}confirmation_status',
         f'{p}primary_signal', f'{p}secondary_signal',
@@ -118,7 +124,7 @@ OUTPUT_COLUMNS_INTRADAY = [
     # ── Multi-timeframe alignment (4H · Daily) ──
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
-    *_tf_signal_columns('h4_'),
+    *_tf_signal_columns('h4_', H4_MA_PERIODS),
 ]
 
 # Column order for the output sheet
@@ -140,7 +146,7 @@ OUTPUT_COLUMNS = [
     # ── Multi-timeframe alignment (computed from all TFs) ──
     'tf_alignment', 'tf_alignment_score',
     # ── 4-Hour ──
-    *_tf_signal_columns('h4_'),
+    *_tf_signal_columns('h4_', H4_MA_PERIODS),
     # ── Weekly ──
     *_tf_signal_columns('w_'),
     # ── Monthly ──
