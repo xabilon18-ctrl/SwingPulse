@@ -6,9 +6,9 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 # ---------------------------------------------------------------------------
 # MA Ribbon
 # ---------------------------------------------------------------------------
-# range(10, 109, 7) produces 15 values: 10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101, 108
-MA_PERIODS = list(range(10, 109, 7))
-# [10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101, 108]
+# range(10, 102, 7) produces 14 values: 10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101
+MA_PERIODS = list(range(10, 102, 7))
+# [10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101]
 
 SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 60]   # P3 / P4: fast MAs [10, 17, 24, 31, 38, 45, 52, 59]
 MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_59 — midpoint of ribbon
@@ -23,7 +23,7 @@ H4_SMALL_MA_RANGE = [p for p in H4_MA_PERIODS if p <= 100]  # [40, 50, 60, 70, 8
 HISTORY_YEARS         = 16   # 16 years ≈ 192 monthly bars (covers ma_40–ma_190 monthly)
 CACHE_DIR             = os.path.join(BASE_DIR, 'cache')
 INSTRUMENTS_FILE      = os.path.join(ROOT_DIR, '220_Instruments.txt')
-MIN_ROWS_REQUIRED     = 120   # need at least this many daily bars (longest MA is 108)
+MIN_ROWS_REQUIRED     = 115   # need at least this many daily bars (longest MA is 101)
 
 # ---------------------------------------------------------------------------
 # Volume

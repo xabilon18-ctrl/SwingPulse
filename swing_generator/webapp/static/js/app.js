@@ -256,7 +256,7 @@
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
   // this makes the app work correctly across MA scheme changes without code edits.
-  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101,108];
+  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101];
   function activeMaPeriods() {
     return detectedMaPeriods;
   }
@@ -2455,7 +2455,7 @@
         [
           { key: 'ma_10',  color: '#6366f1', title: 'MA10'  },
           { key: 'ma_52',  color: '#0ea5e9', title: 'MA52'  },
-          { key: 'ma_108', color: '#ef4444', title: 'MA108' },
+          { key: 'ma_101', color: '#ef4444', title: 'MA101' },
         ].forEach(({ key, color, title }) => {
           const data = bars
             .filter(b => b[key] != null)
