@@ -33,6 +33,10 @@
   let instrumentNotes  = JSON.parse(localStorage.getItem('sp-notes') || '{}'); // instrument_name → note text
   let eventsData       = [];   // historical events (vol spikes + big moves) from all daily CSVs
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
+  let openTrades   = JSON.parse(localStorage.getItem('sp-open-trades')   || '[]');
+  let closedTrades = JSON.parse(localStorage.getItem('sp-closed-trades') || '[]');
+  let pendingCloseId = null;  // trade id being closed
+  let reportEmail  = localStorage.getItem('sp-report-email') || '';
 
   // ── Signal Performance Tracker ───────────────────────────────────────
   function updateSignalHistory() {
@@ -401,6 +405,8 @@
     renderTrendsInstrumentList();
     if (selectedTrendInst) renderTrendDetail(selectedTrendInst);
     renderTrendsSummary();
+    renderOpenTrades();
+    renderClosedTrades();
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
@@ -2010,6 +2016,9 @@
             <div class="scanner-actions">
               ${tvBtn(item.instrument_name, '')}
               ${shareBtn(item.instrument_name)}
+              <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </button>
               <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Remove from watchlist" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
             </div>
           </div>
@@ -2996,5 +3005,266 @@
 
   registerSW();
   loadAll();
+
+  // ── Trade Journal ─────────────────────────────────────────────────────
+
+  function saveOpenTrades()   { localStorage.setItem('sp-open-trades',   JSON.stringify(openTrades));   }
+  function saveClosedTrades() { localStorage.setItem('sp-closed-trades', JSON.stringify(closedTrades)); }
+
+  function renderOpenTrades() {
+    const listEl   = document.getElementById('openTradesList');
+    const countEl  = document.getElementById('openTradeCount');
+    if (!listEl) return;
+    if (countEl) countEl.textContent = openTrades.length ? openTrades.length : '';
+
+    if (!openTrades.length) {
+      listEl.innerHTML = `<div class="trade-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        <p>No open trades. Tap the chart button on a watchlist item to open one.</p>
+      </div>`;
+      return;
+    }
+
+    listEl.innerHTML = openTrades.map(trade => {
+      const liveItem   = allData.find(d => d.instrument_name === trade.instrument_name);
+      const livePrice  = liveItem ? parseFloat(liveItem[f('close')]) || 0 : 0;
+      const pnlPct     = trade.open_price > 0 && livePrice > 0
+        ? ((livePrice - trade.open_price) / trade.open_price * 100)
+        : null;
+      const pnlStr     = pnlPct !== null
+        ? `<span class="trade-pnl ${pnlPct >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>`
+        : '';
+      const trend = liveItem ? (liveItem[f('trend_direction')] || '') : '';
+      const trendBadge = trend ? `<span class="scanner-tag ${trendTag(trend)}" style="font-size:.6rem">${trend}</span>` : '';
+
+      return `<div class="trade-card trade-card-open" onclick="window.SP.openModal('${trade.instrument_name}')">
+        <div class="trade-card-top">
+          <div class="trade-card-left">
+            <span class="trade-card-name">${trade.instrument_name}</span>
+            ${instName(trade.instrument_name) ? `<span class="inst-fullname">${instName(trade.instrument_name)}</span>` : ''}
+          </div>
+          <div class="trade-card-right">
+            ${pnlStr}
+            <button class="trade-close-btn" title="Close trade" onclick="event.stopPropagation();window.SP.showCloseTradeSheet(${trade.id})">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Close
+            </button>
+          </div>
+        </div>
+        <div class="trade-card-meta">
+          <span class="trade-meta-item">Opened ${trade.open_date}</span>
+          <span class="trade-meta-item">@ ${formatPrice(trade.open_price)}</span>
+          ${livePrice ? `<span class="trade-meta-item">Now ${formatPrice(livePrice)}</span>` : ''}
+          ${trendBadge}
+        </div>
+        ${trade.notes ? `<div class="trade-card-notes">${trade.notes}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function renderClosedTrades() {
+    const listEl  = document.getElementById('closedTradesList');
+    const summEl  = document.getElementById('closedTradeSummary');
+    if (!listEl) return;
+
+    if (!closedTrades.length) {
+      if (summEl) summEl.innerHTML = '';
+      listEl.innerHTML = `<div class="trade-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <p>No closed trades yet.</p>
+      </div>`;
+      return;
+    }
+
+    // Summary bar
+    const wins    = closedTrades.filter(t => t.pnl_pct > 0).length;
+    const total   = closedTrades.length;
+    const winRate = Math.round(wins / total * 100);
+    const avgPnl  = (closedTrades.reduce((s, t) => s + (t.pnl_pct || 0), 0) / total);
+    if (summEl) {
+      summEl.innerHTML = `
+        <span class="trade-sum-item">${total} trade${total !== 1 ? 's' : ''}</span>
+        <span class="trade-sum-divider">·</span>
+        <span class="trade-sum-item">Win rate <strong>${winRate}%</strong></span>
+        <span class="trade-sum-divider">·</span>
+        <span class="trade-sum-item ${avgPnl >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">Avg ${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%</span>
+        <div class="trade-email-row">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <input type="email" id="reportEmailInput" class="trade-email-input" placeholder="your@email.com" value="${reportEmail.replace(/"/g,'&quot;')}">
+          <button class="trade-email-btn" onclick="window.SP.emailAndReset()">Email &amp; Reset Month</button>
+        </div>`;
+    }
+
+    // Sort newest first
+    const sorted = [...closedTrades].sort((a, b) => (b.close_date || '').localeCompare(a.close_date || ''));
+
+    listEl.innerHTML = sorted.map(trade => {
+      const pnlStr = trade.pnl_pct != null
+        ? `<span class="trade-pnl ${trade.pnl_pct >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${trade.pnl_pct >= 0 ? '+' : ''}${trade.pnl_pct.toFixed(2)}%</span>`
+        : '';
+      const exitBadge = trade.exit_type === 'stopped'
+        ? `<span class="trade-exit-badge exit-stopped">Stopped</span>`
+        : `<span class="trade-exit-badge exit-manual">Manual</span>`;
+
+      return `<div class="trade-card trade-card-closed">
+        <div class="trade-card-top">
+          <div class="trade-card-left">
+            <span class="trade-card-name">${trade.instrument_name}</span>
+            ${instName(trade.instrument_name) ? `<span class="inst-fullname">${instName(trade.instrument_name)}</span>` : ''}
+          </div>
+          <div class="trade-card-right">
+            ${pnlStr}
+            ${exitBadge}
+            <button class="trade-delete-btn" title="Delete" onclick="event.stopPropagation();window.SP.deleteClosedTrade(${trade.id})">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="trade-card-meta">
+          <span class="trade-meta-item">${trade.open_date} → ${trade.close_date}</span>
+          <span class="trade-meta-item">${formatPrice(trade.open_price)} → ${formatPrice(trade.close_price)}</span>
+        </div>
+        ${trade.notes || trade.close_notes ? `<div class="trade-card-notes">${[trade.notes, trade.close_notes].filter(Boolean).join(' · ')}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  window.SP.emailAndReset = function() {
+    // Read current email from input (may have been edited since last save)
+    const inputEl = document.getElementById('reportEmailInput');
+    const email   = (inputEl ? inputEl.value.trim() : reportEmail);
+    if (!email) { alert('Enter a report email address first.'); if (inputEl) inputEl.focus(); return; }
+    // Save the email
+    reportEmail = email;
+    localStorage.setItem('sp-report-email', email);
+
+    // Build report text
+    const now    = new Date();
+    const period = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const wins   = closedTrades.filter(t => t.pnl_pct > 0).length;
+    const total  = closedTrades.length;
+    const avgPnl = total ? (closedTrades.reduce((s, t) => s + (t.pnl_pct || 0), 0) / total) : 0;
+    const sorted = [...closedTrades].sort((a, b) => (a.open_date || '').localeCompare(b.open_date || ''));
+
+    let body = `SwingPulse — Monthly Trade Report\n`;
+    body    += `Period: ${period}\n`;
+    body    += `Generated: ${now.toISOString().slice(0, 10)}\n\n`;
+    body    += `SUMMARY\n`;
+    body    += `───────────────────────────────\n`;
+    body    += `Total trades : ${total}\n`;
+    body    += `Wins / Losses: ${wins} / ${total - wins}\n`;
+    body    += `Win rate     : ${Math.round(wins / total * 100)}%\n`;
+    body    += `Average P&L  : ${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%\n\n`;
+    body    += `TRADE LOG\n`;
+    body    += `───────────────────────────────\n`;
+    sorted.forEach(t => {
+      const pnl  = t.pnl_pct != null ? `${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(2)}%` : '--';
+      const exit = t.exit_type === 'stopped' ? 'Stopped Out' : 'Manual Close';
+      body += `${t.instrument_name}\n`;
+      body += `  Open : ${t.open_date} @ ${t.open_price}\n`;
+      body += `  Close: ${t.close_date} @ ${t.close_price}\n`;
+      body += `  P&L  : ${pnl}  |  ${exit}\n`;
+      if (t.notes || t.close_notes) body += `  Notes: ${[t.notes, t.close_notes].filter(Boolean).join(' | ')}\n`;
+      body += `\n`;
+    });
+
+    const subject = encodeURIComponent(`SwingPulse Trade Report — ${period}`);
+    const bodyEnc = encodeURIComponent(body);
+    window.open(`mailto:${encodeURIComponent(email)}?subject=${subject}&body=${bodyEnc}`, '_blank');
+
+    // Give the mailto a moment to fire, then ask to clear
+    setTimeout(() => {
+      if (confirm(`Clear ${total} closed trade${total !== 1 ? 's' : ''} to start a fresh month?\n\n(Only do this after your email app has sent the report.)`)) {
+        closedTrades = [];
+        saveClosedTrades();
+        renderClosedTrades();
+      }
+    }, 800);
+  };
+
+  // Save email as user types
+  document.addEventListener('input', e => {
+    if (e.target && e.target.id === 'reportEmailInput') {
+      reportEmail = e.target.value.trim();
+      localStorage.setItem('sp-report-email', reportEmail);
+    }
+  });
+
+  window.SP.openTradeSheet = function(name) {
+    const overlay = document.getElementById('openTradeOverlay');
+    if (!overlay) return;
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('tradeInstInput').value  = name;
+    document.getElementById('tradeOpenDate').value   = today;
+    // Pre-fill price from live data
+    const item = allData.find(d => d.instrument_name === name);
+    document.getElementById('tradeOpenPrice').value  = item ? (parseFloat(item[f('close')]) || '') : '';
+    document.getElementById('tradeOpenNotes').value  = '';
+    overlay.classList.add('open');
+  };
+
+  window.SP.showCloseTradeSheet = function(id) {
+    const trade = openTrades.find(t => t.id === id);
+    if (!trade) return;
+    pendingCloseId = id;
+    const overlay = document.getElementById('closeTradeOverlay');
+    if (!overlay) return;
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('closeInstDisplay').value    = trade.instrument_name;
+    document.getElementById('closeOpenedDisplay').value  = `${trade.open_date} @ ${formatPrice(trade.open_price)}`;
+    document.getElementById('tradeCloseDate').value      = today;
+    // Pre-fill close price from live data
+    const item = allData.find(d => d.instrument_name === trade.instrument_name);
+    document.getElementById('tradeClosePrice').value     = item ? (parseFloat(item[f('close')]) || '') : '';
+    document.getElementById('tradeCloseNotes').value     = '';
+    document.querySelector('input[name="exitType"][value="manual"]').checked = true;
+    overlay.classList.add('open');
+  };
+
+  window.SP.deleteClosedTrade = function(id) {
+    closedTrades = closedTrades.filter(t => t.id !== id);
+    saveClosedTrades();
+    renderClosedTrades();
+  };
+
+  // Submit: open trade
+  document.getElementById('tradeOpenSubmit').addEventListener('click', () => {
+    const name  = document.getElementById('tradeInstInput').value.trim();
+    const date  = document.getElementById('tradeOpenDate').value;
+    const price = parseFloat(document.getElementById('tradeOpenPrice').value);
+    const notes = document.getElementById('tradeOpenNotes').value.trim();
+    if (!name || !date || isNaN(price) || price <= 0) return;
+    openTrades.push({ id: Date.now(), instrument_name: name, open_date: date, open_price: price, notes });
+    saveOpenTrades();
+    renderOpenTrades();
+    document.getElementById('openTradeOverlay').classList.remove('open');
+  });
+
+  // Submit: close trade
+  document.getElementById('tradeCloseSubmit').addEventListener('click', () => {
+    const date      = document.getElementById('tradeCloseDate').value;
+    const price     = parseFloat(document.getElementById('tradeClosePrice').value);
+    const exitType  = document.querySelector('input[name="exitType"]:checked')?.value || 'manual';
+    const notes     = document.getElementById('tradeCloseNotes').value.trim();
+    if (!date || isNaN(price) || price <= 0 || pendingCloseId === null) return;
+    const trade     = openTrades.find(t => t.id === pendingCloseId);
+    if (!trade) return;
+    const pnlPct    = trade.open_price > 0 ? ((price - trade.open_price) / trade.open_price * 100) : 0;
+    closedTrades.push({ ...trade, close_date: date, close_price: price, exit_type: exitType, close_notes: notes, pnl_pct: Math.round(pnlPct * 100) / 100 });
+    openTrades = openTrades.filter(t => t.id !== pendingCloseId);
+    pendingCloseId = null;
+    saveOpenTrades();
+    saveClosedTrades();
+    renderOpenTrades();
+    renderClosedTrades();
+    document.getElementById('closeTradeOverlay').classList.remove('open');
+  });
+
+  // Close sheet buttons
+  document.getElementById('openTradeSheetClose').addEventListener('click',  () => document.getElementById('openTradeOverlay').classList.remove('open'));
+  document.getElementById('closeTradeSheetClose').addEventListener('click', () => document.getElementById('closeTradeOverlay').classList.remove('open'));
+  // Tap outside to dismiss
+  document.getElementById('openTradeOverlay').addEventListener('click',  e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+  document.getElementById('closeTradeOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
 
 })();
