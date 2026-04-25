@@ -70,6 +70,8 @@ TTP_COOLDOWN_BARS = 30
 # ---------------------------------------------------------------------------
 RIBBON_COMPRESSION_THRESHOLD = 2.0  # |ribbon_spread| < 2% → compression (squeeze alert)
 ROC_PERIOD = 5                      # Rate of change lookback (5 bars)
+SLOPE_LOOKBACK          = 10        # bars used to measure median MA slope
+NEUTRAL_SLOPE_THRESHOLD = 0.5       # if median MA slope > 0.5% over 10 bars → NOT sideways
 
 # ---------------------------------------------------------------------------
 # Google Sheets
@@ -98,7 +100,7 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}signal_confidence',
         f'{p}last_signal_type', f'{p}last_signal_date', f'{p}last_signal_days_ago',
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
-        f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ma_order_score', f'{p}roc',
+        f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ribbon_slope_pct', f'{p}ma_order_score', f'{p}roc',
     ]
 
 # Column order for the output sheet
@@ -113,7 +115,7 @@ OUTPUT_COLUMNS = [
     'signal_confidence',
     'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
     'watch_flag', 'potential_turning_point_flag',
-    'ribbon_spread', 'ribbon_compression', 'ma_order_score', 'roc',
+    'ribbon_spread', 'ribbon_compression', 'ribbon_slope_pct', 'ma_order_score', 'roc',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today',
     'key_levels_all',

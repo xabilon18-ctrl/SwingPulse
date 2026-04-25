@@ -2,8 +2,8 @@
 Signal detection engine.
 
 Processes one instrument's full history DataFrame (which already has MA ribbon,
-volume, trend_direction, ribbon_spread, ribbon_compression, ma_order_score, and
-roc columns) and adds:
+volume, trend_direction, ribbon_spread, ribbon_compression, ribbon_slope_pct,
+ma_order_score, and roc columns) and adds:
 
     trend_run_days              – consecutive trading days in current trend
     confirmation_status         – one of the 12+ states from the spec
@@ -40,6 +40,7 @@ from config import (
     P3P4_DEDUP_WINDOW,
     P2_DEDUP_WINDOW,
     TTP_COOLDOWN_BARS,
+    NEUTRAL_SLOPE_THRESHOLD,
 )
 
 
@@ -433,6 +434,20 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
 
         # ---- NEUTRAL -------------------------------------------------------
         if trend == 'NEUTRAL':
+            # Gate: ribbon must be flat/sideways before any P2 can fire.
+            # If the MAs are still sloping meaningfully the instrument is
+            # transitioning (not truly neutral) — suppress signals entirely.
+            ribbon_slope = float(row.get('ribbon_slope_pct', 0) or 0)
+            if abs(ribbon_slope) > NEUTRAL_SLOPE_THRESHOLD:
+                slope_dir = 'rising' if ribbon_slope > 0 else 'declining'
+                statuses.append(f'Neutral — transitioning, ribbon {slope_dir}')
+                primaries.append('')
+                secondaries.append('')
+                confidences.append('')
+                watches.append('')
+                ttps.append('')
+                continue
+
             p2_result = _neutral_p2_check(
                 row, prev_row, prior_established_trend,
                 max_period=_max_p, tolerance=_tol, ma_periods=_ma_p

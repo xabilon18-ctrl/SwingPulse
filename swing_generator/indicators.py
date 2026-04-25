@@ -8,7 +8,7 @@ are designed to be called sequentially from main.py.
 import numpy as np
 import pandas as pd
 
-from config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD
+from config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +123,21 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
         scores = scores + (pair_valid & (df[sc] > df[lc])).astype(int)
 
     df['ma_order_score'] = np.where(valid, scores, np.nan)
+
+    # Ribbon slope: median % change of all MAs over SLOPE_LOOKBACK bars.
+    # Near-zero → ribbon is flat/sideways.  Positive → rising.  Negative → declining.
+    slope_cols = []
+    for p in sorted_periods:
+        col = f'ma_{p}'
+        ma_prev = df[col].shift(SLOPE_LOOKBACK)
+        slope = np.where(
+            df[col].notna() & ma_prev.notna() & (ma_prev != 0),
+            (df[col] - ma_prev) / ma_prev * 100,
+            np.nan,
+        )
+        slope_cols.append(pd.Series(slope, index=df.index, name=f'_slope_{p}'))
+    slope_df = pd.concat(slope_cols, axis=1)
+    df['ribbon_slope_pct'] = slope_df.median(axis=1)
 
     return df
 
