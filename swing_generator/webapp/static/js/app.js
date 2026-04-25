@@ -1695,6 +1695,7 @@
               </div>
               <div class="sig-card-right">
                 ${shareBtn(item.instrument_name)}
+                <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
                 <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
                 <div class="sig-price-stack">
                   <span class="sig-card-price" style="color:${priceColor}">${formatPrice(item[f('close')])}</span>
@@ -1865,6 +1866,7 @@
           <div class="scanner-actions">
             ${tvBtn(item.instrument_name, '')}
             ${shareBtn(item.instrument_name)}
+            <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
             <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
           </div>
         </div>
