@@ -84,6 +84,8 @@ def _cluster(levels_df: pd.DataFrame, cluster_range: float) -> pd.DataFrame:
         group_mask = (sorted_df['key_level_price'] >= lo) & \
                      (sorted_df['key_level_price'] <= hi)
         group = sorted_df[group_mask]
+        if group.empty:
+            continue
 
         best_idx = group['key_level_touch_count'].idxmax()
         clustered.append(sorted_df.loc[best_idx].to_dict())

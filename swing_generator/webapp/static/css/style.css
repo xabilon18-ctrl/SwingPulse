@@ -186,6 +186,12 @@
 /* ── Reset & Base ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Remove 300ms tap delay on all interactive elements */
+button, a, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 html {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
   font-size: 14px;
@@ -463,6 +469,10 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   font-weight: 500;
   transition: all var(--transition);
   position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .nav-tab span { transition: color var(--transition); }
 .nav-tab.active { color: var(--accent); }
@@ -4322,10 +4332,25 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   border: 1px solid rgba(16,185,129,.25);
   color: #10b981;
   cursor: pointer;
-  transition: background .15s;
+  transition: background .15s, color .15s;
   flex-shrink: 0;
 }
 .trade-open-btn:hover { background: rgba(16,185,129,.22); }
+
+/* In signal cards the top row is tight — match share/star icon style */
+.sig-card-right .trade-open-btn {
+  width: auto;
+  height: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+.sig-card-right .trade-open-btn:hover {
+  background: var(--accent-glow);
+  color: #10b981;
+}
 
 .trade-summary-bar {
   display: flex;
@@ -4458,3 +4483,268 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   flex-shrink: 0;
 }
 .trade-email-btn:hover { opacity: .88; }
+
+/* ── Sync user badge ──────────────────────────────────────────────────── */
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity .15s, transform .15s;
+}
+.sync-badge:hover       { opacity: .8; transform: scale(1.08); }
+.sync-badge-unset       { background: var(--border); color: var(--text-muted); }
+
+/* ── Pull-to-Refresh ──────────────────────────────────────────────────── */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-60px);
+  width: 44px;
+  height: 44px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  z-index: 9998;
+  pointer-events: none;
+  box-shadow: 0 2px 14px rgba(0,0,0,.3);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.ptr-indicator.ptr-ready  { color: var(--buy); }
+.ptr-icon                 { display: block; }
+.ptr-refreshing .ptr-icon { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Performance % row (scanner cards) ──────────────────────────────── */
+.perf-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px;
+}
+.perf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: .01em;
+}
+.perf-label {
+  font-weight: 500;
+  opacity: .7;
+  font-size: .58rem;
+}
+.perf-pos { background: rgba(16,185,129,.12); color: var(--buy); }
+.perf-neg { background: rgba(239,68,68,.10);  color: var(--sell); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Portfolio Summary Card
+   ═══════════════════════════════════════════════════════════════════════════ */
+.portfolio-summary-card {
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  padding: 14px 16px;
+}
+.portfolio-summary-card:hover { border-color: var(--border-active); box-shadow: var(--shadow); }
+.portfolio-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.portfolio-card-title {
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+}
+.portfolio-card-link {
+  font-size: .7rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.portfolio-card-stats {
+  display: flex;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.port-stat {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border-right: 1px solid var(--border);
+}
+.port-stat:last-child { border-right: none; }
+.port-val {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.port-lbl {
+  font-size: .6rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.port-pos { color: var(--buy); }
+.port-neg { color: var(--sell); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Light Theme — Comprehensive Polish
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Scanner cards — stronger shadow + tinted border */
+[data-theme="light"] .scanner-card {
+  box-shadow: 0 2px 12px rgba(124,58,237,.06), 0 1px 3px rgba(0,0,0,.04);
+  border-color: rgba(139,92,246,.16);
+}
+[data-theme="light"] .scanner-card:hover {
+  box-shadow: 0 6px 24px rgba(124,58,237,.12), 0 2px 8px rgba(0,0,0,.06);
+  border-color: rgba(139,92,246,.4);
+}
+
+/* Signal cards */
+[data-theme="light"] .sig-card {
+  box-shadow: 0 2px 12px rgba(124,58,237,.06), 0 1px 3px rgba(0,0,0,.04);
+  border-color: rgba(139,92,246,.16);
+}
+[data-theme="light"] .sig-card:hover {
+  box-shadow: 0 6px 24px rgba(124,58,237,.12);
+  border-color: rgba(139,92,246,.4);
+}
+[data-theme="light"] .sig-card:has(.sig-card-strip.buy) {
+  border-left-color: rgba(5,150,105,.3);
+}
+[data-theme="light"] .sig-card:has(.sig-card-strip.sell) {
+  border-left-color: rgba(225,29,72,.3);
+}
+
+/* Modal overlay — softer backdrop in light mode */
+[data-theme="light"] .modal-overlay {
+  background: rgba(15,10,30,.45);
+}
+[data-theme="light"] .modal {
+  box-shadow: 0 24px 80px rgba(124,58,237,.18), 0 8px 32px rgba(0,0,0,.12);
+}
+
+/* Filter chips active states — ensure legibility */
+[data-theme="light"] .sig-chip-more.active {
+  background: rgba(124,58,237,.1);
+  color: var(--accent);
+  border-color: rgba(124,58,237,.35);
+}
+[data-theme="light"] .sig-chip-best.active {
+  background: rgba(124,58,237,.1);
+  color: var(--accent);
+  border-color: rgba(124,58,237,.35);
+}
+
+/* MA mini-bars — keep legible on white */
+[data-theme="light"] .scanner-mini-bar {
+  background: rgba(139,92,246,.1);
+}
+[data-theme="light"] .sig-mini-bar {
+  background: rgba(139,92,246,.1);
+}
+
+/* Trend alert banner */
+[data-theme="light"] .trend-alert-banner {
+  background: rgba(255,255,255,.85);
+  border-color: rgba(139,92,246,.2);
+  box-shadow: 0 2px 12px rgba(124,58,237,.08);
+}
+[data-theme="light"] .trend-alert-item {
+  background: var(--bg-elevated);
+  border-color: rgba(139,92,246,.15);
+}
+
+/* MA order gauge track */
+[data-theme="light"] .ma-order-track {
+  background: rgba(139,92,246,.1);
+}
+
+/* Topbar search + inputs */
+[data-theme="light"] input, [data-theme="light"] select, [data-theme="light"] textarea {
+  background: var(--bg-input);
+  border-color: rgba(139,92,246,.2);
+  color: var(--text-primary);
+}
+[data-theme="light"] input:focus, [data-theme="light"] select:focus, [data-theme="light"] textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,58,237,.12);
+}
+[data-theme="light"] input::placeholder { color: var(--text-muted); }
+
+/* Section headers */
+[data-theme="light"] .section-title { color: var(--text-primary); }
+
+/* Perf pills in light mode */
+[data-theme="light"] .perf-pos { background: rgba(5,150,105,.1); }
+[data-theme="light"] .perf-neg { background: rgba(225,29,72,.08); }
+
+/* Today's Opportunities scroll cards */
+[data-theme="light"] .opp-card {
+  background: var(--bg-elevated);
+  border-color: rgba(139,92,246,.15);
+  box-shadow: 0 2px 8px rgba(124,58,237,.06);
+}
+
+/* Gauge text & needle — make visible on light SVG background */
+[data-theme="light"] #gaugeScoreText { fill: var(--text-primary) !important; }
+[data-theme="light"] #gaugeSvg line, [data-theme="light"] #gaugeSvg circle:last-of-type {
+  stroke: var(--text-primary);
+}
+[data-theme="light"] #gaugeSvg circle:last-of-type { fill: var(--bg-surface); }
+
+/* Gauge arc track */
+[data-theme="light"] .gauge-svg path:first-of-type { stroke: rgba(139,92,246,.15); }
+
+/* Trade cards */
+[data-theme="light"] .trade-card {
+  background: var(--bg-elevated);
+  border-color: rgba(139,92,246,.15);
+  box-shadow: 0 2px 8px rgba(124,58,237,.06);
+}
+
+/* Alignment summary items */
+[data-theme="light"] .alignment-item {
+  background: var(--bg-elevated);
+  border-color: rgba(139,92,246,.15);
+}
+
+/* Portfolio card in light mode */
+[data-theme="light"] .portfolio-summary-card {
+  box-shadow: 0 2px 12px rgba(124,58,237,.07);
+  border-color: rgba(139,92,246,.18);
+}
+[data-theme="light"] .port-stat { border-color: rgba(139,92,246,.12); }

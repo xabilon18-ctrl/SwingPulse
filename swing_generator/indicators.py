@@ -157,6 +157,24 @@ def add_roc(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Performance returns
+# ---------------------------------------------------------------------------
+
+def add_performance_pct(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add period-return columns based on daily close:
+        pct_1d  – 1-bar  return  (today vs yesterday)
+        pct_1w  – 5-bar  return  (~1 trading week)
+        pct_1m  – 21-bar return  (~1 calendar month)
+        pct_1y  – 252-bar return (~1 trading year)
+    Values are percentage floats, e.g. 3.5 means +3.5%.
+    """
+    for col, periods in [('pct_1d', 1), ('pct_1w', 5), ('pct_1m', 21), ('pct_1y', 252)]:
+        df[col] = df['Close'].pct_change(periods=periods) * 100
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Convenience: run all indicators in one call
 # ---------------------------------------------------------------------------
 
@@ -166,4 +184,5 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)
     df = add_roc(df)
+    df = add_performance_pct(df)
     return df

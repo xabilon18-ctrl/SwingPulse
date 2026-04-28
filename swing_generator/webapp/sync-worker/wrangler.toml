@@ -1,0 +1,7 @@
+name            = "swingpulse-sync"
+main            = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "USER_DATA"
+id      = "567b56a128dd4aee9c861d7653846acb"

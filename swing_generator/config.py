@@ -116,6 +116,7 @@ OUTPUT_COLUMNS = [
     'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
     'watch_flag', 'potential_turning_point_flag',
     'ribbon_spread', 'ribbon_compression', 'ribbon_slope_pct', 'ma_order_score', 'roc',
+    'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today',
     'key_levels_all',

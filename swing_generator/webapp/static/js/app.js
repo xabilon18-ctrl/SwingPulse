@@ -23,20 +23,140 @@
   let wlFilter = 'all';
   let wlSort = 'signal';
   let activeAlertTab = 'turning';
-  let userStarred = new Set(JSON.parse(localStorage.getItem('swingpulse-starred') || '[]'));
+  // ── Cross-device Sync ────────────────────────────────────────────────
+  const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
+  const SYNC_SECRET = 'swingpulse2026';
+  let syncUser = localStorage.getItem('sp-user') || '';
+  let syncPushTimer = null;
+
+  // Storage key namespaced by active user so Zabs & Hemi never share local state
+  function sk(base) { return syncUser ? `${base}__${syncUser}` : base; }
+
+  // Migrate legacy (non-namespaced) data into the user's own bucket on first run
+  function migrateUserData() {
+    if (!syncUser) return;
+    ['swingpulse-starred','sp-notes','sp-open-trades','sp-closed-trades','sp-last-modified'].forEach(base => {
+      const legacy = localStorage.getItem(base);
+      if (legacy !== null && localStorage.getItem(sk(base)) === null) {
+        localStorage.setItem(sk(base), legacy);
+      }
+    });
+  }
+  migrateUserData();
+
+  let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
   let charts = {};
   let timeframe = 'D';      // 'D' = daily, 'W' = weekly
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
   let explanationsData = {};                                                    // instrument_name → AI text
-  let instrumentNotes  = JSON.parse(localStorage.getItem('sp-notes') || '{}'); // instrument_name → note text
+  let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
   let eventsData       = [];   // historical events (vol spikes + big moves) from all daily CSVs
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
-  let openTrades   = JSON.parse(localStorage.getItem('sp-open-trades')   || '[]');
-  let closedTrades = JSON.parse(localStorage.getItem('sp-closed-trades') || '[]');
+  let openTrades   = JSON.parse(localStorage.getItem(sk('sp-open-trades'))   || '[]');
+  let closedTrades = JSON.parse(localStorage.getItem(sk('sp-closed-trades')) || '[]');
   let pendingCloseId = null;  // trade id being closed
   let reportEmail  = localStorage.getItem('sp-report-email') || '';
+
+  function syncApplyRemote(remote) {
+    // Apply remote data, then re-render affected sections
+    if (Array.isArray(remote.starred)) {
+      userStarred = new Set(remote.starred);
+      localStorage.setItem(sk('swingpulse-starred'), JSON.stringify(remote.starred));
+    }
+    if (Array.isArray(remote.openTrades)) {
+      openTrades = remote.openTrades;
+      localStorage.setItem(sk('sp-open-trades'), JSON.stringify(openTrades));
+    }
+    if (Array.isArray(remote.closedTrades)) {
+      closedTrades = remote.closedTrades;
+      localStorage.setItem(sk('sp-closed-trades'), JSON.stringify(closedTrades));
+    }
+    if (remote.notes && typeof remote.notes === 'object') {
+      instrumentNotes = remote.notes;
+      localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
+    }
+    if (remote.reportEmail) {
+      reportEmail = remote.reportEmail;
+      localStorage.setItem('sp-report-email', reportEmail);
+    }
+    localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
+  }
+
+  async function syncPull() {
+    if (!syncUser) return;
+    const badge = document.getElementById('syncUserBadge');
+    try {
+      const res = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const remote = await res.json();
+      if (!remote || !remote.lastModified) return;
+      const localMod = parseInt(localStorage.getItem(sk('sp-last-modified')) || '0');
+      if (remote.lastModified > localMod) {
+        syncApplyRemote(remote);
+        // Full re-render so every tab (signals, scanner, watchlist) reflects synced data
+        if (allData.length) renderAll();
+        if (badge) { badge.title = `${syncUser} — synced just now`; }
+      }
+    } catch (_) { /* offline — silent */
+      if (badge) badge.title = `${syncUser} — offline, sync pending`;
+    }
+  }
+
+  function syncPushNow() {
+    if (!syncUser) return;
+    const payload = JSON.stringify({
+      starred:      [...userStarred],
+      openTrades,
+      closedTrades,
+      notes:        instrumentNotes,
+      reportEmail,
+      lastModified: Date.now(),
+    });
+    localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
+    fetch(`${SYNC_WORKER}/sync?user=${syncUser}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Sync-Secret': SYNC_SECRET },
+      body:    payload,
+    }).catch(() => { /* offline — silent */ });
+  }
+
+  // Debounce pushes so rapid changes (e.g. starring several instruments) send one request
+  function syncPush() {
+    clearTimeout(syncPushTimer);
+    syncPushTimer = setTimeout(syncPushNow, 800);
+  }
+
+  function showUserPicker() {
+    const overlay = document.getElementById('userPickerOverlay');
+    if (overlay) overlay.style.display = 'flex';
+  }
+
+  window.SP_setUser = function(name) {
+    syncUser = name.toLowerCase();
+    localStorage.setItem('sp-user', syncUser);
+    // Migrate any legacy (non-namespaced) data into this user's bucket
+    migrateUserData();
+    // Reload user-specific data from their own storage bucket
+    userStarred    = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
+    openTrades     = JSON.parse(localStorage.getItem(sk('sp-open-trades'))   || '[]');
+    closedTrades   = JSON.parse(localStorage.getItem(sk('sp-closed-trades')) || '[]');
+    instrumentNotes = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}');
+    const overlay = document.getElementById('userPickerOverlay');
+    if (overlay) overlay.style.display = 'none';
+    updateSyncBadge();
+    // Pull remote data and do a full re-render so all tabs update immediately
+    syncPull().then(() => { if (allData.length) renderAll(); });
+  };
+
+  function updateSyncBadge() {
+    const badge = document.getElementById('syncUserBadge');
+    if (!badge) return;
+    badge.textContent = syncUser ? syncUser.charAt(0).toUpperCase() + syncUser.slice(1) : '?';
+    badge.title = syncUser ? `Syncing as ${syncUser} — tap to switch user` : 'Tap to set user';
+    badge.classList.toggle('sync-badge-unset', !syncUser);
+  }
 
   // ── Signal Performance Tracker ───────────────────────────────────────
   function updateSignalHistory() {
@@ -413,15 +533,27 @@
   const navTabs = document.querySelectorAll('.nav-tab');
   const panes = document.querySelectorAll('.tab-pane');
 
+  function doTabSwitch(btn) {
+    const tab = btn.dataset.tab;
+    navTabs.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    panes.forEach(p => p.classList.remove('active'));
+    document.getElementById('pane-' + tab).classList.add('active');
+    currentTab = tab;
+  }
+
   navTabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      navTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      panes.forEach(p => p.classList.remove('active'));
-      document.getElementById('pane-' + tab).classList.add('active');
-      currentTab = tab;
+    // Use touchend for instant response on mobile (no 300ms delay)
+    let touchMoved = false;
+    btn.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
+    btn.addEventListener('touchmove', () => { touchMoved = true; }, { passive: true });
+    btn.addEventListener('touchend', e => {
+      if (touchMoved) return; // ignore scroll gestures
+      e.preventDefault(); // prevent ghost click
+      doTabSwitch(btn);
     });
+    // Fallback for desktop
+    btn.addEventListener('click', () => doTabSwitch(btn));
   });
 
   // ── Gauge Info Tooltip ───────────────────────────────────────────────
@@ -551,9 +683,27 @@
   }
 
   // Universal search matcher — checks ticker, full name, group, sector, industry
+  // Common name aliases so users can search natural terms (e.g. "crude oil" → WTI)
+  const SEARCH_ALIASES = {
+    'WTI':     ['crude oil', 'crude', 'wti oil', 'oil futures'],
+    'BRENT':   ['crude oil', 'crude', 'brent oil', 'oil futures'],
+    'GOLD':    ['xau', 'gold futures'],
+    'SILVER':  ['xag', 'silver futures'],
+    'NATGAS':  ['natural gas', 'nat gas'],
+    'COPPER':  ['copper futures'],
+    'WHEAT':   ['wheat futures'],
+    'CORN':    ['corn futures'],
+    'BITCOIN': ['btc'],
+    'ETHEREUM':['eth'],
+  };
+
   function matchesSearch(item, query) {
     if (!query) return true;
     const q = query.toLowerCase();
+    const name = (item.instrument_name || '').toUpperCase();
+    // Check aliases first
+    const aliases = SEARCH_ALIASES[name] || [];
+    if (aliases.some(a => a.includes(q) || q.includes(a))) return true;
     return (
       (item.instrument_name || '').toLowerCase().includes(q) ||
       (namesData[item.instrument_name] || '').toLowerCase().includes(q) ||
@@ -635,6 +785,53 @@
   }
 
   // ── Dashboard ────────────────────────────────────────────────────────
+  // ── Portfolio Summary Card ─────────────────────────────────────────────
+  function renderPortfolioCard() {
+    const card  = document.getElementById('portfolioSummaryCard');
+    const stats = document.getElementById('portfolioCardStats');
+    if (!card || !stats) return;
+    if (!openTrades.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const tradesWithPnl = openTrades.map(t => {
+      const live     = allData.find(d => d.instrument_name === t.instrument_name);
+      const livePrice = live ? parseFloat(live.close) : 0;
+      const pnl      = t.open_price > 0 && livePrice > 0
+        ? (livePrice - t.open_price) / t.open_price * 100 : null;
+      return { ...t, pnl };
+    });
+
+    const withPnl = tradesWithPnl.filter(t => t.pnl !== null);
+    const avgPnl  = withPnl.length
+      ? withPnl.reduce((s, t) => s + t.pnl, 0) / withPnl.length : null;
+    const best    = withPnl.length
+      ? withPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
+    const worst   = withPnl.length
+      ? withPnl.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
+
+    const fmt = v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+    const cls = v => v >= 0 ? 'port-pos' : 'port-neg';
+
+    stats.innerHTML = `
+      <div class="port-stat">
+        <span class="port-val">${openTrades.length}</span>
+        <span class="port-lbl">Open</span>
+      </div>
+      <div class="port-stat">
+        <span class="port-val ${avgPnl !== null ? cls(avgPnl) : ''}">${avgPnl !== null ? fmt(avgPnl) : '--'}</span>
+        <span class="port-lbl">Avg P&amp;L</span>
+      </div>
+      ${best ? `<div class="port-stat">
+        <span class="port-val port-pos">${best.instrument_name} ${fmt(best.pnl)}</span>
+        <span class="port-lbl">Best</span>
+      </div>` : ''}
+      ${worst && (!best || worst.instrument_name !== best.instrument_name) ? `<div class="port-stat">
+        <span class="port-val port-neg">${worst.instrument_name} ${fmt(worst.pnl)}</span>
+        <span class="port-lbl">Worst</span>
+      </div>` : ''}
+    `;
+  }
+
   function renderDashboard() {
     const s = computeSummary();
     const total = s.total || 1;
@@ -715,6 +912,7 @@
       document.getElementById('highConfBar').style.width = (highConfCount / total * 100) + '%';
     }, 100);
 
+    renderPortfolioCard();
     renderTodayOpportunities();
     renderAlertBanner();
     rebuildCharts();
@@ -1301,7 +1499,7 @@
 
       // MA order gauge
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 16 * 100) : null;
+      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 13 * 100) : null;
       const maOrderColor = maOrderPct !== null ? (maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)') : 'var(--border)';
 
       // Volume spike
@@ -1314,7 +1512,7 @@
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/16</span></span>` : ''}
+            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/13</span></span>` : ''}
           </div>
         </div>
         ${tvBtn(item.instrument_name, '')}
@@ -1436,7 +1634,7 @@
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
-          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/16 | ${dir}</div>
+          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/13 | ${dir}</div>
         </div>
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
@@ -1562,7 +1760,8 @@
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
 
-    // ── Chip filters ──
+    // ── Chip filters (skip when user is searching by name) ──
+    if (!search) {
     if (activeSignalFilter === 'buy')       filtered = filtered.filter(isBuy);
     else if (activeSignalFilter === 'sell') filtered = filtered.filter(isSell);
     else if (activeSignalFilter === 'secondary') filtered = filtered.filter(d => d[f('secondary_signal')]);
@@ -1586,6 +1785,7 @@
     } else if (activeSignalFilter !== 'all') {
       filtered = filtered.filter(d => d[f('primary_signal')] === activeSignalFilter);
     }
+    } // end !search chip-filter block
 
     if (signalTrendFilter !== 'all') {
       filtered = filtered.filter(d => (d[f('established_trend')] || d[f('trend_direction')] || '') === signalTrendFilter);
@@ -1640,6 +1840,22 @@
       withPct.sort((a, b) => (parseFloat(a.item[f('roc')])||0) - (parseFloat(b.item[f('roc')])||0));
     } else if (signalSort === 'order_desc') {
       withPct.sort((a, b) => (parseInt(b.item[f('ma_order_score')])||0) - (parseInt(a.item[f('ma_order_score')])||0));
+    } else if (signalSort === 'pct_1d_desc') {
+      withPct.sort((a, b) => (parseFloat(b.item.pct_1d)||0) - (parseFloat(a.item.pct_1d)||0));
+    } else if (signalSort === 'pct_1d_asc') {
+      withPct.sort((a, b) => (parseFloat(a.item.pct_1d)||0) - (parseFloat(b.item.pct_1d)||0));
+    } else if (signalSort === 'pct_1w_desc') {
+      withPct.sort((a, b) => (parseFloat(b.item.pct_1w)||0) - (parseFloat(a.item.pct_1w)||0));
+    } else if (signalSort === 'pct_1w_asc') {
+      withPct.sort((a, b) => (parseFloat(a.item.pct_1w)||0) - (parseFloat(b.item.pct_1w)||0));
+    } else if (signalSort === 'pct_1m_desc') {
+      withPct.sort((a, b) => (parseFloat(b.item.pct_1m)||0) - (parseFloat(a.item.pct_1m)||0));
+    } else if (signalSort === 'pct_1m_asc') {
+      withPct.sort((a, b) => (parseFloat(a.item.pct_1m)||0) - (parseFloat(b.item.pct_1m)||0));
+    } else if (signalSort === 'pct_1y_desc') {
+      withPct.sort((a, b) => (parseFloat(b.item.pct_1y)||0) - (parseFloat(a.item.pct_1y)||0));
+    } else if (signalSort === 'pct_1y_asc') {
+      withPct.sort((a, b) => (parseFloat(a.item.pct_1y)||0) - (parseFloat(b.item.pct_1y)||0));
     }
 
     // Update count in topbar
@@ -1654,77 +1870,67 @@
       return;
     }
 
-    list.innerHTML = withPct.map(({ item, pct }) => {
+    list.innerHTML = withPct.map(({ item, pct }, i) => {
       const trend = item[f('trend_direction')] || 'NEUTRAL';
-      const estTrend = item[f('established_trend')] || trend;
       const sig = item[f('primary_signal')] || item[f('secondary_signal')] || '';
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
-      const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' : '--';
       const conf = item[f('signal_confidence')] || '';
       const align = item.tf_alignment || '';
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const compression = item[f('ribbon_compression')] === 'yes';
-      const volSpike = item[f('volume_spike_flag')] === 'yes';
+      const runDays = parseInt(item[f('trend_run_days')]) || 0;
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 16 * 100) : null;
+      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 13 * 100) : null;
       const starred = userStarred.has(item.instrument_name);
 
       const isBuyItem = isBuy(item);
       const isSellItem = isSell(item);
-      const stripClass = isBuyItem ? 'buy' : isSellItem ? 'sell' : '';
-      const priceColor = isBuyItem ? 'var(--buy)' : isSellItem ? 'var(--sell)' : 'var(--text-secondary)';
+      const confLabel = conf === 'high' ? ' (HIGH)' : conf === 'low' ? ' (LOW)' : '';
+      const stripCls = sig ? (isBuyItem ? 'strip-buy' : 'strip-sell') : '';
+      const stripLabel = sig ? (isBuyItem ? 'BUY ' + sig + confLabel : 'SELL ' + sig + confLabel) : '';
 
       const sigBadgeCls = sig === 'P1' ? 'p1' : sig === 'P2' ? 'p2' : sig === 'P3' ? 'p3' : sig === 'P4' ? 'p4' : 'secondary';
-      const confBadge = conf ? `<span class="sig-badge conf-${conf}">${conf.toUpperCase()}</span>` : '';
-      const alignBadge = align ? `<span class="sig-badge align">${align}</span>` : '';
-      const ageBadge = age.label ? `<span class="sig-badge ${age.decayClass === 'age-fresh' ? 'age-fresh' : 'age-old'}">${age.label}</span>` : '';
-
-      const descText = buildSignalDesc(item);
+      const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
+      const alignBadge = align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '';
       const maBarColor = maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)';
+      const barWidth = Math.min(runDays / 100 * 100, 100);
+      const barColor = trend === 'UPTREND' ? 'var(--buy)' : trend === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
 
-      return `<div class="sig-card-wrap">
-        <div class="sig-card" onclick="window.SP.openModal('${item.instrument_name}')">
-          <div class="sig-card-strip ${stripClass}"></div>
-          <div class="sig-card-body">
-            <div class="sig-card-row1">
-              <div class="sig-card-name-wrap">
-                <span class="sig-card-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${compression ? ' <span class="compression-alert">SQZ</span>' : ''}${volSpike ? ' <span class="vol-spike-indicator">VOL</span>' : ''}</span>
-                ${instName(item.instrument_name) ? `<span class="inst-fullname">${instName(item.instrument_name)}</span>` : ''}
-              </div>
-              <div class="sig-card-right">
-                ${shareBtn(item.instrument_name)}
-                <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
-                <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
-                <div class="sig-price-stack">
-                  <span class="sig-card-price" style="color:${priceColor}">${formatPrice(item[f('close')])}</span>
-                  ${pct !== null ? `<span class="sig-entry-pct ${pct >= 0 ? 'pct-pos' : 'pct-neg'}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}
-                </div>
-              </div>
-            </div>
-            <div class="sig-card-row2">
-              <span class="sig-card-status">${item[f('confirmation_status')] || 'No signal'}</span>
-            </div>
-            <div class="sig-card-badges">
-              ${sig ? `<span class="sig-badge ${sigBadgeCls}">${sig}</span>` : ''}
-              ${confBadge}
-              ${alignBadge}
-              ${badge3TF(item)}
-              ${ageBadge}
-              ${trendMaturityBadge(item)}
-            </div>
-            ${maOrderPct !== null ? `<div class="sig-card-row3">
-              <span class="sig-ma-label">MA ${maOrderPct}%</span>
-              <div class="sig-mini-bar"><div class="sig-mini-bar-fill" style="width:${maOrderPct}%;background:${maBarColor}"></div></div>
-              ${rocStr ? `<span class="sig-roc ${!isNaN(roc) && roc >= 0 ? 'pos' : 'neg'}">ROC ${rocStr}</span>` : ''}
-            </div>` : ''}
+      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" onclick="window.SP.openModal('${item.instrument_name}')">
+        ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
+        <div class="scanner-top">
+          <div>
+            <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${compression ? ' <span class="compression-alert">SQZ</span>' : ''}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-spike-indicator">VOL</span>' : ''}</div>
+            ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
+            <div class="scanner-group">${item[f('confirmation_status')] || ''}</div>
+          </div>
+          <div class="scanner-actions">
+            ${shareBtn(item.instrument_name)}
+            <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
+            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
           </div>
         </div>
-        ${descText ? `<div class="ai-strip">
-          <div class="ai-strip-label"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/></svg> Analysis</div>
-          <div class="ai-strip-text">${descText}</div>
+        <div class="scanner-price" style="color:${isBuyItem ? 'var(--buy)' : isSellItem ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
+        <div class="scanner-meta">
+          ${sig ? `<span class="sig-badge ${sigBadgeCls}">${sig}</span>` : ''}
+          ${confBadge}
+          ${alignBadge}
+          ${badge3TF(item)}
+          ${age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : ''}
+          ${trendMaturityBadge(item)}
+          ${compression ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE</span>' : ''}
+          ${runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : ''}
+        </div>
+        ${maOrderPct !== null ? `<div class="ma-order-gauge">
+          <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
+          <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maBarColor}"></div></div>
+          <span style="font-size:.6rem">${maOrder}/13</span>
         </div>` : ''}
+        <div class="scanner-mini-bar" style="background:var(--border)">
+          <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
       </div>`;
     }).join('');
   }
@@ -1789,12 +1995,14 @@
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
 
-    // ── Chip filter ──
-    if (activeScannerFilter === 'buy')     filtered = filtered.filter(isBuy);
-    else if (activeScannerFilter === 'sell')    filtered = filtered.filter(isSell);
-    else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
-    else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
-    else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
+    // ── Chip filter (skip when user is searching by name) ──
+    if (!search) {
+      if (activeScannerFilter === 'buy')         filtered = filtered.filter(isBuy);
+      else if (activeScannerFilter === 'sell')   filtered = filtered.filter(isSell);
+      else if (activeScannerFilter === 'squeeze')filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
+      else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
+      else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
+    }
 
     // ── Sort ──
     if (scannerSort === 'signal') {
@@ -1811,6 +2019,22 @@
       filtered = [...filtered].sort((a, b) => (parseInt(b[f('ma_order_score')])||0) - (parseInt(a[f('ma_order_score')])||0));
     } else if (scannerSort === 'run_desc') {
       filtered = [...filtered].sort((a, b) => (parseInt(b[f('trend_run_days')])||0) - (parseInt(a[f('trend_run_days')])||0));
+    } else if (scannerSort === 'pct_1d_desc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1d)||0) - (parseFloat(a.pct_1d)||0));
+    } else if (scannerSort === 'pct_1d_asc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1d)||0) - (parseFloat(b.pct_1d)||0));
+    } else if (scannerSort === 'pct_1w_desc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1w)||0) - (parseFloat(a.pct_1w)||0));
+    } else if (scannerSort === 'pct_1w_asc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1w)||0) - (parseFloat(b.pct_1w)||0));
+    } else if (scannerSort === 'pct_1m_desc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1m)||0) - (parseFloat(a.pct_1m)||0));
+    } else if (scannerSort === 'pct_1m_asc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1m)||0) - (parseFloat(b.pct_1m)||0));
+    } else if (scannerSort === 'pct_1y_desc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1y)||0) - (parseFloat(a.pct_1y)||0));
+    } else if (scannerSort === 'pct_1y_asc') {
+      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1y)||0) - (parseFloat(b.pct_1y)||0));
     }
 
     // ── Summary bar ──
@@ -1847,13 +2071,28 @@
       const compression = item[f('ribbon_compression')] === 'yes';
       const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 16 * 100) : null;
+      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 13 * 100) : null;
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const starred = userStarred.has(item.instrument_name);
       const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
+
+      // Performance % row (daily-based columns, not timeframe-prefixed)
+      function perfPill(val, label) {
+        const v = parseFloat(val);
+        if (isNaN(v)) return '';
+        const cls = v >= 0 ? 'perf-pos' : 'perf-neg';
+        const str = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+        return `<span class="perf-pill ${cls}"><span class="perf-label">${label}</span>${str}</span>`;
+      }
+      const perfRow = [
+        perfPill(item.pct_1d, '1D'),
+        perfPill(item.pct_1w, '1W'),
+        perfPill(item.pct_1m, '1M'),
+        perfPill(item.pct_1y, '1Y'),
+      ].filter(Boolean).join('');
 
       return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" onclick="window.SP.openModal('${item.instrument_name}')">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
@@ -1871,6 +2110,7 @@
           </div>
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])} ${rocStr ? `<span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
+        ${perfRow ? `<div class="perf-row">${perfRow}</div>` : ''}
         <div class="scanner-meta">
           <span class="scanner-tag ${trendTag(t)}">${t}</span>
           ${align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : ''}
@@ -1885,7 +2125,7 @@
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
-          <span style="font-size:.6rem">${maOrder}/16</span>
+          <span style="font-size:.6rem">${maOrder}/13</span>
         </div>` : ''}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
@@ -2214,7 +2454,7 @@
           </div>
           <div class="mg-tile">
             <div class="mg-label">MA Order</div>
-            <div class="mg-val">${item[f('ma_order_score')] || '--'}/16</div>
+            <div class="mg-val">${item[f('ma_order_score')] || '--'}/13</div>
           </div>
           <div class="mg-tile">
             <div class="mg-label">Momentum</div>
@@ -2381,7 +2621,8 @@
             const text = noteInput.value.trim();
             if (text) instrumentNotes[name] = text;
             else       delete instrumentNotes[name];
-            localStorage.setItem('sp-notes', JSON.stringify(instrumentNotes));
+            localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
+            syncPush();
             if (hint) { hint.textContent = 'Saved ✓'; hint.className = 'notes-save-hint saved'; }
             setTimeout(() => { if (hint) hint.textContent = ''; }, 1800);
           }, 500);
@@ -2826,7 +3067,8 @@
       const svg = b.querySelector('svg');
       if (svg) svg.setAttribute('fill', nowStarred ? 'currentColor' : 'none');
     });
-    localStorage.setItem('swingpulse-starred', JSON.stringify([...userStarred]));
+    localStorage.setItem(sk('swingpulse-starred'), JSON.stringify([...userStarred]));
+    syncPush();
     renderWlMyList();
   }
 
@@ -2971,7 +3213,7 @@
     }
   }
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard };
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)
@@ -3006,12 +3248,81 @@
   }
 
   registerSW();
-  loadAll();
+  updateSyncBadge();
+  if (!syncUser) showUserPicker();
+  // Pull AFTER loadAll so allData is populated before re-rendering
+  loadAll().then(() => { if (syncUser) syncPull(); });
+  // Re-sync when user returns to the tab (catches changes made on another device)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && syncUser) syncPull();
+  });
+
+  // ── Pull-to-Refresh ──────────────────────────────────────────────────
+  (function initPTR() {
+    const ptrEl = document.getElementById('ptr-indicator');
+    if (!ptrEl) return;
+    const THRESHOLD = 72;   // px to pull before release triggers refresh
+    let startY = 0, pulling = false, refreshing = false;
+
+    function ptrSetPos(delta) {
+      // Slides from -60px (hidden) to +10px (visible) as delta goes 0 → THRESHOLD
+      const progress = Math.min(delta / THRESHOLD, 1);
+      ptrEl.style.transform = `translateX(-50%) translateY(${-60 + 70 * progress}px)`;
+      ptrEl.style.opacity   = String(Math.min(progress * 1.5, 1));
+      ptrEl.classList.toggle('ptr-ready', delta >= THRESHOLD);
+    }
+
+    function ptrReset() {
+      ptrEl.style.transition = 'transform .28s ease, opacity .28s ease';
+      ptrEl.style.transform  = 'translateX(-50%) translateY(-60px)';
+      ptrEl.style.opacity    = '0';
+      setTimeout(() => { ptrEl.style.transition = ''; }, 320);
+      ptrEl.classList.remove('ptr-ready', 'ptr-refreshing');
+    }
+
+    document.addEventListener('touchstart', e => {
+      if (window.scrollY === 0 && !refreshing) {
+        startY  = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+      if (!pulling || refreshing) return;
+      const delta = e.touches[0].clientY - startY;
+      if (delta <= 0 || window.scrollY > 0) { pulling = false; ptrReset(); return; }
+      ptrSetPos(delta);
+    }, { passive: true });
+
+    document.addEventListener('touchend', async () => {
+      if (!pulling || refreshing) { pulling = false; return; }
+      pulling = false;
+      if (!ptrEl.classList.contains('ptr-ready')) { ptrReset(); return; }
+
+      // Snap indicator into place and spin while refreshing
+      refreshing = true;
+      ptrEl.classList.add('ptr-refreshing');
+      ptrEl.style.transition = 'transform .15s ease';
+      ptrEl.style.transform  = 'translateX(-50%) translateY(10px)';
+      ptrEl.style.opacity    = '1';
+
+      // Spin the topbar refresh button too so the user gets feedback everywhere
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.querySelector('svg').style.animation = 'ptr-spin .8s linear infinite';
+
+      await loadAll();
+      if (syncUser) await syncPull();
+
+      if (refreshBtn) refreshBtn.querySelector('svg').style.animation = '';
+      refreshing = false;
+      ptrReset();
+    });
+  })();
 
   // ── Trade Journal ─────────────────────────────────────────────────────
 
-  function saveOpenTrades()   { localStorage.setItem('sp-open-trades',   JSON.stringify(openTrades));   }
-  function saveClosedTrades() { localStorage.setItem('sp-closed-trades', JSON.stringify(closedTrades)); }
+  function saveOpenTrades()   { localStorage.setItem(sk('sp-open-trades'),   JSON.stringify(openTrades));   syncPush(); }
+  function saveClosedTrades() { localStorage.setItem(sk('sp-closed-trades'), JSON.stringify(closedTrades)); syncPush(); }
 
   function renderOpenTrades() {
     const listEl   = document.getElementById('openTradesList');

@@ -440,7 +440,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
             ribbon_slope = float(row.get('ribbon_slope_pct', 0) or 0)
             if abs(ribbon_slope) > NEUTRAL_SLOPE_THRESHOLD:
                 slope_dir = 'rising' if ribbon_slope > 0 else 'declining'
-                statuses.append(f'Neutral — transitioning, ribbon {slope_dir}')
+                statuses.append(f'Neutral — transitioning ({slope_dir} ribbon)')
                 primaries.append('')
                 secondaries.append('')
                 confidences.append('')
