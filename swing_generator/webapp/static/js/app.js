@@ -514,6 +514,12 @@
     setTimeframe(btn.dataset.tf);
   });
 
+  // Debounce helper — avoids re-rendering on every single keystroke
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
   function renderAll() {
     renderDashboard();
     renderSignals();
@@ -543,17 +549,19 @@
   }
 
   navTabs.forEach(btn => {
-    // Use touchend for instant response on mobile (no 300ms delay)
-    let touchMoved = false;
-    btn.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
-    btn.addEventListener('touchmove', () => { touchMoved = true; }, { passive: true });
+    let _touchHandled = false;
+    let _touchMoved   = false;
+    btn.addEventListener('touchstart', () => { _touchMoved = false; }, { passive: true });
+    btn.addEventListener('touchmove',  () => { _touchMoved = true;  }, { passive: true });
     btn.addEventListener('touchend', e => {
-      if (touchMoved) return; // ignore scroll gestures
-      e.preventDefault(); // prevent ghost click
+      if (_touchMoved) return;
+      _touchHandled = true;
+      setTimeout(() => { _touchHandled = false; }, 600);
+      e.preventDefault();
       doTabSwitch(btn);
-    });
-    // Fallback for desktop
-    btn.addEventListener('click', () => doTabSwitch(btn));
+    }, { passive: false });
+    // Desktop click — skip if already handled by touch
+    btn.addEventListener('click', () => { if (!_touchHandled) doTabSwitch(btn); });
   });
 
   // ── Gauge Info Tooltip ───────────────────────────────────────────────
@@ -1935,7 +1943,7 @@
     }).join('');
   }
 
-  document.getElementById('signalSearch').addEventListener('input', renderSignals);
+  document.getElementById('signalSearch').addEventListener('input', debounce(renderSignals, 150));
   document.getElementById('signalTrendFilter').addEventListener('change', e => {
     signalTrendFilter = e.target.value;
     renderSignals();
@@ -2134,7 +2142,7 @@
     }).join('');
   }
 
-  document.getElementById('scannerSearch').addEventListener('input', buildScannerCards);
+  document.getElementById('scannerSearch').addEventListener('input', debounce(buildScannerCards, 150));
   document.getElementById('scannerGroupFilter').addEventListener('change', buildScannerCards);
   document.getElementById('scannerSectorFilter').addEventListener('change', buildScannerCards);
   document.getElementById('scannerTrendFilter').addEventListener('change', buildScannerCards);
