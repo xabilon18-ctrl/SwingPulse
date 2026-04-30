@@ -19,9 +19,60 @@ self.addEventListener('notificationclick', e => {
 
 // ── Message from main thread ─────────────────────────────────────────────────
 self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'CHECK_SIGNALS') {
+  if (!e.data) return;
+  if (e.data.type === 'CHECK_SIGNALS') {
     checkForNewSignals(e.data.starred, e.data.lastSeen);
   }
+  if (e.data.type === 'CACHE_USER_STATE') {
+    // Cache user state in IndexedDB so background push handler can use it
+    cacheUserState(e.data.starred, e.data.lastSeen);
+  }
+});
+
+// ── IDB helpers (stash starred + lastSeen for the push event) ──────────────
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('sp-push', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('state');
+    r.onsuccess = () => resolve(r.result);
+    r.onerror   = () => reject(r.error);
+  });
+}
+async function cacheUserState(starred, lastSeen) {
+  const db = await idbOpen();
+  const tx = db.transaction('state', 'readwrite');
+  tx.objectStore('state').put({ starred: starred || [], lastSeen: lastSeen || {} }, 'user');
+  return new Promise(r => { tx.oncomplete = r; });
+}
+async function readUserState() {
+  try {
+    const db = await idbOpen();
+    return await new Promise(resolve => {
+      const tx = db.transaction('state', 'readonly');
+      const req = tx.objectStore('state').get('user');
+      req.onsuccess = () => resolve(req.result || {});
+      req.onerror   = () => resolve({});
+    });
+  } catch { return {}; }
+}
+
+// ── Push event: fires when Worker sends an empty VAPID push ─────────────────
+self.addEventListener('push', e => {
+  e.waitUntil((async () => {
+    const state = await readUserState();
+    const starred  = state.starred  || [];
+    const lastSeen = state.lastSeen || {};
+    if (!starred.length) {
+      await self.registration.showNotification('SwingPulse', {
+        body:  'New signals — tap to open and check your watchlist.',
+        icon:  '/static/icon-192.png',
+        badge: '/static/icon-192.png',
+        tag:   'sp-generic',
+      });
+      return;
+    }
+    await checkForNewSignals(starred, lastSeen);
+  })());
 });
 
 // ── Core check: fetch latest signals, notify on new ones for starred tickers ─

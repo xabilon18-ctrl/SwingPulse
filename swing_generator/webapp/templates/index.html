@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=53">
+  <link rel="stylesheet" href="/static/css/style.css?v=54">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -39,6 +39,7 @@
       </div>
     </div>
     <div class="topbar-right">
+      <button class="icon-btn push-toggle-btn" id="pushToggleBtn" title="Enable signal notifications" onclick="window.SP && window.SP.togglePush()"></button>
       <button class="sync-badge sync-badge-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       <button class="icon-btn theme-toggle" id="themeToggle" title="Toggle theme">
         <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -773,6 +774,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=64"></script>
+  <script src="/static/js/app.js?v=65"></script>
 </body>
 </html>

@@ -4516,6 +4516,19 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .sync-badge:hover       { opacity: .8; transform: scale(1.08); }
 .sync-badge-unset       { background: var(--border); color: var(--text-muted); }
 
+.push-toggle-btn { color: var(--text-muted); }
+.push-toggle-btn.push-on { color: var(--watch); }
+.push-toggle-btn.push-on::after {
+  content: '';
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--buy);
+  box-shadow: 0 0 4px var(--buy);
+}
+.push-toggle-btn { position: relative; }
+
 /* ── Pull-to-Refresh ──────────────────────────────────────────────────── */
 .ptr-indicator {
   position: fixed;

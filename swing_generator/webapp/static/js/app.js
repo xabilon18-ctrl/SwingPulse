@@ -376,7 +376,77 @@
     navigator.serviceWorker.ready.then(reg => {
       if (!reg.active) return;
       reg.active.postMessage({ type: 'CHECK_SIGNALS', starred, lastSeen });
+      // Also cache state in IDB for the background push handler
+      reg.active.postMessage({ type: 'CACHE_USER_STATE', starred, lastSeen });
     });
+  }
+
+  // ── Web Push subscribe (background notifications) ─────────────────────
+  const VAPID_PUBLIC_KEY = 'BOO2qQLHIMhVkOKGkL2ClLs2RPVz_Lc5y10woA_OaU0FdAoFVYU4ZrWDy-OSzg6-TBgxELpbmKlrsahsdlN4i_w';
+
+  function urlBase64ToUint8Array(base64) {
+    const padding = '='.repeat((4 - base64.length % 4) % 4);
+    const b = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(b);
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+  }
+
+  async function subscribeToPush() {
+    if (!swRegistration || !syncUser) return false;
+    if (!('PushManager' in window)) return false;
+    try {
+      const granted = await requestNotificationPermission();
+      if (!granted) return false;
+      let sub = await swRegistration.pushManager.getSubscription();
+      if (!sub) {
+        sub = await swRegistration.pushManager.subscribe({
+          userVisibleOnly:      true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      // POST to Worker
+      const res = await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(sub),
+      });
+      if (res.ok) {
+        localStorage.setItem(sk('sp-push-enabled'), '1');
+        updatePushBadgeUI();
+        return true;
+      }
+    } catch (e) {
+      console.warn('[push] subscribe failed:', e);
+    }
+    return false;
+  }
+
+  async function unsubscribeFromPush() {
+    if (!swRegistration || !syncUser) return;
+    try {
+      const sub = await swRegistration.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`, { method: 'DELETE' });
+      localStorage.removeItem(sk('sp-push-enabled'));
+      updatePushBadgeUI();
+    } catch (e) {
+      console.warn('[push] unsubscribe failed:', e);
+    }
+  }
+
+  function isPushEnabled() {
+    return localStorage.getItem(sk('sp-push-enabled')) === '1' && Notification.permission === 'granted';
+  }
+
+  function updatePushBadgeUI() {
+    const btn = document.getElementById('pushToggleBtn');
+    if (!btn) return;
+    const on = isPushEnabled();
+    btn.classList.toggle('push-on', on);
+    btn.title = on ? 'Notifications on — tap to disable' : 'Enable signal notifications';
+    btn.innerHTML = on
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3,3"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
   }
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
@@ -3445,7 +3515,19 @@
     }
   }
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen };
+  async function togglePush() {
+    if (isPushEnabled()) {
+      await unsubscribeFromPush();
+    } else {
+      const ok = await subscribeToPush();
+      if (!ok) alert('Could not enable notifications. Make sure you allowed permission.');
+    }
+  }
+
+  // Initial UI state for push button (after SW registers)
+  setTimeout(updatePushBadgeUI, 500);
+
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen, togglePush };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)
