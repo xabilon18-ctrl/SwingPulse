@@ -254,7 +254,7 @@
             ? `<span class="mb-perf ${parseFloat(perf.pct) >= 0 ? 'perf-pos' : 'perf-neg'}">${parseFloat(perf.pct) >= 0 ? '+' : ''}${perf.pct}%</span>`
             : '';
           const bars = Math.min(item._score, 8);
-          return `<div class="mb-item" onclick="window.SP.openModal('${item.instrument_name}')">
+          return `<div class="mb-item" data-act="openModal" data-arg="${item.instrument_name}">
             <div class="mb-item-left">
               <span class="mb-name">${item.instrument_name}</span>
               <span class="mb-group">${item.group || ''}</span>
@@ -325,7 +325,7 @@
         `<span class="opp-bar${i < bars ? ` opp-bar-filled opp-bar-${dir}` : ''}" style="height:${Math.max(REAL_HEIGHTS[i], 12)}%"></span>`
       ).join('');
 
-      return `<div class="opp-card opp-card-${dir}" onclick="window.SP.openModal('${name}')">
+      return `<div class="opp-card opp-card-${dir}" data-act="openModal" data-arg="${name}">
         <div class="opp-card-strip"></div>
         <div class="opp-card-body">
           <div class="opp-name">${name}${noteInd}</div>
@@ -1115,7 +1115,7 @@
       const dCls = buy ? 'tci-buy' : 'tci-sell';
       const pCls = sig === 'P1' ? 'tci-p1' : 'tci-p2';
       const lbl  = sig === 'P1' ? 'Trend Change' : 'Strong Signal';
-      return `<div class="trend-alert-item ${dCls} ${pCls}" onclick="window.SP.openModal('${tick}')">
+      return `<div class="trend-alert-item ${dCls} ${pCls}" data-act="openModal" data-arg="${tick}">
         <span class="tci-badge">${sig}</span>
         <span class="tci-dir">${dir}</span>
         <span class="tci-name">
@@ -1201,7 +1201,7 @@
         const buy = isBuy(item);
         const sell = isSell(item);
         const sigBadge = sig ? `<span class="feed-badge badge-${sig === 'P1' ? 'p1' : sig === 'P2' ? 'p2' : sig === 'P3' ? 'p3' : sig === 'P4' ? 'p4' : 'secondary'}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
-        return `<div class="conf-inst-row" onclick="window.SP.openModal('${item.instrument_name}')">
+        return `<div class="conf-inst-row" data-act="openModal" data-arg="${item.instrument_name}">
           <span style="font-weight:600">${item.instrument_name} ${sigBadge}</span>
           <span style="color:var(--text-muted)">${item.group || ''}</span>
         </div>`;
@@ -1484,7 +1484,7 @@
           const activeItems = secData.items;
           if (activeItems.length) {
             sdChips.innerHTML = activeItems.map(item =>
-              `<span class="sd-chip sd-chip-${item._dir}" onclick="event.stopPropagation();window.SP.openModal('${item.instrument_name}')">${item.instrument_name} ${item._dir === 'buy' ? '▲' : '▼'}</span>`
+              `<span class="sd-chip sd-chip-${item._dir}" data-act="openModal" data-arg="${item.instrument_name}" data-stop="1">${item.instrument_name} ${item._dir === 'buy' ? '▲' : '▼'}</span>`
             ).join('');
           } else {
             sdChips.innerHTML = '<span style="color:var(--text-muted);font-size:.68rem">No active signals</span>';
@@ -1607,10 +1607,10 @@
         ${sig ? `<span class="cell-signal">${sig}</span>` : ''}
         <div class="heatmap-cell-actions">
           ${tvBtn(item.instrument_name, '')}
-          <button class="hm-detail-btn" onclick="event.stopPropagation(); window.SP.openModal('${item.instrument_name}')">
+          <button class="hm-detail-btn" data-act="openModal" data-arg="${item.instrument_name}" data-stop="1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
-          <button class="hm-detail-btn hm-star-btn star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" onclick="event.stopPropagation();window.SP.toggleStar(this)" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">
+          <button class="hm-detail-btn hm-star-btn star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="${userStarred.has(item.instrument_name) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </button>
         </div>
@@ -1660,7 +1660,7 @@
       // Volume spike
       const volSpike = item[f('volume_spike_flag')] === 'yes';
 
-      return `<div class="signal-feed-item feed-${buy ? 'buy' : 'sell'}" onclick="window.SP.openModal('${item.instrument_name}')">
+      return `<div class="signal-feed-item feed-${buy ? 'buy' : 'sell'}" data-act="openModal" data-arg="${item.instrument_name}">
         <span class="feed-badge ${badgeCls}">${sig}</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${confBadge} ${alignBadge} ${badge3TF(item)} ${volSpike ? '<span class="badge-confidence" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : ''}</div>
@@ -1753,7 +1753,7 @@
           const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
           const trend = item[f('trend_direction')] || 'NEUTRAL';
           const compression = item[f('ribbon_compression')] === 'yes';
-          return `<div class="alignment-inst-row ${buy ? 'feed-buy' : sell ? 'feed-sell' : ''}" onclick="window.SP.openModal('${item.instrument_name}')">
+          return `<div class="alignment-inst-row ${buy ? 'feed-buy' : sell ? 'feed-sell' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
             <div class="alignment-inst-name">
               ${item.instrument_name} ${tvBtn(item.instrument_name, '')}
               ${sigBadge} ${confBadge}
@@ -1785,7 +1785,7 @@
       const spread = parseFloat(item[f('ribbon_spread')]);
       const order = parseInt(item[f('ma_order_score')]);
       const dir = order > 8 ? 'Bullish lean' : order < 8 ? 'Bearish lean' : 'Neutral';
-      return `<div class="signal-feed-item" onclick="window.SP.openModal('${item.instrument_name}')" style="border-left:3px solid var(--volume)">
+      return `<div class="signal-feed-item" data-act="openModal" data-arg="${item.instrument_name}" style="border-left:3px solid var(--volume)">
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
@@ -2053,7 +2053,7 @@
       const barWidth = Math.min(runDays / 100 * 100, 100);
       const barColor = trend === 'UPTREND' ? 'var(--buy)' : trend === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
 
-      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" onclick="window.SP.openModal('${item.instrument_name}')">
+      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
@@ -2063,8 +2063,8 @@
           </div>
           <div class="scanner-actions">
             ${shareBtn(item.instrument_name)}
-            <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
-            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
+            <button class="trade-open-btn" title="Open trade" data-act="openTradeSheet" data-arg="${item.instrument_name}" data-stop="1" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
+            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
           </div>
         </div>
         <div class="scanner-price" style="color:${isBuyItem ? 'var(--buy)' : isSellItem ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
@@ -2249,7 +2249,7 @@
         perfPill(item.pct_1y, '1Y'),
       ].filter(Boolean).join('');
 
-      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" onclick="window.SP.openModal('${item.instrument_name}')">
+      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
@@ -2260,8 +2260,8 @@
           <div class="scanner-actions">
             ${tvBtn(item.instrument_name, '')}
             ${shareBtn(item.instrument_name)}
-            <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
-            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
+            <button class="trade-open-btn" title="Open trade" data-act="openTradeSheet" data-arg="${item.instrument_name}" data-stop="1" aria-label="Open trade"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></button>
+            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
           </div>
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])} ${rocStr ? `<span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
@@ -2321,7 +2321,7 @@
     activeAlertTab = chip.dataset.alert;
     renderWlAlerts();
   });
-  // Star buttons use inline onclick="event.stopPropagation();window.SP.toggleStar(this)"
+  // Star buttons use inline data-act="toggleStar" data-stop="1"
   // to prevent the parent card's openModal from firing.
 
   // ── Watchlist Tab ────────────────────────────────────────────────────
@@ -2399,7 +2399,7 @@
       const stripLabel = sig ? (buy ? 'BUY ' + sig : 'SELL ' + sig) : '';
       const hasAlert = !!(item[f('potential_turning_point_flag')] || item[f('watch_flag')] ||
                           item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
-      return `<div class="wl-card" onclick="window.SP.openModal('${item.instrument_name}')">
+      return `<div class="wl-card" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="wl-card-top">
           <div class="wl-card-left">
@@ -2413,10 +2413,10 @@
             <div class="scanner-actions">
               ${tvBtn(item.instrument_name, '')}
               ${shareBtn(item.instrument_name)}
-              <button class="trade-open-btn" title="Open trade" onclick="event.stopPropagation();window.SP.openTradeSheet('${item.instrument_name}')" aria-label="Open trade">
+              <button class="trade-open-btn" title="Open trade" data-act="openTradeSheet" data-arg="${item.instrument_name}" data-stop="1" aria-label="Open trade">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
               </button>
-              <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Remove from watchlist" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
+              <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Remove from watchlist" data-act="toggleStar" data-stop="1">★</button>
             </div>
           </div>
         </div>
@@ -2469,7 +2469,7 @@
         const v = parseInt(item[f('volume')] || 0), a = parseInt(item[f('volume_average')] || 0);
         detail = `Vol: ${v.toLocaleString()} (avg: ${a.toLocaleString()})`;
       }
-      return `<div class="wl-alert-item" onclick="window.SP.openModal('${item.instrument_name}')">
+      return `<div class="wl-alert-item" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="wl-alert-left">
           <span class="wl-alert-name">${item.instrument_name}</span>
           <span class="wl-alert-detail">${detail}</span>
@@ -2478,7 +2478,7 @@
           <span class="scanner-tag ${trendTag(t)}" style="font-size:.6rem;padding:2px 5px">${t.charAt(0)}</span>
           ${sig ? `<span class="scanner-tag ${buy ? 'tag-up' : sell ? 'tag-down' : 'tag-neutral'}" style="font-size:.6rem;padding:2px 5px">${sig.slice(0,5)}</span>` : ''}
           ${tvBtn(item.instrument_name, '')}
-          <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove' : 'Add to watchlist'}" onclick="event.stopPropagation();window.SP.toggleStar(this)">★</button>
+          <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
         </div>
       </div>`;
     }).join('');
@@ -2568,7 +2568,7 @@
       <div class="trs-section">
         <div class="trs-section-title">🏆 Top 5 instruments (avg R)</div>
         <div class="trs-inst-list">
-          ${top5.map(s => `<div class="trs-inst-row" onclick="window.SP.closeTrackAndOpen('${s.label}')">
+          ${top5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${s.label}">
             <span class="trs-inst-name">${s.label}</span>
             <span class="trs-inst-trades">${s.total_trades} trades</span>
             <span class="trs-inst-wr">${s.win_rate}%</span>
@@ -2580,7 +2580,7 @@
       <div class="trs-section">
         <div class="trs-section-title">📉 Bottom 5 instruments (avg R)</div>
         <div class="trs-inst-list">
-          ${bottom5.map(s => `<div class="trs-inst-row" onclick="window.SP.closeTrackAndOpen('${s.label}')">
+          ${bottom5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${s.label}">
             <span class="trs-inst-name">${s.label}</span>
             <span class="trs-inst-trades">${s.total_trades} trades</span>
             <span class="trs-inst-wr">${s.win_rate}%</span>
@@ -2703,7 +2703,7 @@
         <div class="mh-top">
           <div class="mh-name-group">
             <div class="mh-name-row">
-              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" onclick="event.stopPropagation();window.SP.toggleStar(this)" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">★</button>
+              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">★</button>
               <div class="mh-name">${item.instrument_name}</div>
             </div>
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
@@ -2807,7 +2807,7 @@
               const sConf = s[f('signal_confidence')] || '';
               const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '');
               const sPerf = signalPerf(s.instrument_name);
-              return `<div class="sim-card" onclick="event.stopPropagation();window.SP.openModal('${s.instrument_name}')">
+              return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
                 <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sSig==='P1'?'p1':sSig==='P2'?'p2':sSig==='P3'?'p3':'p4'}">${sSig}</span>`:''}</div>
                 <div class="sim-card-group">${s.group||''}</div>
                 <div class="sim-card-badges">
@@ -3466,7 +3466,7 @@
 
   function shareBtn(name) {
     if (!navigator.share) return ''; // only show on devices that support Web Share API
-    return `<button class="share-btn" title="Share ${name}" onclick="event.stopPropagation();window.SP.shareCard('${name}')">${SHARE_ICON}</button>`;
+    return `<button class="share-btn" title="Share ${name}" data-act="shareCard" data-arg="${name}" data-stop="1">${SHARE_ICON}</button>`;
   }
 
   function shareCard(name) {
@@ -3514,6 +3514,19 @@
       }).catch(() => {});
     }
   }
+
+  // ── Delegated event handling (replaces inline onclick=) ────────────────
+  // Elements use data-act="methodName" [data-arg="value"] [data-stop="1"]
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+    const fn  = window.SP && window.SP[act];
+    if (typeof fn !== 'function') return;
+    if (el.dataset.stop === '1') e.stopPropagation();
+    if ('arg' in el.dataset) fn(el.dataset.arg, el);
+    else fn(el);
+  });
 
   async function togglePush() {
     if (isPushEnabled()) {
@@ -3695,7 +3708,7 @@
         </div>`;
       }
 
-      return `<div class="trade-card trade-card-open" onclick="window.SP.openModal('${trade.instrument_name}')">
+      return `<div class="trade-card trade-card-open" data-act="openModal" data-arg="${trade.instrument_name}">
         <div class="trade-card-top">
           <div class="trade-card-left">
             <span class="trade-card-name">${trade.instrument_name}</span>
@@ -3704,7 +3717,7 @@
           </div>
           <div class="trade-card-right">
             ${rStr || pnlStr}
-            <button class="trade-close-btn" title="Close trade" onclick="event.stopPropagation();window.SP.showCloseTradeSheet(${trade.id})">
+            <button class="trade-close-btn" title="Close trade" data-act="showCloseTradeSheet" data-arg="${trade.id}" data-stop="1">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Close
             </button>
@@ -3787,7 +3800,7 @@
         <div class="trade-email-row">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           <input type="email" id="reportEmailInput" class="trade-email-input" placeholder="your@email.com" value="${reportEmail.replace(/"/g,'&quot;')}">
-          <button class="trade-email-btn" onclick="window.SP.emailAndReset()">Email &amp; Reset Month</button>
+          <button class="trade-email-btn" data-act="emailAndReset">Email &amp; Reset Month</button>
         </div>`;
     }
 
@@ -3820,7 +3833,7 @@
             ${rStr}
             ${pnlStr}
             ${exitBadge}
-            <button class="trade-delete-btn" title="Delete" onclick="event.stopPropagation();window.SP.deleteClosedTrade(${trade.id})">
+            <button class="trade-delete-btn" title="Delete" data-act="deleteClosedTrade" data-arg="${trade.id}" data-stop="1">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             </button>
           </div>
