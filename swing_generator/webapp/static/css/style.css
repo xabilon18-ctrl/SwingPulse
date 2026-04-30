@@ -523,7 +523,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   overflow: hidden;
   position: relative;
   --mp-color: var(--accent);
-  border-width: 5px;
+  border-width: 8px;
   animation: heartbeat 3.5s ease-in-out infinite;
 }
 .mp-pulse-card::before {
