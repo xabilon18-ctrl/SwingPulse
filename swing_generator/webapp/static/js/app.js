@@ -219,7 +219,7 @@
     if (conf.includes('buy') || conf.includes('sell')) score += 2;
     if (align.includes('triple')) score += 2;
     if (volSpk)  score += 2;
-    if (sig.includes('P3') || sig.includes('P4')) score += 2;
+    if (isFastMa(sig)) score += 2;
     if (sigConf === 'high') score += 1;
     if (squeeze) score += 1;
     if (sec)     score += 1;
@@ -299,8 +299,8 @@
       const sell     = isSell(item);
       const dir      = buy ? 'buy' : sell ? 'sell' : 'neutral';
       const sig      = item[f('primary_signal')] || '';
-      const sigType  = ['P1','P2','P3','P4'].includes(sig) ? sig : 'SEC';
-      const sigBadge = `badge-${sigType.toLowerCase()}`;
+      const sigType  = ALL_SIGNAL_CODES.includes(sig) ? sig : 'SEC';
+      const sigBadge = `badge-${sigClass(sig) || 'secondary'}`;
       const price    = parseFloat(item[f('close')] || item.close) || 0;
       const priceStr = price === 0 ? '--' : price >= 1000
         ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -309,8 +309,8 @@
       const rocStr   = (roc >= 0 ? '▲ +' : '▼ ') + Math.abs(roc).toFixed(1) + '%';
       const rocDir   = roc >= 0 ? 'up' : 'dn';
       const align    = item[f('tf_alignment')] || '';
-      const isTriple = align.includes('Triple');
-      const tripleTag = isTriple ? ` · ${align.includes('Bull') ? 'Triple Bull' : 'Triple Bear'}` : '';
+      const isTriple = align.includes('Triple') || align.includes('Quad');
+      const tripleTag = isTriple ? ` · ${align}` : '';
       const bars     = Math.min(item._score, 8);
       const dirBadge = buy
         ? `<span class="opp-dir-badge opp-dir-buy">BUY</span>`
@@ -321,7 +321,7 @@
         : '';
       // Meaningful sparkbar heights: each bar maps to a real data dimension
       const maOrd = parseInt(item[f('ma_order_score')]);
-      const sigStr = { P1:100, P2:80, P3:55, P4:35, SEC:15 }[sigType] || 15;
+      const sigStr = { p1:100, p2:80, p3:55, p4:35, '':15 }[sigClass(sigType)] || 15;
       const alignStr = align.toLowerCase().includes('triple') ? 100 : align.toLowerCase().includes('double') ? 65 : 35;
       const volH   = item[f('volume_spike_flag')] === 'yes' ? 95 : 25;
       const rocH   = Math.min(Math.round(Math.abs(roc) / 4 * 100), 95);
@@ -799,6 +799,31 @@
     );
   }
 
+  // ── Signal code helpers (BP/SP system) ─────────────────────────────
+  // Map any signal code (old P or new BP/SP) to a CSS class suffix and priority.
+  function sigClass(code) {
+    if (!code) return '';
+    if (code === 'BP1' || code === 'SP1' || code === 'P1') return 'p1';
+    if (code === 'BP3' || code === 'SP3' || code === 'P2') return 'p2';
+    if (code === 'BP2' || code === 'SP2' || code === 'P3' || code === 'P4') return 'p3';
+    if (code === 'BP4' || code === 'SP4') return 'p4';
+    return '';
+  }
+  function sigPriority(code) {
+    if (code === 'BP1' || code === 'SP1' || code === 'P1') return 1;
+    if (code === 'BP3' || code === 'SP3' || code === 'P2') return 2;
+    if (code === 'BP2' || code === 'SP2' || code === 'P3') return 3;
+    if (code === 'BP4' || code === 'SP4' || code === 'P4') return 4;
+    return 5;
+  }
+  function isReversal(code) { return code === 'BP1' || code === 'SP1' || code === 'P1'; }
+  function isLongestMa(code) { return code === 'BP3' || code === 'SP3' || code === 'P2'; }
+  function isFastMa(code)    { return code === 'BP2' || code === 'SP2' || code === 'P3' || code === 'P4'; }
+  function isKeyLevel(code)  { return code === 'BP4' || code === 'SP4'; }
+
+  // All current signal codes (BP1/SP1/BP2/SP2/BP3/SP3/BP4/SP4) plus legacy P1-P4
+  const ALL_SIGNAL_CODES = ['BP1','SP1','BP2','SP2','BP3','SP3','BP4','SP4','P1','P2','P3','P4'];
+
   function isBuy(item) {
     return (item[f('confirmation_status')] || '').toLowerCase().includes('buy');
   }
@@ -954,7 +979,7 @@
     const sigs = backtestData.by_signal || {};
     rows.innerHTML = Object.entries(sigs).map(([sig, s]) => {
       const cls = s.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
-      const sigCls = sig === 'P1' ? 'sig-p1' : sig === 'P2' ? 'sig-p2' : sig === 'P3' ? 'sig-p3' : 'sig-p4';
+      const sigCls = `sig-${sigClass(sig) || 'p4'}`;
       return `<div class="tr-row">
         <span class="tr-sig-badge ${sigCls}">${sig}</span>
         <span class="tr-row-trades">${s.total_trades}</span>
@@ -1108,7 +1133,7 @@
     renderSignalFeed();
   }
 
-  // ── P1 / P2 Trend Change Alert Banner ─────────────────────────────────
+  // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────
   function renderAlertBanner() {
     const banner = document.getElementById('trendAlertBanner');
     const scroll = document.getElementById('trendAlertScroll');
@@ -1117,17 +1142,21 @@
 
     const alerts = allData.filter(d => {
       const sig = d[f('primary_signal')];
-      return sig === 'P1' || sig === 'P2';
+      return isReversal(sig) || isLongestMa(sig);
     }).sort((a, b) => {
-      const pa = a[f('primary_signal')], pb = b[f('primary_signal')];
-      return pa === pb ? 0 : pa === 'P1' ? -1 : 1;
+      // Reversals first, then longest-MA bounces
+      return sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
     });
 
-    // Update P1/P2 filter chips with dot indicator
+    // Update filter chips with dot indicator (legacy P1/P2 chip ids still work)
     ['P1','P2'].forEach(sig => {
       const chip = document.querySelector(`.sig-chip[data-filter="${sig}"]`);
       if (!chip) return;
-      const hasIt = allData.some(d => d[f('primary_signal')] === sig);
+      const isReversalChip = sig === 'P1';
+      const hasIt = allData.some(d => {
+        const s = d[f('primary_signal')];
+        return isReversalChip ? isReversal(s) : isLongestMa(s);
+      });
       chip.classList.toggle('has-signals', hasIt);
     });
 
@@ -1143,8 +1172,8 @@
       const name = instName(tick);
       const dir  = buy ? '▲' : '▼';
       const dCls = buy ? 'tci-buy' : 'tci-sell';
-      const pCls = sig === 'P1' ? 'tci-p1' : 'tci-p2';
-      const lbl  = sig === 'P1' ? 'Trend Change' : 'Strong Signal';
+      const pCls = isReversal(sig) ? 'tci-p1' : 'tci-p2';
+      const lbl  = isReversal(sig) ? 'Trend Change' : 'Strong Signal';
       return `<div class="trend-alert-item ${dCls} ${pCls}" data-act="openModal" data-arg="${tick}">
         <span class="tci-badge">${sig}</span>
         <span class="tci-dir">${dir}</span>
@@ -1230,7 +1259,7 @@
         const sig = item[f('primary_signal')] || item[f('secondary_signal')] || '';
         const buy = isBuy(item);
         const sell = isSell(item);
-        const sigBadge = sig ? `<span class="feed-badge badge-${sig === 'P1' ? 'p1' : sig === 'P2' ? 'p2' : sig === 'P3' ? 'p3' : sig === 'P4' ? 'p4' : 'secondary'}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
+        const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig) || 'secondary'}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
         return `<div class="conf-inst-row" data-act="openModal" data-arg="${item.instrument_name}">
           <span style="font-weight:600">${item.instrument_name} ${sigBadge}</span>
           <span style="color:var(--text-muted)">${item.group || ''}</span>
@@ -1372,24 +1401,30 @@
     // ── 1. Market Strength Gauge ─────────────────────────────────────
     renderGauge();
 
-    // ── 2. Signal Breakdown — split buy/sell per P-type ──────────────
-    const sigBuy  = { P1: 0, P2: 0, P3: 0, P4: 0 };
-    const sigSell = { P1: 0, P2: 0, P3: 0, P4: 0 };
+    // ── 2. Signal Breakdown — bucket per signal level (1=reversal, 4=key level) ─
+    // Buy column counts BP* signals, Sell column counts SP* signals, grouped by level.
+    const sigBuy  = { '1': 0, '2': 0, '3': 0, '4': 0 };
+    const sigSell = { '1': 0, '2': 0, '3': 0, '4': 0 };
     allData.forEach(item => {
       const sig = item[f('primary_signal')] || '';
-      if (!['P1','P2','P3','P4'].includes(sig)) return;
-      if (isBuy(item))       sigBuy[sig]++;
-      else if (isSell(item)) sigSell[sig]++;
+      if (!ALL_SIGNAL_CODES.includes(sig)) return;
+      const cls = sigClass(sig);
+      const level = cls.replace('p', '');
+      if (!['1','2','3','4'].includes(level)) return;
+      if (isBuy(item))       sigBuy[level]++;
+      else if (isSell(item)) sigSell[level]++;
     });
-    const sigLabels = ['P1','P2','P3','P4'];
+    // Display labels: BP1/SP1 = "1 (Reversal)", BP3/SP3 = "3 (LongMA)", etc.
+    const sigLabels = ['Reversal', 'LongMA', 'FastMA', 'KeyLvl'];
+    const sigKeys   = ['1','2','3','4'];
     const barCtx = document.getElementById('signalBar').getContext('2d');
     charts.signalBar = new Chart(barCtx, {
       type: 'bar',
       data: {
         labels: sigLabels,
         datasets: [
-          { label: 'Buy',  data: sigLabels.map(l => sigBuy[l]),  backgroundColor: 'rgba(16,185,129,.75)', hoverBackgroundColor: 'rgba(16,185,129,1)',  borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
-          { label: 'Sell', data: sigLabels.map(l => sigSell[l]), backgroundColor: 'rgba(239,68,68,.75)',  hoverBackgroundColor: 'rgba(239,68,68,1)',   borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
+          { label: 'Buy',  data: sigKeys.map(k => sigBuy[k]),  backgroundColor: 'rgba(16,185,129,.75)', hoverBackgroundColor: 'rgba(16,185,129,1)',  borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
+          { label: 'Sell', data: sigKeys.map(k => sigSell[k]), backgroundColor: 'rgba(239,68,68,.75)',  hoverBackgroundColor: 'rgba(239,68,68,1)',   borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
         ],
       },
       options: {
@@ -1659,18 +1694,16 @@
       return;
     }
 
-    const priority = { P1: 1, P2: 2, P3: 3, P4: 4 };
-    signaled.sort((a, b) => (priority[a[f('primary_signal')]] || 99) - (priority[b[f('primary_signal')]] || 99));
+    signaled.sort((a, b) => sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]));
 
     feed.innerHTML = signaled.map(item => {
       const buy = isBuy(item);
       const sig = item[f('primary_signal')] || 'SEC';
       let badgeCls = 'badge-secondary';
-      if (buy && sig === 'P1') badgeCls = 'badge-p1';
-      else if (buy && sig === 'P2') badgeCls = 'badge-p2';
-      else if (buy && sig === 'P3') badgeCls = 'badge-p3';
-      else if (!buy && sig === 'P1') badgeCls = 'badge-sell-p1';
-      else if (!buy && (sig === 'P2' || sig === 'P4')) badgeCls = 'badge-sell-p2';
+      const sCls = sigClass(sig);
+      if (sCls) {
+        badgeCls = buy ? `badge-${sCls}` : (sCls === 'p1' ? 'badge-sell-p1' : 'badge-sell-p2');
+      }
 
       const conf = item[f('signal_confidence')] || '';
       const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
@@ -1721,7 +1754,7 @@
       groups[a].push(item);
     });
 
-    const order = ['Triple Bull', 'Aligned Bull', 'Leaning Bull', 'Mixed', 'Counter-trend', 'Leaning Bear', 'Aligned Bear', 'Triple Bear'];
+    const order = ['Quad Bull', 'Triple Bull', 'Double Bull', 'Mixed', 'Counter-trend', 'Double Bear', 'Triple Bear', 'Quad Bear'];
     const labels = order.filter(k => groups[k]);
 
     const colorVar = label =>
@@ -1776,7 +1809,7 @@
           const sig = item[f('primary_signal')] || '';
           const buy = isBuy(item);
           const sell = isSell(item);
-          const sigBadge = sig ? `<span class="feed-badge badge-${sig === 'P1' ? 'p1' : sig === 'P2' ? 'p2' : sig === 'P3' ? 'p3' : 'p4'}">${sig}</span>` : '';
+          const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig) || 'p4'}">${sig}</span>` : '';
           const conf = item[f('signal_confidence')] || '';
           const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
           const roc = parseFloat(item[f('roc')]);
@@ -1860,12 +1893,14 @@
   // ── Feature 4: Multi-TF Alignment badge ─────────────────────────────
   function isTripleAligned(item) {
     const a = item.tf_alignment || '';
-    return a === 'Triple Bull' || a === 'Triple Bear';
+    return a === 'Quad Bull' || a === 'Quad Bear' || a === 'Triple Bull' || a === 'Triple Bear';
   }
   function badge3TF(item) {
     if (!isTripleAligned(item)) return '';
-    const bull = (item.tf_alignment || '').includes('Bull');
-    return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">3TF✓</span>`;
+    const a = item.tf_alignment || '';
+    const bull = a.includes('Bull');
+    const isQuad = a.startsWith('Quad');
+    return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">${isQuad ? '4TF✓' : '3TF✓'}</span>`;
   }
 
   // Trend maturity badge based on trend run days
@@ -1919,10 +1954,19 @@
     const compression = item[f('ribbon_compression')] === 'yes';
     const trendRun = parseInt(item[f('trend_run_days')]);
     const sigDesc = {
+      BP1: 'trend reversal — full ribbon cross up + close above MA108',
+      SP1: 'trend reversal — full ribbon cross down + close below MA108',
+      BP2: 'pullback bounce off fast MAs (10–66) in uptrend',
+      SP2: 'rejection at fast MAs (10–66) in downtrend',
+      BP3: 'bounce off MA108 (longest) in uptrend',
+      SP3: 'rejection at MA108 (longest) in downtrend',
+      BP4: 'support bounce at key level in uptrend',
+      SP4: 'rejection at key level in downtrend',
+      // Legacy aliases (until next data refresh)
       P1: 'trend reversal — full ribbon cross',
-      P2: '200 MA bounce entry',
-      P3: 'MA pullback entry',
-      P4: 'MA rejection short'
+      P2: 'longest MA bounce/rejection',
+      P3: 'fast-MA pullback entry',
+      P4: 'fast-MA rejection short',
     };
     const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
@@ -2076,7 +2120,7 @@
       const stripCls = sig ? (isBuyItem ? 'strip-buy' : 'strip-sell') : '';
       const stripLabel = sig ? (isBuyItem ? 'BUY ' + sig + confLabel : 'SELL ' + sig + confLabel) : '';
 
-      const sigBadgeCls = sig === 'P1' ? 'p1' : sig === 'P2' ? 'p2' : sig === 'P3' ? 'p3' : sig === 'P4' ? 'p4' : 'secondary';
+      const sigBadgeCls = sigClass(sig) || 'secondary';
       const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const alignBadge = align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '';
       const maBarColor = maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)';
@@ -2838,7 +2882,7 @@
               const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '');
               const sPerf = signalPerf(s.instrument_name);
               return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
-                <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sSig==='P1'?'p1':sSig==='P2'?'p2':sSig==='P3'?'p3':'p4'}">${sSig}</span>`:''}</div>
+                <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
                 <div class="sim-card-group">${s.group||''}</div>
                 <div class="sim-card-badges">
                   ${sAlign?`<span class="badge-alignment ${alignCls(sAlign)}" style="font-size:.58rem;padding:1px 5px">${sAlign}</span>`:''}

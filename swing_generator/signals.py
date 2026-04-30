@@ -7,23 +7,30 @@ ma_order_score, and roc columns) and adds:
 
     trend_run_days              – consecutive trading days in current trend
     confirmation_status         – one of the 12+ states from the spec
-    primary_signal              – P1 / P2 / P3 / P4  (or empty)
+    primary_signal              – BP1/SP1/BP2/SP2/BP3/SP3/BP4/SP4  (or empty)
     secondary_signal            – 'secondary'  (or empty)
     signal_confidence           – 'high' / 'standard' / 'low' (or empty)
     watch_flag                  – watch description  (or empty)
     potential_turning_point_flag– alert text  (or empty)
 
-Signal priority per row: P1 > P2 > P3 / P4 > secondary > watch > no signal.
+Signal codes:
+    BP1 / SP1 — full ribbon cross + close past MA108 (trend reversal)
+    BP2 / SP2 — pullback / rejection on fast MAs (10–66)
+    BP3 / SP3 — bounce / rejection on the longest MA (108)
+    BP4 / SP4 — bounce / rejection at a confirmed key level (old top/bottom)
 
-P1 fires on THREE paths:
-    A. Direct DOWNTREND → UPTREND  (no neutral in between)
-    B. Direct UPTREND   → DOWNTREND
-    C. DOWNTREND → NEUTRAL → UPTREND  (via neutral — most common for smooth instruments)
-    D. UPTREND   → NEUTRAL → DOWNTREND
+Priority per row: BP1/SP1 > BP3/SP3 > BP2/SP2 > BP4/SP4 > secondary > watch.
 
-P2 dedup: same-direction P2 signals within P2_DEDUP_WINDOW bars are suppressed.
-P3/P4 suppressed when ribbon_compression is True (direction unknown during squeeze).
-P3/P4 confidence capped at 'low' when trend_run_days >= TREND_DURATION_THRESHOLD.
+BP1/SP1 fires on FOUR paths:
+    A. Direct DOWNTREND → UPTREND  (no neutral in between) → BP1
+    B. Direct UPTREND   → DOWNTREND                          → SP1
+    C. DOWNTREND → NEUTRAL → UPTREND  (via neutral)         → BP1
+    D. UPTREND   → NEUTRAL → DOWNTREND                       → SP1
+
+BP3/SP3 dedup: same-direction within P2_DEDUP_WINDOW bars suppressed (BP1/SP1 resets).
+BP2/SP2 suppressed when ribbon_compression is True (direction unknown during squeeze).
+BP2/SP2 confidence capped at 'low' when trend_run_days >= TREND_DURATION_THRESHOLD.
+BP4/SP4 always 'high' confidence (signal is at a confirmed key level by definition).
 Compression breakout watch fires on first bar ribbon expands after a squeeze.
 Exit labels appended when a signal closes the prior open position.
 """
@@ -126,51 +133,54 @@ def _signal_confidence(primary: str, volume_spike: bool, at_key_level: bool,
     """
     Determine signal confidence based on confluence factors.
 
-    P3/P4 are capped at 'low' when the trend is very mature
-    (trend_run_days >= TREND_DURATION_THRESHOLD) — a long-running trend
-    is more likely to reverse than to continue cleanly on a pullback.
+    Confidence rules (NEW BP/SP system):
+        BP4/SP4 (key-level bounce) → always 'high' (signal at level by definition)
+        BP3/SP3 (longest-MA bounce) + volume + key level → 'high'
+        BP1/SP1 (trend reversal)               → 'high' if vol or key level, else 'standard'
+        Any signal + (volume or key level)     → at least 'standard'
+        BP2/SP2 (fast-MA pullback) without vol AND without key → 'low'
+        Mature-trend pullbacks (BP2/SP2 with run >= 200) capped at 'low'
     """
     if not primary:
         return ''
 
-    # Mature-trend cap for pullback entries
-    if primary in ('P3', 'P4') and trend_run_days >= TREND_DURATION_THRESHOLD:
+    # BP4/SP4 — bounce at a confirmed key level → already high-conviction
+    if primary in ('BP4', 'SP4'):
+        return 'high'
+
+    # Mature-trend cap for fast-MA pullback entries
+    if primary in ('BP2', 'SP2') and trend_run_days >= TREND_DURATION_THRESHOLD:
         return 'low'
 
-    if primary in ('P1', 'P2'):
-        if volume_spike and at_key_level:
-            return 'high'
+    # Trend-reversal (BP1/SP1) and longest-MA bounce (BP3/SP3)
+    if primary in ('BP1', 'SP1', 'BP3', 'SP3'):
         if volume_spike or at_key_level:
             return 'high'
         return 'standard'
 
-    # P3 / P4
+    # BP2 / SP2 — fast-MA pullback
     if volume_spike and at_key_level:
         return 'high'
-    if volume_spike:
-        return 'standard'
-    if at_key_level:
+    if volume_spike or at_key_level:
         return 'standard'
     return 'low'
 
 
-def _is_p2_dupe(primary: str, status: str,
-                primaries_so_far: list, statuses_so_far: list,
-                window: int) -> bool:
+def _is_bp3_sp3_dupe(primary: str, status: str,
+                     primaries_so_far: list, statuses_so_far: list,
+                     window: int) -> bool:
     """
-    Return True if a same-direction P2 already fired within the last
-    `window` bars. A P1 anywhere in the window resets the dedup.
+    Return True if a same-direction BP3/SP3 already fired within the last
+    `window` bars. A BP1/SP1 anywhere in the window resets the dedup.
     """
-    if primary != 'P2':
+    if primary not in ('BP3', 'SP3'):
         return False
-    curr_is_buy = 'buy' in status.lower()
     lookback_start = max(0, len(primaries_so_far) - window)
     for j in range(len(primaries_so_far) - 1, lookback_start - 1, -1):
-        if primaries_so_far[j] == 'P1':
+        if primaries_so_far[j] in ('BP1', 'SP1'):
             return False
-        if primaries_so_far[j] == 'P2':
-            prev_is_buy = 'buy' in statuses_so_far[j].lower()
-            return curr_is_buy == prev_is_buy
+        if primaries_so_far[j] == primary:
+            return True
     return False
 
 
@@ -205,14 +215,14 @@ def _uptrend_signals(close, low, today_mas, prev_row, ttp,
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close > vtop:
-            return ('Uptrend — primary buy signal confirmed [P2]', 'P2', '', '', ttp)
+            return ('Uptrend — primary buy signal confirmed [BP3]', 'BP3', '', '', ttp)
         return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
     # P3: bounce off small MA — suppressed during ribbon compression
     if small_touched and not ribbon_compression:
         confirmed = [(p, v) for p, v in small_touched if close > v]
         if confirmed:
-            return ('Uptrend — primary buy signal confirmed [P3]', 'P3', '', '', ttp)
+            return ('Uptrend — primary buy signal confirmed [BP2]', 'BP2', '', '', ttp)
         return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
     # Secondary: bounce off any ribbon MA
@@ -233,9 +243,9 @@ def _uptrend_signals(close, low, today_mas, prev_row, ttp,
                 curr_v = today_mas.get(p)
                 if curr_v is not None and close > curr_v:
                     if p == max_period:
-                        return ('Uptrend — primary buy signal confirmed [P2]', 'P2', '', '', ttp)
+                        return ('Uptrend — primary buy signal confirmed [BP3]', 'BP3', '', '', ttp)
                     if p in _small and not ribbon_compression:
-                        return ('Uptrend — primary buy signal confirmed [P3]', 'P3', '', '', ttp)
+                        return ('Uptrend — primary buy signal confirmed [BP2]', 'BP2', '', '', ttp)
                     return ('Uptrend — secondary buy signal confirmed', '', 'secondary', '', ttp)
             return ('Uptrend — waiting for reversal confirmation', '', '', '', ttp)
 
@@ -265,14 +275,14 @@ def _downtrend_signals(close, high, today_mas, prev_row, ttp,
     if ma_top_touched:
         _, vtop = ma_top_touched[0]
         if close < vtop:
-            return ('Downtrend — primary sell signal confirmed [P2]', 'P2', '', '', ttp)
+            return ('Downtrend — primary sell signal confirmed [SP3]', 'SP3', '', '', ttp)
         return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
     # P4: rejection from small MA — suppressed during ribbon compression
     if small_touched and not ribbon_compression:
         confirmed = [(p, v) for p, v in small_touched if close < v]
         if confirmed:
-            return ('Downtrend — primary sell signal confirmed [P4]', 'P4', '', '', ttp)
+            return ('Downtrend — primary sell signal confirmed [SP2]', 'SP2', '', '', ttp)
         return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
     # Secondary: rejection from any ribbon MA
@@ -293,9 +303,9 @@ def _downtrend_signals(close, high, today_mas, prev_row, ttp,
                 curr_v = today_mas.get(p)
                 if curr_v is not None and close < curr_v:
                     if p == max_period:
-                        return ('Downtrend — primary sell signal confirmed [P2]', 'P2', '', '', ttp)
+                        return ('Downtrend — primary sell signal confirmed [SP3]', 'SP3', '', '', ttp)
                     if p in _small and not ribbon_compression:
-                        return ('Downtrend — primary sell signal confirmed [P4]', 'P4', '', '', ttp)
+                        return ('Downtrend — primary sell signal confirmed [SP2]', 'SP2', '', '', ttp)
                     return ('Downtrend — secondary sell signal confirmed', '', 'secondary', '', ttp)
             return ('Downtrend — waiting for reversal confirmation', '', '', '', ttp)
 
@@ -318,7 +328,7 @@ def _neutral_p2_check(row, prev_row, prior_trend, max_period=200,
                       tolerance=None, ma_periods=None):
     """
     When price is in NEUTRAL (inside ribbon) from a prior established trend,
-    check for a P2 — bounce/rejection off the longest MA.
+    check for a longest-MA bounce/rejection — emits BP3 (uptrend) or SP3 (downtrend).
     """
     if prior_trend is None or prev_row is None:
         return None
@@ -336,23 +346,23 @@ def _neutral_p2_check(row, prev_row, prior_trend, max_period=200,
 
     if prior_trend == 'UPTREND':
         if low <= v_top * (1 + _tol) and close > v_top:
-            return (f'Neutral (prior uptrend) — P2 buy signal: MA{max_period} bounce', 'P2', '', '', '')
+            return (f'Neutral (prior uptrend) — BP3 buy signal: MA{max_period} bounce', 'BP3', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_low = float(prev_row['Low'])
             pv_top = prev_mas[max_period]
             if prev_low <= pv_top * (1 + _tol) and close > v_top:
-                return (f'Neutral (prior uptrend) — P2 buy signal: MA{max_period} bounce', 'P2', '', '', '')
+                return (f'Neutral (prior uptrend) — BP3 buy signal: MA{max_period} bounce', 'BP3', '', '', '')
 
     elif prior_trend == 'DOWNTREND':
         if high >= v_top * (1 - _tol) and close < v_top:
-            return (f'Neutral (prior downtrend) — P2 sell signal: MA{max_period} rejection', 'P2', '', '', '')
+            return (f'Neutral (prior downtrend) — SP3 sell signal: MA{max_period} rejection', 'SP3', '', '', '')
         prev_mas = _ma_dict(prev_row, ma_periods=ma_periods)
         if max_period in prev_mas:
             prev_high = float(prev_row['High'])
             pv_top = prev_mas[max_period]
             if prev_high >= pv_top * (1 - _tol) and close < v_top:
-                return (f'Neutral (prior downtrend) — P2 sell signal: MA{max_period} rejection', 'P2', '', '', '')
+                return (f'Neutral (prior downtrend) — SP3 sell signal: MA{max_period} rejection', 'SP3', '', '', '')
 
     return None
 
@@ -455,8 +465,8 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
             if p2_result:
                 status, primary, secondary, watch, ttp = p2_result
 
-                # P2 dedup in neutral zone
-                if _is_p2_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
+                # BP3/SP3 dedup in neutral zone
+                if _is_bp3_sp3_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
                     statuses.append('Neutral — no confirmed trend direction')
                     primaries.append('')
                     secondaries.append('')
@@ -509,48 +519,48 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
         if prev_row is not None:
             prev_trend = prev_row['trend_direction']
 
-            # Path A: direct DOWNTREND → UPTREND
+            # Path A: direct DOWNTREND → UPTREND  (BP1)
             if trend == 'UPTREND' and prev_trend == 'DOWNTREND':
-                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
-                status = 'Uptrend — primary buy signal confirmed [P1]'
-                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                conf   = _signal_confidence('BP1', vol_spike, at_key_level, trend_run)
+                status = 'Uptrend — primary buy signal confirmed [BP1]'
+                status = _maybe_exit_label(status, 'BP1', last_primary_side)
                 last_primary_side = 'BUY'
-                statuses.append(status); primaries.append('P1')
+                statuses.append(status); primaries.append('BP1')
                 secondaries.append(''); confidences.append(conf)
                 watches.append(''); ttps.append(ttp)
                 continue
 
-            # Path B: direct UPTREND → DOWNTREND
+            # Path B: direct UPTREND → DOWNTREND  (SP1)
             if trend == 'DOWNTREND' and prev_trend == 'UPTREND':
-                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
-                status = 'Downtrend — primary sell signal confirmed [P1]'
-                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                conf   = _signal_confidence('SP1', vol_spike, at_key_level, trend_run)
+                status = 'Downtrend — primary sell signal confirmed [SP1]'
+                status = _maybe_exit_label(status, 'SP1', last_primary_side)
                 last_primary_side = 'SELL'
-                statuses.append(status); primaries.append('P1')
+                statuses.append(status); primaries.append('SP1')
                 secondaries.append(''); confidences.append(conf)
                 watches.append(''); ttps.append(ttp)
                 continue
 
-            # Path C: DOWNTREND → NEUTRAL → UPTREND
+            # Path C: DOWNTREND → NEUTRAL → UPTREND  (BP1)
             if (trend == 'UPTREND' and prev_trend == 'NEUTRAL'
                     and prev_established_trend == 'DOWNTREND'):
-                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
-                status = 'Uptrend — primary buy signal confirmed [P1] (via neutral)'
-                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                conf   = _signal_confidence('BP1', vol_spike, at_key_level, trend_run)
+                status = 'Uptrend — primary buy signal confirmed [BP1] (via neutral)'
+                status = _maybe_exit_label(status, 'BP1', last_primary_side)
                 last_primary_side = 'BUY'
-                statuses.append(status); primaries.append('P1')
+                statuses.append(status); primaries.append('BP1')
                 secondaries.append(''); confidences.append(conf)
                 watches.append(''); ttps.append(ttp)
                 continue
 
-            # Path D: UPTREND → NEUTRAL → DOWNTREND
+            # Path D: UPTREND → NEUTRAL → DOWNTREND  (SP1)
             if (trend == 'DOWNTREND' and prev_trend == 'NEUTRAL'
                     and prev_established_trend == 'UPTREND'):
-                conf   = _signal_confidence('P1', vol_spike, at_key_level, trend_run)
-                status = 'Downtrend — primary sell signal confirmed [P1] (via neutral)'
-                status = _maybe_exit_label(status, 'P1', last_primary_side)
+                conf   = _signal_confidence('SP1', vol_spike, at_key_level, trend_run)
+                status = 'Downtrend — primary sell signal confirmed [SP1] (via neutral)'
+                status = _maybe_exit_label(status, 'SP1', last_primary_side)
                 last_primary_side = 'SELL'
-                statuses.append(status); primaries.append('P1')
+                statuses.append(status); primaries.append('SP1')
                 secondaries.append(''); confidences.append(conf)
                 watches.append(''); ttps.append(ttp)
                 continue
@@ -571,23 +581,42 @@ def add_signals(df: pd.DataFrame, ma_periods=None, small_ma_range=None,
                 ribbon_compression=ribbon_comp,
             )
 
-        # P3/P4 dedup (3-bar window, reset on P1/P2)
-        if primary in ('P3', 'P4'):
+        # ---- BP4 / SP4: key-level bounce (price-action support/resistance) -
+        # Fires only if no MA-based signal already fired this bar.
+        if not primary and key_level_prices:
+            tol = _tol if _tol else 0.005
+            for kl_price, _kl_count in key_level_prices:
+                if kl_price <= 0:
+                    continue
+                if trend == 'UPTREND':
+                    # Pullback: wick low must touch the level, close must stay above it
+                    if low <= kl_price * (1 + tol) and close > kl_price:
+                        primary = 'BP4'
+                        status  = f'Uptrend — primary buy signal confirmed [BP4] (key level {kl_price:.4g})'
+                        break
+                else:  # DOWNTREND
+                    if high >= kl_price * (1 - tol) and close < kl_price:
+                        primary = 'SP4'
+                        status  = f'Downtrend — primary sell signal confirmed [SP4] (key level {kl_price:.4g})'
+                        break
+
+        # BP2/SP2 dedup (3-bar window, reset on BP1/SP1/BP3/SP3)
+        if primary in ('BP2', 'SP2'):
             is_dupe = False
             lookback_start = max(0, len(primaries) - P3P4_DEDUP_WINDOW)
             for j in range(len(primaries) - 1, lookback_start - 1, -1):
                 if primaries[j] == primary:
                     is_dupe = True
                     break
-                if primaries[j] in ('P1', 'P2'):
+                if primaries[j] in ('BP1', 'SP1', 'BP3', 'SP3'):
                     break
             if is_dupe:
                 primary = ''; secondary = ''; watch = ''
                 status  = 'Uptrend — no signal' if trend == 'UPTREND' else 'Downtrend — no signal'
                 ttp_out = ttp
 
-        # P2 dedup (5-bar window, same direction, reset on P1)
-        if primary == 'P2' and _is_p2_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
+        # BP3/SP3 dedup (5-bar window, same direction, reset on BP1/SP1)
+        if primary in ('BP3', 'SP3') and _is_bp3_sp3_dupe(primary, status, primaries, statuses, P2_DEDUP_WINDOW):
             primary = ''; secondary = ''; watch = ''
             status  = 'Uptrend — no signal' if trend == 'UPTREND' else 'Downtrend — no signal'
             ttp_out = ttp

@@ -10,8 +10,8 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 MA_PERIODS = list(range(10, 109, 7))
 # [10, 17, 24, 31, 38, 45, 52, 59, 66, 73, 80, 87, 94, 101, 108]
 
-SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 60]   # P3 / P4: fast MAs [10, 17, 24, 31, 38, 45, 52, 59]
-MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_66 — midpoint of 15-MA ribbon
+SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 66]   # BP2 / SP2: fast MAs [10, 17, 24, 31, 38, 45, 52, 59, 66]
+MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_66 — midpoint of 15-MA ribbon (now also the BP2/SP2 boundary)
 
 # ---------------------------------------------------------------------------
 # Data

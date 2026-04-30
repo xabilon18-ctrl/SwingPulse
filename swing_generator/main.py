@@ -259,8 +259,11 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
 
     Returns (label, score):
         score: -4 to +4  (positive = bullish alignment, negative = bearish)
-        label: 'Triple Bull', 'Triple Bear', 'Aligned Bull', 'Aligned Bear',
-               'Mixed', 'Counter-trend', etc.
+        label: 'Quad Bull/Bear'   — all 4 TFs agree
+               'Triple Bull/Bear' — 3 of 4 TFs agree (no opposing TF)
+               'Double Bull/Bear' — 2 of 4 TFs agree (no opposing TF)
+               'Counter-trend'    — at least one TF in each direction
+               'Mixed'            — no TFs in any direction (all neutral)
 
     Uses established_trend (which persists through NEUTRAL) for each TF.
     """
@@ -280,14 +283,18 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     up_count = trends.count(1)
     down_count = trends.count(-1)
 
-    if up_count >= 3:
-        label = 'Triple Bull' if up_count == 4 else 'Aligned Bull'
-    elif down_count >= 3:
-        label = 'Triple Bear' if down_count == 4 else 'Aligned Bear'
-    elif up_count >= 2 and down_count == 0:
-        label = 'Leaning Bull'
-    elif down_count >= 2 and up_count == 0:
-        label = 'Leaning Bear'
+    if up_count == 4:
+        label = 'Quad Bull'
+    elif down_count == 4:
+        label = 'Quad Bear'
+    elif up_count == 3 and down_count == 0:
+        label = 'Triple Bull'
+    elif down_count == 3 and up_count == 0:
+        label = 'Triple Bear'
+    elif up_count == 2 and down_count == 0:
+        label = 'Double Bull'
+    elif down_count == 2 and up_count == 0:
+        label = 'Double Bear'
     elif up_count > 0 and down_count > 0:
         label = 'Counter-trend'
     else:
