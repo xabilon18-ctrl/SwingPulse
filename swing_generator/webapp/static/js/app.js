@@ -902,6 +902,19 @@
     `;
   }
 
+  // Convert backtest.py's generated_at ("YYYY-MM-DD HH:MM UTC") to local time
+  function formatGeneratedAt(s) {
+    if (!s) return '';
+    // Parse "2026-04-30 18:46 UTC" as ISO so JS can convert to local time
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}).*UTC$/);
+    if (!m) return s;
+    const d = new Date(`${m[1]}T${m[2]}:00Z`);
+    if (isNaN(d.getTime())) return s;
+    const dateStr = d.toLocaleDateString();
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${dateStr} ${timeStr}`;
+  }
+
   // ── Signal Track Record (from backtest.json) ──────────────────────────
   function renderTrackRecord() {
     const card    = document.getElementById('trackRecordCard');
@@ -952,7 +965,7 @@
     }).join('');
 
     if (subEl && backtestData.generated_at) {
-      subEl.textContent = `2% stop · 2:1 R:R · updated ${backtestData.generated_at}`;
+      subEl.textContent = `2% stop · 2:1 R:R · updated ${formatGeneratedAt(backtestData.generated_at)}`;
     }
   }
 
@@ -2606,7 +2619,7 @@
         </div>
       </div>
 
-      <div class="trs-footer">${backtestData.generated_at || ''}</div>
+      <div class="trs-footer">Generated ${formatGeneratedAt(backtestData.generated_at)}</div>
     `;
 
     // Wire filter chips
