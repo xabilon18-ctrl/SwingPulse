@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=51">
+  <link rel="stylesheet" href="/static/css/style.css?v=53">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -150,6 +150,17 @@
           <button class="trend-alert-see-all" onclick="window.SP.navigateToTab('signals')">See all →</button>
         </div>
         <div class="trend-alert-scroll" id="trendAlertScroll"></div>
+      </div>
+
+      <!-- ── Signal Track Record Card ── -->
+      <div class="card track-record-card" id="trackRecordCard" style="display:none" onclick="window.SP.openTrackRecord()" role="button">
+        <div class="tr-header">
+          <span class="tr-title">SIGNAL TRACK RECORD</span>
+          <span class="tr-subtitle" id="trSubtitle">Backtest results · 2% stop · 2:1 R:R</span>
+          <span class="tr-tap-hint">Tap for details →</span>
+        </div>
+        <div class="tr-overall" id="trOverall"></div>
+        <div class="tr-rows" id="trRows"></div>
       </div>
 
       <!-- ── Portfolio Summary Card ── -->
@@ -606,6 +617,18 @@
     </div>
   </div>
 
+  <!-- ===== TRACK RECORD DETAIL SHEET (Layer 2) ===== -->
+  <div class="modal-overlay" id="trackOverlay">
+    <div class="modal" id="trackModal">
+      <button class="modal-close" id="trackClose">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-body" id="trackModalBody">
+        <!-- Populated by renderTrackRecordSheet() -->
+      </div>
+    </div>
+  </div>
+
   <!-- ===== BOTTOM TAB BAR (mobile) ===== -->
   <nav class="bottom-nav" id="bottomNav">
     <button class="nav-tab active" data-tab="dashboard">
@@ -718,6 +741,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=60"></script>
+  <script src="/static/js/app.js?v=63"></script>
 </body>
 </html>

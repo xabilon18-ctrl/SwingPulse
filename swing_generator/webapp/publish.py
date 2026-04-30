@@ -601,6 +601,15 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'events.json'), 'w') as f:
         json.dump({'generated': dt, 'events': events}, f, separators=(',', ':'))
 
+    # Backtest results — copy if a recent backtest JSON exists
+    bt_files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'backtest_*.json')))
+    if bt_files:
+        with open(bt_files[-1]) as f:
+            bt = json.load(f)
+        with open(os.path.join(output_dir, 'backtest.json'), 'w') as f:
+            json.dump(bt, f, separators=(',', ':'))
+        print(f'  Backtest report: {os.path.basename(bt_files[-1])}')
+
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
@@ -771,6 +780,7 @@ def build_ui():
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/events'",       f"'{base}/events.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
+    js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",
         f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"

@@ -65,6 +65,7 @@ _TV_BY_NAME: dict[str, str] = {
     'GOLD':     'TVC:GOLD',
     'SILVER':   'TVC:SILVER',
     'USOIL':    'TVC:USOIL',
+    'WTI':      'TVC:USOIL',
 
     # ── Indices (matched to user's brokers) ──
     'US100':    'CAPITALCOM:US100',

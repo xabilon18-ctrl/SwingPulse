@@ -1510,6 +1510,17 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .star-btn:hover { color: var(--watch); transform: scale(1.2); }
 .star-btn.starred { color: var(--watch); }
 
+/* Modal star button — bigger and inline with the title */
+.mh-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mh-star {
+  font-size: 1.5rem;
+  padding: 4px 6px;
+}
+
 /* ── Share button (appears on all card types) ─────────────────────── */
 .share-btn {
   background: none;
@@ -4558,6 +4569,199 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 .perf-pos { background: rgba(16,185,129,.12); color: var(--buy); }
 .perf-neg { background: rgba(239,68,68,.10);  color: var(--sell); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Signal Track Record Card
+   ═══════════════════════════════════════════════════════════════════════════ */
+.track-record-card { padding: 14px 16px; }
+.tr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tr-title {
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+}
+.tr-subtitle {
+  font-size: .58rem;
+  color: var(--text-muted);
+  opacity: .8;
+}
+.tr-overall-row {
+  display: flex;
+  gap: 0;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tr-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+.tr-stat:last-child { border-right: none; }
+.tr-stat-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.tr-stat-lbl {
+  font-size: .58rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.tr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tr-row {
+  display: grid;
+  grid-template-columns: 38px 1fr 1fr 1fr 1.2fr;
+  gap: 8px;
+  align-items: center;
+  font-size: .72rem;
+  padding: 6px 4px;
+  font-variant-numeric: tabular-nums;
+}
+.tr-sig-badge {
+  text-align: center;
+  font-weight: 800;
+  font-size: .65rem;
+  padding: 3px 0;
+  border-radius: 4px;
+  letter-spacing: .03em;
+}
+.tr-sig-badge.sig-p1 { background: rgba(99,102,241,.18); color: #a78bfa; }
+.tr-sig-badge.sig-p2 { background: rgba(16,185,129,.15); color: var(--buy); }
+.tr-sig-badge.sig-p3 { background: rgba(245,158,11,.15); color: var(--watch); }
+.tr-sig-badge.sig-p4 { background: rgba(239,68,68,.15);  color: var(--sell); }
+.tr-row-trades, .tr-row-wr, .tr-row-r, .tr-row-pf {
+  text-align: right;
+}
+.tr-pos { color: var(--buy); }
+.tr-neg { color: var(--sell); }
+.tr-tap-hint {
+  width: 100%;
+  font-size: .58rem;
+  color: var(--accent);
+  margin-top: 4px;
+  opacity: .8;
+}
+.track-record-card { cursor: pointer; transition: border-color var(--transition); }
+.track-record-card:hover { border-color: var(--border-active); }
+
+/* ─── Layer 2: Track Record Detail Sheet ─── */
+#trackOverlay .modal { background: var(--bg-surface); }
+.trs-header { padding: 18px 20px 12px; border-bottom: 1px solid var(--border); }
+.trs-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+.trs-subtitle { font-size: .82rem; color: var(--text-secondary); margin-bottom: 4px; }
+.trs-rules { font-size: .65rem; color: var(--text-muted); }
+
+.trs-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.trs-section:last-of-type { border-bottom: none; }
+.trs-section-title {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.trs-equity-svg { width: 100%; height: 100px; display: block; }
+.trs-equity-meta {
+  display: flex; justify-content: space-between;
+  font-size: .65rem; color: var(--text-muted); margin-top: 4px;
+}
+
+.trs-filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.trs-chip {
+  font-size: .65rem; font-weight: 700;
+  padding: 5px 12px; border-radius: 14px;
+  border: 1.5px solid var(--border); background: transparent;
+  color: var(--text-muted); cursor: pointer;
+}
+.trs-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+.trs-sig-table { display: flex; flex-direction: column; gap: 4px; }
+.trs-sig-row {
+  display: grid;
+  grid-template-columns: 50px 40px 50px 60px 50px 60px 60px;
+  gap: 6px;
+  font-size: .68rem;
+  align-items: center;
+  padding: 6px 4px;
+  font-variant-numeric: tabular-nums;
+}
+.trs-sig-row.trs-sig-head {
+  font-size: .55rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .04em; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.trs-sig-badge {
+  text-align: center; font-weight: 800; font-size: .62rem;
+  padding: 3px 0; border-radius: 4px;
+}
+.trs-sig-badge.sig-p1 { background: rgba(99,102,241,.18); color: #a78bfa; }
+.trs-sig-badge.sig-p2 { background: rgba(16,185,129,.15); color: var(--buy); }
+.trs-sig-badge.sig-p3 { background: rgba(245,158,11,.15); color: var(--watch); }
+.trs-sig-badge.sig-p4 { background: rgba(239,68,68,.15); color: var(--sell); }
+
+.trs-inst-list { display: flex; flex-direction: column; gap: 4px; }
+.trs-inst-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 50px 60px;
+  gap: 8px;
+  font-size: .72rem;
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.trs-inst-row:hover { background: var(--bg-hover); }
+.trs-inst-name { font-weight: 700; color: var(--text-primary); }
+.trs-inst-trades, .trs-inst-wr { color: var(--text-muted); font-size: .65rem; }
+.trs-inst-r { font-weight: 700; text-align: right; }
+
+.trs-empty { color: var(--text-muted); font-size: .75rem; padding: 8px 0; }
+.trs-footer { font-size: .58rem; color: var(--text-muted); padding: 12px 20px; text-align: center; opacity: .6; }
+
+/* ─── Layer 3: per-instrument track record in modal ─── */
+.ir-overall {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: .78rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.ir-overall span strong { color: var(--text-primary); }
+.ir-sigs { display: flex; gap: 6px; flex-wrap: wrap; }
+.ir-sig-pill {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 90px;
+}
+.ir-sig-name { font-size: .62rem; font-weight: 800; color: var(--text-muted); letter-spacing: .04em; }
+.ir-sig-stats { font-size: .68rem; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Portfolio Summary Card

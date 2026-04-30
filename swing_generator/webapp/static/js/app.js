@@ -8,6 +8,7 @@
   // ── State ────────────────────────────────────────────────────────────
   let allData = [];
   let summaryData = {};
+  let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let tvMap = {};            // instrument_name → TradingView symbol
   let currentTab = 'dashboard';
   let activeHeatmapGroup = 'all';
@@ -549,19 +550,7 @@
   }
 
   navTabs.forEach(btn => {
-    let _touchHandled = false;
-    let _touchMoved   = false;
-    btn.addEventListener('touchstart', () => { _touchMoved = false; }, { passive: true });
-    btn.addEventListener('touchmove',  () => { _touchMoved = true;  }, { passive: true });
-    btn.addEventListener('touchend', e => {
-      if (_touchMoved) return;
-      _touchHandled = true;
-      setTimeout(() => { _touchHandled = false; }, 600);
-      e.preventDefault();
-      doTabSwitch(btn);
-    }, { passive: false });
-    // Desktop click — skip if already handled by touch
-    btn.addEventListener('click', () => { if (!_touchHandled) doTabSwitch(btn); });
+    btn.addEventListener('click', () => doTabSwitch(btn));
   });
 
   // ── Gauge Info Tooltip ───────────────────────────────────────────────
@@ -637,7 +626,7 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, trendsRes, explRes, evRes, namesRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, trendsRes, explRes, evRes, namesRes, btRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()),
         fetch('/api/summary').then(r => r.json()),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
@@ -645,6 +634,7 @@
         fetch('/api/explanations').then(r => r.json()).catch(() => ({})),
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
+        fetch('/api/backtest').then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -654,6 +644,7 @@
       explanationsData = explRes || {};
       eventsData = evRes.events || [];
       namesData = namesRes || {};
+      backtestData = btRes;
 
       const dateStr = sumRes.date || '--';
       const timeStr = sumRes.fetched_at ? sumRes.fetched_at.split(' ')[1] : '';
@@ -793,6 +784,91 @@
   }
 
   // ── Dashboard ────────────────────────────────────────────────────────
+  // ── Layer 3: per-instrument track record snippet (used inside modal) ──
+  function renderInstrumentTrackRecord(name) {
+    if (!backtestData || !backtestData.by_instrument) return '';
+    const data = backtestData.by_instrument[name];
+    if (!data || !data.overall || !data.overall.total_trades) return '';
+    const o = data.overall;
+    if (o.total_trades < 3) return ''; // hide if barely any sample
+    const sigs = data.by_signal || {};
+    const cls = o.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
+    const sigsHtml = Object.entries(sigs).map(([sig, s]) => `
+      <div class="ir-sig-pill">
+        <span class="ir-sig-name">${sig}</span>
+        <span class="ir-sig-stats">${s.total_trades} · ${s.win_rate}% · <strong class="${s.avg_r >= 0 ? 'tr-pos' : 'tr-neg'}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}R</strong></span>
+      </div>
+    `).join('');
+    return `
+      <div class="mh-section">
+        <div class="mh-section-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          Track Record on ${name}
+        </div>
+        <div class="ir-overall">
+          <span><strong>${o.total_trades}</strong> trades</span>
+          <span><strong>${o.win_rate}%</strong> win rate</span>
+          <span class="${cls}"><strong>${o.avg_r > 0 ? '+' : ''}${o.avg_r}R</strong> avg</span>
+        </div>
+        <div class="ir-sigs">${sigsHtml}</div>
+      </div>
+    `;
+  }
+
+  // ── Signal Track Record (from backtest.json) ──────────────────────────
+  function renderTrackRecord() {
+    const card    = document.getElementById('trackRecordCard');
+    const overall = document.getElementById('trOverall');
+    const rows    = document.getElementById('trRows');
+    const subEl   = document.getElementById('trSubtitle');
+    if (!card || !overall || !rows) return;
+    if (!backtestData || !backtestData.overall || !backtestData.overall.total_trades) {
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+
+    const o = backtestData.overall;
+    const oCls = o.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
+    overall.innerHTML = `
+      <div class="tr-overall-row">
+        <div class="tr-stat">
+          <span class="tr-stat-val">${o.total_trades}</span>
+          <span class="tr-stat-lbl">Trades</span>
+        </div>
+        <div class="tr-stat">
+          <span class="tr-stat-val">${o.win_rate}%</span>
+          <span class="tr-stat-lbl">Win rate</span>
+        </div>
+        <div class="tr-stat">
+          <span class="tr-stat-val ${oCls}">${o.avg_r > 0 ? '+' : ''}${o.avg_r}R</span>
+          <span class="tr-stat-lbl">Avg R</span>
+        </div>
+        <div class="tr-stat">
+          <span class="tr-stat-val ${o.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">${o.profit_factor}</span>
+          <span class="tr-stat-lbl">PF</span>
+        </div>
+      </div>
+    `;
+
+    const sigs = backtestData.by_signal || {};
+    rows.innerHTML = Object.entries(sigs).map(([sig, s]) => {
+      const cls = s.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
+      const sigCls = sig === 'P1' ? 'sig-p1' : sig === 'P2' ? 'sig-p2' : sig === 'P3' ? 'sig-p3' : 'sig-p4';
+      return `<div class="tr-row">
+        <span class="tr-sig-badge ${sigCls}">${sig}</span>
+        <span class="tr-row-trades">${s.total_trades}</span>
+        <span class="tr-row-wr">${s.win_rate}%</span>
+        <span class="tr-row-r ${cls}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}R</span>
+        <span class="tr-row-pf ${s.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">PF ${s.profit_factor}</span>
+      </div>`;
+    }).join('');
+
+    if (subEl && backtestData.generated_at) {
+      subEl.textContent = `2% stop · 2:1 R:R · updated ${backtestData.generated_at}`;
+    }
+  }
+
   // ── Portfolio Summary Card ─────────────────────────────────────────────
   function renderPortfolioCard() {
     const card  = document.getElementById('portfolioSummaryCard');
@@ -920,6 +996,7 @@
       document.getElementById('highConfBar').style.width = (highConfCount / total * 100) + '%';
     }, 100);
 
+    renderTrackRecord();
     renderPortfolioCard();
     renderTodayOpportunities();
     renderAlertBanner();
@@ -2344,6 +2421,148 @@
   document.getElementById('modalClose').addEventListener('click', closeModal);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
+  // ── Track Record Detail Sheet (Layer 2) ──────────────────────────────
+  const trackOverlay = document.getElementById('trackOverlay');
+  const trackBody    = document.getElementById('trackModalBody');
+  function closeTrackSheet() {
+    if (trackOverlay) trackOverlay.classList.remove('open');
+  }
+  function openTrackRecord() {
+    if (!backtestData || !trackOverlay || !trackBody) return;
+    renderTrackRecordSheet();
+    trackOverlay.classList.add('open');
+  }
+  if (trackOverlay) {
+    document.getElementById('trackClose').addEventListener('click', closeTrackSheet);
+    trackOverlay.addEventListener('click', e => { if (e.target === trackOverlay) closeTrackSheet(); });
+  }
+
+  let trSheetFilter = 'all';   // 'all' | 'P1' | 'P2' | 'P3' | 'P4'
+
+  function renderTrackRecordSheet() {
+    if (!backtestData || !trackBody) return;
+    const o = backtestData.overall;
+    const sigs = backtestData.by_signal || {};
+    const insts = backtestData.by_instrument || {};
+    const curve = backtestData.equity_curve || [];
+
+    // Top performing instruments (by avg_r, min 5 trades)
+    const ranked = Object.entries(insts)
+      .map(([name, d]) => ({ name, ...d.overall }))
+      .filter(s => s.total_trades >= 5)
+      .sort((a, b) => b.avg_r - a.avg_r);
+    const top5    = ranked.slice(0, 5);
+    const bottom5 = ranked.slice(-5).reverse();
+
+    // Equity curve as inline SVG (compact, no library needed)
+    const curveSvg = renderEquitySvg(curve, trSheetFilter);
+
+    trackBody.innerHTML = `
+      <div class="trs-header">
+        <div class="trs-title">Signal Track Record</div>
+        <div class="trs-subtitle">${o.total_trades} trades · ${o.win_rate}% win rate · ${o.avg_r > 0 ? '+' : ''}${o.avg_r}R avg · PF ${o.profit_factor}</div>
+        <div class="trs-rules">Rules: 2% stop · 2:1 R:R · 30-bar time stop · 0.05% slippage</div>
+      </div>
+
+      <div class="trs-section">
+        <div class="trs-section-title">Equity curve (R-multiples)</div>
+        ${curveSvg}
+      </div>
+
+      <div class="trs-section">
+        <div class="trs-filter-row">
+          <button class="trs-chip ${trSheetFilter === 'all' ? 'active' : ''}" data-trf="all">All</button>
+          ${Object.keys(sigs).map(s =>
+            `<button class="trs-chip ${trSheetFilter === s ? 'active' : ''}" data-trf="${s}">${s}</button>`
+          ).join('')}
+        </div>
+        <div class="trs-section-title">Per-signal stats</div>
+        <div class="trs-sig-table">
+          <div class="trs-sig-row trs-sig-head">
+            <span>Signal</span><span>N</span><span>Win%</span><span>Avg R</span><span>PF</span><span>Final R</span><span>Max DD</span>
+          </div>
+          ${Object.entries(sigs).map(([sig, s]) => `
+            <div class="trs-sig-row">
+              <span class="trs-sig-badge sig-${sig.toLowerCase()}">${sig}</span>
+              <span>${s.total_trades}</span>
+              <span>${s.win_rate}%</span>
+              <span class="${s.avg_r >= 0 ? 'tr-pos' : 'tr-neg'}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}</span>
+              <span class="${s.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">${s.profit_factor}</span>
+              <span class="${s.final_r >= 0 ? 'tr-pos' : 'tr-neg'}">${s.final_r > 0 ? '+' : ''}${s.final_r}</span>
+              <span class="tr-neg">-${s.max_drawdown_r}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="trs-section">
+        <div class="trs-section-title">🏆 Top 5 instruments (avg R)</div>
+        <div class="trs-inst-list">
+          ${top5.map(s => `<div class="trs-inst-row" onclick="window.SP.closeTrackAndOpen('${s.label}')">
+            <span class="trs-inst-name">${s.label}</span>
+            <span class="trs-inst-trades">${s.total_trades} trades</span>
+            <span class="trs-inst-wr">${s.win_rate}%</span>
+            <span class="trs-inst-r tr-pos">+${s.avg_r}R</span>
+          </div>`).join('') || '<div class="trs-empty">Not enough data yet</div>'}
+        </div>
+      </div>
+
+      <div class="trs-section">
+        <div class="trs-section-title">📉 Bottom 5 instruments (avg R)</div>
+        <div class="trs-inst-list">
+          ${bottom5.map(s => `<div class="trs-inst-row" onclick="window.SP.closeTrackAndOpen('${s.label}')">
+            <span class="trs-inst-name">${s.label}</span>
+            <span class="trs-inst-trades">${s.total_trades} trades</span>
+            <span class="trs-inst-wr">${s.win_rate}%</span>
+            <span class="trs-inst-r ${s.avg_r >= 0 ? 'tr-pos' : 'tr-neg'}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}R</span>
+          </div>`).join('') || '<div class="trs-empty">Not enough data yet</div>'}
+        </div>
+      </div>
+
+      <div class="trs-footer">${backtestData.generated_at || ''}</div>
+    `;
+
+    // Wire filter chips
+    trackBody.querySelectorAll('.trs-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        trSheetFilter = btn.dataset.trf;
+        renderTrackRecordSheet();
+      });
+    });
+  }
+
+  function renderEquitySvg(curve, filter) {
+    if (!curve || !curve.length) return '<div class="trs-empty">No equity data</div>';
+    // Reuse curve as-is (filter is applied at the data prep level if needed in future)
+    const W = 320, H = 100, PAD = 8;
+    const rs = curve.map(c => c.r);
+    const min = Math.min(0, ...rs);
+    const max = Math.max(0, ...rs);
+    const span = Math.max(max - min, 1);
+    const dx = (W - PAD*2) / Math.max(curve.length - 1, 1);
+    const yOf = r => H - PAD - ((r - min) / span) * (H - PAD*2);
+    const points = curve.map((c, i) => `${PAD + i * dx},${yOf(c.r)}`).join(' ');
+    const zeroY = yOf(0);
+    const finalR = curve[curve.length - 1].r;
+    const finalCls = finalR >= 0 ? 'var(--buy)' : 'var(--sell)';
+    return `
+      <svg viewBox="0 0 ${W} ${H}" class="trs-equity-svg" preserveAspectRatio="none">
+        <line x1="${PAD}" y1="${zeroY}" x2="${W - PAD}" y2="${zeroY}" stroke="var(--border)" stroke-dasharray="2,3"/>
+        <polyline points="${points}" fill="none" stroke="${finalCls}" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <div class="trs-equity-meta">
+        <span>Start: 0R</span>
+        <span>End: <strong style="color:${finalCls}">${finalR > 0 ? '+' : ''}${finalR}R</strong></span>
+        <span>${curve.length} trades</span>
+      </div>
+    `;
+  }
+
+  function closeTrackAndOpen(name) {
+    closeTrackSheet();
+    setTimeout(() => openModal(name), 300);
+  }
+
   // Swipe-down to close modal
   (function wireModalSwipe() {
     const modal = document.getElementById('instrumentModal');
@@ -2413,7 +2632,10 @@
       <div class="mh-hero${buy ? ' mh-hero-buy' : sell ? ' mh-hero-sell' : ''}">
         <div class="mh-top">
           <div class="mh-name-group">
-            <div class="mh-name">${item.instrument_name}</div>
+            <div class="mh-name-row">
+              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" onclick="event.stopPropagation();window.SP.toggleStar(this)" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">★</button>
+              <div class="mh-name">${item.instrument_name}</div>
+            </div>
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
           </div>
           <div class="mh-sig-wrap">
@@ -2469,6 +2691,8 @@
             <div class="mg-val ${parseFloat(item[f('roc')])>=0?'buy':'sell'}">${item[f('roc')] ? (parseFloat(item[f('roc')])>=0?'+':'')+parseFloat(item[f('roc')]).toFixed(1)+'%' : '--'}</div>
           </div>
         </div>
+
+        ${renderInstrumentTrackRecord(item.instrument_name)}
 
         <div class="mh-section">
           <div class="mh-section-title">MA Ribbon${item[f('ribbon_compression')]==='yes'?' <span class="compression-alert">SQUEEZE</span>':''}</div>
@@ -3221,7 +3445,7 @@
     }
   }
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker };
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)
@@ -3266,10 +3490,14 @@
   });
 
   // ── Pull-to-Refresh ──────────────────────────────────────────────────
+  // Pull-to-refresh disabled — global document touch listeners were causing
+  // perceived slowness on scroll. Use the topbar refresh button instead.
   (function initPTR() {
     const ptrEl = document.getElementById('ptr-indicator');
-    if (!ptrEl) return;
-    const THRESHOLD = 72;   // px to pull before release triggers refresh
+    if (ptrEl) ptrEl.style.display = 'none';
+    return;
+    // eslint-disable-next-line no-unreachable
+    const THRESHOLD = 72;
     let startY = 0, pulling = false, refreshing = false;
 
     function ptrSetPos(delta) {
