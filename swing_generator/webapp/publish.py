@@ -61,7 +61,9 @@ def load_latest_signals(src_dir=None):
     latest     = files[-1]
     date_str   = os.path.basename(latest).replace('signals_', '').replace('.csv', '')
     mtime      = os.path.getmtime(latest)
-    fetched_at = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+    # ISO 8601 UTC so the frontend can convert to the user's local timezone
+    from datetime import timezone
+    fetched_at = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     df = pd.read_csv(latest).fillna('')
     return df, date_str, fetched_at
 

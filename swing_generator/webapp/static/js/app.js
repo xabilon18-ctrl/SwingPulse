@@ -725,7 +725,16 @@
       backtestData = btRes;
 
       const dateStr = sumRes.date || '--';
-      const timeStr = sumRes.fetched_at ? sumRes.fetched_at.split(' ')[1] : '';
+      let timeStr = '';
+      if (sumRes.fetched_at) {
+        const isISO = sumRes.fetched_at.includes('T');
+        const d = isISO ? new Date(sumRes.fetched_at) : null;
+        if (d && !isNaN(d.getTime())) {
+          timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+          timeStr = sumRes.fetched_at.split(' ')[1] || '';
+        }
+      }
       document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
 
       // Staleness warning: show banner if data date isn't today
