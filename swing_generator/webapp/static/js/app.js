@@ -5,6 +5,14 @@
 (function () {
   'use strict';
 
+  // ── Pure utilities loaded from utils.js (window.SP_UTILS) ────────────
+  // Aliased here so the rest of the file can use them as plain locals.
+  // If utils.js failed to load, fall back to inline definitions below
+  // so app.js still works (defensive).
+  const SPU = window.SP_UTILS || {};
+  // (formatPrice, debounce, urlBase64ToUint8Array re-defined below as
+  //  fallbacks if utils.js didn't load — kept identical to utils.js)
+
   // ── State ────────────────────────────────────────────────────────────
   let allData = [];
   let summaryData = {};
