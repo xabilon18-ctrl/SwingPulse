@@ -3659,23 +3659,51 @@
     listEl.innerHTML = openTrades.map(trade => {
       const liveItem   = allData.find(d => d.instrument_name === trade.instrument_name);
       const livePrice  = liveItem ? parseFloat(liveItem[f('close')]) || 0 : 0;
-      const pnlPct     = trade.open_price > 0 && livePrice > 0
-        ? ((livePrice - trade.open_price) / trade.open_price * 100)
-        : null;
-      const pnlStr     = pnlPct !== null
+      const side       = trade.side || 'long';
+      let pnlPct = null, currentR = null;
+      if (trade.open_price > 0 && livePrice > 0) {
+        pnlPct = (livePrice - trade.open_price) / trade.open_price * 100;
+        if (side === 'short') pnlPct = -pnlPct;
+        if (trade.stop_loss && trade.stop_loss !== trade.open_price) {
+          const risk = Math.abs(trade.open_price - trade.stop_loss);
+          const move = side === 'long'
+            ? (livePrice - trade.open_price)
+            : (trade.open_price - livePrice);
+          currentR = move / risk;
+        }
+      }
+      const pnlStr = pnlPct !== null
         ? `<span class="trade-pnl ${pnlPct >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>`
         : '';
+      const rStr = currentR !== null
+        ? `<span class="trade-r ${currentR >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${currentR > 0 ? '+' : ''}${currentR.toFixed(2)}R</span>`
+        : '';
+      const sideTag = `<span class="trade-side-tag side-${side}">${side === 'long' ? '▲ Long' : '▼ Short'}</span>`;
       const trend = liveItem ? (liveItem[f('trend_direction')] || '') : '';
       const trendBadge = trend ? `<span class="scanner-tag ${trendTag(trend)}" style="font-size:.6rem">${trend}</span>` : '';
+
+      // Plan row: stop / target with R:R
+      let planRow = '';
+      if (trade.stop_loss || trade.take_profit) {
+        const riskPct = trade.stop_loss ? Math.abs((trade.stop_loss - trade.open_price) / trade.open_price * 100) : 0;
+        const rwdPct  = trade.take_profit ? Math.abs((trade.take_profit - trade.open_price) / trade.open_price * 100) : 0;
+        const rr = (riskPct > 0 && rwdPct > 0) ? (rwdPct / riskPct).toFixed(2) : null;
+        planRow = `<div class="trade-plan-row">
+          ${trade.stop_loss ? `<span class="plan-pill plan-stop">SL ${formatPrice(trade.stop_loss)}<span class="plan-pct">-${riskPct.toFixed(2)}%</span></span>` : ''}
+          ${trade.take_profit ? `<span class="plan-pill plan-target">TP ${formatPrice(trade.take_profit)}<span class="plan-pct">+${rwdPct.toFixed(2)}%</span></span>` : ''}
+          ${rr ? `<span class="plan-pill plan-rr">${rr}:1 R</span>` : ''}
+        </div>`;
+      }
 
       return `<div class="trade-card trade-card-open" onclick="window.SP.openModal('${trade.instrument_name}')">
         <div class="trade-card-top">
           <div class="trade-card-left">
             <span class="trade-card-name">${trade.instrument_name}</span>
+            ${sideTag}
             ${instName(trade.instrument_name) ? `<span class="inst-fullname">${instName(trade.instrument_name)}</span>` : ''}
           </div>
           <div class="trade-card-right">
-            ${pnlStr}
+            ${rStr || pnlStr}
             <button class="trade-close-btn" title="Close trade" onclick="event.stopPropagation();window.SP.showCloseTradeSheet(${trade.id})">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Close
@@ -3686,8 +3714,10 @@
           <span class="trade-meta-item">Opened ${trade.open_date}</span>
           <span class="trade-meta-item">@ ${formatPrice(trade.open_price)}</span>
           ${livePrice ? `<span class="trade-meta-item">Now ${formatPrice(livePrice)}</span>` : ''}
+          ${pnlPct !== null ? `<span class="trade-meta-item">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>` : ''}
           ${trendBadge}
         </div>
+        ${planRow}
         ${trade.notes ? `<div class="trade-card-notes">${trade.notes}</div>` : ''}
       </div>`;
     }).join('');
@@ -3707,18 +3737,53 @@
       return;
     }
 
-    // Summary bar
+    // Summary bar with R-multiple stats + expectancy
     const wins    = closedTrades.filter(t => t.pnl_pct > 0).length;
+    const losses  = closedTrades.filter(t => t.pnl_pct < 0).length;
     const total   = closedTrades.length;
     const winRate = Math.round(wins / total * 100);
     const avgPnl  = (closedTrades.reduce((s, t) => s + (t.pnl_pct || 0), 0) / total);
+
+    const withR   = closedTrades.filter(t => t.r_multiple != null);
+    const totalR  = withR.reduce((s, t) => s + t.r_multiple, 0);
+    const avgR    = withR.length ? totalR / withR.length : null;
+    const winRs   = withR.filter(t => t.r_multiple > 0);
+    const lossRs  = withR.filter(t => t.r_multiple < 0);
+    const avgWinR = winRs.length ? winRs.reduce((s, t) => s + t.r_multiple, 0) / winRs.length : 0;
+    const avgLossR = lossRs.length ? lossRs.reduce((s, t) => s + t.r_multiple, 0) / lossRs.length : 0;
+    const expectancy = withR.length
+      ? (winRs.length / withR.length) * avgWinR + (lossRs.length / withR.length) * avgLossR
+      : null;
+
     if (summEl) {
       summEl.innerHTML = `
-        <span class="trade-sum-item">${total} trade${total !== 1 ? 's' : ''}</span>
-        <span class="trade-sum-divider">·</span>
-        <span class="trade-sum-item">Win rate <strong>${winRate}%</strong></span>
-        <span class="trade-sum-divider">·</span>
-        <span class="trade-sum-item ${avgPnl >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">Avg ${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%</span>
+        <div class="trade-stats-row">
+          <div class="trade-stat-tile">
+            <span class="trade-stat-val">${total}</span>
+            <span class="trade-stat-lbl">Trades</span>
+          </div>
+          <div class="trade-stat-tile">
+            <span class="trade-stat-val">${winRate}%</span>
+            <span class="trade-stat-lbl">${wins}W / ${losses}L</span>
+          </div>
+          <div class="trade-stat-tile">
+            <span class="trade-stat-val ${avgPnl >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%</span>
+            <span class="trade-stat-lbl">Avg %</span>
+          </div>
+          ${avgR !== null ? `
+          <div class="trade-stat-tile">
+            <span class="trade-stat-val ${avgR >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${avgR > 0 ? '+' : ''}${avgR.toFixed(2)}R</span>
+            <span class="trade-stat-lbl">Avg R</span>
+          </div>
+          <div class="trade-stat-tile">
+            <span class="trade-stat-val ${totalR >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${totalR > 0 ? '+' : ''}${totalR.toFixed(1)}R</span>
+            <span class="trade-stat-lbl">Total R</span>
+          </div>
+          ${expectancy !== null ? `<div class="trade-stat-tile">
+            <span class="trade-stat-val ${expectancy >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${expectancy > 0 ? '+' : ''}${expectancy.toFixed(2)}R</span>
+            <span class="trade-stat-lbl">Expectancy</span>
+          </div>` : ''}` : ''}
+        </div>
         <div class="trade-email-row">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           <input type="email" id="reportEmailInput" class="trade-email-input" placeholder="your@email.com" value="${reportEmail.replace(/"/g,'&quot;')}">
@@ -3730,20 +3795,29 @@
     const sorted = [...closedTrades].sort((a, b) => (b.close_date || '').localeCompare(a.close_date || ''));
 
     listEl.innerHTML = sorted.map(trade => {
+      const side = trade.side || 'long';
       const pnlStr = trade.pnl_pct != null
         ? `<span class="trade-pnl ${trade.pnl_pct >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${trade.pnl_pct >= 0 ? '+' : ''}${trade.pnl_pct.toFixed(2)}%</span>`
         : '';
+      const rStr = trade.r_multiple != null
+        ? `<span class="trade-r ${trade.r_multiple >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${trade.r_multiple > 0 ? '+' : ''}${trade.r_multiple.toFixed(2)}R</span>`
+        : '';
+      const sideTag = `<span class="trade-side-tag side-${side}">${side === 'long' ? '▲' : '▼'}</span>`;
       const exitBadge = trade.exit_type === 'stopped'
         ? `<span class="trade-exit-badge exit-stopped">Stopped</span>`
-        : `<span class="trade-exit-badge exit-manual">Manual</span>`;
+        : trade.exit_type === 'target'
+          ? `<span class="trade-exit-badge exit-target">Target</span>`
+          : `<span class="trade-exit-badge exit-manual">Manual</span>`;
 
       return `<div class="trade-card trade-card-closed">
         <div class="trade-card-top">
           <div class="trade-card-left">
             <span class="trade-card-name">${trade.instrument_name}</span>
+            ${sideTag}
             ${instName(trade.instrument_name) ? `<span class="inst-fullname">${instName(trade.instrument_name)}</span>` : ''}
           </div>
           <div class="trade-card-right">
+            ${rStr}
             ${pnlStr}
             ${exitBadge}
             <button class="trade-delete-btn" title="Delete" onclick="event.stopPropagation();window.SP.deleteClosedTrade(${trade.id})">
@@ -3754,6 +3828,7 @@
         <div class="trade-card-meta">
           <span class="trade-meta-item">${trade.open_date} → ${trade.close_date}</span>
           <span class="trade-meta-item">${formatPrice(trade.open_price)} → ${formatPrice(trade.close_price)}</span>
+          ${trade.stop_loss ? `<span class="trade-meta-item">SL ${formatPrice(trade.stop_loss)}</span>` : ''}
         </div>
         ${trade.notes || trade.close_notes ? `<div class="trade-card-notes">${[trade.notes, trade.close_notes].filter(Boolean).join(' · ')}</div>` : ''}
       </div>`;
@@ -3938,8 +4013,23 @@
     if (!date || isNaN(price) || price <= 0 || pendingCloseId === null) return;
     const trade     = openTrades.find(t => t.id === pendingCloseId);
     if (!trade) return;
-    const pnlPct    = trade.open_price > 0 ? ((price - trade.open_price) / trade.open_price * 100) : 0;
-    closedTrades.push({ ...trade, close_date: date, close_price: price, exit_type: exitType, close_notes: notes, pnl_pct: Math.round(pnlPct * 100) / 100 });
+    const side = trade.side || 'long';
+    let pnlPct = trade.open_price > 0 ? (price - trade.open_price) / trade.open_price * 100 : 0;
+    if (side === 'short') pnlPct = -pnlPct;
+    // R-multiple if a stop was set
+    let rMultiple = null;
+    if (trade.stop_loss && trade.stop_loss !== trade.open_price) {
+      const risk = Math.abs(trade.open_price - trade.stop_loss);
+      const move = side === 'long' ? (price - trade.open_price) : (trade.open_price - price);
+      rMultiple = Math.round(move / risk * 100) / 100;
+    }
+    closedTrades.push({
+      ...trade,
+      close_date: date, close_price: price,
+      exit_type: exitType, close_notes: notes,
+      pnl_pct: Math.round(pnlPct * 100) / 100,
+      r_multiple: rMultiple,
+    });
     openTrades = openTrades.filter(t => t.id !== pendingCloseId);
     pendingCloseId = null;
     saveOpenTrades();
