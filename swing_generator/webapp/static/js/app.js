@@ -459,7 +459,7 @@
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
   // this makes the app work correctly across MA scheme changes without code edits.
-  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101];
+  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101,108];
   function activeMaPeriods() {
     return detectedMaPeriods;
   }
@@ -1697,7 +1697,7 @@
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/13</span></span>` : ''}
+            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/14</span></span>` : ''}
           </div>
         </div>
         ${tvBtn(item.instrument_name, '')}
@@ -1819,7 +1819,7 @@
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
-          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/13 | ${dir}</div>
+          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/14 | ${dir}</div>
         </div>
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
@@ -2111,7 +2111,7 @@
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maBarColor}"></div></div>
-          <span style="font-size:.6rem">${maOrder}/13</span>
+          <span style="font-size:.6rem">${maOrder}/14</span>
         </div>` : ''}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
@@ -2310,7 +2310,7 @@
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
-          <span style="font-size:.6rem">${maOrder}/13</span>
+          <span style="font-size:.6rem">${maOrder}/14</span>
         </div>` : ''}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
@@ -2784,7 +2784,7 @@
           </div>
           <div class="mg-tile">
             <div class="mg-label">MA Order</div>
-            <div class="mg-val">${item[f('ma_order_score')] || '--'}/13</div>
+            <div class="mg-val">${item[f('ma_order_score')] || '--'}/14</div>
           </div>
           <div class="mg-tile">
             <div class="mg-label">Momentum</div>
@@ -3039,7 +3039,7 @@
         [
           { key: 'ma_10',  color: '#6366f1', title: 'MA10'  },
           { key: 'ma_52',  color: '#0ea5e9', title: 'MA52'  },
-          { key: 'ma_101', color: '#ef4444', title: 'MA101' },
+          { key: 'ma_108', color: '#ef4444', title: 'MA108' },
         ].forEach(({ key, color, title }) => {
           const data = bars
             .filter(b => b[key] != null)
