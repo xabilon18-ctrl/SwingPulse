@@ -3747,10 +3747,59 @@
     document.getElementById('tradeOpenDate').value   = today;
     // Pre-fill price from live data
     const item = allData.find(d => d.instrument_name === name);
-    document.getElementById('tradeOpenPrice').value  = item ? (parseFloat(item[f('close')]) || '') : '';
+    const price = item ? (parseFloat(item[f('close')]) || '') : '';
+    document.getElementById('tradeOpenPrice').value  = price;
     document.getElementById('tradeOpenNotes').value  = '';
+    document.getElementById('tradeStopLoss').value = '';
+    document.getElementById('tradeTarget').value = '';
+    document.getElementById('tradePositionSize').value = '';
+    document.getElementById('tradeRiskPct').value = '1.0';
+    // Auto-suggest direction from signal
+    if (item) {
+      const buy = isBuy(item);
+      const sell = isSell(item);
+      const radioVal = sell ? 'short' : 'long';
+      const radio = document.querySelector(`input[name="tradeSide"][value="${radioVal}"]`);
+      if (radio) radio.checked = true;
+    }
+    updateRrPreview();
     overlay.classList.add('open');
   };
+
+  // Live R:R preview as user fills in entry/stop/target
+  function updateRrPreview() {
+    const entry  = parseFloat(document.getElementById('tradeOpenPrice').value);
+    const stop   = parseFloat(document.getElementById('tradeStopLoss').value);
+    const target = parseFloat(document.getElementById('tradeTarget').value);
+    const side   = document.querySelector('input[name="tradeSide"]:checked')?.value || 'long';
+    const preview = document.getElementById('tradeRrPreview');
+    if (!preview) return;
+    if (!entry || !stop || stop === entry) { preview.style.display = 'none'; return; }
+    const riskPct = Math.abs((stop - entry) / entry * 100);
+    let rrText = '--';
+    let targetMove = '--';
+    if (target && target !== entry) {
+      const rewardPct = Math.abs((target - entry) / entry * 100);
+      const rr = rewardPct / riskPct;
+      rrText = `${rr.toFixed(2)}:1 R`;
+      targetMove = `+${rewardPct.toFixed(2)}%`;
+    }
+    // Validate stop direction matches side
+    const stopValid = (side === 'long' && stop < entry) || (side === 'short' && stop > entry);
+    const stopColor = stopValid ? 'rr-ok' : 'rr-warn';
+    document.getElementById('rrRiskPct').textContent  = `Risk -${riskPct.toFixed(2)}%`;
+    document.getElementById('rrRiskPct').className = `rr-pill ${stopColor}`;
+    document.getElementById('rrRatio').textContent    = rrText;
+    document.getElementById('rrRatio').className = 'rr-pill';
+    document.getElementById('rrTargetMove').textContent = targetMove;
+    document.getElementById('rrTargetMove').className = 'rr-pill rr-tgt';
+    preview.style.display = 'flex';
+  }
+  ['tradeOpenPrice','tradeStopLoss','tradeTarget','tradePositionSize','tradeRiskPct'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateRrPreview);
+  });
+  document.querySelectorAll('input[name="tradeSide"]').forEach(r => r.addEventListener('change', updateRrPreview));
 
   window.SP.showCloseTradeSheet = function(id) {
     const trade = openTrades.find(t => t.id === id);
@@ -3782,8 +3831,17 @@
     const date  = document.getElementById('tradeOpenDate').value;
     const price = parseFloat(document.getElementById('tradeOpenPrice').value);
     const notes = document.getElementById('tradeOpenNotes').value.trim();
+    const side  = document.querySelector('input[name="tradeSide"]:checked')?.value || 'long';
+    const stop  = parseFloat(document.getElementById('tradeStopLoss').value)  || null;
+    const target= parseFloat(document.getElementById('tradeTarget').value)    || null;
+    const size  = parseFloat(document.getElementById('tradePositionSize').value) || null;
+    const riskPct = parseFloat(document.getElementById('tradeRiskPct').value)  || null;
     if (!name || !date || isNaN(price) || price <= 0) return;
-    openTrades.push({ id: Date.now(), instrument_name: name, open_date: date, open_price: price, notes });
+    openTrades.push({
+      id: Date.now(), instrument_name: name, open_date: date, open_price: price,
+      side, stop_loss: stop, take_profit: target, position_size: size, risk_pct: riskPct,
+      notes,
+    });
     saveOpenTrades();
     renderOpenTrades();
     document.getElementById('openTradeOverlay').classList.remove('open');

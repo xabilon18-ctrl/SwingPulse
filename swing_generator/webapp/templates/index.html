@@ -692,6 +692,38 @@
           <label class="trade-form-label">Entry Price</label>
           <input type="number" id="tradeOpenPrice" class="trade-form-input" step="any" min="0" placeholder="0.00">
         </div>
+        <div class="trade-form-row trade-form-side">
+          <label class="trade-form-label">Direction</label>
+          <div class="trade-side-row">
+            <label class="trade-side-opt"><input type="radio" name="tradeSide" value="long" checked> <span class="side-pill side-long">Long ▲</span></label>
+            <label class="trade-side-opt"><input type="radio" name="tradeSide" value="short"> <span class="side-pill side-short">Short ▼</span></label>
+          </div>
+        </div>
+        <div class="trade-form-row-pair">
+          <div class="trade-form-row">
+            <label class="trade-form-label">Stop Loss</label>
+            <input type="number" id="tradeStopLoss" class="trade-form-input" step="any" min="0" placeholder="0.00">
+          </div>
+          <div class="trade-form-row">
+            <label class="trade-form-label">Target</label>
+            <input type="number" id="tradeTarget" class="trade-form-input" step="any" min="0" placeholder="0.00">
+          </div>
+        </div>
+        <div class="trade-form-row-pair">
+          <div class="trade-form-row">
+            <label class="trade-form-label">Position Size</label>
+            <input type="number" id="tradePositionSize" class="trade-form-input" step="any" min="0" placeholder="0">
+          </div>
+          <div class="trade-form-row">
+            <label class="trade-form-label">Risk %</label>
+            <input type="number" id="tradeRiskPct" class="trade-form-input" step="0.1" min="0" placeholder="1.0">
+          </div>
+        </div>
+        <div class="trade-rr-preview" id="tradeRrPreview" style="display:none">
+          <span class="rr-pill" id="rrRiskPct">--</span>
+          <span class="rr-pill" id="rrRatio">--</span>
+          <span class="rr-pill" id="rrTargetMove">--</span>
+        </div>
         <div class="trade-form-row">
           <label class="trade-form-label">Notes <span class="trade-optional">(optional)</span></label>
           <textarea id="tradeOpenNotes" class="trade-form-input trade-form-textarea" rows="2" placeholder="Signal, setup notes..."></textarea>
@@ -741,6 +773,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=63"></script>
+  <script src="/static/js/app.js?v=64"></script>
 </body>
 </html>
