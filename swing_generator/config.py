@@ -16,7 +16,7 @@ MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_66 — midpoint of 15
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
-HISTORY_YEARS         = 16   # 16 years ≈ 192 monthly bars (covers ma_40–ma_190 monthly)
+HISTORY_YEARS         = 16   # 16 years ≈ 192 monthly bars (covers ma_10–ma_108 monthly)
 CACHE_DIR             = os.path.join(BASE_DIR, 'cache')
 INSTRUMENTS_FILE      = os.path.join(ROOT_DIR, '220_Instruments.txt')
 MIN_ROWS_REQUIRED     = 122   # need at least this many daily bars (longest MA is 108)
@@ -56,10 +56,10 @@ SIGNAL_LOOKBACK_DAILY   = 20    # 20 trading days
 SIGNAL_LOOKBACK_WEEKLY  = 12    # 12 weeks ≈ 3 months
 SIGNAL_LOOKBACK_MONTHLY = 6     # 6 months
 
-# P3/P4 dedup: only suppress if last identical signal was within this many bars
+# BP2/SP2 dedup: only suppress if last identical signal was within this many bars
 P3P4_DEDUP_WINDOW = 3
 
-# P2 dedup: suppress repeat 200 MA signals within this many bars (same direction)
+# BP3/SP3 dedup: suppress repeat MA108 signals within this many bars (same direction)
 P2_DEDUP_WINDOW = 5
 
 # TTP cooldown: suppress repeated turning-point alerts for this many bars

@@ -2,12 +2,12 @@
 SwingPulse Backtest Engine
 
 Replays the existing signal-generation pipeline on historical data,
-simulates trades when P1/P2/P3/P4 fires, and aggregates outcomes.
+simulates trades when BP/SP signals fire, and aggregates outcomes.
 
 Usage:
     python3 backtest.py                    # full run, all instruments, write JSON
     python3 backtest.py --quick            # 30 instruments, no JSON output
-    python3 backtest.py --signal P1        # only test P1 signals
+    python3 backtest.py --signal BP1       # only test BP1 signals
     python3 backtest.py --since 2023-01-01 # only signals after this date
 
 Output (output/backtest_<date>.json):
@@ -274,7 +274,7 @@ def _stats(trades: list[dict], label: str) -> dict:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--quick',  action='store_true', help='Test 30 instruments only')
-    parser.add_argument('--signal', help='Only test this signal type (P1/P2/P3/P4)')
+    parser.add_argument('--signal', help='Only test this signal type (BP1/SP1/BP2/SP2/BP3/SP3/BP4/SP4)')
     parser.add_argument('--since',  help='Only signals after this date (YYYY-MM-DD)')
     parser.add_argument('--no-save', action='store_true')
     args = parser.parse_args()

@@ -325,10 +325,14 @@
         <button class="sig-chip sig-chip-buy" data-filter="buy">Buy</button>
         <button class="sig-chip sig-chip-sell" data-filter="sell">Sell</button>
         <button class="sig-chip sig-chip-best" data-filter="best">⚡ Best</button>
-        <button class="sig-chip" data-filter="P1">P1</button>
-        <button class="sig-chip" data-filter="P2">P2</button>
-        <button class="sig-chip" data-filter="P3">P3</button>
-        <button class="sig-chip" data-filter="P4">P4</button>
+        <button class="sig-chip" data-filter="BP1">BP1</button>
+        <button class="sig-chip" data-filter="SP1">SP1</button>
+        <button class="sig-chip" data-filter="BP2">BP2</button>
+        <button class="sig-chip" data-filter="SP2">SP2</button>
+        <button class="sig-chip" data-filter="BP3">BP3</button>
+        <button class="sig-chip" data-filter="SP3">SP3</button>
+        <button class="sig-chip" data-filter="BP4">BP4</button>
+        <button class="sig-chip" data-filter="SP4">SP4</button>
         <button class="sig-chip" data-filter="squeeze">Squeeze</button>
         <button class="sig-chip" data-filter="today">Today</button>
         <button class="sig-chip sig-chip-more" id="sigMoreFiltersBtn">⚙ More</button>
@@ -381,17 +385,16 @@
       <div class="signal-legend">
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
-          <div class="sig-def"><span class="feed-badge badge-p1">P1</span> <strong>Trend Reversal</strong> — Price crosses entire MA ribbon. Max penetration: 4H 2% / D 1.5% / W 2.5% / M 3%</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">P2</span> <strong>200 MA Bounce</strong> — Price pulls back to 200 MA and bounces. Lookback: 4H 60 / D 20 / W 12 / M 6 bars</div>
-          <div class="sig-def"><span class="feed-badge badge-p3">P3</span> <strong>Small MA Bounce</strong> — Bounces off MA 40–100 in uptrend. Dedup window: 3 bars</div>
-          <div class="sig-def"><span class="feed-badge badge-p4">P4</span> <strong>Small MA Rejection</strong> — Rejected at MA 40–100 in downtrend. Dedup window: 3 bars</div>
-          <div class="sig-def"><span class="feed-badge badge-secondary">SEC</span> <strong>Secondary</strong> — Midpoint bounces, MA cluster touches. Suppressed in NEUTRAL zone.</div>
+          <div class="sig-def"><span class="feed-badge badge-p1">BP1/SP1</span> <strong>Trend Reversal</strong> — Full ribbon cross + close past MA108. Max penetration: 4H 2% / D 1.5% / W 2.5% / M 3%</div>
+          <div class="sig-def"><span class="feed-badge badge-p3">BP2/SP2</span> <strong>Fast MA Pullback</strong> — Bounce/rejection off fast MAs (10–66). Dedup window: 3 bars</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">BP3/SP3</span> <strong>Longest MA Bounce</strong> — Bounce/rejection off MA108. Lookback: 4H 60 / D 20 / W 12 / M 6 bars</div>
+          <div class="sig-def"><span class="feed-badge badge-p4">BP4/SP4</span> <strong>Key Level</strong> — Bounce/rejection at confirmed key level (support/resistance)</div>
         </div>
         <div class="sig-legend-group">
           <div class="sig-legend-title">Confidence & Confluence</div>
-          <div class="sig-def"><span class="badge-confidence conf-high">high</span> P2 + volume spike + key level = highest conviction</div>
+          <div class="sig-def"><span class="badge-confidence conf-high">high</span> BP3/SP3 + volume spike + key level = highest conviction</div>
           <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Signal + volume spike OR key level confluence</div>
-          <div class="sig-def"><span class="badge-confidence conf-low">low</span> P3/P4 without volume or key level support</div>
+          <div class="sig-def"><span class="badge-confidence conf-low">low</span> BP2/SP2 without volume or key level support</div>
         </div>
         <div class="sig-legend-group">
           <div class="sig-legend-title">Timeframe Alignment</div>
@@ -775,6 +778,6 @@
   </div>
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=72"></script>
+  <script src="/static/js/app.js?v=73"></script>
 </body>
 </html>

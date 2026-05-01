@@ -59,14 +59,13 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 `w_volume_spike_flag`, `m_volume_spike_flag`) are absolute names — never pass them through `f()`.
 
 ### Signal Types
-- **P1** — Trend reversal (full ribbon cross) — highest priority
-- **P2** — Longest MA bounce entry (MA101 with current scheme)
-- **P3** — MA pullback entry
-- **P4** — MA rejection short
-- **SEC** — Secondary signal
+- **BP1/SP1** — Trend reversal (full ribbon cross + close past MA108) — highest priority
+- **BP2/SP2** — Pullback bounce / rejection off fast MAs (10–66)
+- **BP3/SP3** — Bounce / rejection off longest MA (MA108)
+- **BP4/SP4** — Bounce / rejection at confirmed key level
 
 ### Key Computed Fields (per timeframe)
-`primary_signal`, `secondary_signal`, `confirmation_status`, `signal_confidence` (high/standard/low),
+`primary_signal`, `confirmation_status`, `signal_confidence` (high/standard/low),
 `trend_direction` (UPTREND/DOWNTREND/NEUTRAL), `established_trend`, `trend_run_days`,
 `tf_alignment` (Triple Bull → Triple Bear), `ma_order_score` (0–13),
 `ribbon_compression` (yes/no), `ribbon_spread`, `volume_spike_flag` (yes/no),

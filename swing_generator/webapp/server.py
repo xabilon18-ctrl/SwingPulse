@@ -375,7 +375,6 @@ def api_summary():
         'key_level_touches': int((df['key_level_touched_today'] == 'yes').sum()),
         'turning_points': int((df['potential_turning_point_flag'] != '').sum()),
         'signal_types': signal_types,
-        'secondary_count': int((df['secondary_signal'] != '').sum()),
         'groups': groups,
         'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
     })

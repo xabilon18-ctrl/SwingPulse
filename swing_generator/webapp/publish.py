@@ -97,7 +97,6 @@ def build_summary(df, dt):
         'key_level_touches':int((df['key_level_touched_today'] == 'yes').sum()),
         'turning_points':   int((df['potential_turning_point_flag'] != '').sum()),
         'signal_types':     signal_types,
-        'secondary_count':  int((df['secondary_signal'] != '').sum()),
         'groups':           groups,
     }
 
@@ -137,10 +136,14 @@ def build_history(name, ticker):
 # ---------------------------------------------------------------------------
 
 _SIG_WHAT = {
-    'P1': ('first bullish MA crossover',    'first bearish MA breakdown'),
-    'P2': ('bullish MA re-entry pullback',  'bearish MA re-entry pullback'),
-    'P3': ('trend continuation buy',        'trend continuation sell'),
-    'P4': ('extended bullish trend signal', 'extended bearish trend signal'),
+    'BP1': ('trend reversal — full ribbon cross up + close above MA108',),
+    'SP1': ('trend reversal — full ribbon cross down + close below MA108',),
+    'BP2': ('pullback bounce off fast MAs (10–66) in uptrend',),
+    'SP2': ('rejection at fast MAs (10–66) in downtrend',),
+    'BP3': ('bounce off MA108 (longest) in uptrend',),
+    'SP3': ('rejection at MA108 (longest) in downtrend',),
+    'BP4': ('support bounce at key level in uptrend',),
+    'SP4': ('rejection at key level in downtrend',),
 }
 
 _ALIGN_NOTES = {
@@ -177,7 +180,6 @@ def _explain_one(row: pd.Series) -> str:
     vol   = v('volume_spike_flag')
     roc   = v('roc')
     comp  = v('ribbon_compression')
-    sec   = v('secondary_signal')
     tp    = v('potential_turning_point_flag')
     kl    = v('key_level_touched_today')
     spread= v('ribbon_spread')
@@ -191,7 +193,7 @@ def _explain_one(row: pd.Series) -> str:
     idx = 0 if is_buy else 1
 
     # ── Sentence 1: what is firing and why ───────────────────────────
-    sig_desc = _SIG_WHAT.get(sig, ('signal', 'signal'))[idx]
+    sig_desc = _SIG_WHAT.get(sig, ('signal',))[0]
     trend_lbl = 'uptrend' if trend == 'UPTREND' else 'downtrend' if trend == 'DOWNTREND' else 'sideways trend'
 
     s1_clauses = [f"{sig} {sig_desc}"]
@@ -255,17 +257,14 @@ def _explain_one(row: pd.Series) -> str:
     elif kl == 'yes':
         s2_parts.append('key level touched today — watch for reaction')
 
-    if sec:
-        s2_parts.append(f'secondary {sec} signal adds confluence')
-
     if is_buy:
         if not s2_parts:
             s2_parts.append('hold while price stays above the MA ribbon')
-        s2_parts.append('invalidated on a close below MA40')
+        s2_parts.append('invalidated on a close below MA10')
     elif is_sell:
         if not s2_parts:
             s2_parts.append('hold while price stays below the MA ribbon')
-        s2_parts.append('invalidated on a close above MA40')
+        s2_parts.append('invalidated on a close above MA10')
 
     if sconf == 'low':
         s2_parts.insert(0, 'low confidence — wait for next-candle confirmation')
@@ -273,8 +272,8 @@ def _explain_one(row: pd.Series) -> str:
     sentence2 = ('; '.join(s2_parts[:3])).capitalize() + '.'
 
     # Fix casing for technical terms
-    for old, new in [(' ma ', ' MA '), (' ma4', ' MA4'), ('ma ribbon', 'MA ribbon'),
-                     (' p1', ' P1'), (' p2', ' P2'), (' p3', ' P3'), (' p4', ' P4')]:
+    for old, new in [(' ma ', ' MA '), (' ma1', ' MA1'), ('ma ribbon', 'MA ribbon'),
+                     (' bp', ' BP'), (' sp', ' SP')]:
         sentence1 = sentence1.replace(old, new)
         sentence2 = sentence2.replace(old, new)
 

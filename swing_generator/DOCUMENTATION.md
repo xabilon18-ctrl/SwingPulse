@@ -306,9 +306,9 @@ Each row in the output represents one instrument. Columns are organized by timef
 **Per-timeframe (prefixed h4_, w_, m_ — no prefix for daily):**
 - Price: `date`, `open`, `high`, `low`, `close`, `volume`
 - Volume: `volume_average`, `volume_spike_flag`
-- MAs: `ma_38`, `ma_45`, `ma_52`, ..., `ma_150` (17 columns)
+- MAs: `ma_10`, `ma_17`, `ma_24`, ..., `ma_108` (15 columns)
 - Trend: `trend_direction`, `established_trend`, `trend_run_days`
-- Signals: `confirmation_status`, `primary_signal`, `secondary_signal`, `signal_confidence`
+- Signals: `confirmation_status`, `primary_signal`, `signal_confidence`
 - Last signal: `last_signal_type`, `last_signal_date`, `last_signal_days_ago`
 - Alerts: `watch_flag`, `potential_turning_point_flag`
 - Ribbon analytics: `ribbon_spread`, `ribbon_compression`, `ma_order_score`, `roc`

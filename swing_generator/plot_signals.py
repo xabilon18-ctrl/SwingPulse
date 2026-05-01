@@ -1,5 +1,5 @@
 """
-Plot any instrument with the SwingPulse MA ribbon and all P1/P2/P3/P4 signals.
+Plot any instrument with the SwingPulse MA ribbon and all BP/SP signals.
 
 Usage:
     python3 plot_signals.py                         # defaults to BTC-USD
@@ -49,14 +49,14 @@ def sig(df, prim, trend=None, status_contains=None):
         mask &= df['confirmation_status'].str.contains(status_contains, case=False, na=False)
     return df[mask]
 
-p1_buy        = sig(df, 'P1', status_contains='buy')
-p1_sell       = sig(df, 'P1', status_contains='sell')
-p2_buy        = sig(df, 'P2', status_contains='buy')
-p2_sell       = sig(df, 'P2', status_contains='sell')
-p3_buy        = sig(df, 'P3')
-p4_sell       = sig(df, 'P4')
-sec_buy       = df[(df['secondary_signal'] == 'secondary') & (df['trend_direction'] == 'UPTREND')]
-sec_sell      = df[(df['secondary_signal'] == 'secondary') & (df['trend_direction'] == 'DOWNTREND')]
+bp1           = sig(df, 'BP1')
+sp1           = sig(df, 'SP1')
+bp2           = sig(df, 'BP2')
+sp2           = sig(df, 'SP2')
+bp3           = sig(df, 'BP3')
+sp3           = sig(df, 'SP3')
+bp4           = sig(df, 'BP4')
+sp4           = sig(df, 'SP4')
 comp_watch    = df[df['watch_flag'].str.contains('Ribbon expansion', na=False)]
 
 # ---------------------------------------------------------------------------
@@ -72,15 +72,15 @@ dates = df.index
 up   = df['trend_direction'] == 'UPTREND'
 dn   = df['trend_direction'] == 'DOWNTREND'
 neu  = ~(up | dn)
-ax.fill_between(dates, df['ma_40'], df['ma_200'], where=up,  color='#1a6632', alpha=0.22, linewidth=0)
-ax.fill_between(dates, df['ma_40'], df['ma_200'], where=dn,  color='#661a1a', alpha=0.22, linewidth=0)
-ax.fill_between(dates, df['ma_40'], df['ma_200'], where=neu, color='#333355', alpha=0.15, linewidth=0)
+ax.fill_between(dates, df['ma_10'], df['ma_108'], where=up,  color='#1a6632', alpha=0.22, linewidth=0)
+ax.fill_between(dates, df['ma_10'], df['ma_108'], where=dn,  color='#661a1a', alpha=0.22, linewidth=0)
+ax.fill_between(dates, df['ma_10'], df['ma_108'], where=neu, color='#333355', alpha=0.15, linewidth=0)
 
 # Individual MA lines
 for col in [f'ma_{p}' for p in MA_PERIODS]:
     if col in df.columns:
-        lw    = 1.0 if col in ('ma_40', 'ma_200') else 0.5
-        color = '#4a9eff' if col == 'ma_200' else '#666666'
+        lw    = 1.0 if col in ('ma_10', 'ma_108') else 0.5
+        color = '#4a9eff' if col == 'ma_108' else '#666666'
         ax.plot(dates, df[col], color=color, linewidth=lw, alpha=0.5)
 
 # Candlesticks
@@ -113,14 +113,14 @@ def mark(sdf, y_col, marker, color, offset_pct, tag):
                     bbox=dict(boxstyle='round,pad=0.2', fc='#0d1117',
                               ec=color, lw=0.8, alpha=0.9))
 
-mark(p1_buy,     'Low',  '^', '#00e676', -0.026, 'P1 BUY')
-mark(p2_buy,     'Low',  '^', '#69f0ae', -0.022, 'P2 BUY')
-mark(p3_buy,     'Low',  '^', '#a5d6a7', -0.019, 'P3 BUY')
-mark(sec_buy,    'Low',  '^', '#c8e6c9', -0.016, 'SEC BUY')
-mark(p1_sell,    'High', 'v', '#ff1744',  0.026, 'P1 SELL')
-mark(p2_sell,    'High', 'v', '#ff6e40',  0.022, 'P2 SELL')
-mark(p4_sell,    'High', 'v', '#ff8a65',  0.019, 'P4 SELL')
-mark(sec_sell,   'High', 'v', '#ffccbc',  0.016, 'SEC SELL')
+mark(bp1,        'Low',  '^', '#00e676', -0.026, 'BP1')
+mark(bp2,        'Low',  '^', '#a5d6a7', -0.022, 'BP2')
+mark(bp3,        'Low',  '^', '#69f0ae', -0.019, 'BP3')
+mark(bp4,        'Low',  '^', '#c8e6c9', -0.016, 'BP4')
+mark(sp1,        'High', 'v', '#ff1744',  0.026, 'SP1')
+mark(sp2,        'High', 'v', '#ff8a65',  0.022, 'SP2')
+mark(sp3,        'High', 'v', '#ff6e40',  0.019, 'SP3')
+mark(sp4,        'High', 'v', '#ffccbc',  0.016, 'SP4')
 
 # Compression breakout watch — diamond marker
 if not comp_watch.empty:
@@ -147,24 +147,24 @@ ax.grid(color='#1e2329', linewidth=0.5, linestyle='--', alpha=0.6)
 
 # Legend
 handles = [
-    Line2D([0],[0], marker='^', color='w', markerfacecolor='#00e676', markersize=10, linestyle='None', label='P1 BUY — Trend reversal (incl. via neutral)'),
-    Line2D([0],[0], marker='^', color='w', markerfacecolor='#69f0ae', markersize=10, linestyle='None', label='P2 BUY — 200 MA bounce'),
-    Line2D([0],[0], marker='^', color='w', markerfacecolor='#a5d6a7', markersize=10, linestyle='None', label='P3 BUY — Small MA pullback'),
-    Line2D([0],[0], marker='^', color='w', markerfacecolor='#c8e6c9', markersize=9,  linestyle='None', label='SEC BUY'),
-    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff1744', markersize=10, linestyle='None', label='P1 SELL — Trend reversal (incl. via neutral)'),
-    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff6e40', markersize=10, linestyle='None', label='P2 SELL — 200 MA rejection'),
-    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff8a65', markersize=10, linestyle='None', label='P4 SELL — Small MA rejection'),
-    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ffccbc', markersize=9,  linestyle='None', label='SEC SELL'),
+    Line2D([0],[0], marker='^', color='w', markerfacecolor='#00e676', markersize=10, linestyle='None', label='BP1 — Trend reversal (ribbon cross)'),
+    Line2D([0],[0], marker='^', color='w', markerfacecolor='#a5d6a7', markersize=10, linestyle='None', label='BP2 — Fast MA pullback (10–66)'),
+    Line2D([0],[0], marker='^', color='w', markerfacecolor='#69f0ae', markersize=10, linestyle='None', label='BP3 — MA108 bounce'),
+    Line2D([0],[0], marker='^', color='w', markerfacecolor='#c8e6c9', markersize=9,  linestyle='None', label='BP4 — Key level bounce'),
+    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff1744', markersize=10, linestyle='None', label='SP1 — Trend reversal (ribbon cross)'),
+    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff8a65', markersize=10, linestyle='None', label='SP2 — Fast MA rejection (10–66)'),
+    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ff6e40', markersize=10, linestyle='None', label='SP3 — MA108 rejection'),
+    Line2D([0],[0], marker='v', color='w', markerfacecolor='#ffccbc', markersize=9,  linestyle='None', label='SP4 — Key level rejection'),
     Line2D([0],[0], marker='D', color='w', markerfacecolor='#ffd740', markersize=8,  linestyle='None', label='Ribbon expansion breakout'),
-    Line2D([0],[0], color='#4a9eff', linewidth=1.5, label='200 SMA'),
+    Line2D([0],[0], color='#4a9eff', linewidth=1.5, label='MA108'),
 ]
 ax.legend(handles=handles, loc='upper left', facecolor='#161b22',
           edgecolor='#333333', labelcolor='#cccccc', fontsize=8, framealpha=0.9)
 
 # Signal count summary
 counts = {
-    'P1 BUY': len(p1_buy), 'P2 BUY': len(p2_buy), 'P3 BUY': len(p3_buy),
-    'P1 SELL': len(p1_sell), 'P2 SELL': len(p2_sell), 'P4 SELL': len(p4_sell),
+    'BP1': len(bp1), 'BP2': len(bp2), 'BP3': len(bp3), 'BP4': len(bp4),
+    'SP1': len(sp1), 'SP2': len(sp2), 'SP3': len(sp3), 'SP4': len(sp4),
 }
 summary = '  |  '.join(f'{k}: {v}' for k, v in counts.items())
 fig.text(0.5, 0.005, summary, ha='center', color='#888888', fontsize=8.5)
@@ -177,7 +177,7 @@ plt.savefig(out, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
 print(f'Saved → {out}')
 
 # Signal table
-sigs = df[df['primary_signal'].isin(['P1','P2','P3','P4'])][
+sigs = df[df['primary_signal'].isin(['BP1','SP1','BP2','SP2','BP3','SP3','BP4','SP4'])][
     ['Close','trend_direction','primary_signal','signal_confidence','confirmation_status']
 ].copy()
 sigs.index = sigs.index.date

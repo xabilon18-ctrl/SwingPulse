@@ -378,8 +378,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
         # ── MONTHLY ──
         # Use only MA periods that fit within the available monthly bar count.
-        # 16 years of daily data ≈ 192 monthly bars → covers ma_40–ma_190 fully.
-        # ma_200 requires 200 bars so it's excluded; graceful clipping handles this.
+        # 16 years of daily data ≈ 192 monthly bars → covers ma_10–ma_108 fully.
+        # Graceful clipping handles any periods that exceed available bar count.
         mo = _resample(ohlcv, 'ME')
         monthly_data = {}
         monthly_ma_periods = [p for p in MA_PERIODS if p <= len(mo)]
@@ -430,8 +430,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
 def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
     """
-    Scan backwards from today's row to find the most recent primary or
-    secondary signal while the trend direction hasn't changed.
+    Scan backwards from today's row to find the most recent primary
+    signal while the trend direction hasn't changed.
 
     Returns dict with last_signal_type, last_signal_date, last_signal_days_ago.
     """
@@ -455,8 +455,6 @@ def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
             break
 
         sig = row.get('primary_signal', '')
-        if not sig:
-            sig = row.get('secondary_signal', '')
         if sig:
             sig_date = target.index[i].date()
             days_ago = end_idx - i

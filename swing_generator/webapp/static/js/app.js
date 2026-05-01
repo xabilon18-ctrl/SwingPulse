@@ -212,7 +212,6 @@
     const trend  = (item[f('trend_direction')]    || '').toLowerCase();
     const volSpk = item[f('volume_spike_flag')]   === 'yes';
     const squeeze= item[f('ribbon_compression')]  === 'yes';
-    const sec    = item[f('secondary_signal')]    || '';
     const sigConf= (item[f('signal_confidence')] || '').toLowerCase();
 
     if (sig) score += 3;
@@ -222,7 +221,6 @@
     if (isFastMa(sig)) score += 2;
     if (sigConf === 'high') score += 1;
     if (squeeze) score += 1;
-    if (sec)     score += 1;
     if ((conf.includes('buy')  && trend === 'uptrend')  ||
         (conf.includes('sell') && trend === 'downtrend')) score += 1;
     return score;
@@ -299,8 +297,8 @@
       const sell     = isSell(item);
       const dir      = buy ? 'buy' : sell ? 'sell' : 'neutral';
       const sig      = item[f('primary_signal')] || '';
-      const sigType  = ALL_SIGNAL_CODES.includes(sig) ? sig : 'SEC';
-      const sigBadge = `badge-${sigClass(sig) || 'secondary'}`;
+      const sigType  = ALL_SIGNAL_CODES.includes(sig) ? sig : '';
+      const sigBadge = `badge-${sigClass(sig)}`;
       const price    = parseFloat(item[f('close')] || item.close) || 0;
       const priceStr = price === 0 ? '--' : price >= 1000
         ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -493,8 +491,6 @@
     const trendCounts = {};
     let buyCount = 0, sellCount = 0, watchCount = 0, volumeSpikes = 0;
     const signalTypes = {};
-    let secondaryCount = 0;
-
     data.forEach(item => {
       const trend = item[f('trend_direction')] || 'NEUTRAL';
       trendCounts[trend] = (trendCounts[trend] || 0) + 1;
@@ -508,7 +504,6 @@
 
       const sig = item[f('primary_signal')] || '';
       if (sig) signalTypes[sig] = (signalTypes[sig] || 0) + 1;
-      if (item[f('secondary_signal')]) secondaryCount++;
     });
 
     return {
@@ -521,7 +516,6 @@
       watch_count: watchCount,
       volume_spikes: volumeSpikes,
       signal_types: signalTypes,
-      secondary_count: secondaryCount,
       groups: summaryData.groups || [],
     };
   }
@@ -800,29 +794,27 @@
   }
 
   // ── Signal code helpers (BP/SP system) ─────────────────────────────
-  // Map any signal code (old P or new BP/SP) to a CSS class suffix and priority.
   function sigClass(code) {
     if (!code) return '';
-    if (code === 'BP1' || code === 'SP1' || code === 'P1') return 'p1';
-    if (code === 'BP3' || code === 'SP3' || code === 'P2') return 'p2';
-    if (code === 'BP2' || code === 'SP2' || code === 'P3' || code === 'P4') return 'p3';
+    if (code === 'BP1' || code === 'SP1') return 'p1';
+    if (code === 'BP3' || code === 'SP3') return 'p2';
+    if (code === 'BP2' || code === 'SP2') return 'p3';
     if (code === 'BP4' || code === 'SP4') return 'p4';
     return '';
   }
   function sigPriority(code) {
-    if (code === 'BP1' || code === 'SP1' || code === 'P1') return 1;
-    if (code === 'BP3' || code === 'SP3' || code === 'P2') return 2;
-    if (code === 'BP2' || code === 'SP2' || code === 'P3') return 3;
-    if (code === 'BP4' || code === 'SP4' || code === 'P4') return 4;
+    if (code === 'BP1' || code === 'SP1') return 1;
+    if (code === 'BP3' || code === 'SP3') return 2;
+    if (code === 'BP2' || code === 'SP2') return 3;
+    if (code === 'BP4' || code === 'SP4') return 4;
     return 5;
   }
-  function isReversal(code) { return code === 'BP1' || code === 'SP1' || code === 'P1'; }
-  function isLongestMa(code) { return code === 'BP3' || code === 'SP3' || code === 'P2'; }
-  function isFastMa(code)    { return code === 'BP2' || code === 'SP2' || code === 'P3' || code === 'P4'; }
+  function isReversal(code) { return code === 'BP1' || code === 'SP1'; }
+  function isLongestMa(code) { return code === 'BP3' || code === 'SP3'; }
+  function isFastMa(code)    { return code === 'BP2' || code === 'SP2'; }
   function isKeyLevel(code)  { return code === 'BP4' || code === 'SP4'; }
 
-  // All current signal codes (BP1/SP1/BP2/SP2/BP3/SP3/BP4/SP4) plus legacy P1-P4
-  const ALL_SIGNAL_CODES = ['BP1','SP1','BP2','SP2','BP3','SP3','BP4','SP4','P1','P2','P3','P4'];
+  const ALL_SIGNAL_CODES = ['BP1','SP1','BP2','SP2','BP3','SP3','BP4','SP4'];
 
   function isBuy(item) {
     return (item[f('confirmation_status')] || '').toLowerCase().includes('buy');
@@ -1148,15 +1140,11 @@
       return sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
     });
 
-    // Update filter chips with dot indicator (legacy P1/P2 chip ids still work)
-    ['P1','P2'].forEach(sig => {
+    // Update filter chips with dot indicator
+    ALL_SIGNAL_CODES.forEach(sig => {
       const chip = document.querySelector(`.sig-chip[data-filter="${sig}"]`);
       if (!chip) return;
-      const isReversalChip = sig === 'P1';
-      const hasIt = allData.some(d => {
-        const s = d[f('primary_signal')];
-        return isReversalChip ? isReversal(s) : isLongestMa(s);
-      });
+      const hasIt = allData.some(d => d[f('primary_signal')] === sig);
       chip.classList.toggle('has-signals', hasIt);
     });
 
@@ -1256,10 +1244,10 @@
     container.innerHTML = `
       <div style="font-size:.72rem;font-weight:700;padding:4px 0;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">${levelLabels[activeConfLevel]} (${items.length})</div>
       ${items.map(item => {
-        const sig = item[f('primary_signal')] || item[f('secondary_signal')] || '';
+        const sig = item[f('primary_signal')] || '';
         const buy = isBuy(item);
         const sell = isSell(item);
-        const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig) || 'secondary'}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
+        const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig)}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
         return `<div class="conf-inst-row" data-act="openModal" data-arg="${item.instrument_name}">
           <span style="font-weight:600">${item.instrument_name} ${sigBadge}</span>
           <span style="color:var(--text-muted)">${item.group || ''}</span>
@@ -1658,7 +1646,7 @@
       const cls = signalClass(item);
       const hmCls = 'hm-' + cls;
       const primary = item[f('primary_signal')] ? 'hm-primary' : '';
-      const sig = item[f('primary_signal')] || (item[f('secondary_signal')] ? 'SEC' : '');
+      const sig = item[f('primary_signal')] || '';
       const watch = isWatch(item) ? 'hm-watch' : '';
       const finalCls = watch && cls === 'neutral' ? 'hm-watch' : hmCls;
       const alignColor = (item.tf_alignment || '').includes('Bull') ? 'var(--buy)' : (item.tf_alignment || '').includes('Bear') ? 'var(--sell)' : 'var(--watch)';
@@ -1687,7 +1675,7 @@
   // ── Signal Feed (Dashboard) ──────────────────────────────────────────
   function renderSignalFeed() {
     const feed = document.getElementById('signalFeed');
-    const signaled = allData.filter(d => d[f('primary_signal')] || d[f('secondary_signal')]);
+    const signaled = allData.filter(d => d[f('primary_signal')]);
 
     if (!signaled.length) {
       feed.innerHTML = '<div class="feed-empty">No active signals today</div>';
@@ -1698,8 +1686,8 @@
 
     feed.innerHTML = signaled.map(item => {
       const buy = isBuy(item);
-      const sig = item[f('primary_signal')] || 'SEC';
-      let badgeCls = 'badge-secondary';
+      const sig = item[f('primary_signal')];
+      let badgeCls = '';
       const sCls = sigClass(sig);
       if (sCls) {
         badgeCls = buy ? `badge-${sCls}` : (sCls === 'p1' ? 'badge-sell-p1' : 'badge-sell-p2');
@@ -1962,11 +1950,6 @@
       SP3: 'rejection at MA108 (longest) in downtrend',
       BP4: 'support bounce at key level in uptrend',
       SP4: 'rejection at key level in downtrend',
-      // Legacy aliases (until next data refresh)
-      P1: 'trend reversal — full ribbon cross',
-      P2: 'longest MA bounce/rejection',
-      P3: 'fast-MA pullback entry',
-      P4: 'fast-MA rejection short',
     };
     const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
@@ -1993,7 +1976,6 @@
     if (!search) {
     if (activeSignalFilter === 'buy')       filtered = filtered.filter(isBuy);
     else if (activeSignalFilter === 'sell') filtered = filtered.filter(isSell);
-    else if (activeSignalFilter === 'secondary') filtered = filtered.filter(d => d[f('secondary_signal')]);
     else if (activeSignalFilter === 'squeeze')   filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
     else if (activeSignalFilter === 'today') {
       filtered = filtered.filter(d => {
@@ -2012,6 +1994,7 @@
         return goodConf && (alignedBull || alignedBear);
       });
     } else if (activeSignalFilter !== 'all') {
+      // Match exact signal code (e.g. BP1, SP2)
       filtered = filtered.filter(d => d[f('primary_signal')] === activeSignalFilter);
     }
     } // end !search chip-filter block
@@ -2101,7 +2084,7 @@
 
     list.innerHTML = withPct.map(({ item, pct }, i) => {
       const trend = item[f('trend_direction')] || 'NEUTRAL';
-      const sig = item[f('primary_signal')] || item[f('secondary_signal')] || '';
+      const sig = item[f('primary_signal')] || '';
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
       const conf = item[f('signal_confidence')] || '';
@@ -2120,7 +2103,7 @@
       const stripCls = sig ? (isBuyItem ? 'strip-buy' : 'strip-sell') : '';
       const stripLabel = sig ? (isBuyItem ? 'BUY ' + sig + confLabel : 'SELL ' + sig + confLabel) : '';
 
-      const sigBadgeCls = sigClass(sig) || 'secondary';
+      const sigBadgeCls = sigClass(sig);
       const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const alignBadge = align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '';
       const maBarColor = maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)';
@@ -2412,7 +2395,7 @@
     const starred = allData.filter(d => userStarred.has(d.instrument_name));
 
     // Stats bar
-    const withSignal = starred.filter(d => d[f('primary_signal')] || d[f('secondary_signal')]).length;
+    const withSignal = starred.filter(d => d[f('primary_signal')]).length;
     const upCount    = starred.filter(d => d[f('trend_direction')] === 'UPTREND').length;
     if (statsEl) {
       statsEl.innerHTML = starred.length
@@ -2435,7 +2418,7 @@
     let filtered = starred;
     if (wlFilter === 'buy')     filtered = filtered.filter(isBuy);
     else if (wlFilter === 'sell')    filtered = filtered.filter(isSell);
-    else if (wlFilter === 'signal')  filtered = filtered.filter(d => !!(d[f('primary_signal')] || d[f('secondary_signal')]));
+    else if (wlFilter === 'signal')  filtered = filtered.filter(d => !!(d[f('primary_signal')]));
     else if (wlFilter === 'uptrend') filtered = filtered.filter(d => d[f('trend_direction')] === 'UPTREND');
 
     // Sort
@@ -2462,7 +2445,7 @@
 
     listEl.innerHTML = filtered.map(item => {
       const t    = item[f('trend_direction')] || 'NEUTRAL';
-      const sig  = item[f('primary_signal')] || item[f('secondary_signal')] || '';
+      const sig  = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
       const buy  = isBuy(item), sell = isSell(item);
       const roc  = parseFloat(item[f('roc')]);
@@ -2581,7 +2564,7 @@
     trackOverlay.addEventListener('click', e => { if (e.target === trackOverlay) closeTrackSheet(); });
   }
 
-  let trSheetFilter = 'all';   // 'all' | 'P1' | 'P2' | 'P3' | 'P4'
+  let trSheetFilter = 'all';   // 'all' | 'BP1' | 'SP1' | 'BP2' | 'SP2' | 'BP3' | 'SP3' | 'BP4' | 'SP4'
 
   function renderTrackRecordSheet() {
     if (!backtestData || !trackBody) return;
@@ -2736,7 +2719,7 @@
     const existingNote= (instrumentNotes[name] || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const buy = isBuy(item);
     const sell = isSell(item);
-    const sig = item[f('primary_signal')] || item[f('secondary_signal')] || '';
+    const sig = item[f('primary_signal')] || '';
     const conf = item[f('signal_confidence')] || '';
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const levels = parseKeyLevels(item.key_levels_all);

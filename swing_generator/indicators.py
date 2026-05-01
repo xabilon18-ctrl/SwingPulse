@@ -18,7 +18,7 @@ from config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_T
 def add_ma_ribbon(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     """
     Add one SMA column per period in ma_periods.
-    Columns named: ma_40, ma_50, ... ma_200 (or whatever periods are given).
+    Columns named: ma_10, ma_17, ... ma_108 (or whatever periods are given).
     """
     periods = ma_periods or MA_PERIODS
     for period in periods:

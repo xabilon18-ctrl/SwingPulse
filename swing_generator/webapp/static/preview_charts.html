@@ -254,10 +254,10 @@
 <script>
 // ── Mock data ──────────────────────────────────────────────
 const mockSignals = {
-  P1: { buy: 0, sell: 0 },
-  P2: { buy: 5, sell: 2 },
-  P3: { buy: 3, sell: 1 },
-  P4: { buy: 1, sell: 10 },
+  Reversal: { buy: 0, sell: 0 },
+  LongMA: { buy: 5, sell: 2 },
+  FastMA: { buy: 3, sell: 1 },
+  KeyLvl: { buy: 1, sell: 10 },
 };
 
 const mockSectors = [
@@ -285,13 +285,13 @@ const mockSectors = [
 // ── Signal Breakdown Chart ─────────────────────────────────
 const sigCtx = document.getElementById('sigChart').getContext('2d');
 
-const buyData  = ['P1','P2','P3','P4'].map(k => mockSignals[k].buy);
-const sellData = ['P1','P2','P3','P4'].map(k => mockSignals[k].sell);
+const buyData  = ['Reversal','LongMA','FastMA','KeyLvl'].map(k => mockSignals[k].buy);
+const sellData = ['Reversal','LongMA','FastMA','KeyLvl'].map(k => mockSignals[k].sell);
 
 const sigChart = new Chart(sigCtx, {
   type: 'bar',
   data: {
-    labels: ['P1','P2','P3','P4'],
+    labels: ['Reversal','LongMA','FastMA','KeyLvl'],
     datasets: [
       {
         label: 'Buy',
@@ -347,7 +347,7 @@ const sigChart = new Chart(sigCtx, {
     },
     onClick(e, els) {
       if (!els.length) return;
-      const label = ['P1','P2','P3','P4'][els[0].index];
+      const label = ['Reversal','LongMA','FastMA','KeyLvl'][els[0].index];
       const dataset = els[0].datasetIndex === 0 ? 'Buy' : 'Sell';
       const info = document.getElementById('sigInfo');
       info.innerHTML = `<span class="sig-active-info">→ Signals tab filtered: ${dataset} ${label}</span>`;
