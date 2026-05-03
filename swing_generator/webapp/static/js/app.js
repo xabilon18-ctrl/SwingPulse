@@ -3579,38 +3579,32 @@
     });
   }
 
+  function getTradeSignalInfo(trade) {
+    // Check if the trade's notes mention a signal code
+    const notes = trade.notes || '';
+    const sigMatch = notes.match(/\b(BP[1-4]|SP[1-4])\b/);
+    const signal = sigMatch ? sigMatch[1] : null;
+    // Also check if a signal existed for the instrument at trade open
+    const item = allData.find(d => d.instrument_name === trade.instrument_name);
+    const liveSignal = item ? (item[f('primary_signal')] || '') : '';
+    return { signal, liveSignal, aligned: !!signal, item };
+  }
+
   function renderPortfolioStats() {
-    const statsGrid = document.getElementById('pfStatsGrid');
-    const alignCard = document.getElementById('pfAlignCard');
-    const alignGrid = document.getElementById('pfAlignGrid');
-    if (!statsGrid) return;
+    const acctEl = document.getElementById('pfAcctSummary');
+    const pillsEl = document.getElementById('pfStatsPills');
+    const perfEl = document.getElementById('pfPerfGrid');
+    const countEl = document.getElementById('openTradeCount');
+    if (!acctEl) return;
 
-    const periodTrades = filterByPeriod(closedTrades, pfPeriod);
-    const total = periodTrades.length;
-    const wins = periodTrades.filter(t => t.pnl_pct > 0).length;
-    const losses = periodTrades.filter(t => t.pnl_pct < 0).length;
-    const winRate = total ? Math.round(wins / total * 100) : 0;
-    const totalPnl = periodTrades.reduce((s, t) => s + (t.pnl_pct || 0), 0);
-    const avgPnl = total ? totalPnl / total : 0;
-
-    // R-multiple stats
-    const withR = periodTrades.filter(t => t.r_multiple != null);
-    const totalR = withR.reduce((s, t) => s + t.r_multiple, 0);
-    const avgR = withR.length ? totalR / withR.length : null;
-
-    // Signal alignment: check if trade had a signal at entry
-    const aligned = periodTrades.filter(t => t.notes && /BP[1-4]|SP[1-4]/.test(t.notes));
-    const offSystem = periodTrades.filter(t => !t.notes || !/BP[1-4]|SP[1-4]/.test(t.notes));
-    const alignedWins = aligned.filter(t => t.pnl_pct > 0).length;
-    const offWins = offSystem.filter(t => t.pnl_pct > 0).length;
-    const alignedWinRate = aligned.length ? Math.round(alignedWins / aligned.length * 100) : 0;
-    const offWinRate = offSystem.length ? Math.round(offWins / offSystem.length * 100) : 0;
-
-    // Open trades summary
-    const openCount = openTrades.length;
+    // Compute open trade stats
     let floatingPnl = 0;
+    let alignedCount = 0;
+    let offSystemCount = 0;
     openTrades.forEach(trade => {
-      const liveItem = allData.find(d => d.instrument_name === trade.instrument_name);
+      const info = getTradeSignalInfo(trade);
+      if (info.aligned) alignedCount++; else offSystemCount++;
+      const liveItem = info.item;
       const livePrice = liveItem ? parseFloat(liveItem[f('close')]) || 0 : 0;
       if (trade.open_price > 0 && livePrice > 0) {
         let pnl = (livePrice - trade.open_price) / trade.open_price * 100;
@@ -3619,55 +3613,90 @@
       }
     });
 
-    const periodLabel = pfPeriod === 'all' ? 'All Time' : pfPeriod === 'month' ? 'This Month' : pfPeriod === 'quarter' ? 'This Quarter' : 'This Year';
+    // Closed trade stats for period
+    const periodTrades = filterByPeriod(closedTrades, pfPeriod);
+    const total = periodTrades.length;
+    const wins = periodTrades.filter(t => t.pnl_pct > 0).length;
+    const winRate = total ? Math.round(wins / total * 100) : 0;
 
-    statsGrid.innerHTML = `
-      <div class="pf-stat-tile">
-        <span class="pf-stat-val" style="color:var(--buy)">${openCount}</span>
-        <span class="pf-stat-lbl">Open</span>
+    // Signal alignment stats from closed trades
+    const closedAligned = periodTrades.filter(t => t.notes && /BP[1-4]|SP[1-4]/.test(t.notes));
+    const closedOff = periodTrades.filter(t => !t.notes || !/BP[1-4]|SP[1-4]/.test(t.notes));
+    const alignedWinRate = closedAligned.length ? Math.round(closedAligned.filter(t => t.pnl_pct > 0).length / closedAligned.length * 100) : 0;
+    const offWinRate = closedOff.length ? Math.round(closedOff.filter(t => t.pnl_pct > 0).length / closedOff.length * 100) : 0;
+    const alignedPnl = closedAligned.reduce((s, t) => s + (t.pnl_pct || 0), 0);
+    const offPnl = closedOff.reduce((s, t) => s + (t.pnl_pct || 0), 0);
+
+    // Account summary (stored in localStorage)
+    const acct = JSON.parse(localStorage.getItem(sk('sp-account')) || '{}');
+
+    acctEl.innerHTML = `
+      <div class="pf-acct-title">XM Account${acct.id ? ' · ' + acct.id : ''}</div>
+      <div class="pf-acct-grid">
+        <div>
+          <div class="pf-acct-label">Equity</div>
+          <div class="pf-acct-val pf-acct-equity">${acct.equity ? 'R' + Number(acct.equity).toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
+        </div>
+        <div>
+          <div class="pf-acct-label">Floating P/L</div>
+          <div class="pf-acct-val ${floatingPnl >= 0 ? 'pf-acct-pos' : 'pf-acct-neg'}">${floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}%</div>
+        </div>
+        <div>
+          <div class="pf-acct-label">Balance</div>
+          <div class="pf-acct-val">${acct.balance ? 'R' + Number(acct.balance).toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
+        </div>
+        <div>
+          <div class="pf-acct-label">Open Trades</div>
+          <div class="pf-acct-val">${openTrades.length}</div>
+        </div>
       </div>
-      <div class="pf-stat-tile">
-        <span class="pf-stat-val ${floatingPnl >= 0 ? 'pf-pos' : 'pf-neg'}">${floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}%</span>
-        <span class="pf-stat-lbl">Floating</span>
-      </div>
-      <div class="pf-stat-tile">
-        <span class="pf-stat-val">${total}</span>
-        <span class="pf-stat-lbl">${periodLabel}</span>
-      </div>
-      <div class="pf-stat-tile">
-        <span class="pf-stat-val ${winRate >= 50 ? 'pf-pos' : 'pf-neg'}">${winRate}%</span>
-        <span class="pf-stat-lbl">${wins}W / ${losses}L</span>
-      </div>
-      <div class="pf-stat-tile">
-        <span class="pf-stat-val ${avgPnl >= 0 ? 'pf-pos' : 'pf-neg'}">${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%</span>
-        <span class="pf-stat-lbl">Avg P/L</span>
-      </div>
-      ${avgR !== null ? `<div class="pf-stat-tile">
-        <span class="pf-stat-val ${avgR >= 0 ? 'pf-pos' : 'pf-neg'}">${avgR > 0 ? '+' : ''}${avgR.toFixed(2)}R</span>
-        <span class="pf-stat-lbl">Avg R · ${totalR > 0 ? '+' : ''}${totalR.toFixed(1)}R total</span>
-      </div>` : `<div class="pf-stat-tile">
-        <span class="pf-stat-val" style="color:var(--text-muted)">--</span>
-        <span class="pf-stat-lbl">Avg R</span>
-      </div>`}
     `;
 
-    // Signal alignment breakdown
-    if (total > 0 && alignCard && alignGrid) {
-      alignCard.style.display = '';
-      const alignedPnl = aligned.reduce((s, t) => s + (t.pnl_pct || 0), 0);
-      const offPnl = offSystem.reduce((s, t) => s + (t.pnl_pct || 0), 0);
-      alignGrid.innerHTML = `
-        <div class="pf-align-item">
-          <span class="pf-align-label" style="color:var(--buy)">Signal-Aligned</span>
-          <span class="pf-align-stat">${aligned.length} trades · ${alignedWinRate}% win · ${alignedPnl >= 0 ? '+' : ''}${alignedPnl.toFixed(2)}%</span>
+    // Stats Pills
+    pillsEl.innerHTML = `
+      <div class="pf-pill">
+        <div class="pf-pill-num" style="color:var(--buy)">${openTrades.length}</div>
+        <div class="pf-pill-lbl">Open</div>
+      </div>
+      <div class="pf-pill">
+        <div class="pf-pill-num">${alignedCount}</div>
+        <div class="pf-pill-lbl">Aligned</div>
+      </div>
+      <div class="pf-pill">
+        <div class="pf-pill-num" style="color:${offSystemCount > 0 ? 'var(--sell)' : 'inherit'}">${offSystemCount}</div>
+        <div class="pf-pill-lbl">Off-System</div>
+      </div>
+      <div class="pf-pill">
+        <div class="pf-pill-num" style="color:${winRate >= 50 ? 'var(--buy)' : winRate > 0 ? 'var(--sell)' : 'inherit'}">${total ? winRate + '%' : '--'}</div>
+        <div class="pf-pill-lbl">Win Rate</div>
+      </div>
+    `;
+
+    // Open trade count badge
+    if (countEl) countEl.textContent = openTrades.length ? openTrades.length + ' Active' : '';
+
+    // Performance grid (only show if there are closed trades)
+    if (total > 0 && perfEl) {
+      perfEl.innerHTML = `
+        <div class="pf-perf-card">
+          <div class="pf-perf-val" style="color:${alignedWinRate >= 50 ? 'var(--buy)' : 'var(--sell)'}">${closedAligned.length ? alignedWinRate + '%' : '--'}</div>
+          <div class="pf-perf-lbl">Signal Win Rate</div>
         </div>
-        <div class="pf-align-item">
-          <span class="pf-align-label" style="color:var(--sell)">Off-System</span>
-          <span class="pf-align-stat">${offSystem.length} trades · ${offWinRate}% win · ${offPnl >= 0 ? '+' : ''}${offPnl.toFixed(2)}%</span>
+        <div class="pf-perf-card">
+          <div class="pf-perf-val" style="color:${offWinRate >= 50 ? 'var(--buy)' : 'var(--sell)'}">${closedOff.length ? offWinRate + '%' : '--'}</div>
+          <div class="pf-perf-lbl">Off-System Win Rate</div>
+        </div>
+        <div class="pf-perf-card">
+          <div class="pf-perf-val" style="color:${alignedPnl >= 0 ? 'var(--buy)' : 'var(--sell)'}">${alignedPnl >= 0 ? '+' : ''}${alignedPnl.toFixed(2)}%</div>
+          <div class="pf-perf-lbl">Signal P/L</div>
+        </div>
+        <div class="pf-perf-card">
+          <div class="pf-perf-val" style="color:${offPnl >= 0 ? 'var(--buy)' : 'var(--sell)'}">${offPnl >= 0 ? '+' : ''}${offPnl.toFixed(2)}%</div>
+          <div class="pf-perf-lbl">Off-System P/L</div>
         </div>
       `;
-    } else if (alignCard) {
-      alignCard.style.display = 'none';
+    } else if (perfEl) {
+      perfEl.innerHTML = '';
     }
   }
 
@@ -3702,68 +3731,105 @@
     }
 
     listEl.innerHTML = openTrades.map(trade => {
-      const liveItem   = allData.find(d => d.instrument_name === trade.instrument_name);
+      const info       = getTradeSignalInfo(trade);
+      const liveItem   = info.item;
       const livePrice  = liveItem ? parseFloat(liveItem[f('close')]) || 0 : 0;
       const side       = trade.side || 'long';
-      let pnlPct = null, currentR = null;
+      const isLong     = side === 'long';
+
+      // P/L calc
+      let pnlPct = null, currentR = null, pnlDisplay = '—';
       if (trade.open_price > 0 && livePrice > 0) {
         pnlPct = (livePrice - trade.open_price) / trade.open_price * 100;
-        if (side === 'short') pnlPct = -pnlPct;
+        if (!isLong) pnlPct = -pnlPct;
         if (trade.stop_loss && trade.stop_loss !== trade.open_price) {
           const risk = Math.abs(trade.open_price - trade.stop_loss);
-          const move = side === 'long'
+          const move = isLong
             ? (livePrice - trade.open_price)
             : (trade.open_price - livePrice);
           currentR = move / risk;
         }
+        const sign = pnlPct >= 0 ? '+' : '';
+        pnlDisplay = currentR !== null
+          ? `${currentR > 0 ? '+' : ''}${currentR.toFixed(2)}R`
+          : `${sign}${pnlPct.toFixed(2)}%`;
       }
-      const pnlStr = pnlPct !== null
-        ? `<span class="trade-pnl ${pnlPct >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>`
-        : '';
-      const rStr = currentR !== null
-        ? `<span class="trade-r ${currentR >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg'}">${currentR > 0 ? '+' : ''}${currentR.toFixed(2)}R</span>`
-        : '';
-      const sideTag = `<span class="trade-side-tag side-${side}">${side === 'long' ? '▲ Long' : '▼ Short'}</span>`;
-      const trend = liveItem ? (liveItem[f('trend_direction')] || '') : '';
-      const trendBadge = trend ? `<span class="scanner-tag ${trendTag(trend)}" style="font-size:.6rem">${trend}</span>` : '';
+      const pnlClass = pnlPct !== null ? (pnlPct >= 0 ? 'pf-pos-pnl-pos' : 'pf-pos-pnl-neg') : '';
 
-      // Plan row: stop / target with R:R
-      let planRow = '';
+      // Date label
+      const dateLabel = trade.open_date || '';
+      const shortDate = dateLabel.length > 6 ? dateLabel.slice(5) : dateLabel;
+
+      // Lot / position size
+      const lotLabel = trade.position_size ? `${trade.position_size} lot` : '';
+      const subLine  = [lotLabel, shortDate].filter(Boolean).join(' · ');
+
+      // Signal alignment
+      let signalTags = '';
+      if (info.signal) {
+        const isBuy = info.signal.startsWith('BP');
+        const alignedWithSide = (isBuy && isLong) || (!isBuy && !isLong);
+        signalTags += `<span class="pf-signal-tag sig">${info.signal}</span>`;
+        signalTags += alignedWithSide
+          ? `<span class="pf-signal-tag aligned">✓ Aligned</span>`
+          : `<span class="pf-signal-tag conflict">✗ Conflict</span>`;
+      } else {
+        signalTags += `<span class="pf-signal-tag neutral">No Signal</span>`;
+      }
+      // Notes excerpt for signal row
+      const noteExcerpt = trade.notes
+        ? `<span class="pf-signal-note">${trade.notes.length > 60 ? trade.notes.slice(0, 57) + '…' : trade.notes}</span>`
+        : '';
+
+      // SL/TP row
+      let planInfo = '';
       if (trade.stop_loss || trade.take_profit) {
-        const riskPct = trade.stop_loss ? Math.abs((trade.stop_loss - trade.open_price) / trade.open_price * 100) : 0;
-        const rwdPct  = trade.take_profit ? Math.abs((trade.take_profit - trade.open_price) / trade.open_price * 100) : 0;
-        const rr = (riskPct > 0 && rwdPct > 0) ? (rwdPct / riskPct).toFixed(2) : null;
-        planRow = `<div class="trade-plan-row">
-          ${trade.stop_loss ? `<span class="plan-pill plan-stop">SL ${formatPrice(trade.stop_loss)}<span class="plan-pct">-${riskPct.toFixed(2)}%</span></span>` : ''}
-          ${trade.take_profit ? `<span class="plan-pill plan-target">TP ${formatPrice(trade.take_profit)}<span class="plan-pct">+${rwdPct.toFixed(2)}%</span></span>` : ''}
-          ${rr ? `<span class="plan-pill plan-rr">${rr}:1 R</span>` : ''}
-        </div>`;
+        const parts = [];
+        if (trade.stop_loss) parts.push(`SL ${formatPrice(trade.stop_loss)}`);
+        if (trade.take_profit) parts.push(`TP ${formatPrice(trade.take_profit)}`);
+        if (trade.stop_loss && trade.take_profit && trade.stop_loss !== trade.open_price) {
+          const riskAmt = Math.abs(trade.open_price - trade.stop_loss);
+          const rwdAmt  = Math.abs(trade.take_profit - trade.open_price);
+          if (riskAmt > 0) parts.push(`${(rwdAmt / riskAmt).toFixed(1)}:1 R`);
+        }
+        planInfo = `<div class="pf-pos-plan">${parts.join(' · ')}</div>`;
       }
 
-      return `<div class="trade-card trade-card-open" data-act="openModal" data-arg="${trade.instrument_name}">
-        <div class="trade-card-top">
-          <div class="trade-card-left">
-            <span class="trade-card-name">${trade.instrument_name}</span>
-            ${sideTag}
-            ${instName(trade.instrument_name) ? `<span class="inst-fullname">${instName(trade.instrument_name)}</span>` : ''}
+      return `<div class="pf-pos-card" data-act="openModal" data-arg="${trade.instrument_name}">
+        <div class="pf-pos-strip ${side}"></div>
+        <div class="pf-pos-body">
+          <div class="pf-pos-top">
+            <div>
+              <div class="pf-pos-name">${trade.instrument_name}</div>
+              <div class="pf-pos-sub">${subLine}</div>
+            </div>
+            <div class="pf-pos-top-right">
+              <span class="pf-pos-dir ${side}">${isLong ? 'Long' : 'Short'}</span>
+              <button class="trade-close-btn" title="Close trade" data-act="showCloseTradeSheet" data-arg="${trade.id}" data-stop="1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="trade-card-right">
-            ${rStr || pnlStr}
-            <button class="trade-close-btn" title="Close trade" data-act="showCloseTradeSheet" data-arg="${trade.id}" data-stop="1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              Close
-            </button>
+          <div class="pf-pos-meta">
+            <div>
+              <div class="pf-pos-meta-label">Entry</div>
+              <div class="pf-pos-meta-val">${formatPrice(trade.open_price)}</div>
+            </div>
+            <div>
+              <div class="pf-pos-meta-label">Current</div>
+              <div class="pf-pos-meta-val">${livePrice ? formatPrice(livePrice) : '—'}</div>
+            </div>
+            <div>
+              <div class="pf-pos-meta-label">P/L</div>
+              <div class="pf-pos-meta-val ${pnlClass}">${pnlDisplay}</div>
+            </div>
+          </div>
+          ${planInfo}
+          <div class="pf-pos-signal-row">
+            ${signalTags}
+            ${noteExcerpt}
           </div>
         </div>
-        <div class="trade-card-meta">
-          <span class="trade-meta-item">Opened ${trade.open_date}</span>
-          <span class="trade-meta-item">@ ${formatPrice(trade.open_price)}</span>
-          ${livePrice ? `<span class="trade-meta-item">Now ${formatPrice(livePrice)}</span>` : ''}
-          ${pnlPct !== null ? `<span class="trade-meta-item">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>` : ''}
-          ${trendBadge}
-        </div>
-        ${planRow}
-        ${trade.notes ? `<div class="trade-card-notes">${trade.notes}</div>` : ''}
       </div>`;
     }).join('');
   }

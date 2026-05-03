@@ -5096,77 +5096,222 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
    Portfolio Tab
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Account Summary Card */
+.pf-acct {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin: 12px 16px 14px;
+}
+.pf-acct-title {
+  font-size: .7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 10px;
+}
+.pf-acct-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pf-acct-label { font-size: .65rem; color: var(--text-muted); }
+.pf-acct-val { font-size: 1.1rem; font-weight: 700; }
+.pf-acct-equity { font-size: 1.5rem; font-weight: 800; }
+.pf-acct-pos { color: var(--buy); }
+.pf-acct-neg { color: var(--sell); }
+
+/* Stats Pills Row */
+.pf-pills {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+.pf-pill {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.pf-pill-num { font-size: 1.2rem; font-weight: 800; }
+.pf-pill-lbl {
+  font-size: .6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-top: 2px;
+}
+
+/* Section Headers */
+.pf-section-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 16px 10px;
+  padding: 0 2px;
+}
+.pf-section-title {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+}
+.pf-section-badge {
+  font-size: .6rem;
+  background: var(--accent);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+/* Position Cards */
+.pf-pos-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 0 16px 10px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+.pf-pos-strip {
+  width: 4px;
+  flex-shrink: 0;
+}
+.pf-pos-strip.long { background: var(--buy); }
+.pf-pos-strip.short { background: var(--sell); }
+.pf-pos-body {
+  flex: 1;
+  padding: 14px 14px 12px 10px;
+  min-width: 0;
+}
+
+.pf-pos-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.pf-pos-name { font-weight: 700; font-size: .95rem; }
+.pf-pos-sub { font-size: .62rem; color: var(--text-muted); margin-top: 1px; }
+.pf-pos-top-right { display: flex; align-items: center; gap: 8px; }
+.pf-pos-dir {
+  font-size: .6rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.pf-pos-dir.long { background: rgba(16,185,129,.15); color: var(--buy); }
+.pf-pos-dir.short { background: rgba(239,68,68,.15); color: var(--sell); }
+
+.pf-pos-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+  background: rgba(100,116,139,.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.pf-pos-meta-label {
+  font-size: .58rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.pf-pos-meta-val {
+  font-size: .82rem;
+  font-weight: 600;
+}
+.pf-pos-pnl-pos { color: var(--buy); }
+.pf-pos-pnl-neg { color: var(--sell); }
+
+.pf-pos-plan {
+  font-size: .62rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.pf-pos-signal-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.pf-signal-tag {
+  font-size: .58rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.pf-signal-tag.sig { background: rgba(99,102,241,.2); color: var(--accent); }
+.pf-signal-tag.aligned { background: rgba(16,185,129,.15); color: var(--buy); }
+.pf-signal-tag.conflict { background: rgba(239,68,68,.15); color: var(--sell); }
+.pf-signal-tag.neutral { background: rgba(100,116,139,.15); color: var(--text-muted); }
+.pf-signal-note {
+  font-size: .62rem;
+  color: var(--text-muted);
+}
+.pf-pos-close-btn {
+  margin-left: auto;
+  font-size: .6rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pf-pos-close-btn:hover { color: var(--sell); border-color: var(--sell); }
+
+/* Performance Grid */
+.pf-perf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+.pf-perf-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.pf-perf-val { font-size: 1.3rem; font-weight: 800; }
+.pf-perf-lbl {
+  font-size: .6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Period Chips */
 .pf-period-row {
   display: flex;
   gap: 6px;
-  padding: 12px 16px 4px;
+  padding: 0 16px 14px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 .pf-period-row::-webkit-scrollbar { display: none; }
 
-.pf-stats-card {
-  padding: 14px !important;
-}
-.pf-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
-}
-.pf-stat-tile {
-  text-align: center;
-  padding: 8px 4px;
-  background: var(--bg);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-}
-.pf-stat-val {
-  display: block;
-  font-size: 1.1rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.pf-stat-lbl {
-  display: block;
-  font-size: .6rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  margin-top: 2px;
-}
 .pf-pos { color: var(--buy); }
 .pf-neg { color: var(--sell); }
 
-.pf-align-card { padding: 14px !important; }
-.pf-align-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pf-align-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: var(--bg);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-.pf-align-label {
-  font-weight: 700;
-  font-size: .75rem;
-}
-.pf-align-stat {
-  font-size: .68rem;
-  color: var(--text-muted);
-}
-
-/* Light theme overrides */
-[data-theme="light"] .pf-stat-tile {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-[data-theme="light"] .pf-align-item {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
+/* Light theme */
+[data-theme="light"] .pf-acct { background: #f8fafc; border-color: #e2e8f0; }
+[data-theme="light"] .pf-pill { background: #f8fafc; border-color: #e2e8f0; }
+[data-theme="light"] .pf-pos-card { background: #f8fafc; border-color: #e2e8f0; }
+[data-theme="light"] .pf-perf-card { background: #f8fafc; border-color: #e2e8f0; }

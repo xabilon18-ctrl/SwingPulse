@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=60">
+  <link rel="stylesheet" href="/static/css/style.css?v=61">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -409,7 +409,23 @@
     <!-- ========== PORTFOLIO TAB ========== -->
     <section class="tab-pane" id="pane-portfolio">
 
-      <!-- Period Selector -->
+      <!-- Account Summary -->
+      <div class="pf-acct" id="pfAcctSummary"></div>
+
+      <!-- Stats Pills -->
+      <div class="pf-pills" id="pfStatsPills"></div>
+
+      <!-- Open Positions -->
+      <div class="pf-section-hdr">
+        <span class="pf-section-title">OPEN POSITIONS</span>
+        <span class="pf-section-badge" id="openTradeCount"></span>
+      </div>
+      <div id="openTradesList"></div>
+
+      <!-- Period Selector for Closed -->
+      <div class="pf-section-hdr" style="margin-top:20px">
+        <span class="pf-section-title">TRADE LOG</span>
+      </div>
       <div class="pf-period-row" id="pfPeriodChips">
         <button class="sig-chip active" data-period="all">All Time</button>
         <button class="sig-chip" data-period="month">This Month</button>
@@ -417,44 +433,12 @@
         <button class="sig-chip" data-period="year">This Year</button>
       </div>
 
-      <!-- Performance Summary -->
-      <div class="card pf-stats-card" id="pfStatsCard">
-        <div class="pf-stats-grid" id="pfStatsGrid"></div>
-      </div>
-
-      <!-- Signal Alignment Breakdown -->
-      <div class="card pf-align-card" id="pfAlignCard" style="display:none">
-        <div class="card-header"><h3>Signal Alignment</h3></div>
-        <div class="pf-align-grid" id="pfAlignGrid"></div>
-      </div>
-
-      <!-- Open Trades -->
-      <div class="card wl-trades-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:#10b981">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            </span>
-            Open Trades
-            <span class="trade-count-badge" id="openTradeCount"></span>
-          </h3>
-        </div>
-        <div id="openTradesList"></div>
-      </div>
+      <!-- Signal Performance -->
+      <div class="pf-perf-grid" id="pfPerfGrid"></div>
 
       <!-- Closed Trades -->
-      <div class="card wl-trades-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:var(--text-secondary)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            </span>
-            Closed Trades
-          </h3>
-        </div>
-        <div class="trade-summary-bar" id="closedTradeSummary"></div>
-        <div id="closedTradesList"></div>
-      </div>
+      <div class="trade-summary-bar" id="closedTradeSummary"></div>
+      <div id="closedTradesList"></div>
 
     </section>
 
@@ -755,6 +739,6 @@
   </div>
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=75"></script>
+  <script src="/static/js/app.js?v=76"></script>
 </body>
 </html>

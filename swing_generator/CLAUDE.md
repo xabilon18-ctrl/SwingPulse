@@ -122,8 +122,8 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## Version History (current)
-- `app.js` — **v46**
-- `style.css` — **v44**
+- `app.js` — **v76**
+- `style.css` — **v61**
 - `index.html` — bump JS/CSS version numbers when deploying UI changes
 
 ---
