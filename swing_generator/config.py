@@ -18,7 +18,7 @@ MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]     # ma_66 — midpoint of 15
 # ---------------------------------------------------------------------------
 HISTORY_YEARS         = 16   # 16 years ≈ 192 monthly bars (covers ma_10–ma_108 monthly)
 CACHE_DIR             = os.path.join(BASE_DIR, 'cache')
-INSTRUMENTS_FILE      = os.path.join(ROOT_DIR, '220_Instruments.txt')
+INSTRUMENTS_FILE      = os.path.join(ROOT_DIR, 'Instruments.txt')
 MIN_ROWS_REQUIRED     = 122   # need at least this many daily bars (longest MA is 108)
 
 # ---------------------------------------------------------------------------
