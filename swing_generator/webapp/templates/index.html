@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=58">
+  <link rel="stylesheet" href="/static/css/style.css?v=60">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -148,7 +148,7 @@
           <span class="trend-alert-icon">⚡</span>
           <span class="trend-alert-title">TREND CHANGE ALERTS</span>
           <span class="trend-alert-count" id="trendAlertCount">0</span>
-          <button class="trend-alert-see-all" onclick="window.SP.navigateToTab('signals')">See all →</button>
+          <button class="trend-alert-see-all" onclick="window.SP.navigateToTab('scanner')">See all →</button>
         </div>
         <div class="trend-alert-scroll" id="trendAlertScroll"></div>
       </div>
@@ -165,7 +165,7 @@
       </div>
 
       <!-- ── Portfolio Summary Card ── -->
-      <div class="card portfolio-summary-card" id="portfolioSummaryCard" style="display:none" onclick="window.SP.navigateToTab('watchlist')" role="button">
+      <div class="card portfolio-summary-card" id="portfolioSummaryCard" style="display:none" onclick="window.SP.navigateToTab('portfolio')" role="button">
         <div class="portfolio-card-header">
           <span class="portfolio-card-title">MY OPEN TRADES</span>
           <span class="portfolio-card-link">View all →</span>
@@ -177,7 +177,7 @@
       <div class="opp-section">
         <div class="section-row">
           <h3 class="section-title">Today's Opportunities</h3>
-          <button class="see-all-btn" onclick="window.SP.navigateToTab('signals')">See all →</button>
+          <button class="see-all-btn" onclick="window.SP.navigateToTab('scanner')">See all →</button>
         </div>
         <div class="opp-scroll" id="todayOpps">
           <div class="opp-loading">Loading signals…</div>
@@ -308,23 +308,23 @@
 
     </section>
 
-    <!-- ========== SIGNALS TAB ========== -->
-    <section class="tab-pane" id="pane-signals">
+    <!-- ========== SCANNER TAB (merged Signals + Scanner) ========== -->
+    <section class="tab-pane" id="pane-scanner">
       <!-- Header: count + search -->
       <div class="sig-tab-header">
         <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
         <div class="search-wrap sig-search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" id="signalSearch" placeholder="Search...">
+          <input type="text" class="search-input" id="scannerSearch" placeholder="Search...">
         </div>
       </div>
 
-      <!-- Filter chips -->
-      <div class="sig-chips-row" id="signalFilterChips">
+      <!-- Filter chips (merged from Signals + Scanner) -->
+      <div class="sig-chips-row" id="scannerFilterChips">
         <button class="sig-chip active sig-chip-all" data-filter="all">All</button>
         <button class="sig-chip sig-chip-buy" data-filter="buy">Buy</button>
         <button class="sig-chip sig-chip-sell" data-filter="sell">Sell</button>
-        <button class="sig-chip sig-chip-best" data-filter="best">⚡ Best</button>
+        <button class="sig-chip sig-chip-best" data-filter="best">Best</button>
         <button class="sig-chip" data-filter="BP1">BP1</button>
         <button class="sig-chip" data-filter="SP1">SP1</button>
         <button class="sig-chip" data-filter="BP2">BP2</button>
@@ -335,83 +335,13 @@
         <button class="sig-chip" data-filter="SP4">SP4</button>
         <button class="sig-chip" data-filter="squeeze">Squeeze</button>
         <button class="sig-chip" data-filter="today">Today</button>
-        <button class="sig-chip sig-chip-more" id="sigMoreFiltersBtn">⚙ More</button>
+        <button class="sig-chip" data-filter="keylvl">Key Lvl</button>
+        <button class="sig-chip" data-filter="vol">Vol Spike</button>
+        <button class="sig-chip sig-chip-more" id="sigMoreFiltersBtn">More</button>
       </div>
 
       <!-- Advanced filters (collapsed by default) -->
       <div class="sig-advanced-row" id="sigAdvancedFilters">
-        <select class="select-input" id="signalTrendFilter">
-          <option value="all">All Trends</option>
-          <option value="UPTREND">Uptrend</option>
-          <option value="DOWNTREND">Downtrend</option>
-          <option value="NEUTRAL">Neutral</option>
-        </select>
-        <select class="select-input" id="signalAlignFilter">
-          <option value="all">All Alignments</option>
-          <option value="bull">Bull (Triple/Aligned/Leaning)</option>
-          <option value="bear">Bear (Triple/Aligned/Leaning)</option>
-          <option value="counter">Counter-trend</option>
-          <option value="mixed">Mixed</option>
-        </select>
-        <select class="select-input" id="signalConfFilter">
-          <option value="all">All Confidence</option>
-          <option value="high">High Only</option>
-          <option value="highstd">High + Standard</option>
-          <option value="low">Low</option>
-        </select>
-        <select class="select-input" id="signalSort">
-          <option value="date_desc">Newest First</option>
-          <option value="pct_1d_desc">1D % ↓</option>
-          <option value="pct_1d_asc">1D % ↑</option>
-          <option value="pct_1w_desc">1W % ↓</option>
-          <option value="pct_1w_asc">1W % ↑</option>
-          <option value="pct_1m_desc">1M % ↓</option>
-          <option value="pct_1m_asc">1M % ↑</option>
-          <option value="pct_1y_desc">1Y % ↓</option>
-          <option value="pct_1y_asc">1Y % ↑</option>
-          <option value="pct_desc">Signal % ↓</option>
-          <option value="pct_asc">Signal % ↑</option>
-          <option value="conf_desc">Confidence ↓</option>
-          <option value="roc_desc">ROC ↓</option>
-          <option value="roc_asc">ROC ↑</option>
-          <option value="order_desc">MA Order ↓</option>
-          <option value="default">Default</option>
-        </select>
-      </div>
-
-      <div class="signal-summary" id="signalSummary"></div>
-      <div class="sig-card-list" id="signalList"></div>
-
-      <div class="signal-legend">
-        <div class="sig-legend-group">
-          <div class="sig-legend-title">Signal Types</div>
-          <div class="sig-def"><span class="feed-badge badge-p1">BP1/SP1</span> <strong>Trend Reversal</strong> — Full ribbon cross + close past MA108. Max penetration: 4H 2% / D 1.5% / W 2.5% / M 3%</div>
-          <div class="sig-def"><span class="feed-badge badge-p3">BP2/SP2</span> <strong>Fast MA Pullback</strong> — Bounce/rejection off fast MAs (10–66). Dedup window: 3 bars</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">BP3/SP3</span> <strong>Longest MA Bounce</strong> — Bounce/rejection off MA108. Lookback: 4H 60 / D 20 / W 12 / M 6 bars</div>
-          <div class="sig-def"><span class="feed-badge badge-p4">BP4/SP4</span> <strong>Key Level</strong> — Bounce/rejection at confirmed key level (support/resistance)</div>
-        </div>
-        <div class="sig-legend-group">
-          <div class="sig-legend-title">Confidence & Confluence</div>
-          <div class="sig-def"><span class="badge-confidence conf-high">high</span> BP3/SP3 + volume spike + key level = highest conviction</div>
-          <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Signal + volume spike OR key level confluence</div>
-          <div class="sig-def"><span class="badge-confidence conf-low">low</span> BP2/SP2 without volume or key level support</div>
-        </div>
-        <div class="sig-legend-group">
-          <div class="sig-legend-title">Timeframe Alignment</div>
-          <div class="sig-def"><span class="badge-alignment align-bull">Triple Bull</span> 4H + D + W + M all uptrend — highest conviction direction</div>
-          <div class="sig-def"><span class="badge-alignment align-bear">Triple Bear</span> All timeframes downtrend</div>
-          <div class="sig-def"><span class="badge-alignment align-counter">Counter-trend</span> Signal opposes higher timeframe trend — risky</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ========== SCANNER TAB ========== -->
-    <section class="tab-pane" id="pane-scanner">
-      <div class="filter-bar">
-        <div class="search-wrap">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" id="scannerSearch" placeholder="Search...">
-        </div>
         <select class="select-input" id="scannerGroupFilter">
           <option value="all">All Groups</option>
         </select>
@@ -424,8 +354,23 @@
           <option value="DOWNTREND">Downtrend</option>
           <option value="NEUTRAL">Neutral</option>
         </select>
+        <select class="select-input" id="scannerAlignFilter">
+          <option value="all">All Alignments</option>
+          <option value="bull">Bull (Triple/Aligned/Leaning)</option>
+          <option value="bear">Bear (Triple/Aligned/Leaning)</option>
+          <option value="counter">Counter-trend</option>
+          <option value="mixed">Mixed</option>
+        </select>
+        <select class="select-input" id="scannerConfFilter">
+          <option value="all">All Confidence</option>
+          <option value="high">High Only</option>
+          <option value="highstd">High + Standard</option>
+          <option value="low">Low</option>
+        </select>
         <select class="select-input" id="scannerSort">
           <option value="signal">Signal First</option>
+          <option value="date_desc">Newest First</option>
+          <option value="conf_desc">Confidence ↓</option>
           <option value="pct_1d_desc">1D % ↓</option>
           <option value="pct_1d_asc">1D % ↑</option>
           <option value="pct_1w_desc">1W % ↓</option>
@@ -438,19 +383,79 @@
           <option value="roc_asc">ROC ↑</option>
           <option value="order_desc">MA Order ↓</option>
           <option value="run_desc">Trend Run ↓</option>
-          <option value="default">Default</option>
         </select>
-        <div class="filter-chips" id="scannerFilterChips">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip chip-buy" data-filter="buy">Buy</button>
-          <button class="chip chip-sell" data-filter="sell">Sell</button>
-          <button class="chip chip-squeeze" data-filter="squeeze">Squeeze</button>
-          <button class="chip" data-filter="keylvl">Key Level</button>
-          <button class="chip" data-filter="vol">Vol Spike</button>
-        </div>
       </div>
+
       <div class="signal-summary" id="scannerSummary"></div>
       <div class="scanner-grid" id="scannerGrid"></div>
+
+      <div class="signal-legend">
+        <div class="sig-legend-group">
+          <div class="sig-legend-title">Signal Types</div>
+          <div class="sig-def"><span class="feed-badge badge-p1">BP1/SP1</span> <strong>Trend Reversal</strong> — Full ribbon cross + close past MA108</div>
+          <div class="sig-def"><span class="feed-badge badge-p3">BP2/SP2</span> <strong>Fast MA Pullback</strong> — Bounce/rejection off fast MAs (10–66)</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">BP3/SP3</span> <strong>Longest MA Bounce</strong> — Bounce/rejection off MA108</div>
+          <div class="sig-def"><span class="feed-badge badge-p4">BP4/SP4</span> <strong>Key Level</strong> — Bounce/rejection at confirmed key level</div>
+        </div>
+        <div class="sig-legend-group">
+          <div class="sig-legend-title">Confidence</div>
+          <div class="sig-def"><span class="badge-confidence conf-high">high</span> Signal + volume spike + key level</div>
+          <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Signal + volume spike OR key level</div>
+          <div class="sig-def"><span class="badge-confidence conf-low">low</span> Signal without confluence</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== PORTFOLIO TAB ========== -->
+    <section class="tab-pane" id="pane-portfolio">
+
+      <!-- Period Selector -->
+      <div class="pf-period-row" id="pfPeriodChips">
+        <button class="sig-chip active" data-period="all">All Time</button>
+        <button class="sig-chip" data-period="month">This Month</button>
+        <button class="sig-chip" data-period="quarter">This Quarter</button>
+        <button class="sig-chip" data-period="year">This Year</button>
+      </div>
+
+      <!-- Performance Summary -->
+      <div class="card pf-stats-card" id="pfStatsCard">
+        <div class="pf-stats-grid" id="pfStatsGrid"></div>
+      </div>
+
+      <!-- Signal Alignment Breakdown -->
+      <div class="card pf-align-card" id="pfAlignCard" style="display:none">
+        <div class="card-header"><h3>Signal Alignment</h3></div>
+        <div class="pf-align-grid" id="pfAlignGrid"></div>
+      </div>
+
+      <!-- Open Trades -->
+      <div class="card wl-trades-card">
+        <div class="card-header">
+          <h3>
+            <span class="card-icon" style="color:#10b981">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </span>
+            Open Trades
+            <span class="trade-count-badge" id="openTradeCount"></span>
+          </h3>
+        </div>
+        <div id="openTradesList"></div>
+      </div>
+
+      <!-- Closed Trades -->
+      <div class="card wl-trades-card">
+        <div class="card-header">
+          <h3>
+            <span class="card-icon" style="color:var(--text-secondary)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </span>
+            Closed Trades
+          </h3>
+        </div>
+        <div class="trade-summary-bar" id="closedTradeSummary"></div>
+        <div id="closedTradesList"></div>
+      </div>
+
     </section>
 
     <!-- ========== WATCHLIST TAB ========== -->
@@ -512,34 +517,6 @@
           </div>
         </div>
         <div id="wlAlertsList"></div>
-      </div>
-
-      <!-- Open Trades -->
-      <div class="card wl-trades-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:#10b981">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            </span>
-            Open Trades
-            <span class="trade-count-badge" id="openTradeCount"></span>
-          </h3>
-        </div>
-        <div id="openTradesList"></div>
-      </div>
-
-      <!-- Closed Trades -->
-      <div class="card wl-trades-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:var(--text-secondary)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            </span>
-            Closed Trades
-          </h3>
-        </div>
-        <div class="trade-summary-bar" id="closedTradeSummary"></div>
-        <div id="closedTradesList"></div>
       </div>
 
     </section>
@@ -639,13 +616,13 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Dashboard</span>
     </button>
-    <button class="nav-tab" data-tab="signals">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      <span>Signals</span>
-    </button>
     <button class="nav-tab" data-tab="scanner">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span>Scanner</span>
+    </button>
+    <button class="nav-tab" data-tab="portfolio">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <span>Portfolio</span>
     </button>
     <button class="nav-tab" data-tab="watchlist">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -778,6 +755,6 @@
   </div>
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=73"></script>
+  <script src="/static/js/app.js?v=75"></script>
 </body>
 </html>

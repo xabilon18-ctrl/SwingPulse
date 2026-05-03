@@ -75,10 +75,9 @@ In `app.js` the `f(field)` helper applies the active prefix automatically.
 
 ## Frontend App Tabs
 1. **Dashboard** — Market gauge, stat cards, heatmap, signal feed, alignment summary
-2. **Signals** — Filtered signal cards with age/confidence/MA badges
-3. **Scanner** — Full instrument grid with all filters
-4. **Watchlist** — Starred instruments + alert sub-tabs (turning points, watch flags, key levels, vol)
-5. **Trends** — Trend history per instrument (timeline, stats, maturity)
+2. **Scanner** — Unified instrument grid (merged Signals + Scanner) with all filters: group, sector, trend, alignment, confidence, signal codes (BP1–SP4), key levels, vol spikes
+3. **Watchlist** — Starred instruments + alert sub-tabs (turning points, watch flags, key levels, vol)
+4. **Trends** — Trend history per instrument (timeline, stats, maturity)
 
 ---
 
