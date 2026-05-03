@@ -152,6 +152,67 @@ _TV_BY_NAME: dict[str, str] = {
     'MRK_DE':  'XETR:MRK',
     'LEG_DE':  'XETR:LEG',
 
+    # ── New US500 NYSE stocks ──
+    'BAC':   'NYSE:BAC',
+    'WFC':   'NYSE:WFC',
+    'C':     'NYSE:C',
+    'BRKB':  'NYSE:BRK.B',
+    'GE':    'NYSE:GE',
+    'UPS':   'NYSE:UPS',
+    'UNP':   'NYSE:UNP',
+    'NEE':   'NYSE:NEE',
+    'SO':    'NYSE:SO',
+    'DUK':   'NYSE:DUK',
+    'CEG':   'NASDAQ:CEG',
+    'PCG':   'NYSE:PCG',
+
+    # ── Spanish stocks (BME) ──
+    'SAN':   'BME:SAN',
+    'BBVA':  'BME:BBVA',
+    'SAB':   'BME:SAB',
+    'BKT':   'BME:BKT',
+    'CABK':  'BME:CABK',
+    'MAP':   'BME:MAP',
+    'IBE':   'BME:IBE',
+    'ELE':   'BME:ELE',
+    'NTGY':  'BME:NTGY',
+    'ITX':   'BME:ITX',
+    'AMS':   'BME:AMS',
+    'IDR':   'BME:IDR',
+    'FER':   'BME:FER',
+    'ACS':   'BME:ACS',
+    'SCYR':  'BME:SCYR',
+    'TEF':   'BME:TEF',
+    'REP':   'BME:REP',
+    'GRF':   'BME:GRF',
+    'IAG':   'BME:IAG',
+
+    # ── Canadian stocks (TSX) ──
+    'CAN60': 'TSX:XIU',
+    'RY':    'TSX:RY',
+    'TD':    'TSX:TD',
+    'BNS':   'TSX:BNS',
+    'BMO':   'TSX:BMO',
+    'CM':    'TSX:CM',
+    'MFC':   'TSX:MFC',
+    'ENB':   'TSX:ENB',
+    'TRP':   'TSX:TRP',
+    'CNQ':   'TSX:CNQ',
+    'SU':    'TSX:SU',
+    'CVE':   'TSX:CVE',
+    'ABX':   'TSX:ABX',
+    'AEM':   'TSX:AEM',
+    'WPM':   'TSX:WPM',
+    'NTR':   'TSX:NTR',
+    'SHOP':  'TSX:SHOP',
+    'CSU':   'TSX:CSU',
+    'CNR':   'TSX:CNR',
+    'CP':    'TSX:CP',
+    'ATD':   'TSX:ATD',
+    'QSR':   'TSX:QSR',
+    'BCE':   'TSX:BCE',
+    'TELUS': 'TSX:T',
+
     # ── Indices (additional) ──
     'SOX':   'NASDAQ:SOX',
 
@@ -275,6 +336,16 @@ def build_tv_map() -> dict[str, str]:
         if yf_ticker.endswith('.DE'):
             tv_sym = name[:-3] if name.endswith('_DE') else name
             result[name] = f'XETR:{tv_sym}'
+            continue
+
+        # 2b. Spanish stocks: *.MC → BME:name
+        if yf_ticker.endswith('.MC'):
+            result[name] = f'BME:{name}'
+            continue
+
+        # 2c. Canadian stocks: *.TO → TSX:name
+        if yf_ticker.endswith('.TO'):
+            result[name] = f'TSX:{name}'
             continue
 
         # 3. Forex pairs: *=X → FX:name
