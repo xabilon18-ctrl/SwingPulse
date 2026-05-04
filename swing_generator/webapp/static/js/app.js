@@ -1972,28 +1972,21 @@
 
   // ── Scanner Tab (merged Signals + Scanner) ────────────────────────────
 
-  // Consolidate granular groups into broader categories
-  const GROUP_MAP = {
-    'Asia Index': 'Indices', 'CA Index': 'Indices', 'EU Index': 'Indices',
-    'US Index': 'Indices', 'GER40': 'Indices', 'SPAIN35': 'Indices',
-    'US30': 'Stocks', 'US100': 'Stocks', 'US500': 'Stocks',
-    'US30/US100': 'Stocks', 'NYSE': 'Stocks', 'CAN60': 'Stocks',
-  };
-  function mapGroup(g) { return GROUP_MAP[g] || g; }
+  // Merge all "*Index" groups into a single "Indices" option
+  const INDEX_GROUPS = new Set(['Asia Index', 'CA Index', 'EU Index', 'US Index']);
+  function mapGroup(g) { return INDEX_GROUPS.has(g) ? 'Indices' : g; }
 
   function renderScanner() {
-    // Populate group filter with consolidated groups
     const rawGroups = summaryData.groups || [];
-    const consolidated = [...new Set(rawGroups.map(mapGroup))].sort();
+    const groups = [...new Set(rawGroups.map(mapGroup))].sort();
     const groupSelect = document.getElementById('scannerGroupFilter');
     groupSelect.innerHTML = '<option value="all">All Groups</option>' +
-      consolidated.map(g => `<option value="${g}">${g}</option>`).join('');
+      groups.map(g => `<option value="${g}">${g}</option>`).join('');
 
-    // Populate industry filter from data (replaces sector)
-    const industries = [...new Set(allData.map(d => d.industry).filter(Boolean))].sort();
+    const sectors = [...new Set(allData.map(d => d.sector).filter(Boolean))].sort();
     const sectorSelect = document.getElementById('scannerSectorFilter');
-    sectorSelect.innerHTML = '<option value="all">All Industries</option>' +
-      industries.map(s => `<option value="${s}">${s}</option>`).join('');
+    sectorSelect.innerHTML = '<option value="all">All Sectors</option>' +
+      sectors.map(s => `<option value="${s}">${s}</option>`).join('');
 
     buildScannerCards();
   }
@@ -2012,7 +2005,7 @@
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
     if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
-    if (sector !== 'all')  filtered = filtered.filter(d => d.industry === sector);
+    if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
 
     // ── Alignment filter ──
