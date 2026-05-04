@@ -1660,12 +1660,12 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 /* ── Scanner Tab ──────────────────────────────────────────────────────── */
 .scanner-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
 }
 
 .scanner-card {
-  padding: 16px;
+  padding: 12px;
   border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -1676,8 +1676,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .scanner-card:hover { transform: translateY(-2px); border-color: var(--border-active); box-shadow: var(--shadow); }
 
-.scanner-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-.scanner-name { font-weight: 700; font-size: .95rem; }
+.scanner-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.scanner-name { font-weight: 700; font-size: .85rem; }
 .scanner-group { font-size: .65rem; color: var(--text-muted); }
 
 /* ── Full instrument name (shows below ticker on all card types) ─── */
@@ -1695,13 +1695,13 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   max-width: 160px;
 }
 
-.scanner-price { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.scanner-price { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
 
-.scanner-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.scanner-meta { display: flex; flex-wrap: wrap; gap: 4px; }
 .scanner-tag {
-  font-size: .62rem;
+  font-size: .58rem;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
 }
 .tag-up { background: var(--buy-soft); color: var(--buy); }
@@ -1721,7 +1721,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .strip-sell { background: var(--sell); color: #fff; }
 
 .scanner-mini-bar {
-  margin-top: 10px;
+  margin-top: 6px;
   height: 3px;
   border-radius: 2px;
   overflow: hidden;

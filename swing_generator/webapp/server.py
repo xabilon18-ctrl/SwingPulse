@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 
 import pandas as pd
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_file
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -524,6 +524,15 @@ def api_explanations():
         return jsonify({})
     with open(path) as f:
         return jsonify(_json.load(f))
+
+
+@app.route('/api/portfolio')
+def api_portfolio():
+    """Serve portfolio.json from output dir (parsed from XM email)."""
+    pf_path = os.path.join(OUTPUT_DIR, 'portfolio.json')
+    if os.path.exists(pf_path):
+        return send_file(pf_path, mimetype='application/json')
+    return jsonify(None)
 
 
 @app.route('/api/refresh', methods=['POST'])

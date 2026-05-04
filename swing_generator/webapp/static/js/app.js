@@ -17,6 +17,7 @@
   let allData = [];
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
+  let portfolioData = null;  // XM account data from Gmail parser
   let tvMap = {};            // instrument_name → TradingView symbol
   let currentTab = 'dashboard';
   let activeHeatmapGroup = 'all';
@@ -695,7 +696,7 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, trendsRes, explRes, evRes, namesRes, btRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, trendsRes, explRes, evRes, namesRes, btRes, pfRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()),
         fetch('/api/summary').then(r => r.json()),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
@@ -704,6 +705,7 @@
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
         fetch('/api/backtest').then(r => r.json()).catch(() => null),
+        fetch('/api/portfolio').then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -714,6 +716,7 @@
       eventsData = evRes.events || [];
       namesData = namesRes || {};
       backtestData = btRes;
+      portfolioData = pfRes;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -3627,35 +3630,46 @@
     const alignedPnl = closedAligned.reduce((s, t) => s + (t.pnl_pct || 0), 0);
     const offPnl = closedOff.reduce((s, t) => s + (t.pnl_pct || 0), 0);
 
-    // Account summary (stored in localStorage)
-    const acct = JSON.parse(localStorage.getItem(sk('sp-account')) || '{}');
+    // Account summary from XM email (portfolioData) or localStorage fallback
+    const pf = portfolioData || {};
+    const pfSumm = pf.summary || {};
+    const pfAcct = pf.account || {};
+    const xmPositions = (pf.positions || []);
+    const acctId = pfAcct.account_no || '';
+    const equity = pfSumm.equity || 0;
+    const balance = pfSumm.balance || 0;
+    const floatPL = pfSumm.floating_pl || 0;
+    const margin = pfSumm.margin || 0;
+    const availMargin = pfSumm.available_margin || 0;
+    const hasData = equity > 0 || balance > 0;
 
     acctEl.innerHTML = `
-      <div class="pf-acct-title">XM Account${acct.id ? ' · ' + acct.id : ''}</div>
+      <div class="pf-acct-title">XM Account${acctId ? ' · ' + acctId : ''}${pf.date ? ' <span style="font-weight:400;color:var(--txt3);font-size:.75rem">(' + pf.date + ')</span>' : ''}</div>
       <div class="pf-acct-grid">
         <div>
           <div class="pf-acct-label">Equity</div>
-          <div class="pf-acct-val pf-acct-equity">${acct.equity ? 'R' + Number(acct.equity).toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
+          <div class="pf-acct-val pf-acct-equity">${hasData ? 'R' + equity.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
         </div>
         <div>
           <div class="pf-acct-label">Floating P/L</div>
-          <div class="pf-acct-val ${floatingPnl >= 0 ? 'pf-acct-pos' : 'pf-acct-neg'}">${floatingPnl >= 0 ? '+' : ''}${floatingPnl.toFixed(2)}%</div>
+          <div class="pf-acct-val ${floatPL >= 0 ? 'pf-acct-pos' : 'pf-acct-neg'}">${hasData ? (floatPL >= 0 ? '+' : '') + 'R' + floatPL.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
         </div>
         <div>
           <div class="pf-acct-label">Balance</div>
-          <div class="pf-acct-val">${acct.balance ? 'R' + Number(acct.balance).toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
+          <div class="pf-acct-val">${hasData ? 'R' + balance.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
         </div>
         <div>
-          <div class="pf-acct-label">Open Trades</div>
-          <div class="pf-acct-val">${openTrades.length}</div>
+          <div class="pf-acct-label">Margin</div>
+          <div class="pf-acct-val">${hasData ? 'R' + margin.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
         </div>
       </div>
     `;
 
     // Stats Pills
+    const openCount = openTrades.length || xmPositions.length;
     pillsEl.innerHTML = `
       <div class="pf-pill">
-        <div class="pf-pill-num" style="color:var(--buy)">${openTrades.length}</div>
+        <div class="pf-pill-num" style="color:var(--buy)">${openCount}</div>
         <div class="pf-pill-lbl">Open</div>
       </div>
       <div class="pf-pill">
@@ -3720,13 +3734,75 @@
     const listEl   = document.getElementById('openTradesList');
     const countEl  = document.getElementById('openTradeCount');
     if (!listEl) return;
-    if (countEl) countEl.textContent = openTrades.length ? openTrades.length : '';
 
-    if (!openTrades.length) {
+    // Use XM positions from portfolio if available, otherwise manual trades
+    const xmPositions = (portfolioData && portfolioData.positions) || [];
+    const hasManual = openTrades.length > 0;
+    const hasXM = xmPositions.length > 0;
+
+    if (countEl) countEl.textContent = (hasManual ? openTrades.length : xmPositions.length) || '';
+
+    if (!hasManual && !hasXM) {
       listEl.innerHTML = `<div class="trade-empty">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
         <p>No open trades. Tap the chart button on a watchlist item to open one.</p>
       </div>`;
+      return;
+    }
+
+    // Render XM broker positions
+    if (!hasManual && hasXM) {
+      const curr = portfolioData.account?.currency || 'ZAR';
+      const sym = curr === 'ZAR' ? 'R' : '$';
+      listEl.innerHTML = xmPositions.map(pos => {
+        const isLong = pos.type === 'buy';
+        const side = isLong ? 'long' : 'short';
+        const pnl = pos.profit || 0;
+        const swap = pos.swap || 0;
+        const totalPnl = pnl;
+        const pnlClass = totalPnl >= 0 ? 'pf-pos-pnl-pos' : 'pf-pos-pnl-neg';
+        const pnlSign = totalPnl >= 0 ? '+' : '';
+        const openDate = pos.open_time ? pos.open_time.slice(5, 10).replace('.', '/') : '';
+
+        let planInfo = '';
+        if (pos.sl > 0 || pos.tp > 0) {
+          const parts = [];
+          if (pos.sl > 0) parts.push('SL ' + formatPrice(pos.sl));
+          if (pos.tp > 0) parts.push('TP ' + formatPrice(pos.tp));
+          planInfo = '<div class="pf-pos-plan">' + parts.join(' · ') + '</div>';
+        }
+
+        return `<div class="pf-pos-card">
+          <div class="pf-pos-strip ${side}"></div>
+          <div class="pf-pos-body">
+            <div class="pf-pos-top">
+              <div>
+                <div class="pf-pos-name">${pos.item}</div>
+                <div class="pf-pos-sub">${pos.size} lot · ${openDate}</div>
+              </div>
+              <div class="pf-pos-top-right">
+                <span class="pf-pos-dir ${side}">${isLong ? 'Long' : 'Short'}</span>
+              </div>
+            </div>
+            <div class="pf-pos-meta">
+              <div>
+                <div class="pf-pos-meta-label">Entry</div>
+                <div class="pf-pos-meta-val">${formatPrice(pos.price)}</div>
+              </div>
+              <div>
+                <div class="pf-pos-meta-label">Market</div>
+                <div class="pf-pos-meta-val">${formatPrice(pos.market_price)}</div>
+              </div>
+              <div>
+                <div class="pf-pos-meta-label">P/L</div>
+                <div class="pf-pos-meta-val ${pnlClass}">${pnlSign}${sym}${Math.abs(totalPnl).toLocaleString('en', {minimumFractionDigits:2})}</div>
+              </div>
+            </div>
+            ${planInfo}
+            ${swap !== 0 ? '<div class="pf-pos-signal-row"><span class="pf-signal-tag neutral">Swap ' + (swap >= 0 ? '+' : '') + sym + Math.abs(swap).toFixed(2) + '</span></div>' : ''}
+          </div>
+        </div>`;
+      }).join('');
       return;
     }
 
