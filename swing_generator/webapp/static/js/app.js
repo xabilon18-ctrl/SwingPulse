@@ -1140,12 +1140,12 @@
       return sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
     });
 
-    // Update filter chips with dot indicator
+    // Update signal sheet buttons with dot indicator
     ALL_SIGNAL_CODES.forEach(sig => {
-      const chip = document.querySelector(`.sig-chip[data-filter="${sig}"]`);
-      if (!chip) return;
+      const btn = document.querySelector(`.sig-sheet-btn[data-filter="${sig}"]`);
+      if (!btn) return;
       const hasIt = allData.some(d => d[f('primary_signal')] === sig);
-      chip.classList.toggle('has-signals', hasIt);
+      btn.classList.toggle('has-signals', hasIt);
     });
 
     if (!alerts.length) { banner.style.display = 'none'; return; }
@@ -1454,7 +1454,17 @@
 
           // Apply filter + navigate to scanner
           activeScannerFilter = sigType;
-          document.querySelectorAll('#scannerFilterChips .sig-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === sigType));
+          // Update direction toggle
+          const isBuyFilter = sigType === 'buy' || sigType.startsWith('BP');
+          const isSellFilter = sigType === 'sell' || sigType.startsWith('SP');
+          document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+          if (isBuyFilter) document.querySelector('.sig-dir-btn[data-filter="buy"]')?.classList.add('active');
+          else if (isSellFilter) document.querySelector('.sig-dir-btn[data-filter="sell"]')?.classList.add('active');
+          else document.querySelector('.sig-dir-btn[data-filter="all"]')?.classList.add('active');
+          // Activate signal type in sheet if applicable
+          document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === sigType));
+          const sigBtn = document.getElementById('sigTypeBtn');
+          if (sigBtn) sigBtn.classList.toggle('active', sigType.match(/^[BS]P\d$/));
           navigateToTab('scanner');
           buildScannerCards();
         },
@@ -1548,7 +1558,7 @@
           // Also navigate to Scanner filtered to this group
           navigateToTab('scanner');
           const groupSel = document.getElementById('scannerGroupFilter');
-          if (groupSel) { groupSel.value = grp; buildScannerCards(); }
+          if (groupSel) { groupSel.value = mapGroup(grp); updateFilterBadge(); buildScannerCards(); }
         },
         animation: { duration: 450 },
       },
@@ -1961,17 +1971,29 @@
   }
 
   // ── Scanner Tab (merged Signals + Scanner) ────────────────────────────
+
+  // Consolidate granular groups into broader categories
+  const GROUP_MAP = {
+    'Asia Index': 'Indices', 'CA Index': 'Indices', 'EU Index': 'Indices',
+    'US Index': 'Indices', 'GER40': 'Indices', 'SPAIN35': 'Indices',
+    'US30': 'Stocks', 'US100': 'Stocks', 'US500': 'Stocks',
+    'US30/US100': 'Stocks', 'NYSE': 'Stocks', 'CAN60': 'Stocks',
+  };
+  function mapGroup(g) { return GROUP_MAP[g] || g; }
+
   function renderScanner() {
-    const groups = summaryData.groups || [];
+    // Populate group filter with consolidated groups
+    const rawGroups = summaryData.groups || [];
+    const consolidated = [...new Set(rawGroups.map(mapGroup))].sort();
     const groupSelect = document.getElementById('scannerGroupFilter');
     groupSelect.innerHTML = '<option value="all">All Groups</option>' +
-      groups.map(g => `<option value="${g}">${g}</option>`).join('');
+      consolidated.map(g => `<option value="${g}">${g}</option>`).join('');
 
-    // Populate sector filter from data
-    const sectors = [...new Set(allData.map(d => d.sector).filter(Boolean))].sort();
+    // Populate industry filter from data (replaces sector)
+    const industries = [...new Set(allData.map(d => d.industry).filter(Boolean))].sort();
     const sectorSelect = document.getElementById('scannerSectorFilter');
-    sectorSelect.innerHTML = '<option value="all">All Sectors</option>' +
-      sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+    sectorSelect.innerHTML = '<option value="all">All Industries</option>' +
+      industries.map(s => `<option value="${s}">${s}</option>`).join('');
 
     buildScannerCards();
   }
@@ -1989,8 +2011,8 @@
 
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
-    if (group !== 'all')   filtered = filtered.filter(d => d.group === group);
-    if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
+    if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
+    if (sector !== 'all')  filtered = filtered.filter(d => d.industry === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
 
     // ── Alignment filter ──
@@ -2193,30 +2215,112 @@
   }
 
   document.getElementById('scannerSearch').addEventListener('input', debounce(buildScannerCards, 150));
-  document.getElementById('scannerGroupFilter').addEventListener('change', buildScannerCards);
-  document.getElementById('scannerSectorFilter').addEventListener('change', buildScannerCards);
-  document.getElementById('scannerTrendFilter').addEventListener('change', buildScannerCards);
-  document.getElementById('scannerAlignFilter').addEventListener('change', buildScannerCards);
-  document.getElementById('scannerConfFilter').addEventListener('change', buildScannerCards);
-  document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; buildScannerCards(); });
+  // Advanced filter selects — applied via Apply button in bottom sheet
+  document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; });
+  // ── Direction toggle (All / Buy / Sell) ──
   document.getElementById('scannerFilterChips').addEventListener('click', e => {
-    const chip = e.target.closest('.sig-chip');
-    if (!chip || chip.id === 'sigMoreFiltersBtn') return;
-    document.querySelectorAll('#scannerFilterChips .sig-chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    activeScannerFilter = chip.dataset.filter;
+    const btn = e.target.closest('.sig-dir-btn');
+    if (!btn) return;
+    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeScannerFilter = btn.dataset.filter;
+    // Clear context chip active states when switching direction
+    document.querySelectorAll('.sig-ctx-chip').forEach(c => {
+      if (c.id !== 'sigMoreFiltersBtn') c.classList.remove('active');
+    });
     buildScannerCards();
   });
 
-  // Advanced filters toggle
-  const sigMoreBtn = document.getElementById('sigMoreFiltersBtn');
-  const sigAdvanced = document.getElementById('sigAdvancedFilters');
-  if (sigMoreBtn && sigAdvanced) {
-    sigMoreBtn.addEventListener('click', () => {
-      const open = sigAdvanced.classList.toggle('sig-advanced-open');
-      sigMoreBtn.classList.toggle('active', open);
-    });
+  // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike) ──
+  document.querySelector('.sig-ctx-row').addEventListener('click', e => {
+    const chip = e.target.closest('.sig-ctx-chip');
+    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn') return;
+    const wasActive = chip.classList.contains('active');
+    // Deactivate all context chips (except filters btn & signal btn)
+    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn)').forEach(c => c.classList.remove('active'));
+    // Also reset direction toggle to All
+    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+    if (wasActive) {
+      // Toggle off → back to All
+      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
+      activeScannerFilter = 'all';
+    } else {
+      chip.classList.add('active');
+      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
+      activeScannerFilter = chip.dataset.filter;
+    }
+    buildScannerCards();
+  });
+
+  // ── Signal type bottom sheet ──
+  const sigTypeBtn = document.getElementById('sigTypeBtn');
+  const sigTypeSheet = document.getElementById('sigTypeSheet');
+  const sigOverlay = document.getElementById('sigSheetOverlay');
+
+  function openSheet(sheet) {
+    sigOverlay.classList.add('open');
+    sheet.classList.add('open');
   }
+  function closeSheets() {
+    sigOverlay.classList.remove('open');
+    document.querySelectorAll('.sig-sheet.open').forEach(s => s.classList.remove('open'));
+  }
+  sigOverlay.addEventListener('click', closeSheets);
+
+  sigTypeBtn.addEventListener('click', () => openSheet(sigTypeSheet));
+
+  sigTypeSheet.addEventListener('click', e => {
+    const btn = e.target.closest('.sig-sheet-btn');
+    if (!btn) return;
+    // Toggle active state
+    document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeScannerFilter = btn.dataset.filter;
+    // Update signal button label
+    sigTypeBtn.classList.add('active');
+    // Reset direction toggle and context chips
+    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
+    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn)').forEach(c => c.classList.remove('active'));
+    closeSheets();
+    buildScannerCards();
+  });
+
+  document.getElementById('sigSheetClear').addEventListener('click', () => {
+    document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.remove('active'));
+    sigTypeBtn.classList.remove('active');
+    activeScannerFilter = 'all';
+    closeSheets();
+    buildScannerCards();
+  });
+
+  // ── Advanced filters bottom sheet ──
+  const sigMoreBtn = document.getElementById('sigMoreFiltersBtn');
+  const sigAdvSheet = document.getElementById('sigAdvSheet');
+
+  sigMoreBtn.addEventListener('click', () => openSheet(sigAdvSheet));
+
+  // Update filter badge count
+  function updateFilterBadge() {
+    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter'];
+    let count = selects.filter(id => document.getElementById(id).value !== 'all').length;
+    if (document.getElementById('scannerSort').value !== 'signal') count++;
+    const badge = document.getElementById('sigFilterBadge');
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = '';
+      sigMoreBtn.classList.add('active');
+    } else {
+      badge.style.display = 'none';
+      sigMoreBtn.classList.remove('active');
+    }
+  }
+
+  document.getElementById('sigAdvApply').addEventListener('click', () => {
+    updateFilterBadge();
+    closeSheets();
+    buildScannerCards();
+  });
 
   // ── Watchlist tab controls ───────────────────────────────────────────
   document.getElementById('wlSort').addEventListener('change', e => { wlSort = e.target.value; renderWlMyList(); });

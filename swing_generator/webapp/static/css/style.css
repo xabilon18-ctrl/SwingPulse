@@ -3009,17 +3009,261 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   padding: 7px 10px 7px 30px;
 }
 
-/* Chip row */
-.sig-chips-row {
+/* ── Direction segmented toggle ── */
+.sig-dir-toggle {
+  display: flex;
+  gap: 0;
+  margin: 8px 16px 0;
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+.sig-dir-btn {
+  flex: 1;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 9px 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .18s;
+  line-height: 1;
+  letter-spacing: .02em;
+}
+.sig-dir-btn.active {
+  background: rgba(79,158,255,.15);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.sig-dir-buy.active {
+  background: var(--buy-soft);
+  color: var(--buy);
+}
+.sig-dir-sell.active {
+  background: var(--sell-soft);
+  color: var(--sell);
+}
+
+/* ── Context chip row ── */
+.sig-ctx-row {
   display: flex;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 10px 16px 6px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-.sig-chips-row::-webkit-scrollbar { display: none; }
+.sig-ctx-row::-webkit-scrollbar { display: none; }
 
+.sig-ctx-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  transition: all .15s;
+  line-height: 1;
+}
+.sig-ctx-chip:hover { border-color: var(--accent); color: var(--accent); }
+.sig-ctx-chip.active {
+  background: rgba(79,158,255,.15);
+  color: var(--accent);
+  border-color: rgba(79,158,255,.4);
+}
+.sig-ctx-chip.sig-chip-best.active {
+  background: rgba(99,102,241,.15);
+  color: #a78bfa;
+  border-color: rgba(99,102,241,.4);
+}
+.sig-ctx-signal.active {
+  background: rgba(79,158,255,.12);
+  color: var(--accent);
+  border-color: rgba(79,158,255,.35);
+}
+.sig-ctx-filters {
+  margin-left: auto;
+  position: relative;
+}
+.sig-ctx-filters.active {
+  background: rgba(255,255,255,.08);
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,.25);
+}
+.sig-filter-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: .5rem;
+  font-weight: 800;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+/* ── Bottom sheet overlay + sheet ── */
+.sig-sheet-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 900;
+  backdrop-filter: blur(2px);
+}
+.sig-sheet-overlay.open { display: block; }
+
+.sig-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-radius: 20px 20px 0 0;
+  padding: 12px 20px 28px;
+  z-index: 910;
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.32,.72,0,1);
+  box-shadow: 0 -4px 30px rgba(0,0,0,.3);
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.sig-sheet.open { transform: translateY(0); }
+
+.sig-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255,255,255,.15);
+  border-radius: 2px;
+  margin: 0 auto 14px;
+}
+.sig-sheet-title {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  text-align: center;
+  letter-spacing: .03em;
+}
+
+/* Signal type grid inside sheet */
+.sig-sheet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.sig-sheet-col-label {
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 8px;
+}
+.sig-sheet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: all .15s;
+}
+.sig-sheet-btn span {
+  font-weight: 400;
+  font-size: .6rem;
+  color: var(--text-muted);
+}
+.sig-sheet-btn.active.sig-sheet-buy {
+  background: var(--buy-soft);
+  color: var(--buy);
+  border-color: rgba(0,217,126,.35);
+}
+.sig-sheet-btn.active.sig-sheet-sell {
+  background: var(--sell-soft);
+  color: var(--sell);
+  border-color: rgba(255,77,109,.35);
+}
+.sig-sheet-clear {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  font-size: .72rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255,255,255,.06);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Advanced filters inside sheet */
+.sig-adv-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sig-adv-label {
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sig-adv-select {
+  font-size: .75rem;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.sig-sheet-apply {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px;
+  font-size: .75rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: .02em;
+}
+
+/* Keep old .sig-chip class for Portfolio period chips */
 .sig-chip {
   flex-shrink: 0;
   font-size: .65rem;
@@ -3034,57 +3278,10 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   transition: all .15s;
   line-height: 1;
 }
-.sig-chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.sig-chip.active,
-.sig-chip-all.active {
+.sig-chip.active {
   background: rgba(79,158,255,.15);
   color: var(--accent);
   border-color: rgba(79,158,255,.4);
-}
-.sig-chip-buy.active {
-  background: var(--buy-soft);
-  color: var(--buy);
-  border-color: rgba(0,217,126,.35);
-}
-.sig-chip-sell.active {
-  background: var(--sell-soft);
-  color: var(--sell);
-  border-color: rgba(255,77,109,.35);
-}
-.sig-chip-best.active {
-  background: rgba(99,102,241,.15);
-  color: #a78bfa;
-  border-color: rgba(99,102,241,.4);
-}
-.sig-chip-more {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.sig-chip-more.active {
-  background: rgba(255,255,255,.08);
-  color: var(--text-primary);
-  border-color: rgba(255,255,255,.2);
-}
-
-/* Advanced filters collapsible */
-.sig-advanced-row {
-  display: none;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-.sig-advanced-row.sig-advanced-open {
-  display: flex;
-}
-.sig-advanced-row .select-input {
-  flex: 1 1 140px;
-  min-width: 130px;
 }
 
 /* Card list container */
@@ -4081,19 +4278,17 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .sig-card:has(.sig-badge.p1) { border-left-color: rgba(16,185,129,.5) !important; }
 .sig-card:has(.sig-badge.sell-p1) { border-left-color: rgba(239,68,68,.5) !important; }
 
-/* P1/P2 filter chips show dot indicator when signals exist */
-.sig-chip[data-filter="P1"].has-signals,
-.sig-chip[data-filter="P2"].has-signals {
+/* Signal sheet buttons show dot when signals exist */
+.sig-sheet-btn.has-signals {
   position: relative;
 }
-.sig-chip[data-filter="P1"].has-signals::after,
-.sig-chip[data-filter="P2"].has-signals::after {
+.sig-sheet-btn.has-signals::after {
   content: '';
   position: absolute;
-  top: 3px; right: 3px;
-  width: 5px; height: 5px;
+  top: 6px; right: 8px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--buy);
+  background: var(--accent);
 }
 
 /* ── Lightweight Chart containers ─────────────────────────────────────── */
@@ -5001,15 +5196,24 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 
 /* Filter chips active states — ensure legibility */
-[data-theme="light"] .sig-chip-more.active {
+[data-theme="light"] .sig-ctx-filters.active {
   background: rgba(124,58,237,.1);
   color: var(--accent);
   border-color: rgba(124,58,237,.35);
 }
-[data-theme="light"] .sig-chip-best.active {
+[data-theme="light"] .sig-ctx-chip.sig-chip-best.active {
   background: rgba(124,58,237,.1);
   color: var(--accent);
   border-color: rgba(124,58,237,.35);
+}
+[data-theme="light"] .sig-sheet {
+  background: var(--bg-card);
+}
+[data-theme="light"] .sig-sheet-handle {
+  background: rgba(0,0,0,.12);
+}
+[data-theme="light"] .sig-adv-select {
+  background: var(--bg-primary);
 }
 
 /* MA mini-bars — keep legible on white */

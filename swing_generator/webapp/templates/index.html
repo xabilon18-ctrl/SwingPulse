@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=62">
+  <link rel="stylesheet" href="/static/css/style.css?v=63">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -319,71 +319,119 @@
         </div>
       </div>
 
-      <!-- Filter chips (merged from Signals + Scanner) -->
-      <div class="sig-chips-row" id="scannerFilterChips">
-        <button class="sig-chip active sig-chip-all" data-filter="all">All</button>
-        <button class="sig-chip sig-chip-buy" data-filter="buy">Buy</button>
-        <button class="sig-chip sig-chip-sell" data-filter="sell">Sell</button>
-        <button class="sig-chip sig-chip-best" data-filter="best">Best</button>
-        <button class="sig-chip" data-filter="BP1">BP1</button>
-        <button class="sig-chip" data-filter="SP1">SP1</button>
-        <button class="sig-chip" data-filter="BP2">BP2</button>
-        <button class="sig-chip" data-filter="SP2">SP2</button>
-        <button class="sig-chip" data-filter="BP3">BP3</button>
-        <button class="sig-chip" data-filter="SP3">SP3</button>
-        <button class="sig-chip" data-filter="BP4">BP4</button>
-        <button class="sig-chip" data-filter="SP4">SP4</button>
-        <button class="sig-chip" data-filter="squeeze">Squeeze</button>
-        <button class="sig-chip" data-filter="today">Today</button>
-        <button class="sig-chip" data-filter="keylvl">Key Lvl</button>
-        <button class="sig-chip" data-filter="vol">Vol Spike</button>
-        <button class="sig-chip sig-chip-more" id="sigMoreFiltersBtn">More</button>
+      <!-- Row 1: Direction toggle (segmented control) -->
+      <div class="sig-dir-toggle" id="scannerFilterChips">
+        <button class="sig-dir-btn active" data-filter="all">All</button>
+        <button class="sig-dir-btn sig-dir-buy" data-filter="buy">Buy</button>
+        <button class="sig-dir-btn sig-dir-sell" data-filter="sell">Sell</button>
       </div>
 
-      <!-- Advanced filters (collapsed by default) -->
-      <div class="sig-advanced-row" id="sigAdvancedFilters">
-        <select class="select-input" id="scannerGroupFilter">
-          <option value="all">All Groups</option>
-        </select>
-        <select class="select-input" id="scannerSectorFilter">
-          <option value="all">All Sectors</option>
-        </select>
-        <select class="select-input" id="scannerTrendFilter">
-          <option value="all">All Trends</option>
-          <option value="UPTREND">Uptrend</option>
-          <option value="DOWNTREND">Downtrend</option>
-          <option value="NEUTRAL">Neutral</option>
-        </select>
-        <select class="select-input" id="scannerAlignFilter">
-          <option value="all">All Alignments</option>
-          <option value="bull">Bull (Triple/Aligned/Leaning)</option>
-          <option value="bear">Bear (Triple/Aligned/Leaning)</option>
-          <option value="counter">Counter-trend</option>
-          <option value="mixed">Mixed</option>
-        </select>
-        <select class="select-input" id="scannerConfFilter">
-          <option value="all">All Confidence</option>
-          <option value="high">High Only</option>
-          <option value="highstd">High + Standard</option>
-          <option value="low">Low</option>
-        </select>
-        <select class="select-input" id="scannerSort">
-          <option value="signal">Signal First</option>
-          <option value="date_desc">Newest First</option>
-          <option value="conf_desc">Confidence ↓</option>
-          <option value="pct_1d_desc">1D % ↓</option>
-          <option value="pct_1d_asc">1D % ↑</option>
-          <option value="pct_1w_desc">1W % ↓</option>
-          <option value="pct_1w_asc">1W % ↑</option>
-          <option value="pct_1m_desc">1M % ↓</option>
-          <option value="pct_1m_asc">1M % ↑</option>
-          <option value="pct_1y_desc">1Y % ↓</option>
-          <option value="pct_1y_asc">1Y % ↑</option>
-          <option value="roc_desc">ROC ↓</option>
-          <option value="roc_asc">ROC ↑</option>
-          <option value="order_desc">MA Order ↓</option>
-          <option value="run_desc">Trend Run ↓</option>
-        </select>
+      <!-- Row 2: Context chips -->
+      <div class="sig-ctx-row">
+        <button class="sig-ctx-chip sig-chip-best" data-filter="best">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
+          Best
+        </button>
+        <button class="sig-ctx-chip" data-filter="today">Today</button>
+        <button class="sig-ctx-chip" data-filter="squeeze">Squeeze</button>
+        <button class="sig-ctx-chip" data-filter="keylvl">Key Lvl</button>
+        <button class="sig-ctx-chip" data-filter="vol">Vol Spike</button>
+        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Signal
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="sig-ctx-chip sig-ctx-filters" id="sigMoreFiltersBtn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <span id="sigFilterBadge" class="sig-filter-badge" style="display:none">0</span>
+        </button>
+      </div>
+
+      <!-- Signal type bottom sheet -->
+      <div class="sig-sheet-overlay" id="sigSheetOverlay"></div>
+      <div class="sig-sheet" id="sigTypeSheet">
+        <div class="sig-sheet-handle"></div>
+        <div class="sig-sheet-title">Signal Type</div>
+        <div class="sig-sheet-grid">
+          <div class="sig-sheet-col">
+            <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Plans</div>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP1">BP1 <span>Reversal</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP2">BP2 <span>Pullback</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP3">BP3 <span>MA108</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP4">BP4 <span>Key Level</span></button>
+          </div>
+          <div class="sig-sheet-col">
+            <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Plans</div>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP1">SP1 <span>Reversal</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP2">SP2 <span>Pullback</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP3">SP3 <span>MA108</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP4">SP4 <span>Key Level</span></button>
+          </div>
+        </div>
+        <button class="sig-sheet-clear" id="sigSheetClear">Clear Signal Filter</button>
+      </div>
+
+      <!-- Advanced filters bottom sheet -->
+      <div class="sig-sheet" id="sigAdvSheet">
+        <div class="sig-sheet-handle"></div>
+        <div class="sig-sheet-title">Filters & Sort</div>
+        <div class="sig-adv-fields" id="sigAdvancedFilters">
+          <label class="sig-adv-label">Group
+            <select class="sig-adv-select" id="scannerGroupFilter">
+              <option value="all">All Groups</option>
+            </select>
+          </label>
+          <label class="sig-adv-label">Industry
+            <select class="sig-adv-select" id="scannerSectorFilter">
+              <option value="all">All Industries</option>
+            </select>
+          </label>
+          <label class="sig-adv-label">Trend
+            <select class="sig-adv-select" id="scannerTrendFilter">
+              <option value="all">All Trends</option>
+              <option value="UPTREND">Uptrend</option>
+              <option value="DOWNTREND">Downtrend</option>
+              <option value="NEUTRAL">Neutral</option>
+            </select>
+          </label>
+          <label class="sig-adv-label">Alignment
+            <select class="sig-adv-select" id="scannerAlignFilter">
+              <option value="all">All Alignments</option>
+              <option value="bull">Bull (Triple/Aligned/Leaning)</option>
+              <option value="bear">Bear (Triple/Aligned/Leaning)</option>
+              <option value="counter">Counter-trend</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </label>
+          <label class="sig-adv-label">Confidence
+            <select class="sig-adv-select" id="scannerConfFilter">
+              <option value="all">All Confidence</option>
+              <option value="high">High Only</option>
+              <option value="highstd">High + Standard</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label class="sig-adv-label">Sort by
+            <select class="sig-adv-select" id="scannerSort">
+              <option value="signal">Signal First</option>
+              <option value="date_desc">Newest First</option>
+              <option value="conf_desc">Confidence ↓</option>
+              <option value="pct_1d_desc">1D % ↓</option>
+              <option value="pct_1d_asc">1D % ↑</option>
+              <option value="pct_1w_desc">1W % ↓</option>
+              <option value="pct_1w_asc">1W % ↑</option>
+              <option value="pct_1m_desc">1M % ↓</option>
+              <option value="pct_1m_asc">1M % ↑</option>
+              <option value="pct_1y_desc">1Y % ↓</option>
+              <option value="pct_1y_asc">1Y % ↑</option>
+              <option value="roc_desc">ROC ↓</option>
+              <option value="roc_asc">ROC ↑</option>
+              <option value="order_desc">MA Order ↓</option>
+              <option value="run_desc">Trend Run ↓</option>
+            </select>
+          </label>
+        </div>
+        <button class="sig-sheet-apply" id="sigAdvApply">Apply Filters</button>
       </div>
 
       <div class="signal-summary" id="scannerSummary"></div>
@@ -739,6 +787,6 @@
   </div>
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=77"></script>
+  <script src="/static/js/app.js?v=78"></script>
 </body>
 </html>
