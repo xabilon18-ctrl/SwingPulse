@@ -470,23 +470,11 @@
       </div>
       <div id="openTradesList"></div>
 
-      <!-- Period Selector for Closed -->
-      <div class="pf-section-hdr" style="margin-top:20px">
-        <span class="pf-section-title">TRADE LOG</span>
+      <!-- Deals (from XM email) -->
+      <div class="pf-section-hdr" style="margin-top:20px;display:none" id="pfDealsHdr">
+        <span class="pf-section-title">RECENT DEALS</span>
       </div>
-      <div class="pf-period-row" id="pfPeriodChips">
-        <button class="sig-chip active" data-period="all">All Time</button>
-        <button class="sig-chip" data-period="month">This Month</button>
-        <button class="sig-chip" data-period="quarter">This Quarter</button>
-        <button class="sig-chip" data-period="year">This Year</button>
-      </div>
-
-      <!-- Signal Performance -->
-      <div class="pf-perf-grid" id="pfPerfGrid"></div>
-
-      <!-- Closed Trades -->
-      <div class="trade-summary-bar" id="closedTradeSummary"></div>
-      <div id="closedTradesList"></div>
+      <div id="pfDealsList"></div>
 
     </section>
 
@@ -685,108 +673,9 @@
     </div>
   </div>
 
-  <!-- ===== OPEN TRADE SHEET ===== -->
-  <div class="trade-sheet-overlay" id="openTradeOverlay">
-    <div class="trade-sheet">
-      <div class="trade-sheet-header">
-        <span class="trade-sheet-title">Open Trade</span>
-        <button class="modal-close" id="openTradeSheetClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="trade-sheet-body">
-        <div class="trade-form-row">
-          <label class="trade-form-label">Instrument</label>
-          <input type="text" id="tradeInstInput" class="trade-form-input" readonly>
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Entry Date</label>
-          <input type="date" id="tradeOpenDate" class="trade-form-input">
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Entry Price</label>
-          <input type="number" id="tradeOpenPrice" class="trade-form-input" step="any" min="0" placeholder="0.00">
-        </div>
-        <div class="trade-form-row trade-form-side">
-          <label class="trade-form-label">Direction</label>
-          <div class="trade-side-row">
-            <label class="trade-side-opt"><input type="radio" name="tradeSide" value="long" checked> <span class="side-pill side-long">Long ▲</span></label>
-            <label class="trade-side-opt"><input type="radio" name="tradeSide" value="short"> <span class="side-pill side-short">Short ▼</span></label>
-          </div>
-        </div>
-        <div class="trade-form-row-pair">
-          <div class="trade-form-row">
-            <label class="trade-form-label">Stop Loss</label>
-            <input type="number" id="tradeStopLoss" class="trade-form-input" step="any" min="0" placeholder="0.00">
-          </div>
-          <div class="trade-form-row">
-            <label class="trade-form-label">Target</label>
-            <input type="number" id="tradeTarget" class="trade-form-input" step="any" min="0" placeholder="0.00">
-          </div>
-        </div>
-        <div class="trade-form-row-pair">
-          <div class="trade-form-row">
-            <label class="trade-form-label">Position Size</label>
-            <input type="number" id="tradePositionSize" class="trade-form-input" step="any" min="0" placeholder="0">
-          </div>
-          <div class="trade-form-row">
-            <label class="trade-form-label">Risk %</label>
-            <input type="number" id="tradeRiskPct" class="trade-form-input" step="0.1" min="0" placeholder="1.0">
-          </div>
-        </div>
-        <div class="trade-rr-preview" id="tradeRrPreview" style="display:none">
-          <span class="rr-pill" id="rrRiskPct">--</span>
-          <span class="rr-pill" id="rrRatio">--</span>
-          <span class="rr-pill" id="rrTargetMove">--</span>
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Notes <span class="trade-optional">(optional)</span></label>
-          <textarea id="tradeOpenNotes" class="trade-form-input trade-form-textarea" rows="2" placeholder="Signal, setup notes..."></textarea>
-        </div>
-        <button class="trade-submit-btn trade-submit-open" id="tradeOpenSubmit">Open Trade</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- ===== CLOSE TRADE SHEET ===== -->
-  <div class="trade-sheet-overlay" id="closeTradeOverlay">
-    <div class="trade-sheet">
-      <div class="trade-sheet-header">
-        <span class="trade-sheet-title">Close Trade</span>
-        <button class="modal-close" id="closeTradeSheetClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="trade-sheet-body">
-        <div class="trade-form-row">
-          <label class="trade-form-label">Instrument</label>
-          <input type="text" id="closeInstDisplay" class="trade-form-input" readonly>
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Opened</label>
-          <input type="text" id="closeOpenedDisplay" class="trade-form-input" readonly>
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Close Date</label>
-          <input type="date" id="tradeCloseDate" class="trade-form-input">
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Close Price</label>
-          <input type="number" id="tradeClosePrice" class="trade-form-input" step="any" min="0" placeholder="0.00">
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Exit Type</label>
-          <div class="trade-exit-radios">
-            <label class="trade-radio-label"><input type="radio" name="exitType" value="manual" checked> Manual Close</label>
-            <label class="trade-radio-label"><input type="radio" name="exitType" value="stopped"> Stopped Out</label>
-          </div>
-        </div>
-        <div class="trade-form-row">
-          <label class="trade-form-label">Notes <span class="trade-optional">(optional)</span></label>
-          <textarea id="tradeCloseNotes" class="trade-form-input trade-form-textarea" rows="2" placeholder="Why exited..."></textarea>
-        </div>
-        <button class="trade-submit-btn trade-submit-close" id="tradeCloseSubmit">Close Trade</button>
-      </div>
-    </div>
-  </div>
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=80"></script>
+  <script src="/static/js/app.js?v=81"></script>
 </body>
 </html>
