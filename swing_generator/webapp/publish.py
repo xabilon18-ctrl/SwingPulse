@@ -782,7 +782,7 @@ def build_ui():
     js = js.replace("'/api/events'",       f"'{base}/events.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
-    js = js.replace("'/api/portfolio'",    f"'{base}/portfolio.json'")
+    js = js.replace("'/api/portfolio?t='", f"'{base}/portfolio.json?t='")
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",
         f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"
