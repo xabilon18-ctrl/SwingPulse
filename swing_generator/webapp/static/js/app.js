@@ -3763,7 +3763,7 @@
     `;
 
     // Stats Pills
-    const openCount = openTrades.length || xmPositions.length;
+    const openCount = xmPositions.length || openTrades.length;
     pillsEl.innerHTML = `
       <div class="pf-pill">
         <div class="pf-pill-num" style="color:var(--buy)">${openCount}</div>
@@ -3784,7 +3784,7 @@
     `;
 
     // Open trade count badge
-    if (countEl) countEl.textContent = openTrades.length ? openTrades.length + ' Active' : '';
+    if (countEl) countEl.textContent = openCount ? openCount + ' Active' : '';
 
     // Performance grid (only show if there are closed trades)
     if (total > 0 && perfEl) {
