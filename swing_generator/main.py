@@ -2,9 +2,15 @@
 Swing Trading Signal Generator — daily runner.
 
 Usage:
-    python main.py                 # normal daily run (uses cache if fresh)
-    python main.py --refresh       # force re-download all data from Yahoo Finance
-    python main.py --date 2026-03-28  # backfill a specific date (uses cached data)
+    python main.py                         # normal daily run (uses cache if fresh)
+    python main.py --refresh               # force re-download all data from Yahoo Finance
+    python main.py --date 2026-03-28       # backfill a specific date (uses cached data)
+    python main.py --profile ma200         # run the MA20-200 profile (second app)
+    python main.py --profile ma200 --refresh  # force-refresh MA200 profile data
+
+Profiles:
+    default  — MA10–108 ribbon (15 MAs, step 7)  → output/
+    ma200    — MA20–200 ribbon (19 MAs, step 10) → output_ma200/
 
 Cron (runs at 23:00 SAST / 21:00 UTC every weekday):
     0 21 * * 1-5 cd /path/to/swing_generator && /usr/bin/python3 main.py >> logs/cron.log 2>&1
@@ -22,15 +28,24 @@ from typing import Optional
 
 import pandas as pd
 
-import config
-from config import (
+# ---------------------------------------------------------------------------
+# Profile selection — _active_config reads --profile from sys.argv
+# All other modules (indicators, signals, etc.) also import from _active_config
+# so the whole pipeline automatically uses the same MA set.
+# ---------------------------------------------------------------------------
+import _active_config as config
+
+from _active_config import (
     MA_PERIODS, SMALL_MA_RANGE, OUTPUT_COLUMNS,
     MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
     MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
     TOUCH_TOLERANCE_MONTHLY,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
     SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_MONTHLY,
+    ACTIVE_PROFILE,
 )
+
+PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker
 from data_fetcher  import fetch_all, fetch_all_hourly
 from indicators    import add_all_indicators
@@ -543,6 +558,8 @@ def main():
                         help='Force re-download all data from Yahoo Finance')
     parser.add_argument('--date', type=str, default=None,
                         help='Target date YYYY-MM-DD (default: today)')
+    parser.add_argument('--profile', type=str, default='default',
+                        help='Config profile: default | ma200')
     args = parser.parse_args()
 
     run_date = (
@@ -550,8 +567,9 @@ def main():
         if args.date else date.today()
     )
 
+    profile_label = 'MA200 Profile' if PROFILE == 'ma200' else 'Default Profile'
     print('=' * 60)
-    print(f'  Swing Signal Generator  —  {run_date}')
+    print(f'  Swing Signal Generator  —  {run_date}  [{profile_label}]')
     print('=' * 60)
 
     # 1. Load instrument list
@@ -608,7 +626,9 @@ def main():
 
     # 5b. Write trend segments JSON
     import json
-    trends_path = os.path.join(os.path.dirname(__file__), 'output', f'trends_{run_date}.json')
+    output_dir  = config.OUTPUT_DIR
+    os.makedirs(output_dir, exist_ok=True)
+    trends_path = os.path.join(output_dir, f'trends_{run_date}.json')
     with open(trends_path, 'w') as tf:
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
@@ -621,19 +641,28 @@ def main():
     print('\n  Uploading data to R2 ...\n')
     try:
         import subprocess
+        publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py')]
+        if PROFILE == 'ma200':
+            publish_cmd += ['--profile', 'ma200']
         result = subprocess.run(
-            [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py')],
+            publish_cmd,
             cwd=os.path.dirname(__file__),
             env={**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')},
             timeout=300,
         )
         if result.returncode == 0:
-            print('\n  ✓ App updated! https://swingpulse.pages.dev')
+            if PROFILE == 'ma200':
+                print('\n  ✓ MA200 app updated! https://swingpulse200.pages.dev')
+            else:
+                print('\n  ✓ App updated! https://swingpulse.pages.dev')
         else:
             print('\n  [Publish] Warning: deploy may have failed. Run manually:')
-            print('           python3 webapp/publish.py')
+            if PROFILE == 'ma200':
+                print('           python3 webapp/publish.py --profile ma200')
+            else:
+                print('           python3 webapp/publish.py')
     except subprocess.TimeoutExpired:
-        print('\n  [Publish] Timed out after 5 min. Run manually: python3 webapp/publish.py')
+        print('\n  [Publish] Timed out after 5 min.')
     except Exception as e:
         print(f'\n  [Publish] Skipped: {e}')
 

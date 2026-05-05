@@ -20,7 +20,7 @@ Output per instrument (used in the daily row):
 
 import pandas as pd
 
-from config import (
+from _active_config import (
     PIVOT_LOOKBACK,
     KEY_LEVEL_TOUCH_TOLERANCE,
     KEY_LEVEL_CLUSTER_RANGE,

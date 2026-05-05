@@ -8,14 +8,18 @@ venv/
 
 # ── Credentials — NEVER commit these ──────────────────────────────────────
 swing_generator/credentials/service_account.json
+swing_generator/credentials.json
+swing_generator/token.json
 credentials/
 *.json.key
 
 # ── Large data cache (parquet files — persisted by GitHub Actions cache) ──
 swing_generator/cache/
+swing_generator/cache_ma200/
 
 # ── Generated output (rebuilt on every run) ───────────────────────────────
 swing_generator/output/
+swing_generator/output_ma200/
 swing_generator/webapp/publish/
 
 # ── macOS ──────────────────────────────────────────────────────────────────

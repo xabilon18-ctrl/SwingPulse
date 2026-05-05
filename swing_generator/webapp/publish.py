@@ -3,9 +3,11 @@
 SwingPulse Publisher
 
 Modes:
-  python3 webapp/publish.py              → build data + upload to R2  (daily use, ~60 sec)
-  python3 webapp/publish.py --ui-only    → build UI + deploy to Cloudflare Pages (UI changes only)
-  python3 webapp/publish.py --build-only → build everything locally, no deploy
+  python3 webapp/publish.py                      → build data + upload to R2  (daily use, ~60 sec)
+  python3 webapp/publish.py --ui-only            → build UI + deploy to Cloudflare Pages (UI changes only)
+  python3 webapp/publish.py --build-only         → build everything locally, no deploy
+  python3 webapp/publish.py --profile ma200      → build + upload MA200 profile data (to R2 ma200/ prefix)
+  python3 webapp/publish.py --profile ma200 --ui-only  → deploy MA200 UI to swingpulse200.pages.dev
 """
 
 import argparse
@@ -23,22 +25,44 @@ import pandas as pd
 # yfinance imported lazily inside build_names() to keep startup fast
 
 # ---------------------------------------------------------------------------
+# Profile selection (--profile ma200 uses a separate output dir + R2 prefix)
+# ---------------------------------------------------------------------------
+_pre = argparse.ArgumentParser(add_help=False)
+_pre.add_argument('--profile', default='default')
+_pre_args, _ = _pre.parse_known_args()
+PROFILE = _pre_args.profile.lower().strip()
+
+# ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR = os.path.join(PROJECT_DIR, 'output')
-CACHE_DIR  = os.path.join(PROJECT_DIR, 'cache')
-PUBLISH_DIR         = os.path.join(SCRIPT_DIR,  'publish')
 
-MA_PERIODS = list(range(10, 102, 7))   # must match config.py MA_PERIODS
+if PROFILE == 'ma200':
+    OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma200')
+    CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma200')
+    MA_PERIODS  = list(range(20, 201, 10))   # must match config_ma200.py
+else:
+    OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output')
+    CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache')
+    MA_PERIODS  = list(range(10, 102, 7))    # must match config.py
+
+PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 
 # ---------------------------------------------------------------------------
 # R2 config
 # ---------------------------------------------------------------------------
 R2_BUCKET     = 'swingpulse-data'
 R2_PUBLIC_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
-PAGES_PROJECT = 'swingpulse'
+
+if PROFILE == 'ma200':
+    PAGES_PROJECT = 'swingpulse200'
+    R2_DATA_PREFIX = 'ma200'   # all data files live under R2/ma200/
+    R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
+else:
+    PAGES_PROJECT  = 'swingpulse'
+    R2_DATA_PREFIX = ''        # root level (existing behaviour)
+    R2_BASE_URL    = R2_PUBLIC_URL
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -773,7 +797,7 @@ def build_ui():
     with open(app_js_path) as f:
         js = f.read()
 
-    base = R2_PUBLIC_URL.rstrip('/')
+    base = R2_BASE_URL.rstrip('/')   # profile-aware: R2_PUBLIC_URL or R2_PUBLIC_URL/ma200
     js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
     js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
     js = js.replace("'/api/tv-map'",       f"'{base}/tv-map.json'")
@@ -838,30 +862,36 @@ def main():
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
+    parser.add_argument('--profile', default='default',
+                        help='Config profile: default | ma200')
     args = parser.parse_args()
+
+    profile_label = f'[{PROFILE}]' if PROFILE != 'default' else ''
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
-        print('Building UI for Cloudflare Pages...')
+        print(f'Building UI for Cloudflare Pages... {profile_label}')
         ui_dir = build_ui()
         print(f'  Output: {ui_dir}')
         deploy_ui_to_pages(ui_dir)
         return
 
     # ── Data build + R2 upload  (default daily workflow) ─────────────────
-    print('Building static site...')
-    data_dir = os.path.join(PUBLISH_DIR, 'data')
+    print(f'Building static site... {profile_label}')
+    data_subdir = 'data_ma200' if PROFILE == 'ma200' else 'data'
+    data_dir = os.path.join(PUBLISH_DIR, data_subdir)
     os.makedirs(data_dir, exist_ok=True)
 
     build_data(data_dir)
-    print(f'  Output: {PUBLISH_DIR}')
+    print(f'  Output: {data_dir}')
 
     if args.build_only:
-        print('\n  Build complete. Files in: publish/')
+        print('\n  Build complete.')
         return
 
-    upload_to_r2(data_dir)
-    print(f'\n  App updated! https://swingpulse.pages.dev')
+    upload_to_r2(data_dir, r2_prefix=R2_DATA_PREFIX)
+    pages_url = f'https://{PAGES_PROJECT}.pages.dev'
+    print(f'\n  App updated! {pages_url}')
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ are designed to be called sequentially from main.py.
 import numpy as np
 import pandas as pd
 
-from config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK
+from _active_config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK
 
 
 # ---------------------------------------------------------------------------

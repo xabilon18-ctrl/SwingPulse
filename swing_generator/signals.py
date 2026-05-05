@@ -37,7 +37,7 @@ Exit labels appended when a signal closes the prior open position.
 
 import pandas as pd
 
-from config import (
+from _active_config import (
     MA_PERIODS,
     SMALL_MA_RANGE,
     MA_TOUCH_TOLERANCE,

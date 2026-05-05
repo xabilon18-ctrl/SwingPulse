@@ -18,7 +18,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from config import HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED
+from _active_config import HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED
 
 
 # ---------------------------------------------------------------------------

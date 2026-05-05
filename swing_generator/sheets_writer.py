@@ -24,7 +24,7 @@ from typing import Optional
 
 import pandas as pd
 
-from config import (
+from _active_config import (
     CREDENTIALS_FILE,
     SPREADSHEET_NAME,
     OUTPUT_COLUMNS,
