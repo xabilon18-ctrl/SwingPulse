@@ -705,7 +705,7 @@
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
         fetch('/api/backtest').then(r => r.json()).catch(() => null),
-        fetch('/api/portfolio').then(r => r.json()).catch(() => null),
+        fetch('/api/portfolio?t=' + Date.now()).then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -3832,10 +3832,10 @@
     const countEl  = document.getElementById('openTradeCount');
     if (!listEl) return;
 
-    // Use XM positions from portfolio if available, otherwise manual trades
+    // XM broker positions take priority over manual journal trades
     const xmPositions = (portfolioData && portfolioData.positions) || [];
-    const hasManual = openTrades.length > 0;
     const hasXM = xmPositions.length > 0;
+    const hasManual = !hasXM && openTrades.length > 0;
 
     if (countEl) countEl.textContent = (hasManual ? openTrades.length : xmPositions.length) || '';
 
