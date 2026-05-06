@@ -1922,13 +1922,16 @@
     const volSpike = item[f('volume_spike_flag')] === 'yes';
     const compression = item[f('ribbon_compression')] === 'yes';
     const trendRun = parseInt(item[f('trend_run_days')]);
+    const maLongest  = (summaryData && summaryData.ma_longest)   || 108;
+    const maShortest = (summaryData && summaryData.ma_shortest)  || 10;
+    const maFastMax  = (summaryData && summaryData.ma_fast_max)  || 66;
     const sigDesc = {
-      BP1: 'trend reversal — full ribbon cross up + close above MA108',
-      SP1: 'trend reversal — full ribbon cross down + close below MA108',
-      BP2: 'pullback bounce off fast MAs (10–66) in uptrend',
-      SP2: 'rejection at fast MAs (10–66) in downtrend',
-      BP3: 'bounce off MA108 (longest) in uptrend',
-      SP3: 'rejection at MA108 (longest) in downtrend',
+      BP1: `trend reversal — full ribbon cross up + close above MA${maLongest}`,
+      SP1: `trend reversal — full ribbon cross down + close below MA${maLongest}`,
+      BP2: `pullback bounce off fast MAs (${maShortest}–${maFastMax}) in uptrend`,
+      SP2: `rejection at fast MAs (${maShortest}–${maFastMax}) in downtrend`,
+      BP3: `bounce off MA${maLongest} (longest) in uptrend`,
+      SP3: `rejection at MA${maLongest} (longest) in downtrend`,
       BP4: 'support bounce at key level in uptrend',
       SP4: 'rejection at key level in downtrend',
     };

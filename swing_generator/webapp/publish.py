@@ -125,6 +125,9 @@ def build_summary(df, dt):
         'signal_types':     signal_types,
         'groups':           groups,
         'ma_max_pairs':     len(MA_PERIODS) - 1,  # e.g. 14 for default, 18 for MA200
+        'ma_longest':       _longest_ma,           # e.g. 108 default, 200 ma200
+        'ma_shortest':      _shortest_ma,          # e.g. 10 default, 20 ma200
+        'ma_fast_max':      _fast_ma_max,          # e.g. 66 default, 120 ma200
     }
 
 
@@ -802,6 +805,10 @@ def build_ui():
         html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
     else:
         html = html.replace('PROFILE_BADGE', 'MA108')
+    # Patch Signal Types legend with correct MA periods for this profile
+    html = html.replace('__SIG_LONGEST__', str(_longest_ma))
+    html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
+    html = html.replace('__SIG_FAST_MAX__', str(_fast_ma_max))
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
 
