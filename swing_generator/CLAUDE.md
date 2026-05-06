@@ -42,10 +42,10 @@ swing_generator/
 ├── webapp/
 │   ├── server.py              # Local Flask dev server (http://localhost:5050)
 │   ├── publish.py             # Build + deploy to R2 / Cloudflare Pages (profile-aware)
-│   ├── templates/index.html   # Single-page app shell (CSS v63, JS v81)
+│   ├── templates/index.html   # Single-page app shell (CSS v65, JS v90)
 │   └── static/
-│       ├── js/app.js          # All frontend logic (~3400 lines, v81)
-│       └── css/style.css      # All styles (v63)
+│       ├── js/app.js          # All frontend logic (~3400 lines, v90)
+│       └── css/style.css      # All styles (v65)
 └── .github/workflows/         # GitHub Actions CI
 ```
 
@@ -165,8 +165,8 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## Version History (current)
-- `app.js` — **v81**
-- `style.css` — **v63**
+- `app.js` — **v90**
+- `style.css` — **v65**
 - `index.html` — bump JS/CSS version numbers when deploying UI changes
 
 ---
@@ -185,9 +185,14 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## GitHub Actions Pipeline (`.github/workflows/`)
-- Default profile runs at **03:30 UTC = 05:30 SAST** Monday–Friday
-- Steps: install deps → `python3 main.py` → `python3 webapp/publish.py`
-- MA200 profile: add `publish_ma200.yml` with `python3 main.py --profile ma200` → `python3 webapp/publish.py --profile ma200`
+
+| File | Profile | App | Cron (UTC) | Cache |
+|------|---------|-----|-----------|-------|
+| `publish.yml` | default (MA108) | swingpulse.pages.dev | 03:30, 07:30, 11:30, 15:30, 19:30 Mon–Fri | `cache/` |
+| `publish_ma200.yml` | ma200 | swingpulse200.pages.dev | 04:00, 08:00, 12:00, 16:00, 20:00 Mon–Fri | `cache_ma200/` |
+
+- Both workflows run `python3 main.py [--profile ma200]` which internally calls `publish.py` to upload data to R2
+- Push notifications: `publish.yml` sends `X-Profile: default`, `publish_ma200.yml` sends `X-Profile: ma200`
 - No UI deploy in CI — UI is deployed manually with `--ui-only` when frontend changes
 
 ---
