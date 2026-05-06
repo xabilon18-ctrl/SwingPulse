@@ -1,5 +1,5 @@
 /* SwingPulse Service Worker — Push Notifications */
-const R2_BASE = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev';
+const R2_BASE = 'SW_R2_BASE_URL';  // replaced by publish.py per profile
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));

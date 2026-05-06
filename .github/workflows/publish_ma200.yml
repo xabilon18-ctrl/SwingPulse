@@ -69,6 +69,22 @@ jobs:
           cd swing_generator
           python3 main.py --profile ma200
 
-      # ── 7. Show run summary ───────────────────────────────────────────────
+      # ── 7. Fan out push notifications for MA200 new signals ─────────────────
+      - name: Trigger push notifications (MA200)
+        if: success()
+        env:
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+        run: |
+          if [ -n "$SYNC_SECRET" ]; then
+            curl -sS -X POST \
+              -H "X-Sync-Secret: $SYNC_SECRET" \
+              -H "X-Profile: ma200" \
+              https://swingpulse-sync.xabilon18.workers.dev/push/notify \
+              || echo "(push fan-out failed — non-fatal)"
+          else
+            echo "(SYNC_SECRET not set — skipping push fan-out)"
+          fi
+
+      # ── 8. Show run summary ───────────────────────────────────────────────
       - name: Done
         run: echo "SwingPulse MA200 updated at $(date -u '+%Y-%m-%d %H:%M UTC')"

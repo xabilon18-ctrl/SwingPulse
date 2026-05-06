@@ -162,13 +162,16 @@ def build_history(name, ticker):
 # Signal Explanations — rule-based, no API required
 # ---------------------------------------------------------------------------
 
+_longest_ma = max(MA_PERIODS)
+_shortest_ma = min(MA_PERIODS)
+_fast_ma_max = max(p for p in MA_PERIODS if p <= (120 if _longest_ma >= 200 else 66))
 _SIG_WHAT = {
-    'BP1': ('trend reversal — full ribbon cross up + close above MA108',),
-    'SP1': ('trend reversal — full ribbon cross down + close below MA108',),
-    'BP2': ('pullback bounce off fast MAs (10–66) in uptrend',),
-    'SP2': ('rejection at fast MAs (10–66) in downtrend',),
-    'BP3': ('bounce off MA108 (longest) in uptrend',),
-    'SP3': ('rejection at MA108 (longest) in downtrend',),
+    'BP1': (f'trend reversal — full ribbon cross up + close above MA{_longest_ma}',),
+    'SP1': (f'trend reversal — full ribbon cross down + close below MA{_longest_ma}',),
+    'BP2': (f'pullback bounce off fast MAs ({_shortest_ma}–{_fast_ma_max}) in uptrend',),
+    'SP2': (f'rejection at fast MAs ({_shortest_ma}–{_fast_ma_max}) in downtrend',),
+    'BP3': (f'bounce off MA{_longest_ma} (longest) in uptrend',),
+    'SP3': (f'rejection at MA{_longest_ma} (longest) in downtrend',),
     'BP4': ('support bounce at key level in uptrend',),
     'SP4': ('rejection at key level in downtrend',),
 }
@@ -247,10 +250,11 @@ def _explain_one(row: pd.Series) -> str:
     if order:
         try:
             o = int(float(order))
-            if o >= 14:
-                extras.append(f'MA order fully stacked ({o}/16)')
+            _max_pairs = len(MA_PERIODS) - 1
+            if o >= _max_pairs - 1:
+                extras.append(f'MA order fully stacked bullish ({o}/{_max_pairs})')
             elif o <= 3:
-                extras.append(f'MA order fully stacked bearish ({o}/16)')
+                extras.append(f'MA order fully stacked bearish ({o}/{_max_pairs})')
         except ValueError:
             pass
     if roc:
@@ -287,11 +291,11 @@ def _explain_one(row: pd.Series) -> str:
     if is_buy:
         if not s2_parts:
             s2_parts.append('hold while price stays above the MA ribbon')
-        s2_parts.append('invalidated on a close below MA10')
+        s2_parts.append(f'invalidated on a close below MA{_shortest_ma}')
     elif is_sell:
         if not s2_parts:
             s2_parts.append('hold while price stays below the MA ribbon')
-        s2_parts.append('invalidated on a close above MA10')
+        s2_parts.append(f'invalidated on a close above MA{_shortest_ma}')
 
     if sconf == 'low':
         s2_parts.insert(0, 'low confidence — wait for next-candle confirmation')
@@ -789,9 +793,15 @@ def build_ui():
         shutil.rmtree(static_dst)
     shutil.copytree(os.path.join(SCRIPT_DIR, 'static'), static_dst)
 
-    # Copy index.html
+    # Copy index.html — patch profile badge and title
     with open(os.path.join(SCRIPT_DIR, 'templates', 'index.html')) as f:
         html = f.read()
+    if PROFILE == 'ma200':
+        html = html.replace('PROFILE_BADGE', 'MA200')
+        html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 200</title>')
+        html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
+    else:
+        html = html.replace('<span class="profile-badge">PROFILE_BADGE</span>', '')
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
 
@@ -834,9 +844,14 @@ def build_ui():
         shutil.copy2(manifest_src, ui_dir)
 
     # Copy service worker to root (must be at / scope)
+    # Patch R2_BASE so the SW fetches signals from the correct profile path
     sw_src = os.path.join(SCRIPT_DIR, 'static', 'sw.js')
     if os.path.exists(sw_src):
-        shutil.copy2(sw_src, os.path.join(ui_dir, 'sw.js'))
+        with open(sw_src) as f:
+            sw = f.read()
+        sw = sw.replace('SW_R2_BASE_URL', R2_BASE_URL.rstrip('/'))
+        with open(os.path.join(ui_dir, 'sw.js'), 'w') as f:
+            f.write(sw)
 
     return ui_dir
 
