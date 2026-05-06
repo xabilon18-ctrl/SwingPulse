@@ -56,13 +56,15 @@ R2_BUCKET     = 'swingpulse-data'
 R2_PUBLIC_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
 
 if PROFILE == 'ma200':
-    PAGES_PROJECT = 'swingpulse200'
+    PAGES_PROJECT  = 'swingpulse200'
     R2_DATA_PREFIX = 'ma200'   # all data files live under R2/ma200/
     R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
+    TV_LAYOUT_ID   = 'PLACEHOLDER_200MA'   # replace with real TradingView layout ID
 else:
     PAGES_PROJECT  = 'swingpulse'
     R2_DATA_PREFIX = ''        # root level (existing behaviour)
     R2_BASE_URL    = R2_PUBLIC_URL
+    TV_LAYOUT_ID   = 'PLACEHOLDER_100MA'   # replace with real TradingView layout ID
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -122,6 +124,7 @@ def build_summary(df, dt):
         'turning_points':   int((df['potential_turning_point_flag'] != '').sum()),
         'signal_types':     signal_types,
         'groups':           groups,
+        'ma_max_pairs':     len(MA_PERIODS) - 1,  # e.g. 14 for default, 18 for MA200
     }
 
 
@@ -814,6 +817,12 @@ def build_ui():
     js = js.replace(
         "await fetch('/api/refresh', { method: 'POST' })",
         "window.location.reload(); return"
+    )
+
+    # Inject TradingView layout ID for this profile
+    js = js.replace(
+        "typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : ''",
+        f"'{TV_LAYOUT_ID}/'" if TV_LAYOUT_ID and not TV_LAYOUT_ID.startswith('PLACEHOLDER') else "''"
     )
 
     with open(app_js_path, 'w') as f:

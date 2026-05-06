@@ -504,7 +504,9 @@
     const sym = tvMap[name] || name;
     const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
     const interval = ivlMap[timeframe] || '&interval=D';
-    return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}${interval}`;
+    // TV_LAYOUT_ID is injected by publish.py per profile ('' = no layout, uses TV default)
+    const layout = typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : '';
+    return `https://www.tradingview.com/chart/${layout}?symbol=${encodeURIComponent(sym)}${interval}`;
   }
 
   function tvBtn(name, label) {
@@ -1683,7 +1685,8 @@
 
       // MA order gauge
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 13 * 100) : null;
+      const maMaxPairs = summaryData.ma_max_pairs || 14;
+      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const maOrderColor = maOrderPct !== null ? (maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)') : 'var(--border)';
 
       // Volume spike
@@ -1696,7 +1699,7 @@
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/14</span></span>` : ''}
+            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/${maMaxPairs}</span></span>` : ''}
           </div>
         </div>
         ${tvBtn(item.instrument_name, '')}
@@ -2110,7 +2113,8 @@
       const compression = item[f('ribbon_compression')] === 'yes';
       const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / 13 * 100) : null;
+      const maMaxPairs = summaryData.ma_max_pairs || 14;
+      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const starred = userStarred.has(item.instrument_name);
@@ -2166,7 +2170,7 @@
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
-          <span style="font-size:.6rem">${maOrder}/14</span>
+          <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
@@ -2731,7 +2735,7 @@
           </div>
           <div class="mg-tile">
             <div class="mg-label">MA Order</div>
-            <div class="mg-val">${item[f('ma_order_score')] || '--'}/14</div>
+            <div class="mg-val">${item[f('ma_order_score')] || '--'}/${summaryData.ma_max_pairs || 14}</div>
           </div>
           <div class="mg-tile">
             <div class="mg-label">Momentum</div>
