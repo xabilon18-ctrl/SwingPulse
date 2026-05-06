@@ -59,12 +59,12 @@ if PROFILE == 'ma200':
     PAGES_PROJECT  = 'swingpulse200'
     R2_DATA_PREFIX = 'ma200'   # all data files live under R2/ma200/
     R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
-    TV_LAYOUT_ID   = 'PLACEHOLDER_200MA'   # replace with real TradingView layout ID
+    TV_LAYOUT_ID   = 'xvj4Xt7h'   # TradingView "200MA" layout
 else:
     PAGES_PROJECT  = 'swingpulse'
     R2_DATA_PREFIX = ''        # root level (existing behaviour)
     R2_BASE_URL    = R2_PUBLIC_URL
-    TV_LAYOUT_ID   = 'PLACEHOLDER_100MA'   # replace with real TradingView layout ID
+    TV_LAYOUT_ID   = 'rkjR3bZv'   # TradingView "100MA" layout
 
 # ---------------------------------------------------------------------------
 # Project imports
