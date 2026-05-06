@@ -64,7 +64,7 @@ else:
     PAGES_PROJECT  = 'swingpulse'
     R2_DATA_PREFIX = ''        # root level (existing behaviour)
     R2_BASE_URL    = R2_PUBLIC_URL
-    TV_LAYOUT_ID   = 'rkjR3bZv'   # TradingView "100MA" layout
+    TV_LAYOUT_ID   = 'Oo6tmBiR'    # TradingView "100MA" layout
 
 # ---------------------------------------------------------------------------
 # Project imports
