@@ -2982,19 +2982,30 @@
           ...(b.isSpike ? { color: '#f59e0b', borderColor: '#f59e0b', wickColor: '#f59e0b' } : {}),
         })));
 
-        // ── MA lines from pre-computed history values ──
-        [
-          { key: 'ma_10',  color: '#6366f1', title: 'MA10'  },
-          { key: 'ma_52',  color: '#0ea5e9', title: 'MA52'  },
-          { key: 'ma_108', color: '#ef4444', title: 'MA108' },
-        ].forEach(({ key, color, title }) => {
-          const data = bars
-            .filter(b => b[key] != null)
-            .map(b => ({ time: b.date, value: b[key] }));
-          if (data.length < 2) return;
-          const line = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title });
-          line.setData(data);
-        });
+        // ── MA lines — pick shortest / midpoint / longest dynamically ──
+        // Works for any MA ribbon profile (default MA10–108 or MA200 MA20–200)
+        const maKeys = bars.length
+          ? Object.keys(bars[bars.length - 1])
+              .filter(k => /^ma_\d+$/.test(k))
+              .sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]))
+          : [];
+        if (maKeys.length) {
+          const midIdx = Math.floor((maKeys.length - 1) / 2);
+          const picked = [
+            { key: maKeys[0],      color: '#6366f1' },
+            { key: maKeys[midIdx], color: '#0ea5e9' },
+            { key: maKeys[maKeys.length - 1], color: '#ef4444' },
+          ];
+          picked.forEach(({ key, color }) => {
+            const period = key.split('_')[1];
+            const data = bars
+              .filter(b => b[key] != null)
+              .map(b => ({ time: b.date, value: b[key] }));
+            if (data.length < 2) return;
+            const line = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: `MA${period}` });
+            line.setData(data);
+          });
+        }
 
         // ── Key support / resistance levels ──
         parseKeyLevels(item.key_levels_all).slice(0, 10).forEach(lv => {
