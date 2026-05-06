@@ -3376,12 +3376,13 @@
     const tvSym  = tvMap[name] || name;
     const ivlMap = { 'D': 'D', '4H': '240', 'W': 'W', 'M': 'M' };
     const ivl    = ivlMap[timeframe] || 'D';
+    const layoutId = typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID : '';
     let appUrl;
     if (tvSym.includes(':')) {
       const [exchange, symbol] = tvSym.split(':');
-      appUrl = `tradingview://chart?symbol=${symbol}&exchange=${exchange}&interval=${ivl}`;
+      appUrl = `tradingview://chart${layoutId ? '/' + layoutId : ''}?symbol=${symbol}&exchange=${exchange}&interval=${ivl}`;
     } else {
-      appUrl = `tradingview://chart?symbol=${tvSym}&interval=${ivl}`;
+      appUrl = `tradingview://chart${layoutId ? '/' + layoutId : ''}?symbol=${tvSym}&interval=${ivl}`;
     }
 
     const picker = document.createElement('div');
