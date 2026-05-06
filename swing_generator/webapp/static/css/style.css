@@ -270,17 +270,19 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
 .profile-badge {
-  font-size: .6rem; font-weight: 700; letter-spacing: .04em;
-  padding: 2px 6px; border-radius: 4px;
+  position: absolute; bottom: -4px; right: -6px;
+  font-size: .42rem; font-weight: 800; letter-spacing: .03em;
+  padding: 1px 3px; border-radius: 3px;
   background: linear-gradient(135deg, var(--accent), var(--buy));
-  color: #fff; line-height: 1.4; align-self: center; margin-left: -2px;
+  color: #fff; line-height: 1.5; white-space: nowrap;
+  box-shadow: 0 0 0 1.5px var(--bg-base);
 }
 .logo-icon {
   width: 28px; height: 28px;
   background: linear-gradient(135deg, var(--buy), var(--accent));
   border-radius: 8px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 .logo-icon::after {
   content: '';
