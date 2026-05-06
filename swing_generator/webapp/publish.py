@@ -45,7 +45,7 @@ if PROFILE == 'ma200':
 else:
     OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output')
     CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache')
-    MA_PERIODS  = list(range(10, 102, 7))    # must match config.py
+    MA_PERIODS  = list(range(10, 109, 7))    # must match config.py  (15 MAs: 10→108)
 
 PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 
