@@ -59,12 +59,18 @@ if PROFILE == 'ma200':
     PAGES_PROJECT  = 'swingpulse200'
     R2_DATA_PREFIX = 'ma200'   # all data files live under R2/ma200/
     R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
-    TV_LAYOUT_ID   = '86bzFCIC'    # TradingView "200MA" layout
+    TV_LAYOUTS = {             # TradingView saved layout IDs per user — 200MA profile
+        'zabs': 'xvj4Xt7h',
+        'hemi': '86bzFCIC',
+    }
 else:
     PAGES_PROJECT  = 'swingpulse'
     R2_DATA_PREFIX = ''        # root level (existing behaviour)
     R2_BASE_URL    = R2_PUBLIC_URL
-    TV_LAYOUT_ID   = 'Oo6tmBiR'    # TradingView "100MA" layout
+    TV_LAYOUTS = {             # TradingView saved layout IDs per user — 100MA profile
+        'zabs': 'rkjR3bZv',
+        'hemi': 'Oo6tmBiR',
+    }
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -836,17 +842,9 @@ def build_ui():
         "window.location.reload(); return"
     )
 
-    # Inject TradingView layout ID for this profile (web link + deep link)
-    _tv_with_slash    = f"'{TV_LAYOUT_ID}/'" if TV_LAYOUT_ID else "''"
-    _tv_without_slash = f"'{TV_LAYOUT_ID}'"  if TV_LAYOUT_ID else "''"
-    js = js.replace(
-        "typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : ''",
-        _tv_with_slash
-    )
-    js = js.replace(
-        "typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID : ''",
-        _tv_without_slash
-    )
+    # Inject per-user TV layout IDs for this profile
+    for user, layout_id in TV_LAYOUTS.items():
+        js = js.replace(f'{user.upper()}_TV_LAYOUT_ID', layout_id)
 
     with open(app_js_path, 'w') as f:
         f.write(js)

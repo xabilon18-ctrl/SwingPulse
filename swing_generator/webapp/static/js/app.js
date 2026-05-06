@@ -34,6 +34,18 @@
   const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
   const SYNC_SECRET = 'swingpulse2026';
   let syncUser = localStorage.getItem('sp-user') || '';
+
+  // Per-user TV layout defaults for this profile — injected by publish.py at build time
+  const TV_LAYOUT_DEFAULTS = {
+    'zabs': 'ZABS_TV_LAYOUT_ID',
+    'hemi': 'HEMI_TV_LAYOUT_ID',
+  };
+  function userTvLayout() {
+    // User's saved layout takes priority; fall back to their profile default
+    return localStorage.getItem(sk('sp-tv-layout'))
+      || TV_LAYOUT_DEFAULTS[syncUser]
+      || '';
+  }
   let syncPushTimer = null;
 
   // Storage key namespaced by active user so Zabs & Hemi never share local state
@@ -504,9 +516,8 @@
     const sym = tvMap[name] || name;
     const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
     const interval = ivlMap[timeframe] || '&interval=D';
-    // TV_LAYOUT_ID is injected by publish.py per profile — '' falls back to TV default view
-    const layout = typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : '';
-    return `https://www.tradingview.com/chart/${layout}?symbol=${encodeURIComponent(sym)}${interval}`;
+    const layout = userTvLayout();
+    return `https://www.tradingview.com/chart/${layout ? layout + '/' : ''}?symbol=${encodeURIComponent(sym)}${interval}`;
   }
 
   function tvBtn(name, label) {
@@ -3379,7 +3390,7 @@
     const tvSym  = tvMap[name] || name;
     const ivlMap = { 'D': 'D', '4H': '240', 'W': 'W', 'M': 'M' };
     const ivl    = ivlMap[timeframe] || 'D';
-    const layoutId = typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID : '';
+    const layoutId = userTvLayout();
     let appUrl;
     if (tvSym.includes(':')) {
       const [exchange, symbol] = tvSym.split(':');
