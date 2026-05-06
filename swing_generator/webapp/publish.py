@@ -801,7 +801,7 @@ def build_ui():
         html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 200</title>')
         html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
     else:
-        html = html.replace('<span class="profile-badge">PROFILE_BADGE</span>', '')
+        html = html.replace('PROFILE_BADGE', 'MA108')
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
 
