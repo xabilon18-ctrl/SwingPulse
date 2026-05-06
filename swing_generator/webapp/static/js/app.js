@@ -1101,10 +1101,73 @@
     renderAlertBanner();
     rebuildCharts();
     renderConfidenceBreakdown();
+    renderGroupPulse();
     renderHeatmap();
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
+  }
+
+  // ── Group Market Pulse ─────────────────────────────────────────────────
+  function renderGroupPulse() {
+    const body = document.getElementById('groupPulseBody');
+    const riskBadge = document.getElementById('groupPulseRisk');
+    if (!body) return;
+
+    // Aggregate trend counts per group from already-loaded data
+    const groupMap = {};
+    const INDEX_GROUPS = new Set(['Asia Index','CA Index','EU Index','US Index']);
+    for (const item of allData) {
+      const raw = item.group || 'Other';
+      const g   = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
+      if (!groupMap[g]) groupMap[g] = { bull: 0, bear: 0, neutral: 0 };
+      const t = item[f('trend_direction')] || item.trend_direction || 'NEUTRAL';
+      if      (t === 'UPTREND')   groupMap[g].bull++;
+      else if (t === 'DOWNTREND') groupMap[g].bear++;
+      else                        groupMap[g].neutral++;
+    }
+
+    // Sort groups: most bullish first
+    const groups = Object.entries(groupMap).sort((a, b) => {
+      const pctA = a[1].bull / (a[1].bull + a[1].bear + a[1].neutral || 1);
+      const pctB = b[1].bull / (b[1].bull + b[1].bear + b[1].neutral || 1);
+      return pctB - pctA;
+    });
+
+    // Overall risk-on/off: >55% bull across all instruments = risk-on
+    const totBull    = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'UPTREND').length;
+    const totBear    = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'DOWNTREND').length;
+    const totAll     = allData.length || 1;
+    const bullPct    = totBull / totAll;
+    const isRiskOn   = bullPct > 0.55;
+    const isRiskOff  = (totBear / totAll) > 0.55;
+    if (riskBadge) {
+      riskBadge.textContent = isRiskOn ? '▲ Risk-On' : isRiskOff ? '▼ Risk-Off' : '◆ Mixed';
+      riskBadge.className   = 'gp-risk-badge ' + (isRiskOn ? 'gp-risk-on' : isRiskOff ? 'gp-risk-off' : 'gp-risk-mixed');
+    }
+
+    body.innerHTML = groups.map(([name, c]) => {
+      const total   = c.bull + c.bear + c.neutral || 1;
+      const bullPct = Math.round(c.bull    / total * 100);
+      const bearPct = Math.round(c.bear    / total * 100);
+      const neutPct = 100 - bullPct - bearPct;
+      const dominant = bullPct > bearPct + 15 ? 'gp-row-bull'
+                      : bearPct > bullPct + 15 ? 'gp-row-bear'
+                      : 'gp-row-mixed';
+      return `
+        <div class="gp-row ${dominant}">
+          <div class="gp-name">${name}</div>
+          <div class="gp-bar-wrap">
+            <div class="gp-bar-bull" style="width:${bullPct}%"></div>
+            <div class="gp-bar-neut" style="width:${neutPct}%"></div>
+            <div class="gp-bar-bear" style="width:${bearPct}%"></div>
+          </div>
+          <div class="gp-stats">
+            <span class="gp-bull">${bullPct}%↑</span>
+            <span class="gp-bear">${bearPct}%↓</span>
+          </div>
+        </div>`;
+    }).join('');
   }
 
   // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────
