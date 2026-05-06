@@ -836,13 +836,9 @@ def build_ui():
         "window.location.reload(); return"
     )
 
-    # Inject TradingView layout ID for this profile (two patterns: web link with trailing /, deep link without)
-    _tv_with_slash    = f"'{TV_LAYOUT_ID}/'" if TV_LAYOUT_ID else "''"
-    _tv_without_slash = f"'{TV_LAYOUT_ID}'"  if TV_LAYOUT_ID else "''"
-    js = js.replace(
-        "typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : ''",
-        _tv_with_slash
-    )
+    # Inject TradingView layout ID for the deep link only (tradingview:// app link)
+    # Web link (tvUrl) does NOT use layout ID — avoids TV "private layout" login error
+    _tv_without_slash = f"'{TV_LAYOUT_ID}'" if TV_LAYOUT_ID else "''"
     js = js.replace(
         "typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID : ''",
         _tv_without_slash

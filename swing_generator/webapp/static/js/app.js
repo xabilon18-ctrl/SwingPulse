@@ -504,9 +504,8 @@
     const sym = tvMap[name] || name;
     const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
     const interval = ivlMap[timeframe] || '&interval=D';
-    // TV_LAYOUT_ID is injected by publish.py per profile ('' = no layout, uses TV default)
-    const layout = typeof TV_LAYOUT_ID !== 'undefined' && TV_LAYOUT_ID ? TV_LAYOUT_ID + '/' : '';
-    return `https://www.tradingview.com/chart/${layout}?symbol=${encodeURIComponent(sym)}${interval}`;
+    // Web link: no layout ID — opens clean chart without requiring TV login
+    return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}${interval}`;
   }
 
   function tvBtn(name, label) {
