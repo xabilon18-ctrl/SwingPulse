@@ -1755,6 +1755,10 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 
 .scanner-empty { grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted); }
+.scanner-load-more { grid-column: 1 / -1; display: flex; justify-content: center; padding: 12px 0; }
+.scanner-load-more-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; color: var(--text-secondary); cursor: pointer; font-size: .8rem; padding: 8px 20px; transition: background .15s; }
+.scanner-load-more-btn:hover { background: var(--bg-hover); }
+.hm-overflow-note { grid-column: 1 / -1; text-align: center; font-size: .75rem; color: var(--text-muted); padding: 8px; }
 
 /* ── Watchlist Tab ────────────────────────────────────────────────────── */
 .wl-my-card, .wl-alerts-card { margin-bottom: 16px; }

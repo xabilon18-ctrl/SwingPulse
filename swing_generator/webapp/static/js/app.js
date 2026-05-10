@@ -27,6 +27,8 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
+  const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
+  let scannerPage = 1;             // how many pages shown so far
   // ── Radar filter state ──────────────────────────────────────────────────
   const radarState = { search: '', dir: 'all', rsi: 'all',
     collapsed: { ready: false, building: false, squeeze: false }, guide: false };
@@ -1712,7 +1714,14 @@
       }
     }
 
-    grid.innerHTML = filtered.map((item, i) => {
+    // Cap heatmap at 200 cells to keep the Dashboard responsive
+    const HM_CAP = 200;
+    const hmFiltered = filtered.length > HM_CAP ? filtered.slice(0, HM_CAP) : filtered;
+    const hmOverflow = filtered.length > HM_CAP
+      ? `<div class="hm-overflow-note">${filtered.length - HM_CAP} more — use group filter to narrow</div>`
+      : '';
+
+    grid.innerHTML = hmFiltered.map((item, i) => {
       const cls = signalClass(item);
       const hmCls = 'hm-' + cls;
       const primary = item[f('primary_signal')] ? 'hm-primary' : '';
@@ -1722,7 +1731,8 @@
       const alignColor = (item.tf_alignment || '').includes('Bull') ? 'var(--buy)' : (item.tf_alignment || '').includes('Bear') ? 'var(--sell)' : 'var(--watch)';
       const squeeze = item[f('ribbon_compression')] === 'yes';
       const triple = isTripleAligned(item);
-      return `<div class="heatmap-cell ${finalCls} ${primary} pop-in" style="animation-delay:${i * 15}ms"
+      const hmDelay = Math.min(i, 25) * 15;  // cap at 375 ms
+      return `<div class="heatmap-cell ${finalCls} ${primary} pop-in" style="animation-delay:${hmDelay}ms"
                    data-ticker="${item.instrument_name}">
         ${squeeze ? '<div class="hm-squeeze-dot"></div>' : ''}
         ${triple ? '<div class="hm-3tf-dot"></div>' : ''}
@@ -1739,7 +1749,7 @@
         </div>
         <div class="hm-align-bar" style="background:${alignColor}"></div>
       </div>`;
-    }).join('');
+    }).join('') + hmOverflow;
   }
 
   // ── Signal Feed (Dashboard) ──────────────────────────────────────────
@@ -2057,7 +2067,8 @@
     buildScannerCards();
   }
 
-  function buildScannerCards() {
+  function buildScannerCards(appendPage = false) {
+    if (!appendPage) scannerPage = 1;  // reset to page 1 when filters change
     const grid = document.getElementById('scannerGrid');
     const summaryEl = document.getElementById('scannerSummary');
     const search = document.getElementById('scannerSearch').value.toLowerCase();
@@ -2192,7 +2203,13 @@
       return;
     }
 
-    grid.innerHTML = filtered.map((item, i) => {
+    // ── Pagination: only render SCANNER_PAGE_SIZE × scannerPage cards at once ──
+    const totalFiltered = filtered.length;
+    const pageEnd = scannerPage * SCANNER_PAGE_SIZE;
+    const visible = filtered.slice(0, pageEnd);
+    const remaining = totalFiltered - visible.length;
+
+    function makeCard(item, i) {
       const t = item[f('trend_direction')] || 'NEUTRAL';
       const sig = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
@@ -2216,8 +2233,9 @@
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
       const pct = pctFromMa(item);
+      // Cap animation delay so the browser doesn't track hundreds of CSS timers
+      const delay = Math.min(i, 30) * 20;
 
-      // Performance % row
       function perfPill(val, label) {
         const v = parseFloat(val);
         if (isNaN(v)) return '';
@@ -2232,7 +2250,7 @@
         perfPill(item.pct_1y, '1Y'),
       ].filter(Boolean).join('');
 
-      return `<div class="scanner-card pop-in" style="animation-delay:${i * 20}ms" data-act="openModal" data-arg="${item.instrument_name}">
+      return `<div class="scanner-card pop-in" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
@@ -2271,7 +2289,32 @@
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
       </div>`;
-    }).join('');
+    }
+
+    const cardsHtml = visible.map((item, i) => makeCard(item, i)).join('');
+    const loadMoreHtml = remaining > 0
+      ? `<div class="scanner-load-more" id="scannerLoadMore">
+           <button class="scanner-load-more-btn">Show ${Math.min(remaining, SCANNER_PAGE_SIZE)} more <span style="opacity:.6">(${remaining} remaining)</span></button>
+         </div>`
+      : '';
+
+    if (appendPage) {
+      // Remove old "load more" row before appending
+      const old = document.getElementById('scannerLoadMore');
+      if (old) old.remove();
+      grid.insertAdjacentHTML('beforeend', cardsHtml + loadMoreHtml);
+    } else {
+      grid.innerHTML = cardsHtml + loadMoreHtml;
+    }
+
+    // Wire up load-more button
+    const loadMoreBtn = document.getElementById('scannerLoadMore');
+    if (loadMoreBtn) {
+      loadMoreBtn.querySelector('button').addEventListener('click', () => {
+        scannerPage++;
+        buildScannerCards(true);  // append next page
+      });
+    }
   }
 
   document.getElementById('scannerSearch').addEventListener('input', debounce(buildScannerCards, 150));
