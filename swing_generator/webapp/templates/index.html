@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=78">
+  <link rel="stylesheet" href="/static/css/style.css?v=79">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -332,6 +332,31 @@
               <option value="low">Low</option>
             </select>
           </label>
+          <label class="sig-adv-label">Macro Level (S/R)
+            <select class="sig-adv-select" id="scannerMacroMaFilter">
+              <option value="all">All</option>
+              <optgroup label="Above">
+                <option value="above_300">Above MA300</option>
+                <option value="above_500">Above MA500</option>
+                <option value="above_1000">Above MA1000</option>
+                <option value="above_2000">Above MA2000</option>
+                <option value="above_all">Above All Macro MAs</option>
+              </optgroup>
+              <optgroup label="Below">
+                <option value="below_300">Below MA300</option>
+                <option value="below_500">Below MA500</option>
+                <option value="below_1000">Below MA1000</option>
+                <option value="below_2000">Below MA2000</option>
+                <option value="below_all">Below All Macro MAs</option>
+              </optgroup>
+              <optgroup label="Near (±2%)">
+                <option value="near_300">Near MA300</option>
+                <option value="near_500">Near MA500</option>
+                <option value="near_1000">Near MA1000</option>
+                <option value="near_2000">Near MA2000</option>
+              </optgroup>
+            </select>
+          </label>
           <label class="sig-adv-label">Sort by
             <select class="sig-adv-select" id="scannerSort">
               <option value="signal">Signal First</option>
@@ -578,6 +603,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=100"></script>
+  <script src="/static/js/app.js?v=101"></script>
 </body>
 </html>

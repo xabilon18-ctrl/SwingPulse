@@ -27,6 +27,7 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
+  let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
   // ── Radar filter state ──────────────────────────────────────────────────
@@ -463,7 +464,11 @@
       .filter(k => /^ma_\d+$/.test(k))
       .map(k => parseInt(k.slice(3), 10))
       .sort((a, b) => a - b);
-    if (found.length) detectedMaPeriods = found;
+    if (found.length) {
+      detectedMaPeriods = found.filter(p => p <= 200);   // ribbon MAs
+      const macro = found.filter(p => p > 200);
+      if (macro.length) detectedMacroMas = macro;
+    }
   }
 
   // ── Timeframe field accessor ────────────────────────────────────────
@@ -891,6 +896,22 @@
     const zone  = rsiZone(v);
     const label = opts.noLabel ? '' : ` <span class="rsi-zone-lbl">${rsiZoneLabel(v)}</span>`;
     return `<span class="rsi-badge rsi-${zone}">RSI ${v.toFixed(0)}${label}</span>`;
+  }
+  function macroMaHtml(item) {
+    const close = parseFloat(item.close);
+    if (!close || isNaN(close)) return '';
+    const pills = detectedMacroMas.map(p => {
+      const maVal = parseFloat(item[`ma_${p}`]);
+      if (isNaN(maVal)) return '';
+      const pct = ((close - maVal) / maVal) * 100;
+      const above = pct >= 0;
+      const near = Math.abs(pct) <= 2;
+      const cls = near ? 'macro-near' : above ? 'macro-above' : 'macro-below';
+      const arrow = near ? '~' : above ? '▲' : '▼';
+      const label = p >= 1000 ? `MA${p/1000}k` : `MA${p}`;
+      return `<span class="macro-ma-pill ${cls}">${arrow}${label} <span class="macro-ma-pct">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></span>`;
+    }).filter(Boolean).join('');
+    return pills ? `<div class="macro-ma-row">${pills}</div>` : '';
   }
   // Wide bar row for the multi-TF panel
   function rsiBarRow(label, rsiVal) {
@@ -2137,6 +2158,31 @@
     else if (confFilter === 'highstd') filtered = filtered.filter(d => ['high','standard'].includes(d[f('signal_confidence')]));
     else if (confFilter === 'low') filtered = filtered.filter(d => d[f('signal_confidence')] === 'low');
 
+    // ── Macro MA filter ──
+    const macroMaSel = document.getElementById('scannerMacroMaFilter');
+    const macroMaVal = macroMaSel ? macroMaSel.value : 'all';
+    if (macroMaVal !== 'all') {
+      filtered = filtered.filter(item => {
+        const close = parseFloat(item.close);
+        if (!close || isNaN(close)) return false;
+        if (macroMaVal === 'above_all') {
+          return detectedMacroMas.every(p => { const v = parseFloat(item[`ma_${p}`]); return !isNaN(v) && close > v; });
+        }
+        if (macroMaVal === 'below_all') {
+          return detectedMacroMas.every(p => { const v = parseFloat(item[`ma_${p}`]); return !isNaN(v) && close < v; });
+        }
+        const [side, period] = macroMaVal.split('_');
+        const p = parseInt(period);
+        const maVal = parseFloat(item[`ma_${p}`]);
+        if (isNaN(maVal)) return false;
+        const pct = (close - maVal) / maVal * 100;
+        if (side === 'above') return close > maVal;
+        if (side === 'below') return close < maVal;
+        if (side === 'near')  return Math.abs(pct) <= 2;
+        return true;
+      });
+    }
+
     // ── Chip filter (skip when user is searching by name) ──
     if (!search) {
       if (activeScannerFilter === 'buy')         filtered = filtered.filter(isBuy);
@@ -2326,6 +2372,7 @@
           <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
         ${rsiHtml(item[f('rsi')], {noLabel:false})}
+        ${macroMaHtml(item)}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -2446,7 +2493,7 @@
 
   // Update filter badge count
   function updateFilterBadge() {
-    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter'];
+    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter','scannerMacroMaFilter'];
     let count = selects.filter(id => document.getElementById(id).value !== 'all').length;
     if (document.getElementById('scannerSort').value !== 'signal') count++;
     const badge = document.getElementById('sigFilterBadge');
@@ -3785,11 +3832,13 @@
     const grpSel   = document.getElementById('scannerGroupFilter');
     const trendSel = document.getElementById('scannerTrendFilter');
     const alignSel = document.getElementById('scannerAlignFilter');
+    const macroEl = document.getElementById('scannerMacroMaFilter');
     const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
     const trend = trendSel?.value !== 'all' ? trendSel.value : '';
     const align = alignSel?.value !== 'all' ? alignSel.value : '';
+    const macro = macroEl?.value !== 'all' ? macroEl.value : '';
 
-    if (!grp && !trend && !align) {
+    if (!grp && !trend && !align && !macro) {
       strip.style.display = 'none';
       strip.innerHTML = '';
       return;
@@ -3806,6 +3855,10 @@
       const lbl = { bull:'Bull Aligned', bear:'Bear Aligned', counter:'Counter-trend', mixed:'Mixed' }[align] || align;
       pills.push(`<span class="ctx-pill ctx-pill-align">Alignment: <strong>${lbl}</strong></span>`);
     }
+    if (macro) {
+      const macroLbl = macroEl.options[macroEl.selectedIndex]?.text || macro;
+      pills.push(`<span class="ctx-pill ctx-pill-macro">Level: <strong>${macroLbl}</strong></span>`);
+    }
 
     strip.style.display = 'flex';
     strip.innerHTML = pills.join('') +
@@ -3815,6 +3868,7 @@
       if (grpSel)   grpSel.value   = 'all';
       if (trendSel) trendSel.value = 'all';
       if (alignSel) alignSel.value = 'all';
+      if (macroEl)  macroEl.value  = 'all';
       activeTrendFilter = '';
       activeAlignFilter = '';
       buildHeatmapCells();

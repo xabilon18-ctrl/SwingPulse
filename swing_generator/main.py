@@ -36,7 +36,7 @@ import pandas as pd
 import _active_config as config
 
 from _active_config import (
-    MA_PERIODS, SMALL_MA_RANGE, OUTPUT_COLUMNS,
+    MA_PERIODS, SMALL_MA_RANGE, MACRO_MA_PERIODS, OUTPUT_COLUMNS,
     MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
     MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
     TOUCH_TOLERANCE_MONTHLY,
@@ -81,7 +81,8 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     row_date = target.index[-1].date()
 
     periods = ma_periods or MA_PERIODS
-    ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in periods}
+    all_periods = list(periods) + (MACRO_MA_PERIODS if not prefix else [])
+    ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in all_periods}
     lookback = signal_lookback or SIGNAL_LOOKBACK_DAILY
     last_sig = _find_last_signal(target, lookback=lookback)
     if prefix:

@@ -30,6 +30,18 @@ def add_ma_ribbon(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 # Volume
 # ---------------------------------------------------------------------------
 
+def add_macro_ma_levels(df: pd.DataFrame) -> pd.DataFrame:
+    """Add long-term S/R reference MAs: ma_300, ma_500, ma_1000, ma_2000 (daily only).
+    Requires enough history; silently skips if insufficient data."""
+    from _active_config import MACRO_MA_PERIODS
+    for period in MACRO_MA_PERIODS:
+        if len(df) >= period:
+            df[f'ma_{period}'] = df['Close'].rolling(period, min_periods=period).mean()
+        else:
+            df[f'ma_{period}'] = float('nan')
+    return df
+
+
 def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add:
@@ -203,6 +215,7 @@ def add_performance_pct(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
+    df = add_macro_ma_levels(df)
     df = add_volume_analysis(df)
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)

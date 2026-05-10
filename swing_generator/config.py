@@ -32,6 +32,9 @@ MA_PERIODS  = list(range(20, 201, 10))
 SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 120]   # BP2/SP2: fast MAs [20..120]
 MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA110 — midpoint of 19-MA ribbon
 
+# Long-term Support/Resistance reference MAs (daily only)
+MACRO_MA_PERIODS = [300, 500, 1000, 2000]
+
 # ---------------------------------------------------------------------------
 # Data — need 18 yr to get 200+ monthly bars (200 mo ≈ 16.7 yr)
 # ---------------------------------------------------------------------------
@@ -129,6 +132,7 @@ OUTPUT_COLUMNS = [
     'date', 'open', 'high', 'low', 'close', 'volume',
     'volume_average', 'volume_spike_flag',
     *[f'ma_{p}' for p in MA_PERIODS],
+    *[f'ma_{p}' for p in MACRO_MA_PERIODS],
     'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
     'primary_signal', 'secondary_signal',
     'signal_confidence',

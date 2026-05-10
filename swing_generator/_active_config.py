@@ -3,7 +3,7 @@ _active_config.py — MA200 profile (single active config).
 All modules import from here.
 """
 from config import (
-    MA_PERIODS, SMALL_MA_RANGE, MA_MIDPOINT,
+    MA_PERIODS, SMALL_MA_RANGE, MA_MIDPOINT, MACRO_MA_PERIODS,
     HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED,
     VOLUME_LOOKBACK,
     PIVOT_LOOKBACK, KEY_LEVEL_TOUCH_TOLERANCE, KEY_LEVEL_CLUSTER_RANGE,
