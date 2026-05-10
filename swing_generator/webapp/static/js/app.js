@@ -589,16 +589,35 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
+  // Track which lazy tabs need a re-render (set dirty after every data refresh)
+  const tabDirty = { trends: true, radar: true };
+
   function renderAll() {
     renderDashboard();
     renderScanner();
     renderWatchlist();
+    // Mark lazy tabs dirty so they re-render on next visit
+    tabDirty.trends = true;
+    tabDirty.radar  = true;
+    // If the user is already on a lazy tab (e.g. background refresh), render it now
+    if (currentTab === 'trends') renderTrendsLazy();
+    if (currentTab === 'radar')  renderRadarLazy();
+  }
+
+  function renderTrendsLazy() {
+    if (!tabDirty.trends) return;
+    tabDirty.trends = false;
     if (!selectedTrendInst && allData.length) {
       selectedTrendInst = allData.find(d => d.instrument_name === 'GOLD') ? 'GOLD' : allData[0].instrument_name;
     }
     renderTrendsInstrumentList();
     if (selectedTrendInst) renderTrendDetail(selectedTrendInst);
     renderTrendsSummary();
+  }
+
+  function renderRadarLazy() {
+    if (!tabDirty.radar) return;
+    tabDirty.radar = false;
     renderRadar();
   }
 
@@ -613,6 +632,9 @@
     panes.forEach(p => p.classList.remove('active'));
     document.getElementById('pane-' + tab).classList.add('active');
     currentTab = tab;
+    // Lazy-render heavy tabs on first visit (or after data refresh)
+    if (tab === 'trends') renderTrendsLazy();
+    if (tab === 'radar')  renderRadarLazy();
   }
 
   navTabs.forEach(btn => {
