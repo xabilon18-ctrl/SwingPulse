@@ -316,16 +316,14 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
 243  | APP           | APP           | US100         | US100                     | AI Ad-Tech
 244  | ANET          | ANET          | NYSE          | NYSE                      | AI Datacenter Networking
-245  | CRWD          | CRWD          | US100         | US100                     | AI Cybersecurity
-246  | PANW          | PANW          | US100         | US100                     | Cybersecurity Platform
+245  | PANW          | PANW          | US100         | US100                     | Cybersecurity Platform
 247  | NOW           | NOW           | NYSE          | NYSE                      | AI Enterprise Automation
 248  | SNOW          | SNOW          | NYSE          | NYSE                      | AI Data Cloud
 249  | DDOG          | DDOG          | US100         | US100                     | AI Observability
 250  | NET           | NET           | NYSE          | NYSE                      | AI Networking / Security
 251  | DELL          | DELL          | NYSE          | NYSE                      | AI Server Infrastructure
 252  | NFLX          | NFLX          | US100         | US100                     | Streaming / AI
-253  | INTU          | INTU          | US100         | US100                     | AI Financial Software
-254  | ZS            | ZS            | US100         | US100                     | Cloud Security
+253  | ZS            | ZS            | US100         | US100                     | Cloud Security
 
 ═══════════════════════════════════════════════════════════════════════════════
   SPAIN35 IBEX (19)
