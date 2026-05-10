@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=77">
+  <link rel="stylesheet" href="/static/css/style.css?v=78">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -68,7 +68,7 @@
           <div>
             <span class="mp-card-title">MARKET PULSE</span>
             <button class="gauge-info-btn" id="gaugeInfoBtn" title="How is the score calculated?">?</button>
-            <span class="mp-card-hint">Tap row → filter heatmap</span>
+            <span class="mp-card-hint">Tap row → filter scanner</span>
           </div>
           <span class="chart-tf-badge" id="chartTfBadge1"></span>
         </div>
@@ -236,6 +236,9 @@
           <input type="text" class="search-input" id="scannerSearch" placeholder="Search...">
         </div>
       </div>
+
+      <!-- Dashboard filter context strip (shown when navigated from Market Pulse / Group Pulse) -->
+      <div class="scanner-ctx-strip" id="scannerCtxStrip" style="display:none"></div>
 
       <!-- Row 1: Direction toggle (segmented control) -->
       <div class="sig-dir-toggle" id="scannerFilterChips">
@@ -575,6 +578,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=99"></script>
+  <script src="/static/js/app.js?v=100"></script>
 </body>
 </html>

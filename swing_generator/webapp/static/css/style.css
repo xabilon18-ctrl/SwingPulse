@@ -1754,6 +1754,39 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   transition: width .6s ease;
 }
 
+/* ── Scanner context strip (from Market Pulse / Group Pulse) ─────────── */
+.scanner-ctx-strip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 8px 16px; background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px; margin: 0 0 8px;
+  animation: fadeInDown .2s ease;
+}
+@keyframes fadeInDown { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+.ctx-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: .72rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.ctx-pill strong { color: var(--text-primary); font-weight: 700; }
+.ctx-pill-bull  { border-color: rgba(16,185,129,.4); color: var(--buy); }
+.ctx-pill-bull strong { color: var(--buy); }
+.ctx-pill-bear  { border-color: rgba(239,68,68,.4);  color: var(--sell); }
+.ctx-pill-bear strong { color: var(--sell); }
+.ctx-pill-neut  { border-color: var(--border); }
+.ctx-pill-group { border-color: rgba(99,102,241,.4); color: var(--accent); }
+.ctx-pill-group strong { color: var(--accent); }
+.ctx-pill-align { border-color: rgba(245,158,11,.4); color: var(--watch); }
+.ctx-pill-align strong { color: var(--watch); }
+.ctx-clear-btn {
+  margin-left: auto; padding: 3px 10px; border-radius: 20px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: .72rem; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.ctx-clear-btn:hover { color: var(--sell); border-color: var(--sell); }
+
 .scanner-empty { grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted); }
 .scanner-load-more { grid-column: 1 / -1; display: flex; justify-content: center; padding: 12px 0; }
 .scanner-load-more-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; color: var(--text-secondary); cursor: pointer; font-size: .8rem; padding: 8px 20px; transition: background .15s; }
@@ -5562,12 +5595,14 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; border-left: 3px solid transparent;
   transition: background .15s;
-  cursor: default;
+  cursor: pointer;
 }
-.gp-row:hover { background: rgba(255,255,255,.03); }
+.gp-row:hover { background: rgba(255,255,255,.06); }
 .gp-row-bull  { border-color: var(--buy); }
 .gp-row-bear  { border-color: var(--sell); }
 .gp-row-mixed { border-color: var(--accent); }
+.gp-row-selected { background: rgba(255,255,255,.07) !important; outline: 1px solid var(--accent); outline-offset: -1px; }
+.gp-row-selected .gp-name { color: var(--text-primary); }
 .gp-row:not(:last-child) { border-bottom: 1px solid var(--border); }
 
 .gp-name {

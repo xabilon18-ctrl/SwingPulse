@@ -1201,6 +1201,8 @@
       riskBadge.className   = 'gp-risk-badge ' + (isRiskOn ? 'gp-risk-on' : isRiskOff ? 'gp-risk-off' : 'gp-risk-mixed');
     }
 
+    const activeGroup = document.getElementById('scannerGroupFilter')?.value || 'all';
+
     body.innerHTML = groups.map(([name, c]) => {
       const total   = c.bull + c.bear + c.neutral || 1;
       const bullPct = Math.round(c.bull    / total * 100);
@@ -1209,8 +1211,9 @@
       const dominant = bullPct > bearPct + 15 ? 'gp-row-bull'
                       : bearPct > bullPct + 15 ? 'gp-row-bear'
                       : 'gp-row-mixed';
+      const isActive = activeGroup === name ? ' gp-row-selected' : '';
       return `
-        <div class="gp-row ${dominant}">
+        <div class="gp-row ${dominant}${isActive}" data-gp-group="${name}" title="Filter scanner: ${name}">
           <div class="gp-name">${name}</div>
           <div class="gp-bar-wrap">
             <div class="gp-bar-bull" style="width:${bullPct}%"></div>
@@ -1223,6 +1226,21 @@
           </div>
         </div>`;
     }).join('');
+
+    // Click a group row → jump to scanner filtered by that group
+    body.querySelectorAll('.gp-row[data-gp-group]').forEach(row => {
+      row.addEventListener('click', () => {
+        const grp = row.dataset.gpGroup;
+        const sel = document.getElementById('scannerGroupFilter');
+        if (!sel) return;
+        // Toggle: clicking active row resets to all
+        sel.value = sel.value === grp ? 'all' : grp;
+        updateScannerCtxStrip();
+        navigateToTab('scanner');
+        buildScannerCards();
+        renderGroupPulse(); // refresh active state highlight
+      });
+    });
   }
 
   // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────
@@ -2086,6 +2104,7 @@
     sectorSelect.innerHTML = '<option value="all">All Sectors</option>' +
       sectors.map(s => `<option value="${s}">${s}</option>`).join('');
 
+    updateScannerCtxStrip();
     buildScannerCards();
   }
 
@@ -2443,6 +2462,7 @@
 
   document.getElementById('sigAdvApply').addEventListener('click', () => {
     updateFilterBadge();
+    updateScannerCtxStrip();  // sync context strip when advanced filters change
     closeSheets();
     buildScannerCards();
   });
@@ -3719,25 +3739,88 @@
     });
   });
 
-  // Wire trend + alignment filters via mp-breakdown container
+  // Wire trend + alignment filters via mp-breakdown container → navigate to scanner
   const mpBreakdown = document.getElementById('mpBreakdown');
   if (mpBreakdown) {
     mpBreakdown.addEventListener('click', e => {
       const row = e.target.closest('.mp-filter-row');
       if (!row) return;
       const trend = row.dataset.filterTrend;
-      const align = row.dataset.filterAlign;
+      const align = row.dataset.filterAlign;  // e.g. "Triple Bull", "Counter-trend"
+      const trendSel = document.getElementById('scannerTrendFilter');
+      const alignSel = document.getElementById('scannerAlignFilter');
+      if (!trendSel || !alignSel) return;
+
       if (trend) {
-        activeTrendFilter = activeTrendFilter === trend ? '' : trend;
-        activeAlignFilter = '';
+        // Toggle: clicking the active trend resets it
+        trendSel.value = trendSel.value === trend ? 'all' : trend;
+        alignSel.value = 'all';
       } else if (align) {
-        activeAlignFilter = activeAlignFilter === align ? '' : align;
-        activeTrendFilter = '';
+        // Map alignment label → scanner select value
+        let alignVal = 'all';
+        if (align.includes('Bull'))         alignVal = 'bull';
+        else if (align.includes('Bear'))    alignVal = 'bear';
+        else if (align === 'Counter-trend') alignVal = 'counter';
+        else if (align === 'Mixed')         alignVal = 'mixed';
+        // Toggle
+        alignSel.value = alignSel.value === alignVal ? 'all' : alignVal;
+        trendSel.value = 'all';
       }
+
+      // Also keep heatmap filter in sync for when user scrolls back to dashboard
+      activeTrendFilter = trendSel.value !== 'all' ? trendSel.value : '';
+      activeAlignFilter = '';
       buildHeatmapCells();
-      if (activeTrendFilter || activeAlignFilter) {
-        document.getElementById('heatmapCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+
+      updateScannerCtxStrip();
+      navigateToTab('scanner');
+      buildScannerCards();
+    });
+  }
+
+  // ── Scanner context strip: shows active dashboard filter + reset button ──
+  function updateScannerCtxStrip() {
+    const strip = document.getElementById('scannerCtxStrip');
+    if (!strip) return;
+    const grpSel   = document.getElementById('scannerGroupFilter');
+    const trendSel = document.getElementById('scannerTrendFilter');
+    const alignSel = document.getElementById('scannerAlignFilter');
+    const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
+    const trend = trendSel?.value !== 'all' ? trendSel.value : '';
+    const align = alignSel?.value !== 'all' ? alignSel.value : '';
+
+    if (!grp && !trend && !align) {
+      strip.style.display = 'none';
+      strip.innerHTML = '';
+      return;
+    }
+
+    const pills = [];
+    if (grp)   pills.push(`<span class="ctx-pill ctx-pill-group">Group: <strong>${grp}</strong></span>`);
+    if (trend) {
+      const lbl = trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral';
+      const cls = trend === 'UPTREND' ? 'ctx-pill-bull' : trend === 'DOWNTREND' ? 'ctx-pill-bear' : 'ctx-pill-neut';
+      pills.push(`<span class="ctx-pill ${cls}">Trend: <strong>${lbl}</strong></span>`);
+    }
+    if (align) {
+      const lbl = { bull:'Bull Aligned', bear:'Bear Aligned', counter:'Counter-trend', mixed:'Mixed' }[align] || align;
+      pills.push(`<span class="ctx-pill ctx-pill-align">Alignment: <strong>${lbl}</strong></span>`);
+    }
+
+    strip.style.display = 'flex';
+    strip.innerHTML = pills.join('') +
+      `<button class="ctx-clear-btn" id="ctxClearBtn">✕ Reset</button>`;
+
+    document.getElementById('ctxClearBtn')?.addEventListener('click', () => {
+      if (grpSel)   grpSel.value   = 'all';
+      if (trendSel) trendSel.value = 'all';
+      if (alignSel) alignSel.value = 'all';
+      activeTrendFilter = '';
+      activeAlignFilter = '';
+      buildHeatmapCells();
+      renderGroupPulse();
+      updateScannerCtxStrip();
+      buildScannerCards();
     });
   }
 
