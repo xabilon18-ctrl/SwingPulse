@@ -1,6 +1,6 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (296)
-  Generated: 18 April 2026
+  GANN SCANNER — FULL INSTRUMENT LIST (685)
+  Generated: 10 May 2026
 ═══════════════════════════════════════════════════════════════════════════════
 
 FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector                    | Industry
@@ -378,25 +378,506 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 296  | T.TO          | TELUS         | CAN60         | Telecommunications        | Telecom Services
 
 ═══════════════════════════════════════════════════════════════════════════════
+  COMMODITIES — NEW (12)
+═══════════════════════════════════════════════════════════════════════════════
+297  | BZ=F          | BRENT         | Commodity     | Commodities               | Energy
+298  | NG=F          | NGAS          | Commodity     | Commodities               | Energy
+299  | PL=F          | PLATINUM      | Commodity     | Commodities               | Precious Metals
+300  | PA=F          | PALLADIUM     | Commodity     | Commodities               | Precious Metals
+301  | HG=F          | COPPER        | Commodity     | Commodities               | Industrial Metals
+302  | ZC=F          | CORN          | Commodity     | Commodities               | Agriculture
+303  | ZW=F          | WHEAT         | Commodity     | Commodities               | Agriculture
+304  | SB=F          | SUGAR         | Commodity     | Commodities               | Agriculture
+305  | KC=F          | COFFEE        | Commodity     | Commodities               | Agriculture
+306  | CC=F          | COCOA         | Commodity     | Commodities               | Agriculture
+307  | ZS=F          | SOYBEANS      | Commodity     | Commodities               | Agriculture
+308  | CT=F          | COTTON        | Commodity     | Commodities               | Agriculture
+
+═══════════════════════════════════════════════════════════════════════════════
+  INDICES — NEW (4)
+═══════════════════════════════════════════════════════════════════════════════
+309  | ^AXJO         | AUS200        | Asia Index    | Index                     | ASX 200
+310  | ^J200         | SA40          | Africa Index  | Index                     | JSE Top 40
+311  | ^VIX          | VIX           | US Index      | Index                     | Volatility Index
+312  | DX-Y.NYB      | USDX          | US Index      | Index                     | US Dollar Index
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — CROSS PAIRS (15)
+═══════════════════════════════════════════════════════════════════════════════
+313  | AUDCHF=X      | AUDCHF        | Forex         | Currency                  | AUD/CHF
+314  | AUDJPY=X      | AUDJPY        | Forex         | Currency                  | AUD/JPY
+315  | AUDNZD=X      | AUDNZD        | Forex         | Currency                  | AUD/NZD
+316  | AUDCAD=X      | AUDCAD        | Forex         | Currency                  | AUD/CAD
+317  | NZDCHF=X      | NZDCHF        | Forex         | Currency                  | NZD/CHF
+318  | NZDJPY=X      | NZDJPY        | Forex         | Currency                  | NZD/JPY
+319  | NZDCAD=X      | NZDCAD        | Forex         | Currency                  | NZD/CAD
+320  | CADCHF=X      | CADCHF        | Forex         | Currency                  | CAD/CHF
+321  | CADJPY=X      | CADJPY        | Forex         | Currency                  | CAD/JPY
+322  | CHFJPY=X      | CHFJPY        | Forex         | Currency                  | CHF/JPY
+323  | USDTRY=X      | USDTRY        | Forex         | Currency                  | USD/TRY
+324  | USDSEK=X      | USDSEK        | Forex         | Currency                  | USD/SEK
+325  | USDNOK=X      | USDNOK        | Forex         | Currency                  | USD/NOK
+326  | USDSGD=X      | USDSGD        | Forex         | Currency                  | USD/SGD
+327  | EURNOK=X      | EURNOK        | Forex         | Currency                  | EUR/NOK
+
+═══════════════════════════════════════════════════════════════════════════════
+  CRYPTO — NEW (19)
+═══════════════════════════════════════════════════════════════════════════════
+328  | ADA-USD       | ADAUSDT       | Crypto        | Crypto                    | Layer 1
+329  | LTC-USD       | LTCUSDT       | Crypto        | Crypto                    | Layer 1
+330  | BCH-USD       | BCHUSDT       | Crypto        | Crypto                    | Layer 1
+331  | XLM-USD       | XLMUSDT       | Crypto        | Crypto                    | Layer 1
+332  | ETC-USD       | ETCUSDT       | Crypto        | Crypto                    | Layer 1
+333  | TRX-USD       | TRXUSDT       | Crypto        | Crypto                    | Layer 1
+334  | NEAR-USD      | NEARUSDT      | Crypto        | Crypto                    | Layer 1
+335  | MATIC-USD     | MATICUSDT     | Crypto        | Crypto                    | Layer 2
+336  | FIL-USD       | FILUSDT       | Crypto        | Crypto                    | Storage
+337  | THETA-USD     | THETAUSDT     | Crypto        | Crypto                    | Media
+338  | SAND-USD      | SANDUSDT      | Crypto        | Crypto                    | NFT / Gaming
+339  | MANA-USD      | MANAUSDT      | Crypto        | Crypto                    | NFT / Gaming
+340  | ARB-USD       | ARBUSDT       | Crypto        | Crypto                    | Layer 2
+341  | LDO-USD       | LDOUSDT       | Crypto        | Crypto                    | DeFi
+342  | GRT-USD       | GRTUSDT       | Crypto        | Crypto                    | DeFi
+343  | FTM-USD       | FTMUSDT       | Crypto        | Crypto                    | Layer 1
+344  | CRV-USD       | CRVUSDT       | Crypto        | Crypto                    | DeFi
+345  | IMX-USD       | IMXUSDT       | Crypto        | Crypto                    | NFT / Gaming
+346  | ENJ-USD       | ENJUSDT       | Crypto        | Crypto                    | NFT / Gaming
+
+═══════════════════════════════════════════════════════════════════════════════
+  UK100 FTSE (35)
+═══════════════════════════════════════════════════════════════════════════════
+347  | SHEL.L        | SHEL          | UK100         | Energy                    | Oil & Gas Integrated
+348  | AZN.L         | AZN           | UK100         | Healthcare                | Drug Manufacturers
+349  | HSBA.L        | HSBA          | UK100         | Financial Services        | Banks
+350  | BP.L          | BP            | UK100         | Energy                    | Oil & Gas Integrated
+351  | RIO.L         | RIO           | UK100         | Basic Materials           | Mining
+352  | GSK.L         | GSK           | UK100         | Healthcare                | Drug Manufacturers
+353  | DGE.L         | DGE           | UK100         | Consumer Defensive        | Beverages - Distillers
+354  | ULVR.L        | ULVR          | UK100         | Consumer Defensive        | Household Products
+355  | VOD.L         | VOD           | UK100         | Communication Services    | Telecom
+356  | BATS.L        | BATS          | UK100         | Consumer Defensive        | Tobacco
+357  | BHP.L         | BHP           | UK100         | Basic Materials           | Mining
+358  | GLEN.L        | GLEN          | UK100         | Basic Materials           | Mining
+359  | AAL.L         | AAL           | UK100         | Basic Materials           | Mining
+360  | LSEG.L        | LSEG          | UK100         | Financial Services        | Capital Markets
+361  | NG.L          | NG_UK         | UK100         | Utilities                 | Gas Utilities
+362  | LLOY.L        | LLOY          | UK100         | Financial Services        | Banks
+363  | NWG.L         | NWG           | UK100         | Financial Services        | Banks
+364  | BARC.L        | BARC          | UK100         | Financial Services        | Banks
+365  | PRU.L         | PRU           | UK100         | Financial Services        | Insurance
+366  | AV.L          | AV            | UK100         | Financial Services        | Insurance
+367  | STAN.L        | STAN          | UK100         | Financial Services        | Banks
+368  | REL.L         | RELX          | UK100         | Industrials               | Publishing
+369  | CPG.L         | CPG           | UK100         | Consumer Cyclical         | Business Services
+370  | IMB.L         | IMB           | UK100         | Consumer Defensive        | Tobacco
+371  | BT-A.L        | BT_A          | UK100         | Communication Services    | Telecom
+372  | IHG.L         | IHG           | UK100         | Consumer Cyclical         | Lodging
+373  | EXPN.L        | EXPN          | UK100         | Industrials               | Business Services
+374  | BA.L          | BAE           | UK100         | Industrials               | Aerospace & Defense
+375  | RR.L          | RR_UK         | UK100         | Industrials               | Aerospace & Defense
+376  | FERG.L        | FERG          | UK100         | Industrials               | Industrial Distribution
+377  | MKS.L         | MKS           | UK100         | Consumer Cyclical         | Apparel Retail
+378  | TSCO.L        | TSCO          | UK100         | Consumer Defensive        | Discount Stores
+379  | FLTR.L        | FLTR          | UK100         | Consumer Cyclical         | Gambling
+380  | WPP.L         | WPP           | UK100         | Communication Services    | Advertising
+381  | LGEN.L        | LGEN          | UK100         | Financial Services        | Insurance
+
+═══════════════════════════════════════════════════════════════════════════════
+  FRA40 CAC (30)
+═══════════════════════════════════════════════════════════════════════════════
+382  | TTE.PA        | TTE           | FRA40         | Energy                    | Oil & Gas Integrated
+383  | OR.PA         | OR_FR         | FRA40         | Consumer Defensive        | Household Products
+384  | MC.PA         | MC_FR         | FRA40         | Consumer Cyclical         | Luxury Goods
+385  | RMS.PA        | RMS           | FRA40         | Consumer Cyclical         | Luxury Goods
+386  | AI.PA         | AI_FR         | FRA40         | Basic Materials           | Specialty Chemicals
+387  | AIR.PA        | AIR_FR        | FRA40         | Industrials               | Aerospace & Defense
+388  | SAF.PA        | SAF           | FRA40         | Industrials               | Aerospace & Defense
+389  | SU.PA         | SU_FR         | FRA40         | Industrials               | Industrial Machinery
+390  | CAP.PA        | CAP_FR        | FRA40         | Technology                | IT Services
+391  | DSY.PA        | DSY           | FRA40         | Technology                | Software
+392  | BNP.PA        | BNP           | FRA40         | Financial Services        | Banks
+393  | AXA.PA        | AXA           | FRA40         | Financial Services        | Insurance
+394  | GLE.PA        | GLE           | FRA40         | Financial Services        | Banks
+395  | SAN.PA        | SANOFI        | FRA40         | Healthcare                | Drug Manufacturers
+396  | ENGI.PA       | ENGI          | FRA40         | Utilities                 | Utilities
+397  | ORA.PA        | ORA           | FRA40         | Communication Services    | Telecom
+398  | VIV.PA        | VIV           | FRA40         | Communication Services    | Entertainment
+399  | PUB.PA        | PUB           | FRA40         | Communication Services    | Advertising
+400  | KER.PA        | KER           | FRA40         | Consumer Cyclical         | Luxury Goods
+401  | BN.PA         | BN_FR         | FRA40         | Consumer Defensive        | Packaged Foods
+402  | RI.PA         | RI_FR         | FRA40         | Consumer Defensive        | Beverages - Wineries
+403  | EL.PA         | EL_FR         | FRA40         | Consumer Cyclical         | Specialty Retail
+404  | SGO.PA        | SGO           | FRA40         | Basic Materials           | Building Materials
+405  | LR.PA         | LR_FR         | FRA40         | Industrials               | Electrical Equipment
+406  | HO.PA         | HO_FR         | FRA40         | Industrials               | Defense
+407  | EN.PA         | EN_FR         | FRA40         | Industrials               | Construction
+408  | VIE.PA        | VIE           | FRA40         | Utilities                 | Water Utilities
+409  | ML.PA         | ML_FR         | FRA40         | Consumer Cyclical         | Tires
+410  | DG.PA         | DG_FR         | FRA40         | Industrials               | Construction
+411  | STMPA.PA      | STMPA         | FRA40         | Technology                | Semiconductors
+
+═══════════════════════════════════════════════════════════════════════════════
+  IT40 MIB (15)
+═══════════════════════════════════════════════════════════════════════════════
+412  | UCG.MI        | UCG           | IT40          | Financial Services        | Banks
+413  | ENEL.MI       | ENEL          | IT40          | Utilities                 | Electric Utilities
+414  | ENI.MI        | ENI           | IT40          | Energy                    | Oil & Gas Integrated
+415  | ISP.MI        | ISP           | IT40          | Financial Services        | Banks
+416  | RACE.MI       | RACE          | IT40          | Consumer Cyclical         | Auto Manufacturers
+417  | G.MI          | G_IT          | IT40          | Financial Services        | Insurance
+418  | TIT.MI        | TIT           | IT40          | Communication Services    | Telecom
+419  | BAMI.MI       | BAMI          | IT40          | Financial Services        | Banks
+420  | STLAM.MI      | STLAM         | IT40          | Consumer Cyclical         | Auto Manufacturers
+421  | LDO.MI        | LDO_IT        | IT40          | Industrials               | Aerospace & Defense
+422  | PIRC.MI       | PIRC          | IT40          | Consumer Cyclical         | Tires
+423  | MB.MI         | MB_IT         | IT40          | Financial Services        | Investment Banking
+424  | MONC.MI       | MONC          | IT40          | Consumer Cyclical         | Luxury Goods
+425  | NEXI.MI       | NEXI          | IT40          | Technology                | Payment Technology
+426  | PST.MI        | PST_IT        | IT40          | Financial Services        | Postal & Financial Services
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — EXOTIC PAIRS (15)
+═══════════════════════════════════════════════════════════════════════════════
+427  | EURTRY=X      | EURTRY        | Forex         | Currency                  | EUR/TRY
+428  | EURSGD=X      | EURSGD        | Forex         | Currency                  | EUR/SGD
+429  | GBPSEK=X      | GBPSEK        | Forex         | Currency                  | GBP/SEK
+430  | AUDSGD=X      | AUDSGD        | Forex         | Currency                  | AUD/SGD
+431  | NZDSGD=X      | NZDSGD        | Forex         | Currency                  | NZD/SGD
+432  | SGDJPY=X      | SGDJPY        | Forex         | Currency                  | SGD/JPY
+433  | USDHKD=X      | USDHKD        | Forex         | Currency                  | USD/HKD
+434  | USDCNH=X      | USDCNH        | Forex         | Currency                  | USD/CNH
+435  | USDCZK=X      | USDCZK        | Forex         | Currency                  | USD/CZK
+436  | USDHUF=X      | USDHUF        | Forex         | Currency                  | USD/HUF
+437  | EURHUF=X      | EURHUF        | Forex         | Currency                  | EUR/HUF
+438  | EURPLN=X      | EURPLN        | Forex         | Currency                  | EUR/PLN
+439  | ZARJPY=X      | ZARJPY        | Forex         | Currency                  | ZAR/JPY
+440  | TRYJPY=X      | TRYJPY        | Forex         | Currency                  | TRY/JPY
+441  | MXNJPY=X      | MXNJPY        | Forex         | Currency                  | MXN/JPY
+
+═══════════════════════════════════════════════════════════════════════════════
+  COMMODITIES — ADDITIONAL (3)
+═══════════════════════════════════════════════════════════════════════════════
+442  | RB=F          | GASOLINE      | Commodity     | Commodities               | Energy
+443  | HO=F          | HEATINGOIL    | Commodity     | Commodities               | Energy
+444  | ZO=F          | OATMEAL       | Commodity     | Commodities               | Agriculture
+
+═══════════════════════════════════════════════════════════════════════════════
+  CRYPTO — ADDITIONAL (17)
+═══════════════════════════════════════════════════════════════════════════════
+445  | ZEC-USD       | ZECUSDT       | Crypto        | Crypto                    | Privacy
+446  | DASH-USD      | DASHUSDT      | Crypto        | Crypto                    | Payment
+447  | EOS-USD       | EOSUSDT       | Crypto        | Crypto                    | Layer 1
+448  | EGLD-USD      | EGLDUSDT      | Crypto        | Crypto                    | Layer 1
+449  | HBAR-USD      | HBARUSDT      | Crypto        | Crypto                    | Layer 1
+450  | FLOW-USD      | FLOWUSDT      | Crypto        | Crypto                    | NFT / Gaming
+451  | STX-USD       | STXUSDT       | Crypto        | Crypto                    | Layer 2
+452  | VET-USD       | VETUSDT       | Crypto        | Crypto                    | Layer 1
+453  | KAVA-USD      | KAVAUSDT      | Crypto        | Crypto                    | DeFi
+454  | ROSE-USD      | ROSEUSDT      | Crypto        | Crypto                    | Layer 1
+455  | CFX-USD       | CFXUSDT       | Crypto        | Crypto                    | Layer 1
+456  | GALA-USD      | GALAUSDT      | Crypto        | Crypto                    | NFT / Gaming
+457  | HOT-USD       | HOTUSDT       | Crypto        | Crypto                    | Layer 1
+458  | ONE-USD       | ONEUSDT       | Crypto        | Crypto                    | Layer 1
+459  | ZIL-USD       | ZILUSDT       | Crypto        | Crypto                    | Layer 1
+460  | IOTA-USD      | IOTAUSDT      | Crypto        | Crypto                    | IoT
+461  | XTZ-USD       | XTZUSDT       | Crypto        | Crypto                    | Layer 1
+
+═══════════════════════════════════════════════════════════════════════════════
+  UK100 FTSE — ADDITIONAL (47)
+═══════════════════════════════════════════════════════════════════════════════
+462  | III.L         | III           | UK100         | Financial Services        | Private Equity
+463  | ADM.L         | ADM           | UK100         | Financial Services        | Insurance
+464  | AHT.L         | AHT           | UK100         | Industrials               | Equipment Rental
+465  | ABF.L         | ABF           | UK100         | Consumer Defensive        | Packaged Foods
+466  | AUTO.L        | AUTO          | UK100         | Technology                | Online Marketplace
+467  | BDEV.L        | BDEV          | UK100         | Consumer Cyclical         | Homebuilding
+468  | BKG.L         | BKG           | UK100         | Consumer Cyclical         | Homebuilding
+469  | BLND.L        | BLND          | UK100         | Real Estate               | REIT
+470  | BNZL.L        | BNZL          | UK100         | Industrials               | Distribution
+471  | BRBY.L        | BRBY          | UK100         | Consumer Cyclical         | Luxury Goods
+472  | CCL.L         | CCL           | UK100         | Consumer Cyclical         | Travel & Leisure
+473  | CNA.L         | CNA           | UK100         | Utilities                 | Gas Utilities
+474  | CCH.L         | CCH           | UK100         | Consumer Defensive        | Beverages
+475  | CTEC.L        | CTEC          | UK100         | Healthcare                | Medical Devices
+476  | CRH.L         | CRH           | UK100         | Basic Materials           | Building Materials
+477  | CRDA.L        | CRDA          | UK100         | Basic Materials           | Specialty Chemicals
+478  | SMDS.L        | SMDS          | UK100         | Consumer Cyclical         | Packaging
+479  | EZJ.L         | EZJ           | UK100         | Consumer Cyclical         | Airlines
+480  | ENT.L         | ENT           | UK100         | Consumer Cyclical         | Gambling
+481  | FRES.L        | FRES          | UK100         | Basic Materials           | Precious Metals Mining
+482  | HLMA.L        | HLMA          | UK100         | Technology                | Industrial Safety
+483  | HL.L          | HL            | UK100         | Financial Services        | Asset Management
+484  | ICG.L         | ICG           | UK100         | Financial Services        | Private Equity
+485  | ITRK.L        | ITRK          | UK100         | Industrials               | Testing & Certification
+486  | JD.L          | JD_UK         | UK100         | Consumer Cyclical         | Apparel Retail
+487  | JMAT.L        | JMAT          | UK100         | Basic Materials           | Specialty Chemicals
+488  | KGF.L         | KGF           | UK100         | Consumer Cyclical         | Home Improvement
+489  | LAND.L        | LAND          | UK100         | Real Estate               | REIT
+490  | MNG.L         | MNG           | UK100         | Financial Services        | Asset Management
+491  | MNDI.L        | MNDI          | UK100         | Basic Materials           | Paper & Packaging
+492  | MRO.L         | MRO           | UK100         | Industrials               | Engineering
+493  | NXT.L         | NXT           | UK100         | Consumer Cyclical         | Apparel Retail
+494  | OCDO.L        | OCDO          | UK100         | Consumer Cyclical         | Internet Retail
+495  | PSON.L        | PSON          | UK100         | Communication Services    | Publishing
+496  | PSN.L         | PSN           | UK100         | Consumer Cyclical         | Homebuilding
+497  | PHNX.L        | PHNX          | UK100         | Financial Services        | Insurance
+498  | RKT.L         | RKT           | UK100         | Consumer Defensive        | Household Products
+499  | RTO.L         | RTO           | UK100         | Industrials               | Business Services
+500  | SGE.L         | SGE           | UK100         | Technology                | Software
+501  | SDR.L         | SDR           | UK100         | Financial Services        | Asset Management
+502  | SGRO.L        | SGRO          | UK100         | Real Estate               | REIT
+503  | SN.L          | SN            | UK100         | Healthcare                | Medical Devices
+504  | SMIN.L        | SMIN          | UK100         | Industrials               | Engineering
+505  | SSE.L         | SSE           | UK100         | Utilities                 | Electric Utilities
+506  | STJ.L         | STJ           | UK100         | Financial Services        | Asset Management
+507  | TW.L          | TW            | UK100         | Consumer Cyclical         | Homebuilding
+508  | UU.L          | UU            | UK100         | Utilities                 | Water Utilities
+509  | WTB.L         | WTB           | UK100         | Consumer Cyclical         | Hotels & Restaurants
+
+═══════════════════════════════════════════════════════════════════════════════
+  FRA40 CAC — ADDITIONAL (5)
+═══════════════════════════════════════════════════════════════════════════════
+510  | AC.PA         | AC_FR         | FRA40         | Consumer Cyclical         | Hotels
+511  | ACA.PA        | ACA           | FRA40         | Financial Services        | Banks
+512  | ERF.PA        | ERF           | FRA40         | Healthcare                | Diagnostics
+513  | WLN.PA        | WLN           | FRA40         | Technology                | Payment Technology
+514  | SW.PA         | SW_FR         | FRA40         | Consumer Defensive        | Food Services
+
+═══════════════════════════════════════════════════════════════════════════════
+  IT40 MIB — ADDITIONAL (14)
+═══════════════════════════════════════════════════════════════════════════════
+515  | A2A.MI        | A2A           | IT40          | Utilities                 | Electric Utilities
+516  | BPER.MI       | BPER          | IT40          | Financial Services        | Banks
+517  | BMPS.MI       | BMPS          | IT40          | Financial Services        | Banks
+518  | INWIT.MI      | INWIT         | IT40          | Communication Services    | Telecom Infrastructure
+519  | IG.MI         | IG_IT         | IT40          | Utilities                 | Gas Utilities
+520  | CNHI.MI       | CNHI          | IT40          | Industrials               | Agricultural Machinery
+521  | FBK.MI        | FBK           | IT40          | Financial Services        | Banks
+522  | HERA.MI       | HERA          | IT40          | Utilities                 | Utilities
+523  | PRY.MI        | PRY           | IT40          | Industrials               | Cables
+524  | REC.MI        | REC_IT        | IT40          | Healthcare                | Drug Manufacturers
+525  | SRG.MI        | SRG           | IT40          | Utilities                 | Gas Utilities
+526  | TRN.MI        | TRN_IT        | IT40          | Utilities                 | Electric Utilities
+527  | UNI.MI        | UNI_IT        | IT40          | Financial Services        | Insurance
+528  | CPR.MI        | CPR_IT        | IT40          | Consumer Defensive        | Beverages
+
+═══════════════════════════════════════════════════════════════════════════════
+  AEX DUTCH (14)
+═══════════════════════════════════════════════════════════════════════════════
+529  | HEIA.AS       | HEIA          | AEX           | Consumer Defensive        | Beverages
+530  | NN.AS         | NN_NL         | AEX           | Financial Services        | Insurance
+531  | PHIA.AS       | PHIA          | AEX           | Healthcare                | Medical Devices
+532  | AD.AS         | AD_NL         | AEX           | Consumer Defensive        | Discount Stores
+533  | AGN.AS        | AGN_NL        | AEX           | Financial Services        | Insurance
+534  | AKZA.AS       | AKZA          | AEX           | Basic Materials           | Specialty Chemicals
+535  | IMCD.AS       | IMCD          | AEX           | Basic Materials           | Chemicals Distribution
+536  | INGA.AS       | INGA          | AEX           | Financial Services        | Banks
+537  | KPN.AS        | KPN           | AEX           | Communication Services    | Telecom
+538  | MT.AS         | MT_NL         | AEX           | Basic Materials           | Steel
+539  | RAND.AS       | RAND          | AEX           | Industrials               | Staffing
+540  | WKL.AS        | WKL           | AEX           | Consumer Defensive        | Publishing
+541  | ABN.AS        | ABN           | AEX           | Financial Services        | Banks
+542  | BESI.AS       | BESI          | AEX           | Technology                | Semiconductor Equipment
+
+═══════════════════════════════════════════════════════════════════════════════
+  SMI20 SWISS (15)
+═══════════════════════════════════════════════════════════════════════════════
+543  | NESN.SW       | NESN          | SMI20         | Consumer Defensive        | Packaged Foods
+544  | NOVN.SW       | NOVN          | SMI20         | Healthcare                | Drug Manufacturers
+545  | ROG.SW        | ROG_SW        | SMI20         | Healthcare                | Drug Manufacturers
+546  | ABBN.SW       | ABBN          | SMI20         | Industrials               | Industrial Machinery
+547  | CFR.SW        | CFR           | SMI20         | Consumer Cyclical         | Luxury Goods
+548  | ZURN.SW       | ZURN          | SMI20         | Financial Services        | Insurance
+549  | UBSG.SW       | UBSG          | SMI20         | Financial Services        | Banks
+550  | SCMN.SW       | SCMN          | SMI20         | Communication Services    | Telecom
+551  | SIKA.SW       | SIKA          | SMI20         | Basic Materials           | Construction Chemicals
+552  | GEBN.SW       | GEBN          | SMI20         | Healthcare                | Medical Devices
+553  | LONN.SW       | LONN          | SMI20         | Industrials               | Aerospace
+554  | GIVN.SW       | GIVN          | SMI20         | Basic Materials           | Specialty Chemicals
+555  | SLHN.SW       | SLHN          | SMI20         | Financial Services        | Insurance
+556  | PGHN.SW       | PGHN          | SMI20         | Financial Services        | Private Equity
+557  | BAER.SW       | BAER          | SMI20         | Financial Services        | Banks
+
+═══════════════════════════════════════════════════════════════════════════════
+  ASX200 AUSTRALIAN (20)
+═══════════════════════════════════════════════════════════════════════════════
+558  | CBA.AX        | CBA           | ASX200        | Financial Services        | Banks
+559  | CSL.AX        | CSL           | ASX200        | Healthcare                | Biotechnology
+560  | NAB.AX        | NAB           | ASX200        | Financial Services        | Banks
+561  | WBC.AX        | WBC           | ASX200        | Financial Services        | Banks
+562  | ANZ.AX        | ANZ           | ASX200        | Financial Services        | Banks
+563  | WES.AX        | WES           | ASX200        | Consumer Defensive        | Discount Stores
+564  | MQG.AX        | MQG           | ASX200        | Financial Services        | Investment Banking
+565  | WOW.AX        | WOW           | ASX200        | Consumer Defensive        | Grocery
+566  | TLS.AX        | TLS           | ASX200        | Communication Services    | Telecom
+567  | FMG.AX        | FMG           | ASX200        | Basic Materials           | Mining
+568  | NCM.AX        | NCM           | ASX200        | Basic Materials           | Gold Mining
+569  | STO.AX        | STO           | ASX200        | Energy                    | Oil & Gas
+570  | WPL.AX        | WPL           | ASX200        | Energy                    | Oil & Gas
+571  | QAN.AX        | QAN           | ASX200        | Consumer Cyclical         | Airlines
+572  | TCL.AX        | TCL_AX        | ASX200        | Industrials               | Infrastructure
+573  | GMG.AX        | GMG           | ASX200        | Real Estate               | REIT
+574  | REA.AX        | REA           | ASX200        | Technology                | Online Marketplace
+575  | APX.AX        | APX           | ASX200        | Technology                | Software
+576  | ALL.AX        | ALL_AX        | ASX200        | Consumer Cyclical         | Gaming
+577  | COL.AX        | COL           | ASX200        | Consumer Defensive        | Grocery
+
+═══════════════════════════════════════════════════════════════════════════════
+  JAPAN TSE (9)
+═══════════════════════════════════════════════════════════════════════════════
+578  | 7203.T        | TOYOTA        | Japan         | Consumer Cyclical         | Auto Manufacturers
+579  | 6758.T        | SONY          | Japan         | Consumer Cyclical         | Consumer Electronics
+580  | 9984.T        | SOFTBANK      | Japan         | Technology                | Telecom
+581  | 8306.T        | MUFG          | Japan         | Financial Services        | Banks
+582  | 6861.T        | KEYENCE       | Japan         | Technology                | Industrial Automation
+583  | 9432.T        | NTT           | Japan         | Communication Services    | Telecom
+584  | 8035.T        | TOKYOELEC     | Japan         | Technology                | Semiconductor Equipment
+585  | 7267.T        | HONDA         | Japan         | Consumer Cyclical         | Auto Manufacturers
+586  | 6954.T        | FANUC         | Japan         | Industrials               | Robotics
+
+═══════════════════════════════════════════════════════════════════════════════
+  JSE SOUTH AFRICAN (13)
+═══════════════════════════════════════════════════════════════════════════════
+587  | NPN.JO        | NPN           | JSE           | Technology                | Internet Media
+588  | PRX.JO        | PRX           | JSE           | Technology                | Internet Media
+589  | SOL.JO        | SOL_ZA        | JSE           | Energy                    | Oil & Gas
+590  | BIL.JO        | BIL           | JSE           | Basic Materials           | Mining
+591  | MTN.JO        | MTN           | JSE           | Communication Services    | Telecom
+592  | SBK.JO        | SBK           | JSE           | Financial Services        | Banks
+593  | FSR.JO        | FSR           | JSE           | Financial Services        | Banks
+594  | AGL.JO        | AGL           | JSE           | Basic Materials           | Mining
+595  | SHP.JO        | SHP           | JSE           | Consumer Defensive        | Discount Stores
+596  | ABG.JO        | ABG           | JSE           | Financial Services        | Banks
+597  | REM.JO        | REM           | JSE           | Financial Services        | Insurance
+598  | DSY.JO        | DSY_ZA        | JSE           | Consumer Cyclical         | Retail
+599  | WHL.JO        | WHL           | JSE           | Consumer Cyclical         | Apparel Retail
+
+═══════════════════════════════════════════════════════════════════════════════
+  SCANDINAVIAN (12)
+═══════════════════════════════════════════════════════════════════════════════
+600  | VOLV-B.ST     | VOLVB         | OMX30         | Industrials               | Trucks
+601  | ERIC-B.ST     | ERICB         | OMX30         | Technology                | Telecom Equipment
+602  | HM-B.ST       | HMB           | OMX30         | Consumer Cyclical         | Apparel Retail
+603  | SWED-A.ST     | SWEDA         | OMX30         | Financial Services        | Banks
+604  | SEB-A.ST      | SEBA          | OMX30         | Financial Services        | Banks
+605  | ATCO-A.ST     | ATCOA         | OMX30         | Industrials               | Conglomerate
+606  | EQNR.OL       | EQNR          | OBX           | Energy                    | Oil & Gas
+607  | DNB.OL        | DNB           | OBX           | Financial Services        | Banks
+608  | MOWI.OL       | MOWI          | OBX           | Consumer Defensive        | Aquaculture
+609  | NOVO-B.CO     | NOVOB         | OMXC25        | Healthcare                | Drug Manufacturers
+610  | MAERSK-B.CO   | MAERSKB       | OMXC25        | Industrials               | Shipping
+611  | DSV.CO        | DSV           | OMXC25        | Industrials               | Logistics
+
+═══════════════════════════════════════════════════════════════════════════════
+  US STOCKS — ADDITIONAL S&P500 (74)
+═══════════════════════════════════════════════════════════════════════════════
+612  | LLY           | LLY           | US500         | Healthcare                | Drug Manufacturers
+613  | PFE           | PFE           | US500         | Healthcare                | Drug Manufacturers
+614  | ABBV          | ABBV          | US500         | Healthcare                | Drug Manufacturers
+615  | BMY           | BMY           | US500         | Healthcare                | Drug Manufacturers
+616  | CI            | CI            | US500         | Healthcare                | Health Insurance
+617  | HUM           | HUM           | US500         | Healthcare                | Health Insurance
+618  | CVS           | CVS           | US500         | Healthcare                | Pharmacy
+619  | ABT           | ABT           | US500         | Healthcare                | Medical Devices
+620  | DHR           | DHR           | US500         | Healthcare                | Life Sciences Tools
+621  | SYK           | SYK           | US500         | Healthcare                | Medical Devices
+622  | BSX           | BSX           | US500         | Healthcare                | Medical Devices
+623  | MDT           | MDT           | US500         | Healthcare                | Medical Devices
+624  | TMO           | TMO           | US500         | Healthcare                | Life Sciences Tools
+625  | EW            | EW            | US500         | Healthcare                | Medical Devices
+626  | IQV           | IQV           | US500         | Healthcare                | Healthcare IT
+627  | XOM           | XOM           | US500         | Energy                    | Oil & Gas Integrated
+628  | COP           | COP           | US500         | Energy                    | Oil & Gas Exploration
+629  | SLB           | SLB           | US500         | Energy                    | Oil Services
+630  | MPC           | MPC           | US500         | Energy                    | Oil Refining
+631  | VLO           | VLO           | US500         | Energy                    | Oil Refining
+632  | PSX           | PSX           | US500         | Energy                    | Oil Refining
+633  | EOG           | EOG           | US500         | Energy                    | Oil & Gas Exploration
+634  | OXY           | OXY           | US500         | Energy                    | Oil & Gas Exploration
+635  | DVN           | DVN           | US500         | Energy                    | Oil & Gas Exploration
+636  | HES           | HES           | US500         | Energy                    | Oil & Gas Exploration
+637  | MS            | MS            | US500         | Financial Services        | Investment Banking
+638  | BLK           | BLK           | US500         | Financial Services        | Asset Management
+639  | SCHW          | SCHW          | US500         | Financial Services        | Brokerage
+640  | CB            | CB            | US500         | Financial Services        | Insurance
+641  | MCO           | MCO           | US500         | Financial Services        | Credit Ratings
+642  | SPGI          | SPGI          | US500         | Financial Services        | Capital Markets
+643  | ICE           | ICE           | US500         | Financial Services        | Capital Markets
+644  | CME           | CME           | US500         | Financial Services        | Capital Markets
+645  | AIG           | AIG           | US500         | Financial Services        | Insurance
+646  | MET           | MET           | US500         | Financial Services        | Insurance
+647  | AFL           | AFL           | US500         | Financial Services        | Insurance
+648  | PGR           | PGR           | US500         | Financial Services        | Insurance
+649  | MMC           | MMC           | US500         | Financial Services        | Insurance Brokers
+650  | AON           | AON           | US500         | Financial Services        | Insurance Brokers
+651  | WTW           | WTW           | US500         | Financial Services        | Insurance Brokers
+652  | FISV          | FISV          | US500         | Technology                | Fintech
+653  | FIS           | FIS           | US500         | Technology                | Fintech
+654  | TGT           | TGT           | US500         | Consumer Defensive        | Discount Stores
+655  | LOW           | LOW           | US500         | Consumer Cyclical         | Home Improvement
+656  | HLT           | HLT           | US500         | Consumer Cyclical         | Lodging
+657  | DAL           | DAL           | US500         | Consumer Cyclical         | Airlines
+658  | UAL           | UAL           | US500         | Consumer Cyclical         | Airlines
+659  | F             | F             | US500         | Consumer Cyclical         | Auto Manufacturers
+660  | GM            | GM            | US500         | Consumer Cyclical         | Auto Manufacturers
+661  | RTX           | RTX           | US500         | Industrials               | Aerospace & Defense
+662  | LMT           | LMT           | US500         | Industrials               | Aerospace & Defense
+663  | NOC           | NOC           | US500         | Industrials               | Aerospace & Defense
+664  | GD            | GD            | US500         | Industrials               | Aerospace & Defense
+665  | FDX           | FDX           | US500         | Industrials               | Logistics
+666  | NSC           | NSC           | US500         | Industrials               | Railroads
+667  | EMR           | EMR           | US500         | Industrials               | Industrial Machinery
+668  | ETN           | ETN           | US500         | Industrials               | Industrial Machinery
+669  | LIN           | LIN           | US500         | Basic Materials           | Specialty Chemicals
+670  | APD           | APD           | US500         | Basic Materials           | Specialty Chemicals
+671  | SHW           | SHW           | US500         | Basic Materials           | Specialty Chemicals
+672  | NEM           | NEM           | US500         | Basic Materials           | Gold Mining
+673  | FCX           | FCX           | US500         | Basic Materials           | Copper Mining
+674  | AMT           | AMT           | US500         | Real Estate               | REIT
+675  | PLD           | PLD           | US500         | Real Estate               | REIT
+676  | CCI           | CCI           | US500         | Real Estate               | REIT
+677  | EQIX          | EQIX          | US500         | Real Estate               | Data Center REIT
+678  | SPG           | SPG           | US500         | Real Estate               | REIT
+679  | WELL          | WELL          | US500         | Real Estate               | REIT
+680  | PSA           | PSA           | US500         | Real Estate               | REIT
+681  | D             | D             | US500         | Utilities                 | Electric Utilities
+682  | EXC           | EXC           | US500         | Utilities                 | Electric Utilities
+683  | WEC           | WEC           | US500         | Utilities                 | Electric Utilities
+684  | AES           | AES           | US500         | Utilities                 | Electric Utilities
+685  | HCA           | HCA           | US500         | Healthcare                | Hospitals
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
-  Commodities ............   3
-  Crypto .................  20
-  US Indices .............   4
-  European Indices .......   8
-  Canadian Index .........   1
-  Asian Indices ..........   5
-  Semiconductors .........  29
-  Tech Stocks ............  23
-  US30 Dow Jones .........  26
-  US100 Nasdaq ...........  58
-  US500 Other ............  12
-  GER40 DAX ..............  37
-  SPAIN35 IBEX ...........  19
-  CAN60 TSX ..............  23
-  Forex USD ..............   8
-  Forex EUR ..............  10
-  Forex GBP ..............   9
+  Commodities .............  18  (3 original + 12 prev + 3 new)
+  Crypto ..................  56  (20 original + 19 prev + 17 new)
+  US Indices ..............   6
+  European Indices ........   8
+  Canadian Index ..........   1
+  Asian Indices ...........   6
+  Africa Index ............   1
+  Semiconductors ..........  29
+  Tech Stocks .............  23
+  US30 Dow Jones ..........  26
+  US100 Nasdaq ............  58
+  US500 Other .............  86  (12 prev + 74 new)
+  GER40 DAX ...............  37
+  SPAIN35 IBEX ............  19
+  CAN60 TSX ...............  23
+  UK100 FTSE ..............  82  (35 prev + 47 new)
+  FRA40 CAC ...............  35  (30 prev + 5 new)
+  IT40 MIB ................  29  (15 prev + 14 new)
+  AEX Dutch ...............  14  (new)
+  SMI20 Swiss .............  15  (new)
+  ASX200 Australian .......  20  (new)
+  Japan TSE ...............   9  (new)
+  JSE South African .......  13  (new)
+  Scandinavian ............  12  (new)
+  Forex USD ...............   8
+  Forex EUR ...............  10
+  Forex GBP ...............   9
+  Forex Cross .............  15
+  Forex Exotic ............  15  (new)
   ─────────────────────────────
-  TOTAL .................. 296
+  TOTAL .................. 685
 ═══════════════════════════════════════════════════════════════════════════════

@@ -165,9 +165,10 @@ cd swing_generator/webapp && python3 server.py
 ---
 
 ## Version History (current)
-- `app.js` — **v90**
-- `style.css` — **v65**
+- `app.js` — **v97**
+- `style.css` — **v76**
 - `index.html` — bump JS/CSS version numbers when deploying UI changes
+- `Instruments.txt` — **426 instruments** (296 original + 130 added May 2026)
 
 ---
 
@@ -181,6 +182,7 @@ cd swing_generator/webapp && python3 server.py
 6. **`formatPrice(val):`** ≥$1000 → 2dp with commas | $10–$999 → 2dp | $1–$9.99 → 4dp | <$1 → 6dp
 7. **Search uses `matchesSearch(item, query)`** which checks instrument_name, full display name (namesData), group, sector, industry — use this helper, not inline `.includes()`
 8. **Profile imports:** all Python modules use `from _active_config import ...` — never `from config import` directly
+9. **Profile-specific dashboard cards:** `<body data-profile="__APP_PROFILE__">` is patched by `build_ui()` → CSS `body[data-profile="ma200"] #cardId { display:none }` hides MA200-irrelevant cards (heatmap, compressionCard)
 
 ---
 

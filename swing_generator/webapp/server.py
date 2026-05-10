@@ -213,6 +213,118 @@ _TV_BY_NAME: dict[str, str] = {
     'BCE':   'TSX:BCE',
     'TELUS': 'TSX:T',
 
+    # ── New Commodities ──
+    'BRENT':     'TVC:UKOIL',
+    'NGAS':      'TVC:NATURALGAS',
+    'PLATINUM':  'TVC:PLATINUM',
+    'PALLADIUM': 'TVC:PALLADIUM',
+    'COPPER':    'TVC:COPPER',
+    'CORN':      'CBOT:ZC1!',
+    'WHEAT':     'CBOT:ZW1!',
+    'SUGAR':     'ICEUS:SB1!',
+    'COFFEE':    'ICEUS:KC1!',
+    'COCOA':     'ICEUS:CC1!',
+    'SOYBEANS':  'CBOT:ZS1!',
+    'COTTON':    'ICEUS:CT1!',
+
+    # ── New Indices ──
+    'AUS200':    'CAPITALCOM:AUS200',
+    'SA40':      'CAPITALCOM:SA40',
+    'VIX':       'TVC:VIX',
+    'USDX':      'TVC:DXY',
+
+    # ── New Crypto (BINANCE) ──
+    'ADAUSDT':   'BINANCE:ADAUSDT',
+    'LTCUSDT':   'BINANCE:LTCUSDT',
+    'BCHUSDT':   'BINANCE:BCHUSDT',
+    'XLMUSDT':   'BINANCE:XLMUSDT',
+    'ETCUSDT':   'BINANCE:ETCUSDT',
+    'TRXUSDT':   'BINANCE:TRXUSDT',
+    'NEARUSDT':  'BINANCE:NEARUSDT',
+    'MATICUSDT': 'BINANCE:MATICUSDT',
+    'FILUSDT':   'BINANCE:FILUSDT',
+    'THETAUSDT': 'BINANCE:THETAUSDT',
+    'SANDUSDT':  'BINANCE:SANDUSDT',
+    'MANAUSDT':  'BINANCE:MANAUSDT',
+    'ARBUSDT':   'BINANCE:ARBUSDT',
+    'LDOUSDT':   'BINANCE:LDOUSDT',
+    'GRTUSDT':   'BINANCE:GRTUSDT',
+    'FTMUSDT':   'BINANCE:FTMUSDT',
+    'CRVUSDT':   'BINANCE:CRVUSDT',
+    'IMXUSDT':   'BINANCE:IMXUSDT',
+    'ENJUSDT':   'BINANCE:ENJUSDT',
+
+    # ── New Commodities ──
+    'GASOLINE':  'NYMEX:RB1!',
+    'HEATINGOIL': 'NYMEX:HO1!',
+    'OATMEAL':   'CBOT:ZO1!',
+
+    # ── New Crypto (BINANCE) ──
+    'ZECUSDT':   'BINANCE:ZECUSDT',
+    'DASHUSDT':  'BINANCE:DASHUSDT',
+    'EOSUSDT':   'BINANCE:EOSUSDT',
+    'EGLDUSDT':  'BINANCE:EGLDUSDT',
+    'HBARUSDT':  'BINANCE:HBARUSDT',
+    'FLOWUSDT':  'BINANCE:FLOWUSDT',
+    'STXUSDT':   'BINANCE:STXUSDT',
+    'VETUSDT':   'BINANCE:VETUSDT',
+    'KAVAUSDT':  'BINANCE:KAVAUSDT',
+    'ROSEUSDT':  'BINANCE:ROSEUSDT',
+    'CFXUSDT':   'BINANCE:CFXUSDT',
+    'GALAUSDT':  'BINANCE:GALAUSDT',
+    'HOTUSDT':   'BINANCE:HOTUSDT',
+    'ONEUSDT':   'BINANCE:ONEUSDT',
+    'ZILUSDT':   'BINANCE:ZILUSDT',
+    'IOTAUSDT':  'BINANCE:IOTAUSDT',
+    'XTZUSDT':   'BINANCE:XTZUSDT',
+
+    # ── UK stocks — special name overrides ──
+    'BT_A':      'LSE:BT.A',
+    'BAE':       'LSE:BA',
+    'RR_UK':     'LSE:RR',
+    'NG_UK':     'LSE:NG',
+    'RELX':      'LSE:REL',
+    'JD_UK':     'LSE:JD',
+
+    # ── French stocks — special name overrides ──
+    'SANOFI':    'EURONEXT:SAN',
+    'AC_FR':     'EURONEXT:AC',
+    'SW_FR':     'EURONEXT:SW',
+
+    # ── Italian stocks — special name overrides ──
+    'IG_IT':     'MIL:IG',
+    'REC_IT':    'MIL:REC',
+    'TRN_IT':    'MIL:TRN',
+    'UNI_IT':    'MIL:UNI',
+    'CPR_IT':    'MIL:CPR',
+
+    # ── Dutch (AEX) stocks — special name overrides ──
+    'NN_NL':     'EURONEXT:NN',
+    'AD_NL':     'EURONEXT:AD',
+    'AGN_NL':    'EURONEXT:AGN',
+    'MT_NL':     'EURONEXT:MT',
+
+    # ── Swiss (SIX) stocks — special name overrides ──
+    'ROG_SW':    'SIX:ROG',
+
+    # ── Australian (ASX) stocks — special name overrides ──
+    'TCL_AX':    'ASX:TCL',
+    'ALL_AX':    'ASX:ALL',
+
+    # ── South African (JSE) stocks — special name overrides ──
+    'SOL_ZA':    'JSE:SOL',
+    'DSY_ZA':    'JSE:DSY',
+
+    # ── Scandinavian stocks — name overrides (hyphenated tickers) ──
+    'VOLVB':     'STO:VOLV-B',
+    'ERICB':     'STO:ERIC-B',
+    'HMB':       'STO:HM-B',
+    'SWEDA':     'STO:SWED-A',
+    'SEBA':      'STO:SEB-A',
+    'ATCOA':     'STO:ATCO-A',
+    'NOVOB':     'CPH:NOVO-B',
+    'MAERSKB':   'CPH:MAERSK-B',
+
     # ── Indices (additional) ──
     'SOX':   'NASDAQ:SOX',
 
@@ -346,6 +458,24 @@ def build_tv_map() -> dict[str, str]:
         # 2c. Canadian stocks: *.TO → TSX:name
         if yf_ticker.endswith('.TO'):
             result[name] = f'TSX:{name}'
+            continue
+
+        # 2d. UK stocks: *.L → LSE:name  (strip _UK suffix if present)
+        if yf_ticker.endswith('.L'):
+            tv_sym = name[:-3] if name.endswith('_UK') else name
+            result[name] = f'LSE:{tv_sym}'
+            continue
+
+        # 2e. French stocks: *.PA → EURONEXT:name  (strip _FR suffix if present)
+        if yf_ticker.endswith('.PA'):
+            tv_sym = name[:-3] if name.endswith('_FR') else name
+            result[name] = f'EURONEXT:{tv_sym}'
+            continue
+
+        # 2f. Italian stocks: *.MI → MIL:name  (strip _IT suffix if present)
+        if yf_ticker.endswith('.MI'):
+            tv_sym = name[:-3] if name.endswith('_IT') else name
+            result[name] = f'MIL:{tv_sym}'
             continue
 
         # 3. Forex pairs: *=X → FX:name
