@@ -23,8 +23,8 @@ from flask import Flask, jsonify, render_template, send_file
 # ---------------------------------------------------------------------------
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(BASE_DIR)
-OUTPUT_DIR = os.path.join(PARENT_DIR, 'output')
-CACHE_DIR  = os.path.join(PARENT_DIR, 'cache')
+OUTPUT_DIR = os.path.join(PARENT_DIR, 'output_ma200')
+CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma200')
 
 # Allow importing config from parent package
 sys.path.insert(0, PARENT_DIR)
