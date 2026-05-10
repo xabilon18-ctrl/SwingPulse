@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=79">
+  <link rel="stylesheet" href="/static/css/style.css?v=80">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -257,6 +257,8 @@
         <button class="sig-ctx-chip" data-filter="squeeze">Squeeze</button>
         <button class="sig-ctx-chip" data-filter="keylvl">Key Lvl</button>
         <button class="sig-ctx-chip" data-filter="vol">Vol Spike</button>
+        <button class="sig-ctx-chip sig-chip-macro-bull" data-filter="macro_bull" title="Price above all 4 macro MAs — strong support">🟢 Macro Bull</button>
+        <button class="sig-ctx-chip sig-chip-macro-bear" data-filter="macro_bear" title="Price below all 4 macro MAs — strong resistance">🔴 Macro Bear</button>
         <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Signal
@@ -603,6 +605,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=101"></script>
+  <script src="/static/js/app.js?v=102"></script>
 </body>
 </html>

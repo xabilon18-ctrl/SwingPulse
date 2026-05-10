@@ -1806,6 +1806,13 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .macro-ma-pct { opacity: .75; font-weight: 500; }
 .ctx-pill-macro { border-color: rgba(16,185,129,.3); color: var(--buy); }
 .ctx-pill-macro strong { color: var(--buy); }
+/* Macro SR scanner badge (all 4 MAs aligned) */
+.macro-sr-badge { font-size: .62rem !important; font-weight: 800 !important; letter-spacing: .04em; }
+.macro-sr-bull { background: rgba(16,185,129,.18) !important; color: var(--buy) !important; border: 1px solid rgba(16,185,129,.4) !important; box-shadow: 0 0 8px rgba(16,185,129,.2); }
+.macro-sr-bear { background: rgba(239,68,68,.18) !important; color: var(--sell) !important; border: 1px solid rgba(239,68,68,.4) !important; box-shadow: 0 0 8px rgba(239,68,68,.2); }
+/* Macro Bull/Bear chips in context row */
+.sig-chip-macro-bull.active, .sig-chip-macro-bull:hover { background: rgba(16,185,129,.2); color: var(--buy); border-color: var(--buy); }
+.sig-chip-macro-bear.active, .sig-chip-macro-bear:hover { background: rgba(239,68,68,.2); color: var(--sell); border-color: var(--sell); }
 
 /* ── Watchlist Tab ────────────────────────────────────────────────────── */
 .wl-my-card, .wl-alerts-card { margin-bottom: 16px; }

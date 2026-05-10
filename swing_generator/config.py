@@ -116,6 +116,7 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}date', f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
         f'{p}volume_average', f'{p}volume_spike_flag',
         *[f'{p}ma_{per}' for per in ma_periods],
+        *[f'{p}ma_{per}' for per in MACRO_MA_PERIODS],   # long-term S/R MAs (all timeframes)
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',
         f'{p}confirmation_status',
         f'{p}primary_signal', f'{p}secondary_signal',

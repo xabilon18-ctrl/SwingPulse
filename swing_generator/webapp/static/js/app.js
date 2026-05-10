@@ -897,16 +897,33 @@
     const label = opts.noLabel ? '' : ` <span class="rsi-zone-lbl">${rsiZoneLabel(v)}</span>`;
     return `<span class="rsi-badge rsi-${zone}">RSI ${v.toFixed(0)}${label}</span>`;
   }
+  // Helper: price position relative to a macro MA for the active timeframe
+  function macroMaPos(item, period) {
+    const close  = parseFloat(item[f('close')]);
+    const maVal  = parseFloat(item[f(`ma_${period}`)]);
+    if (!close || isNaN(close) || isNaN(maVal)) return null;
+    return { close, maVal, pct: ((close - maVal) / maVal) * 100 };
+  }
+
+  // Is price above ALL available macro MAs on the active timeframe?
+  function isMacroBull(item) {
+    const avail = detectedMacroMas.map(p => macroMaPos(item, p)).filter(Boolean);
+    return avail.length > 0 && avail.every(r => r.close > r.maVal);
+  }
+  // Is price below ALL available macro MAs on the active timeframe?
+  function isMacroBear(item) {
+    const avail = detectedMacroMas.map(p => macroMaPos(item, p)).filter(Boolean);
+    return avail.length > 0 && avail.every(r => r.close < r.maVal);
+  }
+
   function macroMaHtml(item) {
-    const close = parseFloat(item.close);
-    if (!close || isNaN(close)) return '';
     const pills = detectedMacroMas.map(p => {
-      const maVal = parseFloat(item[`ma_${p}`]);
-      if (isNaN(maVal)) return '';
-      const pct = ((close - maVal) / maVal) * 100;
+      const pos = macroMaPos(item, p);
+      if (!pos) return '';
+      const { pct } = pos;
+      const near  = Math.abs(pct) <= 2;
       const above = pct >= 0;
-      const near = Math.abs(pct) <= 2;
-      const cls = near ? 'macro-near' : above ? 'macro-above' : 'macro-below';
+      const cls   = near ? 'macro-near' : above ? 'macro-above' : 'macro-below';
       const arrow = near ? '~' : above ? '▲' : '▼';
       const label = p >= 1000 ? `MA${p/1000}k` : `MA${p}`;
       return `<span class="macro-ma-pill ${cls}">${arrow}${label} <span class="macro-ma-pct">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></span>`;
@@ -2158,36 +2175,30 @@
     else if (confFilter === 'highstd') filtered = filtered.filter(d => ['high','standard'].includes(d[f('signal_confidence')]));
     else if (confFilter === 'low') filtered = filtered.filter(d => d[f('signal_confidence')] === 'low');
 
-    // ── Macro MA filter ──
+    // ── Macro MA filter (uses active timeframe via f()) ──
     const macroMaSel = document.getElementById('scannerMacroMaFilter');
     const macroMaVal = macroMaSel ? macroMaSel.value : 'all';
     if (macroMaVal !== 'all') {
       filtered = filtered.filter(item => {
-        const close = parseFloat(item.close);
-        if (!close || isNaN(close)) return false;
-        if (macroMaVal === 'above_all') {
-          return detectedMacroMas.every(p => { const v = parseFloat(item[`ma_${p}`]); return !isNaN(v) && close > v; });
-        }
-        if (macroMaVal === 'below_all') {
-          return detectedMacroMas.every(p => { const v = parseFloat(item[`ma_${p}`]); return !isNaN(v) && close < v; });
-        }
+        if (macroMaVal === 'above_all') return isMacroBull(item);
+        if (macroMaVal === 'below_all') return isMacroBear(item);
         const [side, period] = macroMaVal.split('_');
-        const p = parseInt(period);
-        const maVal = parseFloat(item[`ma_${p}`]);
-        if (isNaN(maVal)) return false;
-        const pct = (close - maVal) / maVal * 100;
-        if (side === 'above') return close > maVal;
-        if (side === 'below') return close < maVal;
-        if (side === 'near')  return Math.abs(pct) <= 2;
+        const pos = macroMaPos(item, parseInt(period));
+        if (!pos) return false;
+        if (side === 'above') return pos.close > pos.maVal;
+        if (side === 'below') return pos.close < pos.maVal;
+        if (side === 'near')  return Math.abs(pos.pct) <= 2;
         return true;
       });
     }
 
     // ── Chip filter (skip when user is searching by name) ──
     if (!search) {
-      if (activeScannerFilter === 'buy')         filtered = filtered.filter(isBuy);
-      else if (activeScannerFilter === 'sell')   filtered = filtered.filter(isSell);
-      else if (activeScannerFilter === 'squeeze')filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
+      if (activeScannerFilter === 'buy')          filtered = filtered.filter(isBuy);
+      else if (activeScannerFilter === 'sell')    filtered = filtered.filter(isSell);
+      else if (activeScannerFilter === 'macro_bull') filtered = filtered.filter(isMacroBull);
+      else if (activeScannerFilter === 'macro_bear') filtered = filtered.filter(isMacroBear);
+      else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
       else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
       else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
       else if (activeScannerFilter === 'today') {
@@ -2320,6 +2331,8 @@
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
       const pct = pctFromMa(item);
+      const macroBull = isMacroBull(item);
+      const macroBear = isMacroBear(item);
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
@@ -2365,6 +2378,8 @@
           ${item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : ''}
           ${item.key_level_touched_today === 'yes' ? '<span class="scanner-tag" style="background:var(--watch-soft);color:var(--watch)">KEY LVL</span>' : ''}
           ${runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : ''}
+          ${macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs — strong long-term support">MACRO BULL</span>' : ''}
+          ${macroBear ? '<span class="scanner-tag macro-sr-badge macro-sr-bear" title="Price below all macro MAs — strong long-term resistance">MACRO BEAR</span>' : ''}
         </div>
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>

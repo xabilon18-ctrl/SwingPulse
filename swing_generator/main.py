@@ -81,7 +81,8 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     row_date = target.index[-1].date()
 
     periods = ma_periods or MA_PERIODS
-    all_periods = list(periods) + (MACRO_MA_PERIODS if not prefix else [])
+    # Include macro S/R MAs for all timeframes (NaN guard handles missing bars)
+    all_periods = list(periods) + MACRO_MA_PERIODS
     ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in all_periods}
     lookback = signal_lookback or SIGNAL_LOOKBACK_DAILY
     last_sig = _find_last_signal(target, lookback=lookback)
