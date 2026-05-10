@@ -143,6 +143,29 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# RSI — Relative Strength Index (Wilder, period=14)
+# ---------------------------------------------------------------------------
+
+def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """
+    Add RSI(14) using Wilder's smoothing (EWM alpha=1/period).
+    Zones:
+        >= 70  → overbought
+        50–70  → bullish
+        30–50  → bearish
+        <  30  → oversold
+    """
+    delta    = df['Close'].diff()
+    gain     = delta.clip(lower=0)
+    loss     = (-delta).clip(lower=0)
+    avg_gain = gain.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
+    rs       = avg_gain / avg_loss.replace(0.0, np.nan)
+    df['rsi'] = 100.0 - (100.0 / (1.0 + rs))
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Rate of Change (momentum)
 # ---------------------------------------------------------------------------
 
@@ -184,5 +207,6 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)
     df = add_roc(df)
+    df = add_rsi(df)
     df = add_performance_pct(df)
     return df

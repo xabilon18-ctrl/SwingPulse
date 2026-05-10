@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Tab — Mockup</title>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --card: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --buy: #10b981;
+    --sell: #ef4444;
+    --accent: #6366f1;
+    --warn: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 12px; max-width: 420px; margin: 0 auto; }
+
+  /* Account Summary */
+  .acct-summary {
+    background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px;
+    border: 1px solid var(--border);
+  }
+  .acct-title { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+  .acct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acct-item { }
+  .acct-label { font-size: .65rem; color: var(--text-muted); }
+  .acct-val { font-size: 1.1rem; font-weight: 700; }
+  .acct-val.pos { color: var(--buy); }
+  .acct-val.neg { color: var(--sell); }
+  .acct-equity { font-size: 1.5rem; font-weight: 800; }
+
+  /* Stats row */
+  .stats-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .stat-pill {
+    flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 8px; text-align: center;
+  }
+  .stat-num { font-size: 1.2rem; font-weight: 800; }
+  .stat-label { font-size: .6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+
+  /* Section headers */
+  .section-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 18px 0 10px; padding: 0 2px;
+  }
+  .section-title { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .section-badge { font-size: .6rem; background: var(--accent); color: white; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+
+  /* Position cards */
+  .pos-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin-bottom: 10px; position: relative; overflow: hidden;
+  }
+  .pos-strip { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .pos-strip.long { background: var(--buy); }
+  .pos-strip.short { background: var(--sell); }
+  .pos-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding-left: 8px; }
+  .pos-name { font-weight: 700; font-size: .95rem; }
+  .pos-dir { font-size: .6rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+  .pos-dir.long { background: rgba(16,185,129,.15); color: var(--buy); }
+  .pos-dir.short { background: rgba(239,68,68,.15); color: var(--sell); }
+  .pos-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding-left: 8px; margin-bottom: 8px; }
+  .pos-meta-item { }
+  .pos-meta-label { font-size: .58rem; color: var(--text-muted); text-transform: uppercase; }
+  .pos-meta-val { font-size: .82rem; font-weight: 600; }
+  .pos-signal-row { display: flex; gap: 6px; align-items: center; padding-left: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .signal-tag { font-size: .58rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+  .signal-tag.aligned { background: rgba(16,185,129,.15); color: var(--buy); }
+  .signal-tag.conflict { background: rgba(239,68,68,.15); color: var(--sell); }
+  .signal-tag.neutral { background: rgba(100,116,139,.15); color: var(--text-muted); }
+  .signal-tag.sig { background: rgba(99,102,241,.2); color: var(--accent); }
+  .signal-note { font-size: .62rem; color: var(--text-muted); }
+
+  /* Trade Log */
+  .log-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .log-left { }
+  .log-inst { font-weight: 700; font-size: .85rem; }
+  .log-detail { font-size: .62rem; color: var(--text-muted); margin-top: 2px; }
+  .log-right { text-align: right; }
+  .log-pl { font-weight: 700; font-size: .85rem; }
+  .log-signal { font-size: .58rem; margin-top: 2px; }
+
+  /* Performance */
+  .perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .perf-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; text-align: center;
+  }
+  .perf-val { font-size: 1.3rem; font-weight: 800; }
+  .perf-label { font-size: .6rem; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; }
+
+  /* Bar chart mockup */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 80px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; }
+  .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .bar-pair { display: flex; gap: 2px; align-items: flex-end; }
+  .bar { width: 14px; border-radius: 3px 3px 0 0; }
+  .bar.buy { background: var(--buy); }
+  .bar.sell { background: var(--sell); }
+  .bar-label { font-size: .55rem; color: var(--text-muted); }
+
+  /* Filter chips */
+  .chip-row { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; }
+  .chip {
+    font-size: .65rem; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted); white-space: nowrap; cursor: pointer;
+  }
+  .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ═══ Account Summary ═══ -->
+<div class="acct-summary">
+  <div class="acct-title">XM Account · 67405104</div>
+  <div class="acct-grid">
+    <div>
+      <div class="acct-label">Equity</div>
+      <div class="acct-val acct-equity">R3,017.75</div>
+    </div>
+    <div>
+      <div class="acct-label">Floating P/L</div>
+      <div class="acct-val pos">+R644.83</div>
+    </div>
+    <div>
+      <div class="acct-label">Balance</div>
+      <div class="acct-val">R1,773.36</div>
+    </div>
+    <div>
+      <div class="acct-label">Available Margin</div>
+      <div class="acct-val">R2,861.11</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Stats Pills ═══ -->
+<div class="stats-row">
+  <div class="stat-pill">
+    <div class="stat-num" style="color:var(--buy)">5</div>
+    <div class="stat-label">Open</div>
+  </div>
+  <div class="stat-pill">
+    <div class="stat-num">4</div>
+    <div class="stat-label">Aligned</div>
+  </div>
+  <div class="stat-pill">
+    <div class="stat-num" style="color:var(--sell)">1</div>
+    <div class="stat-label">Off-System</div>
+  </div>
+  <div class="stat-pill">
+    <div class="stat-num" style="color:var(--buy)">68%</div>
+    <div class="stat-label">Win Rate</div>
+  </div>
+</div>
+
+<!-- ═══ Open Positions ═══ -->
+<div class="section-hdr">
+  <span class="section-title">Open Positions</span>
+  <span class="section-badge">5 Active</span>
+</div>
+
+<div class="pos-card">
+  <div class="pos-strip long"></div>
+  <div class="pos-top">
+    <div>
+      <div class="pos-name">BTCUSD</div>
+      <div style="font-size:.6rem;color:var(--text-muted)">0.01 lot · 30 Apr</div>
+    </div>
+    <span class="pos-dir long">Long</span>
+  </div>
+  <div class="pos-meta">
+    <div><div class="pos-meta-label">Entry</div><div class="pos-meta-val">76,515.45</div></div>
+    <div><div class="pos-meta-label">Current</div><div class="pos-meta-val">78,424.45</div></div>
+    <div><div class="pos-meta-label">P/L</div><div class="pos-meta-val" style="color:var(--buy)">+R317.34</div></div>
+  </div>
+  <div class="pos-signal-row">
+    <span class="signal-tag sig">BP3</span>
+    <span class="signal-tag aligned">✓ Aligned</span>
+    <span class="signal-note">Entered on BP3 bounce · MA108 support held</span>
+  </div>
+</div>
+
+<div class="pos-card">
+  <div class="pos-strip long"></div>
+  <div class="pos-top">
+    <div>
+      <div class="pos-name">BTCJPY</div>
+      <div style="font-size:.6rem;color:var(--text-muted)">0.01 lot · 30 Apr</div>
+    </div>
+    <span class="pos-dir long">Long</span>
+  </div>
+  <div class="pos-meta">
+    <div><div class="pos-meta-label">Entry</div><div class="pos-meta-val">11,974,941</div></div>
+    <div><div class="pos-meta-label">Current</div><div class="pos-meta-val">12,313,693</div></div>
+    <div><div class="pos-meta-label">P/L</div><div class="pos-meta-val" style="color:var(--buy)">+R358.47</div></div>
+  </div>
+  <div class="pos-signal-row">
+    <span class="signal-tag sig">BP2</span>
+    <span class="signal-tag aligned">✓ Aligned</span>
+    <span class="signal-note">Entered on BP2 pullback · fast MA bounce</span>
+  </div>
+</div>
+
+<div class="pos-card">
+  <div class="pos-strip long"></div>
+  <div class="pos-top">
+    <div>
+      <div class="pos-name">ETHUSD</div>
+      <div style="font-size:.6rem;color:var(--text-muted)">0.02 lot · 30 Apr</div>
+    </div>
+    <span class="pos-dir long">Long</span>
+  </div>
+  <div class="pos-meta">
+    <div><div class="pos-meta-label">Entry</div><div class="pos-meta-val">2,267.85</div></div>
+    <div><div class="pos-meta-label">Current</div><div class="pos-meta-val">2,309.02</div></div>
+    <div><div class="pos-meta-label">P/L</div><div class="pos-meta-val" style="color:var(--buy)">+R13.63</div></div>
+  </div>
+  <div class="pos-signal-row">
+    <span class="signal-tag neutral">No Signal</span>
+    <span class="signal-tag conflict">⚠ Off-System</span>
+    <span class="signal-note">No active signal at entry · discretionary trade</span>
+  </div>
+</div>
+
+<div class="pos-card">
+  <div class="pos-strip long"></div>
+  <div class="pos-top">
+    <div>
+      <div class="pos-name">BTCUSD</div>
+      <div style="font-size:.6rem;color:var(--text-muted)">0.01 lot · 2 May</div>
+    </div>
+    <span class="pos-dir long">Long</span>
+  </div>
+  <div class="pos-meta">
+    <div><div class="pos-meta-label">Entry</div><div class="pos-meta-val">78,466.65</div></div>
+    <div><div class="pos-meta-label">Current</div><div class="pos-meta-val">78,424.45</div></div>
+    <div><div class="pos-meta-label">P/L</div><div class="pos-meta-val" style="color:var(--sell)">-R7.01</div></div>
+  </div>
+  <div class="pos-signal-row">
+    <span class="signal-tag sig">BP2</span>
+    <span class="signal-tag aligned">✓ Aligned</span>
+    <span class="signal-note">Entered on BP2 · slight drawdown, still in range</span>
+  </div>
+</div>
+
+<!-- ═══ Signal Performance ═══ -->
+<div class="section-hdr">
+  <span class="section-title">Signal Performance</span>
+  <span class="section-badge">All Time</span>
+</div>
+
+<div class="perf-grid">
+  <div class="perf-card">
+    <div class="perf-val" style="color:var(--buy)">68%</div>
+    <div class="perf-label">Signal Win Rate</div>
+  </div>
+  <div class="perf-card">
+    <div class="perf-val" style="color:var(--sell)">33%</div>
+    <div class="perf-label">Off-System Win Rate</div>
+  </div>
+  <div class="perf-card">
+    <div class="perf-val" style="color:var(--buy)">+R2,140</div>
+    <div class="perf-label">Signal P/L</div>
+  </div>
+  <div class="perf-card">
+    <div class="perf-val" style="color:var(--sell)">-R380</div>
+    <div class="perf-label">Off-System P/L</div>
+  </div>
+</div>
+
+<!-- Win rate by signal type -->
+<div class="section-hdr">
+  <span class="section-title">Win Rate by Signal</span>
+</div>
+<div class="bar-chart">
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar buy" style="height:60px"></div>
+      <div class="bar sell" style="height:15px"></div>
+    </div>
+    <div class="bar-label">BP1</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar buy" style="height:50px"></div>
+      <div class="bar sell" style="height:20px"></div>
+    </div>
+    <div class="bar-label">BP2</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar buy" style="height:55px"></div>
+      <div class="bar sell" style="height:10px"></div>
+    </div>
+    <div class="bar-label">BP3</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar buy" style="height:30px"></div>
+      <div class="bar sell" style="height:25px"></div>
+    </div>
+    <div class="bar-label">BP4</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar sell" style="height:45px"></div>
+      <div class="bar buy" style="height:20px"></div>
+    </div>
+    <div class="bar-label">SP1</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar sell" style="height:35px"></div>
+      <div class="bar buy" style="height:18px"></div>
+    </div>
+    <div class="bar-label">SP2</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar sell" style="height:40px"></div>
+      <div class="bar buy" style="height:8px"></div>
+    </div>
+    <div class="bar-label">SP3</div>
+  </div>
+  <div class="bar-group">
+    <div class="bar-pair">
+      <div class="bar sell" style="height:20px"></div>
+      <div class="bar buy" style="height:15px"></div>
+    </div>
+    <div class="bar-label">SP4</div>
+  </div>
+</div>
+
+<!-- ═══ Trade Log ═══ -->
+<div class="section-hdr">
+  <span class="section-title">Trade Log</span>
+  <span class="section-badge">Closed</span>
+</div>
+
+<div class="chip-row">
+  <span class="chip active">All</span>
+  <span class="chip">Signal-Aligned</span>
+  <span class="chip">Off-System</span>
+  <span class="chip">Winners</span>
+  <span class="chip">Losers</span>
+</div>
+
+<div class="log-card">
+  <div class="log-left">
+    <div class="log-inst">BTCUSD <span style="color:var(--buy);font-size:.6rem">LONG</span></div>
+    <div class="log-detail">0.01 lot · 22 Apr → 28 Apr · 6 days</div>
+  </div>
+  <div class="log-right">
+    <div class="log-pl" style="color:var(--buy)">+R485.20</div>
+    <div class="log-signal"><span class="signal-tag sig" style="font-size:.5rem">BP1</span> <span style="color:var(--buy);font-size:.55rem">✓ Aligned</span></div>
+  </div>
+</div>
+
+<div class="log-card">
+  <div class="log-left">
+    <div class="log-inst">ETHUSD <span style="color:var(--buy);font-size:.6rem">LONG</span></div>
+    <div class="log-detail">0.02 lot · 20 Apr → 25 Apr · 5 days</div>
+  </div>
+  <div class="log-right">
+    <div class="log-pl" style="color:var(--sell)">-R124.50</div>
+    <div class="log-signal"><span class="signal-tag neutral" style="font-size:.5rem">None</span> <span style="color:var(--sell);font-size:.55rem">⚠ Off-System</span></div>
+  </div>
+</div>
+
+<div class="log-card">
+<div class="log-left">
+    <div class="log-inst">SOLUSDT <span style="color:var(--sell);font-size:.6rem">SHORT</span></div>
+    <div class="log-detail">0.05 lot · 15 Apr → 19 Apr · 4 days</div>
+  </div>
+  <div class="log-right">
+    <div class="log-pl" style="color:var(--buy)">+R210.00</div>
+    <div class="log-signal"><span class="signal-tag sig" style="font-size:.5rem">SP2</span> <span style="color:var(--buy);font-size:.55rem">✓ Aligned</span></div>
+  </div>
+</div>
+
+<div class="log-card">
+  <div class="log-left">
+    <div class="log-inst">BTCJPY <span style="color:var(--buy);font-size:.6rem">LONG</span></div>
+    <div class="log-detail">0.01 lot · 10 Apr → 18 Apr · 8 days</div>
+  </div>
+  <div class="log-right">
+    <div class="log-pl" style="color:var(--buy)">+R890.30</div>
+    <div class="log-signal"><span class="signal-tag sig" style="font-size:.5rem">BP3</span> <span style="color:var(--buy);font-size:.55rem">✓ Aligned</span></div>
+  </div>
+</div>
+
+<div class="log-card">
+  <div class="log-left">
+    <div class="log-inst">XRPUSDT <span style="color:var(--buy);font-size:.6rem">LONG</span></div>
+    <div class="log-detail">0.10 lot · 8 Apr → 12 Apr · 4 days</div>
+  </div>
+  <div class="log-right">
+    <div class="log-pl" style="color:var(--sell)">-R256.00</div>
+    <div class="log-signal"><span class="signal-tag neutral" style="font-size:.5rem">None</span> <span style="color:var(--sell);font-size:.55rem">⚠ Off-System</span></div>
+  </div>
+</div>
+
+</body>
+</html>

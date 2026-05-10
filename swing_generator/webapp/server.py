@@ -416,6 +416,82 @@ _TV_BY_NAME: dict[str, str] = {
     'VRTX':  'NASDAQ:VRTX',
     'WDAY':  'NASDAQ:WDAY',
     'XEL':   'NASDAQ:XEL',
+
+    # ── Additional NYSE stocks (S&P 500) ──
+    'LLY':   'NYSE:LLY',
+    'PFE':   'NYSE:PFE',
+    'ABBV':  'NYSE:ABBV',
+    'BMY':   'NYSE:BMY',
+    'CI':    'NYSE:CI',
+    'HUM':   'NYSE:HUM',
+    'CVS':   'NYSE:CVS',
+    'ABT':   'NYSE:ABT',
+    'DHR':   'NYSE:DHR',
+    'SYK':   'NYSE:SYK',
+    'BSX':   'NYSE:BSX',
+    'MDT':   'NYSE:MDT',
+    'TMO':   'NYSE:TMO',
+    'EW':    'NYSE:EW',
+    'IQV':   'NYSE:IQV',
+    'XOM':   'NYSE:XOM',
+    'COP':   'NYSE:COP',
+    'SLB':   'NYSE:SLB',
+    'MPC':   'NYSE:MPC',
+    'VLO':   'NYSE:VLO',
+    'PSX':   'NYSE:PSX',
+    'EOG':   'NYSE:EOG',
+    'OXY':   'NYSE:OXY',
+    'DVN':   'NYSE:DVN',
+    'HES':   'NYSE:HES',
+    'MS':    'NYSE:MS',
+    'BLK':   'NYSE:BLK',
+    'SCHW':  'NYSE:SCHW',
+    'CB':    'NYSE:CB',
+    'MCO':   'NYSE:MCO',
+    'SPGI':  'NYSE:SPGI',
+    'ICE':   'NYSE:ICE',
+    'CME':   'NASDAQ:CME',
+    'AIG':   'NYSE:AIG',
+    'MET':   'NYSE:MET',
+    'AFL':   'NYSE:AFL',
+    'PGR':   'NYSE:PGR',
+    'MMC':   'NYSE:MMC',
+    'AON':   'NYSE:AON',
+    'WTW':   'NYSE:WTW',
+    'FISV':  'NASDAQ:FISV',
+    'FIS':   'NYSE:FIS',
+    'TGT':   'NYSE:TGT',
+    'LOW':   'NYSE:LOW',
+    'HLT':   'NYSE:HLT',
+    'DAL':   'NYSE:DAL',
+    'UAL':   'NASDAQ:UAL',
+    'F':     'NYSE:F',
+    'GM':    'NYSE:GM',
+    'RTX':   'NYSE:RTX',
+    'LMT':   'NYSE:LMT',
+    'NOC':   'NYSE:NOC',
+    'GD':    'NYSE:GD',
+    'FDX':   'NYSE:FDX',
+    'NSC':   'NYSE:NSC',
+    'EMR':   'NYSE:EMR',
+    'ETN':   'NYSE:ETN',
+    'LIN':   'NYSE:LIN',
+    'APD':   'NYSE:APD',
+    'SHW':   'NYSE:SHW',
+    'NEM':   'NYSE:NEM',
+    'FCX':   'NYSE:FCX',
+    'AMT':   'NYSE:AMT',
+    'PLD':   'NYSE:PLD',
+    'CCI':   'NYSE:CCI',
+    'EQIX':  'NASDAQ:EQIX',
+    'SPG':   'NYSE:SPG',
+    'WELL':  'NYSE:WELL',
+    'PSA':   'NYSE:PSA',
+    'D':     'NYSE:D',
+    'EXC':   'NASDAQ:EXC',
+    'WEC':   'NYSE:WEC',
+    'AES':   'NYSE:AES',
+    'HCA':   'NYSE:HCA',
 }
 
 # NYSE stocks that appear under different ticker in TV
@@ -476,6 +552,50 @@ def build_tv_map() -> dict[str, str]:
         if yf_ticker.endswith('.MI'):
             tv_sym = name[:-3] if name.endswith('_IT') else name
             result[name] = f'MIL:{tv_sym}'
+            continue
+
+        # 2g. Dutch stocks: *.AS → EURONEXT:name  (strip _NL suffix if present)
+        if yf_ticker.endswith('.AS'):
+            tv_sym = name[:-3] if name.endswith('_NL') else name
+            result[name] = f'EURONEXT:{tv_sym}'
+            continue
+
+        # 2h. Swiss stocks: *.SW → SIX:name  (strip _SW suffix if present)
+        if yf_ticker.endswith('.SW'):
+            tv_sym = name[:-3] if name.endswith('_SW') else name
+            result[name] = f'SIX:{tv_sym}'
+            continue
+
+        # 2i. Australian stocks: *.AX → ASX:name  (strip _AX suffix if present)
+        if yf_ticker.endswith('.AX'):
+            tv_sym = name[:-3] if name.endswith('_AX') else name
+            result[name] = f'ASX:{tv_sym}'
+            continue
+
+        # 2j. Japanese stocks: *.T → TSE:name
+        if yf_ticker.endswith('.T'):
+            result[name] = f'TSE:{name}'
+            continue
+
+        # 2k. South African stocks: *.JO → JSE:name  (strip _ZA suffix if present)
+        if yf_ticker.endswith('.JO'):
+            tv_sym = name[:-3] if name.endswith('_ZA') else name
+            result[name] = f'JSE:{tv_sym}'
+            continue
+
+        # 2l. Swedish stocks: *.ST → STO:name
+        if yf_ticker.endswith('.ST'):
+            result[name] = f'STO:{name}'
+            continue
+
+        # 2m. Norwegian stocks: *.OL → OSL:name
+        if yf_ticker.endswith('.OL'):
+            result[name] = f'OSL:{name}'
+            continue
+
+        # 2n. Danish stocks: *.CO → CPH:name
+        if yf_ticker.endswith('.CO'):
+            result[name] = f'CPH:{name}'
             continue
 
         # 3. Forex pairs: *=X → FX:name

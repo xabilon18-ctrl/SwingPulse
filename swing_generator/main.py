@@ -112,6 +112,7 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}ribbon_compression':            'yes' if row.get('ribbon_compression') else 'no',
         f'{prefix}ma_order_score':                _fmt(row.get('ma_order_score'), decimals=0),
         f'{prefix}roc':                           _fmt(row.get('roc'), decimals=2),
+        f'{prefix}rsi':                           _fmt(row.get('rsi'), decimals=1),
     }
     return result, row
 

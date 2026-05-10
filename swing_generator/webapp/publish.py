@@ -25,52 +25,30 @@ import pandas as pd
 # yfinance imported lazily inside build_names() to keep startup fast
 
 # ---------------------------------------------------------------------------
-# Profile selection (--profile ma200 uses a separate output dir + R2 prefix)
+# Paths  (MA200 is the only profile)
 # ---------------------------------------------------------------------------
-_pre = argparse.ArgumentParser(add_help=False)
-_pre.add_argument('--profile', default='default')
-_pre_args, _ = _pre.parse_known_args()
-PROFILE = _pre_args.profile.lower().strip()
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
+PROFILE     = 'ma200'
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-if PROFILE == 'ma200':
-    OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma200')
-    CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma200')
-    MA_PERIODS  = list(range(20, 201, 10))   # must match config_ma200.py
-else:
-    OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output')
-    CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache')
-    MA_PERIODS  = list(range(10, 109, 7))    # must match config.py  (15 MAs: 10→108)
+OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma200')
+CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma200')
+MA_PERIODS  = list(range(20, 201, 10))   # MA20–MA200
 
 PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 
 # ---------------------------------------------------------------------------
 # R2 config
 # ---------------------------------------------------------------------------
-R2_BUCKET     = 'swingpulse-data'
-R2_PUBLIC_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
-
-if PROFILE == 'ma200':
-    PAGES_PROJECT  = 'swingpulse200'
-    R2_DATA_PREFIX = 'ma200'   # all data files live under R2/ma200/
-    R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
-    TV_LAYOUTS = {             # TradingView saved layout IDs per user — 200MA profile
-        'zabs': 'xvj4Xt7h',
-        'hemi': '86bzFCIC',
-    }
-else:
-    PAGES_PROJECT  = 'swingpulse'
-    R2_DATA_PREFIX = ''        # root level (existing behaviour)
-    R2_BASE_URL    = R2_PUBLIC_URL
-    TV_LAYOUTS = {             # TradingView saved layout IDs per user — 100MA profile
-        'zabs': 'rkjR3bZv',
-        'hemi': 'Oo6tmBiR',
-    }
+R2_BUCKET      = 'swingpulse-data'
+R2_PUBLIC_URL  = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
+PAGES_PROJECT  = 'swingpulse200'
+R2_DATA_PREFIX = 'ma200'
+R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
+TV_LAYOUTS = {
+    'zabs': 'xvj4Xt7h',
+    'hemi': '86bzFCIC',
+}
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -650,6 +628,21 @@ def build_data(output_dir, src_signals_dir=None):
         with open(os.path.join(output_dir, 'backtest.json'), 'w') as f:
             json.dump(bt, f, separators=(',', ':'))
         print(f'  Backtest report: {os.path.basename(bt_files[-1])}')
+    else:
+        print(f'  Backtest report: none found in {OUTPUT_DIR}')
+
+    # Portfolio data — shared across profiles (XM account positions)
+    # Look in current OUTPUT_DIR first, fall back to default output/ dir
+    default_output = os.path.join(PROJECT_DIR, 'output')
+    pf_candidates = [
+        os.path.join(OUTPUT_DIR, 'portfolio.json'),
+        os.path.join(default_output, 'portfolio.json'),
+    ]
+    for pf_src in pf_candidates:
+        if os.path.exists(pf_src):
+            shutil.copy2(pf_src, os.path.join(output_dir, 'portfolio.json'))
+            print(f'  Portfolio: {pf_src}')
+            break
 
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
@@ -729,7 +722,9 @@ def upload_to_r2(data_dir, max_workers=4, retries=2, r2_prefix=''):
     files = []
 
     # Core data files
-    for fname in ['signals.json', 'summary.json', 'tv-map.json', 'trends.json', 'explanations.json', 'events.json', 'names.json']:
+    for fname in ['signals.json', 'summary.json', 'tv-map.json', 'trends.json',
+                  'explanations.json', 'events.json', 'names.json',
+                  'backtest.json', 'portfolio.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -805,12 +800,10 @@ def build_ui():
     # Copy index.html — patch profile badge and title
     with open(os.path.join(SCRIPT_DIR, 'templates', 'index.html')) as f:
         html = f.read()
-    if PROFILE == 'ma200':
-        html = html.replace('PROFILE_BADGE', 'MA200')
-        html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 200</title>')
-        html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
-    else:
-        html = html.replace('PROFILE_BADGE', 'MA108')
+    html = html.replace('PROFILE_BADGE', 'MA200')
+    html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 200</title>')
+    html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
+    html = html.replace('__APP_PROFILE__', 'ma200')
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
@@ -897,24 +890,19 @@ def main():
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
-    parser.add_argument('--profile', default='default',
-                        help='Config profile: default | ma200')
     args = parser.parse_args()
-
-    profile_label = f'[{PROFILE}]' if PROFILE != 'default' else ''
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
-        print(f'Building UI for Cloudflare Pages... {profile_label}')
+        print('Building UI for Cloudflare Pages... [ma200]')
         ui_dir = build_ui()
         print(f'  Output: {ui_dir}')
         deploy_ui_to_pages(ui_dir)
         return
 
-    # ── Data build + R2 upload  (default daily workflow) ─────────────────
-    print(f'Building static site... {profile_label}')
-    data_subdir = 'data_ma200' if PROFILE == 'ma200' else 'data'
-    data_dir = os.path.join(PUBLISH_DIR, data_subdir)
+    # ── Data build + R2 upload ────────────────────────────────────────────
+    print('Building static site... [ma200]')
+    data_dir = os.path.join(PUBLISH_DIR, 'data_ma200')
     os.makedirs(data_dir, exist_ok=True)
 
     build_data(data_dir)

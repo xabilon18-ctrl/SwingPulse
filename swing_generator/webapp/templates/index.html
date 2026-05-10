@@ -12,11 +12,11 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=66">
+  <link rel="stylesheet" href="/static/css/style.css?v=76">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
-<body>
+<body data-profile="__APP_PROFILE__">
 
   <!-- ===== TOP BAR ===== -->
   <header class="topbar">
@@ -142,16 +142,30 @@
         <span style="display:none" id="gbSell"></span>
       </div>
 
-      <!-- ── P1 / P2 Trend Change Alert Banner ── -->
-      <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
-        <div class="trend-alert-header">
-          <span class="trend-alert-icon">⚡</span>
-          <span class="trend-alert-title">TREND CHANGE ALERTS</span>
-          <span class="trend-alert-count" id="trendAlertCount">0</span>
-          <button class="trend-alert-see-all" onclick="window.SP.navigateToTab('scanner')">See all →</button>
+      <!-- Trend alert banner removed -->
+      <span id="trendAlertBanner" style="display:none"></span>
+      <span id="trendAlertScroll" style="display:none"></span>
+      <span id="trendAlertCount" style="display:none"></span>
+
+      <!-- Stat cards removed — counts now surfaced in gauge + By Group -->
+      <span id="buyCount" style="display:none"></span>
+      <span id="sellCount" style="display:none"></span>
+      <span id="watchCount" style="display:none"></span>
+      <span id="volumeCount" style="display:none"></span>
+      <span id="highConfCount" style="display:none"></span>
+
+      <!-- Group Pulse — by sector -->
+      <div class="card" id="groupPulseCard">
+        <div class="card-header">
+          <h3>By Group</h3>
+          <span id="groupPulseRisk" class="gp-risk-badge"></span>
         </div>
-        <div class="trend-alert-scroll" id="trendAlertScroll"></div>
+        <div id="groupPulseBody"></div>
       </div>
+
+      <!-- Today's Opportunities removed -->
+      <span id="todayOpps" style="display:none"></span>
+      <span id="morningBrief" style="display:none"></span>
 
       <!-- ── Signal Track Record Card ── -->
       <div class="card track-record-card" id="trackRecordCard" style="display:none" onclick="window.SP.openTrackRecord()" role="button">
@@ -164,119 +178,14 @@
         <div class="tr-rows" id="trRows"></div>
       </div>
 
-      <!-- ── Portfolio Summary Card ── -->
-      <div class="card portfolio-summary-card" id="portfolioSummaryCard" style="display:none" onclick="window.SP.navigateToTab('portfolio')" role="button">
-        <div class="portfolio-card-header">
-          <span class="portfolio-card-title">MY OPEN TRADES</span>
-          <span class="portfolio-card-link">View all →</span>
-        </div>
-        <div class="portfolio-card-stats" id="portfolioCardStats"></div>
-      </div>
-
-      <!-- ── Today's Opportunities ── -->
-      <div class="opp-section">
-        <div class="section-row">
-          <h3 class="section-title">Today's Opportunities</h3>
-          <button class="see-all-btn" onclick="window.SP.navigateToTab('scanner')">See all →</button>
-        </div>
-        <div class="opp-scroll" id="todayOpps">
-          <div class="opp-loading">Loading signals…</div>
-        </div>
-      </div>
-
-      <!-- Morning Brief hidden — replaced by Today's Opportunities -->
-      <div id="morningBrief" style="display:none"></div>
-
-      <!-- Summary Cards -->
-      <div class="stat-cards">
-        <div class="stat-card stat-buy" data-hm-filter="buy" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap buy-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            </span>
-            <span class="stat-label">Buy Signals</span>
-          </div>
-          <div class="stat-number" data-target="0" id="buyCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill buy-fill" id="buyBar"></div></div>
-        </div>
-        <div class="stat-card stat-sell" data-hm-filter="sell" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap sell-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
-            </span>
-            <span class="stat-label">Sell Signals</span>
-          </div>
-          <div class="stat-number" data-target="0" id="sellCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill sell-fill" id="sellBar"></div></div>
-        </div>
-        <div class="stat-card stat-watch" data-hm-filter="watch" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap watch-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </span>
-            <span class="stat-label">On Watch</span>
-          </div>
-          <div class="stat-number" data-target="0" id="watchCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill watch-fill" id="watchBar"></div></div>
-        </div>
-        <div class="stat-card stat-volume" data-hm-filter="volume" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap volume-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="13" width="4" height="8" rx="1"/><rect x="10" y="9" width="4" height="12" rx="1"/><rect x="18" y="4" width="4" height="17" rx="1"/></svg>
-            </span>
-            <span class="stat-label">Vol. Spikes</span>
-          </div>
-          <div class="stat-number" data-target="0" id="volumeCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill volume-fill" id="volumeBar"></div></div>
-        </div>
-        <div class="stat-card stat-squeeze" data-hm-filter="squeeze" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap squeeze-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h4m8 0h4"/><path d="M9 6l3 6 3-6"/><path d="M9 18l3-6 3 6"/></svg>
-            </span>
-            <span class="stat-label">Squeezes</span>
-          </div>
-          <div class="stat-number" data-target="0" id="squeezeCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill squeeze-fill" id="squeezeBar"></div></div>
-        </div>
-        <div class="stat-card stat-highconf" data-hm-filter="highconf" role="button" tabindex="0">
-          <div class="stat-card-glow"></div>
-          <div class="stat-header">
-            <span class="stat-icon-wrap highconf-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
-            </span>
-            <span class="stat-label">High Conf.</span>
-          </div>
-          <div class="stat-number" data-target="0" id="highConfCount">0</div>
-          <div class="stat-bar"><div class="stat-bar-fill highconf-fill" id="highConfBar"></div></div>
-        </div>
-      </div>
-
-      <!-- Signal Confidence Breakdown -->
-      <div class="card confidence-breakdown-card">
-        <div class="card-header"><h3>Signal Confidence</h3></div>
-        <div class="confidence-breakdown" id="confidenceBreakdown"></div>
-      </div>
-
       <!-- Timeframe Alignment Summary -->
       <div class="card">
-        <div class="card-header"><h3>Timeframe Alignment</h3></div>
+        <div class="card-header"><h3>TF Alignment</h3></div>
         <div class="alignment-summary" id="alignmentSummary"></div>
       </div>
 
-      <!-- Group Market Pulse -->
-      <div class="card" id="groupPulseCard">
-        <div class="card-header">
-          <h3>Market Pulse</h3>
-          <span id="groupPulseRisk" class="gp-risk-badge"></span>
-        </div>
-        <div id="groupPulseBody"></div>
-      </div>
+      <!-- Signal Confidence hidden — data surfaced via High Conf. stat card -->
+      <div id="confidenceBreakdown" style="display:none"></div>
 
       <!-- Ribbon Compression Alerts -->
       <div class="card" id="compressionCard" style="display:none">
@@ -309,9 +218,9 @@
         <div class="heatmap-grid" id="heatmapGrid"></div>
       </div>
 
-      <!-- Active Signals Feed -->
+      <!-- Signal Feed -->
       <div class="card">
-        <div class="card-header"><h3>Active Signals</h3></div>
+        <div class="card-header"><h3>Signal Feed</h3></div>
         <div class="signal-feed" id="signalFeed"></div>
       </div>
 
@@ -463,28 +372,9 @@
       </div>
     </section>
 
-    <!-- ========== PORTFOLIO TAB ========== -->
-    <section class="tab-pane" id="pane-portfolio">
-
-      <!-- Account Summary -->
-      <div class="pf-acct" id="pfAcctSummary"></div>
-
-      <!-- Stats Pills -->
-      <div class="pf-pills" id="pfStatsPills"></div>
-
-      <!-- Open Positions -->
-      <div class="pf-section-hdr">
-        <span class="pf-section-title">OPEN POSITIONS</span>
-        <span class="pf-section-badge" id="openTradeCount"></span>
-      </div>
-      <div id="openTradesList"></div>
-
-      <!-- Deals (from XM email) -->
-      <div class="pf-section-hdr" style="margin-top:20px;display:none" id="pfDealsHdr">
-        <span class="pf-section-title">RECENT DEALS</span>
-      </div>
-      <div id="pfDealsList"></div>
-
+    <!-- ========== RADAR TAB ========== -->
+    <section class="tab-pane" id="pane-radar">
+      <!-- Populated by renderRadar() -->
     </section>
 
     <!-- ========== WATCHLIST TAB ========== -->
@@ -649,9 +539,9 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span>Signals</span>
     </button>
-    <button class="nav-tab" data-tab="portfolio">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      <span>Portfolio</span>
+    <button class="nav-tab" data-tab="radar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+      <span>Radar</span>
     </button>
     <button class="nav-tab" data-tab="watchlist">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -685,6 +575,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=91"></script>
+  <script src="/static/js/app.js?v=97"></script>
 </body>
 </html>

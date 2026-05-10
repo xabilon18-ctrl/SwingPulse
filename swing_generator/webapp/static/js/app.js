@@ -27,6 +27,10 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
+  // ── Radar filter state ──────────────────────────────────────────────────
+  const radarState = { search: '', dir: 'all', rsi: 'all',
+    collapsed: { ready: false, building: false, squeeze: false }, guide: false };
+  let radarWired = false;
   let wlFilter = 'all';
   let wlSort = 'signal';
   let activeAlertTab = 'turning';
@@ -593,8 +597,7 @@
     renderTrendsInstrumentList();
     if (selectedTrendInst) renderTrendDetail(selectedTrendInst);
     renderTrendsSummary();
-    renderOpenTrades();
-    renderPortfolioStats();
+    renderRadar();
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
@@ -840,6 +843,49 @@
     if (n >= 1)    return n.toFixed(4);
     return n.toFixed(6);
   }
+  // ── RSI helpers ─────────────────────────────────────────────────────────
+  function rsiZone(val) {
+    const v = parseFloat(val);
+    if (isNaN(v)) return '';
+    if (v >= 70) return 'overbought';
+    if (v >= 50) return 'bullish';
+    if (v >= 30) return 'bearish';
+    return 'oversold';
+  }
+  function rsiZoneLabel(val) {
+    const z = rsiZone(val);
+    if (z === 'overbought') return 'OB';
+    if (z === 'bullish')    return 'Bull';
+    if (z === 'bearish')    return 'Bear';
+    if (z === 'oversold')   return 'OS';
+    return '';
+  }
+  // Compact inline badge: "RSI 62 Bull"
+  function rsiHtml(rsiVal, opts = {}) {
+    const v = parseFloat(rsiVal);
+    if (isNaN(v)) return '';
+    const zone  = rsiZone(v);
+    const label = opts.noLabel ? '' : ` <span class="rsi-zone-lbl">${rsiZoneLabel(v)}</span>`;
+    return `<span class="rsi-badge rsi-${zone}">RSI ${v.toFixed(0)}${label}</span>`;
+  }
+  // Wide bar row for the multi-TF panel
+  function rsiBarRow(label, rsiVal) {
+    const v = parseFloat(rsiVal);
+    if (isNaN(v)) return '';
+    const zone  = rsiZone(v);
+    const pct   = Math.round(v);
+    const color = zone === 'overbought' ? 'var(--sell)' : zone === 'bullish' ? 'var(--buy)' : zone === 'bearish' ? 'var(--sell)' : 'var(--buy)';
+    return `<div class="rsi-tf-row">
+      <span class="rsi-tf-label">${label}</span>
+      <div class="rsi-bar-track">
+        <div class="rsi-bar-ob-line"></div>
+        <div class="rsi-bar-os-line"></div>
+        <div class="rsi-bar-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <span class="rsi-tf-val rsi-${zone}">${v.toFixed(1)}</span>
+    </div>`;
+  }
+
   function pctFromMa(item) {
     const close = parseFloat(item[f('close')]);
     if (!close || isNaN(close)) return null;
@@ -1075,30 +1121,15 @@
       if (val) { val.textContent = alignCount; val.style.color = color; }
     }
 
+    // Stat card counts kept in hidden spans for potential JS references
     animateCount(document.getElementById('buyCount'), s.buy_count || 0);
     animateCount(document.getElementById('sellCount'), s.sell_count || 0);
     animateCount(document.getElementById('watchCount'), s.watch_count || 0);
     animateCount(document.getElementById('volumeCount'), s.volume_spikes || 0);
 
-    // New stat cards: squeezes and high-confidence signals
-    const squeezeCount = allData.filter(d => d[f('ribbon_compression')] === 'yes').length;
-    const highConfCount = allData.filter(d => d[f('signal_confidence')] === 'high' || d[f('signal_confidence')] === 'standard').length;
-    animateCount(document.getElementById('squeezeCount'), squeezeCount);
-    animateCount(document.getElementById('highConfCount'), highConfCount);
-
-    setTimeout(() => {
-      document.getElementById('buyBar').style.width = ((s.buy_count || 0) / total * 100) + '%';
-      document.getElementById('sellBar').style.width = ((s.sell_count || 0) / total * 100) + '%';
-      document.getElementById('watchBar').style.width = ((s.watch_count || 0) / total * 100) + '%';
-      document.getElementById('volumeBar').style.width = ((s.volume_spikes || 0) / total * 100) + '%';
-      document.getElementById('squeezeBar').style.width = (squeezeCount / total * 100) + '%';
-      document.getElementById('highConfBar').style.width = (highConfCount / total * 100) + '%';
-    }, 100);
-
     renderTrackRecord();
-    renderPortfolioCard();
-    renderTodayOpportunities();
-    renderAlertBanner();
+    // renderTodayOpportunities(); — removed
+    // renderAlertBanner(); — removed
     rebuildCharts();
     renderConfidenceBreakdown();
     renderGroupPulse();
@@ -1329,22 +1360,7 @@
     hm.classList.remove('heatmap-lifted');
   }
 
-  document.querySelectorAll('.stat-card[data-hm-filter]').forEach(card => {
-    card.addEventListener('click', () => {
-      const filter = card.dataset.hmFilter;
-      if (activeStatFilter === filter) {
-        activeStatFilter = '';
-        dropHeatmap();
-      } else {
-        activeStatFilter = filter;
-        liftHeatmap();
-      }
-      document.querySelectorAll('.stat-card[data-hm-filter]').forEach(c =>
-        c.classList.toggle('stat-active', c.dataset.hmFilter === activeStatFilter)
-      );
-      buildHeatmapCells();
-    });
-  });
+  // Stat card heatmap filter removed — stat cards no longer in DOM
 
   // ── Tab navigation helper ─────────────────────────────────────────────
   function navigateToTab(tabName) {
@@ -1773,6 +1789,7 @@
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
+            ${rsiHtml(item[f('rsi')], {noLabel:false})}
             ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/${maMaxPairs}</span></span>` : ''}
           </div>
         </div>
@@ -2249,6 +2266,7 @@
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
           <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
+        ${rsiHtml(item[f('rsi')], {noLabel:false})}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -2818,6 +2836,10 @@
             <div class="mg-label">Momentum</div>
             <div class="mg-val ${parseFloat(item[f('roc')])>=0?'buy':'sell'}">${item[f('roc')] ? (parseFloat(item[f('roc')])>=0?'+':'')+parseFloat(item[f('roc')]).toFixed(1)+'%' : '--'}</div>
           </div>
+          <div class="mg-tile">
+            <div class="mg-label">RSI(14)</div>
+            <div class="mg-val rsi-${rsiZone(item[f('rsi')])}">${item[f('rsi')] ? parseFloat(item[f('rsi')]).toFixed(1) : '--'}</div>
+          </div>
         </div>
 
         ${renderInstrumentTrackRecord(item.instrument_name)}
@@ -2908,6 +2930,16 @@
           <div class="mg-tile"><div class="mg-label">Open</div><div class="mg-val">${formatPrice(item[f('open')])}</div></div>
           <div class="mg-tile"><div class="mg-label">High</div><div class="mg-val buy">${formatPrice(item[f('high')])}</div></div>
           <div class="mg-tile"><div class="mg-label">Low</div><div class="mg-val sell">${formatPrice(item[f('low')])}</div></div>
+        </div>
+
+        <div class="mh-section">
+          <div class="mh-section-title">RSI(14) · All Timeframes</div>
+          <div class="rsi-tf-grid">
+            ${rsiBarRow('Monthly', item.m_rsi)}
+            ${rsiBarRow('Weekly',  item.w_rsi)}
+            ${rsiBarRow('Daily',   item.rsi)}
+            ${rsiBarRow('4-Hour',  item.h4_rsi)}
+          </div>
         </div>
 
         ${item[f('volume')]?`<div class="mh-section">
@@ -3720,7 +3752,257 @@
     });
   })();
 
-  // ── Portfolio Analytics ────────────────────────────────────────────────
+  // ── Radar Tab — Top-down multi-TF entry finder ─────────────────────────
+
+  function tfCounts(item) {
+    const tfs = [
+      item.m_trend_direction  || 'NEUTRAL',
+      item.w_trend_direction  || 'NEUTRAL',
+      item.trend_direction    || 'NEUTRAL',
+      item.h4_trend_direction || 'NEUTRAL',
+    ];
+    const bull = tfs.filter(t => t === 'UPTREND').length;
+    const bear = tfs.filter(t => t === 'DOWNTREND').length;
+    return { bull, bear, tfs };
+  }
+
+  function renderRadar() {
+    const el = document.getElementById('pane-radar');
+    if (!el || !allData.length) return;
+    wireRadarOnce(el);
+
+    // ── classify ──────────────────────────────────────────────────────────
+    const readyAll = [], buildingAll = [], sqzAll = [];
+    const seen = new Set();
+    allData.forEach(item => {
+      const { bull, bear } = tfCounts(item);
+      const aligned = Math.max(bull, bear);
+      const dailySig  = item.primary_signal  || '';
+      const weeklySig = item.w_primary_signal || '';
+      const sq        = item.ribbon_compression === 'yes';
+      const dTrend    = item.trend_direction  || 'NEUTRAL';
+      if (aligned >= 3 && (dailySig || weeklySig)) {
+        readyAll.push(item); seen.add(item.instrument_name);
+      } else if (aligned >= 2 && !seen.has(item.instrument_name)) {
+        buildingAll.push(item); seen.add(item.instrument_name);
+      } else if (sq && dTrend !== 'NEUTRAL' && !seen.has(item.instrument_name)) {
+        sqzAll.push(item); seen.add(item.instrument_name);
+      }
+    });
+
+    // ── sort ──────────────────────────────────────────────────────────────
+    const confRank = { high: 3, standard: 2, low: 1 };
+    readyAll.sort((a, b) => {
+      const d = (confRank[b.signal_confidence] || 0) - (confRank[a.signal_confidence] || 0);
+      return d !== 0 ? d : sigPriority(a.primary_signal) - sigPriority(b.primary_signal);
+    });
+    buildingAll.sort((a, b) => {
+      const { bull: ab, bear: ae } = tfCounts(a);
+      const { bull: bb, bear: be } = tfCounts(b);
+      return Math.max(bb, be) - Math.max(ab, ae);
+    });
+
+    // ── apply filters ─────────────────────────────────────────────────────
+    const q = radarState.search.toLowerCase().trim();
+    function passFilter(item) {
+      if (q && !matchesSearch(item, q)) return false;
+      if (radarState.dir !== 'all') {
+        const { bull, bear } = tfCounts(item);
+        const isBull = bull >= bear;
+        if (radarState.dir === 'long'  && !isBull) return false;
+        if (radarState.dir === 'short' &&  isBull) return false;
+      }
+      if (radarState.rsi !== 'all') {
+        if (rsiZone(item.rsi) !== radarState.rsi) return false;
+      }
+      return true;
+    }
+    const ready    = readyAll.filter(passFilter);
+    const building = buildingAll.filter(passFilter);
+    const sqzList  = sqzAll.filter(passFilter);
+
+    // ── card builder ──────────────────────────────────────────────────────
+    function radarCard(item) {
+      const { bull, bear, tfs } = tfCounts(item);
+      const isBull  = bull >= bear;
+      const sig     = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+      const conf    = (item.signal_confidence || '').toLowerCase();
+      const align   = item.tf_alignment || '';
+      const sq      = item.ribbon_compression === 'yes';
+      const name    = instName(item.instrument_name) || item.instrument_name;
+
+      const dotCls   = t => t === 'UPTREND' ? 'radar-dot-bull' : t === 'DOWNTREND' ? 'radar-dot-bear' : 'radar-dot-neutral';
+      const tfLabels = ['M', 'W', 'D', '4H'];
+      const dotsHtml = tfs.map((t, i) => `<span class="radar-tf-dot ${dotCls(t)}"><span class="radar-tf-lbl">${tfLabels[i]}</span></span>`).join('');
+
+      const dirBadge  = isBull ? '<span class="radar-dir-badge radar-long">LONG</span>' : '<span class="radar-dir-badge radar-short">SHORT</span>';
+      const sigBadge  = sig  ? `<span class="feed-badge badge-${sigClass(sig) || 'p4'}">${sig}</span>` : '';
+      const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
+      const sqBadge   = sq   ? '<span class="radar-sq-badge">SQZ</span>' : '';
+      const alignText = align ? `<span class="radar-align">${align}</span>` : '';
+
+      const rsiPips = [
+        item.m_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.m_rsi)}">M ${parseFloat(item.m_rsi).toFixed(0)}</span>`   : '',
+        item.w_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.w_rsi)}">W ${parseFloat(item.w_rsi).toFixed(0)}</span>`   : '',
+        item.rsi    ? `<span class="rsi-tf-pip rsi-${rsiZone(item.rsi)}">D ${parseFloat(item.rsi).toFixed(0)}</span>`       : '',
+        item.h4_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h4_rsi)}">4H ${parseFloat(item.h4_rsi).toFixed(0)}</span>` : '',
+      ].filter(Boolean).join('');
+
+      return `<div class="radar-card" data-act="openModal" data-arg="${item.instrument_name}">
+        <div class="radar-card-top">
+          ${dirBadge}
+          <div class="radar-card-name">
+            <span class="radar-inst">${name}</span>
+            <span class="radar-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
+          </div>
+          <div class="radar-tf-dots">${dotsHtml}</div>
+        </div>
+        <div class="radar-card-bot">${sigBadge}${confBadge}${sqBadge}${alignText}</div>
+        ${rsiPips ? `<div class="radar-rsi-row">${rsiPips}</div>` : ''}
+      </div>`;
+    }
+
+    // ── section builder ───────────────────────────────────────────────────
+    function radarSection(key, title, subtitle, items, totalCount, sectionCls) {
+      const collapsed = radarState.collapsed[key];
+      const chevron = `<svg class="radar-chevron ${collapsed ? 'collapsed' : ''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`;
+      const isFiltered = items.length !== totalCount;
+      const countLabel = isFiltered ? `${items.length} of ${totalCount}` : `${items.length}`;
+      const header = `
+        <div class="radar-section-header radar-section-${sectionCls}" data-radar-collapse="${key}">
+          <div class="radar-section-text">
+            <div class="radar-section-title">${title}</div>
+            <div class="radar-section-sub">${subtitle}</div>
+          </div>
+          <span class="radar-section-count">${countLabel}</span>
+          ${chevron}
+        </div>`;
+      const body = collapsed ? '' : (
+        items.length
+          ? `<div class="radar-cards">${items.map(radarCard).join('')}</div>`
+          : `<div class="radar-empty-section">No setups match your filters</div>`
+      );
+      return `<div class="radar-section">${header}${body}</div>`;
+    }
+
+    // ── RSI guide panel ───────────────────────────────────────────────────
+    const guideHtml = radarState.guide ? `
+      <div class="radar-guide-panel">
+        <div class="radar-guide-title">RSI(14) · How to read it</div>
+        <p class="radar-guide-intro">RSI measures momentum strength on a 0–100 scale. Use it to time entries — not to trade against the trend.</p>
+        <div class="radar-guide-zones">
+          <div class="radar-guide-zone">
+            <span class="rsi-badge rsi-oversold">&lt; 30 · OS</span>
+            <div class="radar-guide-zone-text">
+              <strong>Oversold</strong> — sellers exhausted, bounce likely.<br>
+              <span class="radar-guide-tip">Best for LONG entries. Look for 4H going OS while D+W uptrend holds.</span>
+            </div>
+          </div>
+          <div class="radar-guide-zone">
+            <span class="rsi-badge rsi-bearish">30–50 · Bear</span>
+            <div class="radar-guide-zone-text">
+              <strong>Bearish zone</strong> — below midpoint, momentum weak.<br>
+              <span class="radar-guide-tip">Wait for RSI to reclaim 50 before going long. Good for SHORT setups.</span>
+            </div>
+          </div>
+          <div class="radar-guide-zone">
+            <span class="rsi-badge rsi-bullish">50–70 · Bull</span>
+            <div class="radar-guide-zone-text">
+              <strong>Bullish zone</strong> — above midpoint, buyers in control.<br>
+              <span class="radar-guide-tip">Best for LONG entries in established uptrends. Trend continuation zone.</span>
+            </div>
+          </div>
+          <div class="radar-guide-zone">
+            <span class="rsi-badge rsi-overbought">&gt; 70 · OB</span>
+            <div class="radar-guide-zone-text">
+              <strong>Overbought</strong> — rally extended, pullback risk.<br>
+              <span class="radar-guide-tip">Best for SHORT entries. Look for 4H going OB while D+W downtrend holds.</span>
+            </div>
+          </div>
+        </div>
+        <div class="radar-guide-tips">
+          <div class="radar-guide-tip-row">💡 <strong>Ideal BUY:</strong> 4H oversold → D bullish → W/M uptrend. Enter as 4H turns up from OS.</div>
+          <div class="radar-guide-tip-row">💡 <strong>Ideal SELL:</strong> 4H overbought → D bearish → W/M downtrend. Enter as 4H turns down from OB.</div>
+          <div class="radar-guide-tip-row">📖 <strong>Top-down read:</strong> M+W set the regime → D sets the swing → 4H gives exact entry timing.</div>
+        </div>
+      </div>` : '';
+
+    // ── controls ──────────────────────────────────────────────────────────
+    const dBtn = v => `<button class="radar-dir-btn${radarState.dir===v?' active':''}" data-radar-dir="${v}">${v==='all'?'All':v==='long'?'Long':'Short'}</button>`;
+    const rBtn = (v, lbl) => `<button class="radar-rsi-btn${radarState.rsi===v?' active':''}" data-radar-rsi="${v}">${lbl}</button>`;
+
+    // ── render ────────────────────────────────────────────────────────────
+    el.innerHTML = `
+      <div class="radar-controls">
+        <div class="radar-search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="radar-search-input" id="radarSearch" type="text" placeholder="Search instruments…" value="${radarState.search.replace(/"/g,'&quot;')}">
+        </div>
+        <div class="radar-filter-row">
+          <div class="radar-dir-toggle">
+            ${dBtn('all')}${dBtn('long')}${dBtn('short')}
+          </div>
+          <button class="radar-guide-btn${radarState.guide?' active':''}" data-radar-guide="1">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+            RSI Guide
+          </button>
+        </div>
+        <div class="radar-rsi-row-filters">
+          ${rBtn('all','All')}${rBtn('oversold','OS &lt;30')}${rBtn('bearish','Bear 30–50')}${rBtn('bullish','Bull 50–70')}${rBtn('overbought','OB &gt;70')}
+        </div>
+      </div>
+      ${guideHtml}
+      ${radarSection('ready',    'READY',    'Active signal + 3+ TFs aligned · Trade now',   ready,    readyAll.length,    'ready')}
+      ${radarSection('building', 'BUILDING', '2+ TFs aligned · Wait for daily confirmation', building, buildingAll.length, 'building')}
+      ${radarSection('squeeze',  'SQUEEZE',  'Ribbon compressed + directional bias · Breakout loading', sqzList, sqzAll.length, 'squeeze')}
+    `;
+
+    // Focus search if it was active before re-render
+    if (radarState.search) {
+      const inp = document.getElementById('radarSearch');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  }
+
+  function wireRadarOnce(el) {
+    if (radarWired) return;
+    radarWired = true;
+    let searchTimer;
+    el.addEventListener('input', e => {
+      if (e.target.id === 'radarSearch') {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { radarState.search = e.target.value; renderRadar(); }, 200);
+      }
+    });
+    el.addEventListener('click', e => {
+      // Section collapse
+      const colHdr = e.target.closest('[data-radar-collapse]');
+      if (colHdr) {
+        const key = colHdr.dataset.radarCollapse;
+        radarState.collapsed[key] = !radarState.collapsed[key];
+        renderRadar(); return;
+      }
+      // Direction filter
+      const dirBtn = e.target.closest('[data-radar-dir]');
+      if (dirBtn) {
+        radarState.dir = dirBtn.dataset.radarDir;
+        renderRadar(); return;
+      }
+      // RSI zone filter
+      const rsiBtn = e.target.closest('[data-radar-rsi]');
+      if (rsiBtn) {
+        radarState.rsi = rsiBtn.dataset.radarRsi;
+        renderRadar(); return;
+      }
+      // RSI guide toggle
+      if (e.target.closest('[data-radar-guide]')) {
+        radarState.guide = !radarState.guide;
+        renderRadar(); return;
+      }
+    });
+  }
+
+  // ── (Portfolio code removed — replaced by Radar tab) ──────────────────
 
   function renderPortfolioStats() {
     const acctEl = document.getElementById('pfAcctSummary');

@@ -24,7 +24,7 @@ from typing import Optional
 
 import pandas as pd
 
-from config import (
+from _active_config import (
     MA_PERIODS, SMALL_MA_RANGE, MAX_PENETRATION_DAILY, OUTPUT_DIR,
 )
 from data_fetcher import fetch
@@ -273,6 +273,7 @@ def _stats(trades: list[dict], label: str) -> dict:
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--profile', default='default', help='Config profile: default | ma200')
     parser.add_argument('--quick',  action='store_true', help='Test 30 instruments only')
     parser.add_argument('--signal', help='Only test this signal type (BP1/SP1/BP2/SP2/BP3/SP3/BP4/SP4)')
     parser.add_argument('--since',  help='Only signals after this date (YYYY-MM-DD)')

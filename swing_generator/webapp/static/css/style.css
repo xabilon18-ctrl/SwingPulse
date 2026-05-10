@@ -666,7 +666,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 2px 8px;
+  padding: 10px 2px 8px;
 }
 .section-title {
   font-size: .9rem;
@@ -703,7 +703,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 
 .opp-card {
-  flex: 0 0 155px;
+  flex: 0 0 168px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -919,13 +919,30 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 
 /* ── Stat Cards ───────────────────────────────────────────────────────── */
+/*
+  Mobile layout: 6-col subgrid
+    Row 1 — Buy (span 3) | Sell (span 3)   → 50/50, headline pair
+    Row 2 — Watch (span 2) | Vol (span 2) | High Conf (span 2) → 33/33/33, context trio
+  Tablet+: all 5 equal in one row
+*/
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
   margin-bottom: 16px;
 }
-@media (min-width: 768px) { .stat-cards { grid-template-columns: repeat(4, 1fr); gap: 16px; } }
+.stat-buy, .stat-sell                        { grid-column: span 3; }
+.stat-watch, .stat-volume, .stat-highconf    { grid-column: span 2; }
+
+/* Buy / Sell get bigger numbers to signal importance */
+.stat-buy .stat-number, .stat-sell .stat-number { font-size: 2rem; }
+
+@media (min-width: 600px) {
+  .stat-cards { grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .stat-buy, .stat-sell,
+  .stat-watch, .stat-volume, .stat-highconf { grid-column: span 1; }
+  .stat-buy .stat-number, .stat-sell .stat-number { font-size: 1.35rem; }
+}
 
 .stat-card {
   position: relative;
@@ -947,7 +964,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .stat-sell.stat-active { border-color: var(--sell); box-shadow: 0 0 12px var(--sell-glow); }
 .stat-watch.stat-active { border-color: var(--watch); box-shadow: 0 0 12px var(--watch-glow); }
 .stat-volume.stat-active { border-color: var(--volume); box-shadow: 0 0 12px var(--volume-glow); }
-.stat-squeeze.stat-active { border-color: #fbbf24; box-shadow: 0 0 12px rgba(251,191,36,.2); }
 .stat-highconf.stat-active { border-color: #6366f1; box-shadow: 0 0 12px rgba(99,102,241,.2); }
 
 .stat-card-glow {
@@ -965,7 +981,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .stat-sell .stat-card-glow { background: var(--sell-glow); }
 .stat-watch .stat-card-glow { background: var(--watch-glow); }
 .stat-volume .stat-card-glow { background: var(--volume-glow); }
-.stat-squeeze .stat-card-glow { background: rgba(251,191,36,.08); }
 .stat-highconf .stat-card-glow { background: rgba(99,102,241,.08); }
 
 .stat-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
@@ -997,7 +1012,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .stat-sell .stat-number { color: var(--sell); }
 .stat-watch .stat-number { color: var(--watch); }
 .stat-volume .stat-number { color: var(--volume); }
-.stat-squeeze .stat-number { color: #fbbf24; }
 .stat-highconf .stat-number { color: #6366f1; }
 
 .stat-bar {
@@ -5528,9 +5542,12 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 [data-theme="light"] .pf-pos-card { background: #f8fafc; border-color: #e2e8f0; }
 [data-theme="light"] .pf-perf-card { background: #f8fafc; border-color: #e2e8f0; }
 
-/* ── Group Market Pulse ──────────────────────────────────────────────────── */
+/* ── By Group card — full-bleed rows ────────────────────────────────────── */
+#groupPulseCard { padding: 0; overflow: hidden; }
+#groupPulseCard .card-header { padding: 14px 16px 10px; margin-bottom: 0; }
+
 .gp-risk-badge {
-  font-size: .72rem; font-weight: 700; padding: 3px 8px;
+  font-size: .72rem; font-weight: 700; padding: 3px 9px;
   border-radius: 20px; letter-spacing: .04em;
 }
 .gp-risk-on   { background: rgba(34,197,94,.15);  color: var(--buy);  }
@@ -5538,30 +5555,319 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .gp-risk-mixed{ background: rgba(99,102,241,.15);  color: var(--accent); }
 
 .gp-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 16px; border-left: 3px solid transparent;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border-left: 3px solid transparent;
   transition: background .15s;
+  cursor: default;
 }
+.gp-row:hover { background: rgba(255,255,255,.03); }
 .gp-row-bull  { border-color: var(--buy); }
 .gp-row-bear  { border-color: var(--sell); }
 .gp-row-mixed { border-color: var(--accent); }
 .gp-row:not(:last-child) { border-bottom: 1px solid var(--border); }
 
 .gp-name {
-  font-size: .75rem; font-weight: 600; color: var(--text-muted);
-  min-width: 72px; flex-shrink: 0; text-transform: uppercase; letter-spacing: .04em;
+  font-size: .76rem; font-weight: 600; color: var(--text-secondary);
+  min-width: 78px; flex-shrink: 0; text-transform: uppercase; letter-spacing: .05em;
 }
 .gp-bar-wrap {
-  flex: 1; height: 6px; border-radius: 3px; overflow: hidden;
-  background: var(--bg-card); display: flex; gap: 1px;
+  flex: 1; height: 8px; border-radius: 4px; overflow: hidden;
+  background: var(--bg-elevated); display: flex; gap: 1px;
 }
-.gp-bar-bull { background: var(--buy);    height: 100%; transition: width .4s ease; }
-.gp-bar-neut { background: var(--border); height: 100%; transition: width .4s ease; }
-.gp-bar-bear { background: var(--sell);   height: 100%; transition: width .4s ease; }
+.gp-bar-bull { background: var(--buy);    height: 100%; transition: width .5s ease; }
+.gp-bar-neut { background: var(--border); height: 100%; transition: width .5s ease; }
+.gp-bar-bear { background: var(--sell);   height: 100%; transition: width .5s ease; }
 
 .gp-stats {
-  display: flex; gap: 8px; font-size: .7rem; font-weight: 700;
-  min-width: 80px; justify-content: flex-end; flex-shrink: 0;
+  display: flex; gap: 8px; font-size: .72rem; font-weight: 700;
+  min-width: 82px; justify-content: flex-end; flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .gp-bull { color: var(--buy);  }
 .gp-bear { color: var(--sell); }
+
+/* ── Profile-specific card visibility ──────────────────────────────── */
+body[data-profile="ma200"] #heatmapCard,
+body[data-profile="ma200"] #compressionCard { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RADAR TAB — Top-down multi-timeframe entry finder
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.radar-header {
+  padding: 18px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.radar-header-title {
+  font-size: .65rem; font-weight: 800; letter-spacing: .14em;
+  color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px;
+}
+.radar-header-sub {
+  font-size: .72rem; color: var(--text-muted);
+}
+
+/* Section */
+.radar-section { margin-bottom: 4px; }
+
+.radar-section-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px 9px;
+  border-left: 3px solid transparent;
+  background: var(--bg-surface);
+}
+.radar-section-ready   { border-left-color: var(--buy); }
+.radar-section-building{ border-left-color: var(--watch); }
+.radar-section-squeeze { border-left-color: var(--accent); }
+
+.radar-section-icon { font-size: .9rem; line-height: 1; }
+.radar-section-title {
+  font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-primary);
+}
+.radar-section-sub {
+  font-size: .65rem; color: var(--text-muted); margin-top: 1px;
+}
+.radar-section-count {
+  margin-left: auto; font-size: .8rem; font-weight: 800;
+  color: var(--text-secondary); min-width: 20px; text-align: right;
+}
+
+.radar-cards {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--border);
+}
+
+/* Per-instrument card */
+.radar-card {
+  background: var(--bg-card);
+  padding: 10px 16px 9px;
+  display: flex; flex-direction: column; gap: 6px;
+  cursor: pointer; transition: background var(--transition);
+}
+.radar-card:hover, .radar-card:active { background: var(--bg-hover); }
+
+.radar-card-top {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.radar-dir-badge {
+  font-size: .58rem; font-weight: 800; letter-spacing: .08em;
+  padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
+  text-transform: uppercase;
+}
+.radar-long  { background: var(--buy-soft);  color: var(--buy); }
+.radar-short { background: var(--sell-soft); color: var(--sell); }
+
+.radar-card-name {
+  flex: 1; min-width: 0;
+}
+.radar-inst {
+  display: block; font-size: .82rem; font-weight: 700;
+  color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.radar-group {
+  display: block; font-size: .63rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
+}
+
+/* 4 TF dot indicators */
+.radar-tf-dots {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.radar-tf-dot {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: 22px;
+}
+.radar-tf-dot::before {
+  content: ''; display: block;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--neutral);
+  transition: background var(--transition);
+}
+.radar-dot-bull::before { background: var(--buy); box-shadow: 0 0 4px var(--buy-glow); }
+.radar-dot-bear::before { background: var(--sell); box-shadow: 0 0 4px var(--sell-glow); }
+.radar-dot-neutral::before { background: var(--neutral); }
+
+.radar-tf-lbl {
+  font-size: .52rem; font-weight: 700; color: var(--text-muted);
+  letter-spacing: .03em; text-transform: uppercase;
+}
+
+.radar-card-bot {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.radar-align {
+  margin-left: auto; font-size: .63rem; color: var(--text-muted);
+  font-style: italic; white-space: nowrap;
+}
+.radar-sq-badge {
+  font-size: .58rem; font-weight: 800; letter-spacing: .06em;
+  padding: 1px 5px; border-radius: 3px;
+  background: var(--accent-glow); color: var(--accent);
+}
+
+.radar-empty-section {
+  padding: 14px 16px; font-size: .75rem; color: var(--text-muted);
+  background: var(--bg-card); font-style: italic;
+}
+
+/* RSI per-TF pip row on Radar cards */
+.radar-rsi-row {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px;
+}
+.rsi-tf-pip {
+  font-size: .58rem; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+}
+
+/* ── Radar Controls ─────────────────────────────────────────────────── */
+.radar-controls {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.radar-search-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-elevated); border-radius: 8px;
+  padding: 7px 10px; border: 1px solid var(--border);
+}
+.radar-search-wrap svg { color: var(--text-muted); flex-shrink: 0; }
+.radar-search-input {
+  flex: 1; background: none; border: none; outline: none;
+  font-size: .82rem; color: var(--text-primary);
+  font-family: inherit;
+}
+.radar-search-input::placeholder { color: var(--text-muted); }
+
+.radar-filter-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.radar-dir-toggle {
+  display: flex; gap: 2px; background: var(--bg-elevated);
+  border-radius: 8px; padding: 2px; flex: 1;
+}
+.radar-dir-btn {
+  flex: 1; padding: 5px 0; border-radius: 6px; font-size: .72rem;
+  font-weight: 700; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; transition: all var(--transition);
+}
+.radar-dir-btn.active {
+  background: var(--bg-card); color: var(--text-primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.radar-guide-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 9px; border-radius: 8px; font-size: .68rem; font-weight: 700;
+  border: 1px solid var(--border); background: none;
+  color: var(--text-muted); cursor: pointer; white-space: nowrap;
+  transition: all var(--transition);
+}
+.radar-guide-btn.active {
+  background: var(--accent-glow); color: var(--accent);
+  border-color: var(--accent);
+}
+
+.radar-rsi-row-filters {
+  display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
+  scrollbar-width: none; padding-bottom: 2px;
+}
+.radar-rsi-row-filters::-webkit-scrollbar { display: none; }
+.radar-rsi-btn {
+  flex-shrink: 0; padding: 4px 9px; border-radius: 6px;
+  font-size: .65rem; font-weight: 700; border: 1px solid var(--border);
+  background: var(--bg-elevated); color: var(--text-muted);
+  cursor: pointer; white-space: nowrap; transition: all var(--transition);
+}
+.radar-rsi-btn.active {
+  background: var(--bg-card); color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+/* Section header collapse chevron */
+.radar-section-header { cursor: pointer; user-select: none; }
+.radar-section-text { flex: 1; }
+.radar-chevron { color: var(--text-muted); transition: transform var(--transition); flex-shrink: 0; }
+.radar-chevron.collapsed { transform: rotate(-90deg); }
+
+/* ── RSI Guide Panel ────────────────────────────────────────────────── */
+.radar-guide-panel {
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+.radar-guide-title {
+  font-size: .7rem; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+}
+.radar-guide-intro {
+  font-size: .72rem; color: var(--text-muted); margin: 0 0 12px;
+  line-height: 1.5;
+}
+.radar-guide-zones { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.radar-guide-zone { display: flex; align-items: flex-start; gap: 10px; }
+.radar-guide-zone .rsi-badge { flex-shrink: 0; margin-top: 1px; font-size: .62rem; }
+.radar-guide-zone-text { font-size: .72rem; line-height: 1.5; color: var(--text-secondary); }
+.radar-guide-zone-text strong { color: var(--text-primary); }
+.radar-guide-tip { font-size: .68rem; color: var(--text-muted); }
+
+.radar-guide-tips { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+.radar-guide-tip-row { font-size: .7rem; color: var(--text-secondary); line-height: 1.5; }
+.radar-guide-tip-row strong { color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RSI — Badges, bar rows, zone colours
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Zone colours (shared across all RSI components) */
+.rsi-overbought { background: var(--sell-soft);    color: var(--sell); }
+.rsi-bullish    { background: var(--buy-soft);     color: var(--buy); }
+.rsi-bearish    { background: var(--sell-soft);    color: var(--sell); }
+.rsi-oversold   { background: var(--buy-soft);     color: var(--buy); }
+
+/* Inline badge: appears in signal feed, scanner, radar */
+.rsi-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: .6rem; font-weight: 700; padding: 2px 6px; border-radius: 3px;
+  white-space: nowrap;
+}
+.rsi-zone-lbl {
+  font-size: .55rem; font-weight: 600; opacity: .8;
+}
+
+/* mg-tile value coloring */
+.mg-val.rsi-overbought { color: var(--sell); }
+.mg-val.rsi-bullish    { color: var(--buy); }
+.mg-val.rsi-bearish    { color: var(--sell); }
+.mg-val.rsi-oversold   { color: var(--buy); }
+
+/* Multi-TF RSI bar grid (Analysis panel) */
+.rsi-tf-grid {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 4px 0;
+}
+.rsi-tf-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.rsi-tf-label {
+  font-size: .65rem; font-weight: 700; color: var(--text-muted);
+  width: 52px; flex-shrink: 0; text-transform: uppercase; letter-spacing: .04em;
+}
+.rsi-bar-track {
+  flex: 1; height: 7px; border-radius: 4px;
+  background: var(--bg-elevated); position: relative;
+}
+/* 30 and 70 marker lines — outside overflow so they're visible above the fill */
+.rsi-bar-track::before,
+.rsi-bar-track::after {
+  content: ''; position: absolute; top: -1px; bottom: -1px; width: 1px;
+  background: var(--border-active); opacity: .6; z-index: 2; pointer-events: none;
+}
+.rsi-bar-track::before { left: 30%; }
+.rsi-bar-track::after  { left: 70%; }
+.rsi-bar-fill {
+  height: 100%; border-radius: 4px;
+  transition: width .5s ease; max-width: 100%;
+}
+.rsi-tf-val {
+  font-size: .72rem; font-weight: 800; width: 36px; text-align: right;
+  flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
