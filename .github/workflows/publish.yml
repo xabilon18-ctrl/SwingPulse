@@ -66,7 +66,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd swing_generator
-          python3 main.py
+          python3 main.py --profile ma200
 
       # ── 7. Fan out push notifications ────────────────────────────────────
       - name: Trigger push notifications
