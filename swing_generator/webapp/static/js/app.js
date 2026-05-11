@@ -32,7 +32,7 @@
   let scannerPage = 1;             // how many pages shown so far
   // ── Radar filter state ──────────────────────────────────────────────────
   const radarState = { search: '', dir: 'all', rsi: 'all',
-    collapsed: { ready: false, building: false, squeeze: false }, guide: false };
+    collapsed: { prime: false, strong: false, developing: false }, guide: false };
   let radarWired = false;
   let wlFilter = 'all';
   let wlSort = 'signal';
@@ -1199,6 +1199,7 @@
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
+    renderMacroSrFeed();
   }
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
@@ -1981,6 +1982,104 @@
     `;
   }
 
+  // ── Macro S/R Event Feed (Dashboard) ──────────────────────────────────
+  function renderMacroSrFeed() {
+    const card = document.getElementById('macroSrCard');
+    const feed = document.getElementById('macroSrFeed');
+    const countEl = document.getElementById('macroSrCount');
+    if (!card || !feed) return;
+
+    const touched = allData
+      .filter(d => d.macro_sr_signal && d.macro_sr_signal !== '')
+      .sort((a, b) => {
+        const strDiff = (parseInt(b.macro_sr_strength) || 0) - (parseInt(a.macro_sr_strength) || 0);
+        if (strDiff !== 0) return strDiff;
+        if (a.macro_sr_signal !== b.macro_sr_signal) return a.macro_sr_signal === 'support' ? -1 : 1;
+        return 0;
+      });
+
+    if (!touched.length) {
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    if (countEl) countEl.textContent = touched.length;
+
+    const supCount       = touched.filter(d => d.macro_sr_signal === 'support').length;
+    const resCount       = touched.filter(d => d.macro_sr_signal === 'resistance').length;
+    const confluenceCount = touched.filter(d => (parseInt(d.macro_sr_strength) || 0) >= 3).length;
+
+    // Summary pills — clickable to filter scanner
+    const summaryEl = document.getElementById('macroSrSummary');
+    if (summaryEl) {
+      summaryEl.innerHTML =
+        `<span class="macro-sr-sum-sup msr-sum-btn" data-msr-filter="macro_sr_sup" title="Show support touches in scanner">▲ ${supCount} support</span>` +
+        `<span class="macro-sr-sum-res msr-sum-btn" data-msr-filter="macro_sr_res" title="Show resistance touches in scanner">▼ ${resCount} resist</span>` +
+        (confluenceCount ? `<span class="macro-sr-sum-conf msr-sum-btn" data-msr-filter="confluence" title="Show ×3/×4 confluence events in scanner">⚡ ${confluenceCount} confluence</span>` : '');
+
+      summaryEl.querySelectorAll('.msr-sum-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const fil = btn.dataset.msrFilter;
+          // Route to scanner with chip filter active
+          const chip = document.querySelector(`.sig-ctx-chip[data-filter="${fil === 'confluence' ? 'macro_sr_sup' : fil}"]`);
+          if (chip) {
+            activeScannerFilter = fil === 'confluence' ? 'macro_sr_sup' : fil;
+            document.querySelectorAll('.sig-ctx-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+          }
+          navigateToTab('scanner');
+          buildScannerCards();
+          updateScannerCtxStrip();
+        });
+      });
+    }
+
+    // Feed rows — clicking opens modal
+    feed.innerHTML = touched.map(item => {
+      const sig    = item.macro_sr_signal;
+      const lvl    = item.macro_sr_level || '';
+      const str    = parseInt(item.macro_sr_strength) || 0;
+      const isSup  = sig === 'support';
+      const isConf = str >= 4;
+      const isMulti = str >= 3;
+
+      const side = isSup
+        ? `<span class="msr-side msr-sup">▲ SUP</span>`
+        : `<span class="msr-side msr-res">▼ RES</span>`;
+
+      const lvlBadge = isConf
+        ? `<span class="msr-lvl msr-lvl-conf">⚡ ALL 4</span>`
+        : isMulti
+          ? `<span class="msr-lvl msr-lvl-multi">⚡ ${lvl} ×${str}</span>`
+          : `<span class="msr-lvl">${lvl}</span>`;
+
+      const close    = parseFloat(item.close);
+      const priceStr = close && !isNaN(close) ? formatPrice(close) : '';
+      const align    = item.tf_alignment || '';
+      const alignBadge = align ? `<span class="msr-align ${alignCls(align)}">${align}</span>` : '';
+      const rowCls   = isConf ? 'msr-row msr-row-conf' : isMulti ? 'msr-row msr-row-multi' : 'msr-row';
+
+      return `<div class="${rowCls}" data-name="${item.instrument_name}">
+        <div class="msr-left">
+          ${side}
+          <span class="msr-name">${item.instrument_name}</span>
+          <span class="msr-group">${item.group || ''}</span>
+        </div>
+        <div class="msr-right">
+          ${lvlBadge}
+          ${priceStr ? `<span class="msr-price">${priceStr}</span>` : ''}
+          ${alignBadge}
+        </div>
+      </div>`;
+    }).join('');
+
+    // Wire row clicks directly — more reliable than data-act delegation
+    feed.querySelectorAll('.msr-row').forEach(row => {
+      row.addEventListener('click', () => openModal(row.dataset.name));
+    });
+  }
+
   // ── Compression Feed (Dashboard) ─────────────────────────────────────
   function renderCompressionFeed() {
     const card = document.getElementById('compressionCard');
@@ -2198,6 +2297,8 @@
       else if (activeScannerFilter === 'sell')    filtered = filtered.filter(isSell);
       else if (activeScannerFilter === 'macro_bull') filtered = filtered.filter(isMacroBull);
       else if (activeScannerFilter === 'macro_bear') filtered = filtered.filter(isMacroBear);
+      else if (activeScannerFilter === 'macro_sr_sup') filtered = filtered.filter(d => d.macro_sr_signal === 'support');
+      else if (activeScannerFilter === 'macro_sr_res') filtered = filtered.filter(d => d.macro_sr_signal === 'resistance');
       else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
       else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
       else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
@@ -2333,6 +2434,9 @@
       const pct = pctFromMa(item);
       const macroBull = isMacroBull(item);
       const macroBear = isMacroBear(item);
+      const macroSrSig = item.macro_sr_signal || '';
+      const macroSrLvl = item.macro_sr_level || '';
+      const macroSrStr = parseInt(item.macro_sr_strength) || 0;
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
@@ -2380,6 +2484,8 @@
           ${runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : ''}
           ${macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs — strong long-term support">MACRO BULL</span>' : ''}
           ${macroBear ? '<span class="scanner-tag macro-sr-badge macro-sr-bear" title="Price below all macro MAs — strong long-term resistance">MACRO BEAR</span>' : ''}
+          ${macroSrSig === 'support' ? (macroSrStr >= 4 ? `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously — extremely strong long-term support">⚡ CONFLUENCE SUP</span>` : macroSrStr >= 3 ? `<span class="scanner-tag macro-sr-badge macro-sr-multi-sup" title="${macroSrStr} macro MAs tested as support simultaneously">⚡ SUP ×${macroSrStr}</span>` : `<span class="scanner-tag macro-sr-badge macro-sr-touch-sup" title="Today's low tested ${macroSrLvl} as support">SUP ${macroSrLvl}</span>`) : ''}
+          ${macroSrSig === 'resistance' ? (macroSrStr >= 4 ? `<span class="scanner-tag macro-sr-badge macro-sr-confluence-res" title="ALL 4 macro MAs tested as resistance simultaneously — extremely strong long-term resistance">⚡ CONFLUENCE RES</span>` : macroSrStr >= 3 ? `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>` : `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`) : ''}
         </div>
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
@@ -3969,7 +4075,7 @@
     });
   })();
 
-  // ── Radar Tab — Top-down multi-TF entry finder ─────────────────────────
+  // ── Radar Tab — Confluence Entry Finder ────────────────────────────────
 
   function tfCounts(item) {
     const tfs = [
@@ -3983,80 +4089,157 @@
     return { bull, bear, tfs };
   }
 
+  function confluenceScore(item) {
+    const { bull, bear, tfs } = tfCounts(item);
+    const isBullish = bull >= bear;
+    let score = 0;
+
+    // 1. TF alignment (max 40) — Monthly+Weekly carry more weight as regime setters
+    if (isBullish) {
+      if (tfs[0] === 'UPTREND')   score += 12;  // Monthly
+      if (tfs[1] === 'UPTREND')   score += 12;  // Weekly
+      if (tfs[2] === 'UPTREND')   score += 10;  // Daily
+      if (tfs[3] === 'UPTREND')   score += 6;   // 4H
+    } else {
+      if (tfs[0] === 'DOWNTREND') score += 12;
+      if (tfs[1] === 'DOWNTREND') score += 12;
+      if (tfs[2] === 'DOWNTREND') score += 10;
+      if (tfs[3] === 'DOWNTREND') score += 6;
+    }
+
+    // 2. Signal type (max 15) — BP1/SP1 reversal is highest conviction
+    const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+    const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
+    const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
+    if ((isBullish && buySig) || (!isBullish && sellSig)) {
+      score += (sig === 'BP1' || sig === 'SP1') ? 15 : 10;
+    } else if (item.watch_flag) {
+      score += 5;
+    }
+
+    // 3. Signal confidence (max 10)
+    const conf = (item.signal_confidence || '').toLowerCase();
+    if (conf === 'high') score += 10;
+    else if (conf === 'standard') score += 6;
+    else if (conf === 'low') score += 3;
+
+    // 4. Macro MA position vs daily close (max 15) — always use raw daily fields
+    const dailyClose = parseFloat(item.close);
+    const macroMas   = detectedMacroMas
+      .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
+      .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
+    if (macroMas.length > 0) {
+      const onSide = isBullish
+        ? macroMas.filter(r => dailyClose > r.val).length
+        : macroMas.filter(r => dailyClose < r.val).length;
+      score += Math.round((onSide / macroMas.length) * 15);
+    }
+
+    // 5. RSI timing (max 10) — 4H entry timing against higher-TF trend
+    const h4Rsi = parseFloat(item.h4_rsi);
+    const dRsi  = parseFloat(item.rsi);
+    if (isBullish) {
+      if (!isNaN(h4Rsi) && h4Rsi < 30) score += 10;       // 4H oversold = ideal long entry
+      else if (!isNaN(h4Rsi) && h4Rsi < 50) score += 5;  // room to run
+      else if (!isNaN(dRsi)  && dRsi  < 50) score += 3;
+    } else {
+      if (!isNaN(h4Rsi) && h4Rsi > 70) score += 10;       // 4H overbought = ideal short entry
+      else if (!isNaN(h4Rsi) && h4Rsi > 50) score += 5;
+      else if (!isNaN(dRsi)  && dRsi  > 50) score += 3;
+    }
+
+    // 6. Macro S/R touch (max 8) — price genuinely testing a macro level today
+    if (isBullish && item.macro_sr_signal === 'support') {
+      score += 5;
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) score += 3;
+    } else if (!isBullish && item.macro_sr_signal === 'resistance') {
+      score += 5;
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) score += 3;
+    }
+
+    // 7. Volume spike (max 5)
+    if (item.volume_spike_flag === 'yes') score += 5;
+
+    return Math.min(score, 100);
+  }
+
+  function scoreTier(score) {
+    if (score >= 75) return 'prime';
+    if (score >= 50) return 'strong';
+    return 'developing';
+  }
+
   function renderRadar() {
     const el = document.getElementById('pane-radar');
     if (!el || !allData.length) return;
     wireRadarOnce(el);
 
-    // ── classify ──────────────────────────────────────────────────────────
-    const readyAll = [], buildingAll = [], sqzAll = [];
-    const seen = new Set();
-    allData.forEach(item => {
-      const { bull, bear } = tfCounts(item);
-      const aligned = Math.max(bull, bear);
-      const dailySig  = item.primary_signal  || '';
-      const weeklySig = item.w_primary_signal || '';
-      const sq        = item.ribbon_compression === 'yes';
-      const dTrend    = item.trend_direction  || 'NEUTRAL';
-      if (aligned >= 3 && (dailySig || weeklySig)) {
-        readyAll.push(item); seen.add(item.instrument_name);
-      } else if (aligned >= 2 && !seen.has(item.instrument_name)) {
-        buildingAll.push(item); seen.add(item.instrument_name);
-      } else if (sq && dTrend !== 'NEUTRAL' && !seen.has(item.instrument_name)) {
-        sqzAll.push(item); seen.add(item.instrument_name);
-      }
-    });
-
-    // ── sort ──────────────────────────────────────────────────────────────
-    const confRank = { high: 3, standard: 2, low: 1 };
-    readyAll.sort((a, b) => {
-      const d = (confRank[b.signal_confidence] || 0) - (confRank[a.signal_confidence] || 0);
-      return d !== 0 ? d : sigPriority(a.primary_signal) - sigPriority(b.primary_signal);
-    });
-    buildingAll.sort((a, b) => {
-      const { bull: ab, bear: ae } = tfCounts(a);
-      const { bull: bb, bear: be } = tfCounts(b);
-      return Math.max(bb, be) - Math.max(ab, ae);
-    });
+    // ── score all instruments and sort descending ─────────────────────────
+    const scored = allData.map(item => ({ item, score: confluenceScore(item) }));
+    scored.sort((a, b) => b.score - a.score);
+    const primeAll      = scored.filter(s => s.score >= 75);
+    const strongAll     = scored.filter(s => s.score >= 50 && s.score < 75);
+    const developingAll = scored.filter(s => s.score >= 25 && s.score < 50);
 
     // ── apply filters ─────────────────────────────────────────────────────
     const q = radarState.search.toLowerCase().trim();
-    function passFilter(item) {
+    function passFilter({ item }) {
       if (q && !matchesSearch(item, q)) return false;
       if (radarState.dir !== 'all') {
         const { bull, bear } = tfCounts(item);
-        const isBull = bull >= bear;
-        if (radarState.dir === 'long'  && !isBull) return false;
-        if (radarState.dir === 'short' &&  isBull) return false;
+        const isBullish = bull >= bear;
+        if (radarState.dir === 'long'  && !isBullish) return false;
+        if (radarState.dir === 'short' &&  isBullish) return false;
       }
       if (radarState.rsi !== 'all') {
         if (rsiZone(item.rsi) !== radarState.rsi) return false;
       }
       return true;
     }
-    const ready    = readyAll.filter(passFilter);
-    const building = buildingAll.filter(passFilter);
-    const sqzList  = sqzAll.filter(passFilter);
+    const prime      = primeAll.filter(passFilter);
+    const strong     = strongAll.filter(passFilter);
+    const developing = developingAll.filter(passFilter);
 
     // ── card builder ──────────────────────────────────────────────────────
-    function radarCard(item) {
+    function radarCard({ item, score }) {
       const { bull, bear, tfs } = tfCounts(item);
-      const isBull  = bull >= bear;
-      const sig     = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
-      const conf    = (item.signal_confidence || '').toLowerCase();
-      const align   = item.tf_alignment || '';
-      const sq      = item.ribbon_compression === 'yes';
-      const name    = instName(item.instrument_name) || item.instrument_name;
+      const isBullish = bull >= bear;
+      const tier   = scoreTier(score);
+      const sig    = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+      const conf   = (item.signal_confidence || '').toLowerCase();
+      const sq     = item.ribbon_compression === 'yes';
+      const name   = instName(item.instrument_name) || item.instrument_name;
 
       const dotCls   = t => t === 'UPTREND' ? 'radar-dot-bull' : t === 'DOWNTREND' ? 'radar-dot-bear' : 'radar-dot-neutral';
       const tfLabels = ['M', 'W', 'D', '4H'];
       const dotsHtml = tfs.map((t, i) => `<span class="radar-tf-dot ${dotCls(t)}"><span class="radar-tf-lbl">${tfLabels[i]}</span></span>`).join('');
 
-      const dirBadge  = isBull ? '<span class="radar-dir-badge radar-long">LONG</span>' : '<span class="radar-dir-badge radar-short">SHORT</span>';
+      const dirBadge  = isBullish ? '<span class="radar-dir-badge radar-long">LONG</span>' : '<span class="radar-dir-badge radar-short">SHORT</span>';
       const sigBadge  = sig  ? `<span class="feed-badge badge-${sigClass(sig) || 'p4'}">${sig}</span>` : '';
       const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const sqBadge   = sq   ? '<span class="radar-sq-badge">SQZ</span>' : '';
-      const alignText = align ? `<span class="radar-align">${align}</span>` : '';
+
+      // Macro MA position badge — always use raw daily fields regardless of active TF
+      const dailyClose = parseFloat(item.close);
+      const macroMas   = detectedMacroMas
+        .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
+        .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
+      const macroBull  = macroMas.length > 0 && macroMas.every(r => dailyClose > r.val);
+      const macroBear  = macroMas.length > 0 && macroMas.every(r => dailyClose < r.val);
+      const macroBadge = macroBull ? '<span class="radar-macro-badge radar-macro-bull">▲ Macro</span>'
+                       : macroBear ? '<span class="radar-macro-badge radar-macro-bear">▼ Macro</span>' : '';
+
+      // Macro S/R touch badge — only show when it aligns with direction
+      const srSig   = item.macro_sr_signal || '';
+      const srLvl   = item.macro_sr_level  || '';
+      const srStr   = parseInt(item.macro_sr_strength) || 0;
+      const srMatch = (isBullish && srSig === 'support') || (!isBullish && srSig === 'resistance');
+      const srBadge = srMatch
+        ? `<span class="radar-sr-badge">${srStr >= 3 ? '⚡ ' : ''}${srSig === 'support' ? 'SR SUP' : 'SR RES'}${srLvl ? ' ' + srLvl : ''}</span>`
+        : '';
+
+      const volBadge = item.volume_spike_flag === 'yes'
+        ? '<span class="radar-sq-badge" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : '';
 
       const rsiPips = [
         item.m_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.m_rsi)}">M ${parseFloat(item.m_rsi).toFixed(0)}</span>`   : '',
@@ -4072,9 +4255,15 @@
             <span class="radar-inst">${name}</span>
             <span class="radar-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
           </div>
+          <div class="radar-score-wrap">
+            <span class="radar-score-num radar-tier-${tier}">${score}</span>
+          </div>
           <div class="radar-tf-dots">${dotsHtml}</div>
         </div>
-        <div class="radar-card-bot">${sigBadge}${confBadge}${sqBadge}${alignText}</div>
+        <div class="radar-score-bar-wrap">
+          <div class="radar-score-bar-fill tier-${tier}" style="width:${score}%"></div>
+        </div>
+        <div class="radar-card-bot">${sigBadge}${confBadge}${sqBadge}${macroBadge}${srBadge}${volBadge}</div>
         ${rsiPips ? `<div class="radar-rsi-row">${rsiPips}</div>` : ''}
       </div>`;
     }
@@ -4169,12 +4358,11 @@
         </div>
       </div>
       ${guideHtml}
-      ${radarSection('ready',    'READY',    'Active signal + 3+ TFs aligned · Trade now',   ready,    readyAll.length,    'ready')}
-      ${radarSection('building', 'BUILDING', '2+ TFs aligned · Wait for daily confirmation', building, buildingAll.length, 'building')}
-      ${radarSection('squeeze',  'SQUEEZE',  'Ribbon compressed + directional bias · Breakout loading', sqzList, sqzAll.length, 'squeeze')}
+      ${radarSection('prime',      'PRIME',      'Score 75+ · Highest confluence — act now',   prime,      primeAll.length,      'prime')}
+      ${radarSection('strong',     'STRONG',     'Score 50–74 · Good setup — plan your entry', strong,     strongAll.length,     'strong')}
+      ${radarSection('developing', 'DEVELOPING', 'Score 25–49 · Building — watch and wait',    developing, developingAll.length, 'developing')}
     `;
 
-    // Focus search if it was active before re-render
     if (radarState.search) {
       const inp = document.getElementById('radarSearch');
       if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }

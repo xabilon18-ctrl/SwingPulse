@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"chart-preview","runtimeExecutable":"python3","runtimeArgs":["-m","http.server","7890","--directory","webapp"],"port":7890}]}
+{"version":"0.0.1","configurations":[{"name":"swingpulse","runtimeExecutable":"python3","runtimeArgs":["webapp/server.py"],"port":5050}]}

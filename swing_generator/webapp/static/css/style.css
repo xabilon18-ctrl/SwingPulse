@@ -1810,9 +1810,49 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .macro-sr-badge { font-size: .62rem !important; font-weight: 800 !important; letter-spacing: .04em; }
 .macro-sr-bull { background: rgba(16,185,129,.18) !important; color: var(--buy) !important; border: 1px solid rgba(16,185,129,.4) !important; box-shadow: 0 0 8px rgba(16,185,129,.2); }
 .macro-sr-bear { background: rgba(239,68,68,.18) !important; color: var(--sell) !important; border: 1px solid rgba(239,68,68,.4) !important; box-shadow: 0 0 8px rgba(239,68,68,.2); }
-/* Macro Bull/Bear chips in context row */
+/* Macro SR touch badges (scanner card) */
+.macro-sr-touch-sup  { background: rgba(59,130,246,.18) !important; color: #60a5fa !important; border: 1px solid rgba(59,130,246,.4) !important; box-shadow: 0 0 7px rgba(59,130,246,.2); }
+.macro-sr-touch-res  { background: rgba(251,146,60,.18) !important; color: #fb923c !important; border: 1px solid rgba(251,146,60,.4) !important; box-shadow: 0 0 7px rgba(251,146,60,.2); }
+/* Multi-MA touch (×3) — brighter */
+.macro-sr-multi-sup  { background: rgba(59,130,246,.28) !important; color: #93c5fd !important; border: 1px solid rgba(59,130,246,.6) !important; box-shadow: 0 0 10px rgba(59,130,246,.35); }
+.macro-sr-multi-res  { background: rgba(251,146,60,.28) !important; color: #fdba74 !important; border: 1px solid rgba(251,146,60,.6) !important; box-shadow: 0 0 10px rgba(251,146,60,.35); }
+/* Confluence (×4) — glowing, prominent */
+.macro-sr-confluence-sup { background: rgba(16,185,129,.22) !important; color: #34d399 !important; border: 1px solid rgba(16,185,129,.7) !important; box-shadow: 0 0 14px rgba(16,185,129,.45), 0 0 4px rgba(16,185,129,.3) inset; font-weight: 900 !important; }
+.macro-sr-confluence-res { background: rgba(239,68,68,.22) !important; color: #f87171 !important; border: 1px solid rgba(239,68,68,.7) !important; box-shadow: 0 0 14px rgba(239,68,68,.45), 0 0 4px rgba(239,68,68,.3) inset; font-weight: 900 !important; }
+
+/* ── Macro S/R Dashboard Feed ─────────────────────────────────────────── */
+.macro-sr-count-badge { display:inline-block; background:var(--accent-glow); color:var(--accent); font-size:.65rem; font-weight:700; padding:1px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+.macro-sr-summary { display:flex; gap:10px; flex-wrap:wrap; font-size:.7rem; margin-top:2px; }
+.macro-sr-sum-sup  { color:#60a5fa; font-weight:600; }
+.macro-sr-sum-res  { color:#fb923c; font-weight:600; }
+.macro-sr-sum-conf { color:#34d399; font-weight:700; }
+.msr-sum-btn { cursor:pointer; padding:2px 6px; border-radius:4px; transition:background .15s; }
+.msr-sum-btn:hover { background:var(--card-hover); }
+.macro-sr-feed     { display:flex; flex-direction:column; gap:2px; max-height:360px; overflow-y:auto; }
+/* Row */
+.msr-row { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:6px; cursor:pointer; transition:background .15s; gap:8px; }
+.msr-row:hover { background:var(--card-hover); }
+.msr-row-multi { background:rgba(59,130,246,.05); border-left:2px solid rgba(59,130,246,.4); }
+.msr-row-conf  { background:rgba(16,185,129,.07); border-left:3px solid rgba(16,185,129,.6); }
+.msr-row-conf:hover { background:rgba(16,185,129,.12); }
+.msr-left  { display:flex; align-items:center; gap:7px; min-width:0; }
+.msr-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.msr-side  { font-size:.62rem; font-weight:800; white-space:nowrap; }
+.msr-sup   { color:#60a5fa; }
+.msr-res   { color:#fb923c; }
+.msr-name  { font-size:.8rem; font-weight:700; color:var(--text); white-space:nowrap; }
+.msr-group { font-size:.65rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msr-lvl   { font-size:.62rem; font-weight:700; background:var(--accent-glow); color:var(--accent); padding:1px 5px; border-radius:4px; white-space:nowrap; }
+.msr-lvl-multi { background:rgba(59,130,246,.18); color:#93c5fd; }
+.msr-lvl-conf  { background:rgba(16,185,129,.2); color:#34d399; border:1px solid rgba(16,185,129,.4); }
+.msr-price { font-size:.72rem; color:var(--text-muted); }
+.msr-align { font-size:.58rem; padding:1px 5px; border-radius:3px; }
+
+/* Macro Bull/Bear / Sup/Res chips in context row */
 .sig-chip-macro-bull.active, .sig-chip-macro-bull:hover { background: rgba(16,185,129,.2); color: var(--buy); border-color: var(--buy); }
 .sig-chip-macro-bear.active, .sig-chip-macro-bear:hover { background: rgba(239,68,68,.2); color: var(--sell); border-color: var(--sell); }
+.sig-chip-macro-sup.active, .sig-chip-macro-sup:hover { background: rgba(59,130,246,.2); color: #60a5fa; border-color: #3b82f6; }
+.sig-chip-macro-res.active, .sig-chip-macro-res:hover { background: rgba(251,146,60,.2); color: #fb923c; border-color: #f97316; }
 
 /* ── Watchlist Tab ────────────────────────────────────────────────────── */
 .wl-my-card, .wl-alerts-card { margin-bottom: 16px; }
@@ -5872,6 +5912,25 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .radar-guide-tips { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
 .radar-guide-tip-row { font-size: .7rem; color: var(--text-secondary); line-height: 1.5; }
 .radar-guide-tip-row strong { color: var(--text-primary); }
+
+/* ── Radar — Confluence Score ─────────────────────────────────────────── */
+.radar-score-wrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; padding-right: 6px; }
+.radar-score-num { font-size: .85rem; font-weight: 700; line-height: 1; min-width: 22px; text-align: right; }
+.radar-score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 5px 0 5px; }
+.radar-score-bar-fill { height: 100%; border-radius: 2px; }
+.radar-tier-prime         { color: #f59e0b; }
+.radar-score-bar-fill.tier-prime     { background: #f59e0b; }
+.radar-section-prime      { border-left-color: #f59e0b; }
+.radar-tier-strong        { color: var(--buy); }
+.radar-score-bar-fill.tier-strong    { background: var(--buy); }
+.radar-section-strong     { border-left-color: var(--buy); }
+.radar-tier-developing    { color: var(--watch); }
+.radar-score-bar-fill.tier-developing{ background: var(--watch); }
+.radar-section-developing { border-left-color: var(--watch); }
+.radar-macro-badge { font-size: .58rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; letter-spacing: .02em; white-space: nowrap; }
+.radar-macro-bull  { background: var(--buy-soft);  color: var(--buy); }
+.radar-macro-bear  { background: var(--sell-soft); color: var(--sell); }
+.radar-sr-badge    { font-size: .58rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; background: var(--accent-glow); color: var(--accent); white-space: nowrap; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RSI — Badges, bar rows, zone colours
