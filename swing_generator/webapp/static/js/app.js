@@ -576,10 +576,19 @@
 
   function setTimeframe(tf) {
     if (tf === timeframe) return;
+    // Preserve scroll + scanner pagination across TF switch so the user
+    // doesn't get bounced to page 1 / scroll 0 every time they toggle.
+    const savedScroll = window.scrollY;
+    const savedPage   = scannerPage;
     timeframe = tf;
     localStorage.setItem('swingpulse-tf', timeframe);
     tfToggle.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === timeframe));
     renderAll();
+    if (savedPage > 1) {
+      scannerPage = savedPage;
+      buildScannerCards(false, { keepPage: true });
+    }
+    window.scrollTo(0, savedScroll);
   }
 
   tfToggle.addEventListener('click', e => {
@@ -1191,7 +1200,7 @@
 
     renderTrackRecord();
     // renderTodayOpportunities(); — removed
-    // renderAlertBanner(); — removed
+    renderAlertBanner();
     rebuildCharts();
     renderConfidenceBreakdown();
     renderGroupPulse();
@@ -1510,6 +1519,40 @@
     // Gradient score bar at bottom of card
     const fill = document.getElementById('mpScoreFill');
     if (fill) fill.style.width = score + '%';
+
+    // 4-TF buy/sell/neutral grid — see all timeframes at a glance
+    const tfGrid = document.getElementById('mpTfGrid');
+    if (tfGrid && allData.length) {
+      const tfs = [
+        { code: 'M',  field: 'm_trend_direction',  label: 'M'  },
+        { code: 'W',  field: 'w_trend_direction',  label: 'W'  },
+        { code: 'D',  field: 'trend_direction',    label: 'D'  },
+        { code: '4H', field: 'h4_trend_direction', label: '4H' },
+      ];
+      tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
+        let up = 0, dn = 0, nu = 0;
+        allData.forEach(d => {
+          const t = d[field] || 'NEUTRAL';
+          if (t === 'UPTREND') up++;
+          else if (t === 'DOWNTREND') dn++;
+          else nu++;
+        });
+        const total = up + dn + nu || 1;
+        const upPct = (up / total) * 100;
+        const dnPct = (dn / total) * 100;
+        const nuPct = (nu / total) * 100;
+        const isActive = timeframe === code;
+        return `<div class="mp-tf-row${isActive ? ' active' : ''}" data-mp-tf="${code}">
+          <span class="mp-tf-lbl">${label}</span>
+          <div class="mp-tf-bar">
+            <span class="mp-tf-bar-seg mp-tf-up"   style="width:${upPct}%"></span>
+            <span class="mp-tf-bar-seg mp-tf-neut" style="width:${nuPct}%"></span>
+            <span class="mp-tf-bar-seg mp-tf-down" style="width:${dnPct}%"></span>
+          </div>
+          <span class="mp-tf-stats"><span style="color:var(--buy)">▲${up}</span> <span style="color:var(--sell)">▼${dn}</span></span>
+        </div>`;
+      }).join('');
+    }
   }
 
   function rebuildCharts() {
@@ -2245,8 +2288,8 @@
     buildScannerCards();
   }
 
-  function buildScannerCards(appendPage = false) {
-    if (!appendPage) scannerPage = 1;  // reset to page 1 when filters change
+  function buildScannerCards(appendPage = false, opts = {}) {
+    if (!appendPage && !opts.keepPage) scannerPage = 1;  // reset to page 1 when filters change
     const grid = document.getElementById('scannerGrid');
     const summaryEl = document.getElementById('scannerSummary');
     const search = document.getElementById('scannerSearch').value.toLowerCase();
@@ -2273,6 +2316,13 @@
     if (confFilter === 'high')    filtered = filtered.filter(d => d[f('signal_confidence')] === 'high');
     else if (confFilter === 'highstd') filtered = filtered.filter(d => ['high','standard'].includes(d[f('signal_confidence')]));
     else if (confFilter === 'low') filtered = filtered.filter(d => d[f('signal_confidence')] === 'low');
+
+    // ── RSI zone filter (uses active timeframe RSI) ──
+    const rsiSel = document.getElementById('scannerRsiFilter');
+    const rsiVal = rsiSel ? rsiSel.value : 'all';
+    if (rsiVal !== 'all') {
+      filtered = filtered.filter(d => rsiZone(d[f('rsi')]) === rsiVal);
+    }
 
     // ── Macro MA filter (uses active timeframe via f()) ──
     const macroMaSel = document.getElementById('scannerMacroMaFilter');
@@ -2469,24 +2519,46 @@
           </div>
         </div>
         <div class="scanner-price" style="color:${isBuySignal ? 'var(--buy)' : isSellSignal ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
+        ${(() => { const p = signalPerf(item.instrument_name); return p ? `<div class="scanner-since-sig ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">Since ${p.signal}: ${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</div>` : ''; })()}
         ${perfRow ? `<div class="perf-row">${perfRow}</div>` : ''}
-        <div class="scanner-meta">
-          <span class="scanner-tag ${trendTag(t)}">${t}</span>
-          ${sig ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>` : ''}
-          ${confBadge}
-          ${align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : ''}
-          ${badge3TF(item)}
-          ${age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : ''}
-          ${trendMaturityBadge(item)}
-          ${compression ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE</span>' : ''}
-          ${item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : ''}
-          ${item.key_level_touched_today === 'yes' ? '<span class="scanner-tag" style="background:var(--watch-soft);color:var(--watch)">KEY LVL</span>' : ''}
-          ${runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : ''}
-          ${macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs — strong long-term support">MACRO BULL</span>' : ''}
-          ${macroBear ? '<span class="scanner-tag macro-sr-badge macro-sr-bear" title="Price below all macro MAs — strong long-term resistance">MACRO BEAR</span>' : ''}
-          ${macroSrSig === 'support' ? (macroSrStr >= 4 ? `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously — extremely strong long-term support">⚡ CONFLUENCE SUP</span>` : macroSrStr >= 3 ? `<span class="scanner-tag macro-sr-badge macro-sr-multi-sup" title="${macroSrStr} macro MAs tested as support simultaneously">⚡ SUP ×${macroSrStr}</span>` : `<span class="scanner-tag macro-sr-badge macro-sr-touch-sup" title="Today's low tested ${macroSrLvl} as support">SUP ${macroSrLvl}</span>`) : ''}
-          ${macroSrSig === 'resistance' ? (macroSrStr >= 4 ? `<span class="scanner-tag macro-sr-badge macro-sr-confluence-res" title="ALL 4 macro MAs tested as resistance simultaneously — extremely strong long-term resistance">⚡ CONFLUENCE RES</span>` : macroSrStr >= 3 ? `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>` : `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`) : ''}
-        </div>
+        ${(() => {
+          // Build prioritized badge list — trend tag always shown, then top 4 by priority
+          const extras = [];
+          const push = (p, html) => { if (html) extras.push({ p, html }); };
+          push(100, sig ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>` : '');
+          // Macro SR confluence is the most actionable rare signal — surface above conf/align
+          if (macroSrSig === 'support') {
+            if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously">⚡ CONFLUENCE SUP</span>`);
+            else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-sup" title="${macroSrStr} macro MAs tested as support simultaneously">⚡ SUP ×${macroSrStr}</span>`);
+            else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-sup" title="Today's low tested ${macroSrLvl} as support">SUP ${macroSrLvl}</span>`);
+          }
+          if (macroSrSig === 'resistance') {
+            if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-res" title="ALL 4 macro MAs tested as resistance simultaneously">⚡ CONFLUENCE RES</span>`);
+            else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>`);
+            else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`);
+          }
+          push(85, confBadge);
+          push(80, align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '');
+          push(75, badge3TF(item));
+          push(65, macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs">MACRO BULL</span>' : '');
+          push(65, macroBear ? '<span class="scanner-tag macro-sr-badge macro-sr-bear" title="Price below all macro MAs">MACRO BEAR</span>' : '');
+          push(60, item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : '');
+          push(55, compression ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE</span>' : '');
+          push(50, item.key_level_touched_today === 'yes' ? '<span class="scanner-tag" style="background:var(--watch-soft);color:var(--watch)">KEY LVL</span>' : '');
+          push(40, age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : '');
+          push(35, trendMaturityBadge(item));
+          push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : '');
+          extras.sort((a, b) => b.p - a.p);
+          const MAX = 4;
+          const visible = extras.slice(0, MAX).map(b => b.html).join('');
+          const overflow = extras.length > MAX
+            ? `<span class="scanner-tag scanner-overflow" title="Open card to see all signals">+${extras.length - MAX}</span>`
+            : '';
+          return `<div class="scanner-meta">
+            <span class="scanner-tag ${trendTag(t)}">${t}</span>
+            ${visible}${overflow}
+          </div>`;
+        })()}
         ${maOrderPct !== null ? `<div class="ma-order-gauge">
           <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
@@ -2614,7 +2686,7 @@
 
   // Update filter badge count
   function updateFilterBadge() {
-    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter','scannerMacroMaFilter'];
+    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter','scannerMacroMaFilter','scannerRsiFilter'];
     let count = selects.filter(id => document.getElementById(id).value !== 'all').length;
     if (document.getElementById('scannerSort').value !== 'signal') count++;
     const badge = document.getElementById('sigFilterBadge');
@@ -2628,11 +2700,18 @@
     }
   }
 
-  document.getElementById('sigAdvApply').addEventListener('click', () => {
+  // Apply on every change — Done button just closes the sheet
+  function applyAdvFilters() {
     updateFilterBadge();
-    updateScannerCtxStrip();  // sync context strip when advanced filters change
-    closeSheets();
+    updateScannerCtxStrip();
     buildScannerCards();
+  }
+  sigAdvSheet.addEventListener('change', e => {
+    if (e.target.matches('select, input')) applyAdvFilters();
+  });
+  document.getElementById('sigAdvApply').addEventListener('click', () => {
+    applyAdvFilters();
+    closeSheets();
   });
 
   // ── Watchlist tab controls ───────────────────────────────────────────
@@ -3348,27 +3427,33 @@
           ...(b.isSpike ? { color: '#f59e0b', borderColor: '#f59e0b', wickColor: '#f59e0b' } : {}),
         })));
 
-        // ── MA lines — pick shortest / midpoint / longest dynamically ──
-        // Works for any MA ribbon profile (default MA10–108 or MA200 MA20–200)
+        // ── MA ribbon fan — render ALL detected MAs as thin lines ──
+        // Hue gradient from cool (short MAs, fast) to warm (long MAs, slow)
         const maKeys = bars.length
           ? Object.keys(bars[bars.length - 1])
               .filter(k => /^ma_\d+$/.test(k))
               .sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]))
           : [];
         if (maKeys.length) {
-          const midIdx = Math.floor((maKeys.length - 1) / 2);
-          const picked = [
-            { key: maKeys[0],      color: '#6366f1' },
-            { key: maKeys[midIdx], color: '#0ea5e9' },
-            { key: maKeys[maKeys.length - 1], color: '#ef4444' },
-          ];
-          picked.forEach(({ key, color }) => {
+          const lastIdx = maKeys.length - 1;
+          maKeys.forEach((key, i) => {
             const period = key.split('_')[1];
             const data = bars
               .filter(b => b[key] != null)
               .map(b => ({ time: b.date, value: b[key] }));
             if (data.length < 2) return;
-            const line = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: `MA${period}` });
+            // Hue 220 (blue) → 0 (red) across the ribbon
+            const t = lastIdx > 0 ? i / lastIdx : 0;
+            const hue = Math.round(220 - 220 * t);
+            const isAnchor = i === 0 || i === lastIdx || i === Math.floor(lastIdx / 2);
+            const color = `hsl(${hue}, 70%, ${isAnchor ? 60 : 55}%)`;
+            const line = chart.addLineSeries({
+              color,
+              lineWidth: isAnchor ? 1.4 : 1,
+              priceLineVisible: false,
+              lastValueVisible: isAnchor,
+              title: isAnchor ? `MA${period}` : '',
+            });
             line.setData(data);
           });
         }
@@ -3907,6 +3992,16 @@
     });
   });
 
+  // 4-TF grid: clicking a row switches the active timeframe
+  const mpTfGrid = document.getElementById('mpTfGrid');
+  if (mpTfGrid) {
+    mpTfGrid.addEventListener('click', e => {
+      const row = e.target.closest('[data-mp-tf]');
+      if (!row) return;
+      setTimeframe(row.dataset.mpTf);
+    });
+  }
+
   // Wire trend + alignment filters via mp-breakdown container → navigate to scanner
   const mpBreakdown = document.getElementById('mpBreakdown');
   if (mpBreakdown) {
@@ -4010,13 +4105,9 @@
   });
 
   // ── Pull-to-Refresh ──────────────────────────────────────────────────
-  // Pull-to-refresh disabled — global document touch listeners were causing
-  // perceived slowness on scroll. Use the topbar refresh button instead.
   (function initPTR() {
     const ptrEl = document.getElementById('ptr-indicator');
-    if (ptrEl) ptrEl.style.display = 'none';
-    return;
-    // eslint-disable-next-line no-unreachable
+    if (!ptrEl) return;
     const THRESHOLD = 72;
     let startY = 0, pulling = false, refreshing = false;
 
@@ -4089,7 +4180,7 @@
     return { bull, bear, tfs };
   }
 
-  function confluenceScore(item) {
+  function radarConfluenceScore(item) {
     const { bull, bear, tfs } = tfCounts(item);
     const isBullish = bull >= bear;
     let score = 0;
@@ -4175,7 +4266,7 @@
     wireRadarOnce(el);
 
     // ── score all instruments and sort descending ─────────────────────────
-    const scored = allData.map(item => ({ item, score: confluenceScore(item) }));
+    const scored = allData.map(item => ({ item, score: radarConfluenceScore(item) }));
     scored.sort((a, b) => b.score - a.score);
     const primeAll      = scored.filter(s => s.score >= 75);
     const strongAll     = scored.filter(s => s.score >= 50 && s.score < 75);

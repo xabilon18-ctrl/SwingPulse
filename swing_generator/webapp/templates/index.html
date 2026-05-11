@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=85">
+  <link rel="stylesheet" href="/static/css/style.css?v=86">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -133,6 +133,7 @@
         <div class="mp-score-track">
           <div class="mp-score-fill" id="mpScoreFill"></div>
         </div>
+        <div class="mp-tf-grid" id="mpTfGrid"></div>
         <span style="display:none" id="pulseSentiment"></span>
         <span style="display:none" id="pulseUptrend"></span>
         <span style="display:none" id="pulseDowntrend"></span>
@@ -142,10 +143,15 @@
         <span style="display:none" id="gbSell"></span>
       </div>
 
-      <!-- Trend alert banner removed -->
-      <span id="trendAlertBanner" style="display:none"></span>
-      <span id="trendAlertScroll" style="display:none"></span>
-      <span id="trendAlertCount" style="display:none"></span>
+      <!-- Trend alert banner — BP1/SP1 reversals + BP3/SP3 longest-MA bounces -->
+      <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
+        <div class="trend-alert-header">
+          <span class="trend-alert-icon">⚡</span>
+          <span class="trend-alert-title">TREND CHANGE &amp; STRONG SIGNALS</span>
+          <span class="trend-alert-count" id="trendAlertCount">0</span>
+        </div>
+        <div class="trend-alert-scroll" id="trendAlertScroll"></div>
+      </div>
 
       <!-- Stat cards removed — counts now surfaced in gauge + By Group -->
       <span id="buyCount" style="display:none"></span>
@@ -370,6 +376,15 @@
               </optgroup>
             </select>
           </label>
+          <label class="sig-adv-label">RSI Zone
+            <select class="sig-adv-select" id="scannerRsiFilter">
+              <option value="all">All RSI Zones</option>
+              <option value="oversold">Oversold (&lt;30) — long setups</option>
+              <option value="bearish">Bearish (30–50)</option>
+              <option value="bullish">Bullish (50–70)</option>
+              <option value="overbought">Overbought (&gt;70) — short setups</option>
+            </select>
+          </label>
           <label class="sig-adv-label">Sort by
             <select class="sig-adv-select" id="scannerSort">
               <option value="signal">Signal First</option>
@@ -390,7 +405,7 @@
             </select>
           </label>
         </div>
-        <button class="sig-sheet-apply" id="sigAdvApply">Apply Filters</button>
+        <button class="sig-sheet-apply" id="sigAdvApply">Done</button>
       </div>
 
       <div class="signal-summary" id="scannerSummary"></div>
@@ -616,6 +631,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=107"></script>
+  <script src="/static/js/app.js?v=108"></script>
 </body>
 </html>

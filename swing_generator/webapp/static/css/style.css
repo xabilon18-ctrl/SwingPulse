@@ -657,6 +657,30 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   border-radius: 0 2px 2px 0;
 }
 
+/* 4-TF Buy/Sell Grid — see all timeframes at a glance */
+.mp-tf-grid { display: flex; flex-direction: column; gap: 5px; padding: 12px 14px 6px; }
+.mp-tf-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 90px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition);
+}
+.mp-tf-row:hover, .mp-tf-row:active { background: var(--bg-hover); }
+.mp-tf-row.active { background: var(--accent-glow); }
+.mp-tf-row.active .mp-tf-lbl { color: var(--accent); }
+.mp-tf-lbl { font-size: .7rem; font-weight: 800; color: var(--text-secondary); letter-spacing: .04em; }
+.mp-tf-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); }
+.mp-tf-bar-seg { height: 100%; transition: width .5s cubic-bezier(.4,0,.2,1); }
+.mp-tf-up    { background: var(--buy); }
+.mp-tf-neut  { background: var(--neutral); }
+.mp-tf-down  { background: var(--sell); }
+.mp-tf-stats { font-size: .68rem; font-weight: 700; text-align: right; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Today's Opportunities  (horizontal scroll card row)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1729,6 +1753,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .tag-up { background: var(--buy-soft); color: var(--buy); }
 .tag-down { background: var(--sell-soft); color: var(--sell); }
 .tag-neutral { background: var(--neutral-soft); color: var(--text-muted); }
+.scanner-overflow { background: var(--bg-input); color: var(--text-muted); border: 1px dashed var(--border-active); }
 
 .scanner-signal-strip {
   position: absolute;
@@ -2375,6 +2400,17 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .wl-signal-perf.perf-pos { background: var(--buy-soft);  color: var(--buy); }
 .wl-signal-perf.perf-neg { background: var(--sell-soft); color: var(--sell); }
+.scanner-since-sig {
+  display: inline-block;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin: 4px 0;
+  white-space: nowrap;
+}
+.scanner-since-sig.perf-pos { background: var(--buy-soft);  color: var(--buy); }
+.scanner-since-sig.perf-neg { background: var(--sell-soft); color: var(--sell); }
 
 /* ── TradingView Picker Popover ──────────────────────────────────────── */
 .tv-picker {
