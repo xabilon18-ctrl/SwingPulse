@@ -116,6 +116,13 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}roc':                           _fmt(row.get('roc'), decimals=2),
         f'{prefix}rsi':                           _fmt(row.get('rsi'), decimals=1),
     }
+
+    # Macro S/R touch signals — daily only (most meaningful at the daily level)
+    if not prefix:
+        result['macro_sr_signal']   = row.get('macro_sr_signal', '') or ''
+        result['macro_sr_level']    = row.get('macro_sr_level', '') or ''
+        result['macro_sr_strength'] = int(row.get('macro_sr_strength', 0) or 0)
+
     return result, row
 
 
@@ -659,15 +666,18 @@ def main():
             else:
                 print('\n  ✓ App updated! https://swingpulse.pages.dev')
         else:
-            print('\n  [Publish] Warning: deploy may have failed. Run manually:')
+            print('\n  [Publish] R2 upload failed — CI run will be marked red.')
             if PROFILE == 'ma200':
                 print('           python3 webapp/publish.py --profile ma200')
             else:
                 print('           python3 webapp/publish.py')
+            sys.exit(result.returncode)  # propagate failure so CI shows red
     except subprocess.TimeoutExpired:
         print('\n  [Publish] Timed out after 5 min.')
+        sys.exit(1)
     except Exception as e:
         print(f'\n  [Publish] Skipped: {e}')
+        sys.exit(1)
 
     print(f'\n  Done — {run_date}\n')
 

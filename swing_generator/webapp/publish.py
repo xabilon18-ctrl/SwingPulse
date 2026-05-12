@@ -688,8 +688,9 @@ def _wrangler_bin():
 def _r2_put(local_path, r2_key, timeout=120):
     """Upload a single file to R2. Returns (success, r2_key).
 
-    Note: --remote flag was removed in wrangler 3.93+ / 4.x; omitting it is
-    equivalent (wrangler r2 object put always targets the real R2 bucket).
+    --remote is required in wrangler 4.x: without it wrangler defaults to a
+    local miniflare emulator and the file never reaches the real R2 bucket.
+    Wrangler 3.x accepts --remote too (it was always the implicit default there).
     """
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     wrangler = _wrangler_bin()
@@ -703,7 +704,8 @@ def _r2_put(local_path, r2_key, timeout=120):
              f'{R2_BUCKET}/{r2_key}',
              '--file', local_path,
              '--content-type', 'application/json',
-             '--cache-control', 'no-cache, max-age=0'],
+             '--cache-control', 'no-cache, max-age=0',
+             '--remote'],
             capture_output=True, text=True, env=env,
             timeout=timeout,
         )
