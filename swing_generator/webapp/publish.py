@@ -686,7 +686,11 @@ def _wrangler_bin():
 
 
 def _r2_put(local_path, r2_key, timeout=120):
-    """Upload a single file to R2. Returns (success, r2_key)."""
+    """Upload a single file to R2. Returns (success, r2_key).
+
+    Note: --remote flag was removed in wrangler 3.93+ / 4.x; omitting it is
+    equivalent (wrangler r2 object put always targets the real R2 bucket).
+    """
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     wrangler = _wrangler_bin()
     if wrangler:
@@ -699,15 +703,21 @@ def _r2_put(local_path, r2_key, timeout=120):
              f'{R2_BUCKET}/{r2_key}',
              '--file', local_path,
              '--content-type', 'application/json',
-             '--cache-control', 'no-cache, max-age=0',
-             '--remote'],
+             '--cache-control', 'no-cache, max-age=0'],
             capture_output=True, text=True, env=env,
             timeout=timeout,
         )
+        if result.returncode != 0:
+            # Surface the first failure so it shows up in CI logs
+            err = (result.stderr or result.stdout or '').strip()
+            if err:
+                print(f'  [R2] WARN {r2_key}: {err[:200]}', flush=True)
         return result.returncode == 0, r2_key
     except subprocess.TimeoutExpired:
+        print(f'  [R2] TIMEOUT {r2_key}', flush=True)
         return False, r2_key
-    except Exception:
+    except Exception as exc:
+        print(f'  [R2] ERROR {r2_key}: {exc}', flush=True)
         return False, r2_key
 
 
@@ -780,7 +790,8 @@ def upload_to_r2(data_dir, max_workers=4, retries=2, r2_prefix=''):
     if failed:
         keys = [k for _, k in failed]
         print(f'  Still failed ({len(failed)}): {keys[:5]}{"..." if len(failed) > 5 else ""}')
-    return ok
+    # Return (ok_count, failed_count) so callers can decide whether to exit non-zero
+    return ok, len(failed)
 
 
 # ---------------------------------------------------------------------------
@@ -912,9 +923,13 @@ def main():
         print('\n  Build complete.')
         return
 
-    upload_to_r2(data_dir, r2_prefix=R2_DATA_PREFIX)
+    ok_count, fail_count = upload_to_r2(data_dir, r2_prefix=R2_DATA_PREFIX)
     pages_url = f'https://{PAGES_PROJECT}.pages.dev'
-    print(f'\n  App updated! {pages_url}')
+    if fail_count == 0:
+        print(f'\n  ✓ App updated! {pages_url}')
+    else:
+        print(f'\n  ✗ R2 upload had {fail_count} failure(s) — {ok_count} files uploaded. Check wrangler auth (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID).')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

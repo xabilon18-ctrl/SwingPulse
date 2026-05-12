@@ -39,7 +39,7 @@ jobs:
           node-version: '20'
 
       - name: Install Wrangler
-        run: npm install -g wrangler
+        run: npm install -g wrangler@3  # pin major; v4 removed --remote but we now omit it anyway
 
       # ── 4. Restore MA200 parquet cache ───────────────────────────────────
       - name: Restore MA200 parquet cache

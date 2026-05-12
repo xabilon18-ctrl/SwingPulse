@@ -2598,7 +2598,7 @@
     }
   }
 
-  document.getElementById('scannerSearch').addEventListener('input', debounce(buildScannerCards, 150));
+  document.getElementById('scannerSearch').addEventListener('input', debounce(() => buildScannerCards(), 150));
   // Advanced filter selects — applied via Apply button in bottom sheet
   document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; });
   // ── Direction toggle (All / Buy / Sell) ──
