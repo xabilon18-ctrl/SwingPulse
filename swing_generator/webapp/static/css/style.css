@@ -5722,6 +5722,40 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .gp-bull { color: var(--buy);  }
 .gp-bear { color: var(--sell); }
 
+/* ── Group Pulse mode bar (Group / Sector / Industry toggle + Reset) ── */
+.gp-mode-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 16px 2px; border-bottom: 1px solid var(--border);
+}
+.gp-mode-toggle {
+  display: flex; gap: 2px;
+  background: var(--bg-elevated); border-radius: 8px; padding: 2px;
+}
+.gp-mode-btn {
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 6px; border: none;
+  background: transparent; color: var(--text-muted); cursor: pointer; transition: all .15s;
+}
+.gp-mode-btn.active {
+  background: var(--accent); color: #fff;
+}
+.gp-mode-btn:not(.active):hover { color: var(--text-primary); }
+
+.gp-reset-btn {
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--sell);
+  background: rgba(239,68,68,.1); color: var(--sell); cursor: pointer; transition: all .15s;
+}
+.gp-reset-btn:hover { background: rgba(239,68,68,.2); }
+
+/* Signal count dot on group/sector rows */
+.gp-sig-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .6rem; font-weight: 800; min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--accent); color: #fff; border-radius: 8px;
+  margin-left: 5px; vertical-align: middle; line-height: 1;
+}
+
 /* ── Profile-specific card visibility ──────────────────────────────── */
 body[data-profile="ma200"] #heatmapCard,
 body[data-profile="ma200"] #compressionCard { display: none !important; }

@@ -160,11 +160,20 @@
       <span id="volumeCount" style="display:none"></span>
       <span id="highConfCount" style="display:none"></span>
 
-      <!-- Group Pulse — by sector -->
+      <!-- Group Pulse — by group / sector / industry -->
       <div class="card" id="groupPulseCard">
         <div class="card-header">
-          <h3>By Group</h3>
+          <h3 id="groupPulseTitle">By Group</h3>
           <span id="groupPulseRisk" class="gp-risk-badge"></span>
+        </div>
+        <!-- View-mode toggle + Reset -->
+        <div class="gp-mode-bar">
+          <div class="gp-mode-toggle">
+            <button class="gp-mode-btn active" data-gp-mode="group">Group</button>
+            <button class="gp-mode-btn" data-gp-mode="sector">Sector</button>
+            <button class="gp-mode-btn" data-gp-mode="industry">Industry</button>
+          </div>
+          <button class="gp-reset-btn" id="gpResetBtn" title="Clear group/sector/industry filter">Reset</button>
         </div>
         <div id="groupPulseBody"></div>
       </div>
