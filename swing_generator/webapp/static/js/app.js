@@ -719,7 +719,6 @@
     const btn = document.getElementById('refreshBtn');
     btn.classList.add('spinning');
     try {
-      await fetch('/api/refresh', { method: 'POST' });
       await loadAll();
     } finally {
       btn.classList.remove('spinning');
@@ -4147,74 +4146,23 @@
   registerSW();
   updateSyncBadge();
   if (!syncUser) showUserPicker();
-  // Pull AFTER loadAll so allData is populated before re-rendering
+  // Initial load — pull watchlist sync after data is ready
   loadAll().then(() => { if (syncUser) syncPull(); });
+
+  // ── Auto-refresh every 4 hours (matches CI pipeline cadence) ────────
+  // Silently re-fetches all data in the background; if the page is hidden
+  // we skip and let the next visibilitychange trigger a reload instead.
+  const AUTO_REFRESH_MS = 4 * 60 * 60 * 1000; // 4 hours
+  setInterval(async () => {
+    if (document.visibilityState === 'hidden') return; // skip while backgrounded
+    await loadAll();
+    if (syncUser) await syncPull();
+  }, AUTO_REFRESH_MS);
+
   // Re-sync when user returns to the tab (catches changes made on another device)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && syncUser) syncPull();
   });
-
-  // ── Pull-to-Refresh ──────────────────────────────────────────────────
-  (function initPTR() {
-    const ptrEl = document.getElementById('ptr-indicator');
-    if (!ptrEl) return;
-    const THRESHOLD = 72;
-    let startY = 0, pulling = false, refreshing = false;
-
-    function ptrSetPos(delta) {
-      // Slides from -60px (hidden) to +10px (visible) as delta goes 0 → THRESHOLD
-      const progress = Math.min(delta / THRESHOLD, 1);
-      ptrEl.style.transform = `translateX(-50%) translateY(${-60 + 70 * progress}px)`;
-      ptrEl.style.opacity   = String(Math.min(progress * 1.5, 1));
-      ptrEl.classList.toggle('ptr-ready', delta >= THRESHOLD);
-    }
-
-    function ptrReset() {
-      ptrEl.style.transition = 'transform .28s ease, opacity .28s ease';
-      ptrEl.style.transform  = 'translateX(-50%) translateY(-60px)';
-      ptrEl.style.opacity    = '0';
-      setTimeout(() => { ptrEl.style.transition = ''; }, 320);
-      ptrEl.classList.remove('ptr-ready', 'ptr-refreshing');
-    }
-
-    document.addEventListener('touchstart', e => {
-      if (window.scrollY === 0 && !refreshing) {
-        startY  = e.touches[0].clientY;
-        pulling = true;
-      }
-    }, { passive: true });
-
-    document.addEventListener('touchmove', e => {
-      if (!pulling || refreshing) return;
-      const delta = e.touches[0].clientY - startY;
-      if (delta <= 0 || window.scrollY > 0) { pulling = false; ptrReset(); return; }
-      ptrSetPos(delta);
-    }, { passive: true });
-
-    document.addEventListener('touchend', async () => {
-      if (!pulling || refreshing) { pulling = false; return; }
-      pulling = false;
-      if (!ptrEl.classList.contains('ptr-ready')) { ptrReset(); return; }
-
-      // Snap indicator into place and spin while refreshing
-      refreshing = true;
-      ptrEl.classList.add('ptr-refreshing');
-      ptrEl.style.transition = 'transform .15s ease';
-      ptrEl.style.transform  = 'translateX(-50%) translateY(10px)';
-      ptrEl.style.opacity    = '1';
-
-      // Spin the topbar refresh button too so the user gets feedback everywhere
-      const refreshBtn = document.getElementById('refreshBtn');
-      if (refreshBtn) refreshBtn.querySelector('svg').style.animation = 'ptr-spin .8s linear infinite';
-
-      await loadAll();
-      if (syncUser) await syncPull();
-
-      if (refreshBtn) refreshBtn.querySelector('svg').style.animation = '';
-      refreshing = false;
-      ptrReset();
-    });
-  })();
 
   // ── Radar Tab — Confluence Entry Finder ────────────────────────────────
 

@@ -5006,34 +5006,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background: var(--buy-soft); color: var(--buy);
 }
 
-/* ── Pull-to-Refresh ──────────────────────────────────────────────────── */
-.ptr-indicator {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-60px);
-  width: 44px;
-  height: 44px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-  z-index: 9998;
-  pointer-events: none;
-  box-shadow: 0 2px 14px rgba(0,0,0,.3);
-  opacity: 0;
-  will-change: transform, opacity;
-}
-.ptr-indicator.ptr-ready  { color: var(--buy); }
-.ptr-icon                 { display: block; }
-.ptr-refreshing .ptr-icon { animation: ptr-spin .8s linear infinite; }
-@keyframes ptr-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
+/* Pull-to-Refresh removed — app auto-refreshes every 4 h via setInterval */
 
 /* ── Performance % row (scanner cards) ──────────────────────────────── */
 .perf-row {
