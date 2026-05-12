@@ -3645,11 +3645,11 @@
       runDays: parseInt(d[f('trend_run_days')]) || 0,
     }));
 
-    if (search) items = items.filter(d =>
-      d.name.toLowerCase().includes(search) ||
-      (namesData[d.name] || '').toLowerCase().includes(search) ||
-      d.group.toLowerCase().includes(search)
-    );
+    if (search) {
+      // Use the shared matchesSearch helper so aliases, sector, and industry all work
+      const matchedNames = new Set(allData.filter(d => matchesSearch(d, search)).map(d => d.instrument_name));
+      items = items.filter(d => matchedNames.has(d.name));
+    }
     if (groupVal !== 'all') items = items.filter(d => d.group === groupVal);
 
     // Sort
@@ -3836,9 +3836,9 @@
     });
   }
 
-  document.getElementById('trendsSearch').addEventListener('input', renderTrendsInstrumentList);
-  document.getElementById('trendsGroupFilter').addEventListener('change', renderTrendsInstrumentList);
-  document.getElementById('trendsListSort').addEventListener('change', renderTrendsInstrumentList);
+  document.getElementById('trendsSearch').addEventListener('input', debounce(() => renderTrendsInstrumentList(), 150));
+  document.getElementById('trendsGroupFilter').addEventListener('change', () => renderTrendsInstrumentList());
+  document.getElementById('trendsListSort').addEventListener('change', () => renderTrendsInstrumentList());
 
   // ── Public API ───────────────────────────────────────────────────────
   function toggleStar(btn) {
