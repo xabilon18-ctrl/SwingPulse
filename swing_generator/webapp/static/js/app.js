@@ -764,11 +764,18 @@
       document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
 
       // Staleness warning: show banner if data date isn't today
-      const today = new Date().toISOString().slice(0, 10);
+      const _now      = new Date();
+      const today     = _now.toISOString().slice(0, 10);
+      const dayOfWeek = _now.getUTCDay(); // 0=Sun, 6=Sat
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
       if (staleBanner && dateStr !== '--' && dateStr !== today) {
-        staleText.textContent = `Data is from ${dateStr} — pipeline hasn't run yet today`;
+        // On weekends the pipeline doesn't run — don't alarm the user
+        const msg = isWeekend
+          ? `Showing ${dateStr} data — markets are closed over the weekend`
+          : `Data is from ${dateStr} — next update due within 4 hours`;
+        staleText.textContent = msg;
         staleBanner.style.display = '';
       } else if (staleBanner) {
         staleBanner.style.display = 'none';
