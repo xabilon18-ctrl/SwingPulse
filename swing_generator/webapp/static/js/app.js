@@ -27,7 +27,6 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
-  let gpMode = 'group';   // 'group' | 'sector' | 'industry'
   let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
@@ -1222,44 +1221,14 @@
   function renderGroupPulse() {
     const body      = document.getElementById('groupPulseBody');
     const riskBadge = document.getElementById('groupPulseRisk');
-    const titleEl   = document.getElementById('groupPulseTitle');
     if (!body) return;
 
-    // ── Wire mode-toggle buttons (idempotent: use event delegation) ───────
-    const modeBar = document.querySelector('.gp-mode-bar');
-    if (modeBar && !modeBar._wired) {
-      modeBar._wired = true;
-      modeBar.querySelectorAll('.gp-mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          gpMode = btn.dataset.gpMode;
-          modeBar.querySelectorAll('.gp-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
-          renderGroupPulse();
-        });
-      });
-      document.getElementById('gpResetBtn')?.addEventListener('click', () => {
-        const grpSel  = document.getElementById('scannerGroupFilter');
-        const secSel  = document.getElementById('scannerSectorFilter');
-        if (grpSel)  grpSel.value  = 'all';
-        if (secSel)  secSel.value  = 'all';
-        updateScannerCtxStrip?.();
-        buildScannerCards();
-        renderGroupPulse();
-      });
-    }
-
-    // ── Build dimension key per instrument ────────────────────────────────
+    // ── Aggregate bull/bear/neutral per group ─────────────────────────────
     const INDEX_GROUPS = new Set(['Asia Index','CA Index','EU Index','US Index']);
-    function dimKey(item) {
-      if (gpMode === 'sector')   return item.sector   || 'Unknown';
-      if (gpMode === 'industry') return item.industry || 'Unknown';
-      const raw = item.group || 'Other';
-      return INDEX_GROUPS.has(raw) ? 'Indices' : raw;
-    }
-
-    // ── Aggregate bull/bear/neutral per dimension key ─────────────────────
     const dimMap = {};
     for (const item of allData) {
-      const key = dimKey(item);
+      const raw = item.group || 'Other';
+      const key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
       if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0 };
       const t = item[f('trend_direction')] || item.trend_direction || 'NEUTRAL';
       if      (t === 'UPTREND')   dimMap[key].bull++;
@@ -1276,40 +1245,28 @@
     });
 
     // ── Overall risk badge ────────────────────────────────────────────────
-    const totBull  = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'UPTREND').length;
-    const totBear  = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'DOWNTREND').length;
-    const totAll   = allData.length || 1;
+    const totBull   = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'UPTREND').length;
+    const totBear   = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'DOWNTREND').length;
+    const totAll    = allData.length || 1;
     const isRiskOn  = (totBull / totAll) > 0.55;
     const isRiskOff = (totBear / totAll) > 0.55;
     if (riskBadge) {
       riskBadge.textContent = isRiskOn ? '▲ Risk-On' : isRiskOff ? '▼ Risk-Off' : '◆ Mixed';
       riskBadge.className   = 'gp-risk-badge ' + (isRiskOn ? 'gp-risk-on' : isRiskOff ? 'gp-risk-off' : 'gp-risk-mixed');
     }
-    if (titleEl) {
-      titleEl.textContent = gpMode === 'sector' ? 'By Sector' : gpMode === 'industry' ? 'By Industry' : 'By Group';
-    }
 
-    // ── Active filter value for highlight ─────────────────────────────────
-    const activeGroupVal  = document.getElementById('scannerGroupFilter')?.value  || 'all';
-    const activeSectorVal = document.getElementById('scannerSectorFilter')?.value || 'all';
-    const activeVal = gpMode === 'group' ? activeGroupVal : activeSectorVal;
-
-    // ── Reset button visibility: show only when a filter is active ────────
-    const resetBtn = document.getElementById('gpResetBtn');
-    if (resetBtn) {
-      const anyActive = activeGroupVal !== 'all' || activeSectorVal !== 'all';
-      resetBtn.style.display = anyActive ? '' : 'none';
-    }
+    // ── Active group filter for row highlight ─────────────────────────────
+    const activeGroupVal = document.getElementById('scannerGroupFilter')?.value || 'all';
 
     body.innerHTML = entries.map(([name, c]) => {
       const total   = c.bull + c.bear + c.neutral || 1;
-      const bullPct = Math.round(c.bull    / total * 100);
-      const bearPct = Math.round(c.bear    / total * 100);
+      const bullPct = Math.round(c.bull / total * 100);
+      const bearPct = Math.round(c.bear / total * 100);
       const neutPct = 100 - bullPct - bearPct;
       const dominant = bullPct > bearPct + 15 ? 'gp-row-bull'
                      : bearPct > bullPct + 15  ? 'gp-row-bear'
                      : 'gp-row-mixed';
-      const isActive = activeVal === name ? ' gp-row-selected' : '';
+      const isActive = activeGroupVal === name ? ' gp-row-selected' : '';
       const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} signal${c.signals>1?'s':''}">${c.signals}</span>` : '';
       return `
         <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}" title="Filter scanner: ${name}">
@@ -1326,23 +1283,16 @@
         </div>`;
     }).join('');
 
-    // ── Row click → filter scanner and jump ───────────────────────────────
+    // ── Row click → filter scanner ────────────────────────────────────────
     body.querySelectorAll('.gp-row[data-gp-key]').forEach(row => {
       row.addEventListener('click', () => {
         const key = row.dataset.gpKey;
-        if (gpMode === 'group') {
-          const sel = document.getElementById('scannerGroupFilter');
-          if (sel) sel.value = sel.value === key ? 'all' : key;
-        } else {
-          // Both sector and industry mode drive the sector filter
-          // (industry is a subdivision of sector; use sector filter for broadest match)
-          const secSel = document.getElementById('scannerSectorFilter');
-          if (secSel) secSel.value = secSel.value === key ? 'all' : key;
-        }
+        const sel = document.getElementById('scannerGroupFilter');
+        if (sel) sel.value = sel.value === key ? 'all' : key;
         updateScannerCtxStrip?.();
         navigateToTab('scanner');
         buildScannerCards();
-        renderGroupPulse(); // refresh highlight + reset button visibility
+        renderGroupPulse();
       });
     });
   }

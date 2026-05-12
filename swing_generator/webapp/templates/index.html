@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=88">
+  <link rel="stylesheet" href="/static/css/style.css?v=89">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -160,20 +160,11 @@
       <span id="volumeCount" style="display:none"></span>
       <span id="highConfCount" style="display:none"></span>
 
-      <!-- Group Pulse — by group / sector / industry -->
+      <!-- Group Pulse -->
       <div class="card" id="groupPulseCard">
         <div class="card-header">
-          <h3 id="groupPulseTitle">By Group</h3>
+          <h3>By Group</h3>
           <span id="groupPulseRisk" class="gp-risk-badge"></span>
-        </div>
-        <!-- View-mode toggle + Reset -->
-        <div class="gp-mode-bar">
-          <div class="gp-mode-toggle">
-            <button class="gp-mode-btn active" data-gp-mode="group">Group</button>
-            <button class="gp-mode-btn" data-gp-mode="sector">Sector</button>
-            <button class="gp-mode-btn" data-gp-mode="industry">Industry</button>
-          </div>
-          <button class="gp-reset-btn" id="gpResetBtn" title="Clear group/sector/industry filter">Reset</button>
         </div>
         <div id="groupPulseBody"></div>
       </div>
@@ -635,6 +626,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=111"></script>
+  <script src="/static/js/app.js?v=112"></script>
 </body>
 </html>

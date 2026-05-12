@@ -667,14 +667,18 @@ def build_data(output_dir, src_signals_dir=None):
 # ---------------------------------------------------------------------------
 # Two upload paths depending on what credentials are available:
 #
-#  A) CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID are set (GitHub Actions CI)
+#  A) CLOUDFLARE_API_TOKEN is set (GitHub Actions CI)
 #     → direct HTTPS PUT to Cloudflare REST API — no wrangler, no version issues
 #
 #  B) Not set (local dev — authenticated via `wrangler login` OAuth)
 #     → fall back to wrangler CLI which uses the cached OAuth token
 #
-# CI GitHub secrets needed:  CLOUDFLARE_API_TOKEN  CLOUDFLARE_ACCOUNT_ID
+# CI GitHub secret needed:  CLOUDFLARE_API_TOKEN
+# Account ID is hardcoded below (not sensitive — visible in public R2 URLs).
 # ---------------------------------------------------------------------------
+
+# Cloudflare account ID — not a secret, safe to commit
+_CF_ACCOUNT_ID = os.environ.get('CLOUDFLARE_ACCOUNT_ID', '1b10154f55836228244d2602eb39b480')
 
 _WRANGLER_CANDIDATES = [
     os.path.expanduser('~/.npm-global/bin/wrangler'),
@@ -778,11 +782,10 @@ def _r2_put(local_path, r2_key, timeout=120):
     - CI (CLOUDFLARE_API_TOKEN set): direct REST API — no wrangler, no version issues
     - Local dev (wrangler login): wrangler CLI with OAuth
     """
-    api_token  = os.environ.get('CLOUDFLARE_API_TOKEN',  '').strip()
-    account_id = os.environ.get('CLOUDFLARE_ACCOUNT_ID', '').strip()
+    api_token = os.environ.get('CLOUDFLARE_API_TOKEN', '').strip()
 
-    if api_token and account_id:
-        return _r2_put_api(local_path, r2_key, api_token, account_id, timeout)
+    if api_token:
+        return _r2_put_api(local_path, r2_key, api_token, _CF_ACCOUNT_ID, timeout)
     else:
         return _r2_put_wrangler(local_path, r2_key, timeout)
 
