@@ -32,16 +32,8 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r swing_generator/requirements.txt
 
-      # ── 3. Node + Wrangler (for R2 uploads) ─────────────────────────────
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Wrangler
-        run: npm install -g wrangler@4  # v4 requires --remote for real R2 (without it uploads to local emulator)
-
-      # ── 4. Restore MA200 parquet cache ───────────────────────────────────
+      # ── 3. Restore MA200 parquet cache ───────────────────────────────────
+      # Node/Wrangler not needed in CI — R2 uploads go direct via CLOUDFLARE_API_TOKEN
       - name: Restore MA200 parquet cache
         uses: actions/cache@v4
         with:

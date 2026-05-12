@@ -665,6 +665,16 @@ def build_data(output_dir, src_signals_dir=None):
 # ---------------------------------------------------------------------------
 # R2 upload
 # ---------------------------------------------------------------------------
+# Two upload paths depending on what credentials are available:
+#
+#  A) CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID are set (GitHub Actions CI)
+#     → direct HTTPS PUT to Cloudflare REST API — no wrangler, no version issues
+#
+#  B) Not set (local dev — authenticated via `wrangler login` OAuth)
+#     → fall back to wrangler CLI which uses the cached OAuth token
+#
+# CI GitHub secrets needed:  CLOUDFLARE_API_TOKEN  CLOUDFLARE_ACCOUNT_ID
+# ---------------------------------------------------------------------------
 
 _WRANGLER_CANDIDATES = [
     os.path.expanduser('~/.npm-global/bin/wrangler'),
@@ -675,45 +685,83 @@ _WRANGLER_CANDIDATES = [
 
 def _wrangler_bin():
     import shutil
-    # shutil.which searches PATH — works on Mac, Linux (GitHub Actions), everywhere
     found = shutil.which('wrangler')
     if found:
         return found
     for p in _WRANGLER_CANDIDATES:
         if os.path.isfile(p):
             return p
-    return None  # falls back to npx wrangler
+    return None
 
 
-def _r2_put(local_path, r2_key, timeout=120):
-    """Upload a single file to R2. Returns (success, r2_key).
+def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120):
+    """Upload via Cloudflare REST API (used in CI where API token is available)."""
+    import urllib.request
+    import urllib.error
+    try:
+        url = (
+            f'https://api.cloudflare.com/client/v4/accounts/{account_id}'
+            f'/r2/buckets/{R2_BUCKET}/objects/{r2_key}'
+        )
+        with open(local_path, 'rb') as fh:
+            data = fh.read()
+        req = urllib.request.Request(
+            url, data=data, method='PUT',
+            headers={
+                'Authorization': f'Bearer {api_token}',
+                'Content-Type':  'application/json',
+                'Cache-Control': 'no-cache, max-age=0',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read(500).decode('utf-8', errors='replace')
+            # Cloudflare returns 200 with {"success":true} on success
+            if resp.status in (200, 201) and '"success":true' in body:
+                return True, r2_key
+            print(f'  [R2] WARN {r2_key}: HTTP {resp.status} — {body[:200]}', flush=True)
+            return False, r2_key
+    except urllib.error.HTTPError as exc:
+        body = exc.read(300).decode('utf-8', errors='replace') if exc.fp else ''
+        print(f'  [R2] HTTP {exc.code} {r2_key}: {body[:200]}', flush=True)
+        return False, r2_key
+    except Exception as exc:
+        print(f'  [R2] ERROR {r2_key}: {exc}', flush=True)
+        return False, r2_key
 
-    --remote is required in wrangler 4.x: without it wrangler defaults to a
-    local miniflare emulator and the file never reaches the real R2 bucket.
-    Wrangler 3.x accepts --remote too (it was always the implicit default there).
-    """
+
+def _r2_put_wrangler(local_path, r2_key, timeout=120):
+    """Upload via wrangler CLI (used locally with OAuth login)."""
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     wrangler = _wrangler_bin()
-    if wrangler:
-        cmd = [wrangler]
-    else:
-        cmd = ['npx', 'wrangler']
+    cmd = [wrangler] if wrangler else ['npx', 'wrangler']
+    # --remote needed in wrangler 4.x (defaults to local emulator without it)
+    # wrangler 3.x accepts but ignores it (already remote by default)
     try:
         result = subprocess.run(
             cmd + ['r2', 'object', 'put',
-             f'{R2_BUCKET}/{r2_key}',
-             '--file', local_path,
-             '--content-type', 'application/json',
-             '--cache-control', 'no-cache, max-age=0',
-             '--remote'],
-            capture_output=True, text=True, env=env,
-            timeout=timeout,
+                   f'{R2_BUCKET}/{r2_key}',
+                   '--file', local_path,
+                   '--content-type', 'application/json',
+                   '--cache-control', 'no-cache, max-age=0',
+                   '--remote'],
+            capture_output=True, text=True, env=env, timeout=timeout,
         )
         if result.returncode != 0:
-            # Surface the first failure so it shows up in CI logs
             err = (result.stderr or result.stdout or '').strip()
-            if err:
-                print(f'  [R2] WARN {r2_key}: {err[:200]}', flush=True)
+            # wrangler 3.93 dropped --remote; retry without it
+            if '--remote' in err or 'Unknown argument' in err:
+                result = subprocess.run(
+                    cmd + ['r2', 'object', 'put',
+                           f'{R2_BUCKET}/{r2_key}',
+                           '--file', local_path,
+                           '--content-type', 'application/json',
+                           '--cache-control', 'no-cache, max-age=0'],
+                    capture_output=True, text=True, env=env, timeout=timeout,
+                )
+            if result.returncode != 0:
+                err = (result.stderr or result.stdout or '').strip()
+                if err:
+                    print(f'  [R2] WARN {r2_key}: {err[:200]}', flush=True)
         return result.returncode == 0, r2_key
     except subprocess.TimeoutExpired:
         print(f'  [R2] TIMEOUT {r2_key}', flush=True)
@@ -721,6 +769,22 @@ def _r2_put(local_path, r2_key, timeout=120):
     except Exception as exc:
         print(f'  [R2] ERROR {r2_key}: {exc}', flush=True)
         return False, r2_key
+
+
+def _r2_put(local_path, r2_key, timeout=120):
+    """Upload a single file to R2. Returns (success, r2_key).
+
+    Picks the best available upload method automatically:
+    - CI (CLOUDFLARE_API_TOKEN set): direct REST API — no wrangler, no version issues
+    - Local dev (wrangler login): wrangler CLI with OAuth
+    """
+    api_token  = os.environ.get('CLOUDFLARE_API_TOKEN',  '').strip()
+    account_id = os.environ.get('CLOUDFLARE_ACCOUNT_ID', '').strip()
+
+    if api_token and account_id:
+        return _r2_put_api(local_path, r2_key, api_token, account_id, timeout)
+    else:
+        return _r2_put_wrangler(local_path, r2_key, timeout)
 
 
 def upload_to_r2(data_dir, max_workers=4, retries=2, r2_prefix=''):
