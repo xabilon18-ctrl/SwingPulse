@@ -790,7 +790,7 @@ def _r2_put(local_path, r2_key, timeout=120):
         return _r2_put_wrangler(local_path, r2_key, timeout)
 
 
-def upload_to_r2(data_dir, max_workers=4, retries=2, r2_prefix=''):
+def upload_to_r2(data_dir, max_workers=16, retries=2, r2_prefix=''):
     """Upload all files in data_dir to R2 using parallel workers with retry.
 
     r2_prefix — optional path prefix for all R2 keys (e.g. 'intraday').

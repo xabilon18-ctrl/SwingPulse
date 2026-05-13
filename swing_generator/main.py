@@ -652,12 +652,14 @@ def main():
     try:
         import subprocess
         # publish.py was simplified to MA200-only — no --profile flag accepted
+        # Timeout 900s (15 min) — uploads ~674 files; even at 16x parallelism
+        # this needs > 5 min headroom on slow CI runners.
         publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py')]
         result = subprocess.run(
             publish_cmd,
             cwd=os.path.dirname(__file__),
             env={**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')},
-            timeout=300,
+            timeout=900,
         )
         if result.returncode == 0:
             print('\n  ✓ App updated! https://swingpulse200.pages.dev')
@@ -666,7 +668,7 @@ def main():
             print('           python3 webapp/publish.py')
             sys.exit(result.returncode)  # propagate failure so CI shows red
     except subprocess.TimeoutExpired:
-        print('\n  [Publish] Timed out after 5 min.')
+        print('\n  [Publish] Timed out after 15 min.')
         sys.exit(1)
     except Exception as e:
         print(f'\n  [Publish] Skipped: {e}')
