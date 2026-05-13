@@ -2358,6 +2358,8 @@
       else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
       else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
       else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
+      else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
+      else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
       else if (activeScannerFilter === 'today') {
         filtered = filtered.filter(d => {
           const sd = new Date(d[f('last_signal_date')] || d[f('date')] || '');
@@ -2389,6 +2391,11 @@
         const confOrder = { high: 0, standard: 1, low: 2, '': 3 };
         return (confOrder[a[f('signal_confidence')]||'']||3) - (confOrder[b[f('signal_confidence')]||'']||3);
       });
+    } else if (scannerSort === 'radar_score') {
+      // Cache scores so we don't recompute per comparison
+      const cache = new Map();
+      const scoreOf = d => { let v = cache.get(d); if (v === undefined) { v = radarConfluenceScore(d); cache.set(d, v); } return v; };
+      filtered = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
     } else if (scannerSort === 'date_desc') {
       filtered = [...filtered].sort((a, b) => {
         const da = a[f('last_signal_date')] || a[f('date')] || '';
@@ -2510,6 +2517,12 @@
         perfPill(item.pct_1y, '1Y'),
       ].filter(Boolean).join('');
 
+      // Radar conviction chip — visible on every scanner card so you can rank
+      // by conviction without leaving the scanner tab
+      const _radarScore = radarConfluenceScore(item);
+      const _radarTier  = scoreTier(_radarScore);
+      const radarChip = `<span class="scanner-radar-chip radar-tier-${_radarTier}" title="Radar confluence: ${_radarScore}/100 — ${_radarTier}. Open card for breakdown.">${_radarScore}</span>`;
+
       return `<div class="scanner-card pop-in" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
@@ -2519,6 +2532,7 @@
             <div class="scanner-group">${item.group || ''}${item.sector ? ' / ' + item.sector : ''}</div>
           </div>
           <div class="scanner-actions">
+            ${radarChip}
             ${tvBtn(item.instrument_name, '')}
             ${shareBtn(item.instrument_name)}
             <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
@@ -3111,6 +3125,28 @@
     const autoAnalysis = buildSignalDesc(item);
     const analysisText = explanation || autoAnalysis;
 
+    // Radar conviction breakdown — shows why a card scores what it does
+    const _rScore   = radarConfluenceScore(item);
+    const _rTier    = scoreTier(_rScore);
+    const _rTierLbl = _rTier === 'prime' ? 'Prime' : _rTier === 'strong' ? 'Strong' : 'Developing';
+    const _rBd      = radarScoreBreakdown(item);
+    const _rDirLbl  = _rBd.isBullish ? 'Long bias' : 'Short bias';
+    const _rLinesHtml = _rBd.lines.length
+      ? _rBd.lines.map(l => `<div class="mh-rs-line"><span class="mh-rs-lbl">${l.label}</span><span class="mh-rs-pts">+${l.points}</span></div>`).join('')
+      : '<div class="mh-rs-line mh-rs-empty">No confluence factors active.</div>';
+    const radarBreakdownHtml = `
+      <div class="mh-radar-score">
+        <div class="mh-rs-header">
+          <div class="mh-rs-title">
+            <span class="mh-rs-num radar-tier-${_rTier}">${_rScore}</span>
+            <span class="mh-rs-tier radar-tier-${_rTier}">${_rTierLbl}</span>
+            <span class="mh-rs-dir">${_rDirLbl}</span>
+          </div>
+          <div class="mh-rs-bar"><div class="mh-rs-bar-fill tier-${_rTier}" style="width:${_rScore}%"></div></div>
+        </div>
+        <div class="mh-rs-lines">${_rLinesHtml}</div>
+      </div>`;
+
     modalBody.innerHTML = `
       <!-- ===== HERO ===== -->
       <div class="mh-hero${buy ? ' mh-hero-buy' : sell ? ' mh-hero-sell' : ''}">
@@ -3179,6 +3215,8 @@
             <div class="mg-val rsi-${rsiZone(item[f('rsi')])}">${item[f('rsi')] ? parseFloat(item[f('rsi')]).toFixed(1) : '--'}</div>
           </div>
         </div>
+
+        ${radarBreakdownHtml}
 
         ${renderInstrumentTrackRecord(item.instrument_name)}
 
@@ -4213,6 +4251,74 @@
     if (score >= 75) return 'prime';
     if (score >= 50) return 'strong';
     return 'developing';
+  }
+
+  // Itemised breakdown of the confluence score — used by both Scanner badge tooltip
+  // and the "Why this score?" panel inside the modal. Mirrors radarConfluenceScore().
+  function radarScoreBreakdown(item) {
+    const { bull, bear, tfs } = tfCounts(item);
+    const isBullish = bull >= bear;
+    const lines = [];
+    const tfNames = ['Monthly', 'Weekly', 'Daily', '4H'];
+    const tfWeights = [12, 12, 10, 6];
+    const targetTf = isBullish ? 'UPTREND' : 'DOWNTREND';
+    let tfPoints = 0;
+    tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
+    if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
+
+    const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+    const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
+    const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
+    if ((isBullish && buySig) || (!isBullish && sellSig)) {
+      lines.push({ label: `${sig} ${(sig === 'BP1' || sig === 'SP1') ? 'reversal signal' : 'signal'}`,
+                   points: (sig === 'BP1' || sig === 'SP1') ? 15 : 10 });
+    } else if (item.watch_flag) {
+      lines.push({ label: 'Watch flag', points: 5 });
+    }
+
+    const conf = (item.signal_confidence || '').toLowerCase();
+    if (conf === 'high')     lines.push({ label: 'High confidence',     points: 10 });
+    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 6 });
+    else if (conf === 'low') lines.push({ label: 'Low confidence',      points: 3 });
+
+    const dailyClose = parseFloat(item.close);
+    const macroMas = detectedMacroMas
+      .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
+      .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
+    if (macroMas.length > 0) {
+      const onSide = isBullish
+        ? macroMas.filter(r => dailyClose > r.val).length
+        : macroMas.filter(r => dailyClose < r.val).length;
+      const pts = Math.round((onSide / macroMas.length) * 15);
+      if (pts > 0) lines.push({
+        label: `${onSide}/${macroMas.length} macro MAs ${isBullish ? 'below' : 'above'} price`,
+        points: pts,
+      });
+    }
+
+    const h4Rsi = parseFloat(item.h4_rsi);
+    const dRsi  = parseFloat(item.rsi);
+    if (isBullish) {
+      if (!isNaN(h4Rsi) && h4Rsi < 30) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`, points: 10 });
+      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`, points: 5 });
+      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`, points: 3 });
+    } else {
+      if (!isNaN(h4Rsi) && h4Rsi > 70) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`, points: 10 });
+      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 5 });
+      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`, points: 3 });
+    }
+
+    if (isBullish && item.macro_sr_signal === 'support') {
+      lines.push({ label: 'Macro MA support touch', points: 5 });
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence support', points: 3 });
+    } else if (!isBullish && item.macro_sr_signal === 'resistance') {
+      lines.push({ label: 'Macro MA resistance touch', points: 5 });
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence resistance', points: 3 });
+    }
+
+    if (item.volume_spike_flag === 'yes') lines.push({ label: 'Volume spike', points: 5 });
+
+    return { isBullish, lines };
   }
 
   function renderRadar() {

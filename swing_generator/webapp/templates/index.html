@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=89">
+  <link rel="stylesheet" href="/static/css/style.css?v=90">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -264,6 +264,8 @@
 
       <!-- Row 2: Context chips -->
       <div class="sig-ctx-row">
+        <button class="sig-ctx-chip sig-chip-radar-prime" data-filter="radar_prime" title="Radar score ≥75 — highest conviction setups">🎯 Prime</button>
+        <button class="sig-ctx-chip sig-chip-radar-strong" data-filter="radar_strong" title="Radar score 50–74 — strong setups">🎯 Strong</button>
         <button class="sig-ctx-chip sig-chip-best" data-filter="best">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
           Best
@@ -388,6 +390,7 @@
           <label class="sig-adv-label">Sort by
             <select class="sig-adv-select" id="scannerSort">
               <option value="signal">Signal First</option>
+              <option value="radar_score">Radar Score ↓</option>
               <option value="date_desc">Newest First</option>
               <option value="conf_desc">Confidence ↓</option>
               <option value="pct_1d_desc">1D % ↓</option>
@@ -626,6 +629,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=112"></script>
+  <script src="/static/js/app.js?v=113"></script>
 </body>
 </html>
