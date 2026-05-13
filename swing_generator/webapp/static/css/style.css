@@ -1708,6 +1708,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 10px;
+  align-items: stretch;          /* equalise card heights row-by-row */
 }
 
 .scanner-card {
@@ -1719,8 +1720,15 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   transition: all var(--transition);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;       /* fill grid cell so neighbours equalise height */
 }
 .scanner-card:hover { transform: translateY(-2px); border-color: var(--border-active); box-shadow: var(--shadow); }
+/* When a signal strip is present, it's the first child — extend it edge-to-edge
+   via negative margins, then push the rest of the card down so nothing overlaps */
+.scanner-card > .scanner-signal-strip:first-child {
+  margin: -12px -12px 10px;
+}
 
 .scanner-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 6px; }
 .scanner-name { font-weight: 700; font-size: .98rem; line-height: 1.2; }
@@ -1756,13 +1764,14 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .scanner-overflow { background: var(--bg-input); color: var(--text-muted); border: 1px dashed var(--border-active); }
 
 .scanner-signal-strip {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: .6rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 0 0 0 var(--radius-sm);
+  /* Full-width header banner — flush to card edges, never overlaps actions */
+  display: block;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  padding: 5px 12px;
+  text-align: right;
+  text-transform: uppercase;
 }
 .strip-buy { background: var(--buy); color: #fff; }
 .strip-sell { background: var(--sell); color: #fff; }
@@ -2316,11 +2325,15 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .heatmap-cell .tv-link .tv-icon { width: 11px; height: 11px; }
 
-/* Scanner card actions */
+/* Scanner card actions — top-right cluster of icons + radar chip */
 .scanner-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 5px;
   flex-shrink: 0;
+  flex-wrap: wrap;        /* if it ever runs out of room, wrap rather than overlap */
+  justify-content: flex-end;
+  max-width: 56%;         /* never let actions eat more than half the card width */
 }
 
 /* Signal row TV link alignment */
