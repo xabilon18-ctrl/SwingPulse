@@ -5765,10 +5765,13 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 
 .radar-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* min(100%, 300px) lets the column shrink to viewport on narrow screens
+     so it never overflows horizontally. Above 300px, columns auto-fill at 300px+ */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
   background: transparent;
+  overflow-x: hidden;        /* belt-and-braces: never let cards spill */
 }
 
 /* Per-instrument card — proper card styling, not a list row */
@@ -5780,6 +5783,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
   transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0;              /* allow grid item to shrink below its content size */
 }
 .radar-card:hover {
   transform: translateY(-2px);
@@ -5789,7 +5793,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .radar-card:active { transform: translateY(0); }
 
 @media (max-width: 480px) {
-  .radar-cards { grid-template-columns: 1fr; padding: 10px; gap: 8px; }
+  .radar-cards { padding: 8px; gap: 8px; }
   .radar-card  { padding: 13px 14px 11px; }
 }
 
