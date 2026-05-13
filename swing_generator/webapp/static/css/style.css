@@ -1894,24 +1894,44 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .wl-sort-select { font-size: .72rem; padding: 4px 8px; height: auto; }
 .wl-filter-chips { padding: 0 16px 12px; border-bottom: 1px solid var(--border); }
 
-/* My Watchlist cards */
+/* My Watchlist — grid of cards, identical look to Radar/Scanner */
+#wlMyList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 10px;
+  padding: 10px 12px 12px;
+  align-items: stretch;
+  overflow-x: hidden;
+}
+
 .wl-card {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
   position: relative;
   overflow: hidden;
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: background var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
-.wl-card:last-child { border-bottom: none; }
-.wl-card:hover { background: var(--bg-hover); }
-.wl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.wl-card:hover { transform: translateY(-2px); border-color: var(--border-active); box-shadow: var(--shadow); }
+.wl-card:active { transform: translateY(0); }
+.wl-card > .scanner-signal-strip:first-child { margin: -12px -12px 4px; }
+
+.wl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .wl-card-left { min-width: 0; flex: 1; }
-.wl-card-name { display: block; font-weight: 800; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wl-card-group { display: block; font-size: .7rem; color: var(--text-muted); margin-top: 2px; }
+.wl-card-name { display: block; font-weight: 700; font-size: .98rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-card-group { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+/* Right column: price stacked above the action icons (icons go HORIZONTAL — no more wasted vertical space) */
 .wl-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.wl-card-price { font-size: 1.3rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.wl-card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.wl-card-right .scanner-actions { flex-direction: row; max-width: none; }
+.wl-card-price { font-size: 1.18rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.wl-card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 0; }
+.wl-signal-perf { font-size: .7rem; font-weight: 700; }
 
 /* Empty state */
 .wl-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 16px;
