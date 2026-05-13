@@ -1894,12 +1894,13 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .wl-sort-select { font-size: .72rem; padding: 4px 8px; height: auto; }
 .wl-filter-chips { padding: 0 16px 12px; border-bottom: 1px solid var(--border); }
 
-/* My Watchlist — grid of cards, identical look to Radar/Scanner */
+/* My Watchlist — grid of cards, identical look to Radar/Scanner.
+   No padding here — .content wrapper already supplies 16px edge inset. */
 #wlMyList {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 10px;
-  padding: 10px 12px 12px;
+  padding: 0;
   align-items: stretch;
   overflow-x: hidden;
 }
@@ -5783,12 +5784,14 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
   color: var(--text-secondary); min-width: 20px; text-align: right;
 }
 
-/* Match Scanner card grid exactly — same minmax, gap, stretch behaviour */
+/* Match Scanner card grid exactly — same minmax, gap, stretch behaviour.
+   No padding here — .content wrapper already supplies 16px edge inset. */
 .radar-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 10px;
-  padding: 10px 12px 12px;   /* small inset so cards don't touch section edges */
+  padding: 0;
+  margin-top: 10px;          /* breathing room from section header */
   background: transparent;
   align-items: stretch;
   overflow-x: hidden;
