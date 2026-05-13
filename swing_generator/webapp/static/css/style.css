@@ -5763,27 +5763,31 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
   color: var(--text-secondary); min-width: 20px; text-align: right;
 }
 
+/* Match Scanner card grid exactly — same minmax, gap, stretch behaviour */
 .radar-cards {
   display: grid;
-  /* min(100%, 300px) lets the column shrink to viewport on narrow screens
-     so it never overflows horizontally. Above 300px, columns auto-fill at 300px+ */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 10px;
-  padding: 10px;
+  padding: 10px 12px 12px;   /* small inset so cards don't touch section edges */
   background: transparent;
-  overflow-x: hidden;        /* belt-and-braces: never let cards spill */
+  align-items: stretch;
+  overflow-x: hidden;
 }
 
-/* Per-instrument card — proper card styling, not a list row */
+/* Per-instrument card — visually identical to .scanner-card */
 .radar-card {
-  background: var(--bg-card);
-  padding: 14px 16px 12px;
-  display: flex; flex-direction: column; gap: 8px;
-  cursor: pointer;
-  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
-  border: 1px solid var(--border);
+  padding: 12px;
   border-radius: var(--radius);
-  min-width: 0;              /* allow grid item to shrink below its content size */
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 .radar-card:hover {
   transform: translateY(-2px);
@@ -5791,11 +5795,6 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
   box-shadow: var(--shadow);
 }
 .radar-card:active { transform: translateY(0); }
-
-@media (max-width: 480px) {
-  .radar-cards { padding: 8px; gap: 8px; }
-  .radar-card  { padding: 13px 14px 11px; }
-}
 
 .radar-card-top {
   display: flex; align-items: center; gap: 9px;
