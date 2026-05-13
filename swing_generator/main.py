@@ -651,9 +651,8 @@ def main():
     print('\n  Uploading data to R2 ...\n')
     try:
         import subprocess
+        # publish.py was simplified to MA200-only — no --profile flag accepted
         publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py')]
-        if PROFILE == 'ma200':
-            publish_cmd += ['--profile', 'ma200']
         result = subprocess.run(
             publish_cmd,
             cwd=os.path.dirname(__file__),
@@ -661,16 +660,10 @@ def main():
             timeout=300,
         )
         if result.returncode == 0:
-            if PROFILE == 'ma200':
-                print('\n  ✓ MA200 app updated! https://swingpulse200.pages.dev')
-            else:
-                print('\n  ✓ App updated! https://swingpulse.pages.dev')
+            print('\n  ✓ App updated! https://swingpulse200.pages.dev')
         else:
             print('\n  [Publish] R2 upload failed — CI run will be marked red.')
-            if PROFILE == 'ma200':
-                print('           python3 webapp/publish.py --profile ma200')
-            else:
-                print('           python3 webapp/publish.py')
+            print('           python3 webapp/publish.py')
             sys.exit(result.returncode)  # propagate failure so CI shows red
     except subprocess.TimeoutExpired:
         print('\n  [Publish] Timed out after 5 min.')
