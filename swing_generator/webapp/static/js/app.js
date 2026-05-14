@@ -4173,41 +4173,68 @@
     return { bull, bear, tfs };
   }
 
-  function radarConfluenceScore(item) {
+  // ── Single source of truth for the confluence score ───────────────────
+  // Returns { isBullish, lines: [{label, points}] }. Both radarConfluenceScore()
+  // (sum → 0-100) and radarScoreBreakdown() (the modal panel) read from this,
+  // so the number and its explanation can never drift apart.
+  function radarScoreFactors(item) {
     const { bull, bear, tfs } = tfCounts(item);
     const isBullish = bull >= bear;
-    let score = 0;
+    const lines = [];
 
-    // 1. TF alignment (max 40) — Monthly+Weekly carry more weight as regime setters
-    if (isBullish) {
-      if (tfs[0] === 'UPTREND')   score += 12;  // Monthly
-      if (tfs[1] === 'UPTREND')   score += 12;  // Weekly
-      if (tfs[2] === 'UPTREND')   score += 10;  // Daily
-      if (tfs[3] === 'UPTREND')   score += 6;   // 4H
-    } else {
-      if (tfs[0] === 'DOWNTREND') score += 12;
-      if (tfs[1] === 'DOWNTREND') score += 12;
-      if (tfs[2] === 'DOWNTREND') score += 10;
-      if (tfs[3] === 'DOWNTREND') score += 6;
-    }
+    // 1. TF alignment (max 28) — Monthly+Weekly carry more weight as regime setters
+    const tfWeights = [9, 9, 7, 3];   // M, W, D, 4H
+    const targetTf  = isBullish ? 'UPTREND' : 'DOWNTREND';
+    let tfPoints = 0;
+    tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
+    if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
 
-    // 2. Signal type (max 15) — BP1/SP1 reversal is highest conviction
+    // 2. Signal type (max 12) — BP1/SP1 reversal is highest conviction
     const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
     const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
     const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
-    if ((isBullish && buySig) || (!isBullish && sellSig)) {
-      score += (sig === 'BP1' || sig === 'SP1') ? 15 : 10;
+    const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
+    if (hasAlignedSig) {
+      lines.push({ label: `${sig} ${(sig === 'BP1' || sig === 'SP1') ? 'reversal signal' : 'signal'}`,
+                   points: (sig === 'BP1' || sig === 'SP1') ? 12 : 8 });
     } else if (item.watch_flag) {
-      score += 5;
+      lines.push({ label: 'Watch flag', points: 4 });
     }
 
-    // 3. Signal confidence (max 10)
+    // 3. Signal confidence (max 8)
     const conf = (item.signal_confidence || '').toLowerCase();
-    if (conf === 'high') score += 10;
-    else if (conf === 'standard') score += 6;
-    else if (conf === 'low') score += 3;
+    if (conf === 'high')          lines.push({ label: 'High confidence',     points: 8 });
+    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 5 });
+    else if (conf === 'low')      lines.push({ label: 'Low confidence',      points: 2 });
 
-    // 4. Macro MA position vs daily close (max 15) — always use raw daily fields
+    // 4. Ribbon squeeze (max 10) — coiled-spring setup before a breakout
+    let sqPoints = 0; const sqTfs = [];
+    if (item.ribbon_compression   === 'yes') { sqPoints += 5; sqTfs.push('D'); }
+    if (item.w_ribbon_compression === 'yes') { sqPoints += 3; sqTfs.push('W'); }
+    if (item.m_ribbon_compression === 'yes') { sqPoints += 2; sqTfs.push('M'); }
+    if (sqPoints) lines.push({ label: `Ribbon squeeze (${sqTfs.join('+')})`, points: Math.min(sqPoints, 10) });
+
+    // 5. Key-level confluence (max 9) — price testing a real, well-tested S/R level
+    if (item.key_level_touched_today === 'yes') {
+      let klPoints = 3;
+      const touches = parseInt(item.key_level_touch_count) || 0;
+      if      (touches >= 100) klPoints += 6;
+      else if (touches >= 50)  klPoints += 4;
+      else if (touches >= 20)  klPoints += 2;
+      lines.push({ label: `Key level held ${touches}×, tested today`, points: klPoints });
+    }
+
+    // 6. MA-order quality (max 8) — clean, textbook ribbon stacking in the trade direction
+    const maOrder = parseInt(item[f('ma_order_score')]);
+    const maMax   = summaryData.ma_max_pairs || 14;
+    if (!isNaN(maOrder) && maMax > 0) {
+      const stackPct = maOrder / maMax;                       // 1 = perfectly bullish-stacked
+      const aligned  = isBullish ? stackPct : (1 - stackPct); // direction-aware
+      const pts = Math.round(aligned * 8);
+      if (pts > 0) lines.push({ label: `MA ribbon ${isBullish ? 'stacked' : 'inverted'} ${maOrder}/${maMax}`, points: pts });
+    }
+
+    // 7. Macro MA position vs daily close (max 8)
     const dailyClose = parseFloat(item.close);
     const macroMas   = detectedMacroMas
       .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
@@ -4216,35 +4243,56 @@
       const onSide = isBullish
         ? macroMas.filter(r => dailyClose > r.val).length
         : macroMas.filter(r => dailyClose < r.val).length;
-      score += Math.round((onSide / macroMas.length) * 15);
+      const pts = Math.round((onSide / macroMas.length) * 8);
+      if (pts > 0) lines.push({
+        label: `${onSide}/${macroMas.length} macro MAs ${isBullish ? 'below' : 'above'} price`,
+        points: pts,
+      });
     }
 
-    // 5. RSI timing (max 10) — 4H entry timing against higher-TF trend
+    // 8. RSI timing (max 7) — 4H entry timing against the higher-TF trend
     const h4Rsi = parseFloat(item.h4_rsi);
     const dRsi  = parseFloat(item.rsi);
     if (isBullish) {
-      if (!isNaN(h4Rsi) && h4Rsi < 30) score += 10;       // 4H oversold = ideal long entry
-      else if (!isNaN(h4Rsi) && h4Rsi < 50) score += 5;  // room to run
-      else if (!isNaN(dRsi)  && dRsi  < 50) score += 3;
+      if (!isNaN(h4Rsi) && h4Rsi < 30)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`,     points: 7 });
+      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`,  points: 4 });
+      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 2 });
     } else {
-      if (!isNaN(h4Rsi) && h4Rsi > 70) score += 10;       // 4H overbought = ideal short entry
-      else if (!isNaN(h4Rsi) && h4Rsi > 50) score += 5;
-      else if (!isNaN(dRsi)  && dRsi  > 50) score += 3;
+      if (!isNaN(h4Rsi) && h4Rsi > 70)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`,   points: 7 });
+      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 4 });
+      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 2 });
     }
 
-    // 6. Macro S/R touch (max 8) — price genuinely testing a macro level today
+    // 9. Macro S/R touch (max 6) — price genuinely testing a macro MA level today
     if (isBullish && item.macro_sr_signal === 'support') {
-      score += 5;
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) score += 3;
+      lines.push({ label: 'Macro MA support touch', points: 4 });
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence support', points: 2 });
     } else if (!isBullish && item.macro_sr_signal === 'resistance') {
-      score += 5;
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) score += 3;
+      lines.push({ label: 'Macro MA resistance touch', points: 4 });
+      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence resistance', points: 2 });
     }
 
-    // 7. Volume spike (max 5)
-    if (item.volume_spike_flag === 'yes') score += 5;
+    // 10. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
+    const daysAgo = parseInt(item.last_signal_days_ago);
+    if (!isNaN(daysAgo)) {
+      if      (daysAgo <= 1) lines.push({ label: `Signal fresh (${daysAgo}d ago)`,  points: 4 });
+      else if (daysAgo <= 4) lines.push({ label: `Signal recent (${daysAgo}d ago)`, points: 2 });
+      else if (daysAgo <= 9) lines.push({ label: `Signal ${daysAgo}d ago`,          points: 1 });
+    }
 
-    return Math.min(score, 100);
+    // 11. Volume (max 6) — daily spike + a more meaningful higher-TF spike
+    if (item.volume_spike_flag === 'yes') lines.push({ label: 'Volume spike (daily)', points: 3 });
+    if (item.w_volume_spike_flag === 'yes' || item.m_volume_spike_flag === 'yes') {
+      lines.push({ label: `Volume spike (${item.w_volume_spike_flag === 'yes' ? 'weekly' : 'monthly'})`, points: 3 });
+    }
+
+    return { isBullish, lines };
+  }
+
+  function radarConfluenceScore(item) {
+    const { lines } = radarScoreFactors(item);
+    const total = lines.reduce((sum, l) => sum + l.points, 0);
+    return Math.min(total, 100);
   }
 
   function scoreTier(score) {
@@ -4253,72 +4301,9 @@
     return 'developing';
   }
 
-  // Itemised breakdown of the confluence score — used by both Scanner badge tooltip
-  // and the "Why this score?" panel inside the modal. Mirrors radarConfluenceScore().
+  // Itemised breakdown for the "Why this score?" panel — same factors as the score
   function radarScoreBreakdown(item) {
-    const { bull, bear, tfs } = tfCounts(item);
-    const isBullish = bull >= bear;
-    const lines = [];
-    const tfNames = ['Monthly', 'Weekly', 'Daily', '4H'];
-    const tfWeights = [12, 12, 10, 6];
-    const targetTf = isBullish ? 'UPTREND' : 'DOWNTREND';
-    let tfPoints = 0;
-    tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
-    if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
-
-    const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
-    const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
-    const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
-    if ((isBullish && buySig) || (!isBullish && sellSig)) {
-      lines.push({ label: `${sig} ${(sig === 'BP1' || sig === 'SP1') ? 'reversal signal' : 'signal'}`,
-                   points: (sig === 'BP1' || sig === 'SP1') ? 15 : 10 });
-    } else if (item.watch_flag) {
-      lines.push({ label: 'Watch flag', points: 5 });
-    }
-
-    const conf = (item.signal_confidence || '').toLowerCase();
-    if (conf === 'high')     lines.push({ label: 'High confidence',     points: 10 });
-    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 6 });
-    else if (conf === 'low') lines.push({ label: 'Low confidence',      points: 3 });
-
-    const dailyClose = parseFloat(item.close);
-    const macroMas = detectedMacroMas
-      .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
-      .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
-    if (macroMas.length > 0) {
-      const onSide = isBullish
-        ? macroMas.filter(r => dailyClose > r.val).length
-        : macroMas.filter(r => dailyClose < r.val).length;
-      const pts = Math.round((onSide / macroMas.length) * 15);
-      if (pts > 0) lines.push({
-        label: `${onSide}/${macroMas.length} macro MAs ${isBullish ? 'below' : 'above'} price`,
-        points: pts,
-      });
-    }
-
-    const h4Rsi = parseFloat(item.h4_rsi);
-    const dRsi  = parseFloat(item.rsi);
-    if (isBullish) {
-      if (!isNaN(h4Rsi) && h4Rsi < 30) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`, points: 10 });
-      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`, points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`, points: 3 });
-    } else {
-      if (!isNaN(h4Rsi) && h4Rsi > 70) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`, points: 10 });
-      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`, points: 3 });
-    }
-
-    if (isBullish && item.macro_sr_signal === 'support') {
-      lines.push({ label: 'Macro MA support touch', points: 5 });
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence support', points: 3 });
-    } else if (!isBullish && item.macro_sr_signal === 'resistance') {
-      lines.push({ label: 'Macro MA resistance touch', points: 5 });
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence resistance', points: 3 });
-    }
-
-    if (item.volume_spike_flag === 'yes') lines.push({ label: 'Volume spike', points: 5 });
-
-    return { isBullish, lines };
+    return radarScoreFactors(item);
   }
 
   function renderRadar() {
