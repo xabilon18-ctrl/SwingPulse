@@ -8,11 +8,11 @@
   --bg-base:       #0a0e17;
   --bg-surface:    #111827;
   --bg-elevated:   #1a2332;
-  --bg-card:       #151e2d;
-  --bg-hover:      #1e293b;
+  --bg-card:       #1a2740;
+  --bg-hover:      #243352;
   --bg-input:      #0f172a;
-  --border:        #1e293b;
-  --border-active: #334155;
+  --border:        #314061;
+  --border-active: #44587e;
   --text-primary:  #f1f5f9;
   --text-secondary:#94a3b8;
   --text-muted:    #64748b;
@@ -49,11 +49,11 @@
   --bg-base:       #020c0f;
   --bg-surface:    #061419;
   --bg-elevated:   #0c2028;
-  --bg-card:       #071c22;
-  --bg-hover:      #0e2d38;
+  --bg-card:       #0c2730;
+  --bg-hover:      #114049;
   --bg-input:      #061318;
-  --border:        rgba(0,210,180,.14);
-  --border-active: rgba(0,230,195,.35);
+  --border:        rgba(0,210,180,.28);
+  --border-active: rgba(0,230,195,.5);
   --text-primary:  #d6f5ef;
   --text-secondary:#7ec9bb;
   --text-muted:    #3d7a70;
@@ -87,14 +87,14 @@
 
 /* ── Design Tokens (Light / Rainbow) ─────────────────────────────────── */
 [data-theme="light"] {
-  --bg-base:       #fdf9ff;
+  --bg-base:       #f3edfb;
   --bg-surface:    #ffffff;
   --bg-elevated:   #f3eeff;
   --bg-card:       #ffffff;
   --bg-hover:      #ede8ff;
   --bg-input:      #f5f0ff;
-  --border:        rgba(139,92,246,.18);
-  --border-active: rgba(139,92,246,.45);
+  --border:        rgba(139,92,246,.32);
+  --border-active: rgba(139,92,246,.6);
   --text-primary:  #1a103a;
   --text-secondary:#4b3a8a;
   --text-muted:    #9585c4;
