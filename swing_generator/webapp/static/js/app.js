@@ -2383,7 +2383,15 @@
     }
 
     // ── Sort ──
-    if (scannerSort === 'signal') {
+    // When filtering by Radar tier, always rank by score high→low — the tier
+    // itself only matters relative to the score, so sort by it regardless of
+    // the dropdown selection.
+    const forceScoreSort = activeScannerFilter === 'radar_prime' || activeScannerFilter === 'radar_strong';
+    if (forceScoreSort || scannerSort === 'radar_score') {
+      const cache = new Map();
+      const scoreOf = d => { let v = cache.get(d); if (v === undefined) { v = radarConfluenceScore(d); cache.set(d, v); } return v; };
+      filtered = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
+    } else if (scannerSort === 'signal') {
       filtered = [...filtered].sort((a, b) => {
         const aHas = !!(a[f('primary_signal')]);
         const bHas = !!(b[f('primary_signal')]);
@@ -2391,11 +2399,6 @@
         const confOrder = { high: 0, standard: 1, low: 2, '': 3 };
         return (confOrder[a[f('signal_confidence')]||'']||3) - (confOrder[b[f('signal_confidence')]||'']||3);
       });
-    } else if (scannerSort === 'radar_score') {
-      // Cache scores so we don't recompute per comparison
-      const cache = new Map();
-      const scoreOf = d => { let v = cache.get(d); if (v === undefined) { v = radarConfluenceScore(d); cache.set(d, v); } return v; };
-      filtered = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
     } else if (scannerSort === 'date_desc') {
       filtered = [...filtered].sort((a, b) => {
         const da = a[f('last_signal_date')] || a[f('date')] || '';
