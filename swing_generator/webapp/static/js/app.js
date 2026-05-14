@@ -1267,9 +1267,9 @@
                      : bearPct > bullPct + 15  ? 'gp-row-bear'
                      : 'gp-row-mixed';
       const isActive = activeGroupVal === name ? ' gp-row-selected' : '';
-      const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} signal${c.signals>1?'s':''}">${c.signals}</span>` : '';
+      const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} active buy/sell signal${c.signals>1?'s':''} in this group">${c.signals}</span>` : '';
       return `
-        <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}" title="Filter scanner: ${name}">
+        <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}">
           <div class="gp-name">${name}${sigDot}</div>
           <div class="gp-bar-wrap">
             <div class="gp-bar-bull" style="width:${bullPct}%"></div>

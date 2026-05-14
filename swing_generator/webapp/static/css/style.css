@@ -5697,14 +5697,16 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 
 .gp-row {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; border-left: 3px solid transparent;
+  padding: 10px 16px; border-left: 2px solid transparent;
   transition: background .15s;
   cursor: pointer;
 }
 .gp-row:hover { background: rgba(255,255,255,.06); }
-.gp-row-bull  { border-color: var(--buy); }
-.gp-row-bear  { border-color: var(--sell); }
-.gp-row-mixed { border-color: var(--accent); }
+/* Subtle left-edge tint — the horizontal bar already shows the bull/bear split,
+   so this is just a faint accent, not a loud stripe */
+.gp-row-bull  { border-left-color: color-mix(in srgb, var(--buy)  45%, transparent); }
+.gp-row-bear  { border-left-color: color-mix(in srgb, var(--sell) 45%, transparent); }
+.gp-row-mixed { border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .gp-row-selected { background: rgba(255,255,255,.07) !important; outline: 1px solid var(--accent); outline-offset: -1px; }
 .gp-row-selected .gp-name { color: var(--text-primary); }
 .gp-row:not(:last-child) { border-bottom: 1px solid var(--border); }
