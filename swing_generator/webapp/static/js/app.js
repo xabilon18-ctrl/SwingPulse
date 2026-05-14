@@ -4182,30 +4182,30 @@
     const isBullish = bull >= bear;
     const lines = [];
 
-    // 1. TF alignment (max 28) — Monthly+Weekly carry more weight as regime setters
-    const tfWeights = [9, 9, 7, 3];   // M, W, D, 4H
+    // 1. TF alignment (max 34) — Monthly+Weekly carry more weight as regime setters
+    const tfWeights = [11, 11, 8, 4];   // M, W, D, 4H
     const targetTf  = isBullish ? 'UPTREND' : 'DOWNTREND';
     let tfPoints = 0;
     tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
     if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
 
-    // 2. Signal type (max 12) — BP1/SP1 reversal is highest conviction
+    // 2. Signal type (max 15) — BP1/SP1 reversal is highest conviction
     const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
     const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
     const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
     const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
     if (hasAlignedSig) {
       lines.push({ label: `${sig} ${(sig === 'BP1' || sig === 'SP1') ? 'reversal signal' : 'signal'}`,
-                   points: (sig === 'BP1' || sig === 'SP1') ? 12 : 8 });
+                   points: (sig === 'BP1' || sig === 'SP1') ? 15 : 10 });
     } else if (item.watch_flag) {
-      lines.push({ label: 'Watch flag', points: 4 });
+      lines.push({ label: 'Watch flag', points: 5 });
     }
 
-    // 3. Signal confidence (max 8)
+    // 3. Signal confidence (max 10)
     const conf = (item.signal_confidence || '').toLowerCase();
-    if (conf === 'high')          lines.push({ label: 'High confidence',     points: 8 });
-    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 5 });
-    else if (conf === 'low')      lines.push({ label: 'Low confidence',      points: 2 });
+    if (conf === 'high')          lines.push({ label: 'High confidence',     points: 10 });
+    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 6 });
+    else if (conf === 'low')      lines.push({ label: 'Low confidence',      points: 3 });
 
     // 4. Ribbon squeeze (max 10) — coiled-spring setup before a breakout
     let sqPoints = 0; const sqTfs = [];
@@ -4234,7 +4234,7 @@
       if (pts > 0) lines.push({ label: `MA ribbon ${isBullish ? 'stacked' : 'inverted'} ${maOrder}/${maMax}`, points: pts });
     }
 
-    // 7. Macro MA position vs daily close (max 8)
+    // 7. Macro MA position vs daily close (max 12)
     const dailyClose = parseFloat(item.close);
     const macroMas   = detectedMacroMas
       .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
@@ -4243,24 +4243,24 @@
       const onSide = isBullish
         ? macroMas.filter(r => dailyClose > r.val).length
         : macroMas.filter(r => dailyClose < r.val).length;
-      const pts = Math.round((onSide / macroMas.length) * 8);
+      const pts = Math.round((onSide / macroMas.length) * 12);
       if (pts > 0) lines.push({
         label: `${onSide}/${macroMas.length} macro MAs ${isBullish ? 'below' : 'above'} price`,
         points: pts,
       });
     }
 
-    // 8. RSI timing (max 7) — 4H entry timing against the higher-TF trend
+    // 8. RSI timing (max 9) — 4H entry timing against the higher-TF trend
     const h4Rsi = parseFloat(item.h4_rsi);
     const dRsi  = parseFloat(item.rsi);
     if (isBullish) {
-      if (!isNaN(h4Rsi) && h4Rsi < 30)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`,     points: 7 });
-      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`,  points: 4 });
-      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 2 });
+      if (!isNaN(h4Rsi) && h4Rsi < 30)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`,     points: 9 });
+      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`,  points: 5 });
+      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 3 });
     } else {
-      if (!isNaN(h4Rsi) && h4Rsi > 70)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`,   points: 7 });
-      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 4 });
-      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 2 });
+      if (!isNaN(h4Rsi) && h4Rsi > 70)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`,   points: 9 });
+      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 5 });
+      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 3 });
     }
 
     // 9. Macro S/R touch (max 6) — price genuinely testing a macro MA level today
