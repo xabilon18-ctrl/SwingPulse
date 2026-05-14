@@ -1773,8 +1773,9 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   text-align: right;
   text-transform: uppercase;
 }
-.strip-buy { background: var(--buy); color: #fff; }
-.strip-sell { background: var(--sell); color: #fff; }
+/* Softer banner — muted fill instead of a loud solid block, still legible */
+.strip-buy  { background: color-mix(in srgb, var(--buy)  72%, var(--bg-card)); color: #fff; }
+.strip-sell { background: color-mix(in srgb, var(--sell) 72%, var(--bg-card)); color: #fff; }
 
 .scanner-mini-bar {
   margin-top: 6px;
