@@ -5719,9 +5719,10 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   flex: 1; height: 8px; border-radius: 4px; overflow: hidden;
   background: var(--bg-elevated); display: flex; gap: 1px;
 }
-.gp-bar-bull { background: var(--buy);    height: 100%; transition: width .5s ease; }
+/* Softened, less-saturated fills so the bars aren't a wall of bright green */
+.gp-bar-bull { background: color-mix(in srgb, var(--buy)  70%, var(--bg-elevated)); height: 100%; transition: width .5s ease; }
 .gp-bar-neut { background: var(--border); height: 100%; transition: width .5s ease; }
-.gp-bar-bear { background: var(--sell);   height: 100%; transition: width .5s ease; }
+.gp-bar-bear { background: color-mix(in srgb, var(--sell) 70%, var(--bg-elevated)); height: 100%; transition: width .5s ease; }
 
 .gp-stats {
   display: flex; gap: 8px; font-size: .72rem; font-weight: 700;
