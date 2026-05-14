@@ -2451,12 +2451,12 @@
 
     if (summaryEl) {
       summaryEl.innerHTML = filtered.length
-        ? `<span class="sig-sum-total">${filtered.length} shown</span>` +
-          (buyCount  ? `<span class="sig-sum-item sig-sum-buy">${buyCount} Buy</span>` : '') +
-          (sellCount ? `<span class="sig-sum-item sig-sum-sell">${sellCount} Sell</span>` : '') +
-          (sqzCount  ? `<span class="sig-sum-item sig-sum-sqz">${sqzCount} Squeeze</span>` : '') +
-          (todayCount ? `<span class="sig-sum-item sig-sum-today">${todayCount} Today</span>` : '') +
-          (klCount   ? `<span class="sig-sum-item" style="background:var(--watch-soft);color:var(--watch)">${klCount} Key Lvl</span>` : '')
+        ? `<span class="sig-sum-total" data-sum-filter="all" title="Clear filters">${filtered.length} shown</span>` +
+          (buyCount  ? `<span class="sig-sum-item sig-sum-buy" data-sum-filter="buy" title="Show only Buy">${buyCount} Buy</span>` : '') +
+          (sellCount ? `<span class="sig-sum-item sig-sum-sell" data-sum-filter="sell" title="Show only Sell">${sellCount} Sell</span>` : '') +
+          (sqzCount  ? `<span class="sig-sum-item sig-sum-sqz" data-sum-filter="squeeze" title="Show only Squeeze">${sqzCount} Squeeze</span>` : '') +
+          (todayCount ? `<span class="sig-sum-item sig-sum-today" data-sum-filter="today" title="Show only Today">${todayCount} Today</span>` : '') +
+          (klCount   ? `<span class="sig-sum-item" data-sum-filter="keylvl" title="Show only Key Level" style="background:var(--watch-soft);color:var(--watch)">${klCount} Key Lvl</span>` : '')
         : '';
     }
 
@@ -2654,6 +2654,18 @@
       activeScannerFilter = chip.dataset.filter;
     }
     buildScannerCards();
+  });
+
+  // ── Summary stat pills → tap to apply the matching filter ──
+  // Reuses the existing chip/toggle wiring by triggering their click handlers.
+  document.getElementById('scannerSummary').addEventListener('click', e => {
+    const pill = e.target.closest('[data-sum-filter]');
+    if (!pill) return;
+    const filter = pill.dataset.sumFilter;
+    // 'buy'/'sell'/'all' live on the direction toggle; the rest are context chips
+    const target = document.querySelector(`.sig-dir-btn[data-filter="${filter}"]`)
+                || document.querySelector(`.sig-ctx-chip[data-filter="${filter}"]`);
+    if (target) target.click();
   });
 
   // ── Signal type bottom sheet ──

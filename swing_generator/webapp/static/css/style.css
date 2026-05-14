@@ -1509,12 +1509,17 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 /* Restore horizontal padding in scanner pane */
 #pane-scanner .signal-summary { padding-left: 16px; padding-right: 16px; }
 #pane-scanner .signal-legend  { margin-left: 16px;  margin-right: 16px; }
-.sig-sum-total { color: var(--text-muted); font-weight: 500; }
+.sig-sum-total { color: var(--text-muted); font-weight: 500; cursor: pointer; transition: color .15s; }
+.sig-sum-total:hover { color: var(--text-secondary); }
 .sig-sum-item {
   padding: 2px 8px;
   border-radius: 20px;
   font-weight: 600;
+  cursor: pointer;
+  transition: filter .15s, transform .1s;
 }
+.sig-sum-item:hover  { filter: brightness(1.25); }
+.sig-sum-item:active { transform: scale(.94); }
 .sig-sum-buy   { background: var(--buy-soft);  color: var(--buy); }
 .sig-sum-sell  { background: var(--sell-soft); color: var(--sell); }
 .sig-sum-sqz   { background: rgba(251,191,36,.12); color: #fbbf24; }
