@@ -27,6 +27,7 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
+  let gpViewMode = 'group';   // 'group' | 'region'
   let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
@@ -1218,17 +1219,42 @@
   }
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
+  const GP_REGION_MAP = {
+    'CA Index':'Americas','CAN60':'Americas','NYSE':'Americas',
+    'US Index':'Americas','US100':'Americas','US30':'Americas',
+    'US30/US100':'Americas','US500':'Americas',
+    'AEX':'Europe','EU Index':'Europe','FRA40':'Europe','GER40':'Europe',
+    'IT40':'Europe','OBX':'Europe','OMX30':'Europe','OMXC25':'Europe',
+    'SMI20':'Europe','SPAIN35':'Europe','UK100':'Europe',
+    'Asia Index':'Asia-Pacific','ASX200':'Asia-Pacific','Japan':'Asia-Pacific',
+    'JSE':'Africa',
+    'Commodity':'Commodities','Crypto':'Crypto','Forex':'Forex',
+  };
+
   function renderGroupPulse() {
     const body      = document.getElementById('groupPulseBody');
     const riskBadge = document.getElementById('groupPulseRisk');
+    const toggle    = document.getElementById('gpViewToggle');
+    const title     = document.getElementById('groupPulseTitle');
     if (!body) return;
 
-    // ── Aggregate bull/bear/neutral per group ─────────────────────────────
+    if (toggle) {
+      toggle.textContent = gpViewMode === 'region' ? 'Group' : 'Region';
+      toggle.classList.toggle('gp-view-active', gpViewMode === 'region');
+    }
+    if (title) title.textContent = gpViewMode === 'region' ? 'By Region' : 'By Group';
+
+    // ── Aggregate bull/bear/neutral per group or region ───────────────────
     const INDEX_GROUPS = new Set(['Asia Index','CA Index','EU Index','US Index']);
     const dimMap = {};
     for (const item of allData) {
       const raw = item.group || 'Other';
-      const key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
+      let key;
+      if (gpViewMode === 'region') {
+        key = GP_REGION_MAP[raw] || 'Other';
+      } else {
+        key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
+      }
       if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0 };
       const t = item[f('trend_direction')] || item.trend_direction || 'NEUTRAL';
       if      (t === 'UPTREND')   dimMap[key].bull++;
@@ -1283,9 +1309,10 @@
         </div>`;
     }).join('');
 
-    // ── Row click → filter scanner ────────────────────────────────────────
+    // ── Row click → filter scanner (group mode only) ─────────────────────
     body.querySelectorAll('.gp-row[data-gp-key]').forEach(row => {
       row.addEventListener('click', () => {
+        if (gpViewMode === 'region') return;
         const key = row.dataset.gpKey;
         const sel = document.getElementById('scannerGroupFilter');
         if (sel) sel.value = sel.value === key ? 'all' : key;
@@ -1295,6 +1322,15 @@
         renderGroupPulse();
       });
     });
+
+    // ── Toggle button ─────────────────────────────────────────────────────
+    if (toggle && !toggle._gpBound) {
+      toggle._gpBound = true;
+      toggle.addEventListener('click', () => {
+        gpViewMode = gpViewMode === 'group' ? 'region' : 'group';
+        renderGroupPulse();
+      });
+    }
   }
 
   // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────

@@ -5701,6 +5701,15 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 #groupPulseCard { padding: 0; overflow: hidden; }
 #groupPulseCard .card-header { padding: 14px 16px 10px; margin-bottom: 0; }
 
+.gp-view-toggle {
+  font-size: .68rem; font-weight: 700; padding: 3px 9px;
+  border-radius: 20px; letter-spacing: .04em; cursor: pointer;
+  background: rgba(255,255,255,.06); color: var(--text-muted);
+  border: 1px solid var(--border); transition: background .15s, color .15s;
+}
+.gp-view-toggle:hover { background: rgba(255,255,255,.1); color: var(--text-secondary); }
+.gp-view-toggle.gp-view-active { background: rgba(99,102,241,.18); color: var(--accent); border-color: rgba(99,102,241,.35); }
+
 .gp-risk-badge {
   font-size: .72rem; font-weight: 700; padding: 3px 9px;
   border-radius: 20px; letter-spacing: .04em;

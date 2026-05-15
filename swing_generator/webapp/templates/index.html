@@ -163,8 +163,11 @@
       <!-- Group Pulse -->
       <div class="card" id="groupPulseCard">
         <div class="card-header">
-          <h3>By Group</h3>
-          <span id="groupPulseRisk" class="gp-risk-badge"></span>
+          <h3 id="groupPulseTitle">By Group</h3>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button id="gpViewToggle" class="gp-view-toggle">Region</button>
+            <span id="groupPulseRisk" class="gp-risk-badge"></span>
+          </div>
         </div>
         <div id="groupPulseBody"></div>
       </div>
