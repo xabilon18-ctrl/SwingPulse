@@ -28,6 +28,7 @@
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
   let gpViewMode = 'group';   // 'group' | 'region'
+  let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
   let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
@@ -1281,8 +1282,9 @@
       riskBadge.className   = 'gp-risk-badge ' + (isRiskOn ? 'gp-risk-on' : isRiskOff ? 'gp-risk-off' : 'gp-risk-mixed');
     }
 
-    // ── Active group filter for row highlight ─────────────────────────────
+    // ── Active filter for row highlight ───────────────────────────────────
     const activeGroupVal = document.getElementById('scannerGroupFilter')?.value || 'all';
+    const activeKey      = gpViewMode === 'region' ? activeRegionFilter : activeGroupVal;
 
     body.innerHTML = entries.map(([name, c]) => {
       const total   = c.bull + c.bear + c.neutral || 1;
@@ -1292,7 +1294,7 @@
       const dominant = bullPct > bearPct + 15 ? 'gp-row-bull'
                      : bearPct > bullPct + 15  ? 'gp-row-bear'
                      : 'gp-row-mixed';
-      const isActive = activeGroupVal === name ? ' gp-row-selected' : '';
+      const isActive = activeKey === name ? ' gp-row-selected' : '';
       const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} active buy/sell signal${c.signals>1?'s':''} in this group">${c.signals}</span>` : '';
       return `
         <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}">
@@ -1309,13 +1311,21 @@
         </div>`;
     }).join('');
 
-    // ── Row click → filter scanner (group mode only) ─────────────────────
+    // ── Row click → filter scanner ──────────────────────────────────────
     body.querySelectorAll('.gp-row[data-gp-key]').forEach(row => {
       row.addEventListener('click', () => {
-        if (gpViewMode === 'region') return;
         const key = row.dataset.gpKey;
-        const sel = document.getElementById('scannerGroupFilter');
-        if (sel) sel.value = sel.value === key ? 'all' : key;
+        if (gpViewMode === 'region') {
+          // Region click: toggle the region filter, clear any single-group filter
+          activeRegionFilter = (activeRegionFilter === key) ? '' : key;
+          const sel = document.getElementById('scannerGroupFilter');
+          if (sel) sel.value = 'all';
+        } else {
+          // Group click: toggle the group dropdown, clear any region filter
+          const sel = document.getElementById('scannerGroupFilter');
+          if (sel) sel.value = sel.value === key ? 'all' : key;
+          activeRegionFilter = '';
+        }
         updateScannerCtxStrip?.();
         navigateToTab('scanner');
         buildScannerCards();
@@ -2345,6 +2355,10 @@
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
     if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
+    // Region filter — set by clicking a region row on the By Region card
+    if (activeRegionFilter) {
+      filtered = filtered.filter(d => (GP_REGION_MAP[d.group] || 'Other') === activeRegionFilter);
+    }
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
 
@@ -2773,6 +2787,9 @@
 
   // Apply on every change — Done button just closes the sheet
   function applyAdvFilters() {
+    // Using the advanced filter sheet = explicit filter intent; clear the
+    // implicit region filter so the two don't fight each other.
+    activeRegionFilter = '';
     updateFilterBadge();
     updateScannerCtxStrip();
     buildScannerCards();
@@ -4149,13 +4166,14 @@
     const align = alignSel?.value !== 'all' ? alignSel.value : '';
     const macro = macroEl?.value !== 'all' ? macroEl.value : '';
 
-    if (!grp && !trend && !align && !macro) {
+    if (!grp && !trend && !align && !macro && !activeRegionFilter) {
       strip.style.display = 'none';
       strip.innerHTML = '';
       return;
     }
 
     const pills = [];
+    if (activeRegionFilter) pills.push(`<span class="ctx-pill ctx-pill-group">Region: <strong>${activeRegionFilter}</strong></span>`);
     if (grp)   pills.push(`<span class="ctx-pill ctx-pill-group">Group: <strong>${grp}</strong></span>`);
     if (trend) {
       const lbl = trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral';
@@ -4182,6 +4200,7 @@
       if (macroEl)  macroEl.value  = 'all';
       activeTrendFilter = '';
       activeAlignFilter = '';
+      activeRegionFilter = '';
       buildHeatmapCells();
       renderGroupPulse();
       updateScannerCtxStrip();
