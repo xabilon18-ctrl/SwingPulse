@@ -64,7 +64,6 @@ WATCH_APPROACH_PCT        = 0.015
 MIDPOINT_BOUNCE_PCT       = 0.015
 
 # Wider MA spacing → slightly looser penetration tolerances
-MAX_PENETRATION_1H      = 0.020  # 2.0%  (same as daily — 1H is intraday but not noisy)
 MAX_PENETRATION_4H      = 0.025  # 2.5%  (was 2.0%)
 MAX_PENETRATION_DAILY   = 0.020  # 2.0%  (was 1.5%)
 MAX_PENETRATION_WEEKLY  = 0.030  # 3.0%  (was 2.5%)
@@ -73,7 +72,6 @@ MAX_PENETRATION_MONTHLY = 0.035  # 3.5%  (was 3.0%)
 TOUCH_TOLERANCE_MONTHLY = 0.007  # 0.7%  (was 0.5%)
 
 # Signal lookback — same cadence as original
-SIGNAL_LOOKBACK_1H      = 60    # look back 60 x 1H bars (~1.5 trading weeks)
 SIGNAL_LOOKBACK_4H      = 60
 SIGNAL_LOOKBACK_DAILY   = 20
 SIGNAL_LOOKBACK_WEEKLY  = 12
@@ -150,8 +148,6 @@ OUTPUT_COLUMNS = [
     'macro_sr_signal', 'macro_sr_level', 'macro_sr_strength',
     # ── Multi-timeframe alignment ──
     'tf_alignment', 'tf_alignment_score',
-    # ── 1-Hour ──
-    *_tf_signal_columns('h1_'),
     # ── 4-Hour ──
     *_tf_signal_columns('h4_'),
     # ── Weekly ──

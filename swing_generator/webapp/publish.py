@@ -898,7 +898,6 @@ def build_ui():
 
     base = R2_BASE_URL.rstrip('/')   # profile-aware: R2_PUBLIC_URL or R2_PUBLIC_URL/ma200
     js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
-    js = js.replace("'/api/signals-1h'",   f"'{base}/signals_1h.json'")
     js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
     js = js.replace("'/api/tv-map'",       f"'{base}/tv-map.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
@@ -965,62 +964,13 @@ def deploy_ui_to_pages(ui_dir, project_name=None):
 # CLI
 # ---------------------------------------------------------------------------
 
-def build_data_1h():
-    """
-    Read the latest signals_1h_*.csv and build signals_1h.json.
-    Uploads a single file to ma200/signals_1h.json in R2.
-    Safe to run independently — does not touch daily signals.json.
-    """
-    files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_1h_*.csv')))
-    if not files:
-        print('  [1H] No signals_1h_*.csv found — skipping')
-        return False
-
-    latest   = files[-1]
-    date_str = os.path.basename(latest).replace('signals_1h_', '').replace('.csv', '')
-    from datetime import timezone
-    mtime      = os.path.getmtime(latest)
-    fetched_at = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    df         = pd.read_csv(latest).fillna('')
-
-    payload = {
-        'date':       date_str,
-        'fetched_at': fetched_at,
-        'data':       df.to_dict(orient='records'),
-    }
-
-    tmp_dir  = os.path.join(PUBLISH_DIR, 'data_1h')
-    os.makedirs(tmp_dir, exist_ok=True)
-    out_path = os.path.join(tmp_dir, 'signals_1h.json')
-    with open(out_path, 'w') as fh:
-        json.dump(payload, fh, separators=(',', ':'))
-
-    r2_key = f'{R2_DATA_PREFIX}/signals_1h.json'
-    ok, _  = _r2_put(out_path, r2_key)
-    if ok:
-        print(f'  [1H] ✓ {len(df)} instruments → {r2_key}')
-    else:
-        print(f'  [1H] ✗ Upload failed for {r2_key}')
-    return ok
-
-
 def main():
     parser = argparse.ArgumentParser(description='SwingPulse Publisher')
     parser.add_argument('--build-only', action='store_true',
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
-    parser.add_argument('--timeframe', choices=['daily', '1h'], default='daily',
-                        help='daily = full data build | 1h = upload signals_1h.json only')
     args = parser.parse_args()
-
-    # ── 1H-only publish ───────────────────────────────────────────────────
-    if args.timeframe == '1h':
-        print('Publishing 1H signals to R2... [ma200]')
-        ok = build_data_1h()
-        if not ok:
-            sys.exit(1)
-        return
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
