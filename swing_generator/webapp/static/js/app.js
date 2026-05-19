@@ -477,6 +477,7 @@
   // Returns the correct field name for the active timeframe.
   // Weekly columns are prefixed with 'w_' in the data.
   function f(field) {
+    if (timeframe === '1H') return 'h1_' + field;
     if (timeframe === '4H') return 'h4_' + field;
     if (timeframe === 'W')  return 'w_' + field;
     if (timeframe === 'M')  return 'm_' + field;
@@ -527,7 +528,7 @@
   // ── TradingView Helpers ──────────────────────────────────────────────
   function tvUrl(name) {
     const sym = tvMap[name] || name;
-    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
+    const ivlMap = { '1H': '&interval=60', 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
     const interval = ivlMap[timeframe] || '&interval=D';
     const layout = userTvLayout();
     return `https://www.tradingview.com/chart/${layout ? layout + '/' : ''}?symbol=${encodeURIComponent(sym)}${interval}`;
@@ -548,7 +549,7 @@
   function tvWidgetUrl(name) {
     const sym = tvMap[name] || name;
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const ivl = timeframe === '4H' ? '240' : timeframe === 'W' ? 'W' : timeframe === 'M' ? 'M' : 'D';
+    const ivl = timeframe === '1H' ? '60' : timeframe === 'W' ? 'W' : timeframe === 'M' ? 'M' : timeframe === '4H' ? '240' : 'D';
     return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(sym)}&interval=${ivl}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%5D&theme=${theme}&style=1&timezone=exchange&withdateranges=1&hide_top_toolbar=0&hide_legend=0&allow_symbol_change=0&details=0&calendar=0`;
   }
 
@@ -1580,6 +1581,7 @@
         { code: 'W',  field: 'w_trend_direction',  label: 'W'  },
         { code: 'D',  field: 'trend_direction',    label: 'D'  },
         { code: '4H', field: 'h4_trend_direction', label: '4H' },
+        { code: '1H', field: 'h1_trend_direction', label: '1H' },
       ];
       tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
         let up = 0, dn = 0, nu = 0;
@@ -1612,7 +1614,7 @@
     const s = computeSummary();
 
     // TF badges
-    const tfLabel = timeframe === '4H' ? '4H' : timeframe === 'W' ? 'Weekly' : timeframe === 'M' ? 'Monthly' : 'Daily';
+    const tfLabel = timeframe === '1H' ? '1H' : timeframe === '4H' ? '4H' : timeframe === 'W' ? 'Weekly' : timeframe === 'M' ? 'Monthly' : 'Daily';
     ['chartTfBadge1','chartTfBadge2','chartTfBadge3'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.textContent = tfLabel; el.dataset.tf = timeframe; }
@@ -3163,7 +3165,7 @@
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const levels = parseKeyLevels(item.key_levels_all);
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : 'ma_';
+    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : timeframe === '1H' ? 'h1_ma_' : 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -3365,7 +3367,7 @@
           <div class="mh-section-title">Signal Status</div>
           <div class="modal-status-card ${buy?'status-buy':sell?'status-sell':'status-neutral'}">
             <div class="status-main">${item[f('confirmation_status')]||'No confirmed signal'}${conf?` <span class="badge-confidence conf-${conf}">${conf}</span>`:''}</div>
-            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${item[f('last_signal_days_ago')]}${timeframe==='M'?'m':timeframe==='W'?'w':'d'} ago)</div>`:''}
+            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${item[f('last_signal_days_ago')]}${timeframe==='M'?'m':timeframe==='W'?'w':timeframe==='1H'||timeframe==='4H'?'h':'d'} ago)</div>`:''}
             ${item[f('volume_spike_flag')]==='yes'&&sig?`<div class="status-sub" style="color:var(--volume)">Volume spike on signal bar</div>`:''}
           </div>
         </div>
@@ -3383,6 +3385,7 @@
             ${rsiBarRow('Weekly',  item.w_rsi)}
             ${rsiBarRow('Daily',   item.rsi)}
             ${rsiBarRow('4-Hour',  item.h4_rsi)}
+            ${rsiBarRow('1-Hour',  item.h1_rsi)}
           </div>
         </div>
 
@@ -3933,7 +3936,7 @@
     const webUrl = tvUrl(name);
     // Build tradingview:// deep link with exchange and symbol as separate params
     const tvSym  = tvMap[name] || name;
-    const ivlMap = { 'D': 'D', '4H': '240', 'W': 'W', 'M': 'M' };
+    const ivlMap = { '1H': '60', 'D': 'D', '4H': '240', 'W': 'W', 'M': 'M' };
     const ivl    = ivlMap[timeframe] || 'D';
     const layoutId = userTvLayout();
     let appUrl;
@@ -4453,6 +4456,7 @@
         item.w_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.w_rsi)}">W ${parseFloat(item.w_rsi).toFixed(0)}</span>`   : '',
         item.rsi    ? `<span class="rsi-tf-pip rsi-${rsiZone(item.rsi)}">D ${parseFloat(item.rsi).toFixed(0)}</span>`       : '',
         item.h4_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h4_rsi)}">4H ${parseFloat(item.h4_rsi).toFixed(0)}</span>` : '',
+        item.h1_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h1_rsi)}">1H ${parseFloat(item.h1_rsi).toFixed(0)}</span>` : '',
       ].filter(Boolean).join('');
 
       return `<div class="radar-card" data-act="openModal" data-arg="${item.instrument_name}">

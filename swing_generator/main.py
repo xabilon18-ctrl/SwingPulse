@@ -37,10 +37,10 @@ import _active_config as config
 
 from _active_config import (
     MA_PERIODS, SMALL_MA_RANGE, MACRO_MA_PERIODS, OUTPUT_COLUMNS,
-    MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
+    MAX_PENETRATION_1H, MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
     MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
     TOUCH_TOLERANCE_MONTHLY,
-    SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
+    SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
     SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_MONTHLY,
     ACTIVE_PROFILE,
 )
@@ -360,6 +360,27 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
         ohlcv = df[['Open', 'High', 'Low', 'Close', 'Volume']]
 
+        # ── 1-HOUR (raw hourly data — same rules as daily, aligned to 1H bars) ──
+        # yfinance supplies ~729 days of 1H bars which comfortably covers MA200.
+        h1_data = {}
+        if hourly_df is not None and len(hourly_df) >= 200:
+            h1_df = hourly_df.copy()
+            h1_ma_periods = [p for p in MA_PERIODS if p <= len(h1_df)]
+            if len(h1_ma_periods) >= 3:
+                h1_small = [p for p in SMALL_MA_RANGE if p in h1_ma_periods]
+                if not h1_small:
+                    h1_small = h1_ma_periods[:min(7, len(h1_ma_periods))]
+                h1_df = add_all_indicators(h1_df, ma_periods=h1_ma_periods)
+                h1_df = add_signals(h1_df, ma_periods=h1_ma_periods, small_ma_range=h1_small,
+                                    max_penetration=MAX_PENETRATION_1H)
+                h1_data, _ = _extract_row(
+                    h1_df, run_date, prefix='h1_',
+                    ma_periods=h1_ma_periods,
+                    signal_lookback=SIGNAL_LOOKBACK_1H,
+                )
+                if h1_data is None:
+                    h1_data = {}
+
         # ── 4-HOUR (from hourly data) ──
         # Clip MA periods to what fits in the available 4H bar count (~2yr of hourly).
         h4_data = {}
@@ -435,6 +456,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             'industry':         inst_meta.get('industry', ''),
             **daily_data,
             **kl,
+            **(h1_data or {}),
             **(h4_data or {}),
             **(weekly_data or {}),
             **(monthly_data or {}),
