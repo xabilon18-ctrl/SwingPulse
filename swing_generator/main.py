@@ -475,6 +475,81 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         return None, []
 
 
+def process_instrument_1h(ticker: str, hourly_df: pd.DataFrame,
+                          inst_meta: dict, run_date: date) -> Optional[dict]:
+    """
+    Run the 1H-only pipeline on raw hourly bars.
+    Same signal rules as daily — just aligned to 1-hour bars.
+    Returns a row dict with h1_ prefix, or None on failure.
+    """
+    try:
+        if hourly_df is None or len(hourly_df) < 200:
+            return None
+
+        h1_df = hourly_df.copy()
+        h1_ma_periods = [p for p in MA_PERIODS if p <= len(h1_df)]
+        if len(h1_ma_periods) < 3:
+            return None
+
+        h1_small = [p for p in SMALL_MA_RANGE if p in h1_ma_periods]
+        if not h1_small:
+            h1_small = h1_ma_periods[:min(7, len(h1_ma_periods))]
+
+        h1_df = add_all_indicators(h1_df, ma_periods=h1_ma_periods)
+        h1_df = add_signals(h1_df, ma_periods=h1_ma_periods, small_ma_range=h1_small,
+                            max_penetration=MAX_PENETRATION_1H)
+        h1_data, _ = _extract_row(
+            h1_df, run_date, prefix='h1_',
+            ma_periods=h1_ma_periods,
+            signal_lookback=SIGNAL_LOOKBACK_1H,
+        )
+        if h1_data is None:
+            return None
+
+        return {
+            'instrument_name': inst_meta['name'],
+            'group':           inst_meta.get('group', ''),
+            'sector':          inst_meta.get('sector', ''),
+            'industry':        inst_meta.get('industry', ''),
+            **h1_data,
+        }
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
+def _process_worker_1h(args: tuple) -> tuple:
+    """
+    Multiprocessing worker for the 1H-only pipeline.
+    Reads only the hourly parquet cache — no daily data needed.
+    Returns (ticker, row_dict, status_str).
+    """
+    ticker, inst_meta, run_date = args
+    try:
+        _dir = os.path.dirname(os.path.abspath(__file__))
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+
+        from data_fetcher import _cache_path
+
+        h_path = _cache_path(ticker, suffix='1h')
+        if not os.path.exists(h_path):
+            return ticker, None, 'no 1h cache'
+
+        h_df = pd.read_parquet(h_path)
+        row  = process_instrument_1h(ticker, h_df, inst_meta, run_date)
+
+        if row:
+            primary = row.get('h1_primary_signal', '')
+            status  = row.get('h1_confirmation_status', '')
+            tag     = f' [{primary}]' if primary else ''
+            return ticker, row, f'{status}{tag}'.strip()
+
+        return ticker, None, 'no 1h data'
+    except Exception as exc:
+        return ticker, None, f'ERROR: {exc}'
+
+
 def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
     """
     Scan backwards from today's row to find the most recent primary
@@ -584,6 +659,72 @@ def _process_worker(args: tuple) -> tuple:
 # Main
 # ---------------------------------------------------------------------------
 
+def run_1h(args, instruments, inst_by_tick, run_date):
+    """
+    1H-only pipeline: fetch hourly data, compute 1H signals, publish to R2.
+    Completely independent of the daily run — safe to run anytime.
+    """
+    import json as _json
+
+    print('  Fetching hourly market data (1H pipeline) ...\n')
+    fetch_all_hourly(instruments, force_refresh=args.refresh)
+
+    worker_args = [
+        (inst['ticker'], inst_by_tick.get(inst['ticker'], {'name': inst['ticker']}), run_date)
+        for inst in instruments
+    ]
+
+    rows      = []
+    total     = len(worker_args)
+    done      = 0
+    n_workers = min(os.cpu_count() or 4, 8)
+
+    print(f'  Computing 1H signals ({n_workers} parallel workers) ...\n')
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {executor.submit(_process_worker_1h, a): a[0] for a in worker_args}
+        for future in concurrent.futures.as_completed(futures):
+            ticker, row, status_str = future.result()
+            done += 1
+            print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
+            if row:
+                rows.append(row)
+
+    if not rows:
+        print('\n  No 1H rows generated.')
+        sys.exit(1)
+
+    output_df = pd.DataFrame(rows)
+    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(config.OUTPUT_DIR, f'signals_1h_{run_date}.csv')
+    output_df.to_csv(out_path, index=False)
+    print(f'\n  1H signals: {out_path} ({len(output_df)} instruments)')
+
+    # Publish 1H signals to R2 (separate key — doesn't touch daily signals.json)
+    print('\n  Publishing 1H signals to R2 ...\n')
+    try:
+        publish_cmd = [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py'),
+            '--timeframe', '1h',
+        ]
+        result = subprocess.run(
+            publish_cmd,
+            cwd=os.path.dirname(__file__),
+            env={**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')},
+            timeout=120,
+        )
+        if result.returncode == 0:
+            print('\n  ✓ 1H signals published to R2!')
+        else:
+            print('\n  [Publish] 1H R2 upload failed.')
+            sys.exit(result.returncode)
+    except subprocess.TimeoutExpired:
+        print('\n  [Publish] Timed out after 2 min.')
+        sys.exit(1)
+
+    print(f'\n  Done — 1H run {run_date}\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Swing Trading Signal Generator')
     parser.add_argument('--refresh', action='store_true',
@@ -592,6 +733,8 @@ def main():
                         help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--profile', type=str, default='default',
                         help='Config profile: default | ma200')
+    parser.add_argument('--timeframe', choices=['daily', '1h'], default='daily',
+                        help='Which timeframe to run: daily (full pipeline) | 1h (hourly-only, fast)')
     args = parser.parse_args()
 
     run_date = (
@@ -608,6 +751,11 @@ def main():
     instruments  = load_instruments()
     inst_by_tick = instruments_by_ticker()
     print(f'\n  Instruments loaded: {len(instruments)}\n')
+
+    # ── 1H-only path — fast, independent, safe to run anytime ────────────
+    if args.timeframe == '1h':
+        run_1h(args, instruments, inst_by_tick, run_date)
+        return
 
     # 2. Fetch / load data
     print('  Fetching daily market data ...\n')

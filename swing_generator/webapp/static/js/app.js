@@ -74,7 +74,9 @@
 
   let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
   let charts = {};
-  let timeframe = 'D';      // 'D' = daily, 'W' = weekly
+  let timeframe = 'D';      // 'D' = daily, 'W' = weekly, '1H' = hourly
+  let cachedDailyData = null; // saved copy of allData when switching into 1H mode
+  let allData1h = [];         // 1H signal rows — lazy-loaded on first 1H switch
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
@@ -577,8 +579,22 @@
     btn.classList.toggle('active', btn.dataset.tf === timeframe);
   });
 
-  function setTimeframe(tf) {
+  async function load1hData() {
+    if (allData1h.length) return; // already loaded
+    try {
+      const res  = await fetch('/api/signals-1h');
+      const json = await res.json();
+      allData1h  = json.data || [];
+    } catch (e) {
+      console.error('[1H] Failed to load 1H signals:', e);
+    }
+  }
+
+  async function setTimeframe(tf) {
     if (tf === timeframe) return;
+    const was1H   = timeframe === '1H';
+    const going1H = tf === '1H';
+
     // Preserve scroll + scanner pagination across TF switch so the user
     // doesn't get bounced to page 1 / scroll 0 every time they toggle.
     const savedScroll = window.scrollY;
@@ -586,6 +602,16 @@
     timeframe = tf;
     localStorage.setItem('swingpulse-tf', timeframe);
     tfToggle.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === timeframe));
+
+    // Swap dataset when entering/leaving 1H mode
+    if (going1H) {
+      if (!cachedDailyData) cachedDailyData = allData.slice();
+      await load1hData();
+      allData = allData1h;
+    } else if (was1H && cachedDailyData) {
+      allData = cachedDailyData;
+    }
+
     renderAll();
     if (savedPage > 1) {
       scannerPage = savedPage;
@@ -4215,7 +4241,16 @@
   updateSyncBadge();
   if (!syncUser) showUserPicker();
   // Initial load — pull watchlist sync after data is ready
-  loadAll().then(() => { if (syncUser) syncPull(); });
+  loadAll().then(async () => {
+    // If the user had 1H mode saved, swap to 1H data after daily load
+    if (timeframe === '1H') {
+      cachedDailyData = allData.slice();
+      await load1hData();
+      allData = allData1h;
+      renderAll();
+    }
+    if (syncUser) syncPull();
+  });
 
   // ── Auto-refresh every 4 hours (matches CI pipeline cadence) ────────
   // Silently re-fetches all data in the background; if the page is hidden
@@ -4224,6 +4259,14 @@
   setInterval(async () => {
     if (document.visibilityState === 'hidden') return; // skip while backgrounded
     await loadAll();
+    // If in 1H mode, refresh 1H data too and keep the swap in place
+    if (timeframe === '1H') {
+      cachedDailyData = allData.slice();
+      allData1h = []; // force re-fetch
+      await load1hData();
+      allData = allData1h;
+      renderAll();
+    }
     if (syncUser) await syncPull();
   }, AUTO_REFRESH_MS);
 
