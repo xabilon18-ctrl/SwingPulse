@@ -56,7 +56,7 @@ TV_LAYOUTS = {
 sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments
-from server import build_tv_map, get_ticker_map, _ticker_to_filename
+from server import build_tv_map, build_ai_set, get_ticker_map, _ticker_to_filename
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +607,10 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'tv-map.json'), 'w') as f:
         json.dump(tv_map, f, separators=(',', ':'))
 
+    ai_set = build_ai_set()
+    with open(os.path.join(output_dir, 'ai-instruments.json'), 'w') as f:
+        json.dump(ai_set, f, separators=(',', ':'))
+
     trends = load_latest_trends(dt, src_dir=src_signals_dir)
     with open(os.path.join(output_dir, 'trends.json'), 'w') as f:
         json.dump(trends, f, separators=(',', ':'))
@@ -801,8 +805,8 @@ def upload_to_r2(data_dir, max_workers=16, retries=2, r2_prefix=''):
     files = []
 
     # Core data files
-    for fname in ['signals.json', 'summary.json', 'tv-map.json', 'trends.json',
-                  'explanations.json', 'events.json', 'names.json',
+    for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
+                  'trends.json', 'explanations.json', 'events.json', 'names.json',
                   'backtest.json', 'portfolio.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
@@ -899,7 +903,8 @@ def build_ui():
     base = R2_BASE_URL.rstrip('/')   # profile-aware: R2_PUBLIC_URL or R2_PUBLIC_URL/ma200
     js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
     js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
-    js = js.replace("'/api/tv-map'",       f"'{base}/tv-map.json'")
+    js = js.replace("'/api/tv-map'",          f"'{base}/tv-map.json'")
+    js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/events'",       f"'{base}/events.json'")

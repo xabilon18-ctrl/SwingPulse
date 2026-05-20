@@ -19,6 +19,8 @@
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let portfolioData = null;  // XM account data from Gmail parser
   let tvMap = {};            // instrument_name → TradingView symbol
+  let aiSet = new Set();     // instruments with AI exposure
+  let aiFilterActive = false;
   let currentTab = 'dashboard';
   let activeHeatmapGroup = 'all';
   let activeStatFilter = '';      // stat card rearrange filter
@@ -141,6 +143,8 @@
     const overlay = document.getElementById('userPickerOverlay');
     if (overlay) overlay.style.display = 'flex';
   }
+
+  window.toggleAIFilter = toggleAIFilter;   // exposed for nav button onclick
 
   window.SP_setUser = function(name) {
     syncUser = name.toLowerCase();
@@ -488,6 +492,32 @@
   // "Neutral — transitioning (rising ribbon)"  → UPTREND
   // "Neutral — transitioning (declining ribbon)" → DOWNTREND
   // Everything else stays as the raw trend_direction value.
+  // ── AI filter helpers ────────────────────────────────────────────────────
+  function isAI(name) { return aiSet.has(name); }
+
+  // Returns allData filtered by the global AI toggle (and nothing else)
+  function getActiveData() {
+    return aiFilterActive ? allData.filter(d => isAI(d.instrument_name)) : allData;
+  }
+
+  function toggleAIFilter() {
+    aiFilterActive = !aiFilterActive;
+    document.getElementById('aiFilterBtn')?.classList.toggle('ai-filter-active', aiFilterActive);
+    // Re-render current tab + summary
+    computeAndRenderSummary();
+    renderCurrentTab();
+  }
+
+  function renderCurrentTab() {
+    const tab = currentTab;
+    if (tab === 'dashboard')  renderDashboard();
+    else if (tab === 'scanner')  renderScanner();
+    else if (tab === 'radar')    renderRadar();
+    else if (tab === 'trends')   renderTrendsLazy();
+    else if (tab === 'watchlist') renderWatchlist();
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   function effectiveTrend(item) {
     const td = item[f('trend_direction')] || '';
     if (td === 'UPTREND' || td === 'DOWNTREND') return td;
@@ -499,7 +529,7 @@
 
   // Compute summary stats client-side from the active timeframe fields
   function computeSummary() {
-    const data = allData;
+    const data = getActiveData();
     if (!data.length) return summaryData;
 
     const total = data.length;
@@ -739,10 +769,11 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, trendsRes, explRes, evRes, namesRes, btRes, pfRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, pfRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()),
         fetch('/api/summary').then(r => r.json()),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
+        fetch('/api/ai-instruments').then(r => r.json()).catch(() => []),
         fetch('/api/trends').then(r => r.json()).catch(() => ({})),
         fetch('/api/explanations').then(r => r.json()).catch(() => ({})),
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
@@ -754,6 +785,7 @@
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
       summaryData = sumRes;
       tvMap = tvRes || {};
+      aiSet = new Set(aiRes || []);
       trendsData = trendsRes || {};
       explanationsData = explRes || {};
       eventsData = evRes.events || [];
@@ -2335,6 +2367,7 @@
   function mapGroup(g) { return INDEX_GROUPS.has(g) ? 'Indices' : g; }
 
   function renderScanner() {
+    const allData = getActiveData(); // respect AI filter
     const rawGroups = summaryData.groups || [];
     const groups = [...new Set(rawGroups.map(mapGroup))].sort();
     const groupSelect = document.getElementById('scannerGroupFilter');
@@ -2840,6 +2873,7 @@
   }
 
   function renderWlMyList() {
+    const allData = getActiveData(); // respect AI filter
     const listEl  = document.getElementById('wlMyList');
     const statsEl = document.getElementById('wlStats');
     if (!listEl) return;
@@ -2939,6 +2973,7 @@
   }
 
   function renderWlAlerts() {
+    const allData = getActiveData(); // respect AI filter
     const listEl = document.getElementById('wlAlertsList');
     if (!listEl) return;
 
@@ -3693,6 +3728,7 @@
 
   // ── Trends Tab — Instrument Card Grid ────────────────────────────────
   function buildTrendsCards() {
+    const allData = getActiveData(); // respect AI filter
     const grid = document.getElementById('trendsCardGrid');
     if (!grid) return;
     const search   = (document.getElementById('trendsSearch')?.value || '').toLowerCase();
@@ -3721,15 +3757,21 @@
       const upDays     = upSegs.reduce((a,s) => a+s.days, 0);
       const upPct      = totalDays ? Math.round(upDays/totalDays*100) : 50;
       const established = d[f('established_trend')] || d[f('trend_direction')] || '';
-      const runDays    = parseInt(d[f('trend_run_days')]) || (currentSeg ? currentSeg.days : 0);
+      const runDays    = currentSeg ? currentSeg.days : (parseInt(d[f('trend_run_days')]) || 0);
       const isUp       = established === 'UPTREND';
       const isDown     = established === 'DOWNTREND';
       const avgCurrent = isUp ? avgUp : isDown ? avgDown : 0;
       const pctOfAvg   = avgCurrent ? Math.round(runDays / avgCurrent * 100) : 0;
       const maturity   = pctOfAvg >= 150 ? 'Extended' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
       const move       = currentSeg?.pct_move ?? null;
+      const signal     = d[f('signal_type')] || d[f('signal')] || '';
+      const close      = parseFloat(d[f('close')]) || null;
+      const volSpike   = d[f('volume_spike_flag')] === 'yes';
+      // Last 8 segments for the history strip (segs is newest-first; reverse for L→R display)
+      const histSegs   = segs.slice(0, 8).reverse();
       return { name: d.instrument_name, group: d.group||'', established, runDays,
-               avgCurrent, pctOfAvg, maturity, upPct, currentSeg, move, hasData: segs.length > 0 };
+               avgCurrent, pctOfAvg, maturity, upPct, currentSeg, move, hasData: segs.length > 0,
+               signal, close, volSpike, histSegs };
     });
 
     // Filter
@@ -3742,11 +3784,31 @@
     // Sort
     if      (sortVal === 'run_desc')   items.sort((a,b) => b.runDays - a.runDays);
     else if (sortVal === 'run_asc')    items.sort((a,b) => a.runDays - b.runDays);
+    else if (sortVal === 'up_age_desc') items.sort((a,b) => {
+      const aD = a.established==='UPTREND' ? a.runDays : -1;
+      const bD = b.established==='UPTREND' ? b.runDays : -1;
+      return bD - aD;
+    });
+    else if (sortVal === 'up_age_asc') items.sort((a,b) => {
+      const aD = a.established==='UPTREND' ? a.runDays : Infinity;
+      const bD = b.established==='UPTREND' ? b.runDays : Infinity;
+      return aD - bD;
+    });
+    else if (sortVal === 'dn_age_desc') items.sort((a,b) => {
+      const aD = a.established==='DOWNTREND' ? a.runDays : -1;
+      const bD = b.established==='DOWNTREND' ? b.runDays : -1;
+      return bD - aD;
+    });
+    else if (sortVal === 'dn_age_asc') items.sort((a,b) => {
+      const aD = a.established==='DOWNTREND' ? a.runDays : Infinity;
+      const bD = b.established==='DOWNTREND' ? b.runDays : Infinity;
+      return aD - bD;
+    });
     else if (sortVal === 'up_first')   items.sort((a,b) => (b.established==='UPTREND')-(a.established==='UPTREND'));
     else if (sortVal === 'down_first') items.sort((a,b) => (b.established==='DOWNTREND')-(a.established==='DOWNTREND'));
     else if (sortVal === 'alpha')      items.sort((a,b) => a.name.localeCompare(b.name));
 
-    grid.innerHTML = items.map(d => {
+    grid.innerHTML = items.map((d, idx) => {
       const isUp   = d.established === 'UPTREND';
       const isDown = d.established === 'DOWNTREND';
       const color       = isUp ? 'var(--buy)' : isDown ? 'var(--sell)' : 'var(--neutral)';
@@ -3756,11 +3818,36 @@
       const matIcon     = d.pctOfAvg >= 150 ? '⚠' : d.pctOfAvg >= 80 ? '◑' : '●';
       const since       = d.currentSeg ? `since ${d.currentSeg.start}` : '';
       const moveStr     = d.move !== null ? `<span class="tc-move" style="color:${d.move>=0?'var(--buy)':'var(--sell)'}">${d.move>=0?'+':''}${d.move}%</span>` : '';
+      const extAttr     = d.maturity === 'Extended' ? ' data-extended' : '';
+      const delay       = `animation-delay:${(idx * 0.022).toFixed(3)}s`;
+      const matFill     = d.avgCurrent ? Math.min(d.pctOfAvg, 150) / 1.5 : 0; // 0–100% of bar
 
-      return `<div class="trend-card" data-name="${d.name}">
+      // Signal badge
+      const sig = (d.signal || '').toLowerCase();
+      const isBuy  = sig.includes('buy');
+      const isSell = sig.includes('sell');
+      const isWatch= sig.includes('watch');
+      const sigColor = isBuy ? 'var(--buy)' : isSell ? 'var(--sell)' : isWatch ? 'var(--watch)' : 'var(--text-muted)';
+      const sigLabel = isBuy ? '▲ Buy' : isSell ? '▼ Sell' : isWatch ? '◆ Watch' : 'No signal';
+      const priceStr = d.close ? `<span class="tc-price">${d.close < 10 ? d.close.toFixed(3) : d.close < 1000 ? d.close.toFixed(2) : d.close.toFixed(0)}</span>` : '';
+      const volDot   = d.volSpike ? `<span class="tc-vol-dot" title="Volume spike">VOL</span>` : '';
+
+      // Mini history strip
+      const histTotal = d.histSegs.reduce((a,s) => a+s.days, 0);
+      const histHtml  = d.histSegs.length >= 2
+        ? `<div class="tc-hist-strip">${d.histSegs.map(s => {
+            const pct = histTotal ? (s.days/histTotal*100).toFixed(1) : '12.5';
+            const hc  = s.direction === 'UPTREND' ? 'var(--buy)' : 'var(--sell)';
+            return `<div class="tc-hist-seg" style="flex:${s.days};background:${hc}" title="${s.direction === 'UPTREND' ? '↑' : '↓'} ${s.days}d"></div>`;
+          }).join('')}</div>` : '';
+
+      const aiTag = isAI(d.name) ? `<span class="tc-ai-badge">⚡ AI</span>` : '';
+      const aiAttr = isAI(d.name) ? ' data-ai' : '';
+
+      return `<div class="trend-card" data-name="${d.name}"${extAttr}${aiAttr} style="--tc:${color};${delay}">
         <div class="tc-header">
           <div class="tc-name-wrap">
-            <span class="tc-name">${d.name}</span>
+            <span class="tc-name">${d.name}${aiTag}</span>
             <span class="tc-group">${d.group}</span>
           </div>
           <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
@@ -3770,10 +3857,16 @@
           <div class="tc-since">${since}</div>
           ${moveStr}
         </div>
+        <div class="tc-signal-row">
+          <span class="tc-sig-label" style="color:${sigColor}">${sigLabel}</span>
+          <div style="display:flex;align-items:center;gap:5px">${volDot}${priceStr}</div>
+        </div>
         ${d.avgCurrent ? `<div class="tc-meta-row">
           <span class="tc-mat" style="color:${matColor}">${matIcon} ${d.maturity}</span>
           <span class="tc-avg">avg ${d.avgCurrent}d &middot; <span style="color:${matColor}">${d.pctOfAvg}%</span></span>
-        </div>` : ''}
+        </div>
+        <div class="tc-mat-bar"><div class="tc-mat-fill" style="width:${matFill.toFixed(1)}%"></div></div>` : ''}
+        ${histHtml}
         ${d.hasData ? `<div class="tc-ratio-bar">
           <div class="tc-rb-up" style="width:${d.upPct}%"></div>
           <div class="tc-rb-down" style="width:${100-d.upPct}%"></div>
@@ -4425,6 +4518,7 @@
   }
 
   function renderRadar() {
+    const allData = getActiveData(); // respect AI filter
     const el = document.getElementById('pane-radar');
     if (!el || !allData.length) return;
     wireRadarOnce(el);

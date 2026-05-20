@@ -145,6 +145,13 @@ _TV_BY_NAME: dict[str, str] = {
     'ORCL':  'NYSE:ORCL',
     'TSM':   'NYSE:TSM',
     'UBER':  'NYSE:UBER',
+    'ANET':  'NYSE:ANET',
+    'DELL':  'NYSE:DELL',
+    'NET':   'NYSE:NET',
+    'NOW':   'NYSE:NOW',
+    'SNOW':  'NYSE:SNOW',
+    'WOLF':  'NYSE:WOLF',
+    'STM':   'NYSE:STM',
 
     # ── German stocks with _DE display-name suffix ──
     'SAP_DE':  'XETR:SAP',
@@ -279,7 +286,7 @@ _TV_BY_NAME: dict[str, str] = {
     'XTZUSDT':   'BINANCE:XTZUSDT',
 
     # ── UK stocks — special name overrides ──
-    'BT_A':      'LSE:BT.A',
+    'BT_A':      'LSE:BT',
     'BAE':       'LSE:BA',
     'RR_UK':     'LSE:RR',
     'NG_UK':     'LSE:NG',
@@ -315,15 +322,9 @@ _TV_BY_NAME: dict[str, str] = {
     'SOL_ZA':    'JSE:SOL',
     'DSY_ZA':    'JSE:DSY',
 
-    # ── Scandinavian stocks — name overrides (hyphenated tickers) ──
-    'VOLVB':     'STO:VOLV-B',
-    'ERICB':     'STO:ERIC-B',
-    'HMB':       'STO:HM-B',
-    'SWEDA':     'STO:SWED-A',
-    'SEBA':      'STO:SEB-A',
-    'ATCOA':     'STO:ATCO-A',
-    'NOVOB':     'CPH:NOVO-B',
-    'MAERSKB':   'CPH:MAERSK-B',
+    # ── Scandinavian stocks — auto-rule handles .ST → STO:{name} and .CO → CPH:{name} ──
+    # (No overrides needed; display names VOLVB, ERICB, HMB, SWEDA, SEBA, ATCOA, NOVOB, MAERSKB
+    #  are already the correct TradingView symbols without dashes)
 
     # ── Indices (additional) ──
     'SOX':   'NASDAQ:SOX',
@@ -500,6 +501,99 @@ _NYSE_SET = {
     'TRV','DIS','CAT','NKE','JNJ','VZ','MCD','MRK','MMM','UNH','WMT','BUD',
 }
 
+# ---------------------------------------------------------------------------
+# Artificial Intelligence universe — instruments with material AI exposure
+# Add new names here; they get picked up automatically by the app.
+# ---------------------------------------------------------------------------
+_AI_INSTRUMENTS: set[str] = {
+    # ── AI Chips & Fabless Silicon ──
+    'NVDA',   # NVIDIA — dominant AI GPU
+    'AMD',    # AI GPUs & CPUs
+    'AVGO',   # Broadcom — AI networking ASICs
+    'ARM',    # ARM Holdings — AI chip architecture
+    'MRVL',   # Marvell — AI networking chips
+    'INTC',   # Intel — Gaudi AI accelerators
+    'ON',     # ON Semiconductor — AI edge chips
+    'QCOM',   # Qualcomm — edge AI / NPUs
+    'NXPI',   # NXP — automotive AI silicon
+    'STM',    # STMicroelectronics — edge AI
+    'MPWR',   # Monolithic Power Systems — AI power delivery
+    'AMBA',   # Ambarella — AI edge vision chips
+
+    # ── AI Server & Data-Centre Hardware ──
+    'SMCI',   # Super Micro Computer — AI server racks
+    'DELL',   # Dell — AI server infrastructure
+    'ANET',   # Arista Networks — AI data-centre networking
+    'CSCO',   # Cisco — AI networking
+    'IBM',    # IBM — Watson AI / Granite models
+
+    # ── Chip Design Tools (EDA) ──
+    'CDNS',   # Cadence Design Systems
+    'SNPS',   # Synopsys
+
+    # ── Semiconductor Equipment (AI supply chain) ──
+    'ASML',       # ASML — EUV lithography, essential for AI chips
+    'AMAT',       # Applied Materials — wafer processing
+    'LRCX',       # Lam Research — etch & deposition
+    'KLAC',       # KLA Corporation — chip inspection
+    'ENTG',       # Entegris — semiconductor materials
+    'TOKYOELEC',  # Tokyo Electron — semiconductor equipment
+    'BESI',       # BE Semiconductor — advanced AI chip packaging (AEX)
+    'TER',        # Teradyne — chip testing equipment
+
+    # ── AI Mega-caps & Cloud AI Platforms ──
+    'MSFT',   # Microsoft — Azure AI, OpenAI partnership
+    'GOOGL',  # Alphabet — Gemini, DeepMind
+    'GOOG',   # Alphabet Class C
+    'META',   # Meta — Llama, AI research
+    'AMZN',   # Amazon — AWS Bedrock, Trainium
+    'TSLA',   # Tesla — FSD, Dojo, Optimus robot
+    'AAPL',   # Apple — Apple Intelligence, CoreML
+
+    # ── AI Data, Analytics & Observability ──
+    'PLTR',   # Palantir — AI analytics & AIP
+    'SNOW',   # Snowflake — AI data platform
+    'DDOG',   # Datadog — AI observability
+    'NET',    # Cloudflare — Workers AI / edge inference
+
+    # ── AI Enterprise Software ──
+    'CRM',    # Salesforce — Einstein AI
+    'NOW',    # ServiceNow — Now Assist AI
+    'WDAY',   # Workday — AI HR & Finance
+    'INTU',   # Intuit — AI fintech (Intuit Assist)
+    'ADBE',   # Adobe — Firefly AI creative
+    'ORCL',   # Oracle — AI database / OCI
+    'SAP_DE', # SAP — Joule AI copilot
+
+    # ── AI Cybersecurity ──
+    'CRWD',   # CrowdStrike — AI endpoint security
+    'PANW',   # Palo Alto Networks — AI SASE
+    'ZS',     # Zscaler — AI zero-trust
+    'APP',    # AppLovin — AI ad optimisation engine
+
+    # ── AI Robotics & Industrial Automation ──
+    'SOFTBANK',  # SoftBank — AI Vision Fund, ARM owner
+    'KEYENCE',   # Keyence — AI machine vision & sensors
+    'FANUC',     # Fanuc — AI robotics & CNC
+
+    # ── AI Industrial / Enterprise (Europe) ──
+    'SIE',    # Siemens — Industrial AI & digital twin
+    'IFX',    # Infineon — AI automotive & industrial chips
+    'CAP_FR', # Capgemini — AI consulting & transformation
+    'DSY',    # Dassault Systèmes — AI simulation & PLM
+    'ERICB',  # Ericsson — AI-enabled 5G networks
+
+    # ── AI Data & Analytics (UK/Europe) ──
+    'EXPN',   # Experian — AI credit & data analytics
+    'RELX',   # RELX — AI legal & scientific analytics
+    'LSEG',   # London Stock Exchange Group — AI market data
+}
+
+
+def build_ai_set() -> list[str]:
+    """Return sorted list of AI-flagged instrument names."""
+    return sorted(_AI_INSTRUMENTS)
+
 
 def build_tv_map() -> dict[str, str]:
     """Return display-name → TradingView symbol mapping.
@@ -603,9 +697,8 @@ def build_tv_map() -> dict[str, str]:
             result[name] = f'FX:{name}'
             continue
 
-        # 4. Remaining (NASDAQ-listed US stocks, etc.) — no prefix needed,
-        #    TradingView auto-resolves these correctly.
-        result[name] = name
+        # 4. Remaining US stocks — default to NASDAQ (NYSE ones are in _TV_BY_NAME)
+        result[name] = f'NASDAQ:{name}'
 
     return result
 
@@ -711,6 +804,12 @@ def api_ticker_map():
 def api_tv_map():
     """Return display-name → TradingView symbol mapping."""
     return jsonify(build_tv_map())
+
+
+@app.route('/api/ai-instruments')
+def api_ai_instruments():
+    """Return sorted list of AI-flagged instrument names."""
+    return jsonify(build_ai_set())
 
 
 @app.route('/api/history/<name>')

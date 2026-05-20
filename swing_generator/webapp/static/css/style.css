@@ -2554,6 +2554,15 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .trends-filter-row .select-input { flex: 1; font-size: .75rem; padding: 6px 8px; }
 
 /* ── Trends Tab — Card Grid ── */
+@keyframes tcFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes tcExtPulse {
+  0%, 100% { box-shadow: var(--shadow), 0 0 0 0 color-mix(in srgb, var(--tc, var(--sell)) 0%, transparent); }
+  50%       { box-shadow: var(--shadow), 0 0 0 4px color-mix(in srgb, var(--tc, var(--sell)) 22%, transparent); }
+}
+
 .trends-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
@@ -2562,15 +2571,24 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .trend-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--tc, var(--border));
   border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  transition: border-color var(--transition), transform var(--transition);
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  animation: tcFadeIn .35s ease both;
 }
-.trend-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.trend-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--tc, var(--accent)) 30%, transparent);
+  border-left-color: var(--tc, var(--accent));
+}
+.trend-card[data-extended] {
+  animation: tcFadeIn .35s ease both, tcExtPulse 2.2s ease-in-out 0.5s infinite;
+}
 
 /* Card header: name/group + badge */
 .tc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -2578,14 +2596,14 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .tc-name { display: block; font-size: .88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-group { display: block; font-size: .68rem; color: var(--text-muted); margin-top: 2px; }
 .tc-badge { font-size: .65rem; font-weight: 700; padding: 3px 7px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
-.tc-badge-up      { background: color-mix(in srgb, var(--buy) 15%, transparent);  color: var(--buy); }
-.tc-badge-down    { background: color-mix(in srgb, var(--sell) 15%, transparent); color: var(--sell); }
+.tc-badge-up      { background: color-mix(in srgb, var(--buy) 18%, transparent);  color: var(--buy); }
+.tc-badge-down    { background: color-mix(in srgb, var(--sell) 18%, transparent); color: var(--sell); }
 .tc-badge-neutral { background: var(--bg-hover); color: var(--text-muted); }
 
 /* Card body: days count */
 .tc-body { display: flex; flex-direction: column; gap: 2px; }
-.tc-days { font-size: 2rem; font-weight: 800; line-height: 1; }
-.tc-days-unit { font-size: 1rem; font-weight: 600; margin-left: 2px; }
+.tc-days { font-size: 2.2rem; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+.tc-days-unit { font-size: .95rem; font-weight: 600; margin-left: 3px; opacity: .7; }
 .tc-since { font-size: .7rem; color: var(--text-muted); }
 .tc-move  { font-size: .75rem; font-weight: 600; margin-top: 2px; }
 
@@ -2594,10 +2612,94 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .tc-mat { font-weight: 600; }
 .tc-avg { color: var(--text-muted); }
 
+/* Maturity progress bar — shows run vs average */
+.tc-mat-bar {
+  height: 3px;
+  background: var(--bg-hover);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: -2px;
+}
+.tc-mat-fill {
+  height: 100%;
+  background: var(--tc, var(--neutral));
+  border-radius: 3px;
+  opacity: .75;
+}
+
+/* ── AI badge on trend cards ── */
+.tc-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .5px;
+  color: #a78bfa;
+  background: rgba(139,92,246,.18);
+  border: 1px solid rgba(139,92,246,.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* AI cards get a faint violet left-border accent */
+.trend-card[data-ai] { --tc-ai: #8b5cf6; }
+.trend-card[data-ai] { border-left-color: var(--tc-ai) !important; }
+
+/* ── Global AI filter button (nav) ── */
+.ai-filter-btn {
+  color: #a78bfa !important;
+}
+.ai-filter-btn.ai-filter-active {
+  background: rgba(139,92,246,.18) !important;
+  color: #c4b5fd !important;
+  border-top: 2px solid #8b5cf6 !important;
+}
+.ai-filter-btn.ai-filter-active span {
+  font-weight: 800;
+}
+
+/* Signal row */
+.tc-signal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  font-size: .72rem;
+}
+.tc-sig-label { font-weight: 700; }
+.tc-price     { font-weight: 600; color: var(--text-secondary); font-size: .72rem; }
+.tc-vol-dot   {
+  font-size: .58rem; font-weight: 800; letter-spacing: .5px;
+  color: var(--volume); background: var(--volume-soft);
+  padding: 1px 5px; border-radius: 4px;
+}
+
+/* Mini trend history strip */
+.tc-hist-strip {
+  display: flex;
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+}
+.tc-hist-seg {
+  border-radius: 2px;
+  opacity: .65;
+  min-width: 4px;
+  transition: opacity .15s;
+}
+.tc-hist-seg:hover { opacity: 1; }
+
 /* Uptrend/downtrend ratio bar */
-.tc-ratio-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; gap: 1px; }
-.tc-rb-up   { background: var(--buy);  border-radius: 2px 0 0 2px; }
-.tc-rb-down { background: var(--sell); border-radius: 0 2px 2px 0; flex: 1; }
+.tc-ratio-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px; margin-top: 2px; }
+.tc-rb-up   { background: var(--buy);  border-radius: 3px 0 0 3px; }
+.tc-rb-down { background: var(--sell); border-radius: 0 3px 3px 0; flex: 1; }
 .tc-ratio-lbl { display: flex; justify-content: space-between; font-size: .65rem; color: var(--text-muted); }
 
 /* ── Trends Detail Panel ── */

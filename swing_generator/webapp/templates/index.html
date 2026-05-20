@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=105">
+  <link rel="stylesheet" href="/static/css/style.css?v=109">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -514,6 +514,10 @@
           <select class="select-input" id="trendsListSort">
             <option value="run_desc">Run ↓</option>
             <option value="run_asc">Run ↑</option>
+            <option value="up_age_desc">Uptrend Age ↓</option>
+            <option value="up_age_asc">Uptrend Age ↑</option>
+            <option value="dn_age_desc">Downtrend Age ↓</option>
+            <option value="dn_age_asc">Downtrend Age ↑</option>
             <option value="up_first">Uptrend First</option>
             <option value="down_first">Downtrend First</option>
             <option value="alpha">A–Z</option>
@@ -567,13 +571,17 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
       <span>Radar</span>
     </button>
+    <button class="nav-tab" data-tab="trends">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg>
+      <span>Trends</span>
+    </button>
     <button class="nav-tab" data-tab="watchlist">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Watchlist</span>
     </button>
-    <button class="nav-tab" data-tab="trends">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg>
-      <span>Trends</span>
+    <button class="nav-tab ai-filter-btn" id="aiFilterBtn" onclick="toggleAIFilter()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <span>AI</span>
     </button>
   </nav>
 
@@ -594,6 +602,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=123"></script>
+  <script src="/static/js/app.js?v=128"></script>
 </body>
 </html>
