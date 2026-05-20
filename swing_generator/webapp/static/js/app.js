@@ -483,18 +483,31 @@
     return field;
   }
 
+  // Effective trend: extends the strict UPTREND/DOWNTREND/NEUTRAL classification
+  // by using confirmation_status for instruments still in a transitioning state.
+  // "Neutral — transitioning (rising ribbon)"  → UPTREND
+  // "Neutral — transitioning (declining ribbon)" → DOWNTREND
+  // Everything else stays as the raw trend_direction value.
+  function effectiveTrend(item) {
+    const td = item[f('trend_direction')] || '';
+    if (td === 'UPTREND' || td === 'DOWNTREND') return td;
+    const cs = (item[f('confirmation_status')] || '').toLowerCase();
+    if (cs.includes('uptrend') || cs.includes('rising ribbon')) return 'UPTREND';
+    if (cs.includes('downtrend') || cs.includes('declining ribbon')) return 'DOWNTREND';
+    return 'NEUTRAL';
+  }
+
   // Compute summary stats client-side from the active timeframe fields
   function computeSummary() {
     const data = allData;
     if (!data.length) return summaryData;
-    if (timeframe === 'D') return summaryData;  // daily summary comes from server
 
     const total = data.length;
     const trendCounts = {};
     let buyCount = 0, sellCount = 0, watchCount = 0, volumeSpikes = 0;
     const signalTypes = {};
     data.forEach(item => {
-      const trend = item[f('trend_direction')] || 'NEUTRAL';
+      const trend = effectiveTrend(item);
       trendCounts[trend] = (trendCounts[trend] || 0) + 1;
 
       const status = (item[f('confirmation_status')] || '').toLowerCase();
@@ -1259,7 +1272,7 @@
         key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
       }
       if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0 };
-      const t = item[f('trend_direction')] || item.trend_direction || 'NEUTRAL';
+      const t = effectiveTrend(item);
       if      (t === 'UPTREND')   dimMap[key].bull++;
       else if (t === 'DOWNTREND') dimMap[key].bear++;
       else                        dimMap[key].neutral++;
@@ -1274,8 +1287,8 @@
     });
 
     // ── Overall risk badge ────────────────────────────────────────────────
-    const totBull   = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'UPTREND').length;
-    const totBear   = allData.filter(d => (d[f('trend_direction')]||d.trend_direction) === 'DOWNTREND').length;
+    const totBull   = allData.filter(d => effectiveTrend(d) === 'UPTREND').length;
+    const totBear   = allData.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
     const totAll    = allData.length || 1;
     const isRiskOn  = (totBull / totAll) > 0.55;
     const isRiskOff = (totBear / totAll) > 0.55;
@@ -1840,8 +1853,8 @@
     else if (activeStatFilter === 'squeeze')  filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
     else if (activeStatFilter === 'highconf') filtered = filtered.filter(d => d[f('signal_confidence')] === 'high' || d[f('signal_confidence')] === 'standard');
 
-    // ── Trend direction filter ──
-    if (activeTrendFilter) filtered = filtered.filter(d => (d[f('trend_direction')] || '') === activeTrendFilter);
+    // ── Trend direction filter (uses effectiveTrend so transitioning instruments are included) ──
+    if (activeTrendFilter) filtered = filtered.filter(d => effectiveTrend(d) === activeTrendFilter);
 
     // ── Alignment filter ──
     if (activeAlignFilter) filtered = filtered.filter(d => (d.tf_alignment || '') === activeAlignFilter);
