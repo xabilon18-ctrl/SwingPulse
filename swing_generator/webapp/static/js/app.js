@@ -861,8 +861,10 @@
 
   function matchesSearch(item, query) {
     if (!query) return true;
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
     const name = (item.instrument_name || '').toUpperCase();
+    // AI shortcut — typing "ai" or "artificial" or "artificial intelligence" filters to AI universe
+    if (q === 'ai' || 'artificial intelligence'.startsWith(q) && q.length >= 3) return isAI(item.instrument_name);
     // Check aliases first
     const aliases = SEARCH_ALIASES[name] || [];
     if (aliases.some(a => a.includes(q) || q.includes(a))) return true;
@@ -1259,6 +1261,174 @@
     renderCompressionFeed();
     renderSignalFeed();
     renderMacroSrFeed();
+    renderAIDashboardCard();
+  }
+
+  function renderAIDashboardCard() {
+    const el = document.getElementById('aiUniverseCard');
+    if (!el) return;
+
+    const aiItems = allData.filter(d => isAI(d.instrument_name));
+    if (!aiItems.length) { el.style.display = 'none'; return; }
+    el.style.display = '';
+
+    // Trend breakdown
+    const up   = aiItems.filter(d => effectiveTrend(d) === 'UPTREND').length;
+    const dn   = aiItems.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
+    const neu  = aiItems.length - up - dn;
+    const upPct = Math.round(up / aiItems.length * 100);
+    const dnPct = Math.round(dn / aiItems.length * 100);
+
+    // Signals
+    const confOrd = { high: 0, standard: 1, low: 2 };
+    const buys    = aiItems.filter(d => isBuy(d));
+    const sells   = aiItems.filter(d => isSell(d));
+    const watches = aiItems.filter(d => d[f('watch_flag')]);
+    const vols    = aiItems.filter(d => d[f('volume_spike_flag')] === 'yes');
+    const extended = aiItems.filter(d => {
+      const segs = trendsData[d.instrument_name] || [];
+      if (!segs.length) return false;
+      const cur = segs[0];
+      const same = segs.filter(s => s.direction === cur.direction);
+      const avg = same.length ? Math.round(same.reduce((a,s) => a+s.days,0)/same.length) : 0;
+      return avg && Math.round(cur.days/avg*100) >= 150;
+    }).length;
+
+    // ── Sector groups ──
+    const AI_SECTORS = {
+      'Chips':      new Set(['NVDA','AMD','AVGO','ARM','MRVL','INTC','ON','QCOM','NXPI','STM','MPWR','AMBA','IFX']),
+      'Semi Equip': new Set(['ASML','AMAT','LRCX','KLAC','ENTG','TER','TOKYOELEC','BESI','CDNS','SNPS']),
+      'Cloud/Mega': new Set(['MSFT','GOOGL','GOOG','META','AMZN','TSLA','AAPL','SOFTBANK']),
+      'Software':   new Set(['PLTR','SNOW','DDOG','NET','CRM','NOW','WDAY','INTU','ADBE','ORCL','SAP_DE','CRWD','PANW','ZS','APP']),
+      'Hardware':   new Set(['SMCI','DELL','ANET','CSCO','IBM']),
+      'Europe/Asia':new Set(['SIE','CAP_FR','DSY','ERICB','EXPN','RELX','LSEG','KEYENCE','FANUC']),
+    };
+
+    const sectorHtml = Object.entries(AI_SECTORS).map(([label, members]) => {
+      const items = aiItems.filter(d => members.has(d.instrument_name));
+      if (!items.length) return '';
+      const sUp  = items.filter(d => effectiveTrend(d) === 'UPTREND').length;
+      const sDn  = items.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
+      const sNeu = items.length - sUp - sDn;
+      const sPct = Math.round(sUp / items.length * 100);
+      return `<div class="ai-sector-row">
+        <span class="ai-sector-name">${label}</span>
+        <div class="ai-sector-bar">
+          <div class="ai-sector-fill" style="width:${sPct}%"></div>
+        </div>
+        <span class="ai-sector-counts">
+          <span style="color:var(--buy)">${sUp}↑</span>
+          <span style="color:var(--sell)">${sDn}↓</span>
+          ${sNeu ? `<span style="color:var(--text-muted)">${sNeu}–</span>` : ''}
+        </span>
+      </div>`;
+    }).join('');
+
+    // ── Tile grid — all AI instruments ──
+    const sortedItems = [...aiItems].sort((a,b) => {
+      const ta = effectiveTrend(a), tb = effectiveTrend(b);
+      const order = { UPTREND:0, NEUTRAL:1, DOWNTREND:2 };
+      if (order[ta] !== order[tb]) return order[ta] - order[tb];
+      // Within same trend: buy signals first
+      return (isBuy(b)?1:0) - (isBuy(a)?1:0);
+    });
+
+    const tilesHtml = sortedItems.map(item => {
+      const td  = effectiveTrend(item);
+      const buy = isBuy(item), sell = isSell(item);
+      const vol = item[f('volume_spike_flag')] === 'yes';
+      const tileCls = buy ? 'ai-tile-buy' : sell ? 'ai-tile-sell' : td === 'UPTREND' ? 'ai-tile-up' : td === 'DOWNTREND' ? 'ai-tile-dn' : 'ai-tile-neu';
+      const arrow = td === 'UPTREND' ? '↑' : td === 'DOWNTREND' ? '↓' : '–';
+      return `<div class="ai-tile ${tileCls}" data-arg="${item.instrument_name}" title="${item.instrument_name} — ${td}${buy?' · BUY':''}${vol?' · VOL':''}">
+        <span class="ai-tile-name">${item.instrument_name}</span>
+        <span class="ai-tile-arrow">${arrow}${vol?'⚡':''}</span>
+      </div>`;
+    }).join('');
+
+    // ── Top signals leaderboard (buy + sell, conf sorted) ──
+    const topSignals = [...buys, ...sells]
+      .sort((a,b) => (confOrd[a[f('signal_confidence')]||'']??3) - (confOrd[b[f('signal_confidence')]||'']??3))
+      .slice(0, el._aiExpanded ? 20 : 5);
+
+    const leaderHtml = topSignals.length
+      ? topSignals.map(item => {
+          const conf = item[f('signal_confidence')] || '';
+          const sig  = item[f('primary_signal')] || '';
+          const td   = effectiveTrend(item);
+          const buy  = isBuy(item);
+          const confCls = conf === 'high' ? 'ai-conf-high' : conf === 'standard' ? 'ai-conf-std' : 'ai-conf-low';
+          const vol  = item[f('volume_spike_flag')] === 'yes' ? '<span class="ai-vol-pip">VOL</span>' : '';
+          const tdColor = td === 'UPTREND' ? 'var(--buy)' : td === 'DOWNTREND' ? 'var(--sell)' : 'var(--text-muted)';
+          return `<div class="ai-inst-row" data-arg="${item.instrument_name}">
+            <div class="ai-inst-left">
+              <span class="ai-inst-name">${item.instrument_name}</span>
+              <span class="ai-inst-group">${item.group||''}</span>
+            </div>
+            <div class="ai-inst-right">
+              ${vol}
+              <span class="ai-inst-trend" style="color:${tdColor}">${td==='UPTREND'?'↑':td==='DOWNTREND'?'↓':'–'}</span>
+              <span class="ai-inst-sig" style="color:${buy?'var(--buy)':'var(--sell)'}">${sig}</span>
+              <span class="ai-conf-pip ${confCls}">${conf||'–'}</span>
+            </div>
+          </div>`;
+        }).join('')
+      : `<div class="ai-card-empty">No active signals in AI universe</div>`;
+
+    el.innerHTML = `
+      <div class="ai-uc-header">
+        <div class="ai-uc-title">
+          <span class="ai-uc-icon">⬡</span>
+          <span>AI Universe</span>
+          <span class="ai-uc-count">${aiItems.length}</span>
+        </div>
+        <div class="ai-uc-meta">
+          <span style="color:var(--buy)">↑ ${up}</span>
+          <span style="color:var(--sell)">↓ ${dn}</span>
+          <span style="color:var(--text-muted)">– ${neu}</span>
+        </div>
+      </div>
+
+      <div class="ai-uc-ratio">
+        <div class="ai-uc-bar-up" style="flex:${up||0}"></div>
+        <div class="ai-uc-bar-neu" style="flex:${neu||0}"></div>
+        <div class="ai-uc-bar-dn" style="flex:${dn||0}"></div>
+      </div>
+      <div class="ai-uc-ratio-lbl">
+        <span style="color:var(--buy)">${upPct}% bullish</span>
+        <span style="color:var(--sell)">${dnPct}% bearish</span>
+      </div>
+
+      <div class="ai-uc-signals">
+        <div class="ai-sig-chip ai-sig-buy"><span>${buys.length}</span> Buy</div>
+        <div class="ai-sig-chip ai-sig-sell"><span>${sells.length}</span> Sell</div>
+        <div class="ai-sig-chip ai-sig-watch"><span>${watches.length}</span> Watch</div>
+        <div class="ai-sig-chip ai-sig-vol"><span>${vols.length}</span> Vol</div>
+        <div class="ai-sig-chip ai-sig-ext"><span>${extended}</span> Extended</div>
+      </div>
+
+      <div class="ai-uc-section-hdr">By Sector</div>
+      <div class="ai-sector-list">${sectorHtml}</div>
+
+      <div class="ai-uc-section-hdr">Instrument Map</div>
+      <div class="ai-tile-grid">${tilesHtml}</div>
+
+      <div class="ai-uc-list-hdr">
+        <span>Active Signals</span>
+        ${(buys.length + sells.length) > 5 ? `<button class="ai-expand-btn" id="aiExpandBtn">${el._aiExpanded ? 'Show less' : 'Show all ' + (buys.length+sells.length)}</button>` : ''}
+      </div>
+      <div class="ai-inst-list">${leaderHtml}</div>
+    `;
+
+    el.querySelectorAll('[data-arg]').forEach(r =>
+      r.addEventListener('click', () => openModal(r.dataset.arg))
+    );
+    const expandBtn = el.querySelector('#aiExpandBtn');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => {
+        el._aiExpanded = !el._aiExpanded;
+        renderAIDashboardCard();
+      });
+    }
   }
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
@@ -2619,12 +2789,14 @@
       const _radarTier  = scoreTier(_radarScore);
       const radarChip = `<span class="scanner-radar-chip radar-tier-${_radarTier}" title="Radar confluence: ${_radarScore}/100 — ${_radarTier}. Open card for breakdown.">${_radarScore}</span>`;
 
-      return `<div class="scanner-card pop-in" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
+      const _aiScan = isAI(item.instrument_name);
+      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
             <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${compression ? ' <span class="compression-alert">SQZ</span>' : ''}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-spike-indicator">VOL</span>' : ''}</div>
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
+            ${_aiScan ? '<div><span class="ai-label">Artificial Intelligence</span></div>' : ''}
             <div class="scanner-group">${item.group || ''}${item.sector ? ' / ' + item.sector : ''}</div>
           </div>
           <div class="scanner-actions">
@@ -2942,12 +3114,14 @@
       const stripLabel = sig ? (buy ? 'BUY ' + sig : 'SELL ' + sig) : '';
       const hasAlert = !!(item[f('potential_turning_point_flag')] || item[f('watch_flag')] ||
                           item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
-      return `<div class="wl-card" data-act="openModal" data-arg="${item.instrument_name}">
+      const _aiWl = isAI(item.instrument_name);
+      return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="wl-card-top">
           <div class="wl-card-left">
             <span class="wl-card-name">${item.instrument_name} ${noteIndicator(item.instrument_name)}</span>
             ${instName(item.instrument_name) ? `<span class="inst-fullname">${instName(item.instrument_name)}</span>` : ''}
+            ${_aiWl ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
             <span class="wl-card-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
           </div>
           <div class="wl-card-right">
@@ -3841,13 +4015,13 @@
             return `<div class="tc-hist-seg" style="flex:${s.days};background:${hc}" title="${s.direction === 'UPTREND' ? '↑' : '↓'} ${s.days}d"></div>`;
           }).join('')}</div>` : '';
 
-      const aiTag = isAI(d.name) ? `<span class="tc-ai-badge">⚡ AI</span>` : '';
-      const aiAttr = isAI(d.name) ? ' data-ai' : '';
+      const _aiTrend = isAI(d.name);
 
-      return `<div class="trend-card" data-name="${d.name}"${extAttr}${aiAttr} style="--tc:${color};${delay}">
+      return `<div class="trend-card${_aiTrend ? ' ai-card' : ''}" data-name="${d.name}"${extAttr} style="--tc:${color};${delay}">
         <div class="tc-header">
           <div class="tc-name-wrap">
-            <span class="tc-name">${d.name}${aiTag}</span>
+            <span class="tc-name">${d.name}</span>
+            ${_aiTrend ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
             <span class="tc-group">${d.group}</span>
           </div>
           <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
@@ -4597,12 +4771,14 @@
         item.h4_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h4_rsi)}">4H ${parseFloat(item.h4_rsi).toFixed(0)}</span>` : '',
       ].filter(Boolean).join('');
 
-      return `<div class="radar-card" data-act="openModal" data-arg="${item.instrument_name}">
+      const _aiRadar = isAI(item.instrument_name);
+      return `<div class="radar-card${_aiRadar ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="radar-card-top">
           ${dirBadge}
           <div class="radar-card-name">
             <span class="radar-inst">${name}</span>
             <span class="radar-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
+            ${_aiRadar ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
           </div>
           <div class="radar-score-wrap">
             <span class="radar-score-num radar-tier-${tier}">${score}</span>
