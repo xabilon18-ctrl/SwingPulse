@@ -638,12 +638,7 @@
   function renderTrendsLazy() {
     if (!tabDirty.trends) return;
     tabDirty.trends = false;
-    if (!selectedTrendInst && allData.length) {
-      selectedTrendInst = allData.find(d => d.instrument_name === 'GOLD') ? 'GOLD' : allData[0].instrument_name;
-    }
-    renderTrendsInstrumentList();
-    if (selectedTrendInst) renderTrendDetail(selectedTrendInst);
-    renderTrendsSummary();
+    buildTrendsCards();
   }
 
   function renderRadarLazy() {
@@ -3696,76 +3691,112 @@
     }
   }
 
-  // ── Trends Tab ────────────────────────────────────────────────────────
-  function renderTrendsInstrumentList() {
-    const list = document.getElementById('trendsInstrumentList');
-    const search = document.getElementById('trendsSearch').value.toLowerCase();
+  // ── Trends Tab — Instrument Card Grid ────────────────────────────────
+  function buildTrendsCards() {
+    const grid = document.getElementById('trendsCardGrid');
+    if (!grid) return;
+    const search   = (document.getElementById('trendsSearch')?.value || '').toLowerCase();
     const groupSel = document.getElementById('trendsGroupFilter');
-    const groupVal = groupSel ? groupSel.value : 'all';
-    const sortSel = document.getElementById('trendsListSort');
-    const sortVal = sortSel ? sortSel.value : 'run_desc';
+    const groupVal = groupSel?.value || 'all';
+    const sortVal  = document.getElementById('trendsListSort')?.value || 'run_desc';
 
     // Populate group filter on first call
     if (groupSel && groupSel.options.length <= 1) {
-      const groups = [...new Set(allData.map(d => d.group).filter(Boolean))].sort();
-      groups.forEach(g => {
+      [...new Set(allData.map(d => d.group).filter(Boolean))].sort().forEach(g => {
         const opt = document.createElement('option');
         opt.value = g; opt.textContent = g;
         groupSel.appendChild(opt);
       });
     }
 
-    let items = allData.map(d => ({
-      name: d.instrument_name,
-      group: d.group || '',
-      established: d[f('established_trend')] || d[f('trend_direction')] || '',
-      runDays: parseInt(d[f('trend_run_days')]) || 0,
-    }));
+    // Build items with pre-computed trend stats
+    let items = allData.map(d => {
+      const segs       = trendsData[d.instrument_name] || [];
+      const currentSeg = segs[0] || null;
+      const upSegs     = segs.filter(s => s.direction === 'UPTREND');
+      const dnSegs     = segs.filter(s => s.direction === 'DOWNTREND');
+      const avgUp      = upSegs.length ? Math.round(upSegs.reduce((a,s) => a+s.days,0) / upSegs.length) : 0;
+      const avgDown    = dnSegs.length ? Math.round(dnSegs.reduce((a,s) => a+s.days,0) / dnSegs.length) : 0;
+      const totalDays  = segs.reduce((a,s) => a+s.days, 0);
+      const upDays     = upSegs.reduce((a,s) => a+s.days, 0);
+      const upPct      = totalDays ? Math.round(upDays/totalDays*100) : 50;
+      const established = d[f('established_trend')] || d[f('trend_direction')] || '';
+      const runDays    = parseInt(d[f('trend_run_days')]) || (currentSeg ? currentSeg.days : 0);
+      const isUp       = established === 'UPTREND';
+      const isDown     = established === 'DOWNTREND';
+      const avgCurrent = isUp ? avgUp : isDown ? avgDown : 0;
+      const pctOfAvg   = avgCurrent ? Math.round(runDays / avgCurrent * 100) : 0;
+      const maturity   = pctOfAvg >= 150 ? 'Extended' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
+      const move       = currentSeg?.pct_move ?? null;
+      return { name: d.instrument_name, group: d.group||'', established, runDays,
+               avgCurrent, pctOfAvg, maturity, upPct, currentSeg, move, hasData: segs.length > 0 };
+    });
 
+    // Filter
     if (search) {
-      // Use the shared matchesSearch helper so aliases, sector, and industry all work
-      const matchedNames = new Set(allData.filter(d => matchesSearch(d, search)).map(d => d.instrument_name));
-      items = items.filter(d => matchedNames.has(d.name));
+      const matched = new Set(allData.filter(d => matchesSearch(d, search)).map(d => d.instrument_name));
+      items = items.filter(d => matched.has(d.name));
     }
     if (groupVal !== 'all') items = items.filter(d => d.group === groupVal);
 
     // Sort
-    if (sortVal === 'run_desc') items.sort((a, b) => b.runDays - a.runDays);
-    else if (sortVal === 'run_asc') items.sort((a, b) => a.runDays - b.runDays);
-    else if (sortVal === 'up_first') items.sort((a, b) => (b.established === 'UPTREND') - (a.established === 'UPTREND'));
-    else if (sortVal === 'down_first') items.sort((a, b) => (b.established === 'DOWNTREND') - (a.established === 'DOWNTREND'));
-    else if (sortVal === 'alpha') items.sort((a, b) => a.name.localeCompare(b.name));
+    if      (sortVal === 'run_desc')   items.sort((a,b) => b.runDays - a.runDays);
+    else if (sortVal === 'run_asc')    items.sort((a,b) => a.runDays - b.runDays);
+    else if (sortVal === 'up_first')   items.sort((a,b) => (b.established==='UPTREND')-(a.established==='UPTREND'));
+    else if (sortVal === 'down_first') items.sort((a,b) => (b.established==='DOWNTREND')-(a.established==='DOWNTREND'));
+    else if (sortVal === 'alpha')      items.sort((a,b) => a.name.localeCompare(b.name));
 
-    list.innerHTML = items.map(d => {
-      const dotCls = d.established === 'UPTREND' ? 'up' : d.established === 'DOWNTREND' ? 'down' : 'neutral';
-      const active = selectedTrendInst === d.name ? 'active' : '';
-      const runLabel = d.runDays > 0 ? `<span class="inst-run-days">${d.runDays}d</span>` : '';
-      return `<div class="trends-inst-item ${active}" data-name="${d.name}">
-        <div class="inst-item-left">
-          <span class="inst-item-name">${d.name}</span>
-          <span class="inst-item-group">${d.group}</span>
+    grid.innerHTML = items.map(d => {
+      const isUp   = d.established === 'UPTREND';
+      const isDown = d.established === 'DOWNTREND';
+      const color       = isUp ? 'var(--buy)' : isDown ? 'var(--sell)' : 'var(--neutral)';
+      const badgeCls    = isUp ? 'tc-badge-up' : isDown ? 'tc-badge-down' : 'tc-badge-neutral';
+      const badgeTxt    = isUp ? '↑ Uptrend' : isDown ? '↓ Downtrend' : 'Neutral';
+      const matColor    = d.pctOfAvg >= 150 ? 'var(--sell)' : d.pctOfAvg >= 80 ? 'var(--watch)' : 'var(--buy)';
+      const matIcon     = d.pctOfAvg >= 150 ? '⚠' : d.pctOfAvg >= 80 ? '◑' : '●';
+      const since       = d.currentSeg ? `since ${d.currentSeg.start}` : '';
+      const moveStr     = d.move !== null ? `<span class="tc-move" style="color:${d.move>=0?'var(--buy)':'var(--sell)'}">${d.move>=0?'+':''}${d.move}%</span>` : '';
+
+      return `<div class="trend-card" data-name="${d.name}">
+        <div class="tc-header">
+          <div class="tc-name-wrap">
+            <span class="tc-name">${d.name}</span>
+            <span class="tc-group">${d.group}</span>
+          </div>
+          <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
         </div>
-        <div class="inst-item-right">
-          ${runLabel}
-          <span class="inst-trend-dot ${dotCls}"></span>
+        <div class="tc-body">
+          <div class="tc-days" style="color:${color}">${d.runDays || '—'}<span class="tc-days-unit">d</span></div>
+          <div class="tc-since">${since}</div>
+          ${moveStr}
         </div>
+        ${d.avgCurrent ? `<div class="tc-meta-row">
+          <span class="tc-mat" style="color:${matColor}">${matIcon} ${d.maturity}</span>
+          <span class="tc-avg">avg ${d.avgCurrent}d &middot; <span style="color:${matColor}">${d.pctOfAvg}%</span></span>
+        </div>` : ''}
+        ${d.hasData ? `<div class="tc-ratio-bar">
+          <div class="tc-rb-up" style="width:${d.upPct}%"></div>
+          <div class="tc-rb-down" style="width:${100-d.upPct}%"></div>
+        </div>
+        <div class="tc-ratio-lbl"><span style="color:var(--buy)">${d.upPct}% ↑</span><span style="color:var(--sell)">${100-d.upPct}% ↓</span></div>` : ''}
       </div>`;
     }).join('');
 
-    list.querySelectorAll('.trends-inst-item').forEach(el => {
-      el.addEventListener('click', () => {
-        selectedTrendInst = el.dataset.name;
-        list.querySelectorAll('.trends-inst-item').forEach(e => e.classList.remove('active'));
-        el.classList.add('active');
-        renderTrendDetail(el.dataset.name);
-        document.getElementById('trendsContainer').classList.add('detail-visible');
-        document.getElementById('trendsMain').scrollTop = 0;
+    // Click → show detail
+    grid.querySelectorAll('.trend-card').forEach(card => {
+      card.addEventListener('click', () => {
+        selectedTrendInst = card.dataset.name;
+        grid.style.display = 'none';
+        const panel = document.getElementById('trendsDetailPanel');
+        panel.style.display = 'block';
+        panel.scrollTop = 0;
+        renderTrendDetail(card.dataset.name);
       });
     });
   }
 
   function renderTrendDetail(name) {
-    const main = document.getElementById('trendsMain');
+    const main = document.getElementById('trendsDetailPanel');
     const segments = trendsData[name] || [];
     const item = allData.find(d => d.instrument_name === name);
 
@@ -3774,10 +3805,15 @@
       All instruments
     </button>`;
 
+    const goBack = () => {
+      document.getElementById('trendsDetailPanel').style.display = 'none';
+      document.getElementById('trendsCardGrid').style.display = 'grid';
+    };
+
     if (!segments.length) {
       main.innerHTML = backBtn + `<div class="trends-empty-state"><p>No trend history available for ${name}</p></div>`;
       document.getElementById('trendsBackBtn').addEventListener('click', () => {
-        document.getElementById('trendsContainer').classList.remove('detail-visible');
+        goBack();
       });
       return;
     }
@@ -3908,14 +3944,12 @@
     `;
 
     // Wire back button (rendered fresh in innerHTML)
-    document.getElementById('trendsBackBtn').addEventListener('click', () => {
-      document.getElementById('trendsContainer').classList.remove('detail-visible');
-    });
+    document.getElementById('trendsBackBtn').addEventListener('click', goBack);
   }
 
-  document.getElementById('trendsSearch').addEventListener('input', debounce(() => renderTrendsInstrumentList(), 150));
-  document.getElementById('trendsGroupFilter').addEventListener('change', () => renderTrendsInstrumentList());
-  document.getElementById('trendsListSort').addEventListener('change', () => renderTrendsInstrumentList());
+  document.getElementById('trendsSearch').addEventListener('input', debounce(() => buildTrendsCards(), 150));
+  document.getElementById('trendsGroupFilter').addEventListener('change', () => buildTrendsCards());
+  document.getElementById('trendsListSort').addEventListener('change', () => buildTrendsCards());
 
   // ── Public API ───────────────────────────────────────────────────────
   function toggleStar(btn) {

@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=103">
+  <link rel="stylesheet" href="/static/css/style.css?v=105">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -504,64 +504,26 @@
 
     <!-- ========== TRENDS TAB ========== -->
     <section class="tab-pane" id="pane-trends">
-      <!-- Trend history summary bar -->
-      <div class="trh-bar" id="trendHistoryBar">
-        <div class="trh-stat" id="trhUp">
-          <span class="trh-val trh-val-up" id="trhUpCount">--</span>
-          <span class="trh-lbl">Uptrends</span>
-        </div>
-        <div class="trh-divider"></div>
-        <div class="trh-stat" id="trhDown">
-          <span class="trh-val trh-val-down" id="trhDownCount">--</span>
-          <span class="trh-lbl">Downtrends</span>
-        </div>
-        <div class="trh-divider"></div>
-        <div class="trh-stat">
-          <span class="trh-val trh-val-up" id="trhAvgUpDays">--</span>
-          <span class="trh-lbl">Avg Up Days</span>
-        </div>
-        <div class="trh-divider"></div>
-        <div class="trh-stat">
-          <span class="trh-val trh-val-down" id="trhAvgDownDays">--</span>
-          <span class="trh-lbl">Avg Down Days</span>
-        </div>
-        <div class="trh-divider"></div>
-        <div class="trh-stat">
-          <span class="trh-val trh-val-up" id="trhAvgUpPct">--</span>
-          <span class="trh-lbl">Avg Up Move</span>
-        </div>
-        <div class="trh-divider"></div>
-        <div class="trh-stat">
-          <span class="trh-val trh-val-down" id="trhAvgDownPct">--</span>
-          <span class="trh-lbl">Avg Down Move</span>
+      <!-- Filter bar -->
+      <div class="trends-filter-bar">
+        <input type="text" id="trendsSearch" placeholder="Search instrument..." class="search-input">
+        <div class="trends-filter-row">
+          <select class="select-input" id="trendsGroupFilter">
+            <option value="all">All Groups</option>
+          </select>
+          <select class="select-input" id="trendsListSort">
+            <option value="run_desc">Run ↓</option>
+            <option value="run_asc">Run ↑</option>
+            <option value="up_first">Uptrend First</option>
+            <option value="down_first">Downtrend First</option>
+            <option value="alpha">A–Z</option>
+          </select>
         </div>
       </div>
-      <div class="trends-container" id="trendsContainer">
-        <div class="trends-sidebar" id="trendsSidebar">
-          <div class="trends-sidebar-filters">
-            <input type="text" id="trendsSearch" placeholder="Search instrument..." class="search-input">
-            <div class="trends-sidebar-row">
-              <select class="select-input" id="trendsGroupFilter">
-                <option value="all">All Groups</option>
-              </select>
-              <select class="select-input" id="trendsListSort">
-                <option value="run_desc">Run ↓</option>
-                <option value="run_asc">Run ↑</option>
-                <option value="up_first">Uptrend First</option>
-                <option value="down_first">Downtrend First</option>
-                <option value="alpha">A–Z</option>
-              </select>
-            </div>
-          </div>
-          <div class="trends-instrument-list" id="trendsInstrumentList"></div>
-        </div>
-        <div class="trends-main" id="trendsMain">
-          <div class="trends-empty-state">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            <p>Select an instrument to view trend history</p>
-          </div>
-        </div>
-      </div>
+      <!-- Card grid -->
+      <div class="trends-card-grid" id="trendsCardGrid"></div>
+      <!-- Detail panel (shown when a card is tapped) -->
+      <div class="trends-detail-panel" id="trendsDetailPanel" style="display:none"></div>
     </section>
 
   </main>
@@ -632,6 +594,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=122"></script>
+  <script src="/static/js/app.js?v=123"></script>
 </body>
 </html>

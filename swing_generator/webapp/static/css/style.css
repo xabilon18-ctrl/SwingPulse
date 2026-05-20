@@ -2532,67 +2532,78 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .empty-state svg { margin-bottom: 12px; opacity: .4; }
 
 /* ── Trends Tab ──────────────────────────────────────────────────────── */
-.trends-container {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
-  height: calc(100vh - 180px);
-  min-height: 400px;
-}
-.trends-sidebar {
+/* ── Trends Tab — Filter Bar ── */
+.trends-filter-bar {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.trends-filter-bar .search-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--bg-input);
+  box-sizing: border-box;
+}
+.trends-filter-row {
+  display: flex;
+  gap: 8px;
+}
+.trends-filter-row .select-input { flex: 1; font-size: .75rem; padding: 6px 8px; }
+
+/* ── Trends Tab — Card Grid ── */
+.trends-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+.trend-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
-}
-.trends-sidebar-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.trends-sidebar-filters .search-input {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: var(--bg-input);
-}
-.trends-sidebar-filters .select-input { font-size: .75rem; padding: 6px 8px; }
-.trends-instrument-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.trends-inst-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: border-color var(--transition), transform var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.trends-inst-item:last-child { border-bottom: none; }
-.trends-inst-item:hover { background: var(--bg-hover); }
-.trends-inst-item.active { background: var(--accent); color: #fff; }
-.inst-item-left { min-width: 0; flex: 1; }
-.inst-item-name { display: block; font-size: .82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inst-item-group { display: block; font-size: .65rem; color: var(--text-muted); margin-top: 1px; }
-.trends-inst-item.active .inst-item-group { color: rgba(255,255,255,.7); }
-.inst-item-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-.inst-run-days { font-size: .65rem; color: var(--text-muted); white-space: nowrap; }
-.trends-inst-item.active .inst-run-days { color: rgba(255,255,255,.7); }
-.inst-trend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.inst-trend-dot.up { background: var(--buy); }
-.inst-trend-dot.down { background: var(--sell); }
-.inst-trend-dot.neutral { background: var(--neutral); }
+.trend-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+/* Card header: name/group + badge */
+.tc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.tc-name-wrap { min-width: 0; flex: 1; }
+.tc-name { display: block; font-size: .88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-group { display: block; font-size: .68rem; color: var(--text-muted); margin-top: 2px; }
+.tc-badge { font-size: .65rem; font-weight: 700; padding: 3px 7px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.tc-badge-up      { background: color-mix(in srgb, var(--buy) 15%, transparent);  color: var(--buy); }
+.tc-badge-down    { background: color-mix(in srgb, var(--sell) 15%, transparent); color: var(--sell); }
+.tc-badge-neutral { background: var(--bg-hover); color: var(--text-muted); }
+
+/* Card body: days count */
+.tc-body { display: flex; flex-direction: column; gap: 2px; }
+.tc-days { font-size: 2rem; font-weight: 800; line-height: 1; }
+.tc-days-unit { font-size: 1rem; font-weight: 600; margin-left: 2px; }
+.tc-since { font-size: .7rem; color: var(--text-muted); }
+.tc-move  { font-size: .75rem; font-weight: 600; margin-top: 2px; }
+
+/* Card meta: maturity + avg */
+.tc-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .7rem; }
+.tc-mat { font-weight: 600; }
+.tc-avg { color: var(--text-muted); }
+
+/* Uptrend/downtrend ratio bar */
+.tc-ratio-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; gap: 1px; }
+.tc-rb-up   { background: var(--buy);  border-radius: 2px 0 0 2px; }
+.tc-rb-down { background: var(--sell); border-radius: 0 2px 2px 0; flex: 1; }
+.tc-ratio-lbl { display: flex; justify-content: space-between; font-size: .65rem; color: var(--text-muted); }
+
+/* ── Trends Detail Panel ── */
+.trends-detail-panel {
+  padding: 4px 0;
+}
 
 /* Back button */
 .trends-back-btn {
@@ -2609,13 +2620,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 .trends-back-btn:hover { opacity: .8; }
 
-.trends-main {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  overflow-y: auto;
-}
+.trends-main { display: none; } /* legacy — replaced by trends-detail-panel */
 .trends-empty-state {
   display: flex;
   flex-direction: column;
