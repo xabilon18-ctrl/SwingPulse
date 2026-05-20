@@ -768,30 +768,34 @@ def api_summary():
     if df.empty:
         return jsonify({})
 
-    trend_counts = df['trend_direction'].value_counts().to_dict()
+    try:
+        trend_counts = df['trend_direction'].value_counts().to_dict() if 'trend_direction' in df.columns else {}
 
-    buy_mask = df['confirmation_status'].str.contains('buy', case=False, na=False)
-    sell_mask = df['confirmation_status'].str.contains('sell', case=False, na=False)
+        buy_mask  = df['confirmation_status'].str.contains('buy',  case=False, na=False) if 'confirmation_status' in df.columns else df.iloc[:, 0].apply(lambda _: False)
+        sell_mask = df['confirmation_status'].str.contains('sell', case=False, na=False) if 'confirmation_status' in df.columns else df.iloc[:, 0].apply(lambda _: False)
 
-    signal_types = df['primary_signal'].value_counts().to_dict()
-    signal_types.pop('', None)
+        signal_types = df['primary_signal'].value_counts().to_dict() if 'primary_signal' in df.columns else {}
+        signal_types.pop('', None)
 
-    groups = sorted([g for g in df['group'].unique().tolist() if g])
+        groups = sorted([g for g in df['group'].unique().tolist() if g]) if 'group' in df.columns else []
 
-    return jsonify({
-        'date': dt,
-        'total': len(df),
-        'trend_counts': trend_counts,
-        'buy_count': int(buy_mask.sum()),
-        'sell_count': int(sell_mask.sum()),
-        'watch_count': int((df['watch_flag'] != '').sum()),
-        'volume_spikes': int((df['volume_spike_flag'] == 'yes').sum()),
-        'key_level_touches': int((df['key_level_touched_today'] == 'yes').sum()),
-        'turning_points': int((df['potential_turning_point_flag'] != '').sum()),
-        'signal_types': signal_types,
-        'groups': groups,
-        'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
-    })
+        return jsonify({
+            'date': dt,
+            'total': len(df),
+            'trend_counts': trend_counts,
+            'buy_count': int(buy_mask.sum()),
+            'sell_count': int(sell_mask.sum()),
+            'watch_count': int((df['watch_flag'] != '').sum()) if 'watch_flag' in df.columns else 0,
+            'volume_spikes': int((df['volume_spike_flag'] == 'yes').sum()) if 'volume_spike_flag' in df.columns else 0,
+            'key_level_touches': int((df['key_level_touched_today'] == 'yes').sum()) if 'key_level_touched_today' in df.columns else 0,
+            'turning_points': int((df['potential_turning_point_flag'] != '').sum()) if 'potential_turning_point_flag' in df.columns else 0,
+            'signal_types': signal_types,
+            'groups': groups,
+            'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        })
+    except Exception as e:
+        app.logger.error(f'api_summary error: {e}')
+        return jsonify({'date': dt, 'total': len(df), 'error': str(e)})
 
 
 @app.route('/api/ticker-map')

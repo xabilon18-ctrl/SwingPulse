@@ -613,9 +613,10 @@
 
   // ── Timeframe Toggle ─────────────────────────────────────────────────
   const tfToggle = document.getElementById('tfToggle');
+  if (!tfToggle) { console.warn('tfToggle not found'); }
   const savedTf = localStorage.getItem('swingpulse-tf') || 'D';
   timeframe = savedTf;
-  tfToggle.querySelectorAll('.tf-btn').forEach(btn => {
+  tfToggle?.querySelectorAll('.tf-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tf === timeframe);
   });
 
@@ -628,7 +629,7 @@
     const savedPage   = scannerPage;
     timeframe = tf;
     localStorage.setItem('swingpulse-tf', timeframe);
-    tfToggle.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === timeframe));
+    tfToggle?.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === timeframe));
 
     renderAll();
     if (savedPage > 1) {
@@ -638,7 +639,7 @@
     window.scrollTo(0, savedScroll);
   }
 
-  tfToggle.addEventListener('click', e => {
+  tfToggle?.addEventListener('click', e => {
     const btn = e.target.closest('.tf-btn');
     if (!btn) return;
     setTimeframe(btn.dataset.tf);
@@ -686,7 +687,9 @@
     navTabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     panes.forEach(p => p.classList.remove('active'));
-    document.getElementById('pane-' + tab).classList.add('active');
+    const paneEl = document.getElementById('pane-' + tab);
+    if (!paneEl) { console.warn('No pane for tab:', tab); return; }
+    paneEl.classList.add('active');
     currentTab = tab;
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
@@ -711,58 +714,13 @@
   })();
 
   // ── Refresh ──────────────────────────────────────────────────────────
-  // ── iPhone Widget Install Sheet ───────────────────────────────────────
-  (function wireWidgetSheet() {
-    const overlay  = document.getElementById('widgetSheetOverlay');
-    const openBtn  = document.getElementById('widgetInstallBtn');
-    const closeBtn = document.getElementById('widgetSheetClose');
-    const copyBtn  = document.getElementById('widgetCopyBtn');
-    const copyLbl  = document.getElementById('widgetCopyLabel');
-    const urlEl    = document.getElementById('widgetScriptUrl');
-    if (!overlay || !openBtn) return;
-
-    openBtn.addEventListener('click', () => overlay.classList.add('open'));
-    if (closeBtn) closeBtn.addEventListener('click', () => overlay.classList.remove('open'));
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-
-    if (copyBtn && urlEl) {
-      copyBtn.addEventListener('click', () => {
-        const url = urlEl.textContent.trim();
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(url).then(() => {
-            copyBtn.classList.add('copied');
-            if (copyLbl) copyLbl.textContent = 'Copied!';
-            setTimeout(() => { copyBtn.classList.remove('copied'); if (copyLbl) copyLbl.textContent = 'Copy'; }, 2000);
-          }).catch(() => fallbackCopy(url));
-        } else {
-          fallbackCopy(url);
-        }
-      });
-    }
-
-    function fallbackCopy(text) {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
-      try { document.execCommand('copy'); } catch(e) {}
-      document.body.removeChild(ta);
-      if (copyBtn && copyLbl) {
-        copyBtn.classList.add('copied');
-        copyLbl.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.classList.remove('copied'); copyLbl.textContent = 'Copy'; }, 2000);
-      }
-    }
-  })();
-
-  document.getElementById('refreshBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('refreshBtn');
-    btn.classList.add('spinning');
+  const _refreshBtn = document.getElementById('refreshBtn');
+  if (_refreshBtn) _refreshBtn.addEventListener('click', async () => {
+    _refreshBtn.classList.add('spinning');
     try {
       await loadAll();
     } finally {
-      btn.classList.remove('spinning');
+      _refreshBtn.classList.remove('spinning');
     }
   });
 
@@ -770,8 +728,8 @@
   async function loadAll() {
     try {
       const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, pfRes] = await Promise.all([
-        fetch('/api/signals').then(r => r.json()),
-        fetch('/api/summary').then(r => r.json()),
+        fetch('/api/signals').then(r => r.json()).catch(() => ({ data: [] })),
+        fetch('/api/summary').then(r => r.json()).catch(() => ({})),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
         fetch('/api/ai-instruments').then(r => r.json()).catch(() => []),
         fetch('/api/trends').then(r => r.json()).catch(() => ({})),
@@ -808,8 +766,9 @@
 
       // Staleness warning: show banner if data date isn't today
       const _now      = new Date();
-      const today     = _now.toISOString().slice(0, 10);
-      const dayOfWeek = _now.getUTCDay(); // 0=Sun, 6=Sat
+      // Use local date (not UTC) so SA users (UTC+2) don't see false stale warnings
+      const today     = [_now.getFullYear(), String(_now.getMonth()+1).padStart(2,'0'), String(_now.getDate()).padStart(2,'0')].join('-');
+      const dayOfWeek = _now.getDay(); // 0=Sun, 6=Sat (local)
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
@@ -830,6 +789,8 @@
     } catch (e) {
       console.error('Failed to load data:', e);
       document.getElementById('dateBadge').textContent = 'Error loading data';
+      const grid = document.getElementById('scannerGrid');
+      if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
     }
   }
 
@@ -1458,7 +1419,7 @@
     if (title) title.textContent = gpViewMode === 'region' ? 'By Region' : 'By Group';
 
     // ── Aggregate bull/bear/neutral per group or region ───────────────────
-    const INDEX_GROUPS = new Set(['Asia Index','CA Index','EU Index','US Index']);
+    // INDEX_GROUPS is defined at module scope (below Scanner section) — reuse it
     const dimMap = {};
     for (const item of allData) {
       const raw = item.group || 'Other';

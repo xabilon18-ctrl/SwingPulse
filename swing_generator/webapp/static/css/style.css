@@ -1776,8 +1776,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   border-radius: 0 var(--radius) 0 var(--radius-sm);
   z-index: 1;
 }
-.strip-buy  { background: color-mix(in srgb, var(--buy)  72%, var(--bg-card)); color: #fff; }
-.strip-sell { background: color-mix(in srgb, var(--sell) 72%, var(--bg-card)); color: #fff; }
+.strip-buy  { background: rgba(34,197,94,.72);  color: #fff; background: color-mix(in srgb, var(--buy)  72%, var(--bg-card)); }
+.strip-sell { background: rgba(239,68,68,.72); color: #fff; background: color-mix(in srgb, var(--sell) 72%, var(--bg-card)); }
 /* When a strip is present, drop the action cluster below it so they never overlap */
 .scanner-card:has(.scanner-signal-strip) .scanner-actions,
 .wl-card:has(.scanner-signal-strip) .wl-card-right { margin-top: 20px; }
@@ -2596,8 +2596,8 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .tc-name { display: block; font-size: .88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-group { display: block; font-size: .68rem; color: var(--text-muted); margin-top: 2px; }
 .tc-badge { font-size: .65rem; font-weight: 700; padding: 3px 7px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
-.tc-badge-up      { background: color-mix(in srgb, var(--buy) 18%, transparent);  color: var(--buy); }
-.tc-badge-down    { background: color-mix(in srgb, var(--sell) 18%, transparent); color: var(--sell); }
+.tc-badge-up      { background: rgba(34,197,94,.18);  color: var(--buy);  background: color-mix(in srgb, var(--buy)  18%, transparent); }
+.tc-badge-down    { background: rgba(239,68,68,.18); color: var(--sell); background: color-mix(in srgb, var(--sell) 18%, transparent); }
 .tc-badge-neutral { background: var(--bg-hover); color: var(--text-muted); }
 
 /* Card body: days count */
@@ -6078,9 +6078,9 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .gp-row:hover { background: rgba(255,255,255,.06); }
 /* Subtle left-edge tint — the horizontal bar already shows the bull/bear split,
    so this is just a faint accent, not a loud stripe */
-.gp-row-bull  { border-left-color: color-mix(in srgb, var(--buy)  45%, transparent); }
-.gp-row-bear  { border-left-color: color-mix(in srgb, var(--sell) 45%, transparent); }
-.gp-row-mixed { border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.gp-row-bull  { border-left-color: rgba(34,197,94,.45);   border-left-color: color-mix(in srgb, var(--buy)    45%, transparent); }
+.gp-row-bear  { border-left-color: rgba(239,68,68,.45);  border-left-color: color-mix(in srgb, var(--sell)   45%, transparent); }
+.gp-row-mixed { border-left-color: rgba(99,102,241,.35); border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .gp-row-selected { background: rgba(255,255,255,.07) !important; outline: 1px solid var(--accent); outline-offset: -1px; }
 .gp-row-selected .gp-name { color: var(--text-primary); }
 .gp-row:not(:last-child) { border-bottom: 1px solid var(--border); }
@@ -6094,9 +6094,9 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background: var(--bg-elevated); display: flex; gap: 1px;
 }
 /* Softened, less-saturated fills so the bars aren't a wall of bright green */
-.gp-bar-bull { background: color-mix(in srgb, var(--buy)  70%, var(--bg-elevated)); height: 100%; transition: width .5s ease; }
+.gp-bar-bull { background: rgba(34,197,94,.7);  height: 100%; transition: width .5s ease; background: color-mix(in srgb, var(--buy)  70%, var(--bg-elevated)); }
 .gp-bar-neut { background: var(--border); height: 100%; transition: width .5s ease; }
-.gp-bar-bear { background: color-mix(in srgb, var(--sell) 70%, var(--bg-elevated)); height: 100%; transition: width .5s ease; }
+.gp-bar-bear { background: rgba(239,68,68,.7); height: 100%; transition: width .5s ease; background: color-mix(in srgb, var(--sell) 70%, var(--bg-elevated)); }
 
 .gp-stats {
   display: flex; gap: 8px; font-size: .72rem; font-weight: 700;
