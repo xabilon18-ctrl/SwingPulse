@@ -647,6 +647,9 @@ def main():
     print('\n  Signal summary:')
     _print_summary(output_df)
 
+    # 6b. Flow volumes (aggregate index volume by region)
+    compute_flow_volumes(output_df, run_date)
+
     # 7. Upload data to R2 + update live app
     print('\n  Uploading data to R2 ...\n')
     try:
@@ -675,6 +678,87 @@ def main():
         sys.exit(1)
 
     print(f'\n  Done — {run_date}\n')
+
+
+def compute_flow_volumes(output_df: pd.DataFrame, run_date: date) -> None:
+    """
+    Aggregate daily volume across Index instruments by region.
+    Appends to output_ma200/flow_volumes.csv (append-only, one row per date/region).
+    On first run, backfills from all existing signals_*.csv files.
+    """
+    import glob
+
+    # Region mapping from group values in Instruments.txt
+    REGION_MAP = {
+        'US Index':   'US',
+        'EU Index':   'EU',
+        'Asia Index': 'Asian',
+        'CA Index':   'Other',
+    }
+    INDEX_GROUPS = set(REGION_MAP.keys())
+    FLOW_COLS = ['date', 'group', 'region', 'total_volume', 'instrument_count']
+    FLOW_PATH = os.path.join(config.OUTPUT_DIR, 'flow_volumes.csv')
+
+    # Load existing flow data
+    if os.path.exists(FLOW_PATH):
+        existing = pd.read_csv(FLOW_PATH, dtype=str)
+        existing_dates = set(existing['date'].astype(str))
+    else:
+        existing = pd.DataFrame(columns=FLOW_COLS)
+        existing_dates = set()
+
+    def _aggregate(df: pd.DataFrame, date_str: str) -> list[dict]:
+        """Return 5 rows (All + 4 regions) for one date's signals df."""
+        idx = df[df['group'].isin(INDEX_GROUPS)].copy()
+        if idx.empty:
+            return []
+        idx['_vol'] = pd.to_numeric(idx['volume'], errors='coerce').fillna(0)
+        idx['_region'] = idx['group'].map(REGION_MAP)
+        rows = []
+        for region in ['All', 'US', 'EU', 'Asian', 'Other']:
+            subset = idx if region == 'All' else idx[idx['_region'] == region]
+            rows.append({
+                'date':             date_str,
+                'group':            'Indices',
+                'region':           region,
+                'total_volume':     int(subset['_vol'].sum()),
+                'instrument_count': len(subset),
+            })
+        return rows
+
+    new_rows: list[dict] = []
+
+    # Backfill from existing signals CSVs (skips any already in the file)
+    pattern = os.path.join(config.OUTPUT_DIR, 'signals_????-??-??.csv')
+    for fpath in sorted(glob.glob(pattern)):
+        date_str = os.path.basename(fpath).replace('signals_', '').replace('.csv', '')
+        if date_str in existing_dates:
+            continue
+        try:
+            hist_df = pd.read_csv(fpath, dtype=str)
+            new_rows.extend(_aggregate(hist_df, date_str))
+            existing_dates.add(date_str)
+        except Exception as exc:
+            print(f'  Flow: skipped {date_str} ({exc})')
+
+    # Today's data from the already-computed output_df
+    today_str = run_date.isoformat()
+    if today_str not in existing_dates:
+        new_rows.extend(_aggregate(output_df.astype(str), today_str))
+
+    if new_rows:
+        combined = pd.concat(
+            [existing, pd.DataFrame(new_rows, columns=FLOW_COLS)],
+            ignore_index=True,
+        )
+        combined = combined.drop_duplicates(subset=['date', 'group', 'region'], keep='last')
+        combined = combined.sort_values('date').reset_index(drop=True)
+        os.makedirs(os.path.dirname(FLOW_PATH), exist_ok=True)
+        combined.to_csv(FLOW_PATH, index=False)
+        n_dates = combined['date'].nunique()
+        print(f'  Flow: wrote {len(combined)} rows ({n_dates} dates) → flow_volumes.csv')
+    else:
+        print(f'  Flow: already up to date')
 
 
 def _print_summary(df: pd.DataFrame) -> None:

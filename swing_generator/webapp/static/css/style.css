@@ -6510,3 +6510,89 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .mh-rs-lbl { color: var(--text-primary); }
 .mh-rs-pts { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .mh-rs-empty { color: var(--text-muted); justify-content: flex-start; font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   FLOW TAB — Indices Aggregate Volume
+   ═══════════════════════════════════════════════════════════════════ */
+
+#pane-flow {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.flow-filter-bar {
+  padding: 12px 14px 0;
+  flex-shrink: 0;
+}
+
+.flow-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.flow-chip {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.flow-chip:hover { border-color: var(--accent); color: var(--text-primary); }
+.flow-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.flow-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.flow-title    { font-size: .95rem; font-weight: 800; color: var(--text-primary); }
+.flow-subtitle { font-size: .7rem;  color: var(--text-muted); }
+
+.flow-chart-wrap {
+  flex: 1;
+  min-height: 0;
+  padding: 0 10px;
+  position: relative;
+}
+
+#flowChart { width: 100% !important; height: 100% !important; }
+
+.flow-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.flow-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 4px;
+  gap: 3px;
+}
+.flow-stat-lbl {
+  font-size: .62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.flow-stat-val {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

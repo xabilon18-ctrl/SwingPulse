@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 
 import pandas as pd
-from flask import Flask, jsonify, render_template, send_file
+from flask import Flask, jsonify, render_template, request, send_file
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -886,6 +886,44 @@ def api_portfolio():
     if os.path.exists(pf_path):
         return send_file(pf_path, mimetype='application/json')
     return jsonify(None)
+
+
+@app.route('/api/flow')
+def api_flow():
+    """Aggregate index volume by region for the Flow tab."""
+    group  = request.args.get('group',  'Indices')
+    region = request.args.get('region', 'All')
+    days   = min(int(request.args.get('days', 252)), 500)
+
+    flow_path = os.path.join(OUTPUT_DIR, 'flow_volumes.csv')
+    if not os.path.exists(flow_path):
+        return jsonify({'group': group, 'region': region, 'data': [], 'stats': {}})
+
+    try:
+        df = pd.read_csv(flow_path)
+        df = df[(df['group'] == group) & (df['region'] == region)].copy()
+        df = df.sort_values('date').tail(days).reset_index(drop=True)
+        df['total_volume'] = pd.to_numeric(df['total_volume'], errors='coerce').fillna(0)
+
+        data = [
+            {'date': row['date'], 'volume': int(row['total_volume']),
+             'instrument_count': int(row.get('instrument_count', 0))}
+            for _, row in df.iterrows()
+        ]
+
+        vols = [d['volume'] for d in data if d['volume'] > 0]
+        recent = [d['volume'] for d in data[-30:] if d['volume'] > 0]
+        stats = {
+            'current':     data[-1]['volume'] if data else 0,
+            'avg_30d':     round(sum(recent) / len(recent)) if recent else 0,
+            'window_high': max(vols) if vols else 0,
+            'window_low':  min(vols) if vols else 0,
+            'mean':        round(sum(vols) / len(vols)) if vols else 0,
+        }
+        return jsonify({'group': group, 'region': region, 'data': data, 'stats': stats})
+    except Exception as e:
+        app.logger.error(f'api_flow error: {e}')
+        return jsonify({'group': group, 'region': region, 'data': [], 'stats': {}, 'error': str(e)})
 
 
 @app.route('/api/refresh', methods=['POST'])

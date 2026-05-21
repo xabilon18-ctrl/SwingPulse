@@ -648,6 +648,29 @@ def build_data(output_dir, src_signals_dir=None):
             print(f'  Portfolio: {pf_src}')
             break
 
+    # Flow volumes — build pre-structured JSON for Cloudflare Pages (static hosting)
+    flow_csv = os.path.join(OUTPUT_DIR, 'flow_volumes.csv')
+    if os.path.exists(flow_csv):
+        try:
+            fdf = pd.read_csv(flow_csv)
+            fdf['total_volume'] = pd.to_numeric(fdf['total_volume'], errors='coerce').fillna(0).astype(int)
+            fdf['instrument_count'] = pd.to_numeric(fdf['instrument_count'], errors='coerce').fillna(0).astype(int)
+            flow_json = {'Indices': {}}
+            for region in ['All', 'US', 'EU', 'Asian', 'Other']:
+                subset = fdf[(fdf['group'] == 'Indices') & (fdf['region'] == region)].sort_values('date')
+                flow_json['Indices'][region] = [
+                    {'date': row['date'], 'volume': int(row['total_volume']),
+                     'instrument_count': int(row['instrument_count'])}
+                    for _, row in subset.iterrows()
+                ]
+            with open(os.path.join(output_dir, 'flow_volumes.json'), 'w') as f:
+                json.dump(flow_json, f, separators=(',', ':'))
+            print(f'  Flow volumes: {fdf["date"].nunique()} dates')
+        except Exception as e:
+            print(f'  Flow volumes: skipped ({e})')
+    else:
+        print(f'  Flow volumes: no CSV found — run main.py first')
+
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
@@ -807,7 +830,7 @@ def upload_to_r2(data_dir, max_workers=16, retries=2, r2_prefix=''):
     # Core data files
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'events.json', 'names.json',
-                  'backtest.json', 'portfolio.json']:
+                  'backtest.json', 'portfolio.json', 'flow_volumes.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -911,6 +934,7 @@ def build_ui():
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
     js = js.replace("'/api/portfolio?t='", f"'{base}/portfolio.json?t='")
+    js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",
         f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"

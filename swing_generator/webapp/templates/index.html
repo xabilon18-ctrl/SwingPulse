@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=113">
+  <link rel="stylesheet" href="/static/css/style.css?v=114">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -533,6 +533,31 @@
       <div class="trends-detail-panel" id="trendsDetailPanel" style="display:none"></div>
     </section>
 
+    <!-- ========== FLOW TAB ========== -->
+    <section class="tab-pane" id="pane-flow">
+      <div class="flow-filter-bar">
+        <div class="flow-chips" id="flowChips">
+          <button class="flow-chip active" data-region="All">All</button>
+          <button class="flow-chip" data-region="US">US</button>
+          <button class="flow-chip" data-region="EU">EU</button>
+          <button class="flow-chip" data-region="Asian">Asian</button>
+        </div>
+        <div class="flow-title-row">
+          <span class="flow-title">Indices Volume</span>
+          <span class="flow-subtitle">Daily · 12-month view</span>
+        </div>
+      </div>
+      <div class="flow-chart-wrap">
+        <canvas id="flowChart"></canvas>
+      </div>
+      <div class="flow-stats" id="flowStats">
+        <div class="flow-stat"><span class="flow-stat-lbl">Today</span><span class="flow-stat-val" id="fsStat0">—</span></div>
+        <div class="flow-stat"><span class="flow-stat-lbl">30d Avg</span><span class="flow-stat-val" id="fsStat1">—</span></div>
+        <div class="flow-stat"><span class="flow-stat-lbl">High</span><span class="flow-stat-val" id="fsStat2">—</span></div>
+        <div class="flow-stat"><span class="flow-stat-lbl">Low</span><span class="flow-stat-val" id="fsStat3">—</span></div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ===== INSTRUMENT DETAIL MODAL (placeholder moved) ===== -->
@@ -582,6 +607,10 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Watchlist</span>
     </button>
+    <button class="nav-tab" data-tab="flow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      <span>Flow</span>
+    </button>
   </nav>
 
 <!-- ===== USER PICKER ===== -->
@@ -601,6 +630,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=131"></script>
+  <script src="/static/js/app.js?v=132"></script>
 </body>
 </html>

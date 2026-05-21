@@ -515,6 +515,7 @@
     else if (tab === 'radar')    renderRadar();
     else if (tab === 'trends')   renderTrendsLazy();
     else if (tab === 'watchlist') renderWatchlist();
+    else if (tab === 'flow')      { if (window._renderFlow) window._renderFlow(); }
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -4368,6 +4369,188 @@
 
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
+
+  // ── Flow Tab — Indices Aggregate Volume ──────────────────────────────
+  (function initFlowTab() {
+    let flowChart   = null;
+    let flowRegion  = 'All';
+
+    // Format large volume numbers compactly
+    function fmtVol(v) {
+      if (!v || v === 0) return '—';
+      if (v >= 1e12) return (v / 1e12).toFixed(1) + 'T';
+      if (v >= 1e9)  return (v / 1e9).toFixed(1)  + 'B';
+      if (v >= 1e6)  return (v / 1e6).toFixed(1)  + 'M';
+      return v.toLocaleString();
+    }
+
+    function renderFlow() {
+      fetchFlowData(flowRegion);
+    }
+
+    async function fetchFlowData(region) {
+      try {
+        const res  = await fetch('/api/flow?group=Indices&region=' + region + '&days=252');
+        const json = await res.json();
+
+        let data, stats;
+        if (json.Indices) {
+          // Pre-built JSON (Cloudflare Pages) — filter client-side
+          data = (json.Indices[region] || []).slice(-252);
+          const vols   = data.map(d => d.volume).filter(v => v > 0);
+          const recent = data.slice(-30).map(d => d.volume).filter(v => v > 0);
+          stats = {
+            current:     data.length ? data[data.length - 1].volume : 0,
+            avg_30d:     recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : 0,
+            window_high: vols.length ? Math.max(...vols) : 0,
+            window_low:  vols.length ? Math.min(...vols) : 0,
+            mean:        vols.length ? Math.round(vols.reduce((a, b) => a + b, 0) / vols.length) : 0,
+          };
+        } else {
+          // Flask API response (local dev server)
+          data  = json.data  || [];
+          stats = json.stats || {};
+        }
+        drawFlowChart(data, stats);
+      } catch (e) {
+        console.error('Flow fetch error', e);
+      }
+    }
+
+    function drawFlowChart(data, stats) {
+      const canvas = document.getElementById('flowChart');
+      if (!canvas) return;
+
+      // Destroy existing chart instance
+      if (flowChart) { flowChart.destroy(); flowChart = null; }
+
+      // Pad right with empty bars (2 months ≈ 42 trading days)
+      const EMPTY_BARS = 42;
+      const labels   = data.map(d => d.date);
+      const volumes  = data.map(d => d.volume);
+      const meanVol  = stats.mean || (volumes.length ? Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length) : 0);
+
+      // Pad right with nulls
+      for (let i = 0; i < EMPTY_BARS; i++) { labels.push(''); volumes.push(null); }
+
+      // Today boundary = index of last real data point
+      const todayIdx = data.length - 1;
+
+      flowChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Volume',
+              data: volumes,
+              borderColor: '#6366f1',
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              tension: 0.3,
+              fill: false,
+              spanGaps: false,
+            },
+            {
+              label: 'Mean',
+              data: Array(labels.length).fill(meanVol),
+              borderColor: 'rgba(255,255,255,0.18)',
+              borderWidth: 1,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              tension: 0,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 300 },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(15,20,40,0.95)',
+              titleColor: '#e2e8f0',
+              bodyColor: '#94a3b8',
+              borderColor: '#1e2d4a',
+              borderWidth: 1,
+              callbacks: {
+                label: ctx => ctx.datasetIndex === 0 && ctx.raw !== null
+                  ? ' ' + fmtVol(ctx.raw)
+                  : null,
+              },
+            },
+            // Today marker as a vertical annotation using afterDraw
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: '#64748b',
+                font: { size: 10 },
+                maxTicksLimit: 8,
+                maxRotation: 0,
+              },
+              grid: { color: 'rgba(255,255,255,0.04)' },
+            },
+            y: {
+              position: 'right',
+              ticks: {
+                color: '#64748b',
+                font: { size: 10 },
+                callback: v => fmtVol(v),
+              },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+          },
+        },
+        plugins: [{
+          id: 'todayLine',
+          afterDraw(chart) {
+            const ctx2 = chart.ctx;
+            const xScale = chart.scales.x;
+            const xPos = xScale.getPixelForValue(todayIdx);
+            const { top, bottom } = chart.chartArea;
+            ctx2.save();
+            ctx2.setLineDash([3, 5]);
+            ctx2.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx2.lineWidth = 1;
+            ctx2.beginPath();
+            ctx2.moveTo(xPos, top);
+            ctx2.lineTo(xPos, bottom);
+            ctx2.stroke();
+            ctx2.restore();
+          },
+        }],
+      });
+
+      // Update stat row
+      const vals = [stats.current, stats.avg_30d, stats.window_high, stats.window_low];
+      vals.forEach((v, i) => {
+        const el = document.getElementById('fsStat' + i);
+        if (el) el.textContent = fmtVol(v);
+      });
+    }
+
+    // Wire filter chips
+    const chips = document.getElementById('flowChips');
+    if (chips) {
+      chips.addEventListener('click', e => {
+        const chip = e.target.closest('.flow-chip');
+        if (!chip) return;
+        chips.querySelectorAll('.flow-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        flowRegion = chip.dataset.region;
+        fetchFlowData(flowRegion);
+      });
+    }
+
+    // Expose renderFlow so renderCurrentTab() can call it
+    window._renderFlow = renderFlow;
+  })();
 
   window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen, togglePush };
 
