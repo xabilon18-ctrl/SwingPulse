@@ -3555,6 +3555,62 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   padding: 7px 10px 7px 30px;
 }
 
+/* ── List / Ranked view toggle ── */
+.sig-view-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.sig-view-btn {
+  padding: 4px 10px;
+  font-size: .68rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  letter-spacing: .3px;
+}
+.sig-view-btn:first-child { border-right: 1px solid var(--border); }
+.sig-view-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.sig-view-btn:hover:not(.active) { background: rgba(255,255,255,.05); color: var(--text-primary); }
+
+/* ── Ranked tier section headers ── */
+.scanner-tier-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  margin-top: 6px;
+}
+.scanner-tier-header:first-child { margin-top: 0; }
+.scanner-tier-label {
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+.scanner-tier-count {
+  font-size: .63rem;
+  color: var(--text-muted);
+}
+.scanner-tier-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: .5;
+}
+.tier-prime  .scanner-tier-label { color: #10b981; }
+.tier-strong .scanner-tier-label { color: #6366f1; }
+.tier-developing .scanner-tier-label { color: var(--text-muted); }
+
 /* ── Direction segmented toggle ── */
 .sig-dir-toggle {
   display: flex;
@@ -6565,6 +6621,23 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
   min-height: 0;
   padding: 0 10px;
   position: relative;
+}
+/* When embedded in a dashboard card (not a full-height tab) */
+.flow-chart-card {
+  flex: unset;
+  height: 160px;
+  padding: 6px 4px 0;
+}
+
+/* Inline chips in card-header (no bottom margin) */
+.flow-chips-inline {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+}
+.flow-chips-inline .flow-chip {
+  padding: 3px 9px;
+  font-size: .68rem;
 }
 
 #flowChart { width: 100% !important; height: 100% !important; }

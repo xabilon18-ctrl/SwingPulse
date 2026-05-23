@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=114">
+  <link rel="stylesheet" href="/static/css/style.css?v=120">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -193,6 +193,30 @@
         <div class="alignment-summary" id="alignmentSummary"></div>
       </div>
 
+
+      <!-- Indices Flow Card — moved from standalone tab -->
+      <div class="card" id="flowDashCard">
+        <div class="card-header">
+          <h3>Indices Flow</h3>
+          <div class="flow-chips flow-chips-inline" id="flowChips">
+            <button class="flow-chip active" data-region="All">All</button>
+            <button class="flow-chip" data-region="US">US</button>
+            <button class="flow-chip" data-region="EU">EU</button>
+            <button class="flow-chip" data-region="Asian">Asian</button>
+          </div>
+        </div>
+        <div class="flow-chart-wrap flow-chart-card">
+          <canvas id="flowChart"></canvas>
+        </div>
+        <div class="flow-stats" id="flowStats">
+          <div class="flow-stat"><span class="flow-stat-lbl">Today</span><span class="flow-stat-val" id="fsStat0">—</span></div>
+          <div class="flow-stat"><span class="flow-stat-lbl">30d Avg</span><span class="flow-stat-val" id="fsStat1">—</span></div>
+          <div class="flow-stat"><span class="flow-stat-lbl">High</span><span class="flow-stat-val" id="fsStat2">—</span></div>
+          <div class="flow-stat"><span class="flow-stat-lbl">Low</span><span class="flow-stat-val" id="fsStat3">—</span></div>
+        </div>
+      </div>
+
+
       <!-- Signal Confidence hidden — data surfaced via High Conf. stat card -->
       <div id="confidenceBreakdown" style="display:none"></div>
 
@@ -249,9 +273,13 @@
 
     <!-- ========== SIGNALS TAB ========== -->
     <section class="tab-pane" id="pane-scanner">
-      <!-- Header: count + search -->
+      <!-- Header: count + search + view toggle -->
       <div class="sig-tab-header">
         <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
+        <div class="sig-view-toggle">
+          <button class="sig-view-btn active" data-view="list">List</button>
+          <button class="sig-view-btn" data-view="ranked">Ranked</button>
+        </div>
         <div class="search-wrap sig-search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" class="search-input" id="scannerSearch" placeholder="Search...">
@@ -443,11 +471,6 @@
       </div>
     </section>
 
-    <!-- ========== RADAR TAB ========== -->
-    <section class="tab-pane" id="pane-radar">
-      <!-- Populated by renderRadar() -->
-    </section>
-
     <!-- ========== WATCHLIST TAB ========== -->
     <section class="tab-pane" id="pane-watchlist">
 
@@ -539,30 +562,8 @@
       <div class="trends-detail-panel" id="trendsDetailPanel" style="display:none"></div>
     </section>
 
-    <!-- ========== FLOW TAB ========== -->
-    <section class="tab-pane" id="pane-flow">
-      <div class="flow-filter-bar">
-        <div class="flow-chips" id="flowChips">
-          <button class="flow-chip active" data-region="All">All</button>
-          <button class="flow-chip" data-region="US">US</button>
-          <button class="flow-chip" data-region="EU">EU</button>
-          <button class="flow-chip" data-region="Asian">Asian</button>
-        </div>
-        <div class="flow-title-row">
-          <span class="flow-title">Indices Volume</span>
-          <span class="flow-subtitle">Daily · 12-month view</span>
-        </div>
-      </div>
-      <div class="flow-chart-wrap">
-        <canvas id="flowChart"></canvas>
-      </div>
-      <div class="flow-stats" id="flowStats">
-        <div class="flow-stat"><span class="flow-stat-lbl">Today</span><span class="flow-stat-val" id="fsStat0">—</span></div>
-        <div class="flow-stat"><span class="flow-stat-lbl">30d Avg</span><span class="flow-stat-val" id="fsStat1">—</span></div>
-        <div class="flow-stat"><span class="flow-stat-lbl">High</span><span class="flow-stat-val" id="fsStat2">—</span></div>
-        <div class="flow-stat"><span class="flow-stat-lbl">Low</span><span class="flow-stat-val" id="fsStat3">—</span></div>
-      </div>
-    </section>
+
+
 
   </main>
 
@@ -601,10 +602,6 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span>Signals</span>
     </button>
-    <button class="nav-tab" data-tab="radar">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
-      <span>Radar</span>
-    </button>
     <button class="nav-tab" data-tab="trends">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg>
       <span>Trends</span>
@@ -612,10 +609,6 @@
     <button class="nav-tab" data-tab="watchlist">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Watchlist</span>
-    </button>
-    <button class="nav-tab" data-tab="flow">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-      <span>Flow</span>
     </button>
   </nav>
 
@@ -636,6 +629,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=132"></script>
+  <script src="/static/js/app.js?v=141"></script>
 </body>
 </html>

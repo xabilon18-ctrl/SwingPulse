@@ -29,6 +29,7 @@
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
+  let scannerView = 'list';   // 'list' | 'ranked'
   let gpViewMode = 'group';   // 'group' | 'region'
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
   let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
@@ -510,12 +511,10 @@
 
   function renderCurrentTab() {
     const tab = currentTab;
-    if (tab === 'dashboard')  renderDashboard();
+    if (tab === 'dashboard')   renderDashboard();
     else if (tab === 'scanner')  renderScanner();
-    else if (tab === 'radar')    renderRadar();
     else if (tab === 'trends')   renderTrendsLazy();
     else if (tab === 'watchlist') renderWatchlist();
-    else if (tab === 'flow')      { if (window._renderFlow) window._renderFlow(); }
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -653,7 +652,7 @@
   }
 
   // Track which lazy tabs need a re-render (set dirty after every data refresh)
-  const tabDirty = { trends: true, radar: true };
+  const tabDirty = { trends: true };
 
   function renderAll() {
     renderDashboard();
@@ -661,22 +660,14 @@
     renderWatchlist();
     // Mark lazy tabs dirty so they re-render on next visit
     tabDirty.trends = true;
-    tabDirty.radar  = true;
-    // If the user is already on a lazy tab (e.g. background refresh), render it now
+    // If the user is already on the trends tab (e.g. background refresh), render it now
     if (currentTab === 'trends') renderTrendsLazy();
-    if (currentTab === 'radar')  renderRadarLazy();
   }
 
   function renderTrendsLazy() {
     if (!tabDirty.trends) return;
     tabDirty.trends = false;
     buildTrendsCards();
-  }
-
-  function renderRadarLazy() {
-    if (!tabDirty.radar) return;
-    tabDirty.radar = false;
-    renderRadar();
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
@@ -694,7 +685,6 @@
     currentTab = tab;
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
-    if (tab === 'radar')  renderRadarLazy();
   }
 
   navTabs.forEach(btn => {
@@ -1231,6 +1221,8 @@
     renderSignalFeed();
     renderMacroSrFeed();
     renderAIDashboardCard();
+    // Flow chart lives in a Dashboard card — render on first load
+    window._renderFlow?.();
   }
 
   function renderAIDashboardCard() {
@@ -1687,6 +1679,9 @@
 
   // ── Tab navigation helper ─────────────────────────────────────────────
   function navigateToTab(tabName) {
+    // 'radar' and 'flow' tabs are now gone — redirect to their new homes
+    if (tabName === 'radar') tabName = 'scanner';
+    if (tabName === 'flow')  tabName = 'dashboard';
     const btn = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     if (btn) btn.click();
   }
@@ -2705,12 +2700,6 @@
       return;
     }
 
-    // ── Pagination: only render SCANNER_PAGE_SIZE × scannerPage cards at once ──
-    const totalFiltered = filtered.length;
-    const pageEnd = scannerPage * SCANNER_PAGE_SIZE;
-    const visible = filtered.slice(0, pageEnd);
-    const remaining = totalFiltered - visible.length;
-
     function makeCard(item, i) {
       const t = item[f('trend_direction')] || 'NEUTRAL';
       const sig = item[f('primary_signal')] || '';
@@ -2834,6 +2823,37 @@
       </div>`;
     }
 
+    // ── RANKED VIEW: group signal cards into Prime / Strong / Developing tiers ──
+    if (scannerView === 'ranked') {
+      const scoreCache = new Map();
+      const scoreOf = d => { let v = scoreCache.get(d); if (v === undefined) { v = radarConfluenceScore(d); scoreCache.set(d, v); } return v; };
+      const sorted = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
+      const prime      = sorted.filter(d => scoreOf(d) >= 75);
+      const strong     = sorted.filter(d => { const s = scoreOf(d); return s >= 50 && s < 75; });
+      const developing = sorted.filter(d => scoreOf(d) < 50);
+
+      function tierHeader(label, count, tierCls) {
+        return `<div class="scanner-tier-header ${tierCls}">
+          <span class="scanner-tier-label">${label}</span>
+          <span class="scanner-tier-count">${count}</span>
+          <span class="scanner-tier-line"></span>
+        </div>`;
+      }
+
+      let html = '';
+      if (prime.length)      html += tierHeader('Prime', prime.length,      'tier-prime')      + prime.map((d, i) => makeCard(d, i)).join('');
+      if (strong.length)     html += tierHeader('Strong', strong.length,    'tier-strong')     + strong.map((d, i) => makeCard(d, i)).join('');
+      if (developing.length) html += tierHeader('Developing', developing.length, 'tier-developing') + developing.map((d, i) => makeCard(d, i)).join('');
+      grid.innerHTML = html;
+      return;
+    }
+
+    // ── LIST VIEW: paginated ──
+    const totalFiltered = filtered.length;
+    const pageEnd = scannerPage * SCANNER_PAGE_SIZE;
+    const visible = filtered.slice(0, pageEnd);
+    const remaining = totalFiltered - visible.length;
+
     const cardsHtml = visible.map((item, i) => makeCard(item, i)).join('');
     const loadMoreHtml = remaining > 0
       ? `<div class="scanner-load-more" id="scannerLoadMore">
@@ -2859,6 +2879,21 @@
       });
     }
   }
+
+  // ── List / Ranked view toggle ──
+  (function wireViewToggle() {
+    const toggleEl = document.querySelector('.sig-view-toggle');
+    if (!toggleEl) return;
+    toggleEl.addEventListener('click', e => {
+      const btn = e.target.closest('.sig-view-btn');
+      if (!btn) return;
+      const view = btn.dataset.view;
+      if (view === scannerView) return;
+      scannerView = view;
+      toggleEl.querySelectorAll('.sig-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      buildScannerCards();
+    });
+  })();
 
   document.getElementById('scannerSearch').addEventListener('input', debounce(() => buildScannerCards(), 150));
   // Advanced filter selects — applied via Apply button in bottom sheet
@@ -4847,7 +4882,10 @@
     return radarScoreFactors(item);
   }
 
-  function renderRadar() {
+  // renderRadar() removed — Radar is now the "Ranked" view inside Signals.
+  // Scoring functions (radarConfluenceScore, radarScoreFactors) are still used by scanner cards.
+
+  function _renderRadar_REMOVED() {
     const allData = getActiveData(); // respect AI filter
     const el = document.getElementById('pane-radar');
     if (!el || !allData.length) return;
@@ -5050,7 +5088,7 @@
     }
   }
 
-  function wireRadarOnce(el) {
+  function _wireRadarOnce_REMOVED(el) {
     if (radarWired) return;
     radarWired = true;
     let searchTimer;
