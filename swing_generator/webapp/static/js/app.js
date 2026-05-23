@@ -2521,6 +2521,16 @@
   }
 
   function buildScannerCards(appendPage = false, opts = {}) {
+    try {
+      _buildScannerCardsInner(appendPage, opts);
+    } catch (err) {
+      console.error('buildScannerCards crashed:', err);
+      const grid = document.getElementById('scannerGrid');
+      if (grid) grid.innerHTML = '<div class="scanner-empty">Error loading signals — try refreshing</div>';
+    }
+  }
+
+  function _buildScannerCardsInner(appendPage = false, opts = {}) {
     if (!appendPage && !opts.keepPage) scannerPage = 1;  // reset to page 1 when filters change
     const grid = document.getElementById('scannerGrid');
     const summaryEl = document.getElementById('scannerSummary');
@@ -2698,7 +2708,7 @@
       return;
     }
 
-    function makeCard(item, i) {
+    const makeCard = (item, i) => {
       const t = item[f('trend_direction')] || 'NEUTRAL';
       const sig = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
@@ -2730,13 +2740,13 @@
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
-      function perfPill(val, label) {
+      const perfPill = (val, label) => {
         const v = parseFloat(val);
         if (isNaN(v)) return '';
         const cls = v >= 0 ? 'perf-pos' : 'perf-neg';
         const str = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
         return `<span class="perf-pill ${cls}"><span class="perf-label">${label}</span>${str}</span>`;
-      }
+      };
       const perfRow = [
         perfPill(item.pct_1d, '1D'),
         perfPill(item.pct_1w, '1W'),
@@ -2819,9 +2829,16 @@
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
       </div>`;
-    }
+    };
 
     // ── RANKED VIEW: group signal cards into Prime / Strong / Developing tiers ──
+    const tierHeader = (label, count, tierCls) =>
+      `<div class="scanner-tier-header ${tierCls}">
+        <span class="scanner-tier-label">${label}</span>
+        <span class="scanner-tier-count">${count}</span>
+        <span class="scanner-tier-line"></span>
+      </div>`;
+
     if (scannerView === 'ranked') {
       const scoreCache = new Map();
       const scoreOf = d => { let v = scoreCache.get(d); if (v === undefined) { v = radarConfluenceScore(d); scoreCache.set(d, v); } return v; };
@@ -2829,14 +2846,6 @@
       const prime      = sorted.filter(d => scoreOf(d) >= 75);
       const strong     = sorted.filter(d => { const s = scoreOf(d); return s >= 50 && s < 75; });
       const developing = sorted.filter(d => scoreOf(d) < 50);
-
-      function tierHeader(label, count, tierCls) {
-        return `<div class="scanner-tier-header ${tierCls}">
-          <span class="scanner-tier-label">${label}</span>
-          <span class="scanner-tier-count">${count}</span>
-          <span class="scanner-tier-line"></span>
-        </div>`;
-      }
 
       let html = '';
       if (prime.length)      html += tierHeader('Prime', prime.length,      'tier-prime')      + prime.map((d, i) => makeCard(d, i)).join('');
