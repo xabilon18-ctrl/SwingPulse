@@ -197,6 +197,8 @@ html {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   scroll-behavior: smooth;
+  overflow-x: hidden;   /* prevent iOS Safari horizontal bounce scroll */
+  max-width: 100vw;
 }
 
 body {
@@ -442,6 +444,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .tab-pane {
   display: none;
   animation: fadeIn .35s ease;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 .tab-pane.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -3538,7 +3542,9 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px 4px;
-  gap: 12px;
+  gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .sig-tab-count {
   font-size: .72rem;
@@ -3548,7 +3554,8 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 .sig-search-wrap {
   flex: 1;
-  max-width: 220px;
+  min-width: 0;
+  max-width: 180px;
 }
 .sig-search-wrap .search-input {
   font-size: .78rem;
