@@ -3360,12 +3360,16 @@
     const modal = document.getElementById('instrumentModal');
     if (!modal) return;
     let swipeStartY = 0;
+    let swipeStartScrollTop = 0;
+    const modalBody = document.getElementById('modalBody');
     modal.addEventListener('touchstart', e => {
       swipeStartY = e.touches[0].clientY;
+      swipeStartScrollTop = modalBody ? modalBody.scrollTop : 0;
     }, { passive: true });
     modal.addEventListener('touchend', e => {
       const dy = e.changedTouches[0].clientY - swipeStartY;
-      if (dy > 80) closeModal();
+      // Only close if: swiping down ≥120px AND the body was at the top when gesture started
+      if (dy > 120 && swipeStartScrollTop < 10) closeModal();
     }, { passive: true });
   })();
 

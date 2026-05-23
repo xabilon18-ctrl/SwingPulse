@@ -2027,6 +2027,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .modal-body {
   padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: 90vh;
   max-height: 90dvh;
 }
