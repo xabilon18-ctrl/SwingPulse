@@ -212,7 +212,7 @@
     const sig    = item[f('primary_signal')]      || '';
     const conf   = (item[f('confirmation_status')]|| '').toLowerCase();
     const align  = (item[f('tf_alignment')]       || '').toLowerCase();
-    const trend  = (item[f('trend_direction')]    || '').toLowerCase();
+    const trend  = effectiveTrend(item).toLowerCase();
     const volSpk = item[f('volume_spike_flag')]   === 'yes';
     const squeeze= item[f('ribbon_compression')]  === 'yes';
     const sigConf= (item[f('signal_confidence')] || '').toLowerCase();
@@ -2232,7 +2232,7 @@
           const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
           const roc = parseFloat(item[f('roc')]);
           const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-          const trend = item[f('trend_direction')] || 'NEUTRAL';
+          const trend = effectiveTrend(item);
           const compression = item[f('ribbon_compression')] === 'yes';
           return `<div class="alignment-inst-row ${buy ? 'feed-buy' : sell ? 'feed-sell' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
             <div class="alignment-inst-name">
@@ -2550,7 +2550,7 @@
       filtered = filtered.filter(d => (GP_REGION_MAP[d.group] || 'Other') === activeRegionFilter);
     }
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
-    if (trend !== 'all')   filtered = filtered.filter(d => d[f('trend_direction')] === trend);
+    if (trend !== 'all')   filtered = filtered.filter(d => effectiveTrend(d) === trend);
 
     // ── Alignment filter ──
     if (alignFilter === 'bull')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bull'));
@@ -2610,7 +2610,7 @@
         filtered = filtered.filter(d => {
           const conf = d[f('signal_confidence')] || '';
           const align = d.tf_alignment || '';
-          const t = d[f('trend_direction')] || '';
+          const t = effectiveTrend(d);
           const goodConf = conf === 'high' || conf === 'standard';
           const alignedBull = align.includes('Bull') && t === 'UPTREND';
           const alignedBear = align.includes('Bear') && t === 'DOWNTREND';
@@ -2709,7 +2709,7 @@
     }
 
     const makeCard = (item, i) => {
-      const t = item[f('trend_direction')] || 'NEUTRAL';
+      const t = effectiveTrend(item);
       const sig = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
       const isBuySignal = isBuy(item);
@@ -3070,7 +3070,7 @@
 
     // Stats bar
     const withSignal = starred.filter(d => d[f('primary_signal')]).length;
-    const upCount    = starred.filter(d => d[f('trend_direction')] === 'UPTREND').length;
+    const upCount    = starred.filter(d => effectiveTrend(d) === 'UPTREND').length;
     if (statsEl) {
       statsEl.innerHTML = starred.length
         ? `<span class="sig-sum-total">${starred.length} starred</span>` +
@@ -3093,7 +3093,7 @@
     if (wlFilter === 'buy')     filtered = filtered.filter(isBuy);
     else if (wlFilter === 'sell')    filtered = filtered.filter(isSell);
     else if (wlFilter === 'signal')  filtered = filtered.filter(d => !!(d[f('primary_signal')]));
-    else if (wlFilter === 'uptrend') filtered = filtered.filter(d => d[f('trend_direction')] === 'UPTREND');
+    else if (wlFilter === 'uptrend') filtered = filtered.filter(d => effectiveTrend(d) === 'UPTREND');
 
     // Sort
     const confOrder = { high: 3, standard: 2, low: 1, '': 0 };
@@ -3105,7 +3105,7 @@
       });
     } else if (wlSort === 'trend') {
       const tOrd = { UPTREND: 0, NEUTRAL: 1, DOWNTREND: 2 };
-      filtered = [...filtered].sort((a, b) => (tOrd[a[f('trend_direction')]] ?? 1) - (tOrd[b[f('trend_direction')]] ?? 1));
+      filtered = [...filtered].sort((a, b) => (tOrd[effectiveTrend(a)] ?? 1) - (tOrd[effectiveTrend(b)] ?? 1));
     } else if (wlSort === 'age') {
       filtered = [...filtered].sort((a, b) => (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || ''));
     } else if (wlSort === 'alpha') {
@@ -3118,7 +3118,7 @@
     }
 
     listEl.innerHTML = filtered.map(item => {
-      const t    = item[f('trend_direction')] || 'NEUTRAL';
+      const t    = effectiveTrend(item);
       const sig  = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
       const buy  = isBuy(item), sell = isSell(item);
@@ -3188,7 +3188,7 @@
     }
 
     listEl.innerHTML = active.map(item => {
-      const t       = item[f('trend_direction')] || 'NEUTRAL';
+      const t       = effectiveTrend(item);
       const sig     = item[f('primary_signal')] || '';
       const buy     = isBuy(item), sell = isSell(item);
       const starred = userStarred.has(item.instrument_name);
@@ -3495,7 +3495,7 @@
         <div class="mg-grid">
           <div class="mg-tile">
             <div class="mg-label">Trend</div>
-            <div class="mg-val${item[f('trend_direction')]==='UPTREND' ? ' buy' : item[f('trend_direction')]==='DOWNTREND' ? ' sell' : ''}">${item[f('trend_direction')] || 'N/A'}</div>
+            <div class="mg-val${effectiveTrend(item)==='UPTREND' ? ' buy' : effectiveTrend(item)==='DOWNTREND' ? ' sell' : ''}">${effectiveTrend(item)}</div>
           </div>
           <div class="mg-tile">
             <div class="mg-label">Run ${timeframe==='M'?'Mo':timeframe==='W'?'Wk':'Days'}</div>
@@ -4367,7 +4367,7 @@
     const price   = formatPrice(item[f('close')]);
     const roc     = parseFloat(item[f('roc')]);
     const rocStr  = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-    const trend   = item[f('trend_direction')] || '';
+    const trend   = effectiveTrend(item);
     const run     = parseInt(item[f('trend_run_days')]);
     const sig     = item[f('primary_signal')] || '';
     const conf    = item[f('confirmation_status')] || '';
