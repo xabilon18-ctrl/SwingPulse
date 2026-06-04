@@ -34,12 +34,12 @@ jobs:
 
       # ── 3. Restore MA200 parquet cache ───────────────────────────────────
       # Node/Wrangler not needed in CI — R2 uploads go direct via CLOUDFLARE_API_TOKEN
-      - name: Restore MA200 parquet cache
+      - name: Restore MA500 parquet cache
         uses: actions/cache@v4
         with:
-          path: swing_generator/cache_ma200
-          key: parquet-ma200-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: parquet-ma200-${{ runner.os }}-
+          path: swing_generator/cache_ma500
+          key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: parquet-ma500-${{ runner.os }}-
 
       # ── 5. Google Sheets credentials (optional) ──────────────────────────
       - name: Write Google service account
@@ -58,7 +58,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd swing_generator
-          python3 main.py --profile ma200
+          python3 main.py --profile ma500
 
       # ── 7. Fan out push notifications ────────────────────────────────────
       - name: Trigger push notifications
@@ -69,7 +69,7 @@ jobs:
           if [ -n "$SYNC_SECRET" ]; then
             curl -sS -X POST \
               -H "X-Sync-Secret: $SYNC_SECRET" \
-              -H "X-Profile: ma200" \
+              -H "X-Profile: ma500" \
               https://swingpulse-sync.xabilon18.workers.dev/push/notify \
               || echo "(push fan-out failed — non-fatal)"
           else

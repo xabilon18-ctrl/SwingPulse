@@ -5,12 +5,12 @@ Usage:
     python main.py                         # normal daily run (uses cache if fresh)
     python main.py --refresh               # force re-download all data from Yahoo Finance
     python main.py --date 2026-03-28       # backfill a specific date (uses cached data)
-    python main.py --profile ma200         # run the MA20-200 profile (second app)
-    python main.py --profile ma200 --refresh  # force-refresh MA200 profile data
+    python main.py --profile ma500         # run the MA25-500 profile (second app)
+    python main.py --profile ma500 --refresh  # force-refresh MA500 profile data
 
 Profiles:
     default  — MA10–108 ribbon (15 MAs, step 7)  → output/
-    ma200    — MA20–200 ribbon (19 MAs, step 10) → output_ma200/
+    ma500    — MA25–500 ribbon (20 MAs, step 25) → output_ma500/
 
 Cron (runs at 23:00 SAST / 21:00 UTC every weekday):
     0 21 * * 1-5 cd /path/to/swing_generator && /usr/bin/python3 main.py >> logs/cron.log 2>&1
@@ -36,9 +36,7 @@ import pandas as pd
 import _active_config as config
 
 from _active_config import (
-    MA_PERIODS, SMALL_MA_RANGE, MACRO_MA_PERIODS, OUTPUT_COLUMNS,
-    MAX_PENETRATION_4H, MAX_PENETRATION_DAILY,
-    MAX_PENETRATION_WEEKLY, MAX_PENETRATION_MONTHLY,
+    MA_PERIODS, MACRO_MA_PERIODS, OUTPUT_COLUMNS,
     TOUCH_TOLERANCE_MONTHLY,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
     SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_MONTHLY,
@@ -338,7 +336,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # ── DAILY ──
         df = add_all_indicators(df)
         levels_df = find_key_levels(df)
-        df = add_signals(df, max_penetration=MAX_PENETRATION_DAILY,
+        df = add_signals(df, refire_pct=0.05, new_trend_pct=0.10,
                          key_levels_df=levels_df)
 
         daily_data, today_row = _extract_row(
@@ -367,12 +365,9 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             h4 = _resample_4h(hourly_df)
             h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
             if len(h4_ma_periods) >= 3:
-                h4_small = [p for p in SMALL_MA_RANGE if p in h4_ma_periods]
-                if not h4_small:
-                    h4_small = h4_ma_periods[:min(7, len(h4_ma_periods))]
                 h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
-                h4 = add_signals(h4, ma_periods=h4_ma_periods, small_ma_range=h4_small,
-                                 max_penetration=MAX_PENETRATION_4H)
+                h4 = add_signals(h4, ma_periods=h4_ma_periods,
+                                 refire_pct=0.02, new_trend_pct=0.05)
                 h4_data, _ = _extract_row(
                     h4, run_date, prefix='h4_',
                     ma_periods=h4_ma_periods,
@@ -387,12 +382,9 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         weekly_data = {}
         weekly_ma_periods = [p for p in MA_PERIODS if p <= len(wk)]
         if len(weekly_ma_periods) >= 3:
-            weekly_small = [p for p in SMALL_MA_RANGE if p in weekly_ma_periods]
-            if not weekly_small:
-                weekly_small = weekly_ma_periods[:min(7, len(weekly_ma_periods))]
             wk = add_all_indicators(wk, ma_periods=weekly_ma_periods)
-            wk = add_signals(wk, ma_periods=weekly_ma_periods, small_ma_range=weekly_small,
-                             max_penetration=MAX_PENETRATION_WEEKLY)
+            wk = add_signals(wk, ma_periods=weekly_ma_periods,
+                             refire_pct=0.08, new_trend_pct=0.15)
             weekly_data, _ = _extract_row(
                 wk, run_date, prefix='w_',
                 ma_periods=weekly_ma_periods,
@@ -409,16 +401,12 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         monthly_data = {}
         monthly_ma_periods = [p for p in MA_PERIODS if p <= len(mo)]
         if len(monthly_ma_periods) >= 3:
-            monthly_small = [p for p in SMALL_MA_RANGE if p in monthly_ma_periods]
-            if not monthly_small:
-                monthly_small = monthly_ma_periods[:min(7, len(monthly_ma_periods))]
             mo = add_all_indicators(mo, ma_periods=monthly_ma_periods)
             mo = add_signals(
                 mo,
                 ma_periods=monthly_ma_periods,
-                small_ma_range=monthly_small,
                 touch_tolerance=TOUCH_TOLERANCE_MONTHLY,
-                max_penetration=MAX_PENETRATION_MONTHLY,
+                refire_pct=0.12, new_trend_pct=0.20,
             )
             monthly_data, _ = _extract_row(
                 mo, run_date, prefix='m_',
@@ -569,7 +557,7 @@ def main():
     parser.add_argument('--date', type=str, default=None,
                         help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--profile', type=str, default='default',
-                        help='Config profile: default | ma200')
+                        help='Config profile: default | ma500')
     args = parser.parse_args()
 
     run_date = (
@@ -577,7 +565,7 @@ def main():
         if args.date else date.today()
     )
 
-    profile_label = 'MA200 Profile' if PROFILE == 'ma200' else 'Default Profile'
+    profile_label = 'MA500 Profile' if PROFILE == 'ma500' else 'Default Profile'
     print('=' * 60)
     print(f'  Swing Signal Generator  —  {run_date}  [{profile_label}]')
     print('=' * 60)
@@ -654,10 +642,10 @@ def main():
     print('\n  Uploading data to R2 ...\n')
     try:
         import subprocess
-        # publish.py was simplified to MA200-only — no --profile flag accepted
         # Timeout 900s (15 min) — uploads ~674 files; even at 16x parallelism
         # this needs > 5 min headroom on slow CI runners.
-        publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py')]
+        publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py'),
+                       '--profile', PROFILE]
         result = subprocess.run(
             publish_cmd,
             cwd=os.path.dirname(__file__),
@@ -683,7 +671,7 @@ def main():
 def compute_flow_volumes(output_df: pd.DataFrame, run_date: date) -> None:
     """
     Aggregate daily volume across Index instruments by region.
-    Appends to output_ma200/flow_volumes.csv (append-only, one row per date/region).
+    Appends to output_ma500/flow_volumes.csv (append-only, one row per date/region).
     On first run, backfills from all existing signals_*.csv files.
     """
     import glob

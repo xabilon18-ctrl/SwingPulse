@@ -839,34 +839,41 @@
     );
   }
 
-  // ── Signal code helpers (BP/SP system) ─────────────────────────────
+  // ── Signal code helpers (B/S system) ───────────────────────────────
   function sigClass(code) {
     if (!code) return '';
-    if (code === 'BP1' || code === 'SP1') return 'p1';
-    if (code === 'BP3' || code === 'SP3') return 'p2';
-    if (code === 'BP2' || code === 'SP2') return 'p3';
-    if (code === 'BP4' || code === 'SP4') return 'p4';
+    if (code === 'B1' || code === 'S1') return 'p1';
+    if (code === 'B7' || code === 'S7') return 'p2';
+    if (['B2','S2','B3','S3','B4','S4'].includes(code)) return 'p3';
+    if (['B5','S5','B6','S6'].includes(code)) return 'p4';
     return '';
   }
   function sigPriority(code) {
-    if (code === 'BP1' || code === 'SP1') return 1;
-    if (code === 'BP3' || code === 'SP3') return 2;
-    if (code === 'BP2' || code === 'SP2') return 3;
-    if (code === 'BP4' || code === 'SP4') return 4;
-    return 5;
+    if (code === 'B1' || code === 'S1') return 1;
+    if (code === 'B7' || code === 'S7') return 2;
+    if (code === 'B2' || code === 'S2') return 3;
+    if (code === 'B3' || code === 'S3') return 4;
+    if (code === 'B4' || code === 'S4') return 5;
+    if (code === 'B5' || code === 'S5') return 6;
+    if (code === 'B6' || code === 'S6') return 7;
+    return 8;
   }
-  function isReversal(code) { return code === 'BP1' || code === 'SP1'; }
-  function isLongestMa(code) { return code === 'BP3' || code === 'SP3'; }
-  function isFastMa(code)    { return code === 'BP2' || code === 'SP2'; }
-  function isKeyLevel(code)  { return code === 'BP4' || code === 'SP4'; }
+  function isReversal(code)  { return code === 'B1'  || code === 'S1'; }
+  function isLongestMa(code) { return code === 'B7'  || code === 'S7'; }
+  function isFastMa(code)    { return code === 'B2'  || code === 'S2'; }
+  function isKeyLevel(code)  { return false; }
 
-  const ALL_SIGNAL_CODES = ['BP1','SP1','BP2','SP2','BP3','SP3','BP4','SP4'];
+  const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4','B5','S5','B6','S6','B7','S7'];
 
   function isBuy(item) {
-    return (item[f('confirmation_status')] || '').toLowerCase().includes('buy');
+    const sig = item[f('primary_signal')];
+    if (sig) return sig.startsWith('B');
+    return (item[f('confirmation_status')] || '').toLowerCase().includes('uptrend');
   }
   function isSell(item) {
-    return (item[f('confirmation_status')] || '').toLowerCase().includes('sell');
+    const sig = item[f('primary_signal')];
+    if (sig) return sig.startsWith('S');
+    return (item[f('confirmation_status')] || '').toLowerCase().includes('downtrend');
   }
   function isWatch(item) {
     return !!(item[f('watch_flag')]);
@@ -2469,18 +2476,23 @@
     const volSpike = item[f('volume_spike_flag')] === 'yes';
     const compression = item[f('ribbon_compression')] === 'yes';
     const trendRun = parseInt(item[f('trend_run_days')]);
-    const maLongest  = (summaryData && summaryData.ma_longest)   || 108;
-    const maShortest = (summaryData && summaryData.ma_shortest)  || 10;
-    const maFastMax  = (summaryData && summaryData.ma_fast_max)  || 66;
+    const maLongest  = (summaryData && summaryData.ma_longest)   || 500;
+    const maShortest = (summaryData && summaryData.ma_shortest)  || 25;
     const sigDesc = {
-      BP1: `trend reversal — full ribbon cross up + close above MA${maLongest}`,
-      SP1: `trend reversal — full ribbon cross down + close below MA${maLongest}`,
-      BP2: `pullback bounce off fast MAs (${maShortest}–${maFastMax}) in uptrend`,
-      SP2: `rejection at fast MAs (${maShortest}–${maFastMax}) in downtrend`,
-      BP3: `bounce off MA${maLongest} (longest) in uptrend`,
-      SP3: `rejection at MA${maLongest} (longest) in downtrend`,
-      BP4: 'support bounce at key level in uptrend',
-      SP4: 'rejection at key level in downtrend',
+      B1: `trend reversal — price crossed above all MAs (MA${maShortest}–MA${maLongest})`,
+      S1: `trend reversal — price crossed below all MAs (MA${maShortest}–MA${maLongest})`,
+      B2: `pullback bounce off MA${maShortest} — first pullback level`,
+      S2: `rejection at MA${maShortest} — first rally level`,
+      B3: 'pullback bounce off MA100',
+      S3: 'rejection at MA100',
+      B4: 'pullback bounce off MA200',
+      S4: 'rejection at MA200',
+      B5: 'pullback bounce off MA300',
+      S5: 'rejection at MA300',
+      B6: 'pullback bounce off MA400',
+      S6: 'rejection at MA400',
+      B7: `deep pullback bounce off MA${maLongest} — anchor level`,
+      S7: `deep rally rejection at MA${maLongest} — anchor level`,
     };
     const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
@@ -3184,7 +3196,7 @@
     trackOverlay.addEventListener('click', e => { if (e.target === trackOverlay) closeTrackSheet(); });
   }
 
-  let trSheetFilter = 'all';   // 'all' | 'BP1' | 'SP1' | 'BP2' | 'SP2' | 'BP3' | 'SP3' | 'BP4' | 'SP4'
+  let trSheetFilter = 'all';   // 'all' | 'B1' | 'S1' | 'B2' | 'S2' | ... | 'B7' | 'S7'
 
   function renderTrackRecordSheet() {
     if (!backtestData || !trackBody) return;
@@ -4718,14 +4730,14 @@
     tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
     if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
 
-    // 2. Signal type (max 15) — BP1/SP1 reversal is highest conviction
+    // 2. Signal type (max 15) — B1/S1 reversal is highest conviction
     const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
-    const buySig  = sig === 'BP1' || sig === 'BP2' || sig === 'BP3' || sig === 'BP4';
-    const sellSig = sig === 'SP1' || sig === 'SP2' || sig === 'SP3' || sig === 'SP4';
+    const buySig  = sig && sig.startsWith('B');
+    const sellSig = sig && sig.startsWith('S');
     const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
     if (hasAlignedSig) {
-      lines.push({ label: `${sig} ${(sig === 'BP1' || sig === 'SP1') ? 'reversal signal' : 'signal'}`,
-                   points: (sig === 'BP1' || sig === 'SP1') ? 15 : 10 });
+      lines.push({ label: `${sig} ${isReversal(sig) ? 'reversal signal' : 'signal'}`,
+                   points: isReversal(sig) ? 15 : 10 });
     } else if (item.watch_flag) {
       lines.push({ label: 'Watch flag', points: 5 });
     }

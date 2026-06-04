@@ -1,5 +1,5 @@
 """
-_active_config.py — MA200 profile (single active config).
+_active_config.py — MA500 profile (single active config).
 All modules import from here.
 """
 from config import (
@@ -22,4 +22,4 @@ from config import (
     _tf_signal_columns,
 )
 
-ACTIVE_PROFILE = 'ma200'
+ACTIVE_PROFILE = 'ma500'

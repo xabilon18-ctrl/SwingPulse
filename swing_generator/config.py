@@ -1,21 +1,14 @@
 """
-SwingPulse — MA200 Profile Configuration
+SwingPulse — MA500 Profile Configuration
 =========================================
-Second app profile: MAs 20, 30, 40 ... 200 (step 10).
-
-Key mapping vs original profile:
-    Original              →  MA200 Profile
-    ─────────────────────────────────────────
-    Fast ribbon MA10–66   →  MA20–120  (6 MAs)
-    Ribbon MA10–108 (15)  →  MA20–200  (19 MAs)
-    Anchor MA108          →  MA200
-    SMALL_MA_RANGE ≤66    →  ≤120
+MA ribbon: 25, 50, 75 ... 500 (step 25, 20 MAs).
 
 Data requirements:
-    Daily   : 200 bars min → 16 yr history covers ~4000 bars ✓
-    Weekly  : 200 bars     → 200 weeks ≈ 3.9 yr (16 yr history gives ~830 weekly bars ✓)
-    Monthly : 200 bars     → 200 months ≈ 16.7 yr → HISTORY_YEARS bumped to 18 yr
-    4H      : 200 bars     → Yahoo provides 729 days of hourly (~2919 4H bars ✓)
+    Daily   : 500 bars min → 45 yr history covers ~11,340 bars ✓
+    Weekly  : 500 bars     → 500 weeks ≈ 9.6 yr (45 yr gives ~2,340 weekly bars ✓)
+    Monthly : 500 bars     → 500 months ≈ 41.7 yr (45 yr gives ~540 monthly bars ✓)
+    4H      : 500 bars     → Yahoo provides ~729 days of hourly (~2,919 4H bars ✓)
+    Note: instruments with less than 45 yr history get MA periods clipped automatically.
 """
 
 import os
@@ -24,24 +17,24 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 
 # ---------------------------------------------------------------------------
-# MA Ribbon  — 20, 30, 40 ... 200  (19 MAs)
+# MA Ribbon  — 25, 50, 75 ... 500  (20 MAs)
 # ---------------------------------------------------------------------------
-MA_PERIODS  = list(range(20, 201, 10))
-# [20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+MA_PERIODS  = list(range(25, 501, 25))
+# [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500]
 
-SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 120]   # BP2/SP2: fast MAs [20..120]
-MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA110 — midpoint of 19-MA ribbon
+SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 250]   # BP2/SP2: fast MAs [25..250]
+MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA275 — midpoint of 20-MA ribbon
 
-# Long-term Support/Resistance reference MAs (daily only)
-MACRO_MA_PERIODS = [500, 1000, 2000, 3000]
+# Long-term Support/Resistance reference MAs (daily only) — 1000+ only; 500 is in main ribbon
+MACRO_MA_PERIODS = [1000, 2000, 3000]
 
 # ---------------------------------------------------------------------------
-# Data — need 18 yr to get 200+ monthly bars (200 mo ≈ 16.7 yr)
+# Data — 18 yr covers daily/weekly MA500; monthly MA500 needs 42 yr (NaN expected)
 # ---------------------------------------------------------------------------
-HISTORY_YEARS     = 18   # 18 yr ≈ 216 monthly bars (covers MA200 on monthly ✓)
-CACHE_DIR         = os.path.join(BASE_DIR, 'cache_ma200')
+HISTORY_YEARS     = 45   # 45 yr → covers monthly MA500 (500 months ≈ 41.7 yr)
+CACHE_DIR         = os.path.join(BASE_DIR, 'cache_ma500')
 INSTRUMENTS_FILE  = os.path.join(ROOT_DIR, 'Instruments.txt')
-MIN_ROWS_REQUIRED = 220   # need at least 220 daily bars (longest MA is 200)
+MIN_ROWS_REQUIRED = 525   # need at least 525 daily bars (longest MA is 500)
 
 # ---------------------------------------------------------------------------
 # Volume
@@ -87,10 +80,9 @@ TTP_COOLDOWN_BARS = 30
 # ---------------------------------------------------------------------------
 # Ribbon Analytics
 # ---------------------------------------------------------------------------
-# Wider MAs → wider natural spread → raise compression threshold proportionally
-# Original threshold was 2.0 % for MAs spaced ~7 apart.
-# New MAs spaced 10 apart → scale by (10/7) ≈ 1.43 → ~2.9 → round to 3.0 %
-RIBBON_COMPRESSION_THRESHOLD = 3.0
+# MAs spaced 25 apart → wider natural spread → raise compression threshold
+# Step 10 was 3.0%; step 25 scales by (25/10) = 2.5 → 7.5 → round to 5.0%
+RIBBON_COMPRESSION_THRESHOLD = 5.0
 ROC_PERIOD              = 5
 SLOPE_LOOKBACK          = 10
 NEUTRAL_SLOPE_THRESHOLD = 0.5
@@ -99,12 +91,12 @@ NEUTRAL_SLOPE_THRESHOLD = 0.5
 # Google Sheets (not used for second app but kept for compat)
 # ---------------------------------------------------------------------------
 CREDENTIALS_FILE  = os.path.join(BASE_DIR, 'credentials', 'service_account.json')
-SPREADSHEET_NAME  = 'Swing Trading Signals MA200'
+SPREADSHEET_NAME  = 'Swing Trading Signals MA500'
 
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
-OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma200')
+OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
@@ -136,7 +128,7 @@ OUTPUT_COLUMNS = [
     *[f'ma_{p}' for p in MACRO_MA_PERIODS],
     'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
     'primary_signal', 'secondary_signal',
-    'signal_confidence',
+    'signal_confidence', 'new_trend_flag',
     'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
     'watch_flag', 'potential_turning_point_flag',
     'ribbon_spread', 'ribbon_compression', 'ribbon_slope_pct', 'ma_order_score', 'roc', 'rsi',

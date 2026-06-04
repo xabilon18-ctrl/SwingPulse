@@ -143,7 +143,7 @@
         <span style="display:none" id="gbSell"></span>
       </div>
 
-      <!-- Trend alert banner — BP1/SP1 reversals + BP3/SP3 longest-MA bounces -->
+      <!-- Trend alert banner — B1/S1 reversals + B7/S7 anchor-MA bounces -->
       <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
         <div class="trend-alert-header">
           <span class="trend-alert-icon">⚡</span>
@@ -272,7 +272,7 @@
       <div class="sig-ctx-row">
         <button class="sig-ctx-chip sig-chip-radar-prime" data-filter="radar_prime" title="Radar score ≥75 — highest conviction setups">🎯 Prime</button>
         <button class="sig-ctx-chip sig-chip-radar-strong" data-filter="radar_strong" title="Radar score 50–74 — strong setups">🎯 Strong</button>
-        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by specific signal type (BP1–BP4 / SP1–SP4)">
+        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type (B1/S1 reversal, B2–B7/S2–S7 pullback)">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Signal
           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
@@ -302,18 +302,24 @@
         <div class="sig-sheet-title">Signal Type</div>
         <div class="sig-sheet-grid">
           <div class="sig-sheet-col">
-            <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Plans</div>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP1">BP1 <span>Reversal</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP2">BP2 <span>Pullback</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP3">BP3 <span>MA108</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="BP4">BP4 <span>Key Level</span></button>
+            <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Signals</div>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B1">B1 <span>Reversal</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>MA25</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B3">B3 <span>MA100</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B4">B4 <span>MA200</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B5">B5 <span>MA300</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B6">B6 <span>MA400</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B7">B7 <span>MA500</span></button>
           </div>
           <div class="sig-sheet-col">
-            <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Plans</div>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP1">SP1 <span>Reversal</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP2">SP2 <span>Pullback</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP3">SP3 <span>MA108</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="SP4">SP4 <span>Key Level</span></button>
+            <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Signals</div>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S1">S1 <span>Reversal</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>MA25</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S3">S3 <span>MA100</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S4">S4 <span>MA200</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S5">S5 <span>MA300</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S6">S6 <span>MA400</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S7">S7 <span>MA500</span></button>
           </div>
         </div>
         <button class="sig-sheet-clear" id="sigSheetClear">Clear Signal Filter</button>
@@ -423,10 +429,10 @@
       <div class="signal-legend">
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
-          <div class="sig-def"><span class="feed-badge badge-p1">BP1/SP1</span> <strong>Trend Reversal</strong> — Full ribbon cross + close past MA__SIG_LONGEST__</div>
-          <div class="sig-def"><span class="feed-badge badge-p3">BP2/SP2</span> <strong>Fast MA Pullback</strong> — Bounce/rejection off fast MAs (__SIG_SHORTEST__–__SIG_FAST_MAX__)</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">BP3/SP3</span> <strong>Longest MA Bounce</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
-          <div class="sig-def"><span class="feed-badge badge-p4">BP4/SP4</span> <strong>Key Level</strong> — Bounce/rejection at confirmed key level</div>
+          <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Price crossed all MAs (MA__SIG_SHORTEST__–MA__SIG_LONGEST__)</div>
+          <div class="sig-def"><span class="feed-badge badge-p3">B2/S2</span> <strong>MA__SIG_SHORTEST__ Pullback</strong> — Wick touch + close above/below MA__SIG_SHORTEST__</div>
+          <div class="sig-def"><span class="feed-badge badge-p3">B3–B6 / S3–S6</span> <strong>Deep Pullback</strong> — MA100 / MA200 / MA300 / MA400 bounce or rejection</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">B7/S7</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__ (deepest pullback level)</div>
         </div>
         <div class="sig-legend-group">
           <div class="sig-legend-title">Confidence</div>

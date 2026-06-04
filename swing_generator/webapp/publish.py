@@ -6,8 +6,8 @@ Modes:
   python3 webapp/publish.py                      → build data + upload to R2  (daily use, ~60 sec)
   python3 webapp/publish.py --ui-only            → build UI + deploy to Cloudflare Pages (UI changes only)
   python3 webapp/publish.py --build-only         → build everything locally, no deploy
-  python3 webapp/publish.py --profile ma200      → build + upload MA200 profile data (to R2 ma200/ prefix)
-  python3 webapp/publish.py --profile ma200 --ui-only  → deploy MA200 UI to swingpulse200.pages.dev
+  python3 webapp/publish.py --profile ma500      → build + upload MA500 profile data (to R2 ma500/ prefix)
+  python3 webapp/publish.py --profile ma500 --ui-only  → deploy MA500 UI to swingpulse500.pages.dev
 """
 
 import argparse
@@ -25,15 +25,15 @@ import pandas as pd
 # yfinance imported lazily inside build_names() to keep startup fast
 
 # ---------------------------------------------------------------------------
-# Paths  (MA200 is the only profile)
+# Paths  (MA500 profile)
 # ---------------------------------------------------------------------------
-PROFILE     = 'ma200'
+PROFILE     = 'ma500'
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma200')
-CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma200')
-MA_PERIODS  = list(range(20, 201, 10))   # MA20–MA200
+OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma500')
+CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma500')
+MA_PERIODS  = list(range(25, 501, 25))   # MA25–MA500
 
 PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 
@@ -43,8 +43,8 @@ PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 R2_BUCKET      = 'swingpulse-data'
 R2_PUBLIC_URL  = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
 PAGES_PROJECT  = 'swingpulse200'
-R2_DATA_PREFIX = 'ma200'
-R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma200'
+R2_DATA_PREFIX = 'ma500'
+R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma500'
 TV_LAYOUTS = {
     'zabs': 'xvj4Xt7h',
     'hemi': '86bzFCIC',
@@ -108,10 +108,9 @@ def build_summary(df, dt):
         'turning_points':   int((df['potential_turning_point_flag'] != '').sum()),
         'signal_types':     signal_types,
         'groups':           groups,
-        'ma_max_pairs':     len(MA_PERIODS) - 1,  # e.g. 14 for default, 18 for MA200
-        'ma_longest':       _longest_ma,           # e.g. 108 default, 200 ma200
-        'ma_shortest':      _shortest_ma,          # e.g. 10 default, 20 ma200
-        'ma_fast_max':      _fast_ma_max,          # e.g. 66 default, 120 ma200
+        'ma_max_pairs':     len(MA_PERIODS) - 1,
+        'ma_longest':       _longest_ma,
+        'ma_shortest':      _shortest_ma,
     }
 
 
@@ -149,18 +148,23 @@ def build_history(name, ticker):
 # Signal Explanations — rule-based, no API required
 # ---------------------------------------------------------------------------
 
-_longest_ma = max(MA_PERIODS)
+_longest_ma  = max(MA_PERIODS)
 _shortest_ma = min(MA_PERIODS)
-_fast_ma_max = max(p for p in MA_PERIODS if p <= (120 if _longest_ma >= 200 else 66))
 _SIG_WHAT = {
-    'BP1': (f'trend reversal — full ribbon cross up + close above MA{_longest_ma}',),
-    'SP1': (f'trend reversal — full ribbon cross down + close below MA{_longest_ma}',),
-    'BP2': (f'pullback bounce off fast MAs ({_shortest_ma}–{_fast_ma_max}) in uptrend',),
-    'SP2': (f'rejection at fast MAs ({_shortest_ma}–{_fast_ma_max}) in downtrend',),
-    'BP3': (f'bounce off MA{_longest_ma} (longest) in uptrend',),
-    'SP3': (f'rejection at MA{_longest_ma} (longest) in downtrend',),
-    'BP4': ('support bounce at key level in uptrend',),
-    'SP4': ('rejection at key level in downtrend',),
+    'B1': (f'trend reversal — price crossed above all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
+    'S1': (f'trend reversal — price crossed below all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
+    'B2': (f'pullback bounce off MA{_shortest_ma} — first pullback level',),
+    'S2': (f'rejection at MA{_shortest_ma} — first rally level',),
+    'B3': ('pullback bounce off MA100',),
+    'S3': ('rejection at MA100',),
+    'B4': ('pullback bounce off MA200',),
+    'S4': ('rejection at MA200',),
+    'B5': ('pullback bounce off MA300',),
+    'S5': ('rejection at MA300',),
+    'B6': ('pullback bounce off MA400',),
+    'S6': ('rejection at MA400',),
+    'B7': (f'deep pullback bounce off MA{_longest_ma} — anchor level',),
+    'S7': (f'deep rally rejection at MA{_longest_ma} — anchor level',),
 }
 
 _ALIGN_NOTES = {
@@ -907,14 +911,13 @@ def build_ui():
     # Copy index.html — patch profile badge and title
     with open(os.path.join(SCRIPT_DIR, 'templates', 'index.html')) as f:
         html = f.read()
-    html = html.replace('PROFILE_BADGE', 'MA200')
-    html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 200</title>')
-    html = html.replace('content="SwingPulse"', 'content="SwingPulse 200"')
-    html = html.replace('__APP_PROFILE__', 'ma200')
+    html = html.replace('PROFILE_BADGE', 'MA500')
+    html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 500</title>')
+    html = html.replace('content="SwingPulse"', 'content="SwingPulse 500"')
+    html = html.replace('__APP_PROFILE__', 'ma500')
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
-    html = html.replace('__SIG_FAST_MAX__', str(_fast_ma_max))
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
 
@@ -999,19 +1002,21 @@ def main():
                         help='Build locally only — no deploy')
     parser.add_argument('--ui-only', action='store_true',
                         help='Build UI and deploy to Cloudflare Pages (use after frontend changes)')
+    parser.add_argument('--profile', type=str, default='ma500',
+                        help='Profile name (ignored — hardcoded to ma500)')
     args = parser.parse_args()
 
     # ── UI-only deploy ────────────────────────────────────────────────────
     if args.ui_only:
-        print('Building UI for Cloudflare Pages... [ma200]')
+        print('Building UI for Cloudflare Pages... [ma500]')
         ui_dir = build_ui()
         print(f'  Output: {ui_dir}')
         deploy_ui_to_pages(ui_dir)
         return
 
     # ── Data build + R2 upload ────────────────────────────────────────────
-    print('Building static site... [ma200]')
-    data_dir = os.path.join(PUBLISH_DIR, 'data_ma200')
+    print('Building static site... [ma500]')
+    data_dir = os.path.join(PUBLISH_DIR, 'data_ma500')
     os.makedirs(data_dir, exist_ok=True)
 
     build_data(data_dir)
