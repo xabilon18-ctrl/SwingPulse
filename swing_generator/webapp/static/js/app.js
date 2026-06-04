@@ -1221,8 +1221,6 @@
     renderSignalFeed();
     renderMacroSrFeed();
     renderAIDashboardCard();
-    // Flow chart lives in a Dashboard card — render on first load
-    window._renderFlow?.();
   }
 
   function renderAIDashboardCard() {
