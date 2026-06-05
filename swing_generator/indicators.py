@@ -213,6 +213,60 @@ def add_performance_pct(df: pd.DataFrame) -> pd.DataFrame:
 # Convenience: run all indicators in one call
 # ---------------------------------------------------------------------------
 
+def add_neutral_oscillation(df: pd.DataFrame, ma_periods=None,
+                            lookback: int = 30,
+                            cross_threshold: int = 3,
+                            slope_threshold: float = 0.15) -> pd.DataFrame:
+    """
+    Detect neutral/topping-bottoming conditions via MA25 oscillation.
+
+    Logic:
+      - Count how many times price crossed MA25 in the last `lookback` bars.
+        A cross = close went from one side of MA25 to the other.
+      - Check if MA100 slope is flattening (|slope| < slope_threshold %).
+      - If crosses >= cross_threshold AND MA100 is flat → neutral_oscillation = True.
+
+    Adds columns:
+      ma25_cross_count   – rolling count of MA25 crosses in last `lookback` bars
+      neutral_oscillation – bool: MA25 oscillation + MA100 slowing = potential top/bottom
+    """
+    _ma_p = ma_periods or MA_PERIODS
+    ma25  = min(_ma_p)   # fastest MA (25)
+    ma100 = 100 if 100 in _ma_p else sorted(_ma_p)[min(3, len(_ma_p)-1)]
+
+    ma25_col  = f'ma_{ma25}'
+    ma100_col = f'ma_{ma100}'
+
+    if ma25_col not in df.columns or ma100_col not in df.columns:
+        df['ma25_cross_count']    = 0
+        df['neutral_oscillation'] = False
+        return df
+
+    # 1. Detect crossings: price flips side relative to MA25
+    above = (df['Close'] >= df[ma25_col]).astype(int)
+    cross = above.diff().abs()   # 1 where a cross happened, 0 otherwise
+
+    # Rolling count of crosses over the lookback window
+    df['ma25_cross_count'] = cross.rolling(lookback, min_periods=lookback // 2).sum().fillna(0).astype(int)
+
+    # 2. MA100 slope (% change over SLOPE_LOOKBACK bars)
+    ma100_prev = df[ma100_col].shift(SLOPE_LOOKBACK)
+    ma100_slope = np.where(
+        df[ma100_col].notna() & ma100_prev.notna() & (ma100_prev != 0),
+        (df[ma100_col] - ma100_prev) / ma100_prev * 100,
+        np.nan,
+    )
+    ma100_slope_series = pd.Series(ma100_slope, index=df.index)
+
+    # 3. Neutral oscillation flag
+    df['neutral_oscillation'] = (
+        (df['ma25_cross_count'] >= cross_threshold) &
+        (ma100_slope_series.abs() < slope_threshold)
+    )
+
+    return df
+
+
 def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
     df = add_macro_ma_levels(df)
@@ -222,4 +276,5 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_roc(df)
     df = add_rsi(df)
     df = add_performance_pct(df)
+    df = add_neutral_oscillation(df, ma_periods=ma_periods)
     return df

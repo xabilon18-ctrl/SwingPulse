@@ -127,6 +127,7 @@ OUTPUT_COLUMNS = [
     *[f'ma_{p}' for p in MA_PERIODS],
     *[f'ma_{p}' for p in MACRO_MA_PERIODS],
     'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
+    'ma25_cross_count', 'neutral_oscillation',
     'primary_signal', 'secondary_signal',
     'signal_confidence', 'new_trend_flag',
     'last_signal_type', 'last_signal_date', 'last_signal_days_ago',

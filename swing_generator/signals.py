@@ -248,6 +248,8 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
             kl > 0 and abs(close - kl) / kl < 0.005
             for kl in key_level_prices
         )
+        neutral_osc  = bool(row.get('neutral_oscillation', False))
+        cross_count  = int(row.get('ma25_cross_count', 0))
 
         signal   = ''
         status   = ''
@@ -376,12 +378,21 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
         conf = _signal_confidence(signal, vol_spike, at_key_level)
 
+        # ── Neutral oscillation → potential turning point flag ──────────────
+        ttp = ''
+        if neutral_osc:
+            direction = 'top' if (in_uptrend or above_all) else 'bottom' if (in_downtrend or below_all) else 'reversal'
+            ttp = (
+                f'Potential {direction} — price crossed MA{_ma25} {cross_count}x '
+                f'in last 30 bars with MA100 slope flattening'
+            )
+
         statuses.append(status)
         primaries.append(signal)
         secondaries.append('')
         confidences.append(conf)
         watches.append('')
-        ttps.append('')
+        ttps.append(ttp)
         new_trend_flags.append(new_trend)
 
     df = df.copy()
