@@ -32,7 +32,7 @@
   let scannerView = 'list';   // 'list' | 'ranked'
   let gpViewMode = 'region';   // 'group' | 'region'
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
-  let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
+  let detectedMacroMas = [1000, 2000, 3000];  // S/R MAs detected from data (macro only)
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
   // ── Radar filter state ──────────────────────────────────────────────────
@@ -460,7 +460,7 @@
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
   // this makes the app work correctly across MA scheme changes without code edits.
-  let detectedMaPeriods = [10,17,24,31,38,45,52,59,66,73,80,87,94,101,108];
+  let detectedMaPeriods = [25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,500];
   function activeMaPeriods() {
     return detectedMaPeriods;
   }
@@ -472,8 +472,8 @@
       .map(k => parseInt(k.slice(3), 10))
       .sort((a, b) => a - b);
     if (found.length) {
-      detectedMaPeriods = found.filter(p => p <= 200);   // ribbon MAs
-      const macro = found.filter(p => p > 200);
+      detectedMaPeriods = found.filter(p => p <= 500);   // ribbon MAs (MA25–MA500)
+      const macro = found.filter(p => p > 500);          // true macro MAs (1000+)
       if (macro.length) detectedMacroMas = macro;
     }
   }
