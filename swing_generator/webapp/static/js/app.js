@@ -1978,8 +1978,9 @@
 
   // ── Heatmap ──────────────────────────────────────────────────────────
   function renderHeatmap() {
-    const groups = summaryData.groups || [];
     const filtersEl = document.getElementById('heatmapFilters');
+    if (!filtersEl) return;   // heatmap removed from dashboard
+    const groups = summaryData.groups || [];
     filtersEl.innerHTML = '<button class="heatmap-filter-btn active" data-group="all">All</button>' +
       groups.map(g => `<button class="heatmap-filter-btn" data-group="${g}">${g}</button>`).join('');
     filtersEl.querySelectorAll('.heatmap-filter-btn').forEach(btn => {
