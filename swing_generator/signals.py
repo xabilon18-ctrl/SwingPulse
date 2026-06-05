@@ -103,10 +103,13 @@ def _watch_level_down(close: float, mas: dict) -> int | None:
 def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool) -> str:
     if not signal:
         return ''
+    # B1/S1 — crossed ALL MAs — always high conviction by definition
     if signal in ('B1', 'S1'):
-        return 'high' if (vol_spike or at_key_level) else 'standard'
+        return 'high'
+    # B7/S7 — bounced off anchor MA500 — always high conviction
     if signal in ('B7', 'S7'):
-        return 'high' if (vol_spike or at_key_level) else 'standard'
+        return 'high'
+    # B2–B6 / S2–S6 — pullback entries, confluence upgrades confidence
     if vol_spike and at_key_level:
         return 'high'
     if vol_spike or at_key_level:

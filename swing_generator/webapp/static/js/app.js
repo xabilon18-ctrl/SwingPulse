@@ -4776,14 +4776,15 @@
     tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
     if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
 
-    // 2. Signal type (max 15) — B1/S1 reversal is highest conviction
+    // 2. Signal type (max 25) — B1/S1 always top authority; B7/S7 anchor bounce; B2-B6 pullbacks
     const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
     const buySig  = sig && sig.startsWith('B');
     const sellSig = sig && sig.startsWith('S');
     const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
     if (hasAlignedSig) {
-      lines.push({ label: `${sig} ${isReversal(sig) ? 'reversal signal' : 'signal'}`,
-                   points: isReversal(sig) ? 15 : 10 });
+      const sigPts = isReversal(sig) ? 25 : isLongestMa(sig) ? 15 : 10;
+      lines.push({ label: `${sig} ${isReversal(sig) ? 'reversal signal' : isLongestMa(sig) ? 'anchor MA signal' : 'signal'}`,
+                   points: sigPts });
     } else if (item.watch_flag) {
       lines.push({ label: 'Watch flag', points: 5 });
     }
