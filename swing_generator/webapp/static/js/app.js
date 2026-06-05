@@ -30,7 +30,7 @@
   let activeScannerFilter = 'all';
   let scannerSort = 'signal';
   let scannerView = 'list';   // 'list' | 'ranked'
-  let gpViewMode = 'group';   // 'group' | 'region'
+  let gpViewMode = 'region';   // 'group' | 'region'
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
   let detectedMacroMas = [300, 500, 1000, 2000];  // S/R MAs detected from data
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
