@@ -799,25 +799,72 @@
   // Universal search matcher — checks ticker, full name, group, sector, industry
   // Common name aliases so users can search natural terms (e.g. "crude oil" → WTI)
   const SEARCH_ALIASES = {
-    'WTI':     ['crude oil', 'crude', 'wti oil', 'oil futures'],
-    'BRENT':   ['crude oil', 'crude', 'brent oil', 'oil futures'],
-    'GOLD':    ['xau', 'gold futures'],
-    'SILVER':  ['xag', 'silver futures'],
-    'NATGAS':  ['natural gas', 'nat gas'],
-    'COPPER':  ['copper futures'],
-    'WHEAT':   ['wheat futures'],
-    'CORN':    ['corn futures'],
-    'BITCOIN': ['btc'],
-    'ETHEREUM':['eth'],
+    'WTI':      ['crude oil', 'crude', 'wti oil', 'oil futures'],
+    'BRENT':    ['crude oil', 'crude', 'brent oil', 'oil futures'],
+    'GOLD':     ['xau', 'gold futures'],
+    'SILVER':   ['xag', 'silver futures'],
+    'NATGAS':   ['natural gas', 'nat gas', 'ngas'],
+    'COPPER':   ['copper futures'],
+    'WHEAT':    ['wheat futures'],
+    'CORN':     ['corn futures'],
+    'BTCUSD':   ['btc', 'bitcoin'],
+    'ETHUSD':   ['eth', 'ethereum'],
+  };
+
+  // Category keyword → group/sector match used by the chip row and free-text search
+  const CATEGORY_ALIASES = {
+    'crypto':       ['crypto'],
+    'forex':        ['forex'],
+    'commodities':  ['commodity'],
+    'us100':        ['us100'],
+    'us30':         ['us30'],
+    'us500':        ['us500'],
+    'ger40':        ['ger40'],
+    'uk100':        ['uk100'],
+    'fra40':        ['fra40'],
+    'it40':         ['it40'],
+    'spain35':      ['spain35'],
+    'can60':        ['can60'],
+    'aex':          ['aex'],
+    'smi20':        ['smi20'],
+    'asx200':       ['asx200'],
+    'japan':        ['japan'],
+    'jse':          ['jse'],
+    'indices':      ['index'],
+    'semi':         ['semiconductor', 'ai chip', 'chip packaging', 'chip testing', 'fpga', 'analog', 'rf semiconductor', 'silicon carbide', 'ai connectivity', 'ai vision chip', 'audio semiconductor', 'semiconductor material'],
+    'ai':           ['ai theme', 'ai semi', 'ai infra', 'ai energy', 'us100 us100', 'nyse nyse'],
+    'blockchain':   ['blockchain'],
+    'space':        ['space'],
+    'quantum':      ['quantum'],
+    'robotics':     ['robotics'],
+    'banks':        ['banks'],
+    'energy':       ['energy'],
+    'healthcare':   ['healthcare'],
+    'tech':         [
+      'technology',                                 // sector=Technology across all index groups
+      'ai theme', 'ai semi', 'ai infra', 'ai energy',  // AI sub-groups (non-tech-sector instruments)
+      'blockchain', 'space', 'quantum', 'robotics', // themed groups (blockchain=fin services, space/robotics=industrials)
+      'xm index',                                   // XM tech indices
+      'nyse nyse',                                  // NYSE group AI/tech stocks (sector=NYSE not Technology)
+      'us100 us100',                                // US100 AI-themed additions (sector=US100 not Technology)
+    ],
+    'luxury':       ['luxury'],
+    'auto':         ['auto manufacturers'],
+    'miners':       ['mining', 'gold mining'],
   };
 
   function matchesSearch(item, query) {
     if (!query) return true;
     const q = query.toLowerCase().trim();
     const name = (item.instrument_name || '').toUpperCase();
-    // AI shortcut — typing "ai" or "artificial" or "artificial intelligence" filters to AI universe
-    if (q === 'ai' || 'artificial intelligence'.startsWith(q) && q.length >= 3) return isAI(item.instrument_name);
-    // Check aliases first
+    // Category alias check — "crypto", "forex", "banks", etc.
+    for (const [cat, targets] of Object.entries(CATEGORY_ALIASES)) {
+      if (q === cat || cat.startsWith(q) && q.length >= 3) {
+        const haystack = ((item.group || '') + ' ' + (item.sector || '') + ' ' + (item.industry || '')).toLowerCase();
+        if (targets.some(t => haystack.includes(t))) return true;
+      }
+    }
+    // Instrument-level aliases
     const aliases = SEARCH_ALIASES[name] || [];
     if (aliases.some(a => a.includes(q) || q.includes(a))) return true;
     return (
@@ -1220,7 +1267,111 @@
     renderCompressionFeed();
     renderSignalFeed();
     renderMacroSrFeed();
+    renderThemesCard();
     renderAIDashboardCard();
+  }
+
+  // ── Tech Themes Dashboard Card ─────────────────────────────────────────
+  const TECH_THEMES = [
+    { label:'Artificial Intelligence', group:'AI Theme'  },
+    { label:'Blockchain',              group:'Blockchain' },
+    { label:'Space Exploration',       group:'Space'      },
+    { label:'Quantum Computing',       group:'Quantum'    },
+    { label:'Robotics',                group:'Robotics'   },
+    { label:'AI Energy',               group:'AI Energy'  },
+    { label:'AI Semiconductors',       group:'AI Semi'    },
+    { label:'AI Infrastructure',       group:'AI Infra'   },
+    { label:'XM Indices',              group:'XM Index'   },
+  ];
+
+  const _themeExpanded = new Set();
+
+  function renderThemesCard() {
+    const el = document.getElementById('techThemesCard');
+    if (!el) return;
+
+    const rows = TECH_THEMES.map(theme => {
+      const items  = allData.filter(d => d.group === theme.group);
+      const bulls  = items.filter(d => effectiveTrend(d) === 'UPTREND').length;
+      const bears  = items.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
+      const total  = items.length;
+      const buySigs  = items.filter(d => isBuy(d));
+      const sellSigs = items.filter(d => isSell(d));
+      const sigCount = buySigs.length + sellSigs.length;
+
+      if (!total) return `
+        <div class="th-row th-empty">
+          <span class="th-label">${theme.label}</span>
+          <span class="th-nodata">no data — run pipeline</span>
+        </div>`;
+
+      const bullPct = Math.round(bulls / total * 100);
+      const bearPct = Math.round(bears / total * 100);
+      const neutPct = 100 - bullPct - bearPct;
+      const dom = bullPct > bearPct + 15 ? 'th-bull' : bearPct > bullPct + 15 ? 'th-bear' : 'th-neu';
+      const open = _themeExpanded.has(theme.group);
+
+      const instrRows = open ? [...items]
+        .sort((a,b) => {
+          const order = { UPTREND:0, NEUTRAL:1, DOWNTREND:2 };
+          return (order[effectiveTrend(a)]??1) - (order[effectiveTrend(b)]??1);
+        })
+        .map(item => {
+          const td  = effectiveTrend(item);
+          const sig = item[f('primary_signal')] || '';
+          const conf = item[f('signal_confidence')] || '';
+          const vol = item[f('volume_spike_flag')] === 'yes';
+          const arrow = td === 'UPTREND' ? '↑' : td === 'DOWNTREND' ? '↓' : '–';
+          const trendCls = td === 'UPTREND' ? 'th-i-up' : td === 'DOWNTREND' ? 'th-i-dn' : 'th-i-neu';
+          const sigCls = isBuy(item) ? 'th-sig-buy' : isSell(item) ? 'th-sig-sell' : '';
+          return `<div class="th-instrument" data-arg="${item.instrument_name}">
+            <span class="th-i-name">${item.instrument_name}</span>
+            <span class="th-i-arrow ${trendCls}">${arrow}${vol ? '<span class="th-vol">V</span>' : ''}</span>
+            ${sig ? `<span class="th-i-sig ${sigCls}">${sig}${conf === 'high' ? ' ★' : ''}</span>` : ''}
+          </div>`;
+        }).join('') : '';
+
+      return `
+        <div class="th-row ${dom}" data-th-group="${theme.group}">
+          <div class="th-top">
+            <span class="th-label">${theme.label}</span>
+            <div class="th-bar-wrap">
+              <div class="th-bar-bull" style="width:${bullPct}%"></div>
+              <div class="th-bar-neut" style="width:${neutPct}%"></div>
+              <div class="th-bar-bear" style="width:${bearPct}%"></div>
+            </div>
+            <div class="th-stats">
+              <span class="th-pct-bull">${bullPct}%↑</span>
+              <span class="th-pct-bear">${bearPct}%↓</span>
+              ${sigCount ? `<span class="th-sig-count">${sigCount}</span>` : ''}
+            </div>
+            <span class="th-chevron">${open ? '▲' : '▼'}</span>
+          </div>
+          ${open ? `<div class="th-instruments">${instrRows}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="card-header">
+        <h3>Tech Themes</h3>
+        <span style="font-size:.68rem;color:var(--text-muted)">tap to expand</span>
+      </div>
+      <div class="th-list">${rows}</div>`;
+
+    el.querySelectorAll('.th-row[data-th-group]').forEach(row => {
+      row.querySelector('.th-top')?.addEventListener('click', () => {
+        const g = row.dataset.thGroup;
+        _themeExpanded.has(g) ? _themeExpanded.delete(g) : _themeExpanded.add(g);
+        renderThemesCard();
+      });
+    });
+
+    el.querySelectorAll('.th-instrument[data-arg]').forEach(row => {
+      row.addEventListener('click', e => {
+        e.stopPropagation();
+        window.SP?.openModal?.(row.dataset.arg);
+      });
+    });
   }
 
   function renderAIDashboardCard() {
@@ -1401,6 +1552,9 @@
     'Asia Index':'Asia-Pacific','ASX200':'Asia-Pacific','Japan':'Asia-Pacific',
     'JSE':'Africa',
     'Commodity':'Commodities','Crypto':'Crypto','Forex':'Forex',
+    'AI Theme':'Themes','Blockchain':'Themes','Space':'Themes',
+    'Quantum':'Themes','Robotics':'Themes','AI Energy':'Themes',
+    'AI Semi':'Themes','AI Infra':'Themes','XM Index':'Themes',
   };
 
   function renderGroupPulse() {
@@ -1866,8 +2020,8 @@
           // Apply filter + navigate to scanner
           activeScannerFilter = sigType;
           // Update direction toggle
-          const isBuyFilter = sigType === 'buy' || sigType.startsWith('BP');
-          const isSellFilter = sigType === 'sell' || sigType.startsWith('SP');
+          const isBuyFilter = sigType === 'buy';
+          const isSellFilter = sigType === 'sell';
           document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
           if (isBuyFilter) document.querySelector('.sig-dir-btn[data-filter="buy"]')?.classList.add('active');
           else if (isSellFilter) document.querySelector('.sig-dir-btn[data-filter="sell"]')?.classList.add('active');
@@ -2713,11 +2867,24 @@
       const t = effectiveTrend(item);
       const sig = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
-      const isBuySignal = isBuy(item);
-      const isSellSignal = isSell(item);
-      const stripCls = sig ? (isBuySignal ? 'strip-buy' : 'strip-sell') : '';
-      const confLabel = conf === 'high' ? ' (HIGH)' : conf === 'low' ? ' (LOW)' : '';
-      const stripLabel = sig ? (isBuySignal ? 'BUY ' + sig + confLabel : 'SELL ' + sig + confLabel) : '';
+      // Resolve cross-retest early so strip + badges can reference it
+      const _cross   = crossRetestHit(item);
+      const _aiScan  = isAI(item.instrument_name);
+      const _crossDir = _cross ? _cross.dir : '';
+      // Effective buy/sell includes cross-retest direction when no primary signal
+      const isBuySignal  = isBuy(item)  || (!sig && _crossDir === 'bull');
+      const isSellSignal = isSell(item) || (!sig && _crossDir === 'bear');
+      const confLabel  = conf === 'high' ? ' (HIGH)' : conf === 'low' ? ' (LOW)' : '';
+      const lastSigType = item[f('last_signal_type')] || '';
+      const lastSigAge  = signalAge(item[f('last_signal_date')] || '').label;
+      const lastIsBuy   = lastSigType.startsWith('B');
+      const stripLabel = sig    ? (isBuySignal ? 'BUY '  + sig + confLabel : 'SELL ' + sig + confLabel)
+                       : _cross ? (_crossDir === 'bull' ? 'BUY · CROSS RETEST (HIGH)' : 'SELL · CROSS RETEST (HIGH)')
+                       : lastSigType ? `LAST ${lastSigType}${lastSigAge ? ' · ' + lastSigAge : ''}`
+                       : '';
+      const stripCls   = (sig || _cross) ? (isBuySignal ? 'strip-buy' : 'strip-sell')
+                       : lastSigType     ? 'strip-last'
+                       : '';
       const runDays = parseInt(item[f('trend_run_days')]) || 0;
       const barWidth = Math.min(runDays / 100 * 100, 100);
       const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
@@ -2761,8 +2928,11 @@
       const _radarTier  = scoreTier(_radarScore);
       const radarChip = `<span class="scanner-radar-chip radar-tier-${_radarTier}" title="Radar confluence: ${_radarScore}/100 — ${_radarTier}. Open card for breakdown.">${_radarScore}</span>`;
 
-      const _aiScan = isAI(item.instrument_name);
-      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
+      const _crossBanner = _cross
+        ? `<div class="cross-retest-banner cross-${_cross.dir}">⚡ DEFINITE ${_cross.dir === 'bull' ? 'UPTREND' : 'DOWNTREND'} · ${_cross.pair} cross rejected · ${_cross.all.join('+')}</div>`
+        : '';
+      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${_cross ? ' cross-retest-card cross-' + _cross.dir : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
+        ${_crossBanner}
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
@@ -2785,7 +2955,9 @@
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
           const extras = [];
           const push = (p, html) => { if (html) extras.push({ p, html }); };
-          push(100, sig ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>` : '');
+          push(100, sig    ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>`
+                   : _cross ? `<span class="sig-badge p1">${_crossDir === 'bull' ? 'BUY' : 'SELL'}</span>`
+                   : '');
           // Macro SR confluence is the most actionable rare signal — surface above conf/align
           if (macroSrSig === 'support') {
             if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously">⚡ CONFLUENCE SUP</span>`);
@@ -2797,7 +2969,9 @@
             else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>`);
             else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`);
           }
-          push(85, confBadge);
+          push(85, conf    ? confBadge
+                   : _cross ? `<span class="badge-confidence conf-high">high</span>`
+                   : '');
           push(80, align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '');
           push(75, badge3TF(item));
           push(65, macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs">MACRO BULL</span>' : '');
@@ -2858,11 +3032,12 @@
 
     // ── LIST VIEW: paginated ──
     const totalFiltered = filtered.length;
-    const pageEnd = scannerPage * SCANNER_PAGE_SIZE;
-    const visible = filtered.slice(0, pageEnd);
-    const remaining = totalFiltered - visible.length;
+    const pageEnd   = scannerPage * SCANNER_PAGE_SIZE;
+    const pageStart = appendPage ? (scannerPage - 1) * SCANNER_PAGE_SIZE : 0;
+    const newItems  = filtered.slice(pageStart, pageEnd);
+    const remaining = totalFiltered - pageEnd;
 
-    const cardsHtml = visible.map((item, i) => makeCard(item, i)).join('');
+    const cardsHtml = newItems.map((item, i) => makeCard(item, pageStart + i)).join('');
     const loadMoreHtml = remaining > 0
       ? `<div class="scanner-load-more" id="scannerLoadMore">
            <button class="scanner-load-more-btn">Show ${Math.min(remaining, SCANNER_PAGE_SIZE)} more <span style="opacity:.6">(${remaining} remaining)</span></button>
@@ -2870,7 +3045,6 @@
       : '';
 
     if (appendPage) {
-      // Remove old "load more" row before appending
       const old = document.getElementById('scannerLoadMore');
       if (old) old.remove();
       grid.insertAdjacentHTML('beforeend', cardsHtml + loadMoreHtml);
@@ -2903,7 +3077,48 @@
     });
   })();
 
-  document.getElementById('scannerSearch').addEventListener('input', debounce(() => buildScannerCards(), 150));
+  (function() {
+    const searchEl = document.getElementById('scannerSearch');
+    const clearBtn = document.getElementById('scannerSearchClear');
+    const chipRow  = document.getElementById('scannerCatChips');
+
+    // Show/hide clear button + deactivate category chips on input
+    searchEl.addEventListener('input', debounce(() => {
+      const hasVal = searchEl.value.length > 0;
+      clearBtn.style.display = hasVal ? '' : 'none';
+      // Deactivate all chips if user typed something manually
+      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
+      buildScannerCards();
+    }, 150));
+
+    // Clear button click
+    clearBtn.addEventListener('click', () => {
+      searchEl.value = '';
+      clearBtn.style.display = 'none';
+      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
+      buildScannerCards();
+      searchEl.focus();
+    });
+
+    // Category chip clicks
+    chipRow.addEventListener('click', e => {
+      const chip = e.target.closest('.s-cat-chip');
+      if (!chip) return;
+      const wasActive = chip.classList.contains('active');
+      // Toggle off if already active (clear search), otherwise activate
+      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
+      if (wasActive) {
+        searchEl.value = '';
+        clearBtn.style.display = 'none';
+      } else {
+        chip.classList.add('active');
+        searchEl.value = chip.dataset.cat;
+        clearBtn.style.display = '';
+      }
+      buildScannerCards();
+    });
+  })();
+
   // Advanced filter selects — applied via Apply button in bottom sheet
   document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; });
   // ── Direction toggle (All / Buy / Sell) ──
@@ -4770,6 +4985,43 @@
     const isBullish = bull >= bear;
     const lines = [];
 
+    // 0a. Cross-retest (max 40) — DOMINANT factor. A key MA pair crossed, price
+    //     retested the cross and was rejected → definite trend. Loud on any TF.
+    const crossTfs = [
+      { p: '',   tf: 'D' }, { p: 'w_', tf: 'W' },
+      { p: 'm_', tf: 'M' }, { p: 'h4_', tf: '4H' },
+    ];
+    let crossHit = null;
+    for (const { p, tf } of crossTfs) {
+      if (item[`${p}cross_retest_flag`] === 'yes') {
+        const cd = item[`${p}cross_retest_dir`];
+        if ((isBullish && cd === 'bull') || (!isBullish && cd === 'bear')) {
+          crossHit = { tf, pair: item[`${p}cross_retest_pair`] || '', dir: cd };
+          break;
+        }
+      }
+    }
+    if (crossHit) {
+      lines.push({
+        label: `⚡ Definite ${crossHit.dir === 'bull' ? 'uptrend' : 'downtrend'} — ${crossHit.pair} cross rejected (${crossHit.tf})`,
+        points: 40,
+      });
+    }
+
+    // 0b. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
+    //     weighted) + lagging MA200 cutting through anchors (MA300/400/500)
+    //     confirms a trend change, backing B1 (bull flip) / S1 (bear flip).
+    const rollDir   = item.rollover_dir || 'none';
+    const rollScore = parseInt(item.rollover_score) || 0;
+    const rollMax   = parseInt(item.rollover_max) || 15;
+    const rollStage = parseInt(item.rollover_stage) || 0;
+    const rollAligned = (isBullish && rollDir === 'bull') || (!isBullish && rollDir === 'bear');
+    if (rollAligned && rollScore > 0 && rollMax > 0) {
+      const pts   = Math.round((rollScore / rollMax) * 35);
+      const stageLbl = rollStage >= 3 ? 'full flip' : rollStage === 2 ? 'deepening' : 'starting';
+      lines.push({ label: `Ribbon rollover ${rollScore}/${rollMax} (${isBullish ? 'bull' : 'bear'} ${stageLbl})`, points: pts });
+    }
+
     // 1. TF alignment (max 34) — Monthly+Weekly carry more weight as regime setters
     const tfWeights = [11, 11, 8, 4];   // M, W, D, 4H
     const targetTf  = isBullish ? 'UPTREND' : 'DOWNTREND';
@@ -4888,6 +5140,27 @@
     if (score >= 75) return 'prime';
     if (score >= 50) return 'strong';
     return 'developing';
+  }
+
+  // Cross-retest detection across ALL timeframes — returns the loudest hit
+  // (or null). A key MA pair crossed, price retested it and was rejected →
+  // definite trend. Used for the loud card badge.
+  function crossRetestHit(item) {
+    const tfs = [{ p: '', tf: 'D' }, { p: 'w_', tf: 'W' }, { p: 'm_', tf: 'M' }, { p: 'h4_', tf: '4H' }];
+    const hits = [];
+    for (const { p, tf } of tfs) {
+      if (item[`${p}cross_retest_flag`] === 'yes') {
+        const dir = item[`${p}cross_retest_dir`] || 'none';
+        if (dir === 'bull' || dir === 'bear') {
+          hits.push({ tf, dir, pair: item[`${p}cross_retest_pair`] || '' });
+        }
+      }
+    }
+    if (!hits.length) return null;
+    // Prefer higher timeframes (M > W > D > 4H) as the headline
+    const order = { M: 0, W: 1, D: 2, '4H': 3 };
+    hits.sort((a, b) => order[a.tf] - order[b.tf]);
+    return { ...hits[0], all: hits.map(h => h.tf) };
   }
 
   // Itemised breakdown for the "Why this score?" panel — same factors as the score

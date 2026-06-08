@@ -100,7 +100,9 @@ def _watch_level_down(close: float, mas: dict) -> int | None:
     return None
 
 
-def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool) -> str:
+def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool,
+                       roll_dir: str = 'none', roll_stage: int = 0,
+                       cross_dir: str = 'none') -> str:
     if not signal:
         return ''
     # B1/S1 — crossed ALL MAs — always high conviction by definition
@@ -109,10 +111,23 @@ def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool) -> str:
     # B7/S7 — bounced off anchor MA500 — always high conviction
     if signal in ('B7', 'S7'):
         return 'high'
+
+    is_buy  = signal.startswith('B')
+    # Cross-retest = definite-trend confirmation → high on its own when aligned
+    cross_aligned = (is_buy and cross_dir == 'bull') or (not is_buy and cross_dir == 'bear')
+    if cross_aligned:
+        return 'high'
+
+    # Ribbon-rollover confluence: a deep flip (drivers through the anchors) in
+    # the signal's direction is structural confirmation of the reversal.
+    roll_aligned = (is_buy and roll_dir == 'bull') or (not is_buy and roll_dir == 'bear')
+    if roll_aligned and roll_stage >= 3:   # full driver flip → high on its own
+        return 'high'
+
     # B2–B6 / S2–S6 — pullback entries, confluence upgrades confidence
     if vol_spike and at_key_level:
         return 'high'
-    if vol_spike or at_key_level:
+    if (vol_spike or at_key_level) or (roll_aligned and roll_stage >= 2):  # stage 2 bump
         return 'standard'
     return 'low'
 
@@ -250,6 +265,9 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         )
         neutral_osc  = bool(row.get('neutral_oscillation', False))
         cross_count  = int(row.get('ma25_cross_count', 0))
+        roll_dir     = row.get('rollover_dir', 'none')
+        roll_stage   = int(row.get('rollover_stage', 0) or 0)
+        cross_dir    = row.get('cross_retest_dir', 'none') if row.get('cross_retest_flag', False) else 'none'
 
         signal   = ''
         status   = ''
@@ -259,35 +277,79 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         dist = (close - ma500_val) / ma500_val
 
         # ================================================================
-        # B1 — Bullish trend reversal
+        # B1 — Bullish trend reversal  /  B2–B7 — Bullish pullbacks
+        # above_all (close > MA500) covers two sub-zones:
+        #   a) close >= MA25 : price above entire ribbon → B1 territory
+        #   b) close <  MA25 : price pulled back into ribbon → B2–B7 territory
         # ================================================================
         if above_all:
-            if was_below_all and not in_uptrend:
-                # Initial B1: crossed all MAs from below
-                signal       = 'B1'
-                status       = f'Trend reversal — B1: price crossed above all MAs (MA{_ma25}–MA{_ma500})'
-                in_uptrend   = True
-                in_downtrend = False
-                was_below_all = False
-                last_b1_bar  = i
+            in_ribbon = close < ma25_val
 
-            elif in_uptrend and 0 <= dist <= _refire:
-                # Re-fire: price bouncing near MA500
-                if (i - last_b1_bar) >= _REFIRE_DEDUP_BARS:
-                    signal      = 'B1'
-                    status      = (f'B1 re-fire — price within {_refire*100:.0f}% '
-                                   f'of MA{_ma500}, confirming support')
-                    last_b1_bar = i
+            if not in_ribbon:
+                # ── (a) Price above all MAs ──────────────────────────────
+                if was_below_all and not in_uptrend:
+                    # Initial B1: crossed all MAs from below
+                    signal       = 'B1'
+                    status       = f'Trend reversal — B1: price crossed above all MAs (MA{_ma25}–MA{_ma500})'
+                    in_uptrend   = True
+                    in_downtrend = False
+                    was_below_all = False
+                    last_b1_bar  = i
 
-            if not signal and in_uptrend:
-                if _refire < dist <= _new_tr:
+                elif in_uptrend and 0 <= dist <= _refire:
+                    # Re-fire: price bouncing near MA500
+                    if (i - last_b1_bar) >= _REFIRE_DEDUP_BARS:
+                        signal      = 'B1'
+                        status      = (f'B1 re-fire — price within {_refire*100:.0f}% '
+                                       f'of MA{_ma500}, confirming support')
+                        last_b1_bar = i
+
+                if not signal and in_uptrend:
+                    if _refire < dist <= _new_tr:
+                        new_trend = True
+                        status    = (f'New trend — B1 confirmed, consolidating '
+                                     f'{dist*100:.1f}% above MA{_ma500}')
+                    elif dist > _new_tr:
+                        status = f'Uptrend established — {dist*100:.1f}% above MA{_ma500}'
+                    elif not status:
+                        status = f'Uptrend — above all MAs'
+
+            else:
+                # ── (b) Price pulled back into ribbon (MA500 < close < MA25) ─
+                # B7 special case: wick touched MA500, close confirmed above.
+                # Must be checked before dist > _new_tr gate — B7 fires precisely
+                # when price is near MA500, which is always inside the new-trend zone.
+                if in_uptrend and low <= ma500_val * (1 + _tol):
+                    signal = 'B7'
+                    status = (f'Uptrend pullback — B7: wick touched MA{_ma500}, '
+                              f'close confirmed above')
+                elif in_uptrend and dist > _new_tr:
+                    # Established uptrend pullback → B2–B6
+                    watch_lvl = _watch_level_up(close, today_mas)
+                    if watch_lvl is not None:
+                        ma_val = today_mas.get(watch_lvl)
+                        if ma_val is not None:
+                            buy_sig, _ = _LEVEL_TO_SIGNAL.get(watch_lvl, ('', ''))
+                            touched = low <= ma_val * (1 + _tol)
+                            if touched and close > ma_val and buy_sig:
+                                signal = buy_sig
+                                status = (f'Uptrend pullback — {buy_sig}: '
+                                          f'wick touched MA{watch_lvl}, close confirmed above')
+                            elif touched:
+                                status = (f'Uptrend — wick on MA{watch_lvl}, '
+                                          f'waiting for close above to confirm')
+                            else:
+                                status = f'Uptrend — watching MA{watch_lvl} for pullback entry'
+                    else:
+                        status = 'Uptrend — price below all pullback levels (deep pullback)'
+                elif in_uptrend and _refire < dist <= _new_tr:
                     new_trend = True
                     status    = (f'New trend — B1 confirmed, consolidating '
                                  f'{dist*100:.1f}% above MA{_ma500}')
-                elif dist > _new_tr:
-                    status = f'Uptrend established — {dist*100:.1f}% above MA{_ma500}'
-                elif not status:
-                    status = f'Uptrend — above all MAs'
+                elif in_uptrend:
+                    status = f'Uptrend — pulling back into ribbon'
+                else:
+                    status = 'Neutral — price in ribbon, no established trend'
 
         # ================================================================
         # S1 — Bearish trend reversal
@@ -322,29 +384,18 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                     status = f'Downtrend — below all MAs'
 
         # ================================================================
-        # B2–B7 — Bullish pullbacks (established uptrend, out of NEW TREND zone)
+        # S7 special case — wick touched MA500 in downtrend.
+        # Checked before (-dist) > _new_tr gate for the same reason as B7:
+        # S7 fires precisely near MA500, which is always inside the new-trend zone.
+        # close confirmed below MA500 is guaranteed here (above_all=False).
         # ================================================================
-        elif in_uptrend and dist > _new_tr:
-            watch_lvl = _watch_level_up(close, today_mas)
-            if watch_lvl is not None:
-                ma_val = today_mas.get(watch_lvl)
-                if ma_val is not None:
-                    buy_sig, _ = _LEVEL_TO_SIGNAL.get(watch_lvl, ('', ''))
-                    touched = low <= ma_val * (1 + _tol)
-                    if touched and close > ma_val and buy_sig:
-                        signal = buy_sig
-                        status = (f'Uptrend pullback — {buy_sig}: '
-                                  f'wick touched MA{watch_lvl}, close confirmed above')
-                    elif touched:
-                        status = (f'Uptrend — wick on MA{watch_lvl}, '
-                                  f'waiting for close above to confirm')
-                    else:
-                        status = f'Uptrend — watching MA{watch_lvl} for pullback entry'
-            else:
-                status = 'Uptrend — price below all pullback levels (deep pullback)'
+        elif in_downtrend and high >= ma500_val * (1 - _tol):
+            signal = 'S7'
+            status = (f'Downtrend rally — S7: wick touched MA{_ma500}, '
+                      f'close confirmed below')
 
         # ================================================================
-        # S2–S7 — Bearish rallies (established downtrend, out of NEW TREND zone)
+        # S2–S6 — Bearish rallies (established downtrend, out of NEW TREND zone)
         # ================================================================
         elif in_downtrend and (-dist) > _new_tr:
             watch_lvl = _watch_level_down(close, today_mas)
@@ -376,7 +427,9 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
             else:
                 status = 'Neutral — no established trend direction'
 
-        conf = _signal_confidence(signal, vol_spike, at_key_level)
+        conf = _signal_confidence(signal, vol_spike, at_key_level,
+                                  roll_dir=roll_dir, roll_stage=roll_stage,
+                                  cross_dir=cross_dir)
 
         # ── Neutral oscillation → potential turning point flag ──────────────
         ttp = ''

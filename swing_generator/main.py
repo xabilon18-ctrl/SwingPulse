@@ -46,7 +46,7 @@ from _active_config import (
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker
 from data_fetcher  import fetch_all, fetch_all_hourly
-from indicators    import add_all_indicators
+from indicators    import add_all_indicators, CROSS_RETEST_LOOKBACK_4H
 from signals       import add_signals
 from key_levels    import find_key_levels, today_level_summary
 from sheets_writer import write_output
@@ -110,9 +110,22 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         # New indicator fields
         f'{prefix}ribbon_spread':                 _fmt(row.get('ribbon_spread'), decimals=2),
         f'{prefix}ribbon_compression':            'yes' if row.get('ribbon_compression') else 'no',
+        f'{prefix}ribbon_slope_pct':              _fmt(row.get('ribbon_slope_pct'), decimals=2),
         f'{prefix}ma_order_score':                _fmt(row.get('ma_order_score'), decimals=0),
         f'{prefix}roc':                           _fmt(row.get('roc'), decimals=2),
         f'{prefix}rsi':                           _fmt(row.get('rsi'), decimals=1),
+        f'{prefix}rollover_score':                _fmt(row.get('rollover_score'), decimals=0),
+        f'{prefix}rollover_max':                  _fmt(row.get('rollover_max'), decimals=0),
+        f'{prefix}rollover_dir':                  row.get('rollover_dir', 'none') or 'none',
+        f'{prefix}rollover_stage':                _fmt(row.get('rollover_stage'), decimals=0),
+        f'{prefix}cross_retest_flag':             'yes' if row.get('cross_retest_flag') else 'no',
+        f'{prefix}cross_retest_dir':              row.get('cross_retest_dir', 'none') or 'none',
+        f'{prefix}cross_retest_pair':             row.get('cross_retest_pair', '') or '',
+        # Performance — was missing from extraction (NaN for all instruments)
+        f'{prefix}pct_1d':                        _fmt(row.get('pct_1d'), decimals=2),
+        f'{prefix}pct_1w':                        _fmt(row.get('pct_1w'), decimals=2),
+        f'{prefix}pct_1m':                        _fmt(row.get('pct_1m'), decimals=2),
+        f'{prefix}pct_1y':                        _fmt(row.get('pct_1y'), decimals=2),
     }
 
     # Macro S/R touch signals — daily only (most meaningful at the daily level)
@@ -365,7 +378,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             h4 = _resample_4h(hourly_df)
             h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
             if len(h4_ma_periods) >= 3:
-                h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
+                h4 = add_all_indicators(h4, ma_periods=h4_ma_periods,
+                                        cross_retest_lookback=CROSS_RETEST_LOOKBACK_4H)
                 h4 = add_signals(h4, ma_periods=h4_ma_periods,
                                  refire_pct=0.02, new_trend_pct=0.05)
                 h4_data, _ = _extract_row(
@@ -551,6 +565,8 @@ def _process_worker(args: tuple) -> tuple:
 # ---------------------------------------------------------------------------
 
 def main():
+    import time as _time
+    _t0 = _time.time()
     parser = argparse.ArgumentParser(description='Swing Trading Signal Generator')
     parser.add_argument('--refresh', action='store_true',
                         help='Force re-download all data from Yahoo Finance')
@@ -665,7 +681,9 @@ def main():
         print(f'\n  [Publish] Skipped: {e}')
         sys.exit(1)
 
-    print(f'\n  Done — {run_date}\n')
+    elapsed = _time.time() - _t0
+    m, s = divmod(int(elapsed), 60)
+    print(f'\n  Done — {run_date}  ⏱  {m}m {s:02d}s\n')
 
 
 def compute_flow_volumes(output_df: pd.DataFrame, run_date: date) -> None:

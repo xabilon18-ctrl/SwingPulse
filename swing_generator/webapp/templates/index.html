@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="stylesheet" href="/static/css/style.css?v=150">
+  <link rel="stylesheet" href="/static/css/style.css?v=153">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -160,6 +160,9 @@
       <span id="volumeCount" style="display:none"></span>
       <span id="highConfCount" style="display:none"></span>
 
+      <!-- Tech Themes -->
+      <div class="card" id="techThemesCard"></div>
+
       <!-- Group Pulse -->
       <div class="card" id="groupPulseCard">
         <div class="card-header">
@@ -245,8 +248,37 @@
         </div>
         <div class="search-wrap sig-search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" id="scannerSearch" placeholder="Search...">
+          <input type="text" class="search-input" id="scannerSearch" placeholder="Search name, category…" autocomplete="off">
+          <button class="scanner-search-clear" id="scannerSearchClear" style="display:none" aria-label="Clear search">×</button>
         </div>
+      </div>
+
+      <!-- Category quick-tap chips -->
+      <div class="scanner-cat-chips" id="scannerCatChips">
+        <button class="s-cat-chip" data-cat="crypto">Crypto</button>
+        <button class="s-cat-chip" data-cat="forex">Forex</button>
+        <button class="s-cat-chip" data-cat="commodity">Commodity</button>
+        <button class="s-cat-chip" data-cat="us100">US100</button>
+        <button class="s-cat-chip" data-cat="us30">US30</button>
+        <button class="s-cat-chip" data-cat="us500">US500</button>
+        <button class="s-cat-chip" data-cat="ger40">GER40</button>
+        <button class="s-cat-chip" data-cat="uk100">UK100</button>
+        <button class="s-cat-chip" data-cat="fra40">FRA40</button>
+        <button class="s-cat-chip" data-cat="it40">IT40</button>
+        <button class="s-cat-chip" data-cat="aex">AEX</button>
+        <button class="s-cat-chip" data-cat="asx200">ASX200</button>
+        <button class="s-cat-chip" data-cat="japan">Japan</button>
+        <button class="s-cat-chip" data-cat="jse">JSE</button>
+        <button class="s-cat-chip" data-cat="ai">AI Theme</button>
+        <button class="s-cat-chip" data-cat="blockchain">Blockchain</button>
+        <button class="s-cat-chip" data-cat="space">Space</button>
+        <button class="s-cat-chip" data-cat="quantum">Quantum</button>
+        <button class="s-cat-chip" data-cat="robotics">Robotics</button>
+        <button class="s-cat-chip" data-cat="indices">Indices</button>
+        <button class="s-cat-chip" data-cat="banks">Banks</button>
+        <button class="s-cat-chip" data-cat="energy">Energy</button>
+        <button class="s-cat-chip" data-cat="tech">Tech</button>
+        <button class="s-cat-chip" data-cat="semi">Semis</button>
       </div>
 
       <!-- Dashboard filter context strip (shown when navigated from Market Pulse / Group Pulse) -->
@@ -592,6 +624,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=143"></script>
+  <script src="/static/js/app.js?v=147"></script>
 </body>
 </html>

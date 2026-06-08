@@ -23,8 +23,8 @@ from flask import Flask, jsonify, render_template, request, send_file
 # ---------------------------------------------------------------------------
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(BASE_DIR)
-OUTPUT_DIR = os.path.join(PARENT_DIR, 'output_ma200')
-CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma200')
+OUTPUT_DIR = os.path.join(PARENT_DIR, 'output_ma500')
+CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma500')
 
 # Allow importing config from parent package
 sys.path.insert(0, PARENT_DIR)
@@ -61,6 +61,44 @@ def get_ticker_map() -> dict[str, str]:
 
 # Direct overrides: display_name → EXCHANGE:SYMBOL
 _TV_BY_NAME: dict[str, str] = {
+    # ── Forex — exotic pairs (FX_IDC covers non-G8 currencies that FX: doesn't have) ──
+    # USD base
+    'USDPLN':   'FX_IDC:USDPLN',
+    'USDZAR':   'FX_IDC:USDZAR',
+    'USDMXN':   'FX_IDC:USDMXN',
+    'USDSEK':   'FX_IDC:USDSEK',
+    'USDNOK':   'FX_IDC:USDNOK',
+    'USDSGD':   'FX_IDC:USDSGD',
+    'USDTRY':   'FX_IDC:USDTRY',
+    'USDHKD':   'FX_IDC:USDHKD',
+    'USDCNH':   'FX_IDC:USDCNH',
+    'USDCZK':   'FX_IDC:USDCZK',
+    'USDHUF':   'FX_IDC:USDHUF',
+    # EUR base
+    'EURSEK':   'FX_IDC:EURSEK',
+    'EURZAR':   'FX_IDC:EURZAR',
+    'EURMXN':   'FX_IDC:EURMXN',
+    'EURNOK':   'FX_IDC:EURNOK',
+    'EURSGD':   'FX_IDC:EURSGD',
+    'EURTRY':   'FX_IDC:EURTRY',
+    'EURHUF':   'FX_IDC:EURHUF',
+    'EURPLN':   'FX_IDC:EURPLN',
+    # GBP base
+    'GBPSGD':   'FX_IDC:GBPSGD',
+    'GBPZAR':   'FX_IDC:GBPZAR',
+    'GBPMXN':   'FX_IDC:GBPMXN',
+    'GBPSEK':   'FX_IDC:GBPSEK',
+    # AUD/NZD base
+    'AUDSGD':   'FX_IDC:AUDSGD',
+    'NZDSGD':   'FX_IDC:NZDSGD',
+    # SGD/ZAR/TRY/MXN base
+    'SGDJPY':   'FX_IDC:SGDJPY',
+    'ZARJPY':   'FX_IDC:ZARJPY',
+    'TRYJPY':   'FX_IDC:TRYJPY',
+    'MXNJPY':   'FX_IDC:MXNJPY',
+    # Reversed display name fix (Yahoo: AUDUSD=X, display: USDAUD)
+    'USDAUD':   'FX:AUDUSD',
+
     # ── Commodities (TVC) ──
     'GOLD':     'TVC:GOLD',
     'SILVER':   'TVC:SILVER',
@@ -443,7 +481,6 @@ _TV_BY_NAME: dict[str, str] = {
     'EOG':   'NYSE:EOG',
     'OXY':   'NYSE:OXY',
     'DVN':   'NYSE:DVN',
-    'HES':   'NYSE:HES',
     'MS':    'NYSE:MS',
     'BLK':   'NYSE:BLK',
     'SCHW':  'NYSE:SCHW',
@@ -493,6 +530,96 @@ _TV_BY_NAME: dict[str, str] = {
     'WEC':   'NYSE:WEC',
     'AES':   'NYSE:AES',
     'HCA':   'NYSE:HCA',
+
+    # ── Japanese stocks — TradingView requires numeric ticker, not company name ──
+    'FANUC':     'TSE:6954',
+    'KEYENCE':   'TSE:6861',
+    'TOKYOELEC': 'TSE:8035',
+    'TOYOTA':    'TSE:7203',
+    'SONY':      'TSE:6758',
+    'HONDA':     'TSE:7267',
+    'MUFG':      'TSE:8306',
+    'NTT':       'TSE:9432',
+    'SOFTBANK':  'TSE:9984',
+
+    # ── AI Theme ──
+    'C3AI':      'NASDAQ:AI',
+    'SOUN':      'NASDAQ:SOUN',
+    'BBAI':      'NYSE:BBAI',
+    'CEREBRAS':  'NASDAQ:CBRS',
+    'CRWV':      'NASDAQ:CRWV',
+
+    # ── Blockchain ──
+    'COIN':      'NASDAQ:COIN',
+    'MARA':      'NASDAQ:MARA',
+    'RIOT':      'NASDAQ:RIOT',
+    'MSTR':      'NASDAQ:MSTR',
+    'CLSK':      'NASDAQ:CLSK',
+    'HUT':       'NASDAQ:HUT',
+    'WULF':      'NASDAQ:WULF',
+    'IREN':      'NASDAQ:IREN',
+    'HOOD':      'NASDAQ:HOOD',
+
+    # ── Space ──
+    'RKLB':      'NASDAQ:RKLB',
+    'ASTS':      'NASDAQ:ASTS',
+    'LUNR':      'NASDAQ:LUNR',
+    'IRDM':      'NASDAQ:IRDM',
+    'PLANET':    'NYSE:PL',
+    'GSAT':      'NASDAQ:GSAT',
+    'VSAT':      'NASDAQ:VSAT',
+    'RDW':       'NYSE:RDW',
+
+    # ── Quantum ──
+    'IONQ':      'NYSE:IONQ',
+    'RGTI':      'NASDAQ:RGTI',
+    'QBTS':      'NYSE:QBTS',
+    'QUBT':      'NASDAQ:QUBT',
+
+    # ── Robotics ──
+    'PATH':      'NYSE:PATH',
+    'SYM':       'NASDAQ:SYM',
+    'ROK':       'NYSE:ROK',
+    'CGNX':      'NASDAQ:CGNX',
+    'SERV':      'NASDAQ:SERV',
+    'GMED':      'NYSE:GMED',
+
+    # ── AI Energy ──
+    'VST':       'NYSE:VST',
+    'NRG':       'NYSE:NRG',
+    'BWXT':      'NYSE:BWXT',
+    'OKLO':      'NYSE:OKLO',
+    'GEV':       'NYSE:GEV',
+    'TLN':       'NASDAQ:TLN',
+    'BE':        'NYSE:BE',
+
+    # ── AI Semi ──
+    'ALAB':      'NASDAQ:ALAB',
+    'CRDO':      'NASDAQ:CRDO',
+    'LSCC':      'NASDAQ:LSCC',
+    'GFS':       'NASDAQ:GFS',
+    'AMKR':      'NASDAQ:AMKR',
+    'CAMT':      'NASDAQ:CAMT',
+    'FN':        'NYSE:FN',
+
+    # ── AI Infra ──
+    'VRT':       'NYSE:VRT',
+    'DLR':       'NYSE:DLR',
+    'HPE':       'NYSE:HPE',
+    'CLS':       'NYSE:CLS',
+    'WDC':       'NASDAQ:WDC',
+    'STX':       'NASDAQ:STX',
+    'CIEN':      'NYSE:CIEN',
+    'MDB':       'NASDAQ:MDB',
+    'IRM':       'NYSE:IRM',
+    'PWR':       'NYSE:PWR',
+
+    # ── XM Thematic Indices (ETF proxies) ──
+    'AI_INDX':   'NASDAQ:AIQ',
+    'BCHAIN_NFT':'NASDAQ:BKCH',
+    'FAANGS_10': 'NASDAQ:QQQ',
+    'EV_INDX':   'NASDAQ:DRIV',
+    'CHINA_NET': 'NASDAQ:KWEB',
 }
 
 # NYSE stocks that appear under different ticker in TV

@@ -8,7 +8,7 @@ are designed to be called sequentially from main.py.
 import numpy as np
 import pandas as pd
 
-from _active_config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK
+from _active_config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK, MA_TOUCH_TOLERANCE
 
 
 # ---------------------------------------------------------------------------
@@ -61,25 +61,34 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     """
     Classify each row as UPTREND, DOWNTREND, or NEUTRAL.
 
-    UPTREND  : Close > all MAs  (above the full ribbon)
-    DOWNTREND: Close < all MAs  (below the full ribbon)
-    NEUTRAL  : Close is between any two MAs  (inside the ribbon)
+    Uses the ribbon's two anchor MAs (fastest = MA25, slowest = MA500) as
+    boundaries — consistent with the signal engine in signals.py:
 
-    Rows where any MA is NaN (insufficient history) are marked NEUTRAL.
+    UPTREND   : Close > MA500 (above the slow anchor — above the full ribbon
+                in a bullish fan where MA500 is the floor)
+    DOWNTREND : Close < MA25  (below the fast anchor — below the full ribbon
+                in a bearish fan, OR pulled below the ceiling in a mixed ribbon)
+    NEUTRAL   : Close between MA25 and MA500
+
+    When the ribbon is mixed (MA25 > close > MA500 all simultaneously true),
+    DOWNTREND takes priority — price below the fast MA is the more immediate signal.
+
+    Rows where MA25 or MA500 is NaN are marked NEUTRAL.
     """
-    periods = ma_periods or MA_PERIODS
-    ma_cols = [f'ma_{p}' for p in periods]
-    ma_df   = df[ma_cols]
+    periods  = ma_periods or MA_PERIODS
+    fast_col = f'ma_{min(periods)}'   # MA25
+    slow_col = f'ma_{max(periods)}'   # MA500
 
-    any_nan  = ma_df.isna().any(axis=1)
-    max_ma   = ma_df.max(axis=1)
-    min_ma   = ma_df.min(axis=1)
+    ma25  = df[fast_col]
+    ma500 = df[slow_col]
+    has_both = ma25.notna() & ma500.notna()
 
+    # DOWNTREND checked first so a mixed ribbon (close < MA25 but > MA500) → DOWNTREND
     conditions = [
-        (~any_nan) & (df['Close'] > max_ma),
-        (~any_nan) & (df['Close'] < min_ma),
+        has_both & (df['Close'] < ma25),    # below fast MA → DOWNTREND
+        has_both & (df['Close'] > ma500),   # above slow MA → UPTREND
     ]
-    choices = ['UPTREND', 'DOWNTREND']
+    choices = ['DOWNTREND', 'UPTREND']
 
     df['trend_direction'] = np.select(conditions, choices, default='NEUTRAL')
     return df
@@ -151,6 +160,144 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     slope_df = pd.concat(slope_cols, axis=1)
     df['ribbon_slope_pct'] = slope_df.median(axis=1)
 
+    # ── Ribbon rollover: fast/medium MAs crossing the deep anchor MAs ──────────
+    # Movers (25, 100, 200) progressively cross the anchors (300, 400, 500).
+    # MA200 LAGS — MA25 & MA100 are the DRIVERS that lead the reversal, so they
+    # carry more weight (2 each) than the lagging MA200 (1). A full driver cross
+    # therefore reaches near-max BEFORE the slow MA200 catches up.
+    # Bearish rollover (mover < anchor) confirms a downward reversal → S1.
+    # Bullish rollover (mover > anchor) confirms an upward reversal   → B1.
+    mover_weight = {25: 2, 100: 2, 200: 1}   # drivers lead, MA200 lags
+    movers  = [p for p in (25, 100, 200) if p in periods]
+    anchors = [p for p in (300, 400, 500) if p in periods]
+    bull_w   = pd.Series(0, index=df.index, dtype=int)
+    bear_w   = pd.Series(0, index=df.index, dtype=int)
+    max_w    = pd.Series(0, index=df.index, dtype=int)
+    for mp in movers:
+        w = mover_weight[mp]
+        for ap in anchors:
+            mc, ac = f'ma_{mp}', f'ma_{ap}'
+            if mc not in df.columns or ac not in df.columns:
+                continue
+            both = df[mc].notna() & df[ac].notna()
+            max_w  = max_w  + both.astype(int) * w
+            bull_w = bull_w + (both & (df[mc] > df[ac])).astype(int) * w
+            bear_w = bear_w + (both & (df[mc] < df[ac])).astype(int) * w
+
+    # Dominant direction by weighted score
+    dom = np.where(bull_w > bear_w, bull_w,
+                   np.where(bear_w > bull_w, bear_w, 0))
+    df['rollover_score'] = dom.astype(int)            # weighted 0–15 (drivers emphasised)
+    df['rollover_max']   = max_w.astype(int)          # achievable max (15 when all present)
+    df['rollover_dir'] = np.where(bull_w > bear_w, 'bull',
+                          np.where(bear_w > bull_w, 'bear', 'none'))
+
+    # Stage is set by how deep the DRIVERS (MA25 & MA100) have cut — not the
+    # lagging MA200. Stage 3 = both drivers through MA500, Stage 2 = +MA400,
+    # Stage 1 = +MA300.
+    drv = [p for p in (25, 100) if p in periods]
+    def _both_drivers_past(anchor_p, bullish):
+        if anchor_p not in anchors or not drv:
+            return pd.Series(False, index=df.index)
+        ac = f'ma_{anchor_p}'
+        cond = pd.Series(True, index=df.index)
+        for dp in drv:
+            mc = f'ma_{dp}'
+            both = df[mc].notna() & df[ac].notna()
+            side = (df[mc] > df[ac]) if bullish else (df[mc] < df[ac])
+            cond = cond & both & side
+        return cond
+    is_bull = df['rollover_dir'] == 'bull'
+    stage = pd.Series(0, index=df.index, dtype=int)
+    for anc, st in ((300, 1), (400, 2), (500, 3)):
+        past = (_both_drivers_past(anc, True) & is_bull) | (_both_drivers_past(anc, False) & ~is_bull)
+        stage = np.where(past, st, stage)
+    df['rollover_stage'] = pd.Series(stage, index=df.index).astype(int)
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Cross-retest: MA-pair crossover that price retests and rejects
+# ---------------------------------------------------------------------------
+
+# Key MAs for cross-retest: adjacent pairs + all mover/anchor combinations
+# Movers (fast, trend-leading): 25, 100, 200
+# Anchors (slow, structural):   300, 400, 500
+# This catches 100/400 etc. which the rollover engine already tracks
+_CROSS_KEY_MAS = [25, 100, 200, 300, 400, 500]
+_MOVERS        = [25, 100, 200]
+_ANCHORS       = [300, 400, 500]
+# Sort by gap DESCENDING — largest/most-significant pair wins when multiple fire same bar
+_CROSS_PAIRS   = sorted(set(
+    list(zip(_CROSS_KEY_MAS[:-1], _CROSS_KEY_MAS[1:])) +   # adjacent: (25,100)…(400,500)
+    [(m, a) for m in _MOVERS for a in _ANCHORS]             # mover/anchor: (25,300)…(200,500)
+), key=lambda p: -(p[1] - p[0]))
+
+CROSS_RETEST_LOOKBACK    = 15    # bars for daily/weekly/monthly
+CROSS_RETEST_LOOKBACK_4H = 30    # 4H: 30 bars ≈ 5 trading days
+CROSS_RETEST_TOLERANCE   = 0.020 # 2.0% — matches MAX_PENETRATION_DAILY; price must approach within 2% of faster MA
+
+
+def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
+                     lookback=CROSS_RETEST_LOOKBACK) -> pd.DataFrame:
+    """
+    Flag a DEFINITE-TREND cross-retest:
+      Bearish — a key MA pair recently crossed bearishly (faster cut below
+                slower); price then rallies up to touch the cross zone but
+                CLOSES BACK BELOW the faster MA → rejection → definite downtrend.
+      Bullish — mirror: faster crossed above slower; price dips to the cross
+                but CLOSES BACK ABOVE → definite uptrend.
+
+    Emits: cross_retest_flag (bool), cross_retest_dir ('bull'/'bear'/'none'),
+           cross_retest_pair (e.g. '100/200').
+    Pairs iterated largest-gap-first so the most significant cross wins.
+    """
+    periods = ma_periods or MA_PERIODS
+    tol = touch_tolerance if touch_tolerance is not None else CROSS_RETEST_TOLERANCE
+    n = len(df)
+    flag = pd.Series(False, index=df.index)
+    dir_ = pd.Series('none', index=df.index, dtype=object)
+    pair = pd.Series('', index=df.index, dtype=object)
+
+    high, low, close = df['High'], df['Low'], df['Close']
+
+    for fp, sp in _CROSS_PAIRS:
+        fc, sc = f'ma_{fp}', f'ma_{sp}'
+        if fp not in periods or sp not in periods or fc not in df.columns or sc not in df.columns:
+            continue
+        maf, mas = df[fc], df[sc]
+        valid = maf.notna() & mas.notna()
+
+        # Order sign: +1 faster above slower (bull stack), -1 faster below (bear stack)
+        bull_order = (maf > mas) & valid
+        bear_order = (maf < mas) & valid
+
+        # Cross events: order flipped vs previous bar
+        bear_cross = bear_order & bull_order.shift(1, fill_value=False)   # fast cut below slow
+        bull_cross = bull_order & bear_order.shift(1, fill_value=False)   # fast rose above slow
+
+        # Recent cross within lookback bars
+        recent_bear = bear_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
+        recent_bull = bull_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
+
+        # Retest + rejection on the current bar
+        # Bear: price wicks UP to the faster MA (now the lower band) but closes below it
+        bear_retest = recent_bear & bear_order & (high >= maf * (1 - tol)) & (close < maf)
+        # Bull: price wicks DOWN to the faster MA (now the upper band) but closes above it
+        bull_retest = recent_bull & bull_order & (low <= maf * (1 + tol)) & (close > maf)
+
+        lbl = f'{fp}/{sp}'
+        # First matching pair wins the label; flag/dir set for any match
+        newly_bear = bear_retest & ~flag
+        newly_bull = bull_retest & ~flag
+        pair = pair.mask(newly_bear | newly_bull, lbl)
+        dir_ = dir_.mask(newly_bear, 'bear').mask(newly_bull, 'bull')
+        flag = flag | bear_retest | bull_retest
+
+    df['cross_retest_flag'] = flag
+    df['cross_retest_dir']  = dir_
+    df['cross_retest_pair'] = pair
     return df
 
 
@@ -267,12 +414,14 @@ def add_neutral_oscillation(df: pd.DataFrame, ma_periods=None,
     return df
 
 
-def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
+def add_all_indicators(df: pd.DataFrame, ma_periods=None,
+                       cross_retest_lookback=CROSS_RETEST_LOOKBACK) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
     df = add_macro_ma_levels(df)
     df = add_volume_analysis(df)
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)
+    df = add_cross_retest(df, ma_periods=ma_periods, lookback=cross_retest_lookback)
     df = add_roc(df)
     df = add_rsi(df)
     df = add_performance_pct(df)

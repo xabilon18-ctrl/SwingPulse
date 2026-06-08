@@ -793,8 +793,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 633  | EOG           | EOG           | US500         | Energy                    | Oil & Gas Exploration
 634  | OXY           | OXY           | US500         | Energy                    | Oil & Gas Exploration
 635  | DVN           | DVN           | US500         | Energy                    | Oil & Gas Exploration
-636  | HES           | HES           | US500         | Energy                    | Oil & Gas Exploration
-637  | MS            | MS            | US500         | Financial Services        | Investment Banking
+636  | MS            | MS            | US500         | Financial Services        | Investment Banking
 638  | BLK           | BLK           | US500         | Financial Services        | Asset Management
 639  | SCHW          | SCHW          | US500         | Financial Services        | Brokerage
 640  | CB            | CB            | US500         | Financial Services        | Insurance
@@ -845,6 +844,128 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 685  | HCA           | HCA           | US500         | Healthcare                | Hospitals
 
 ═══════════════════════════════════════════════════════════════════════════════
+  ARTIFICIAL INTELLIGENCE — PURE PLAYS (4)
+═══════════════════════════════════════════════════════════════════════════════
+686  | AI            | C3AI          | AI Theme      | Technology                | Enterprise AI
+687  | SOUN          | SOUN          | AI Theme      | Technology                | Voice AI
+688  | BBAI          | BBAI          | AI Theme      | Technology                | AI Analytics
+689  | CBRS          | CEREBRAS      | AI Theme      | Technology                | AI Chips
+
+═══════════════════════════════════════════════════════════════════════════════
+  BLOCKCHAIN & CRYPTO EQUITY (4)
+═══════════════════════════════════════════════════════════════════════════════
+690  | COIN          | COIN          | Blockchain    | Financial Services        | Crypto Exchange
+691  | MARA          | MARA          | Blockchain    | Technology                | Bitcoin Mining
+692  | RIOT          | RIOT          | Blockchain    | Technology                | Bitcoin Mining
+693  | MSTR          | MSTR          | Blockchain    | Financial Services        | Bitcoin Treasury
+
+═══════════════════════════════════════════════════════════════════════════════
+  SPACE EXPLORATION (4)
+═══════════════════════════════════════════════════════════════════════════════
+694  | RKLB          | RKLB          | Space         | Industrials               | Launch Vehicles
+695  | ASTS          | ASTS          | Space         | Technology                | Satellite Comms
+696  | LUNR          | LUNR          | Space         | Technology                | Lunar Missions
+697  | IRDM          | IRDM          | Space         | Technology                | Satellite Comms
+
+═══════════════════════════════════════════════════════════════════════════════
+  QUANTUM COMPUTING (3)
+═══════════════════════════════════════════════════════════════════════════════
+698  | IONQ          | IONQ          | Quantum       | Technology                | Quantum Computing
+699  | RGTI          | RGTI          | Quantum       | Technology                | Quantum Computing
+700  | QBTS          | QBTS          | Quantum       | Technology                | Quantum Computing
+
+═══════════════════════════════════════════════════════════════════════════════
+  ROBOTICS & AUTOMATION (4)
+═══════════════════════════════════════════════════════════════════════════════
+701  | PATH          | PATH          | Robotics      | Technology                | RPA Software
+702  | SYM           | SYM           | Robotics      | Technology                | Warehouse Robotics
+703  | ROK           | ROK           | Robotics      | Industrials               | Industrial Automation
+704  | CGNX          | CGNX          | Robotics      | Technology                | Machine Vision
+
+═══════════════════════════════════════════════════════════════════════════════
+  AI ENERGY — POWER FOR AI DATA CENTRES (5)
+═══════════════════════════════════════════════════════════════════════════════
+705  | VST           | VST           | AI Energy     | Utilities                 | Power Generation
+706  | NRG           | NRG           | AI Energy     | Utilities                 | Power Generation
+707  | BWXT          | BWXT          | AI Energy     | Industrials               | Nuclear Tech
+708  | OKLO          | OKLO          | AI Energy     | Utilities                 | Small Modular Reactor
+709  | GEV           | GEV           | AI Energy     | Industrials               | Energy Systems
+
+═══════════════════════════════════════════════════════════════════════════════
+  ARTIFICIAL INTELLIGENCE — ADDITIONS (1)
+═══════════════════════════════════════════════════════════════════════════════
+710  | CRWV          | CRWV          | AI Theme      | Technology                | AI Cloud Infrastructure
+
+═══════════════════════════════════════════════════════════════════════════════
+  BLOCKCHAIN — ADDITIONS (5)
+═══════════════════════════════════════════════════════════════════════════════
+711  | CLSK          | CLSK          | Blockchain    | Technology                | Bitcoin Mining
+712  | HUT           | HUT           | Blockchain    | Technology                | Bitcoin Mining
+713  | WULF          | WULF          | Blockchain    | Technology                | Bitcoin Mining
+714  | IREN          | IREN          | Blockchain    | Technology                | Bitcoin Mining / AI HPC
+715  | HOOD          | HOOD          | Blockchain    | Financial Services        | Crypto Trading
+
+═══════════════════════════════════════════════════════════════════════════════
+  SPACE EXPLORATION — ADDITIONS (4)
+═══════════════════════════════════════════════════════════════════════════════
+716  | PL            | PLANET        | Space         | Technology                | Earth Observation
+717  | GSAT          | GSAT          | Space         | Technology                | Satellite Comms
+718  | VSAT          | VSAT          | Space         | Technology                | Satellite Comms
+719  | RDW           | RDW           | Space         | Industrials               | Space Infrastructure
+
+═══════════════════════════════════════════════════════════════════════════════
+  QUANTUM COMPUTING — ADDITIONS (1)
+═══════════════════════════════════════════════════════════════════════════════
+720  | QUBT          | QUBT          | Quantum       | Technology                | Quantum Computing
+
+═══════════════════════════════════════════════════════════════════════════════
+  ROBOTICS & AUTOMATION — ADDITIONS (2)
+═══════════════════════════════════════════════════════════════════════════════
+721  | SERV          | SERV          | Robotics      | Technology                | Autonomous Delivery
+722  | GMED          | GMED          | Robotics      | Healthcare                | Surgical Robotics
+
+═══════════════════════════════════════════════════════════════════════════════
+  AI ENERGY — ADDITIONS (2)
+═══════════════════════════════════════════════════════════════════════════════
+723  | TLN           | TLN           | AI Energy     | Utilities                 | Nuclear Power
+724  | BE            | BE            | AI Energy     | Utilities                 | Fuel Cell Energy
+
+═══════════════════════════════════════════════════════════════════════════════
+  AI SEMICONDUCTORS — SUPPLY CHAIN (7)
+═══════════════════════════════════════════════════════════════════════════════
+725  | ALAB          | ALAB          | AI Semi       | Technology                | AI Connectivity Chips
+726  | CRDO          | CRDO          | AI Semi       | Technology                | High-Speed Network Chips
+727  | LSCC          | LSCC          | AI Semi       | Technology                | Edge AI / FPGA
+728  | GFS           | GFS           | AI Semi       | Technology                | Semiconductor Foundry
+729  | AMKR          | AMKR          | AI Semi       | Technology                | Chip Packaging / OSAT
+730  | CAMT          | CAMT          | AI Semi       | Technology                | AI Chip Inspection
+731  | FN            | FN            | AI Semi       | Technology                | Optical Manufacturing
+
+═══════════════════════════════════════════════════════════════════════════════
+  AI INFRASTRUCTURE — DATA CENTRES (10)
+═══════════════════════════════════════════════════════════════════════════════
+732  | VRT           | VRT           | AI Infra      | Industrials               | Data Centre Power & Cooling
+733  | DLR           | DLR           | AI Infra      | Real Estate               | Data Centre REIT
+734  | HPE           | HPE           | AI Infra      | Technology                | AI Server Systems
+735  | CLS           | CLS           | AI Infra      | Technology                | AI Server Manufacturing
+736  | WDC           | WDC           | AI Infra      | Technology                | AI Storage
+737  | STX           | STX           | AI Infra      | Technology                | AI Storage (Seagate)
+738  | CIEN          | CIEN          | AI Infra      | Technology                | Optical Networking
+739  | MDB           | MDB           | AI Infra      | Technology                | AI Database
+740  | IRM           | IRM           | AI Infra      | Real Estate               | Data Storage REIT
+741  | PWR           | PWR           | AI Infra      | Industrials               | Power Infrastructure
+
+═══════════════════════════════════════════════════════════════════════════════
+  XM THEMATIC INDICES — MT5 CFDs (5)
+  (Tracked via closest ETF proxy — display name = XM MT5 symbol)
+═══════════════════════════════════════════════════════════════════════════════
+742  | AIQ           | AI_INDX       | XM Index      | Technology                | AI Giants Index
+743  | BKCH          | BCHAIN_NFT    | XM Index      | Technology                | Blockchain & NFT Index
+744  | QQQ           | FAANGS_10     | XM Index      | Technology                | FAANGs 10 Index
+745  | DRIV          | EV_INDX       | XM Index      | Technology                | Electric Vehicles Index
+746  | KWEB          | CHINA_NET     | XM Index      | Technology                | China Internet Index
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)
@@ -858,7 +979,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   Tech Stocks .............  23
   US30 Dow Jones ..........  26
   US100 Nasdaq ............  58
-  US500 Other .............  86  (12 prev + 74 new)
+  US500 Other .............  85  (12 prev + 74 new — HES removed, delisted after Chevron acq.)
   GER40 DAX ...............  37
   SPAIN35 IBEX ............  19
   CAN60 TSX ...............  23
@@ -876,6 +997,15 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   Forex GBP ...............   9
   Forex Cross .............  15
   Forex Exotic ............  15  (new)
+  AI Theme ................   5  (C3AI, SOUN, BBAI, CEREBRAS, CRWV)
+  Blockchain ..............   9  (COIN, MARA, RIOT, MSTR, CLSK, HUT, WULF, IREN, HOOD)
+  Space ...................   8  (RKLB, ASTS, LUNR, IRDM, PLANET, GSAT, VSAT, RDW)
+  Quantum .................   4  (IONQ, RGTI, QBTS, QUBT)
+  Robotics ................   6  (PATH, SYM, ROK, CGNX, SERV, GMED)
+  AI Energy ...............   7  (VST, NRG, BWXT, OKLO, GEV, TLN, BE)
+  AI Semi .................   7  (ALAB, CRDO, LSCC, GFS, AMKR, CAMT, FN)
+  AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
+  XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 685
+  TOTAL .................. 745
 ═══════════════════════════════════════════════════════════════════════════════
