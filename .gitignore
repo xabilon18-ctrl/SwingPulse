@@ -16,11 +16,25 @@ credentials/
 # ── Large data cache (parquet files — persisted by GitHub Actions cache) ──
 swing_generator/cache/
 swing_generator/cache_ma200/
+swing_generator/cache_ma500/
 
 # ── Generated output (rebuilt on every run) ───────────────────────────────
 swing_generator/output/
 swing_generator/output_ma200/
+swing_generator/output_ma500/
+swing_generator/output_intraday/
 swing_generator/webapp/publish/
+
+# ── Node / wrangler ────────────────────────────────────────────────────────
+node_modules/
+package.json
+package-lock.json
+swing_generator/.wrangler/
+
+# ── Local clutter (installers, manuals, backups, worktrees) ───────────────
+*.pkg
+_backup_*/
+.claude/worktrees/
 
 # ── macOS ──────────────────────────────────────────────────────────────────
 .DS_Store

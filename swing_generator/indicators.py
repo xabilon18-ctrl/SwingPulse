@@ -255,7 +255,6 @@ def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
     """
     periods = ma_periods or MA_PERIODS
     tol = touch_tolerance if touch_tolerance is not None else CROSS_RETEST_TOLERANCE
-    n = len(df)
     flag = pd.Series(False, index=df.index)
     dir_ = pd.Series('none', index=df.index, dtype=object)
     pair = pd.Series('', index=df.index, dtype=object)

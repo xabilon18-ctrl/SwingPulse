@@ -600,7 +600,8 @@ def main():
         sys.exit(1)
 
     print('  Fetching hourly market data (for 4H timeframe) ...\n')
-    hourly_data = fetch_all_hourly(instruments, force_refresh=args.refresh)
+    # Populates the hourly parquet cache; workers re-read it per-ticker (no return used).
+    fetch_all_hourly(instruments, force_refresh=args.refresh)
 
     # 3. Process each instrument (parallel across all CPU cores)
     n_workers = min(os.cpu_count() or 4, 8)

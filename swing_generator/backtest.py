@@ -25,7 +25,7 @@ from typing import Optional
 import pandas as pd
 
 from _active_config import (
-    MA_PERIODS, SMALL_MA_RANGE, MAX_PENETRATION_DAILY, OUTPUT_DIR,
+    MAX_PENETRATION_DAILY, OUTPUT_DIR,
 )
 from data_fetcher import fetch
 from indicators import add_all_indicators

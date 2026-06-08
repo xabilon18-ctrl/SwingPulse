@@ -38,11 +38,6 @@ def load_instruments():
     return instruments
 
 
-def tickers_list():
-    """Return just the list of Yahoo Finance ticker strings."""
-    return [inst['ticker'] for inst in load_instruments()]
-
-
 def instruments_by_ticker():
     """Return dict keyed by ticker for fast lookup."""
     return {inst['ticker']: inst for inst in load_instruments()}

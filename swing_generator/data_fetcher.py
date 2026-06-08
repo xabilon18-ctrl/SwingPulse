@@ -98,7 +98,8 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
     if not force_refresh and _is_fresh(path):
         return pd.read_parquet(path)
 
-    end = datetime.today()
+    # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bar.
+    end = datetime.today() + timedelta(days=1)
 
     # ── Force refresh: re-download full history ───────────────────────────
     if force_refresh or not os.path.exists(path):
@@ -158,7 +159,8 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
     if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
         return pd.read_parquet(path)
 
-    end = datetime.today()
+    # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bars.
+    end = datetime.today() + timedelta(days=1)
 
     # ── Force refresh: full 729-day download ─────────────────────────────
     if force_refresh or not os.path.exists(path):

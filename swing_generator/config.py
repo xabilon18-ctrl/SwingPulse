@@ -34,7 +34,10 @@ MACRO_MA_PERIODS = [1000, 2000, 3000]
 HISTORY_YEARS     = 45   # 45 yr → covers monthly MA500 (500 months ≈ 41.7 yr)
 CACHE_DIR         = os.path.join(BASE_DIR, 'cache_ma500')
 INSTRUMENTS_FILE  = os.path.join(ROOT_DIR, 'Instruments.txt')
-MIN_ROWS_REQUIRED = 525   # need at least 525 daily bars (longest MA is 500)
+MIN_ROWS_REQUIRED = 10    # min daily bars to LIST an instrument (price/volume only).
+                          # MA ribbon & signals fill in automatically as history grows
+                          # (MA500 needs 500+ bars). Recent IPOs (e.g. Cerebras) still
+                          # appear with no signal until they accumulate enough bars.
 
 # ---------------------------------------------------------------------------
 # Volume
