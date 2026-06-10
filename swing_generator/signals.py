@@ -62,12 +62,6 @@ _REFIRE_DEDUP_BARS = 5
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _ma_dict(row, ma_periods=None) -> dict:
-    """Return {period: ma_value} for the row, skipping NaN."""
-    periods = ma_periods or MA_PERIODS
-    return {p: row[f'ma_{p}'] for p in periods if pd.notna(row.get(f'ma_{p}'))}
-
-
 def _watch_level_up(close: float, mas: dict) -> int | None:
     """
     Return the pullback MA level to watch for a buy signal.
@@ -195,27 +189,49 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     last_b1_bar       = -(_REFIRE_DEDUP_BARS + 1)
     last_s1_bar       = -(_REFIRE_DEDUP_BARS + 1)
 
-    rows = df.reset_index(drop=False)
+    # Pre-extract numpy arrays — per-row Series access (rows.iloc[i]) was a
+    # major hot spot (~700k pandas __getitem__ calls per instrument).
+    n          = len(df)
+    closes_arr = df['Close'].to_numpy(dtype=float)
+    lows_arr   = df['Low'].to_numpy(dtype=float)
+    highs_arr  = df['High'].to_numpy(dtype=float)
+    ma_arrays  = {p: df[f'ma_{p}'].to_numpy(dtype=float)
+                  for p in _ma_p if f'ma_{p}' in df.columns}
 
-    for i in range(len(rows)):
-        row   = rows.iloc[i]
+    def _col(name, default):
+        if name in df.columns:
+            return df[name].to_numpy()
+        import numpy as _np
+        return _np.full(n, default, dtype=object)
 
-        close_raw = row.get('Close')
-        low_raw   = row.get('Low')
-        high_raw  = row.get('High')
+    vol_spike_arr   = _col('volume_spike_flag', False)
+    neutral_arr     = _col('neutral_oscillation', False)
+    cross_count_arr = _col('ma25_cross_count', 0)
+    roll_dir_arr    = _col('rollover_dir', 'none')
+    roll_stage_arr  = _col('rollover_stage', 0)
+    cr_flag_arr     = _col('cross_retest_flag', False)
+    cr_dir_arr      = _col('cross_retest_dir', 'none')
 
-        if not (pd.notna(close_raw) and pd.notna(low_raw) and pd.notna(high_raw)):
+    import math
+
+    for i in range(n):
+        close = closes_arr[i]
+        low   = lows_arr[i]
+        high  = highs_arr[i]
+
+        if math.isnan(close) or math.isnan(low) or math.isnan(high):
             run_days.append(trend_run)
             established_trends.append('')
             _append_empty(statuses, primaries, secondaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
 
-        close = float(close_raw)
-        low   = float(low_raw)
-        high  = float(high_raw)
+        close = float(close)
+        low   = float(low)
+        high  = float(high)
 
-        today_mas = _ma_dict(row, ma_periods=_ma_p)
+        today_mas = {p: arr[i] for p, arr in ma_arrays.items()
+                     if not math.isnan(arr[i])}
         ma500_val = today_mas.get(_ma500)
         ma25_val  = today_mas.get(_ma25)
 
@@ -258,16 +274,16 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         established_trends.append(et)
 
         # ── Confluence checks ───────────────────────────────────────────────
-        vol_spike    = bool(row.get('volume_spike_flag', False))
+        vol_spike    = bool(vol_spike_arr[i])
         at_key_level = any(
             kl > 0 and abs(close - kl) / kl < 0.005
             for kl in key_level_prices
         )
-        neutral_osc  = bool(row.get('neutral_oscillation', False))
-        cross_count  = int(row.get('ma25_cross_count', 0))
-        roll_dir     = row.get('rollover_dir', 'none')
-        roll_stage   = int(row.get('rollover_stage', 0) or 0)
-        cross_dir    = row.get('cross_retest_dir', 'none') if row.get('cross_retest_flag', False) else 'none'
+        neutral_osc  = bool(neutral_arr[i])
+        cross_count  = int(cross_count_arr[i])
+        roll_dir     = roll_dir_arr[i]
+        roll_stage   = int(roll_stage_arr[i] or 0)
+        cross_dir    = cr_dir_arr[i] if cr_flag_arr[i] else 'none'
 
         signal   = ''
         status   = ''

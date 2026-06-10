@@ -54,18 +54,29 @@ def _normalise(df: pd.DataFrame) -> pd.DataFrame:
 
 def _full_download(ticker: str, start: datetime, end: datetime,
                    interval: str = '1d') -> pd.DataFrame | None:
-    """Download a date range from Yahoo Finance. Returns None on failure."""
-    df = yf.download(
-        ticker,
+    """Download a date range from Yahoo Finance. Raises on empty response.
+
+    Uses Ticker.history() rather than yf.download() — download() mutates
+    module-level shared state (shared._DFS/_ERRORS) and cross-contaminates
+    results when called from multiple threads (the 2026-06 cache-corruption
+    bug). Ticker.history() is self-contained and thread-safe.
+    """
+    df = yf.Ticker(ticker).history(
         start=start.strftime('%Y-%m-%d'),
         end=end.strftime('%Y-%m-%d'),
         interval=interval,
         auto_adjust=True,
-        progress=False,
         actions=(interval == '1d'),
     )
     if df.empty:
         raise ValueError('empty response')
+    # Match the cache's index convention: daily bars are tz-naive exchange
+    # dates; hourly bars are tz-aware UTC instants.
+    if df.index.tz is not None:
+        if interval == '1d':
+            df.index = df.index.tz_localize(None).normalize()
+        else:
+            df.index = df.index.tz_convert('UTC')
     return _normalise(df)
 
 
@@ -204,54 +215,67 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
 # Bulk fetch helpers (called by main.py)
 # ---------------------------------------------------------------------------
 
-def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
-    """Fetch daily data for every instrument. Returns dict ticker → DataFrame."""
+# Parallel fetch workers — network-bound, so threads give a near-linear
+# speedup. Each ticker writes its own parquet file (no write contention).
+# Override with FETCH_WORKERS=1 to fall back to sequential fetching.
+FETCH_WORKERS = int(os.environ.get('FETCH_WORKERS', 8))
+
+
+def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
+    """Shared driver: fetch every instrument via fetch_fn on a thread pool.
+    Returns dict ticker → DataFrame, skipping None / too-short results."""
+    import concurrent.futures
+
     data  = {}
     total = len(instruments)
+    done  = 0
 
-    for i, inst in enumerate(instruments, 1):
-        ticker = inst['ticker']
-        label  = f'{ticker:<15} ({inst["name"]:<12})'
-        print(f'  [{i:3d}/{total}] {label}', end='  ', flush=True)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(FETCH_WORKERS, 1)) as ex:
+        futures = {ex.submit(fetch_fn, inst['ticker']): inst for inst in instruments}
+        for future in concurrent.futures.as_completed(futures):
+            inst   = futures[future]
+            ticker = inst['ticker']
+            label  = f'{ticker:<15} ({inst["name"]:<12})'
+            done  += 1
+            try:
+                df = future.result()
+            except Exception as exc:
+                print(f'  [{done:3d}/{total}] {label}  SKIP — error: {exc}')
+                continue
 
-        df = fetch(ticker, force_refresh)
+            if df is None:
+                print(f'  [{done:3d}/{total}] {label}  SKIP — no {kind}data')
+                continue
+            if len(df) < min_rows:
+                print(f'  [{done:3d}/{total}] {label}  SKIP — only {len(df)} rows (need {min_rows})')
+                continue
 
-        if df is None:
-            print('SKIP — no data')
-            continue
-        if len(df) < MIN_ROWS_REQUIRED:
-            print(f'SKIP — only {len(df)} rows (need {MIN_ROWS_REQUIRED})')
-            continue
+            data[ticker] = df
+            print(f'  [{done:3d}/{total}] {label}  OK   {len(df)} rows  '
+                  f'({df.index[0].date()} → {df.index[-1].date()})')
 
-        data[ticker] = df
-        print(f'OK   {len(df)} rows  ({df.index[0].date()} → {df.index[-1].date()})')
+    return data
 
-    print(f'\n  Loaded {len(data)}/{total} instruments.\n')
+
+def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
+    """Fetch daily data for every instrument. Returns dict ticker → DataFrame."""
+    data = _fetch_all_parallel(
+        instruments,
+        lambda t: fetch(t, force_refresh),
+        min_rows=MIN_ROWS_REQUIRED,
+    )
+    print(f'\n  Loaded {len(data)}/{len(instruments)} instruments.\n')
     return data
 
 
 def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False,
                      max_age_hours: int = 20) -> dict[str, pd.DataFrame]:
     """Fetch hourly data for every instrument. Returns dict ticker → DataFrame."""
-    data  = {}
-    total = len(instruments)
-
-    for i, inst in enumerate(instruments, 1):
-        ticker = inst['ticker']
-        label  = f'{ticker:<15} ({inst["name"]:<12})'
-        print(f'  [{i:3d}/{total}] {label}', end='  ', flush=True)
-
-        df = fetch_hourly(ticker, force_refresh, max_age_hours=max_age_hours)
-
-        if df is None:
-            print('SKIP — no hourly data')
-            continue
-        if len(df) < 200:
-            print(f'SKIP — only {len(df)} hourly rows')
-            continue
-
-        data[ticker] = df
-        print(f'OK   {len(df)} rows  ({df.index[0].date()} → {df.index[-1].date()})')
-
-    print(f'\n  Loaded hourly data for {len(data)}/{total} instruments.\n')
+    data = _fetch_all_parallel(
+        instruments,
+        lambda t: fetch_hourly(t, force_refresh, max_age_hours=max_age_hours),
+        min_rows=200,
+        kind='hourly ',
+    )
+    print(f'\n  Loaded hourly data for {len(data)}/{len(instruments)} instruments.\n')
     return data

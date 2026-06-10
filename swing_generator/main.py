@@ -71,7 +71,11 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
                  signal_lookback=None):
     """Extract the latest signal row from a processed DataFrame.
     If prefix is set (e.g. 'w_'), all keys are prefixed."""
-    target = df_processed[df_processed.index.date <= run_date]
+    # Slice via searchsorted — index is sorted; avoids materializing .date
+    # and copying the full frame on every call.
+    cutoff = df_processed.index.searchsorted(
+        pd.Timestamp(run_date) + pd.Timedelta(days=1), side='left')
+    target = df_processed.iloc[:cutoff]
     if target.empty:
         return None, None
 
@@ -206,15 +210,21 @@ def _consolidate_short_trends(segments: list[dict], df: pd.DataFrame) -> list[di
     if len(segments) <= 1:
         return segments
 
+    # Precompute once — df.index.date materialized per _recalc_pct call was
+    # the hottest spot in the whole pipeline (~5s/instrument).
+    idx    = df.index
+    closes = df['Close'].to_numpy()
+
     def _recalc_pct(seg):
         """Recalculate pct_move from Close prices in the DataFrame."""
         try:
-            start_rows = df[df.index.date >= date.fromisoformat(seg['start'])]
-            end_rows = df[df.index.date <= date.fromisoformat(seg['end'])]
-            if start_rows.empty or end_rows.empty:
+            # First bar with date >= start, last bar with date <= end
+            i0 = idx.searchsorted(pd.Timestamp(seg['start']), side='left')
+            i1 = idx.searchsorted(pd.Timestamp(seg['end']) + pd.Timedelta(days=1), side='left') - 1
+            if i0 >= len(closes) or i1 < i0:
                 return seg
-            sp = float(start_rows.iloc[0]['Close'])
-            ep = float(end_rows.iloc[-1]['Close'])
+            sp = float(closes[i0])
+            ep = float(closes[i1])
             seg['pct_move'] = round((ep - sp) / sp * 100, 1) if sp else 0
         except Exception:
             pass
