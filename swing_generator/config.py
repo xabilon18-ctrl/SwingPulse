@@ -28,6 +28,10 @@ MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA275 — midpoint of 
 # Long-term Support/Resistance reference MAs (daily only) — 1000+ only; 500 is in main ribbon
 MACRO_MA_PERIODS = [1000, 2000, 3000]
 
+# Macro S/R touch detection — wick must reach within this fraction of the MA.
+# Touch set is MA500 + MACRO_MA_PERIODS (4 levels → strength 4 = full confluence).
+MACRO_SR_TOLERANCE = 0.005
+
 # ---------------------------------------------------------------------------
 # Data — 18 yr covers daily/weekly MA500; monthly MA500 needs 42 yr (NaN expected)
 # ---------------------------------------------------------------------------

@@ -34,7 +34,7 @@ Per-timeframe thresholds (passed in by main.py):
 
 import pandas as pd
 
-from _active_config import MA_PERIODS, MA_TOUCH_TOLERANCE
+from _active_config import MA_PERIODS, MA_TOUCH_TOLERANCE, WATCH_APPROACH_PCT
 
 # ---------------------------------------------------------------------------
 # Pullback signal levels and their signal codes
@@ -271,6 +271,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
         signal   = ''
         status   = ''
+        watch    = ''
         new_trend = False
 
         # ── Distance from MA500 (positive = above, negative = below) ────────
@@ -338,8 +339,14 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                             elif touched:
                                 status = (f'Uptrend — wick on MA{watch_lvl}, '
                                           f'waiting for close above to confirm')
+                                watch  = (f'Wick touched MA{watch_lvl} — '
+                                          f'waiting for close above to confirm')
                             else:
                                 status = f'Uptrend — watching MA{watch_lvl} for pullback entry'
+                                approach = (low - ma_val) / ma_val
+                                if 0 < approach <= WATCH_APPROACH_PCT:
+                                    watch = (f'Approaching MA{watch_lvl} — '
+                                             f'{approach*100:.1f}% above')
                     else:
                         status = 'Uptrend — price below all pullback levels (deep pullback)'
                 elif in_uptrend and _refire < dist <= _new_tr:
@@ -411,8 +418,14 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                     elif touched:
                         status = (f'Downtrend — wick on MA{watch_lvl}, '
                                   f'waiting for close below to confirm')
+                        watch  = (f'Wick touched MA{watch_lvl} — '
+                                  f'waiting for close below to confirm')
                     else:
                         status = f'Downtrend — watching MA{watch_lvl} for rally entry'
+                        approach = (ma_val - high) / ma_val
+                        if 0 < approach <= WATCH_APPROACH_PCT:
+                            watch = (f'Approaching MA{watch_lvl} — '
+                                     f'{approach*100:.1f}% below')
             else:
                 status = 'Downtrend — price above all rally levels (deep rally)'
 
@@ -444,7 +457,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         primaries.append(signal)
         secondaries.append('')
         confidences.append(conf)
-        watches.append('')
+        watches.append(watch)
         ttps.append(ttp)
         new_trend_flags.append(new_trend)
 

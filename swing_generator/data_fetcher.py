@@ -176,12 +176,19 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
                 return pd.read_parquet(path)
             return None
 
-    # ── Incremental: fetch last 5 days of hourly bars ────────────────────
-    # (Yahoo only supports hourly in date ranges; fetching a small window
-    #  is faster and safer than computing an exact last-bar timestamp)
+    # ── Incremental: fetch from the last cached bar onward ───────────────
+    # Resumes from the last cached date (minus 1 day of overlap; dedup handles
+    # repeats) so a multi-day pause between runs can't leave a gap in the cache.
+    # Clamped to Yahoo's 729-day hourly limit.
     try:
-        existing = pd.read_parquet(path)
-        start    = end - timedelta(days=5)
+        existing  = pd.read_parquet(path)
+        last_date = existing.index[-1]
+        if getattr(last_date, 'tzinfo', None) is not None:
+            last_date = last_date.tz_localize(None)
+        start = max(
+            last_date.to_pydatetime() - timedelta(days=1),
+            end - timedelta(days=HOURLY_HISTORY_DAYS),
+        )
 
         new_df = _full_download(ticker, start, end, interval='1h')
         return _append_new_bars(path, new_df)

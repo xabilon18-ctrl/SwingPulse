@@ -42,6 +42,51 @@ def add_macro_ma_levels(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_macro_sr_touch(df: pd.DataFrame) -> pd.DataFrame:
+    """Detect price touching the macro S/R MAs: MA500 + MA1000/2000/3000.
+
+    A touch fires when the candle wick reaches within MACRO_SR_TOLERANCE of
+    the MA and the close confirms on one side:
+        support    — Low <= MA*(1+tol) and Close > MA  (bounce off the level)
+        resistance — High >= MA*(1-tol) and Close < MA (rejection at the level)
+
+    Adds columns (frontend contract — see renderMacroSr in app.js):
+        macro_sr_signal   – 'support' | 'resistance' | ''
+        macro_sr_level    – longest MA touched, e.g. 'MA2000'
+        macro_sr_strength – number of macro MAs touched on the signal side
+                            (1–4; 3+ = multi-MA confluence, 4 = all levels)
+    """
+    from _active_config import MACRO_MA_PERIODS, MACRO_SR_TOLERANCE
+    levels = sorted({max(MA_PERIODS), *MACRO_MA_PERIODS})
+    tol = MACRO_SR_TOLERANCE
+
+    sup_count = pd.Series(0,  index=df.index, dtype=int)
+    res_count = pd.Series(0,  index=df.index, dtype=int)
+    sup_level = pd.Series('', index=df.index, dtype=object)
+    res_level = pd.Series('', index=df.index, dtype=object)
+
+    for p in levels:
+        col = f'ma_{p}'
+        if col not in df.columns:
+            continue
+        ma    = df[col]
+        valid = ma.notna()
+        sup = valid & (df['Low']  <= ma * (1 + tol)) & (df['Close'] > ma)
+        res = valid & (df['High'] >= ma * (1 - tol)) & (df['Close'] < ma)
+        sup_count = sup_count + sup.astype(int)
+        res_count = res_count + res.astype(int)
+        # Ascending iteration → the longest touched MA wins the label
+        sup_level = sup_level.mask(sup, f'MA{p}')
+        res_level = res_level.mask(res, f'MA{p}')
+
+    is_sup = (sup_count > 0) & (sup_count >= res_count)
+    is_res = ~is_sup & (res_count > 0)
+    df['macro_sr_signal']   = np.where(is_sup, 'support', np.where(is_res, 'resistance', ''))
+    df['macro_sr_level']    = np.where(is_sup, sup_level, np.where(is_res, res_level, ''))
+    df['macro_sr_strength'] = np.where(is_sup, sup_count, np.where(is_res, res_count, 0))
+    return df
+
+
 def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add:
@@ -417,6 +462,7 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None,
                        cross_retest_lookback=CROSS_RETEST_LOOKBACK) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
     df = add_macro_ma_levels(df)
+    df = add_macro_sr_touch(df)
     df = add_volume_analysis(df)
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)

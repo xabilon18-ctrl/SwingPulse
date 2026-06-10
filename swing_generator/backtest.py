@@ -2,12 +2,12 @@
 SwingPulse Backtest Engine
 
 Replays the existing signal-generation pipeline on historical data,
-simulates trades when BP/SP signals fire, and aggregates outcomes.
+simulates trades when B/S signals fire, and aggregates outcomes.
 
 Usage:
     python3 backtest.py                    # full run, all instruments, write JSON
     python3 backtest.py --quick            # 30 instruments, no JSON output
-    python3 backtest.py --signal BP1       # only test BP1 signals
+    python3 backtest.py --signal B1        # only test B1 signals
     python3 backtest.py --since 2023-01-01 # only signals after this date
 
 Output (output/backtest_<date>.json):
@@ -25,7 +25,7 @@ from typing import Optional
 import pandas as pd
 
 from _active_config import (
-    MAX_PENETRATION_DAILY, OUTPUT_DIR,
+    OUTPUT_DIR,
 )
 from data_fetcher import fetch
 from indicators import add_all_indicators
@@ -149,7 +149,7 @@ def backtest_instrument(ticker: str, name: str,
 
     df = add_all_indicators(df)
     levels = find_key_levels(df)
-    df = add_signals(df, max_penetration=MAX_PENETRATION_DAILY, key_levels_df=levels)
+    df = add_signals(df, key_levels_df=levels)
 
     trades = []
     for i in range(len(df)):
@@ -161,8 +161,8 @@ def backtest_instrument(ticker: str, name: str,
         bar_date = df.index[i]
         if since and hasattr(bar_date, 'date') and bar_date.date() < since:
             continue
-        status = (df.iloc[i].get('confirmation_status', '') or '').lower()
-        side = 'long' if 'buy' in status else 'short' if 'sell' in status else None
+        # Signal codes are B1–B7 (buy/long) / S1–S7 (sell/short)
+        side = 'long' if sig.startswith('B') else 'short' if sig.startswith('S') else None
         if side is None:
             continue
 

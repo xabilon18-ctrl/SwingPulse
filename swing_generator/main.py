@@ -357,7 +357,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             signal_lookback=SIGNAL_LOOKBACK_DAILY,
         )
         if daily_data is None:
-            return None
+            return None, []
 
         kl = today_level_summary(
             levels_df,

@@ -91,8 +91,10 @@ def build_summary(df, dt):
     if df.empty:
         return {}
     trend_counts  = df['trend_direction'].value_counts().to_dict()
-    buy_mask      = df['confirmation_status'].str.contains('buy',  case=False, na=False)
-    sell_mask     = df['confirmation_status'].str.contains('sell', case=False, na=False)
+    # Signal codes are B1–B7 (buy) / S1–S7 (sell)
+    sigs          = df['primary_signal'].fillna('').astype(str)
+    buy_mask      = sigs.str.startswith('B')
+    sell_mask     = sigs.str.startswith('S')
     signal_types  = df['primary_signal'].value_counts().to_dict()
     signal_types.pop('', None)
     groups = sorted([g for g in df['group'].unique().tolist() if g])
@@ -167,13 +169,14 @@ _SIG_WHAT = {
     'S7': (f'deep rally rejection at MA{_longest_ma} — anchor level',),
 }
 
+# Keys must match the labels emitted by _compute_tf_alignment in main.py
 _ALIGN_NOTES = {
-    'Triple Bull':   'all three timeframes aligned bullish',
-    'Triple Bear':   'all three timeframes aligned bearish',
-    'Aligned Bull':  'two timeframes aligned bullish',
-    'Aligned Bear':  'two timeframes aligned bearish',
-    'Leaning Bull':  'leaning bullish across timeframes',
-    'Leaning Bear':  'leaning bearish across timeframes',
+    'Quad Bull':     'all four timeframes aligned bullish',
+    'Quad Bear':     'all four timeframes aligned bearish',
+    'Triple Bull':   'three timeframes aligned bullish',
+    'Triple Bear':   'three timeframes aligned bearish',
+    'Double Bull':   'two timeframes aligned bullish',
+    'Double Bear':   'two timeframes aligned bearish',
     'Counter-trend': 'counter-trend setup — higher timeframe conflicts',
     'Mixed':         'mixed timeframe picture',
 }
@@ -205,13 +208,13 @@ def _explain_one(row: pd.Series) -> str:
     kl    = v('key_level_touched_today')
     spread= v('ribbon_spread')
 
-    conf_lc = conf.lower()
-    is_buy  = 'buy' in conf_lc or 'bull' in conf_lc
-    is_sell = 'sell' in conf_lc or 'bear' in conf_lc
+    # Direction comes from the signal code itself (B* = buy, S* = sell);
+    # fall back to trend direction when no signal is present.
+    is_buy  = sig.startswith('B')
+    is_sell = sig.startswith('S')
     if not is_buy and not is_sell:
         is_buy = trend == 'UPTREND'
         is_sell = trend == 'DOWNTREND'
-    idx = 0 if is_buy else 1
 
     # ── Sentence 1: what is firing and why ───────────────────────────
     sig_desc = _SIG_WHAT.get(sig, ('signal',))[0]
@@ -256,10 +259,15 @@ def _explain_one(row: pd.Series) -> str:
         except ValueError:
             pass
 
+    def _sentence_case(s: str) -> str:
+        """Uppercase only the first letter — str.capitalize() would
+        lowercase technical terms like MA200 / B4 / ROC."""
+        return s[:1].upper() + s[1:] if s else s
+
     s1_body = ', '.join(s1_clauses)
     if extras:
         s1_body += ' — ' + '; '.join(extras[:2])
-    sentence1 = s1_body.capitalize() + '.'
+    sentence1 = _sentence_case(s1_body) + '.'
 
     # ── Sentence 2: what to watch / risk ─────────────────────────────
     s2_parts = []
@@ -291,13 +299,7 @@ def _explain_one(row: pd.Series) -> str:
     if sconf == 'low':
         s2_parts.insert(0, 'low confidence — wait for next-candle confirmation')
 
-    sentence2 = ('; '.join(s2_parts[:3])).capitalize() + '.'
-
-    # Fix casing for technical terms
-    for old, new in [(' ma ', ' MA '), (' ma1', ' MA1'), ('ma ribbon', 'MA ribbon'),
-                     (' bp', ' BP'), (' sp', ' SP')]:
-        sentence1 = sentence1.replace(old, new)
-        sentence2 = sentence2.replace(old, new)
+    sentence2 = _sentence_case('; '.join(s2_parts[:3])) + '.'
 
     return f'{sentence1} {sentence2}'
 

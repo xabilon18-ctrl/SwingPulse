@@ -29,7 +29,7 @@ CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma500')
 # Allow importing config from parent package
 sys.path.insert(0, PARENT_DIR)
 
-MA_PERIODS = list(range(40, 201, 10))  # 40, 50, 60 ... 200
+from _active_config import MA_PERIODS  # MA25–MA500 (active profile ribbon)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -898,8 +898,10 @@ def api_summary():
     try:
         trend_counts = df['trend_direction'].value_counts().to_dict() if 'trend_direction' in df.columns else {}
 
-        buy_mask  = df['confirmation_status'].str.contains('buy',  case=False, na=False) if 'confirmation_status' in df.columns else df.iloc[:, 0].apply(lambda _: False)
-        sell_mask = df['confirmation_status'].str.contains('sell', case=False, na=False) if 'confirmation_status' in df.columns else df.iloc[:, 0].apply(lambda _: False)
+        # Signal codes are B1–B7 (buy) / S1–S7 (sell)
+        sigs      = df['primary_signal'].fillna('').astype(str) if 'primary_signal' in df.columns else pd.Series('', index=df.index)
+        buy_mask  = sigs.str.startswith('B')
+        sell_mask = sigs.str.startswith('S')
 
         signal_types = df['primary_signal'].value_counts().to_dict() if 'primary_signal' in df.columns else {}
         signal_types.pop('', None)
