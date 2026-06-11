@@ -5157,10 +5157,16 @@
       }
     }
     if (!hits.length) return null;
+    // Trend comes first: never headline a cross-retest that fights the
+    // instrument's effective trend — counter-trend hits are not winners.
+    const t = effectiveTrend(item);
+    const want = t === 'UPTREND' ? 'bull' : t === 'DOWNTREND' ? 'bear' : null;
+    const aligned = want ? hits.filter(h => h.dir === want) : hits;
+    if (!aligned.length) return null;
     // Prefer higher timeframes (M > W > D > 4H) as the headline
     const order = { M: 0, W: 1, D: 2, '4H': 3 };
-    hits.sort((a, b) => order[a.tf] - order[b.tf]);
-    return { ...hits[0], all: hits.map(h => h.tf) };
+    aligned.sort((a, b) => order[a.tf] - order[b.tf]);
+    return { ...aligned[0], all: aligned.map(h => h.tf) };
   }
 
   // Itemised breakdown for the "Why this score?" panel — same factors as the score

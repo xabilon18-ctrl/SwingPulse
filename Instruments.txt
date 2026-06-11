@@ -21,7 +21,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   7  | LINK-USD      | LINKUSD       | Crypto        | Crypto                    | Oracle
   8  | ALGO-USD      | ALGOUSDT      | Crypto        | Crypto                    | Layer 1
   9  | APE-USD       | APEUSDT       | Crypto        | Crypto                    | NFT / Gaming
- 10  | APT-USD       | APTUSDT       | Crypto        | Crypto                    | Layer 1
+ 10  | APT21794-USD  | APTUSDT       | Crypto        | Crypto                    | Layer 1
  11  | ATOM-USD      | ATOMUSDT      | Crypto        | Crypto                    | Layer 0
  12  | AVAX-USD      | AVAXUSDT      | Crypto        | Crypto                    | Layer 1
  13  | BNB-USD       | BNBUSDT       | Crypto        | Crypto                    | Exchange Token
@@ -30,8 +30,8 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
  16  | DYDX-USD      | DYDXUSDT      | Crypto        | Crypto                    | DeFi
  17  | SHIB-USD      | SHIBUSDT      | Crypto        | Crypto                    | Meme
  18  | SOL-USD       | SOLUSDT       | Crypto        | Crypto                    | Layer 1
- 19  | UNI-USD       | UNIUSDT       | Crypto        | Crypto                    | DeFi
- 20  | MASK-USD      | MASKUSDT      | Crypto        | Crypto                    | Social
+ 19  | UNI7083-USD   | UNIUSDT       | Crypto        | Crypto                    | DeFi
+ 20  | MASK8536-USD  | MASKUSDT      | Crypto        | Crypto                    | Social
  21  | OP-USD        | OPUSDT        | Crypto        | Crypto                    | Layer 2
  22  | CHZ-USD       | CHZUSDT       | Crypto        | Crypto                    | Sports / Fan Token
  23  | TWT-USD       | TWTUSDT       | Crypto        | Crypto                    | Wallet
@@ -428,17 +428,17 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 332  | ETC-USD       | ETCUSDT       | Crypto        | Crypto                    | Layer 1
 333  | TRX-USD       | TRXUSDT       | Crypto        | Crypto                    | Layer 1
 334  | NEAR-USD      | NEARUSDT      | Crypto        | Crypto                    | Layer 1
-335  | MATIC-USD     | MATICUSDT     | Crypto        | Crypto                    | Layer 2
+335  | POL28321-USD  | MATICUSDT     | Crypto        | Crypto                    | Layer 2
 336  | FIL-USD       | FILUSDT       | Crypto        | Crypto                    | Storage
 337  | THETA-USD     | THETAUSDT     | Crypto        | Crypto                    | Media
 338  | SAND-USD      | SANDUSDT      | Crypto        | Crypto                    | NFT / Gaming
 339  | MANA-USD      | MANAUSDT      | Crypto        | Crypto                    | NFT / Gaming
-340  | ARB-USD       | ARBUSDT       | Crypto        | Crypto                    | Layer 2
+340  | ARB11841-USD  | ARBUSDT       | Crypto        | Crypto                    | Layer 2
 341  | LDO-USD       | LDOUSDT       | Crypto        | Crypto                    | DeFi
-342  | GRT-USD       | GRTUSDT       | Crypto        | Crypto                    | DeFi
-343  | FTM-USD       | FTMUSDT       | Crypto        | Crypto                    | Layer 1
+342  | GRT6719-USD   | GRTUSDT       | Crypto        | Crypto                    | DeFi
+343  | S32684-USD    | FTMUSDT       | Crypto        | Crypto                    | Layer 1
 344  | CRV-USD       | CRVUSDT       | Crypto        | Crypto                    | DeFi
-345  | IMX-USD       | IMXUSDT       | Crypto        | Crypto                    | NFT / Gaming
+345  | IMX10603-USD  | IMXUSDT       | Crypto        | Crypto                    | NFT / Gaming
 346  | ENJ-USD       | ENJUSDT       | Crypto        | Crypto                    | NFT / Gaming
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -568,7 +568,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 448  | EGLD-USD      | EGLDUSDT      | Crypto        | Crypto                    | Layer 1
 449  | HBAR-USD      | HBARUSDT      | Crypto        | Crypto                    | Layer 1
 450  | FLOW-USD      | FLOWUSDT      | Crypto        | Crypto                    | NFT / Gaming
-451  | STX-USD       | STXUSDT       | Crypto        | Crypto                    | Layer 2
+451  | STX4847-USD   | STXUSDT       | Crypto        | Crypto                    | Layer 2
 452  | VET-USD       | VETUSDT       | Crypto        | Crypto                    | Layer 1
 453  | KAVA-USD      | KAVAUSDT      | Crypto        | Crypto                    | DeFi
 454  | ROSE-USD      | ROSEUSDT      | Crypto        | Crypto                    | Layer 1

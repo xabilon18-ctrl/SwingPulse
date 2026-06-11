@@ -211,6 +211,12 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     roll_stage_arr  = _col('rollover_stage', 0)
     cr_flag_arr     = _col('cross_retest_flag', False)
     cr_dir_arr      = _col('cross_retest_dir', 'none')
+    cr_pair_arr     = _col('cross_retest_pair', '')
+
+    # Trend-first corrected cross-retest output (overwrites indicator columns)
+    cr_flags: list = []
+    cr_dirs:  list = []
+    cr_pairs: list = []
 
     import math
 
@@ -222,6 +228,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if math.isnan(close) or math.isnan(low) or math.isnan(high):
             run_days.append(trend_run)
             established_trends.append('')
+            cr_flags.append(False); cr_dirs.append('none'); cr_pairs.append('')
             _append_empty(statuses, primaries, secondaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
@@ -239,6 +246,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if ma500_val is None or ma25_val is None:
             run_days.append(trend_run)
             established_trends.append('')
+            cr_flags.append(False); cr_dirs.append('none'); cr_pairs.append('')
             _append_empty(statuses, primaries, secondaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
@@ -283,7 +291,9 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         cross_count  = int(cross_count_arr[i])
         roll_dir     = roll_dir_arr[i]
         roll_stage   = int(roll_stage_arr[i] or 0)
-        cross_dir    = cr_dir_arr[i] if cr_flag_arr[i] else 'none'
+        cr_flag      = bool(cr_flag_arr[i])
+        cr_dir       = cr_dir_arr[i] if cr_flag else 'none'
+        cr_pair      = cr_pair_arr[i] if cr_flag else ''
 
         signal   = ''
         status   = ''
@@ -456,6 +466,17 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
             else:
                 status = 'Neutral — no established trend direction'
 
+        # ── Trend comes first: the established trend wins over a counter-trend
+        # cross-retest. A bear retest during an established uptrend (or bull
+        # retest in a downtrend) is pullback noise — it produced conflicting
+        # BUY/SELL badges in the app, so suppress it from the output entirely.
+        # Uses post-signal state so a retest aligned with a same-bar B1/S1 survives.
+        if cr_flag and ((in_uptrend and cr_dir == 'bear') or
+                        (in_downtrend and cr_dir == 'bull')):
+            cr_flag, cr_dir, cr_pair = False, 'none', ''
+        cross_dir = cr_dir if cr_flag else 'none'
+        cr_flags.append(cr_flag); cr_dirs.append(cr_dir); cr_pairs.append(cr_pair)
+
         conf = _signal_confidence(signal, vol_spike, at_key_level,
                                   roll_dir=roll_dir, roll_stage=roll_stage,
                                   cross_dir=cross_dir)
@@ -478,6 +499,10 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         new_trend_flags.append(new_trend)
 
     df = df.copy()
+    # Trend-first corrected cross-retest columns (override raw indicator output)
+    df['cross_retest_flag']            = cr_flags
+    df['cross_retest_dir']             = cr_dirs
+    df['cross_retest_pair']            = cr_pairs
     df['trend_run_days']               = run_days
     df['established_trend']            = established_trends
     df['confirmation_status']          = statuses

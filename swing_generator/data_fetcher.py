@@ -138,6 +138,27 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
             return existing
 
         new_df = _full_download(ticker, start, end)
+
+        # Sanity guard: a long gap or an absurd price discontinuity between
+        # the cached series and the new bars means the cache went stale or
+        # Yahoo's symbol mapping changed underneath us. Stitching across it
+        # fabricates a giant one-bar move that fires fake reversal signals
+        # (the APT-USD incident: dead-token history + one real bar = fake B1).
+        # Re-download the full history instead.
+        gap_days   = (new_df.index[0] - last_date).days
+        prev_close = existing['Close'].iloc[-1]
+        new_close  = new_df['Close'].iloc[0]
+        ratio = (float(new_close) / float(prev_close)
+                 if pd.notna(prev_close) and pd.notna(new_close) and float(prev_close) != 0
+                 else 1.0)
+        if gap_days > 10 or ratio > 3 or ratio < 1 / 3:
+            print(f'    WARN [{ticker}] discontinuity (gap {gap_days}d, '
+                  f'jump ×{ratio:.2f}) — re-downloading full history')
+            start_full = end - timedelta(days=int(HISTORY_YEARS * 365.25))
+            df = _full_download(ticker, start_full, end)
+            df.to_parquet(path)
+            return df
+
         return _append_new_bars(path, new_df)
 
     except Exception as exc:
@@ -202,6 +223,23 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
         )
 
         new_df = _full_download(ticker, start, end, interval='1h')
+
+        # Sanity guard (same as daily): an absurd discontinuity between the
+        # cached series and the new bars means the cache holds bad data —
+        # re-download the full hourly history instead of stitching onto it.
+        prev_close = existing['Close'].iloc[-1]
+        new_close  = new_df['Close'].iloc[-1]
+        ratio = (float(new_close) / float(prev_close)
+                 if pd.notna(prev_close) and pd.notna(new_close) and float(prev_close) != 0
+                 else 1.0)
+        if ratio > 3 or ratio < 1 / 3:
+            print(f'    WARN [{ticker}] hourly discontinuity (jump ×{ratio:.2f}) '
+                  f'— re-downloading full hourly history')
+            start_full = end - timedelta(days=HOURLY_HISTORY_DAYS)
+            df = _full_download(ticker, start_full, end, interval='1h')
+            df.to_parquet(path)
+            return df
+
         return _append_new_bars(path, new_df)
 
     except Exception as exc:

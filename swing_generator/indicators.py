@@ -297,6 +297,11 @@ def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
     Emits: cross_retest_flag (bool), cross_retest_dir ('bull'/'bear'/'none'),
            cross_retest_pair (e.g. '100/200').
     Pairs iterated largest-gap-first so the most significant cross wins.
+
+    Trend comes first: a retest may only fire WITH the ribbon-position trend.
+    A bear cross of inner MAs while price sits above the whole ribbon is
+    pullback noise, not a downtrend confirmation (and vice versa) — those
+    used to emit counter-trend signals that contradicted the trend cards.
     """
     periods = ma_periods or MA_PERIODS
     tol = touch_tolerance if touch_tolerance is not None else CROSS_RETEST_TOLERANCE
@@ -305,6 +310,13 @@ def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
     pair = pd.Series('', index=df.index, dtype=object)
 
     high, low, close = df['High'], df['Low'], df['Close']
+
+    # Trend gate (add_trend runs earlier in add_all_indicators)
+    if 'trend_direction' in df.columns:
+        not_down = df['trend_direction'] != 'DOWNTREND'   # bull retests allowed
+        not_up   = df['trend_direction'] != 'UPTREND'     # bear retests allowed
+    else:
+        not_down = not_up = pd.Series(True, index=df.index)
 
     for fp, sp in _CROSS_PAIRS:
         fc, sc = f'ma_{fp}', f'ma_{sp}'
@@ -325,11 +337,11 @@ def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
         recent_bear = bear_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
         recent_bull = bull_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
 
-        # Retest + rejection on the current bar
+        # Retest + rejection on the current bar — gated by ribbon-position trend
         # Bear: price wicks UP to the faster MA (now the lower band) but closes below it
-        bear_retest = recent_bear & bear_order & (high >= maf * (1 - tol)) & (close < maf)
+        bear_retest = recent_bear & bear_order & (high >= maf * (1 - tol)) & (close < maf) & not_up
         # Bull: price wicks DOWN to the faster MA (now the upper band) but closes above it
-        bull_retest = recent_bull & bull_order & (low <= maf * (1 + tol)) & (close > maf)
+        bull_retest = recent_bull & bull_order & (low <= maf * (1 + tol)) & (close > maf) & not_down
 
         lbl = f'{fp}/{sp}'
         # First matching pair wins the label; flag/dir set for any match
