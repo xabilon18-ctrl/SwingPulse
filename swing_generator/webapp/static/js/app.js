@@ -1985,7 +1985,7 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#0f172a', titleFont: { size: 12, weight: '700' },
+            backgroundColor: '#121214', titleFont: { size: 12, weight: '700' },
             bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
             callbacks: {
               title: ctx => ctx[0].label + ' Signals',
@@ -2070,7 +2070,7 @@
         plugins: {
           legend: { display: true, position: 'bottom', labels: { color: c.text, usePointStyle: true, pointStyleWidth: 8, font: { size: 10 }, padding: 10 } },
           tooltip: {
-            backgroundColor: '#0f172a', titleFont: { size: 11, weight: '700' },
+            backgroundColor: '#121214', titleFont: { size: 11, weight: '700' },
             bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
             callbacks: {
               afterBody: ctx => {
@@ -5157,10 +5157,14 @@
       }
     }
     if (!hits.length) return null;
-    // Trend comes first: never headline a cross-retest that fights the
-    // instrument's effective trend — counter-trend hits are not winners.
+    // Trend comes first: never headline a cross-retest that fights the card.
+    // Arbiter = the active primary signal's direction (a BUY card must never
+    // carry a DOWNTREND strip), falling back to the effective trend.
+    const sig = item[f('primary_signal')] || '';
     const t = effectiveTrend(item);
-    const want = t === 'UPTREND' ? 'bull' : t === 'DOWNTREND' ? 'bear' : null;
+    const want = sig.startsWith('B') ? 'bull'
+               : sig.startsWith('S') ? 'bear'
+               : t === 'UPTREND' ? 'bull' : t === 'DOWNTREND' ? 'bear' : null;
     const aligned = want ? hits.filter(h => h.dir === want) : hits;
     if (!aligned.length) return null;
     // Prefer higher timeframes (M > W > D > 4H) as the headline
