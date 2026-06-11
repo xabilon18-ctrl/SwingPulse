@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["proxy.js"],
       "port": 5051
+    },
+    {
+      "name": "swingpulse-flask",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["swing_generator/webapp/server.py"],
+      "port": 5050
     }
   ]
 }
