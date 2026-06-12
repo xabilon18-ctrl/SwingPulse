@@ -610,11 +610,15 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .mp-bd-lbl {
   flex: 1;
+  min-width: 0;
   font-size: .8rem;
   color: var(--text-secondary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mp-bd-val {
+  flex-shrink: 0;   /* the count must never be squeezed out of the card */
   font-size: 1.2rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -642,6 +646,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   opacity: 1;
   text-shadow: 0 0 12px currentColor;
 }
+
+.mp-align-row .mp-bd-lbl { font-size: .72rem; }
 
 /* Alignment row separator */
 .mp-align-row {
@@ -1787,31 +1793,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 /* When a strip is present, drop the action cluster below it so they never overlap */
 .scanner-card:has(.scanner-signal-strip) .scanner-actions,
 .wl-card:has(.scanner-signal-strip) .wl-card-right { margin-top: 20px; }
-
-/* ── Cross-retest LOUD banner — definite-trend confirmation ─────────────── */
-.cross-retest-banner {
-  display: block;
-  width: 100%;
-  font-size: .66rem;
-  font-weight: 900;
-  letter-spacing: .04em;
-  text-align: center;
-  padding: 5px 8px;
-  margin: -2px 0 8px;
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-  color: #fff;
-  animation: cross-pulse 1.3s ease-in-out infinite;
-}
-.cross-retest-banner.cross-bull { background: var(--buy);  }
-.cross-retest-banner.cross-bear { background: var(--sell); }
-.cross-retest-card { outline: 2px solid transparent; }
-.cross-retest-card.cross-bull { outline-color: color-mix(in srgb, var(--buy) 70%, transparent); }
-.cross-retest-card.cross-bear { outline-color: color-mix(in srgb, var(--sell) 70%, transparent); }
-@keyframes cross-pulse {
-  0%, 100% { filter: brightness(1);    transform: scale(1); }
-  50%      { filter: brightness(1.18); transform: scale(1.012); }
-}
 
 .scanner-mini-bar {
   margin-top: 6px;
@@ -7632,3 +7613,19 @@ body {
 
 /* Topbar: hairline gold under glass */
 .topbar { border-bottom: 1px solid rgba(251,191,36,.16); }
+
+/* ── Market Pulse on narrow phones (v158): keep counts inside the card ──
+   Must live AFTER the facelift block — it overrides .mp-bd-val 1.35rem. */
+@media (max-width: 480px) {
+  .mp-card-body { gap: 8px; padding: 0 12px 12px; }
+  /* Cap the gauge column — otherwise the non-wrapping sublabel text
+     ("STRONG MARKET CONDITIONS") sets its width and starves the legend */
+  .mp-gauge-wrap { flex: 0 0 140px; max-width: 140px; }
+  .mp-gauge-wrap .gauge-svg { width: 136px; }
+  .gauge-sublabel { white-space: normal; text-align: center; font-size: .6rem; }
+  .mp-bd-row { padding: 6px 8px; margin: 0 -4px; gap: 6px; }
+  .mp-breakdown { gap: 8px; }
+  .mp-bd-lbl { font-size: .72rem; }
+  .mp-align-row .mp-bd-lbl { font-size: .64rem; }
+  .mp-bd-val { font-size: 1.1rem; }
+}
