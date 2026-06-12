@@ -47,7 +47,7 @@ swing_generator/
 │   ├── server.py              # Local Flask dev server → http://localhost:5050
 │   │                          # MA_PERIODS imported from _active_config (MA25–500)
 │   ├── publish.py             # Build + deploy to R2/Pages (PROFILE='ma500', PAGES_PROJECT='swingpulse200')
-│   ├── templates/index.html   # SPA shell (app.js?v=147, style.css?v=153, utils.js?v=1)
+│   ├── templates/index.html   # SPA shell (app.js?v=150, style.css?v=158, utils.js?v=1)
 │   └── static/
 │       ├── js/app.js          # All frontend logic (~5592 lines, v147)
 │       ├── js/utils.js        # Shared helpers: formatPrice, debounce, etc. (v1)
@@ -109,8 +109,7 @@ In `app.js` the `f(field)` helper applies the active prefix.
 `volume_spike_flag`, `roc`, `rsi`,  
 `last_signal_type`, `last_signal_date`, `last_signal_days_ago`,  
 `watch_flag`, `potential_turning_point_flag`,  
-`rollover_score`, `rollover_max`, `rollover_dir`, `rollover_stage`,  
-`cross_retest_flag`, `cross_retest_dir`, `cross_retest_pair`
+`rollover_score`, `rollover_max`, `rollover_dir`, `rollover_stage`
 
 ### Daily-only Fields
 `ma25_cross_count`, `neutral_oscillation`, `new_trend_flag`,  
@@ -158,8 +157,8 @@ In `app.js` the `f(field)` helper applies the active prefix.
 ---
 
 ## Current Versions
-- `app.js` — **v147** (~5592 lines)
-- `style.css` — **v153** (~7424 lines)
+- `app.js` — **v150** (~5580 lines)
+- `style.css` — **v158** (~7460 lines)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **745 instruments**

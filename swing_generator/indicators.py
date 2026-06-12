@@ -263,101 +263,6 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Cross-retest: MA-pair crossover that price retests and rejects
-# ---------------------------------------------------------------------------
-
-# Key MAs for cross-retest: adjacent pairs + all mover/anchor combinations
-# Movers (fast, trend-leading): 25, 100, 200
-# Anchors (slow, structural):   300, 400, 500
-# This catches 100/400 etc. which the rollover engine already tracks
-_CROSS_KEY_MAS = [25, 100, 200, 300, 400, 500]
-_MOVERS        = [25, 100, 200]
-_ANCHORS       = [300, 400, 500]
-# Sort by gap DESCENDING — largest/most-significant pair wins when multiple fire same bar
-_CROSS_PAIRS   = sorted(set(
-    list(zip(_CROSS_KEY_MAS[:-1], _CROSS_KEY_MAS[1:])) +   # adjacent: (25,100)…(400,500)
-    [(m, a) for m in _MOVERS for a in _ANCHORS]             # mover/anchor: (25,300)…(200,500)
-), key=lambda p: -(p[1] - p[0]))
-
-CROSS_RETEST_LOOKBACK    = 15    # bars for daily/weekly/monthly
-CROSS_RETEST_LOOKBACK_4H = 30    # 4H: 30 bars ≈ 5 trading days
-CROSS_RETEST_TOLERANCE   = 0.020 # 2.0% — matches MAX_PENETRATION_DAILY; price must approach within 2% of faster MA
-
-
-def add_cross_retest(df: pd.DataFrame, ma_periods=None, touch_tolerance=None,
-                     lookback=CROSS_RETEST_LOOKBACK) -> pd.DataFrame:
-    """
-    Flag a DEFINITE-TREND cross-retest:
-      Bearish — a key MA pair recently crossed bearishly (faster cut below
-                slower); price then rallies up to touch the cross zone but
-                CLOSES BACK BELOW the faster MA → rejection → definite downtrend.
-      Bullish — mirror: faster crossed above slower; price dips to the cross
-                but CLOSES BACK ABOVE → definite uptrend.
-
-    Emits: cross_retest_flag (bool), cross_retest_dir ('bull'/'bear'/'none'),
-           cross_retest_pair (e.g. '100/200').
-    Pairs iterated largest-gap-first so the most significant cross wins.
-
-    Trend comes first: a retest may only fire WITH the ribbon-position trend.
-    A bear cross of inner MAs while price sits above the whole ribbon is
-    pullback noise, not a downtrend confirmation (and vice versa) — those
-    used to emit counter-trend signals that contradicted the trend cards.
-    """
-    periods = ma_periods or MA_PERIODS
-    tol = touch_tolerance if touch_tolerance is not None else CROSS_RETEST_TOLERANCE
-    flag = pd.Series(False, index=df.index)
-    dir_ = pd.Series('none', index=df.index, dtype=object)
-    pair = pd.Series('', index=df.index, dtype=object)
-
-    high, low, close = df['High'], df['Low'], df['Close']
-
-    # Trend gate (add_trend runs earlier in add_all_indicators)
-    if 'trend_direction' in df.columns:
-        not_down = df['trend_direction'] != 'DOWNTREND'   # bull retests allowed
-        not_up   = df['trend_direction'] != 'UPTREND'     # bear retests allowed
-    else:
-        not_down = not_up = pd.Series(True, index=df.index)
-
-    for fp, sp in _CROSS_PAIRS:
-        fc, sc = f'ma_{fp}', f'ma_{sp}'
-        if fp not in periods or sp not in periods or fc not in df.columns or sc not in df.columns:
-            continue
-        maf, mas = df[fc], df[sc]
-        valid = maf.notna() & mas.notna()
-
-        # Order sign: +1 faster above slower (bull stack), -1 faster below (bear stack)
-        bull_order = (maf > mas) & valid
-        bear_order = (maf < mas) & valid
-
-        # Cross events: order flipped vs previous bar
-        bear_cross = bear_order & bull_order.shift(1, fill_value=False)   # fast cut below slow
-        bull_cross = bull_order & bear_order.shift(1, fill_value=False)   # fast rose above slow
-
-        # Recent cross within lookback bars
-        recent_bear = bear_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
-        recent_bull = bull_cross.rolling(lookback, min_periods=1).max().fillna(0).astype(bool)
-
-        # Retest + rejection on the current bar — gated by ribbon-position trend
-        # Bear: price wicks UP to the faster MA (now the lower band) but closes below it
-        bear_retest = recent_bear & bear_order & (high >= maf * (1 - tol)) & (close < maf) & not_up
-        # Bull: price wicks DOWN to the faster MA (now the upper band) but closes above it
-        bull_retest = recent_bull & bull_order & (low <= maf * (1 + tol)) & (close > maf) & not_down
-
-        lbl = f'{fp}/{sp}'
-        # First matching pair wins the label; flag/dir set for any match
-        newly_bear = bear_retest & ~flag
-        newly_bull = bull_retest & ~flag
-        pair = pair.mask(newly_bear | newly_bull, lbl)
-        dir_ = dir_.mask(newly_bear, 'bear').mask(newly_bull, 'bull')
-        flag = flag | bear_retest | bull_retest
-
-    df['cross_retest_flag'] = flag
-    df['cross_retest_dir']  = dir_
-    df['cross_retest_pair'] = pair
-    return df
-
-
-# ---------------------------------------------------------------------------
 # RSI — Relative Strength Index (Wilder, period=14)
 # ---------------------------------------------------------------------------
 
@@ -470,15 +375,13 @@ def add_neutral_oscillation(df: pd.DataFrame, ma_periods=None,
     return df
 
 
-def add_all_indicators(df: pd.DataFrame, ma_periods=None,
-                       cross_retest_lookback=CROSS_RETEST_LOOKBACK) -> pd.DataFrame:
+def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
     df = add_macro_ma_levels(df)
     df = add_macro_sr_touch(df)
     df = add_volume_analysis(df)
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)
-    df = add_cross_retest(df, ma_periods=ma_periods, lookback=cross_retest_lookback)
     df = add_roc(df)
     df = add_rsi(df)
     df = add_performance_pct(df)

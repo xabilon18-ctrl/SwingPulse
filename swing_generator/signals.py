@@ -2,9 +2,10 @@
 Signal detection engine — B1/S1 · B2–B7 · S2–S7 system.
 
 B1 / S1  — Trend reversal.
-    B1: instrument was trading below all MAs, crosses UP through all of them
-        (close > MA500). Fires the bar that close clears MA500.
-    S1: mirror — was above all MAs, crosses DOWN below MA25.
+    B1: instrument was trading below all MAs, crosses UP through all of them.
+        Fires the bar that close clears the HIGHEST ribbon MA (strictly above
+        every MA — in a mixed ribbon that is not necessarily MA500).
+    S1: mirror — was above all MAs, crosses DOWN below the LOWEST ribbon MA.
 
     Re-fire: B1/S1 fires again while price stays within REFIRE_PCT of MA500
              (price bouncing near the last MA, confirming the level).
@@ -95,8 +96,7 @@ def _watch_level_down(close: float, mas: dict) -> int | None:
 
 
 def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool,
-                       roll_dir: str = 'none', roll_stage: int = 0,
-                       cross_dir: str = 'none') -> str:
+                       roll_dir: str = 'none', roll_stage: int = 0) -> str:
     if not signal:
         return ''
     # B1/S1 — crossed ALL MAs — always high conviction by definition
@@ -107,10 +107,6 @@ def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool,
         return 'high'
 
     is_buy  = signal.startswith('B')
-    # Cross-retest = definite-trend confirmation → high on its own when aligned
-    cross_aligned = (is_buy and cross_dir == 'bull') or (not is_buy and cross_dir == 'bear')
-    if cross_aligned:
-        return 'high'
 
     # Ribbon-rollover confluence: a deep flip (drivers through the anchors) in
     # the signal's direction is structural confirmation of the reversal.
@@ -184,8 +180,8 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     last_trend_dir    = None   # UPTREND / DOWNTREND / NEUTRAL  (for trend_run_days compat)
     in_uptrend        = False  # B1 has fired; we are in an uptrend
     in_downtrend      = False  # S1 has fired; we are in a downtrend
-    was_below_all     = False  # price was below MA25 (arms B1)
-    was_above_all     = False  # price was above MA500 (arms S1)
+    was_below_all     = False  # price closed below every ribbon MA (arms B1)
+    was_above_all     = False  # price closed above every ribbon MA (arms S1)
     last_b1_bar       = -(_REFIRE_DEDUP_BARS + 1)
     last_s1_bar       = -(_REFIRE_DEDUP_BARS + 1)
 
@@ -209,14 +205,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     cross_count_arr = _col('ma25_cross_count', 0)
     roll_dir_arr    = _col('rollover_dir', 'none')
     roll_stage_arr  = _col('rollover_stage', 0)
-    cr_flag_arr     = _col('cross_retest_flag', False)
-    cr_dir_arr      = _col('cross_retest_dir', 'none')
-    cr_pair_arr     = _col('cross_retest_pair', '')
-
-    # Trend-first corrected cross-retest output (overwrites indicator columns)
-    cr_flags: list = []
-    cr_dirs:  list = []
-    cr_pairs: list = []
 
     import math
 
@@ -228,7 +216,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if math.isnan(close) or math.isnan(low) or math.isnan(high):
             run_days.append(trend_run)
             established_trends.append('')
-            cr_flags.append(False); cr_dirs.append('none'); cr_pairs.append('')
             _append_empty(statuses, primaries, secondaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
@@ -246,14 +233,20 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if ma500_val is None or ma25_val is None:
             run_days.append(trend_run)
             established_trends.append('')
-            cr_flags.append(False); cr_dirs.append('none'); cr_pairs.append('')
             _append_empty(statuses, primaries, secondaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
 
         # ── Positional flags ────────────────────────────────────────────────
-        above_all = close > ma500_val    # above every MA in ribbon
-        below_all = close < ma25_val     # below every MA in ribbon
+        # Strict all-MA test: compare against the actual ribbon extremes — in a
+        # mixed/transitional ribbon MA500 is not necessarily the highest MA and
+        # MA25 not the lowest, so close > MA500 alone doesn't mean every MA
+        # was crossed.
+        ma_max = max(today_mas.values())
+        ma_min = min(today_mas.values())
+        above_anchor = close > ma500_val   # above the anchor MA500 (pullback territory)
+        above_all    = close > ma_max      # above EVERY MA in ribbon
+        below_all    = close < ma_min      # below EVERY MA in ribbon
 
         # Arm the reversal detectors
         if below_all:
@@ -291,9 +284,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         cross_count  = int(cross_count_arr[i])
         roll_dir     = roll_dir_arr[i]
         roll_stage   = int(roll_stage_arr[i] or 0)
-        cr_flag      = bool(cr_flag_arr[i])
-        cr_dir       = cr_dir_arr[i] if cr_flag else 'none'
-        cr_pair      = cr_pair_arr[i] if cr_flag else ''
 
         signal   = ''
         status   = ''
@@ -305,12 +295,12 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
         # ================================================================
         # B1 — Bullish trend reversal  /  B2–B7 — Bullish pullbacks
-        # above_all (close > MA500) covers two sub-zones:
-        #   a) close >= MA25 : price above entire ribbon → B1 territory
-        #   b) close <  MA25 : price pulled back into ribbon → B2–B7 territory
+        # above_anchor (close > MA500) covers two sub-zones:
+        #   a) above_all  : price above the ENTIRE ribbon → B1 territory
+        #   b) otherwise  : price pulled back into ribbon → B2–B7 territory
         # ================================================================
-        if above_all:
-            in_ribbon = close < ma25_val
+        if above_anchor:
+            in_ribbon = not above_all
 
             if not in_ribbon:
                 # ── (a) Price above all MAs ──────────────────────────────
@@ -342,7 +332,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                         status = f'Uptrend — above all MAs'
 
             else:
-                # ── (b) Price pulled back into ribbon (MA500 < close < MA25) ─
+                # ── (b) Price pulled back into ribbon (above MA500, not above all MAs) ─
                 # B7 special case: wick touched MA500, close confirmed above.
                 # Must be checked before dist > _new_tr gate — B7 fires precisely
                 # when price is near MA500, which is always inside the new-trend zone.
@@ -420,7 +410,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         # S7 special case — wick touched MA500 in downtrend.
         # Checked before (-dist) > _new_tr gate for the same reason as B7:
         # S7 fires precisely near MA500, which is always inside the new-trend zone.
-        # close confirmed below MA500 is guaranteed here (above_all=False).
+        # close confirmed below MA500 is guaranteed here (above_anchor=False).
         # ================================================================
         elif in_downtrend and high >= ma500_val * (1 - _tol):
             signal = 'S7'
@@ -466,20 +456,8 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
             else:
                 status = 'Neutral — no established trend direction'
 
-        # ── Trend comes first: the established trend wins over a counter-trend
-        # cross-retest. A bear retest during an established uptrend (or bull
-        # retest in a downtrend) is pullback noise — it produced conflicting
-        # BUY/SELL badges in the app, so suppress it from the output entirely.
-        # Uses post-signal state so a retest aligned with a same-bar B1/S1 survives.
-        if cr_flag and ((in_uptrend and cr_dir == 'bear') or
-                        (in_downtrend and cr_dir == 'bull')):
-            cr_flag, cr_dir, cr_pair = False, 'none', ''
-        cross_dir = cr_dir if cr_flag else 'none'
-        cr_flags.append(cr_flag); cr_dirs.append(cr_dir); cr_pairs.append(cr_pair)
-
         conf = _signal_confidence(signal, vol_spike, at_key_level,
-                                  roll_dir=roll_dir, roll_stage=roll_stage,
-                                  cross_dir=cross_dir)
+                                  roll_dir=roll_dir, roll_stage=roll_stage)
 
         # ── Neutral oscillation → potential turning point flag ──────────────
         ttp = ''
@@ -499,10 +477,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         new_trend_flags.append(new_trend)
 
     df = df.copy()
-    # Trend-first corrected cross-retest columns (override raw indicator output)
-    df['cross_retest_flag']            = cr_flags
-    df['cross_retest_dir']             = cr_dirs
-    df['cross_retest_pair']            = cr_pairs
     df['trend_run_days']               = run_days
     df['established_trend']            = established_trends
     df['confirmation_status']          = statuses

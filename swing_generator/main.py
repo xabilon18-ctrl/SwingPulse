@@ -46,7 +46,7 @@ from _active_config import (
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker
 from data_fetcher  import fetch_all, fetch_all_hourly
-from indicators    import add_all_indicators, CROSS_RETEST_LOOKBACK_4H
+from indicators    import add_all_indicators
 from signals       import add_signals
 from key_levels    import find_key_levels, today_level_summary
 from sheets_writer import write_output
@@ -122,9 +122,6 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}rollover_max':                  _fmt(row.get('rollover_max'), decimals=0),
         f'{prefix}rollover_dir':                  row.get('rollover_dir', 'none') or 'none',
         f'{prefix}rollover_stage':                _fmt(row.get('rollover_stage'), decimals=0),
-        f'{prefix}cross_retest_flag':             'yes' if row.get('cross_retest_flag') else 'no',
-        f'{prefix}cross_retest_dir':              row.get('cross_retest_dir', 'none') or 'none',
-        f'{prefix}cross_retest_pair':             row.get('cross_retest_pair', '') or '',
         # Performance — was missing from extraction (NaN for all instruments)
         f'{prefix}pct_1d':                        _fmt(row.get('pct_1d'), decimals=2),
         f'{prefix}pct_1w':                        _fmt(row.get('pct_1w'), decimals=2),
@@ -388,8 +385,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             h4 = _resample_4h(hourly_df)
             h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
             if len(h4_ma_periods) >= 3:
-                h4 = add_all_indicators(h4, ma_periods=h4_ma_periods,
-                                        cross_retest_lookback=CROSS_RETEST_LOOKBACK_4H)
+                h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                 h4 = add_signals(h4, ma_periods=h4_ma_periods,
                                  refire_pct=0.02, new_trend_pct=0.05)
                 h4_data, _ = _extract_row(

@@ -2867,22 +2867,17 @@
       const t = effectiveTrend(item);
       const sig = item[f('primary_signal')] || '';
       const conf = item[f('signal_confidence')] || '';
-      // Resolve cross-retest early so strip + badges can reference it
-      const _cross   = crossRetestHit(item);
       const _aiScan  = isAI(item.instrument_name);
-      const _crossDir = _cross ? _cross.dir : '';
-      // Effective buy/sell includes cross-retest direction when no primary signal
-      const isBuySignal  = isBuy(item)  || (!sig && _crossDir === 'bull');
-      const isSellSignal = isSell(item) || (!sig && _crossDir === 'bear');
+      const isBuySignal  = isBuy(item);
+      const isSellSignal = isSell(item);
       const confLabel  = conf === 'high' ? ' (HIGH)' : conf === 'low' ? ' (LOW)' : '';
       const lastSigType = item[f('last_signal_type')] || '';
       const lastSigAge  = signalAge(item[f('last_signal_date')] || '').label;
       const lastIsBuy   = lastSigType.startsWith('B');
       const stripLabel = sig    ? (isBuySignal ? 'BUY '  + sig + confLabel : 'SELL ' + sig + confLabel)
-                       : _cross ? (_crossDir === 'bull' ? 'BUY · CROSS RETEST (HIGH)' : 'SELL · CROSS RETEST (HIGH)')
                        : lastSigType ? `LAST ${lastSigType}${lastSigAge ? ' · ' + lastSigAge : ''}`
                        : '';
-      const stripCls   = (sig || _cross) ? (isBuySignal ? 'strip-buy' : 'strip-sell')
+      const stripCls   = sig            ? (isBuySignal ? 'strip-buy' : 'strip-sell')
                        : lastSigType     ? 'strip-last'
                        : '';
       const runDays = parseInt(item[f('trend_run_days')]) || 0;
@@ -2928,11 +2923,7 @@
       const _radarTier  = scoreTier(_radarScore);
       const radarChip = `<span class="scanner-radar-chip radar-tier-${_radarTier}" title="Radar confluence: ${_radarScore}/100 — ${_radarTier}. Open card for breakdown.">${_radarScore}</span>`;
 
-      const _crossBanner = _cross
-        ? `<div class="cross-retest-banner cross-${_cross.dir}">⚡ DEFINITE ${_cross.dir === 'bull' ? 'UPTREND' : 'DOWNTREND'} · ${_cross.pair} cross rejected · ${_cross.all.join('+')}</div>`
-        : '';
-      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${_cross ? ' cross-retest-card cross-' + _cross.dir : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
-        ${_crossBanner}
+      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
@@ -2955,9 +2946,7 @@
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
           const extras = [];
           const push = (p, html) => { if (html) extras.push({ p, html }); };
-          push(100, sig    ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>`
-                   : _cross ? `<span class="sig-badge p1">${_crossDir === 'bull' ? 'BUY' : 'SELL'}</span>`
-                   : '');
+          push(100, sig ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>` : '');
           // Macro SR confluence is the most actionable rare signal — surface above conf/align
           if (macroSrSig === 'support') {
             if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously">⚡ CONFLUENCE SUP</span>`);
@@ -2969,9 +2958,7 @@
             else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>`);
             else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`);
           }
-          push(85, conf    ? confBadge
-                   : _cross ? `<span class="badge-confidence conf-high">high</span>`
-                   : '');
+          push(85, conf ? confBadge : '');
           push(80, align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '');
           push(75, badge3TF(item));
           push(65, macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs">MACRO BULL</span>' : '');
@@ -4985,30 +4972,7 @@
     const isBullish = bull >= bear;
     const lines = [];
 
-    // 0a. Cross-retest (max 40) — DOMINANT factor. A key MA pair crossed, price
-    //     retested the cross and was rejected → definite trend. Loud on any TF.
-    const crossTfs = [
-      { p: '',   tf: 'D' }, { p: 'w_', tf: 'W' },
-      { p: 'm_', tf: 'M' }, { p: 'h4_', tf: '4H' },
-    ];
-    let crossHit = null;
-    for (const { p, tf } of crossTfs) {
-      if (item[`${p}cross_retest_flag`] === 'yes') {
-        const cd = item[`${p}cross_retest_dir`];
-        if ((isBullish && cd === 'bull') || (!isBullish && cd === 'bear')) {
-          crossHit = { tf, pair: item[`${p}cross_retest_pair`] || '', dir: cd };
-          break;
-        }
-      }
-    }
-    if (crossHit) {
-      lines.push({
-        label: `⚡ Definite ${crossHit.dir === 'bull' ? 'uptrend' : 'downtrend'} — ${crossHit.pair} cross rejected (${crossHit.tf})`,
-        points: 40,
-      });
-    }
-
-    // 0b. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
+    // 0. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
     //     weighted) + lagging MA200 cutting through anchors (MA300/400/500)
     //     confirms a trend change, backing B1 (bull flip) / S1 (bear flip).
     const rollDir   = item.rollover_dir || 'none';
@@ -5140,37 +5104,6 @@
     if (score >= 75) return 'prime';
     if (score >= 50) return 'strong';
     return 'developing';
-  }
-
-  // Cross-retest detection across ALL timeframes — returns the loudest hit
-  // (or null). A key MA pair crossed, price retested it and was rejected →
-  // definite trend. Used for the loud card badge.
-  function crossRetestHit(item) {
-    const tfs = [{ p: '', tf: 'D' }, { p: 'w_', tf: 'W' }, { p: 'm_', tf: 'M' }, { p: 'h4_', tf: '4H' }];
-    const hits = [];
-    for (const { p, tf } of tfs) {
-      if (item[`${p}cross_retest_flag`] === 'yes') {
-        const dir = item[`${p}cross_retest_dir`] || 'none';
-        if (dir === 'bull' || dir === 'bear') {
-          hits.push({ tf, dir, pair: item[`${p}cross_retest_pair`] || '' });
-        }
-      }
-    }
-    if (!hits.length) return null;
-    // Trend comes first: never headline a cross-retest that fights the card.
-    // Arbiter = the active primary signal's direction (a BUY card must never
-    // carry a DOWNTREND strip), falling back to the effective trend.
-    const sig = item[f('primary_signal')] || '';
-    const t = effectiveTrend(item);
-    const want = sig.startsWith('B') ? 'bull'
-               : sig.startsWith('S') ? 'bear'
-               : t === 'UPTREND' ? 'bull' : t === 'DOWNTREND' ? 'bear' : null;
-    const aligned = want ? hits.filter(h => h.dir === want) : hits;
-    if (!aligned.length) return null;
-    // Prefer higher timeframes (M > W > D > 4H) as the headline
-    const order = { M: 0, W: 1, D: 2, '4H': 3 };
-    aligned.sort((a, b) => order[a.tf] - order[b.tf]);
-    return { ...aligned[0], all: aligned.map(h => h.tf) };
   }
 
   // Itemised breakdown for the "Why this score?" panel — same factors as the score

@@ -124,7 +124,6 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ribbon_slope_pct', f'{p}ma_order_score', f'{p}roc', f'{p}rsi',
         f'{p}rollover_score', f'{p}rollover_max', f'{p}rollover_dir', f'{p}rollover_stage',
-        f'{p}cross_retest_flag', f'{p}cross_retest_dir', f'{p}cross_retest_pair',
     ]
 
 # Column order for output
@@ -143,7 +142,6 @@ OUTPUT_COLUMNS = [
     'watch_flag', 'potential_turning_point_flag',
     'ribbon_spread', 'ribbon_compression', 'ribbon_slope_pct', 'ma_order_score', 'roc', 'rsi',
     'rollover_score', 'rollover_max', 'rollover_dir', 'rollover_stage',
-    'cross_retest_flag', 'cross_retest_dir', 'cross_retest_pair',
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today',
