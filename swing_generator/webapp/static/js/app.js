@@ -1985,7 +1985,7 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#121214', titleFont: { size: 12, weight: '700' },
+            backgroundColor: '#2e2e2d', titleFont: { size: 12, weight: '700' },
             bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
             callbacks: {
               title: ctx => ctx[0].label + ' Signals',
@@ -2070,7 +2070,7 @@
         plugins: {
           legend: { display: true, position: 'bottom', labels: { color: c.text, usePointStyle: true, pointStyleWidth: 8, font: { size: 10 }, padding: 10 } },
           tooltip: {
-            backgroundColor: '#121214', titleFont: { size: 11, weight: '700' },
+            backgroundColor: '#2e2e2d', titleFont: { size: 11, weight: '700' },
             bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
             callbacks: {
               afterBody: ctx => {

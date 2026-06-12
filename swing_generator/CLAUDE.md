@@ -47,7 +47,7 @@ swing_generator/
 │   ├── server.py              # Local Flask dev server → http://localhost:5050
 │   │                          # MA_PERIODS imported from _active_config (MA25–500)
 │   ├── publish.py             # Build + deploy to R2/Pages (PROFILE='ma500', PAGES_PROJECT='swingpulse200')
-│   ├── templates/index.html   # SPA shell (app.js?v=150, style.css?v=158, utils.js?v=1)
+│   ├── templates/index.html   # SPA shell (app.js?v=151, style.css?v=159, utils.js?v=1)
 │   └── static/
 │       ├── js/app.js          # All frontend logic (~5592 lines, v147)
 │       ├── js/utils.js        # Shared helpers: formatPrice, debounce, etc. (v1)

@@ -2,17 +2,17 @@
    SwingPulse — Complete Theme & UI System
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Design Tokens (Dark — matte black / graphite) ───────────────────── */
+/* ── Design Tokens (Dark — matte charcoal, base sampled from user swatch) ── */
 :root,
 [data-theme="dark"] {
-  --bg-base:       #0a0a0b;
-  --bg-surface:    #121214;
-  --bg-elevated:   #19191c;
-  --bg-card:       #161619;
-  --bg-hover:      #222227;
-  --bg-input:      #101012;
-  --border:        #2a2a30;
-  --border-active: #43434d;
+  --bg-base:       #242423;
+  --bg-surface:    #2a2a28;
+  --bg-elevated:   #323230;
+  --bg-card:       #2c2c2a;
+  --bg-hover:      #3a3a37;
+  --bg-input:      #1e1e1d;
+  --border:        #3e3e3a;
+  --border-active: #585853;
   --text-primary:  #f4f4f5;
   --text-secondary:#a1a1aa;
   --text-muted:    #6e6e79;
@@ -38,10 +38,10 @@
   --shadow:        0 4px 24px rgba(0,0,0,.5);
   --shadow-lg:     0 12px 48px rgba(0,0,0,.7);
   --transition:    .25s cubic-bezier(.4,0,.2,1);
-  --glass:         rgba(16,16,18,.72);
+  --glass:         rgba(34,34,33,.72);
   --glass-border:  rgba(255,255,255,.07);
-  --scrollbar-bg:  #19191c;
-  --scrollbar-thumb:#37373f;
+  --scrollbar-bg:  #2a2a28;
+  --scrollbar-thumb:#4c4c48;
 }
 
 /* ── Design Tokens (Midnight — deep emerald / teal noir) ────────────── */
@@ -7411,7 +7411,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 
 /* ── Machined card surface: soft vertical sheen + top edge highlight ──── */
 .card {
-  background: linear-gradient(180deg, #18181c 0%, #141417 55%, #121215 100%);
+  background: linear-gradient(180deg, #323230 0%, #2c2c2a 55%, #292927 100%);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius-lg);
   padding: 18px;
@@ -7582,7 +7582,7 @@ body {
 
 /* Trend Change & Strong Signals: premium chip rail */
 .trend-alert-banner {
-  background: linear-gradient(180deg, #18181c 0%, #131316 100%);
+  background: linear-gradient(180deg, #323230 0%, #2a2a28 100%);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius-lg);
   box-shadow:
