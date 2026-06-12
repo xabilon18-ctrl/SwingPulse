@@ -1272,17 +1272,27 @@
   }
 
   // ── Tech Themes Dashboard Card ─────────────────────────────────────────
+  // `extra` lists theme members whose Instruments.txt group is an index
+  // (US100/NYSE/US500/AEX/Japan…) rather than the theme group itself.
   const TECH_THEMES = [
-    { label:'Artificial Intelligence', group:'AI Theme'  },
+    { label:'Artificial Intelligence', group:'AI Theme',
+      extra:['PLTR','APP','NOW','SNOW','DDOG','NET'] },
     { label:'Blockchain',              group:'Blockchain' },
     { label:'Space Exploration',       group:'Space'      },
     { label:'Quantum Computing',       group:'Quantum'    },
-    { label:'Robotics',                group:'Robotics'   },
-    { label:'AI Energy',               group:'AI Energy'  },
-    { label:'AI Semiconductors',       group:'AI Semi'    },
-    { label:'AI Infrastructure',       group:'AI Infra'   },
+    { label:'Robotics',                group:'Robotics',
+      extra:['ISRG','FANUC','KEYENCE','ABBN'] },
+    { label:'AI Energy',               group:'AI Energy',
+      extra:['CEG'] },
+    { label:'AI Semiconductors',       group:'AI Semi',
+      extra:['NVDA','AMD','AVGO','ARM','MRVL','INTC','MU','QCOM','NXPI','ON',
+             'TSM','STM','MPWR','AMBA','IFX','ASML','AMAT','LRCX','KLAC',
+             'ENTG','TER','TOKYOELEC','BESI','CDNS','SNPS'] },
+    { label:'AI Infrastructure',       group:'AI Infra',
+      extra:['SMCI','DELL','ANET','CSCO','EQIX'] },
     { label:'XM Indices',              group:'XM Index'   },
   ];
+  TECH_THEMES.forEach(t => { t.extraSet = new Set(t.extra || []); });
 
   const _themeExpanded = new Set();
 
@@ -1291,7 +1301,7 @@
     if (!el) return;
 
     const rows = TECH_THEMES.map(theme => {
-      const items  = allData.filter(d => d.group === theme.group);
+      const items  = allData.filter(d => d.group === theme.group || theme.extraSet.has(d.instrument_name));
       const bulls  = items.filter(d => effectiveTrend(d) === 'UPTREND').length;
       const bears  = items.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
       const total  = items.length;
