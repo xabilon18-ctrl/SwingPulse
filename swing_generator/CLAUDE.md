@@ -47,11 +47,11 @@ swing_generator/
 │   ├── server.py              # Local Flask dev server → http://localhost:5050
 │   │                          # MA_PERIODS imported from _active_config (MA25–500)
 │   ├── publish.py             # Build + deploy to R2/Pages (PROFILE='ma500', PAGES_PROJECT='swingpulse200')
-│   ├── templates/index.html   # SPA shell (app.js?v=152, style.css?v=159, utils.js?v=1)
+│   ├── templates/index.html   # SPA shell (app.js?v=153, style.css?v=160, utils.js?v=1)
 │   └── static/
-│       ├── js/app.js          # All frontend logic (~5600 lines, v152)
+│       ├── js/app.js          # All frontend logic (~5600 lines, v153)
 │       ├── js/utils.js        # Shared helpers: formatPrice, debounce, etc. (v1)
-│       └── css/style.css      # All styles (7424 lines, v153)
+│       └── css/style.css      # All styles (~7570 lines, v160; single dark theme)
 └── .github/workflows/
     └── publish.yml            # CI: python3 main.py --profile ma500 → R2 upload → push notify
 ```
@@ -157,8 +157,8 @@ In `app.js` the `f(field)` helper applies the active prefix.
 ---
 
 ## Current Versions
-- `app.js` — **v152** (~5600 lines)
-- `style.css` — **v158** (~7460 lines)
+- `app.js` — **v153** (~5600 lines)
+- `style.css` — **v160** (~7570 lines, single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **745 instruments**

@@ -167,7 +167,7 @@
     if (!badge) return;
     badge.textContent = syncUser ? syncUser.charAt(0).toUpperCase() + syncUser.slice(1) : '?';
     badge.title = syncUser ? `Syncing as ${syncUser} — tap to switch user` : 'Tap to set user';
-    badge.classList.toggle('sync-badge-unset', !syncUser);
+    badge.classList.toggle('sync-name-unset', !syncUser);
   }
 
   // ── Signal Performance Tracker ───────────────────────────────────────
@@ -452,10 +452,15 @@
     if (!btn) return;
     const on = isPushEnabled();
     btn.classList.toggle('push-on', on);
-    btn.title = on ? 'Notifications on — tap to disable' : 'Enable signal notifications';
+    btn.title = 'Notifications';
     btn.innerHTML = on
       ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3,3"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+    const pt = document.getElementById('notifPushToggle');
+    if (pt) {
+      pt.textContent = on ? 'Push: on' : 'Push: off';
+      pt.classList.toggle('push-on', on);
+    }
   }
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
@@ -595,21 +600,9 @@
     return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(sym)}&interval=${ivl}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%5D&theme=${theme}&style=1&timezone=exchange&withdateranges=1&hide_top_toolbar=0&hide_legend=0&allow_symbol_change=0&details=0&calendar=0`;
   }
 
-  // ── Theme ────────────────────────────────────────────────────────────
-  const themeToggle = document.getElementById('themeToggle');
-  const html = document.documentElement;
-  const savedTheme = localStorage.getItem('swingpulse-theme') || 'dark';
-  html.setAttribute('data-theme', savedTheme);
-
-  const themeCycle = ['dark', 'midnight', 'light'];
-  themeToggle.addEventListener('click', () => {
-    const current = html.getAttribute('data-theme') || 'dark';
-    const idx = themeCycle.indexOf(current);
-    const next = themeCycle[(idx + 1) % themeCycle.length];
-    html.setAttribute('data-theme', next);
-    localStorage.setItem('swingpulse-theme', next);
-    rebuildCharts();
-  });
+  // ── Theme — single dark theme ────────────────────────────────────────
+  document.documentElement.setAttribute('data-theme', 'dark');
+  localStorage.removeItem('swingpulse-theme');
 
   // ── Timeframe Toggle ─────────────────────────────────────────────────
   const tfToggle = document.getElementById('tfToggle');
@@ -658,6 +651,7 @@
     renderDashboard();
     renderScanner();
     renderWatchlist();
+    updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
     tabDirty.trends = true;
     // If the user is already on the trends tab (e.g. background refresh), render it now
@@ -4638,6 +4632,73 @@
     }
   }
 
+  // ── Notifications popup (bell) ───────────────────────────────────────
+  // Today's notifications = every instrument with an active daily signal.
+  function notifItems() {
+    return allData
+      .filter(d => d.primary_signal)
+      .sort((a, b) => sigPriority(a.primary_signal) - sigPriority(b.primary_signal));
+  }
+
+  function updateNotifBell() {
+    const btn = document.getElementById('pushToggleBtn');
+    if (!btn) return;
+    const n = notifItems().length;
+    btn.classList.toggle('has-signals', n > 0);
+    if (n > 0) btn.dataset.count = n; else delete btn.dataset.count;
+  }
+
+  function renderNotifPanel() {
+    const list = document.getElementById('notifPopupList');
+    if (!list) return;
+    const items = notifItems();
+    if (!items.length) {
+      list.innerHTML = '<div class="notif-empty">No signals fired today</div>';
+      return;
+    }
+    list.innerHTML = items.map(item => {
+      const sig  = item.primary_signal;
+      const buy  = sig.startsWith('B');
+      const conf = item.signal_confidence || '';
+      const vol  = item.volume_spike_flag === 'yes';
+      return `<div class="notif-item" data-act="openModal" data-arg="${item.instrument_name}">
+        <span class="notif-sig ${buy ? 'notif-buy' : 'notif-sell'}">${sig}</span>
+        <div class="notif-body">
+          <span class="notif-name">${item.instrument_name}${conf === 'high' ? ' ★' : ''}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
+          <span class="notif-detail">${item.confirmation_status || ''}</span>
+        </div>
+        <span class="notif-group">${item.group || ''}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleNotifPanel() {
+    const popup = document.getElementById('notifPopup');
+    if (!popup) return;
+    const open = popup.style.display !== 'none';
+    if (open) { popup.style.display = 'none'; return; }
+    renderNotifPanel();
+    // Refresh the push row only — rewriting the bell's innerHTML here would
+    // detach the clicked SVG and break the outside-click guard below.
+    const pt = document.getElementById('notifPushToggle');
+    if (pt) {
+      const on = isPushEnabled();
+      pt.textContent = on ? 'Push: on' : 'Push: off';
+      pt.classList.toggle('push-on', on);
+    }
+    popup.style.display = '';
+  }
+
+  // Close popup on outside click or when a notification opens its modal
+  document.addEventListener('click', e => {
+    const popup = document.getElementById('notifPopup');
+    if (!popup || popup.style.display === 'none') return;
+    if (e.target.closest('.notif-item')) { popup.style.display = 'none'; return; }
+    if (!e.target.closest('#notifPopup') && !e.target.closest('#pushToggleBtn')) {
+      popup.style.display = 'none';
+    }
+  });
+
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
 
@@ -4823,7 +4884,7 @@
     window._renderFlow = renderFlow;
   })();
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen, togglePush };
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)
