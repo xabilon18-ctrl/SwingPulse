@@ -1,33 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0e17"/>
-      <stop offset="100%" stop-color="#1a2332"/>
-    </linearGradient>
-    <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="50%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#ef4444"/>
-    </linearGradient>
-    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#10b981" stop-opacity=".3"/>
-      <stop offset="50%" stop-color="#6366f1" stop-opacity=".3"/>
-      <stop offset="100%" stop-color="#ef4444" stop-opacity=".3"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2b29"/>
+      <stop offset="1" stop-color="#1d1d1b"/>
     </linearGradient>
   </defs>
-  <!-- Background -->
   <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- Subtle grid lines -->
-  <line x1="80" y1="160" x2="432" y2="160" stroke="#1e293b" stroke-width="1.5"/>
-  <line x1="80" y1="256" x2="432" y2="256" stroke="#1e293b" stroke-width="1.5"/>
-  <line x1="80" y1="352" x2="432" y2="352" stroke="#1e293b" stroke-width="1.5"/>
-  <!-- Glow behind the heartbeat line -->
-  <polyline points="60,300 130,300 160,300 190,260 210,340 240,180 270,380 300,220 330,280 360,260 400,240 452,200"
-    fill="none" stroke="url(#glow)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Main heartbeat / trading pulse line -->
-  <polyline points="60,300 130,300 160,300 190,260 210,340 240,180 270,380 300,220 330,280 360,260 400,240 452,200"
-    fill="none" stroke="url(#line)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Bright dot at the end -->
-  <circle cx="452" cy="200" r="14" fill="#ef4444" opacity=".25"/>
-  <circle cx="452" cy="200" r="8" fill="#ef4444"/>
+  <g stroke="#ffffff" stroke-opacity="0.045" stroke-width="2">
+    <line x1="92" y1="186" x2="420" y2="186"/>
+    <line x1="92" y1="262" x2="420" y2="262"/>
+    <line x1="92" y1="338" x2="420" y2="338"/>
+  </g>
+  <path d="M130 266 C170 290 220 292 268 258" fill="none" stroke="#6ee7c4" stroke-width="6" stroke-linecap="round" opacity="0.25"/>
+  <path d="M120 282 C165 312 225 314 280 268" fill="none" stroke="#2DD4BF" stroke-width="8" stroke-linecap="round" opacity="0.4"/>
+  <path d="M110 300 C160 340 230 345 290 285 C330 245 370 235 408 225" fill="none" stroke="#3ECF8E" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="256" y1="150" x2="346" y2="242" stroke="#7a7a76" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="256" cy="150" r="11" fill="#8a8a86"/>
+  <circle cx="346" cy="242" r="46" fill="none" stroke="#3ECF8E" stroke-width="4" opacity="0.22"/>
+  <circle cx="346" cy="242" r="30" fill="none" stroke="#3ECF8E" stroke-width="5" opacity="0.5"/>
+  <circle cx="346" cy="242" r="18" fill="#3ECF8E"/>
+  <rect x="214" y="392" width="84" height="42" rx="13" fill="#3ECF8E" fill-opacity="0.10" stroke="#3ECF8E" stroke-width="3"/>
+  <text x="256" y="421" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#3ECF8E" letter-spacing="1">500</text>
 </svg>
