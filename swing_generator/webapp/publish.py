@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 import pandas as pd
@@ -731,39 +732,55 @@ def _wrangler_bin():
     return None
 
 
-def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120):
-    """Upload via Cloudflare REST API (used in CI where API token is available)."""
+def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120, max_429_retries=6):
+    """Upload via Cloudflare REST API (used in CI where API token is available).
+
+    The Cloudflare API is globally rate-limited (~1200 req / 5 min). A cold-cache
+    full publish uploads 700+ files, so HTTP 429s are expected mid-run — retry
+    them in-place with exponential backoff (honouring Retry-After) instead of
+    letting them fail the whole upload. Warm incremental runs upload only a few
+    changed files and never trip this.
+    """
     import urllib.request
     import urllib.error
-    try:
-        url = (
-            f'https://api.cloudflare.com/client/v4/accounts/{account_id}'
-            f'/r2/buckets/{R2_BUCKET}/objects/{r2_key}'
-        )
-        with open(local_path, 'rb') as fh:
-            data = fh.read()
-        req = urllib.request.Request(
-            url, data=data, method='PUT',
-            headers={
-                'Authorization': f'Bearer {api_token}',
-                'Content-Type':  'application/json',
-                'Cache-Control': 'no-cache, max-age=0',
-            },
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read(500).decode('utf-8', errors='replace')
-            # Cloudflare returns 200 with {"success":true} on success
-            if resp.status in (200, 201) and '"success":true' in body:
-                return True, r2_key
-            print(f'  [R2] WARN {r2_key}: HTTP {resp.status} — {body[:200]}', flush=True)
+    url = (
+        f'https://api.cloudflare.com/client/v4/accounts/{account_id}'
+        f'/r2/buckets/{R2_BUCKET}/objects/{r2_key}'
+    )
+    with open(local_path, 'rb') as fh:
+        data = fh.read()
+    backoff = 2.0
+    for attempt in range(max_429_retries + 1):
+        try:
+            req = urllib.request.Request(
+                url, data=data, method='PUT',
+                headers={
+                    'Authorization': f'Bearer {api_token}',
+                    'Content-Type':  'application/json',
+                    'Cache-Control': 'no-cache, max-age=0',
+                },
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read(500).decode('utf-8', errors='replace')
+                # Cloudflare returns 200 with {"success":true} on success
+                if resp.status in (200, 201) and '"success":true' in body:
+                    return True, r2_key
+                print(f'  [R2] WARN {r2_key}: HTTP {resp.status} — {body[:200]}', flush=True)
+                return False, r2_key
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < max_429_retries:
+                retry_after = exc.headers.get('Retry-After') if exc.headers else None
+                delay = float(retry_after) if retry_after and retry_after.isdigit() else backoff
+                time.sleep(delay)
+                backoff = min(backoff * 2, 30.0)
+                continue
+            body = exc.read(300).decode('utf-8', errors='replace') if exc.fp else ''
+            print(f'  [R2] HTTP {exc.code} {r2_key}: {body[:200]}', flush=True)
             return False, r2_key
-    except urllib.error.HTTPError as exc:
-        body = exc.read(300).decode('utf-8', errors='replace') if exc.fp else ''
-        print(f'  [R2] HTTP {exc.code} {r2_key}: {body[:200]}', flush=True)
-        return False, r2_key
-    except Exception as exc:
-        print(f'  [R2] ERROR {r2_key}: {exc}', flush=True)
-        return False, r2_key
+        except Exception as exc:
+            print(f'  [R2] ERROR {r2_key}: {exc}', flush=True)
+            return False, r2_key
+    return False, r2_key
 
 
 def _r2_put_wrangler(local_path, r2_key, timeout=120):
@@ -823,7 +840,7 @@ def _r2_put(local_path, r2_key, timeout=120):
         return _r2_put_wrangler(local_path, r2_key, timeout)
 
 
-def upload_to_r2(data_dir, max_workers=16, retries=2, r2_prefix=''):
+def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     """Upload all files in data_dir to R2 using parallel workers with retry.
 
     r2_prefix — optional path prefix for all R2 keys (e.g. 'intraday').
