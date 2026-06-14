@@ -14,7 +14,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # 90 min so a cold-cache full download (first run / evicted cache) or a
+    # Yahoo CI-IP throttle can't trip the timeout; warm runs finish in ~20 min.
+    timeout-minutes: 90
 
     steps:
 
