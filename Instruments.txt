@@ -395,8 +395,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   INDICES — NEW (4)
 ═══════════════════════════════════════════════════════════════════════════════
 309  | ^AXJO         | AUS200        | Asia Index    | Index                     | ASX 200
-310  | ^J200         | SA40          | Africa Index  | Index                     | JSE Top 40
-311  | ^VIX          | VIX           | US Index      | Index                     | Volatility Index
+310  | ^J200.JO      | SA40          | Africa Index  | Index                     | JSE Top 40
 312  | DX-Y.NYB      | USDX          | US Index      | Index                     | US Dollar Index
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -964,6 +963,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 744  | QQQ           | FAANGS_10     | XM Index      | Technology                | FAANGs 10 Index
 745  | DRIV          | EV_INDX       | XM Index      | Technology                | Electric Vehicles Index
 746  | KWEB          | CHINA_NET     | XM Index      | Technology                | China Internet Index
+747  | SPCX          | SPACEX        | Space         | Industrials               | Launch Vehicles
 
 ═══════════════════════════════════════════════════════════════════════════════
   SUMMARY

@@ -116,7 +116,7 @@ _TV_BY_NAME: dict[str, str] = {
     'NETH25':   'ICMARKETS:NETH25',
     'RUSSELL':  'IG:RUSSELL',
     'DAX':      'IG:DAX',
-    'XINHUA':   'IG:XINHUA',
+    'XINHUA':   'SSE:000001',
     'HANGSENG': 'IG:HANGSENG',
     'NQTW':     'NASDAQ:NQTW',
     'EU50EUR':  'OANDA:EU50EUR',
@@ -273,9 +273,8 @@ _TV_BY_NAME: dict[str, str] = {
     'COTTON':    'ICEUS:CT1!',
 
     # ── New Indices ──
-    'AUS200':    'CAPITALCOM:AUS200',
+    'AUS200':    'ASX:XJO',
     'SA40':      'CAPITALCOM:SA40',
-    'VIX':       'TVC:VIX',
     'USDX':      'TVC:DXY',
 
     # ── New Crypto (BINANCE) ──
@@ -548,6 +547,7 @@ _TV_BY_NAME: dict[str, str] = {
     'BBAI':      'NYSE:BBAI',
     'CEREBRAS':  'NASDAQ:CBRS',
     'CRWV':      'NASDAQ:CRWV',
+    'SPACEX':    'NASDAQ:SPCX',
 
     # ── Blockchain ──
     'COIN':      'NASDAQ:COIN',

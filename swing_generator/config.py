@@ -118,7 +118,7 @@ def _tf_signal_columns(prefix, ma_periods=None):
         *[f'{p}ma_{per}' for per in MACRO_MA_PERIODS],   # long-term S/R MAs (all timeframes)
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',
         f'{p}confirmation_status',
-        f'{p}primary_signal', f'{p}secondary_signal',
+        f'{p}primary_signal',
         f'{p}signal_confidence',
         f'{p}last_signal_type', f'{p}last_signal_date', f'{p}last_signal_days_ago',
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
@@ -136,7 +136,7 @@ OUTPUT_COLUMNS = [
     *[f'ma_{p}' for p in MACRO_MA_PERIODS],
     'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
     'ma25_cross_count', 'neutral_oscillation',
-    'primary_signal', 'secondary_signal',
+    'primary_signal',
     'signal_confidence', 'new_trend_flag',
     'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
     'watch_flag', 'potential_turning_point_flag',

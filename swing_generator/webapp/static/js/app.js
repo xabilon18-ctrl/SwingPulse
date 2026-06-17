@@ -524,6 +524,11 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   function effectiveTrend(item) {
+    // Neutral oscillation (MA25 chopping + MA100 flattening = potential top/bottom)
+    // takes priority: these are classified NEUTRAL regardless of the raw timeframe
+    // trend, so they never double-count as Uptrend/Downtrend/Triple Bull.
+    // Daily-only field — referenced as an absolute name (not via f()).
+    if (item.neutral_oscillation === 'yes') return 'NEUTRAL';
     const td = item[f('trend_direction')] || '';
     if (td === 'UPTREND' || td === 'DOWNTREND') return td;
     const cs = (item[f('confirmation_status')] || '').toLowerCase();
@@ -1217,7 +1222,10 @@
 
     // Dominant alignment
     const alignCounts = {};
-    allData.forEach(d => { const a = d.tf_alignment || ''; if (a) alignCounts[a] = (alignCounts[a]||0)+1; });
+    allData.forEach(d => {
+      if (effectiveTrend(d) === 'NEUTRAL') return;  // neutral takes priority over alignment (no Triple Bull conflict)
+      const a = d.tf_alignment || ''; if (a) alignCounts[a] = (alignCounts[a]||0)+1;
+    });
     const domAlign = Object.entries(alignCounts).sort((a,b)=>b[1]-a[1])[0];
     const pulseAlignEl = document.getElementById('pulseAlignment');
     if (pulseAlignEl && domAlign) {
@@ -2155,6 +2163,7 @@
 
   function buildHeatmapCells() {
     const grid = document.getElementById('heatmapGrid');
+    if (!grid) return;  // heatmap card was removed from the dashboard — no-op (avoids null.innerHTML that aborted the row-tap → scanner handler)
     let filtered = activeHeatmapGroup === 'all' ? allData : allData.filter(d => d.group === activeHeatmapGroup);
 
     // ── Legend filter (only show that signal type) ──
@@ -2711,9 +2720,10 @@
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => effectiveTrend(d) === trend);
 
-    // ── Alignment filter ──
-    if (alignFilter === 'bull')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bull'));
-    else if (alignFilter === 'bear')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bear'));
+    // ── Alignment filter ── (neutral-oscillation instruments are excluded from
+    // directional Bull/Bear alignment so they stay solely in the Neutral bucket)
+    if (alignFilter === 'bull')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bull') && effectiveTrend(d) !== 'NEUTRAL');
+    else if (alignFilter === 'bear')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bear') && effectiveTrend(d) !== 'NEUTRAL');
     else if (alignFilter === 'counter') filtered = filtered.filter(d => d.tf_alignment === 'Counter-trend');
     else if (alignFilter === 'mixed')   filtered = filtered.filter(d => d.tf_alignment === 'Mixed');
 

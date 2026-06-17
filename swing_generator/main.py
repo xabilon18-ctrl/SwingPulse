@@ -106,7 +106,6 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}trend_run_days':                int(row.get('trend_run_days', 0)),
         f'{prefix}confirmation_status':           row.get('confirmation_status', ''),
         f'{prefix}primary_signal':                row.get('primary_signal', ''),
-        f'{prefix}secondary_signal':              row.get('secondary_signal', ''),
         f'{prefix}signal_confidence':             row.get('signal_confidence', ''),
         **last_sig,
         f'{prefix}watch_flag':                    row.get('watch_flag', ''),
@@ -134,6 +133,11 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         result['macro_sr_signal']   = row.get('macro_sr_signal', '') or ''
         result['macro_sr_level']    = row.get('macro_sr_level', '') or ''
         result['macro_sr_strength'] = int(row.get('macro_sr_strength', 0) or 0)
+        # Daily-only choppiness/trend flags — computed in indicators/signals but
+        # previously never extracted into the output row (always blank).
+        result['ma25_cross_count']    = int(row.get('ma25_cross_count', 0) or 0)
+        result['neutral_oscillation'] = 'yes' if row.get('neutral_oscillation') else 'no'
+        result['new_trend_flag']      = 'yes' if row.get('new_trend_flag') else 'no'
 
     return result, row
 
@@ -662,27 +666,37 @@ def main():
     compute_flow_volumes(output_df, run_date)
 
     # 7. Upload data to R2 + update live app
+    #
+    # If this step fails, the generated signals_*.csv are already on disk in
+    # OUTPUT_DIR. publish.py reads those CSVs (it does NOT re-fetch market data
+    # or recompute signals), so recovery is cheap — just re-run the upload alone:
+    _RECOVER_MSG = ('           Data is generated and on disk — re-run the upload only '
+                    '(no regeneration):\n'
+                    f'           cd swing_generator && python3 webapp/publish.py --profile {PROFILE}')
     print('\n  Uploading data to R2 ...\n')
     try:
         import subprocess
-        # Timeout 900s (15 min) — uploads ~674 files; even at 16x parallelism
-        # this needs > 5 min headroom on slow CI runners.
+        # Timeout 5400s (90 min) — uploads ~720+ files at 8x parallelism. R2 429s
+        # are retried with exponential backoff (see publish.py), so a throttled run
+        # can take far longer than the old 15-min cap allowed. Matches the CI step's
+        # timeout-minutes: 90 so the workflow wall is the real guard, not this.
         publish_cmd = [sys.executable, os.path.join(os.path.dirname(__file__), 'webapp', 'publish.py'),
                        '--profile', PROFILE]
         result = subprocess.run(
             publish_cmd,
             cwd=os.path.dirname(__file__),
             env={**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')},
-            timeout=900,
+            timeout=5400,
         )
         if result.returncode == 0:
             print('\n  ✓ App updated! https://swingpulse200.pages.dev')
         else:
             print('\n  [Publish] R2 upload failed — CI run will be marked red.')
-            print('           python3 webapp/publish.py')
+            print(_RECOVER_MSG)
             sys.exit(result.returncode)  # propagate failure so CI shows red
     except subprocess.TimeoutExpired:
-        print('\n  [Publish] Timed out after 15 min.')
+        print('\n  [Publish] Timed out after 90 min.')
+        print(_RECOVER_MSG)
         sys.exit(1)
     except Exception as e:
         print(f'\n  [Publish] Skipped: {e}')

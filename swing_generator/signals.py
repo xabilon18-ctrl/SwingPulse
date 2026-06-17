@@ -122,11 +122,10 @@ def _signal_confidence(signal: str, vol_spike: bool, at_key_level: bool,
     return 'low'
 
 
-def _append_empty(statuses, primaries, secondaries, confidences,
+def _append_empty(statuses, primaries, confidences,
                   watches, ttps, new_trend_flags):
     statuses.append('No data')
     primaries.append('')
-    secondaries.append('')
     confidences.append('')
     watches.append('')
     ttps.append('')
@@ -167,7 +166,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
     statuses        = []
     primaries       = []
-    secondaries     = []
     confidences     = []
     watches         = []
     ttps            = []
@@ -216,7 +214,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if math.isnan(close) or math.isnan(low) or math.isnan(high):
             run_days.append(trend_run)
             established_trends.append('')
-            _append_empty(statuses, primaries, secondaries,
+            _append_empty(statuses, primaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
 
@@ -233,7 +231,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         if ma500_val is None or ma25_val is None:
             run_days.append(trend_run)
             established_trends.append('')
-            _append_empty(statuses, primaries, secondaries,
+            _append_empty(statuses, primaries,
                           confidences, watches, ttps, new_trend_flags)
             continue
 
@@ -340,8 +338,13 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                     signal = 'B7'
                     status = (f'Uptrend pullback — B7: wick touched MA{_ma500}, '
                               f'close confirmed above')
-                elif in_uptrend and dist > _new_tr:
-                    # Established uptrend pullback → B2–B6
+                elif in_uptrend:
+                    # Established uptrend pullback into the ribbon → B2–B6.
+                    # Gated on ribbon STATE (price has pulled back into the ribbon),
+                    # not absolute distance from MA500. Compressed ribbons keep their
+                    # inner MAs within new_trend_pct of MA500, so a fixed-distance gate
+                    # (the old `dist > _new_tr`) suppressed B3–B6 entirely for indices
+                    # and FX pairs. The watched MA itself defines the pullback depth.
                     watch_lvl = _watch_level_up(close, today_mas)
                     if watch_lvl is not None:
                         ma_val = today_mas.get(watch_lvl)
@@ -365,12 +368,10 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                                              f'{approach*100:.1f}% above')
                     else:
                         status = 'Uptrend — price below all pullback levels (deep pullback)'
-                elif in_uptrend and _refire < dist <= _new_tr:
-                    new_trend = True
-                    status    = (f'New trend — B1 confirmed, consolidating '
-                                 f'{dist*100:.1f}% above MA{_ma500}')
-                elif in_uptrend:
-                    status = f'Uptrend — pulling back into ribbon'
+                    # Flag the post-reversal consolidation zone for the new_trend_flag
+                    # column — informational only; it no longer suppresses signals.
+                    if _refire < dist <= _new_tr:
+                        new_trend = True
                 else:
                     status = 'Neutral — price in ribbon, no established trend'
 
@@ -418,9 +419,13 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                       f'close confirmed below')
 
         # ================================================================
-        # S2–S6 — Bearish rallies (established downtrend, out of NEW TREND zone)
+        # S2–S6 — Bearish rallies into the ribbon (established downtrend).
+        # Gated on ribbon STATE (price has rallied up into the ribbon, below
+        # MA500 but not below all MAs), not absolute distance from MA500 — the
+        # old `(-dist) > _new_tr` gate suppressed S3–S6 entirely for compressed
+        # ribbons (indices, FX). The watched MA defines the rally depth.
         # ================================================================
-        elif in_downtrend and (-dist) > _new_tr:
+        elif in_downtrend:
             watch_lvl = _watch_level_down(close, today_mas)
             if watch_lvl is not None:
                 ma_val = today_mas.get(watch_lvl)
@@ -470,7 +475,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
         statuses.append(status)
         primaries.append(signal)
-        secondaries.append('')
         confidences.append(conf)
         watches.append(watch)
         ttps.append(ttp)
@@ -481,7 +485,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     df['established_trend']            = established_trends
     df['confirmation_status']          = statuses
     df['primary_signal']               = primaries
-    df['secondary_signal']             = secondaries
     df['signal_confidence']            = confidences
     df['watch_flag']                   = watches
     df['potential_turning_point_flag'] = ttps
