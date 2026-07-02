@@ -563,7 +563,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
 445  | ZEC-USD       | ZECUSDT       | Crypto        | Crypto                    | Privacy
 446  | DASH-USD      | DASHUSDT      | Crypto        | Crypto                    | Payment
-447  | EOS-USD       | EOSUSDT       | Crypto        | Crypto                    | Layer 1
 448  | EGLD-USD      | EGLDUSDT      | Crypto        | Crypto                    | Layer 1
 449  | HBAR-USD      | HBARUSDT      | Crypto        | Crypto                    | Layer 1
 450  | FLOW-USD      | FLOWUSDT      | Crypto        | Crypto                    | NFT / Gaming
@@ -584,7 +583,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
 462  | III.L         | III           | UK100         | Financial Services        | Private Equity
 463  | ADM.L         | ADM           | UK100         | Financial Services        | Insurance
-464  | AHT.L         | AHT           | UK100         | Industrials               | Equipment Rental
 465  | ABF.L         | ABF           | UK100         | Consumer Defensive        | Packaged Foods
 466  | AUTO.L        | AUTO          | UK100         | Technology                | Online Marketplace
 467  | BDEV.L        | BDEV          | UK100         | Consumer Cyclical         | Homebuilding
@@ -603,7 +601,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 480  | ENT.L         | ENT           | UK100         | Consumer Cyclical         | Gambling
 481  | FRES.L        | FRES          | UK100         | Basic Materials           | Precious Metals Mining
 482  | HLMA.L        | HLMA          | UK100         | Technology                | Industrial Safety
-483  | HL.L          | HL            | UK100         | Financial Services        | Asset Management
 484  | ICG.L         | ICG           | UK100         | Financial Services        | Private Equity
 485  | ITRK.L        | ITRK          | UK100         | Industrials               | Testing & Certification
 486  | JD.L          | JD_UK         | UK100         | Consumer Cyclical         | Apparel Retail

@@ -106,8 +106,8 @@ _TV_BY_NAME: dict[str, str] = {
     'WTI':      'TVC:USOIL',
 
     # ── Indices (matched to user's brokers) ──
-    'US100':    'CAPITALCOM:US100',
-    'US500':    'CAPITALCOM:US500',
+    'US100':    'NASDAQ:NDX',
+    'US500':    'TRADENATION:US500',
     'SW20':     'CAPITALCOM:SW20',
     'UK100':    'CFI:UK100',
     'IT40':     'FOREXCOM:IT40',
@@ -175,7 +175,7 @@ _TV_BY_NAME: dict[str, str] = {
     'MRK':  'NYSE:MRK',
     'MMM':  'NYSE:MMM',
     'UNH':  'NYSE:UNH',
-    'WMT':  'NYSE:WMT',
+    'WMT':  'NASDAQ:WMT',
     'BUD':  'NYSE:BUD',
     'APOLLO': 'NYSE:APO',
 
@@ -260,10 +260,10 @@ _TV_BY_NAME: dict[str, str] = {
 
     # ── New Commodities ──
     'BRENT':     'TVC:UKOIL',
-    'NGAS':      'TVC:NATURALGAS',
+    'NGAS':      'TRADENATION:NATURALGAS',
     'PLATINUM':  'TVC:PLATINUM',
     'PALLADIUM': 'TVC:PALLADIUM',
-    'COPPER':    'TVC:COPPER',
+    'COPPER':    'TRADENATION:COPPER',
     'CORN':      'CBOT:ZC1!',
     'WHEAT':     'CBOT:ZW1!',
     'SUGAR':     'ICEUS:SB1!',
@@ -274,7 +274,7 @@ _TV_BY_NAME: dict[str, str] = {
 
     # ── New Indices ──
     'AUS200':    'ASX:XJO',
-    'SA40':      'CAPITALCOM:SA40',
+    'SA40':      'TRADENATION:SA40',
     'USDX':      'TVC:DXY',
 
     # ── New Crypto (BINANCE) ──
@@ -323,12 +323,12 @@ _TV_BY_NAME: dict[str, str] = {
     'XTZUSDT':   'BINANCE:XTZUSDT',
 
     # ── UK stocks — special name overrides ──
-    'BT_A':      'LSE:BT',
-    'BAE':       'LSE:BA',
-    'RR_UK':     'LSE:RR',
-    'NG_UK':     'LSE:NG',
+    'BT_A':      'LSE:BT.A',
+    'BAE':       'LSE:BA.',
+    'RR_UK':     'LSE:RR.',
+    'NG_UK':     'LSE:NG.',
     'RELX':      'LSE:REL',
-    'JD_UK':     'LSE:JD',
+    'JD_UK':     'LSE:JD.',
 
     # ── French stocks — special name overrides ──
     'SANOFI':    'EURONEXT:SAN',
@@ -359,9 +359,38 @@ _TV_BY_NAME: dict[str, str] = {
     'SOL_ZA':    'JSE:SOL',
     'DSY_ZA':    'JSE:DSY',
 
-    # ── Scandinavian stocks — auto-rule handles .ST → STO:{name} and .CO → CPH:{name} ──
-    # (No overrides needed; display names VOLVB, ERICB, HMB, SWEDA, SEBA, ATCOA, NOVOB, MAERSKB
-    #  are already the correct TradingView symbols without dashes)
+    # ── Broken-symbol fixes (verified against TradingView symbol-search 2026-06-28) ──
+    # Stockholm: TV uses OMXSTO:{ROOT}_{CLASS}, not STO:{name}
+    'ATCOA':     'OMXSTO:ATCO_A',
+    'ERICB':     'OMXSTO:ERIC_B',
+    'HMB':       'OMXSTO:HM_B',
+    'SEBA':      'OMXSTO:SEB_A',
+    'SWEDA':     'OMXSTO:SWED_A',
+    'VOLVB':     'OMXSTO:VOLV_B',
+    # Copenhagen: TV uses OMXCOP:{name} (B-shares as {ROOT}_B)
+    'DSV':       'OMXCOP:DSV',
+    'MAERSKB':   'OMXCOP:MAERSK_B',
+    'NOVOB':     'OMXCOP:NOVO_B',
+    # London: TV requires trailing '.' on the LSE ticker
+    'AV':        'LSE:AV.',
+    'BP':        'LSE:BP.',
+    'SN':        'LSE:SN.',
+    'TW':        'LSE:TW.',
+    'UU':        'LSE:UU.',
+    # Exchange / ticker corrections
+    'CRH':       'NYSE:CRH',          # moved primary listing LSE → NYSE
+    'CCL':       'NYSE:CCL',          # Carnival
+    'CNHI':      'NYSE:CNH',          # CNH Industrial (re-tickered)
+    '1COV':      'GETTEX:1COV',       # Covestro (XETR feed dropped)
+    'AXA':       'GETTEX:AXA',        # AXA SA
+    'BPER':      'MIL:BPE',           # BPER Banca
+    'HERA':      'MIL:HER',           # Hera SpA
+    'INWIT':     'MIL:INW',           # Infrastrutture Wireless Italiane
+    'WPL':       'ASX:WDS',           # Woodside (renamed WPL → WDS)
+    'BIL':       'JSE:BHG',           # BHP Group (ex-Billiton)
+    'BDEV':      'LSE:BTRW',          # Barratt (merged → Barratt Redrow)
+    'NCM':       'NYSE:NEM',          # Newcrest delisted → successor Newmont
+    'SMDS':      'NYSE:IP',           # DS Smith delisted → successor International Paper
 
     # ── Indices (additional) ──
     'SOX':   'NASDAQ:SOX',
@@ -494,7 +523,7 @@ _TV_BY_NAME: dict[str, str] = {
     'PGR':   'NYSE:PGR',
     'MMC':   'NYSE:MMC',
     'AON':   'NYSE:AON',
-    'WTW':   'NYSE:WTW',
+    'WTW':   'NASDAQ:WTW',
     'FISV':  'NASDAQ:FISV',
     'FIS':   'NYSE:FIS',
     'TGT':   'NYSE:TGT',
@@ -512,7 +541,7 @@ _TV_BY_NAME: dict[str, str] = {
     'NSC':   'NYSE:NSC',
     'EMR':   'NYSE:EMR',
     'ETN':   'NYSE:ETN',
-    'LIN':   'NYSE:LIN',
+    'LIN':   'NASDAQ:LIN',
     'APD':   'NYSE:APD',
     'SHW':   'NYSE:SHW',
     'NEM':   'NYSE:NEM',
@@ -542,7 +571,7 @@ _TV_BY_NAME: dict[str, str] = {
     'SOFTBANK':  'TSE:9984',
 
     # ── AI Theme ──
-    'C3AI':      'NASDAQ:AI',
+    'C3AI':      'NYSE:AI',
     'SOUN':      'NASDAQ:SOUN',
     'BBAI':      'NYSE:BBAI',
     'CEREBRAS':  'NASDAQ:CBRS',
@@ -619,7 +648,7 @@ _TV_BY_NAME: dict[str, str] = {
     'BCHAIN_NFT':'NASDAQ:BKCH',
     'FAANGS_10': 'NASDAQ:QQQ',
     'EV_INDX':   'NASDAQ:DRIV',
-    'CHINA_NET': 'NASDAQ:KWEB',
+    'CHINA_NET': 'AMEX:KWEB',
 }
 
 # NYSE stocks that appear under different ticker in TV
@@ -898,7 +927,7 @@ def api_summary():
     try:
         trend_counts = df['trend_direction'].value_counts().to_dict() if 'trend_direction' in df.columns else {}
 
-        # Signal codes are B1–B7 (buy) / S1–S7 (sell)
+        # Signal codes are B1/B4 (buy) / S1/S4 (sell)
         sigs      = df['primary_signal'].fillna('').astype(str) if 'primary_signal' in df.columns else pd.Series('', index=df.index)
         buy_mask  = sigs.str.startswith('B')
         sell_mask = sigs.str.startswith('S')
@@ -1006,15 +1035,6 @@ def api_explanations():
         return jsonify({})
     with open(path) as f:
         return jsonify(_json.load(f))
-
-
-@app.route('/api/portfolio')
-def api_portfolio():
-    """Serve portfolio.json from output dir (parsed from XM email)."""
-    pf_path = os.path.join(OUTPUT_DIR, 'portfolio.json')
-    if os.path.exists(pf_path):
-        return send_file(pf_path, mimetype='application/json')
-    return jsonify(None)
 
 
 @app.route('/api/flow')

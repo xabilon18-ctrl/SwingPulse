@@ -91,13 +91,15 @@ def load_latest_trends(date_str, src_dir=None):
 def build_summary(df, dt):
     if df.empty:
         return {}
-    trend_counts  = df['trend_direction'].value_counts().to_dict()
-    # Signal codes are B1–B7 (buy) / S1–S7 (sell)
-    sigs          = df['primary_signal'].fillna('').astype(str)
+    def _col(name):
+        return df[name] if name in df.columns else pd.Series('', index=df.index)
+
+    trend_counts  = _col('trend_direction').value_counts().to_dict()
+    trend_counts.pop('', None)
+    sigs          = _col('h4_primary_signal').fillna('').astype(str)
     buy_mask      = sigs.str.startswith('B')
     sell_mask     = sigs.str.startswith('S')
-    signal_types  = df['primary_signal'].value_counts().to_dict()
-    signal_types.pop('', None)
+    signal_types  = sigs[sigs != ''].value_counts().to_dict()
     groups = sorted([g for g in df['group'].unique().tolist() if g])
     return {
         'date':             dt,
@@ -105,10 +107,10 @@ def build_summary(df, dt):
         'trend_counts':     trend_counts,
         'buy_count':        int(buy_mask.sum()),
         'sell_count':       int(sell_mask.sum()),
-        'watch_count':      int((df['watch_flag'] != '').sum()),
-        'volume_spikes':    int((df['volume_spike_flag'] == 'yes').sum()),
-        'key_level_touches':int((df['key_level_touched_today'] == 'yes').sum()),
-        'turning_points':   int((df['potential_turning_point_flag'] != '').sum()),
+        'watch_count':      int((_col('h4_watch_flag') != '').sum()),
+        'volume_spikes':    int((_col('h4_volume_spike_flag') == 'yes').sum()),
+        'key_level_touches':0,
+        'turning_points':   int((_col('h4_potential_turning_point_flag') != '').sum()),
         'signal_types':     signal_types,
         'groups':           groups,
         'ma_max_pairs':     len(MA_PERIODS) - 1,
@@ -154,20 +156,14 @@ def build_history(name, ticker):
 _longest_ma  = max(MA_PERIODS)
 _shortest_ma = min(MA_PERIODS)
 _SIG_WHAT = {
-    'B1': (f'trend reversal — price crossed above all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
-    'S1': (f'trend reversal — price crossed below all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
-    'B2': (f'pullback bounce off MA{_shortest_ma} — first pullback level',),
-    'S2': (f'rejection at MA{_shortest_ma} — first rally level',),
-    'B3': ('pullback bounce off MA100',),
-    'S3': ('rejection at MA100',),
-    'B4': ('pullback bounce off MA200',),
-    'S4': ('rejection at MA200',),
-    'B5': ('pullback bounce off MA300',),
-    'S5': ('rejection at MA300',),
-    'B6': ('pullback bounce off MA400',),
-    'S6': ('rejection at MA400',),
-    'B7': (f'deep pullback bounce off MA{_longest_ma} — anchor level',),
-    'S7': (f'deep rally rejection at MA{_longest_ma} — anchor level',),
+    'B1': (f'trend breakout — price crossed above all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
+    'S1': (f'trend breakdown — price crossed below all MAs (MA{_shortest_ma}–MA{_longest_ma})',),
+    'B2': (f'pullback recovery — price crossed back above MA{_shortest_ma}',),
+    'S2': (f'rally recovery — price crossed back below MA{_shortest_ma}',),
+    'B3': ('mid-ribbon bounce off MA250',),
+    'S3': ('mid-ribbon rejection at MA250',),
+    'B4': (f'anchor bounce off MA{_longest_ma}',),
+    'S4': (f'anchor rejection at MA{_longest_ma}',),
 }
 
 # Keys must match the labels emitted by _compute_tf_alignment in main.py
@@ -195,19 +191,19 @@ def _explain_one(row: pd.Series) -> str:
         val = row.get(col, '')
         return str(val).strip() if val is not None and str(val) not in ('', 'nan', 'None') else ''
 
-    sig   = v('primary_signal')
-    conf  = v('confirmation_status')
-    sconf = v('signal_confidence')
-    trend = v('trend_direction')
-    run   = v('trend_run_days')
+    sig   = v('h4_primary_signal')
+    conf  = v('h4_confirmation_status')
+    sconf = v('h4_signal_confidence')
+    trend = v('h4_trend_direction') or v('trend_direction')
+    run   = v('h4_trend_run_days')
     align = v('tf_alignment')
-    order = v('ma_order_score')
-    vol   = v('volume_spike_flag')
-    roc   = v('roc')
-    comp  = v('ribbon_compression')
-    tp    = v('potential_turning_point_flag')
-    kl    = v('key_level_touched_today')
-    spread= v('ribbon_spread')
+    order = v('h4_ma_order_score')
+    vol   = v('h4_volume_spike_flag')
+    roc   = v('h4_roc')
+    comp  = v('h4_ribbon_compression')
+    tp    = v('h4_potential_turning_point_flag')
+    kl    = ''
+    spread= v('h4_ribbon_spread')
 
     # Direction comes from the signal code itself (B* = buy, S* = sell);
     # fall back to trend direction when no signal is present.
@@ -262,7 +258,7 @@ def _explain_one(row: pd.Series) -> str:
 
     def _sentence_case(s: str) -> str:
         """Uppercase only the first letter — str.capitalize() would
-        lowercase technical terms like MA200 / B4 / ROC."""
+        lowercase technical terms like MA500 / B4 / ROC."""
         return s[:1].upper() + s[1:] if s else s
 
     s1_body = ', '.join(s1_clauses)
@@ -310,7 +306,8 @@ def generate_explanations(df: pd.DataFrame) -> dict:
     No API key required — runs entirely from signal data fields.
     Returns {instrument_name: explanation_text}.
     """
-    signaled = df[df['primary_signal'].notna() & (df['primary_signal'] != '')].copy()
+    _sig_col = 'h4_primary_signal' if 'h4_primary_signal' in df.columns else 'primary_signal'
+    signaled = df[df[_sig_col].notna() & (df[_sig_col] != '')].copy()
     if signaled.empty:
         return {}
 
@@ -354,8 +351,9 @@ def build_events():
         except Exception:
             continue
 
-        # Normalise column types
-        for col in ('volume', 'volume_average', 'close', 'open', 'high', 'low', 'roc'):
+        # Normalise column types (handle both old bare and new h4_ prefixed columns)
+        for col in ('volume', 'volume_average', 'close', 'open', 'high', 'low', 'roc',
+                     'h4_volume', 'h4_volume_average', 'h4_close', 'h4_open', 'h4_high', 'h4_low', 'h4_roc'):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
@@ -371,8 +369,8 @@ def build_events():
             is_crypto = sector in CRYPTO_SECTORS
             roc_thresh = ROC_THRESH_CRYPTO if is_crypto else ROC_THRESH_STOCK
 
-            vol_spike = str(row.get('volume_spike_flag', '')).strip().lower() == 'yes'
-            roc_val   = float(row.get('roc', 0))
+            vol_spike = str(row.get('h4_volume_spike_flag', row.get('volume_spike_flag', ''))).strip().lower() == 'yes'
+            roc_val   = float(row.get('h4_roc', row.get('roc', 0)))
             big_move  = abs(roc_val) >= roc_thresh
 
             if not vol_spike and not big_move:
@@ -407,9 +405,9 @@ def build_events():
                 'volume_average':    vol_avg,
                 'volume_ratio':      vol_ratio,
                 'roc':               round(roc_val, 2),
-                'trend_direction':   str(row.get('trend_direction', '')).strip(),
-                'primary_signal':    str(row.get('primary_signal', '')).strip(),
-                'signal_confidence': str(row.get('signal_confidence', '')).strip(),
+                'trend_direction':   str(row.get('h4_trend_direction', row.get('trend_direction', ''))).strip(),
+                'primary_signal':    str(row.get('h4_primary_signal', row.get('primary_signal', ''))).strip(),
+                'signal_confidence': str(row.get('h4_signal_confidence', row.get('signal_confidence', ''))).strip(),
                 'tf_alignment':      str(row.get('tf_alignment', '')).strip(),
                 'event_types':       event_types,
             })
@@ -642,19 +640,6 @@ def build_data(output_dir, src_signals_dir=None):
     else:
         print(f'  Backtest report: none found in {OUTPUT_DIR}')
 
-    # Portfolio data — shared across profiles (XM account positions)
-    # Look in current OUTPUT_DIR first, fall back to default output/ dir
-    default_output = os.path.join(PROJECT_DIR, 'output')
-    pf_candidates = [
-        os.path.join(OUTPUT_DIR, 'portfolio.json'),
-        os.path.join(default_output, 'portfolio.json'),
-    ]
-    for pf_src in pf_candidates:
-        if os.path.exists(pf_src):
-            shutil.copy2(pf_src, os.path.join(output_dir, 'portfolio.json'))
-            print(f'  Portfolio: {pf_src}')
-            break
-
     # Flow volumes — build pre-structured JSON for Cloudflare Pages (static hosting)
     flow_csv = os.path.join(OUTPUT_DIR, 'flow_volumes.csv')
     if os.path.exists(flow_csv):
@@ -682,16 +667,8 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
 
-    tm = get_ticker_map()
-    ok = 0
-    for name, ticker in tm.items():
-        hist = build_history(name, ticker)
-        if hist:
-            safe_name = name.replace('/', '_')
-            with open(os.path.join(history_dir, f'{safe_name}.json'), 'w') as f:
-                json.dump(hist, f, separators=(',', ':'))
-            ok += 1
-    print(f'  History charts: {ok}/{len(tm)}')
+    # History charts disabled — Chart tab removed from modal UI (app.js loadModalChart
+    # early-exits when #lwChartContainer is absent). Skip the 743-file parquet loop.
 
     return dt, fetched_at
 
@@ -853,7 +830,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     # Core data files
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'events.json', 'names.json',
-                  'backtest.json', 'portfolio.json', 'flow_volumes.json']:
+                  'backtest.json', 'flow_volumes.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -927,6 +904,10 @@ def build_ui():
         shutil.rmtree(static_dst)
     shutil.copytree(os.path.join(SCRIPT_DIR, 'static'), static_dst)
 
+    # Unique build id for this deploy — powers the app's self-update check.
+    # The installed PWA polls version.json and hard-reloads when this changes.
+    build_id = str(int(time.time()))
+
     # Copy index.html — patch profile badge and title
     with open(os.path.join(SCRIPT_DIR, 'templates', 'index.html')) as f:
         html = f.read()
@@ -934,11 +915,17 @@ def build_ui():
     html = html.replace('<title>SwingPulse</title>', '<title>SwingPulse 500</title>')
     html = html.replace('content="SwingPulse"', 'content="SwingPulse 500"')
     html = html.replace('__APP_PROFILE__', 'ma500')
+    html = html.replace('__BUILDSTAMP__', build_id)  # value only — not the window.__BUILD_ID__ var name
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
+
+    # Emit version.json at site root — the app fetches this (cache: no-store)
+    # on launch / foreground and reloads itself when build != running build.
+    with open(os.path.join(ui_dir, 'version.json'), 'w') as f:
+        json.dump({'build': build_id}, f)
 
     # Patch app.js: replace /api/* with R2 URLs
     app_js_path = os.path.join(static_dst, 'js', 'app.js')
@@ -955,7 +942,6 @@ def build_ui():
     js = js.replace("'/api/events'",       f"'{base}/events.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
-    js = js.replace("'/api/portfolio?t='", f"'{base}/portfolio.json?t='")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",

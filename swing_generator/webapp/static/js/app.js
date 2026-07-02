@@ -17,7 +17,6 @@
   let allData = [];
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
-  let portfolioData = null;  // XM account data from Gmail parser
   let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
@@ -32,7 +31,6 @@
   let scannerView = 'list';   // 'list' | 'ranked'
   let gpViewMode = 'region';   // 'group' | 'region'
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
-  let detectedMacroMas = [1000, 2000, 3000];  // S/R MAs detected from data (macro only)
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
   // ── Radar filter state ──────────────────────────────────────────────────
@@ -77,7 +75,8 @@
 
   let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
   let charts = {};
-  let timeframe = 'D';      // 'D' = daily, 'W' = weekly
+  let timeframe = '4H';
+  let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
@@ -211,7 +210,7 @@
     let score = 0;
     const sig    = item[f('primary_signal')]      || '';
     const conf   = (item[f('confirmation_status')]|| '').toLowerCase();
-    const align  = (item[f('tf_alignment')]       || '').toLowerCase();
+    const align  = (item.tf_alignment       || '').toLowerCase();
     const trend  = effectiveTrend(item).toLowerCase();
     const volSpk = item[f('volume_spike_flag')]   === 'yes';
     const squeeze= item[f('ribbon_compression')]  === 'yes';
@@ -257,7 +256,7 @@
           const sell = isSell(item);
           const dir  = buy ? 'buy' : sell ? 'sell' : 'neutral';
           const sig  = item[f('primary_signal')] || '';
-          const align= item[f('tf_alignment')] || '';
+          const align= item.tf_alignment || '';
           const perf = signalPerf(item.instrument_name);
           const perfHtml = perf
             ? `<span class="mb-perf ${parseFloat(perf.pct) >= 0 ? 'perf-pos' : 'perf-neg'}">${parseFloat(perf.pct) >= 0 ? '+' : ''}${perf.pct}%</span>`
@@ -309,21 +308,21 @@
       const roc      = parseFloat(item[f('roc')] || item.roc || 0);
       const rocStr   = (roc >= 0 ? '▲ +' : '▼ ') + Math.abs(roc).toFixed(1) + '%';
       const rocDir   = roc >= 0 ? 'up' : 'dn';
-      const align    = item[f('tf_alignment')] || '';
-      const isTriple = align.includes('Triple') || align.includes('Quad');
-      const tripleTag = isTriple ? ` · ${align}` : '';
+      const align    = item.tf_alignment || '';
+      const isAligned = align.startsWith('Aligned');
+      const tripleTag = isAligned ? ` · ${align}` : '';
       const bars     = Math.min(item._score, 8);
       const dirBadge = buy
         ? `<span class="opp-dir-badge opp-dir-buy">BUY</span>`
         : sell ? `<span class="opp-dir-badge opp-dir-sell">SELL</span>` : '';
       const noteInd  = noteIndicator(name);
-      const tripleB  = isTriple
-        ? `<span class="badge-3tf ${align.includes('Bull') ? 'badge-3tf-bull' : 'badge-3tf-bear'}">3TF</span>`
+      const tripleB  = isAligned
+        ? `<span class="badge-3tf ${align.includes('Bull') ? 'badge-3tf-bull' : 'badge-3tf-bear'}">2TF</span>`
         : '';
       // Meaningful sparkbar heights: each bar maps to a real data dimension
       const maOrd = parseInt(item[f('ma_order_score')]);
       const sigStr = { p1:100, p2:80, p3:55, p4:35, '':15 }[sigClass(sigType)] || 15;
-      const alignStr = align.toLowerCase().includes('triple') ? 100 : align.toLowerCase().includes('double') ? 65 : 35;
+      const alignStr = align.startsWith('Aligned') ? 100 : 35;
       const volH   = item[f('volume_spike_flag')] === 'yes' ? 95 : 25;
       const rocH   = Math.min(Math.round(Math.abs(roc) / 4 * 100), 95);
       const sqzH   = item[f('ribbon_compression')] === 'yes' ? 80 : 35;
@@ -478,19 +477,30 @@
       .sort((a, b) => a - b);
     if (found.length) {
       detectedMaPeriods = found.filter(p => p <= 500);   // ribbon MAs (MA25–MA500)
-      const macro = found.filter(p => p > 500);          // true macro MAs (1000+)
-      if (macro.length) detectedMacroMas = macro;
     }
   }
 
   // ── Timeframe field accessor ────────────────────────────────────────
   // Returns the correct field name for the active timeframe.
-  // Weekly columns are prefixed with 'w_' in the data.
   function f(field) {
     if (timeframe === '4H') return 'h4_' + field;
-    if (timeframe === 'W')  return 'w_' + field;
-    if (timeframe === 'M')  return 'm_' + field;
     return field;
+  }
+
+  // Relative volume (RVOL): today's volume ÷ rolling-average volume, for the
+  // active timeframe. Returns null when volume isn't reported (forex/CFDs) or
+  // the average is zero, so callers can simply skip rendering.
+  function rvol(item) {
+    const v  = parseFloat(item[f('volume')]);
+    const av = parseFloat(item[f('volume_average')]);
+    if (!isFinite(v) || !isFinite(av) || av <= 0) return null;
+    return v / av;
+  }
+
+  // Format an RVOL ratio as a compact "1.8×" style string.
+  function fmtRvol(r) {
+    if (r === null) return '';
+    return (r >= 9.95 ? Math.round(r) : r.toFixed(1)) + '×';
   }
 
   // Effective trend: extends the strict UPTREND/DOWNTREND/NEUTRAL classification
@@ -580,7 +590,7 @@
   // ── TradingView Helpers ──────────────────────────────────────────────
   function tvUrl(name) {
     const sym = tvMap[name] || name;
-    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240', 'W': '&interval=W', 'M': '&interval=M' };
+    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240' };
     const interval = ivlMap[timeframe] || '&interval=D';
     const layout = userTvLayout();
     return `https://www.tradingview.com/chart/${layout ? layout + '/' : ''}?symbol=${encodeURIComponent(sym)}${interval}`;
@@ -601,7 +611,7 @@
   function tvWidgetUrl(name) {
     const sym = tvMap[name] || name;
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const ivl = timeframe === '4H' ? '240' : timeframe === 'W' ? 'W' : timeframe === 'M' ? 'M' : 'D';
+    const ivl = timeframe === '4H' ? '240' : 'D';
     return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(sym)}&interval=${ivl}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%5D&theme=${theme}&style=1&timezone=exchange&withdateranges=1&hide_top_toolbar=0&hide_legend=0&allow_symbol_change=0&details=0&calendar=0`;
   }
 
@@ -610,38 +620,42 @@
   localStorage.removeItem('swingpulse-theme');
 
   // ── Timeframe Toggle ─────────────────────────────────────────────────
-  const tfToggle = document.getElementById('tfToggle');
-  if (!tfToggle) { console.warn('tfToggle not found'); }
-  const savedTf = localStorage.getItem('swingpulse-tf') || 'D';
-  timeframe = savedTf;
-  tfToggle?.querySelectorAll('.tf-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tf === timeframe);
-  });
-
-  function setTimeframe(tf) {
-    if (tf === timeframe) return;
-
-    // Preserve scroll + scanner pagination across TF switch so the user
-    // doesn't get bounced to page 1 / scroll 0 every time they toggle.
-    const savedScroll = window.scrollY;
-    const savedPage   = scannerPage;
-    timeframe = tf;
-    localStorage.setItem('swingpulse-tf', timeframe);
-    tfToggle?.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === timeframe));
-
-    renderAll();
-    if (savedPage > 1) {
-      scannerPage = savedPage;
-      buildScannerCards(false, { keepPage: true });
-    }
-    window.scrollTo(0, savedScroll);
+  // Switch the active timeframe (Daily ↔ 4H) and re-render everything.
+  // The f() accessor maps to unprefixed (Daily) or h4_ (4-Hour) columns.
+  // Keep the header toggle buttons (and any other tf controls) in sync.
+  function syncTfButtons() {
+    document.querySelectorAll('.tf-switch-btn').forEach(b => {
+      const on = b.dataset.tf === timeframe;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
   }
 
-  tfToggle?.addEventListener('click', e => {
-    const btn = e.target.closest('.tf-btn');
-    if (!btn) return;
-    setTimeframe(btn.dataset.tf);
+  function setTimeframe(tf) {
+    if (tf !== 'D' && tf !== '4H') return;
+    if (tf === timeframe) return;
+    timeframe = tf;
+    try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
+    syncTfButtons();
+    renderAll();  // re-renders dashboard (recomputes summary), scanner, watchlist
+    // If an instrument modal is open, rebuild it so its signal data AND the
+    // TradingView interval (Daily→D / 4H→240) match the newly selected timeframe.
+    if (openModalName && typeof overlay !== 'undefined' && overlay.classList.contains('open')) {
+      openModal(openModalName);
+    }
+  }
+
+  // Restore the persisted timeframe before the first render
+  try {
+    const _savedTf = localStorage.getItem('swingpulse-tf');
+    if (_savedTf === 'D' || _savedTf === '4H') timeframe = _savedTf;
+  } catch (e) {}
+
+  // Wire the global header timeframe toggle (4H / Daily)
+  document.querySelectorAll('.tf-switch-btn').forEach(b => {
+    b.addEventListener('click', () => setTimeframe(b.dataset.tf));
   });
+  syncTfButtons();
 
   // Debounce helper — avoids re-rendering on every single keystroke
   function debounce(fn, ms) {
@@ -717,7 +731,7 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, pfRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()).catch(() => ({ data: [] })),
         fetch('/api/summary').then(r => r.json()).catch(() => ({})),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
@@ -727,7 +741,6 @@
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
         fetch('/api/backtest').then(r => r.json()).catch(() => null),
-        fetch('/api/portfolio?t=' + Date.now()).then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -739,7 +752,6 @@
       eventsData = evRes.events || [];
       namesData = namesRes || {};
       backtestData = btRes;
-      portfolioData = pfRes;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -754,23 +766,55 @@
       }
       document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
 
-      // Staleness warning: show banner if data date isn't today
-      const _now      = new Date();
-      // Use local date (not UTC) so SA users (UTC+2) don't see false stale warnings
-      const today     = [_now.getFullYear(), String(_now.getMonth()+1).padStart(2,'0'), String(_now.getDate()).padStart(2,'0')].join('-');
-      const dayOfWeek = _now.getDay(); // 0=Sun, 6=Sat (local)
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Staleness warning: compare data AGE against the CI schedule, not the
+      // calendar date — data from yesterday 22:00 is fine at 05:00 today.
+      // Cron starts (UTC, Mon–Fri): 04,08,12,16,20 — keep RUN_HOURS in sync
+      // with .github/workflows/publish.yml.
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
-      if (staleBanner && dateStr !== '--' && dateStr !== today) {
-        // On weekends the pipeline doesn't run — don't alarm the user
-        const msg = isWeekend
-          ? `Showing ${dateStr} data — markets are closed over the weekend`
-          : `Data is from ${dateStr} — next update due within 4 hours`;
+      let fetchedTime = null;
+      if (sumRes.fetched_at && sumRes.fetched_at.includes('T')) {
+        const fd = new Date(sumRes.fetched_at);
+        if (!isNaN(fd.getTime())) fetchedTime = fd.getTime();
+      }
+      // Most recent scheduled run that should have finished by now
+      function lastDueRunUTC(nowMs) {
+        const RUN_HOURS = [4, 8, 12, 16, 20];
+        const GRACE_MS  = 2.5 * 3600e3; // worst-case cold-cache run ~90 min + slack
+        const cutoff = nowMs - GRACE_MS;
+        for (let back = 0; back < 8; back++) {
+          const d = new Date(nowMs - back * 86400e3);
+          if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue; // weekend: no runs
+          for (let i = RUN_HOURS.length - 1; i >= 0; i--) {
+            const run = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), RUN_HOURS[i]);
+            if (run <= cutoff) return run;
+          }
+        }
+        return null;
+      }
+      if (staleBanner && staleText) {
+        const nowMs = Date.now();
+        const due   = lastDueRunUTC(nowMs);
+        let msg = '';
+        if (fetchedTime !== null) {
+          if (due !== null && fetchedTime < due) {
+            const ageH   = Math.round((nowMs - fetchedTime) / 3600e3);
+            const ageStr = ageH < 48 ? `${ageH}h` : `${Math.round(ageH / 24)} days`;
+            msg = `Data is ${ageStr} old (${dateStr}) — the scheduled update hasn't arrived yet`;
+          }
+        } else if (dateStr !== '--') {
+          // Fallback when fetched_at is missing: old calendar-date check
+          const _now  = new Date();
+          const today = [_now.getFullYear(), String(_now.getMonth()+1).padStart(2,'0'), String(_now.getDate()).padStart(2,'0')].join('-');
+          const isWeekend = _now.getDay() === 0 || _now.getDay() === 6;
+          if (dateStr !== today) {
+            msg = isWeekend
+              ? `Showing ${dateStr} data — markets are closed over the weekend`
+              : `Data is from ${dateStr} — an update may be overdue`;
+          }
+        }
         staleText.textContent = msg;
-        staleBanner.style.display = '';
-      } else if (staleBanner) {
-        staleBanner.style.display = 'none';
+        staleBanner.style.display = msg ? '' : 'none';
       }
 
       updateSignalHistory();
@@ -879,27 +923,25 @@
   function sigClass(code) {
     if (!code) return '';
     if (code === 'B1' || code === 'S1') return 'p1';
-    if (code === 'B7' || code === 'S7') return 'p2';
-    if (['B2','S2','B3','S3','B4','S4'].includes(code)) return 'p3';
-    if (['B5','S5','B6','S6'].includes(code)) return 'p4';
+    if (code === 'B2' || code === 'S2') return 'p2';
+    if (code === 'B3' || code === 'S3') return 'p3';
+    if (code === 'B4' || code === 'S4') return 'p4';
     return '';
   }
   function sigPriority(code) {
     if (code === 'B1' || code === 'S1') return 1;
-    if (code === 'B7' || code === 'S7') return 2;
-    if (code === 'B2' || code === 'S2') return 3;
-    if (code === 'B3' || code === 'S3') return 4;
-    if (code === 'B4' || code === 'S4') return 5;
-    if (code === 'B5' || code === 'S5') return 6;
-    if (code === 'B6' || code === 'S6') return 7;
-    return 8;
+    if (code === 'B2' || code === 'S2') return 2;
+    if (code === 'B3' || code === 'S3') return 3;
+    if (code === 'B4' || code === 'S4') return 4;
+    return 5;
   }
   function isReversal(code)  { return code === 'B1'  || code === 'S1'; }
-  function isLongestMa(code) { return code === 'B7'  || code === 'S7'; }
   function isFastMa(code)    { return code === 'B2'  || code === 'S2'; }
+  function isMidMa(code)     { return code === 'B3'  || code === 'S3'; }
+  function isLongestMa(code) { return code === 'B4'  || code === 'S4'; }
   function isKeyLevel(code)  { return false; }
 
-  const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4','B5','S5','B6','S6','B7','S7'];
+  const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4'];
 
   function isBuy(item) {
     const sig = item[f('primary_signal')];
@@ -962,39 +1004,6 @@
     const zone  = rsiZone(v);
     const label = opts.noLabel ? '' : ` <span class="rsi-zone-lbl">${rsiZoneLabel(v)}</span>`;
     return `<span class="rsi-badge rsi-${zone}">RSI ${v.toFixed(0)}${label}</span>`;
-  }
-  // Helper: price position relative to a macro MA for the active timeframe
-  function macroMaPos(item, period) {
-    const close  = parseFloat(item[f('close')]);
-    const maVal  = parseFloat(item[f(`ma_${period}`)]);
-    if (!close || isNaN(close) || isNaN(maVal)) return null;
-    return { close, maVal, pct: ((close - maVal) / maVal) * 100 };
-  }
-
-  // Is price above ALL available macro MAs on the active timeframe?
-  function isMacroBull(item) {
-    const avail = detectedMacroMas.map(p => macroMaPos(item, p)).filter(Boolean);
-    return avail.length > 0 && avail.every(r => r.close > r.maVal);
-  }
-  // Is price below ALL available macro MAs on the active timeframe?
-  function isMacroBear(item) {
-    const avail = detectedMacroMas.map(p => macroMaPos(item, p)).filter(Boolean);
-    return avail.length > 0 && avail.every(r => r.close < r.maVal);
-  }
-
-  function macroMaHtml(item) {
-    const pills = detectedMacroMas.map(p => {
-      const pos = macroMaPos(item, p);
-      if (!pos) return '';
-      const { pct } = pos;
-      const near  = Math.abs(pct) <= 2;
-      const above = pct >= 0;
-      const cls   = near ? 'macro-near' : above ? 'macro-above' : 'macro-below';
-      const arrow = near ? '~' : above ? '▲' : '▼';
-      const label = p >= 1000 ? `MA${p/1000}k` : `MA${p}`;
-      return `<span class="macro-ma-pill ${cls}">${arrow}${label} <span class="macro-ma-pct">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></span>`;
-    }).filter(Boolean).join('');
-    return pills ? `<div class="macro-ma-row">${pills}</div>` : '';
   }
   // Wide bar row for the multi-TF panel
   function rsiBarRow(label, rsiVal) {
@@ -1151,44 +1160,6 @@
     }
   }
 
-  // ── Portfolio Summary Card ─────────────────────────────────────────────
-  function renderPortfolioCard() {
-    const card  = document.getElementById('portfolioSummaryCard');
-    const stats = document.getElementById('portfolioCardStats');
-    if (!card || !stats) return;
-    const pf = portfolioData || {};
-    const xmPositions = pf.positions || [];
-    if (!xmPositions.length) { card.style.display = 'none'; return; }
-    card.style.display = '';
-
-    const pfSumm = pf.summary || {};
-    const equity = pfSumm.equity || 0;
-    const floatPL = pfSumm.floating_pl || 0;
-    const sym = 'R';
-
-    const best  = xmPositions.reduce((a, b) => (a.profit || 0) > (b.profit || 0) ? a : b);
-    const worst = xmPositions.reduce((a, b) => (a.profit || 0) < (b.profit || 0) ? a : b);
-
-    stats.innerHTML = `
-      <div class="port-stat">
-        <span class="port-val">${xmPositions.length}</span>
-        <span class="port-lbl">Open</span>
-      </div>
-      <div class="port-stat">
-        <span class="port-val ${floatPL >= 0 ? 'port-pos' : 'port-neg'}">${floatPL >= 0 ? '+' : ''}${sym}${Math.abs(floatPL).toLocaleString('en',{minimumFractionDigits:2})}</span>
-        <span class="port-lbl">Float P/L</span>
-      </div>
-      ${best.profit > 0 ? `<div class="port-stat">
-        <span class="port-val port-pos">${best.item} +${sym}${best.profit.toFixed(2)}</span>
-        <span class="port-lbl">Best</span>
-      </div>` : ''}
-      ${worst.profit < 0 && worst.item !== best.item ? `<div class="port-stat">
-        <span class="port-val port-neg">${worst.item} -${sym}${Math.abs(worst.profit).toFixed(2)}</span>
-        <span class="port-lbl">Worst</span>
-      </div>` : ''}
-    `;
-  }
-
   function renderDashboard() {
     const s = computeSummary();
     const total = s.total || 1;
@@ -1268,9 +1239,7 @@
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
-    renderMacroSrFeed();
     renderThemesCard();
-    renderAIDashboardCard();
   }
 
   // ── Tech Themes Dashboard Card ─────────────────────────────────────────
@@ -1387,6 +1356,9 @@
   }
 
   function renderAIDashboardCard() {
+    // removed
+  }
+  function _renderAIDashboardCard_REMOVED() {
     const el = document.getElementById('aiUniverseCard');
     if (!el) return;
 
@@ -1548,7 +1520,7 @@
     if (expandBtn) {
       expandBtn.addEventListener('click', () => {
         el._aiExpanded = !el._aiExpanded;
-        renderAIDashboardCard();
+        _renderAIDashboardCard_REMOVED();
       });
     }
   }
@@ -1593,12 +1565,14 @@
       } else {
         key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
       }
-      if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0 };
+      if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0, rvolSum: 0, rvolN: 0 };
       const t = effectiveTrend(item);
       if      (t === 'UPTREND')   dimMap[key].bull++;
       else if (t === 'DOWNTREND') dimMap[key].bear++;
       else                        dimMap[key].neutral++;
       if (item[f('primary_signal')]) dimMap[key].signals++;
+      const rv = rvol(item);
+      if (rv !== null) { dimMap[key].rvolSum += rv; dimMap[key].rvolN++; }
     }
 
     // Sort: most bullish first
@@ -1633,6 +1607,10 @@
                      : 'gp-row-mixed';
       const isActive = activeKey === name ? ' gp-row-selected' : '';
       const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} active buy/sell signal${c.signals>1?'s':''} in this group">${c.signals}</span>` : '';
+      const avgRvol  = c.rvolN ? c.rvolSum / c.rvolN : null;
+      const rvolCell = avgRvol === null
+        ? `<span class="gp-rvol gp-rvol-na" title="No volume reported for this group">—</span>`
+        : `<span class="gp-rvol ${avgRvol >= 1 ? 'gp-rvol-hot' : ''}" title="Average daily volume vs each instrument's own average across this group (${c.rvolN} with volume)">${fmtRvol(avgRvol)}</span>`;
       return `
         <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}">
           <div class="gp-name">${name}${sigDot}</div>
@@ -1641,6 +1619,7 @@
             <div class="gp-bar-neut" style="width:${neutPct}%"></div>
             <div class="gp-bar-bear" style="width:${bearPct}%"></div>
           </div>
+          ${rvolCell}
           <div class="gp-stats">
             <span class="gp-bull">${bullPct}%↑</span>
             <span class="gp-bear">${bearPct}%↓</span>
@@ -1916,9 +1895,7 @@
     const tfGrid = document.getElementById('mpTfGrid');
     if (tfGrid && allData.length) {
       const tfs = [
-        { code: 'M',  field: 'm_trend_direction',  label: 'M'  },
-        { code: 'W',  field: 'w_trend_direction',  label: 'W'  },
-        { code: 'D',  field: 'trend_direction',    label: 'D'  },
+        { code: 'D',  field: 'trend_direction',    label: 'Daily' },
         { code: '4H', field: 'h4_trend_direction', label: '4H' },
       ];
       tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
@@ -1949,197 +1926,13 @@
 
   function rebuildCharts() {
     const c = getThemeColors();
-    const s = computeSummary();
-
-    // TF badges
-    const tfLabel = timeframe === '4H' ? '4H' : timeframe === 'W' ? 'Weekly' : timeframe === 'M' ? 'Monthly' : 'Daily';
-    ['chartTfBadge1','chartTfBadge2','chartTfBadge3'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.textContent = tfLabel; el.dataset.tf = timeframe; }
-    });
 
     Object.values(charts).forEach(ch => { if (ch && ch.destroy) ch.destroy(); });
     charts = {};
     Chart.defaults.color = c.text;
     Chart.defaults.borderColor = c.grid;
 
-    // ── 1. Market Strength Gauge ─────────────────────────────────────
     renderGauge();
-
-    // ── 2. Signal Breakdown — bucket per signal level (1=reversal, 4=key level) ─
-    // Buy column counts BP* signals, Sell column counts SP* signals, grouped by level.
-    const sigBuy  = { '1': 0, '2': 0, '3': 0, '4': 0 };
-    const sigSell = { '1': 0, '2': 0, '3': 0, '4': 0 };
-    allData.forEach(item => {
-      const sig = item[f('primary_signal')] || '';
-      if (!ALL_SIGNAL_CODES.includes(sig)) return;
-      const cls = sigClass(sig);
-      const level = cls.replace('p', '');
-      if (!['1','2','3','4'].includes(level)) return;
-      if (isBuy(item))       sigBuy[level]++;
-      else if (isSell(item)) sigSell[level]++;
-    });
-    // Display labels: BP1/SP1 = "1 (Reversal)", BP3/SP3 = "3 (LongMA)", etc.
-    const sigLabels = ['Reversal', 'LongMA', 'FastMA', 'KeyLvl'];
-    const sigKeys   = ['1','2','3','4'];
-    const barCtx = document.getElementById('signalBar').getContext('2d');
-    charts.signalBar = new Chart(barCtx, {
-      type: 'bar',
-      data: {
-        labels: sigLabels,
-        datasets: [
-          { label: 'Buy',  data: sigKeys.map(k => sigBuy[k]),  backgroundColor: 'rgba(16,185,129,.75)', hoverBackgroundColor: 'rgba(16,185,129,1)',  borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
-          { label: 'Sell', data: sigKeys.map(k => sigSell[k]), backgroundColor: 'rgba(239,68,68,.75)',  hoverBackgroundColor: 'rgba(239,68,68,1)',   borderRadius: { topLeft:5, topRight:5 }, barPercentage:.55, categoryPercentage:.7 },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#2e2e2d', titleFont: { size: 12, weight: '700' },
-            bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
-            callbacks: {
-              title: ctx => ctx[0].label + ' Signals',
-              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}`,
-              afterBody: ctx => {
-                const lbl = ctx[0].label;
-                const b = sigBuy[lbl], sv = sigSell[lbl], total = b + sv;
-                if (!total) return [];
-                const bias = b > sv ? '🟢 Buy bias' : sv > b ? '🔴 Sell bias' : '⚪ Even split';
-                return ['', `Total: ${total}`, bias];
-              }
-            }
-          }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: c.text, font: { size: 11, weight: '700' } }, border: { color: c.grid } },
-          y: { beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.muted, font: { size: 10 }, stepSize: 1 }, border: { color: 'transparent' } },
-        },
-        onClick(e, els) {
-          if (!els.length) return;
-          const sigType  = sigLabels[els[0].index];
-          const isBuyBar = els[0].datasetIndex === 0;
-          const hint = document.getElementById('sigBarHint');
-
-          // Flash feedback
-          if (hint) {
-            hint.textContent = `→ Filtering: ${isBuyBar ? 'Buy' : 'Sell'} ${sigType}`;
-            hint.style.color = isBuyBar ? 'var(--buy)' : 'var(--sell)';
-            setTimeout(() => { hint.textContent = 'Tap a bar → jump to Scanner tab'; hint.style.color = ''; }, 2000);
-          }
-
-          // Apply filter + navigate to scanner
-          activeScannerFilter = sigType;
-          // Update direction toggle
-          const isBuyFilter = sigType === 'buy';
-          const isSellFilter = sigType === 'sell';
-          document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-          if (isBuyFilter) document.querySelector('.sig-dir-btn[data-filter="buy"]')?.classList.add('active');
-          else if (isSellFilter) document.querySelector('.sig-dir-btn[data-filter="sell"]')?.classList.add('active');
-          else document.querySelector('.sig-dir-btn[data-filter="all"]')?.classList.add('active');
-          // Activate signal type in sheet if applicable
-          document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === sigType));
-          const sigBtn = document.getElementById('sigTypeBtn');
-          if (sigBtn) sigBtn.classList.toggle('active', sigType.match(/^[BS]P\d$/));
-          navigateToTab('scanner');
-          buildScannerCards();
-        },
-        animation: { duration: 500 },
-      },
-    });
-
-    // ── 3. Signals by Sector — clickable drill-down ───────────────────
-    const sectorMap = {};
-    allData.forEach(item => {
-      const grp = item.group || 'Other';
-      if (!sectorMap[grp]) sectorMap[grp] = { buy: 0, sell: 0, neutral: 0, items: [] };
-      if (isBuy(item))       { sectorMap[grp].buy++;     sectorMap[grp].items.push({ ...item, _dir: 'buy' });  }
-      else if (isSell(item)) { sectorMap[grp].sell++;    sectorMap[grp].items.push({ ...item, _dir: 'sell' }); }
-      else                   { sectorMap[grp].neutral++; }
-    });
-
-    // Sort: groups with most signals first
-    const sectorLabels = Object.keys(sectorMap).sort((a, b) => {
-      const aScore = sectorMap[a].buy + sectorMap[a].sell;
-      const bScore = sectorMap[b].buy + sectorMap[b].sell;
-      return bScore - aScore;
-    });
-
-    const sectorCtx = document.getElementById('sectorChart').getContext('2d');
-    charts.sector = new Chart(sectorCtx, {
-      type: 'bar',
-      data: {
-        labels: sectorLabels,
-        datasets: [
-          { label: 'Buy',     data: sectorLabels.map(k => sectorMap[k].buy),     backgroundColor: 'rgba(16,185,129,.8)',  hoverBackgroundColor: 'rgba(16,185,129,1)',  borderRadius: 3, barPercentage:.65, categoryPercentage:.7 },
-          { label: 'Sell',    data: sectorLabels.map(k => sectorMap[k].sell),    backgroundColor: 'rgba(239,68,68,.75)',  hoverBackgroundColor: 'rgba(239,68,68,1)',   borderRadius: 3, barPercentage:.65, categoryPercentage:.7 },
-          { label: 'Neutral', data: sectorLabels.map(k => sectorMap[k].neutral), backgroundColor: 'rgba(71,85,105,.45)', hoverBackgroundColor: 'rgba(71,85,105,.7)',  borderRadius: 3, barPercentage:.65, categoryPercentage:.7 },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-        plugins: {
-          legend: { display: true, position: 'bottom', labels: { color: c.text, usePointStyle: true, pointStyleWidth: 8, font: { size: 10 }, padding: 10 } },
-          tooltip: {
-            backgroundColor: '#2e2e2d', titleFont: { size: 11, weight: '700' },
-            bodyFont: { size: 11 }, padding: 10, cornerRadius: 8,
-            callbacks: {
-              afterBody: ctx => {
-                const grp = sectorLabels[ctx[0].dataIndex];
-                const items = sectorMap[grp]?.items || [];
-                const buys  = items.filter(i => i._dir === 'buy').map(i => i.instrument_name);
-                const sells = items.filter(i => i._dir === 'sell').map(i => i.instrument_name);
-                const lines = [];
-                if (buys.length)  lines.push('🟢 ' + buys.slice(0,4).join(', ') + (buys.length > 4 ? '…' : ''));
-                if (sells.length) lines.push('🔴 ' + sells.slice(0,4).join(', ') + (sells.length > 4 ? '…' : ''));
-                return lines.length ? ['', ...lines] : [];
-              }
-            }
-          }
-        },
-        scales: {
-          x: { stacked: true, beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.muted, font: { size: 10 } }, border: { color: 'transparent' } },
-          y: { stacked: true, grid: { display: false }, ticks: { color: c.text, font: { size: 10 } }, border: { color: c.grid } },
-        },
-        onClick(e, els) {
-          if (!els.length) return;
-          const grp      = sectorLabels[els[0].index];
-          const secData  = sectorMap[grp];
-          const drill    = document.getElementById('sectorDrill');
-          const sdName   = document.getElementById('sdName');
-          const sdChips  = document.getElementById('sdChips');
-          const sdClose  = document.getElementById('sdClose');
-
-          // Toggle off if same group clicked again
-          if (drill.style.display !== 'none' && sdName.dataset.grp === grp) {
-            drill.style.display = 'none';
-            return;
-          }
-
-          sdName.textContent = grp;
-          sdName.dataset.grp = grp;
-
-          const activeItems = secData.items;
-          if (activeItems.length) {
-            sdChips.innerHTML = activeItems.map(item =>
-              `<span class="sd-chip sd-chip-${item._dir}" data-act="openModal" data-arg="${item.instrument_name}" data-stop="1">${item.instrument_name} ${item._dir === 'buy' ? '▲' : '▼'}</span>`
-            ).join('');
-          } else {
-            sdChips.innerHTML = '<span style="color:var(--text-muted);font-size:.68rem">No active signals</span>';
-          }
-
-          drill.style.display = 'block';
-          if (sdClose) sdClose.onclick = () => { drill.style.display = 'none'; };
-
-          // Also navigate to Scanner filtered to this group
-          navigateToTab('scanner');
-          const groupSel = document.getElementById('scannerGroupFilter');
-          if (groupSel) { groupSel.value = mapGroup(grp); updateFilterBadge(); buildScannerCards(); }
-        },
-        animation: { duration: 450 },
-      },
-    });
   }
 
   // ── Heatmap ──────────────────────────────────────────────────────────
@@ -2259,7 +2052,7 @@
           <button class="hm-detail-btn" data-act="openModal" data-arg="${item.instrument_name}" data-stop="1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
-          <button class="hm-detail-btn hm-star-btn star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">
+          <button class="hm-detail-btn hm-star-btn star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Unmark as analyzed' : 'Mark as analyzed'}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="${userStarred.has(item.instrument_name) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </button>
         </div>
@@ -2289,11 +2082,6 @@
         badgeCls = buy ? `badge-${sCls}` : (sCls === 'p1' ? 'badge-sell-p1' : 'badge-sell-p2');
       }
 
-      const conf = item[f('signal_confidence')] || '';
-      const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
-      const align = item.tf_alignment || '';
-      const alignBadge = align ? `<span class="badge-alignment ${alignCls(align)}">${align}</span>` : '';
-
       // ROC momentum
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
@@ -2309,13 +2097,11 @@
       const volSpike = item[f('volume_spike_flag')] === 'yes';
 
       return `<div class="signal-feed-item feed-${buy ? 'buy' : 'sell'}" data-act="openModal" data-arg="${item.instrument_name}">
-        <span class="feed-badge ${badgeCls}">${sig}</span>
         <div class="feed-info">
-          <div class="feed-name">${item.instrument_name} ${confBadge} ${alignBadge} ${badge3TF(item)} ${volSpike ? '<span class="badge-confidence" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : ''}</div>
+          <div class="feed-name">${item.instrument_name} ${volSpike ? '<span class="badge-confidence" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : ''}</div>
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-            ${rsiHtml(item[f('rsi')], {noLabel:false})}
             ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/${maMaxPairs}</span></span>` : ''}
           </div>
         </div>
@@ -2340,7 +2126,7 @@
       groups[a].push(item);
     });
 
-    const order = ['Quad Bull', 'Triple Bull', 'Double Bull', 'Mixed', 'Counter-trend', 'Double Bear', 'Triple Bear', 'Quad Bear'];
+    const order = ['Aligned Bull', 'Mixed', 'Counter-trend', 'Aligned Bear'];
     const labels = order.filter(k => groups[k]);
 
     const colorVar = label =>
@@ -2419,104 +2205,6 @@
     `;
   }
 
-  // ── Macro S/R Event Feed (Dashboard) ──────────────────────────────────
-  function renderMacroSrFeed() {
-    const card = document.getElementById('macroSrCard');
-    const feed = document.getElementById('macroSrFeed');
-    const countEl = document.getElementById('macroSrCount');
-    if (!card || !feed) return;
-
-    const touched = allData
-      .filter(d => d.macro_sr_signal && d.macro_sr_signal !== '')
-      .sort((a, b) => {
-        const strDiff = (parseInt(b.macro_sr_strength) || 0) - (parseInt(a.macro_sr_strength) || 0);
-        if (strDiff !== 0) return strDiff;
-        if (a.macro_sr_signal !== b.macro_sr_signal) return a.macro_sr_signal === 'support' ? -1 : 1;
-        return 0;
-      });
-
-    if (!touched.length) {
-      card.style.display = 'none';
-      return;
-    }
-    card.style.display = '';
-    if (countEl) countEl.textContent = touched.length;
-
-    const supCount       = touched.filter(d => d.macro_sr_signal === 'support').length;
-    const resCount       = touched.filter(d => d.macro_sr_signal === 'resistance').length;
-    const confluenceCount = touched.filter(d => (parseInt(d.macro_sr_strength) || 0) >= 3).length;
-
-    // Summary pills — clickable to filter scanner
-    const summaryEl = document.getElementById('macroSrSummary');
-    if (summaryEl) {
-      summaryEl.innerHTML =
-        `<span class="macro-sr-sum-sup msr-sum-btn" data-msr-filter="macro_sr_sup" title="Show support touches in scanner">▲ ${supCount} support</span>` +
-        `<span class="macro-sr-sum-res msr-sum-btn" data-msr-filter="macro_sr_res" title="Show resistance touches in scanner">▼ ${resCount} resist</span>` +
-        (confluenceCount ? `<span class="macro-sr-sum-conf msr-sum-btn" data-msr-filter="confluence" title="Show ×3/×4 confluence events in scanner">⚡ ${confluenceCount} confluence</span>` : '');
-
-      summaryEl.querySelectorAll('.msr-sum-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-          e.stopPropagation();
-          const fil = btn.dataset.msrFilter;
-          // Route to scanner with chip filter active
-          const chip = document.querySelector(`.sig-ctx-chip[data-filter="${fil === 'confluence' ? 'macro_sr_sup' : fil}"]`);
-          if (chip) {
-            activeScannerFilter = fil === 'confluence' ? 'macro_sr_sup' : fil;
-            document.querySelectorAll('.sig-ctx-chip').forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-          }
-          navigateToTab('scanner');
-          buildScannerCards();
-          updateScannerCtxStrip();
-        });
-      });
-    }
-
-    // Feed rows — clicking opens modal
-    feed.innerHTML = touched.map(item => {
-      const sig    = item.macro_sr_signal;
-      const lvl    = item.macro_sr_level || '';
-      const str    = parseInt(item.macro_sr_strength) || 0;
-      const isSup  = sig === 'support';
-      const isConf = str >= 4;
-      const isMulti = str >= 3;
-
-      const side = isSup
-        ? `<span class="msr-side msr-sup">▲ SUP</span>`
-        : `<span class="msr-side msr-res">▼ RES</span>`;
-
-      const lvlBadge = isConf
-        ? `<span class="msr-lvl msr-lvl-conf">⚡ ALL 4</span>`
-        : isMulti
-          ? `<span class="msr-lvl msr-lvl-multi">⚡ ${lvl} ×${str}</span>`
-          : `<span class="msr-lvl">${lvl}</span>`;
-
-      const close    = parseFloat(item.close);
-      const priceStr = close && !isNaN(close) ? formatPrice(close) : '';
-      const align    = item.tf_alignment || '';
-      const alignBadge = align ? `<span class="msr-align ${alignCls(align)}">${align}</span>` : '';
-      const rowCls   = isConf ? 'msr-row msr-row-conf' : isMulti ? 'msr-row msr-row-multi' : 'msr-row';
-
-      return `<div class="${rowCls}" data-name="${item.instrument_name}">
-        <div class="msr-left">
-          ${side}
-          <span class="msr-name">${item.instrument_name}</span>
-          <span class="msr-group">${item.group || ''}</span>
-        </div>
-        <div class="msr-right">
-          ${lvlBadge}
-          ${priceStr ? `<span class="msr-price">${priceStr}</span>` : ''}
-          ${alignBadge}
-        </div>
-      </div>`;
-    }).join('');
-
-    // Wire row clicks directly — more reliable than data-act delegation
-    feed.querySelectorAll('.msr-row').forEach(row => {
-      row.addEventListener('click', () => openModal(row.dataset.name));
-    });
-  }
-
   // ── Compression Feed (Dashboard) ─────────────────────────────────────
   function renderCompressionFeed() {
     const card = document.getElementById('compressionCard');
@@ -2577,14 +2265,13 @@
   // ── Feature 4: Multi-TF Alignment badge ─────────────────────────────
   function isTripleAligned(item) {
     const a = item.tf_alignment || '';
-    return a === 'Quad Bull' || a === 'Quad Bear' || a === 'Triple Bull' || a === 'Triple Bear';
+    return a === 'Aligned Bull' || a === 'Aligned Bear';
   }
   function badge3TF(item) {
     if (!isTripleAligned(item)) return '';
     const a = item.tf_alignment || '';
     const bull = a.includes('Bull');
-    const isQuad = a.startsWith('Quad');
-    return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">${isQuad ? '4TF✓' : '3TF✓'}</span>`;
+    return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">2TF✓</span>`;
   }
 
   // Trend maturity badge based on trend run days
@@ -2642,18 +2329,12 @@
     const sigDesc = {
       B1: `trend reversal — price crossed above all MAs (MA${maShortest}–MA${maLongest})`,
       S1: `trend reversal — price crossed below all MAs (MA${maShortest}–MA${maLongest})`,
-      B2: `pullback bounce off MA${maShortest} — first pullback level`,
-      S2: `rejection at MA${maShortest} — first rally level`,
-      B3: 'pullback bounce off MA100',
-      S3: 'rejection at MA100',
-      B4: 'pullback bounce off MA200',
-      S4: 'rejection at MA200',
-      B5: 'pullback bounce off MA300',
-      S5: 'rejection at MA300',
-      B6: 'pullback bounce off MA400',
-      S6: 'rejection at MA400',
-      B7: `deep pullback bounce off MA${maLongest} — anchor level`,
-      S7: `deep rally rejection at MA${maLongest} — anchor level`,
+      B2: `pullback recovery — price crossed back above MA${maShortest}`,
+      S2: `rally recovery — price crossed back below MA${maShortest}`,
+      B3: `mid-ribbon bounce off MA250`,
+      S3: `mid-ribbon rejection at MA250`,
+      B4: `anchor bounce off MA${maLongest}`,
+      S4: `anchor rejection at MA${maLongest}`,
     };
     const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
@@ -2707,7 +2388,6 @@
     const sector = document.getElementById('scannerSectorFilter').value;
     const trend = document.getElementById('scannerTrendFilter').value;
     const alignFilter = document.getElementById('scannerAlignFilter').value;
-    const confFilter = document.getElementById('scannerConfFilter').value;
     const today = new Date(); today.setHours(0,0,0,0);
 
     let filtered = allData;
@@ -2727,11 +2407,6 @@
     else if (alignFilter === 'counter') filtered = filtered.filter(d => d.tf_alignment === 'Counter-trend');
     else if (alignFilter === 'mixed')   filtered = filtered.filter(d => d.tf_alignment === 'Mixed');
 
-    // ── Confidence filter ──
-    if (confFilter === 'high')    filtered = filtered.filter(d => d[f('signal_confidence')] === 'high');
-    else if (confFilter === 'highstd') filtered = filtered.filter(d => ['high','standard'].includes(d[f('signal_confidence')]));
-    else if (confFilter === 'low') filtered = filtered.filter(d => d[f('signal_confidence')] === 'low');
-
     // ── RSI zone filter (uses active timeframe RSI) ──
     const rsiSel = document.getElementById('scannerRsiFilter');
     const rsiVal = rsiSel ? rsiSel.value : 'all';
@@ -2739,34 +2414,15 @@
       filtered = filtered.filter(d => rsiZone(d[f('rsi')]) === rsiVal);
     }
 
-    // ── Macro MA filter (uses active timeframe via f()) ──
-    const macroMaSel = document.getElementById('scannerMacroMaFilter');
-    const macroMaVal = macroMaSel ? macroMaSel.value : 'all';
-    if (macroMaVal !== 'all') {
-      filtered = filtered.filter(item => {
-        if (macroMaVal === 'above_all') return isMacroBull(item);
-        if (macroMaVal === 'below_all') return isMacroBear(item);
-        const [side, period] = macroMaVal.split('_');
-        const pos = macroMaPos(item, parseInt(period));
-        if (!pos) return false;
-        if (side === 'above') return pos.close > pos.maVal;
-        if (side === 'below') return pos.close < pos.maVal;
-        if (side === 'near')  return Math.abs(pos.pct) <= 2;
-        return true;
-      });
-    }
-
     // ── Chip filter (skip when user is searching by name) ──
     if (!search) {
       if (activeScannerFilter === 'buy')          filtered = filtered.filter(isBuy);
       else if (activeScannerFilter === 'sell')    filtered = filtered.filter(isSell);
-      else if (activeScannerFilter === 'macro_bull') filtered = filtered.filter(isMacroBull);
-      else if (activeScannerFilter === 'macro_bear') filtered = filtered.filter(isMacroBear);
-      else if (activeScannerFilter === 'macro_sr_sup') filtered = filtered.filter(d => d.macro_sr_signal === 'support');
-      else if (activeScannerFilter === 'macro_sr_res') filtered = filtered.filter(d => d.macro_sr_signal === 'resistance');
       else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
       else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
       else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
+      else if (activeScannerFilter === 'analyzed')   filtered = filtered.filter(d => userStarred.has(d.instrument_name));
+      else if (activeScannerFilter === 'unanalyzed') filtered = filtered.filter(d => !userStarred.has(d.instrument_name));
       else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
       else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
       else if (activeScannerFilter === 'today') {
@@ -2777,13 +2433,11 @@
         });
       } else if (activeScannerFilter === 'best') {
         filtered = filtered.filter(d => {
-          const conf = d[f('signal_confidence')] || '';
           const align = d.tf_alignment || '';
           const t = effectiveTrend(d);
-          const goodConf = conf === 'high' || conf === 'standard';
           const alignedBull = align.includes('Bull') && t === 'UPTREND';
           const alignedBear = align.includes('Bear') && t === 'DOWNTREND';
-          return goodConf && (alignedBull || alignedBear);
+          return alignedBull || alignedBear;
         });
       } else if (activeScannerFilter !== 'all') {
         // Match exact signal code (e.g. BP1, SP2)
@@ -2829,14 +2483,6 @@
       filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1d)||0) - (parseFloat(a.pct_1d)||0));
     } else if (scannerSort === 'pct_1d_asc') {
       filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1d)||0) - (parseFloat(b.pct_1d)||0));
-    } else if (scannerSort === 'pct_1w_desc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1w)||0) - (parseFloat(a.pct_1w)||0));
-    } else if (scannerSort === 'pct_1w_asc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1w)||0) - (parseFloat(b.pct_1w)||0));
-    } else if (scannerSort === 'pct_1m_desc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1m)||0) - (parseFloat(a.pct_1m)||0));
-    } else if (scannerSort === 'pct_1m_asc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1m)||0) - (parseFloat(b.pct_1m)||0));
     } else if (scannerSort === 'pct_1y_desc') {
       filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1y)||0) - (parseFloat(a.pct_1y)||0));
     } else if (scannerSort === 'pct_1y_asc') {
@@ -2863,12 +2509,7 @@
 
     if (summaryEl) {
       summaryEl.innerHTML = filtered.length
-        ? `<span class="sig-sum-total" data-sum-filter="all" title="Clear filters">${filtered.length} shown</span>` +
-          (buyCount  ? `<span class="sig-sum-item sig-sum-buy" data-sum-filter="buy" title="Show only Buy">${buyCount} Buy</span>` : '') +
-          (sellCount ? `<span class="sig-sum-item sig-sum-sell" data-sum-filter="sell" title="Show only Sell">${sellCount} Sell</span>` : '') +
-          (sqzCount  ? `<span class="sig-sum-item sig-sum-sqz" data-sum-filter="squeeze" title="Show only Squeeze">${sqzCount} Squeeze</span>` : '') +
-          (todayCount ? `<span class="sig-sum-item sig-sum-today" data-sum-filter="today" title="Show only Today">${todayCount} Today</span>` : '') +
-          (klCount   ? `<span class="sig-sum-item" data-sum-filter="keylvl" title="Show only Key Level" style="background:var(--watch-soft);color:var(--watch)">${klCount} Key Lvl</span>` : '')
+        ? `<span class="sig-sum-total" data-sum-filter="all" title="Clear filters">${filtered.length} shown</span>`
         : '';
     }
 
@@ -2880,20 +2521,12 @@
     const makeCard = (item, i) => {
       const t = effectiveTrend(item);
       const sig = item[f('primary_signal')] || '';
-      const conf = item[f('signal_confidence')] || '';
       const _aiScan  = isAI(item.instrument_name);
       const isBuySignal  = isBuy(item);
       const isSellSignal = isSell(item);
-      const confLabel  = conf === 'high' ? ' (HIGH)' : conf === 'low' ? ' (LOW)' : '';
       const lastSigType = item[f('last_signal_type')] || '';
       const lastSigAge  = signalAge(item[f('last_signal_date')] || '').label;
       const lastIsBuy   = lastSigType.startsWith('B');
-      const stripLabel = sig    ? (isBuySignal ? 'BUY '  + sig + confLabel : 'SELL ' + sig + confLabel)
-                       : lastSigType ? `LAST ${lastSigType}${lastSigAge ? ' · ' + lastSigAge : ''}`
-                       : '';
-      const stripCls   = sig            ? (isBuySignal ? 'strip-buy' : 'strip-sell')
-                       : lastSigType     ? 'strip-last'
-                       : '';
       const runDays = parseInt(item[f('trend_run_days')]) || 0;
       const barWidth = Math.min(runDays / 100 * 100, 100);
       const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
@@ -2905,15 +2538,9 @@
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const starred = userStarred.has(item.instrument_name);
-      const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const sigDate = item[f('last_signal_date')] || item[f('date')] || '';
       const age = signalAge(sigDate);
       const pct = pctFromMa(item);
-      const macroBull = isMacroBull(item);
-      const macroBear = isMacroBear(item);
-      const macroSrSig = item.macro_sr_signal || '';
-      const macroSrLvl = item.macro_sr_level || '';
-      const macroSrStr = parseInt(item.macro_sr_strength) || 0;
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
@@ -2926,19 +2553,10 @@
       };
       const perfRow = [
         perfPill(item.pct_1d, '1D'),
-        perfPill(item.pct_1w, '1W'),
-        perfPill(item.pct_1m, '1M'),
         perfPill(item.pct_1y, '1Y'),
       ].filter(Boolean).join('');
 
-      // Radar conviction chip — visible on every scanner card so you can rank
-      // by conviction without leaving the scanner tab
-      const _radarScore = radarConfluenceScore(item);
-      const _radarTier  = scoreTier(_radarScore);
-      const radarChip = `<span class="scanner-radar-chip radar-tier-${_radarTier}" title="Radar confluence: ${_radarScore}/100 — ${_radarTier}. Open card for breakdown.">${_radarScore}</span>`;
-
       return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
-        ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="scanner-top">
           <div>
             <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${compression ? ' <span class="compression-alert">SQZ</span>' : ''}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-spike-indicator">VOL</span>' : ''}</div>
@@ -2947,39 +2565,32 @@
             <div class="scanner-group">${item.group || ''}${item.sector ? ' / ' + item.sector : ''}</div>
           </div>
           <div class="scanner-actions">
-            ${radarChip}
             ${tvBtn(item.instrument_name, '')}
             ${shareBtn(item.instrument_name)}
-            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove from watchlist' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
+            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}" data-act="toggleStar" data-stop="1">★</button>
+            <div class="card-signal-box csb-${t === 'UPTREND' ? 'up' : t === 'DOWNTREND' ? 'dn' : 'neu'}${(isBuySignal && t === 'UPTREND') ? ' csb-buy' : (isSellSignal && t === 'DOWNTREND') ? ' csb-sell' : ''}">
+              <span class="csb-trend">${t}</span>
+              <span class="csb-action">${(isBuySignal && t === 'UPTREND') ? 'BUY' : (isSellSignal && t === 'DOWNTREND') ? 'SELL' : ''}</span>
+            </div>
           </div>
         </div>
-        <div class="scanner-price" style="color:${isBuySignal ? 'var(--buy)' : isSellSignal ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
+        <div class="scanner-price" style="color:${(isBuySignal && t === 'UPTREND') ? 'var(--buy)' : (isSellSignal && t === 'DOWNTREND') ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
         ${(() => { const p = signalPerf(item.instrument_name); return p ? `<div class="scanner-since-sig ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">Since ${p.signal}: ${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</div>` : ''; })()}
         ${perfRow ? `<div class="perf-row">${perfRow}</div>` : ''}
+        ${(() => {
+          const rv = rvol(item);
+          if (rv === null) return '';
+          const cls = rv >= 1.5 ? 'rvol-hot' : rv >= 1 ? 'rvol-up' : 'rvol-dn';
+          return `<div class="scanner-rvol ${cls}" title="Today's volume vs its ${timeframe === '4H' ? '4H' : 'daily'} rolling average — ${fmtRvol(rv)} of normal">
+            <span class="rvol-label">VOL</span>${fmtRvol(rv)}<span class="rvol-suffix"> avg</span>
+          </div>`;
+        })()}
         ${(() => {
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
           const extras = [];
           const push = (p, html) => { if (html) extras.push({ p, html }); };
-          push(100, sig ? `<span class="sig-badge ${sigClass(sig)}">${sig}</span>` : '');
-          // Macro SR confluence is the most actionable rare signal — surface above conf/align
-          if (macroSrSig === 'support') {
-            if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-sup" title="ALL 4 macro MAs tested as support simultaneously">⚡ CONFLUENCE SUP</span>`);
-            else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-sup" title="${macroSrStr} macro MAs tested as support simultaneously">⚡ SUP ×${macroSrStr}</span>`);
-            else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-sup" title="Today's low tested ${macroSrLvl} as support">SUP ${macroSrLvl}</span>`);
-          }
-          if (macroSrSig === 'resistance') {
-            if (macroSrStr >= 4)      push(98, `<span class="scanner-tag macro-sr-badge macro-sr-confluence-res" title="ALL 4 macro MAs tested as resistance simultaneously">⚡ CONFLUENCE RES</span>`);
-            else if (macroSrStr >= 3) push(95, `<span class="scanner-tag macro-sr-badge macro-sr-multi-res" title="${macroSrStr} macro MAs tested as resistance simultaneously">⚡ RES ×${macroSrStr}</span>`);
-            else                      push(70, `<span class="scanner-tag macro-sr-badge macro-sr-touch-res" title="Today's high tested ${macroSrLvl} as resistance">RES ${macroSrLvl}</span>`);
-          }
-          push(85, conf ? confBadge : '');
-          push(80, align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : '');
-          push(75, badge3TF(item));
-          push(65, macroBull ? '<span class="scanner-tag macro-sr-badge macro-sr-bull" title="Price above all macro MAs">MACRO BULL</span>' : '');
-          push(65, macroBear ? '<span class="scanner-tag macro-sr-badge macro-sr-bear" title="Price below all macro MAs">MACRO BEAR</span>' : '');
           push(60, item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : '');
           push(55, compression ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE</span>' : '');
-          push(50, item.key_level_touched_today === 'yes' ? '<span class="scanner-tag" style="background:var(--watch-soft);color:var(--watch)">KEY LVL</span>' : '');
           push(40, age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : '');
           push(35, trendMaturityBadge(item));
           push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : '');
@@ -2999,8 +2610,6 @@
           <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
           <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
-        ${rsiHtml(item[f('rsi')], {noLabel:false})}
-        ${macroMaHtml(item)}
         <div class="scanner-mini-bar" style="background:var(--border)">
           <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -3133,20 +2742,83 @@
     document.querySelectorAll('.sig-ctx-chip').forEach(c => {
       if (c.id !== 'sigMoreFiltersBtn') c.classList.remove('active');
     });
+    resetRadarChip();
     buildScannerCards();
   });
 
-  // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike) ──
+  // ── Radar chip — cycles off → Prime ≥75 → Strong ≥50 → off ──
+  const radarChip = document.getElementById('radarChip');
+  const radarLabel = radarChip ? radarChip.querySelector('.radar-label') : null;
+  function resetRadarChip() {
+    if (!radarChip) return;
+    radarChip.classList.remove('prime', 'strong');
+    if (radarLabel) radarLabel.textContent = 'Radar';
+  }
+  if (radarChip) {
+    radarChip.addEventListener('click', () => {
+      // Deactivate other context chips
+      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip)').forEach(c => c.classList.remove('active'));
+      if (typeof resetAnalyzedChip === 'function') resetAnalyzedChip();
+      document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
+      if (activeScannerFilter === 'radar_prime') {
+        radarChip.classList.remove('prime'); radarChip.classList.add('strong');
+        radarLabel.textContent = 'Strong ≥50';
+        activeScannerFilter = 'radar_strong';
+      } else if (activeScannerFilter === 'radar_strong') {
+        resetRadarChip();
+        activeScannerFilter = 'all';
+      } else {
+        radarChip.classList.add('prime');
+        radarLabel.textContent = 'Prime ≥75';
+        activeScannerFilter = 'radar_prime';
+      }
+      buildScannerCards();
+    });
+  }
+
+  // ── Analyzed chip — cycles off → Analyzed → Unanalyzed → off ──
+  const analyzedChip = document.getElementById('analyzedChip');
+  const analyzedLabel = analyzedChip ? analyzedChip.querySelector('.analyzed-label') : null;
+  function resetAnalyzedChip() {
+    if (!analyzedChip) return;
+    analyzedChip.classList.remove('on', 'off');
+    if (analyzedLabel) analyzedLabel.textContent = 'Analyzed';
+  }
+  if (analyzedChip) {
+    analyzedChip.addEventListener('click', () => {
+      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip)').forEach(c => c.classList.remove('active'));
+      resetRadarChip();
+      document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
+      if (activeScannerFilter === 'analyzed') {
+        analyzedChip.classList.remove('on'); analyzedChip.classList.add('off');
+        analyzedLabel.textContent = 'Unanalyzed';
+        activeScannerFilter = 'unanalyzed';
+      } else if (activeScannerFilter === 'unanalyzed') {
+        resetAnalyzedChip();
+        activeScannerFilter = 'all';
+      } else {
+        analyzedChip.classList.add('on');
+        analyzedLabel.textContent = 'Analyzed';
+        activeScannerFilter = 'analyzed';
+      }
+      buildScannerCards();
+    });
+  }
+
+  // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike, Macro S/R) ──
   document.querySelector('.sig-ctx-row').addEventListener('click', e => {
     const chip = e.target.closest('.sig-ctx-chip');
-    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn') return;
+    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip' || chip.id === 'analyzedChip') return;
     const wasActive = chip.classList.contains('active');
-    // Deactivate all context chips (except filters btn & signal btn)
-    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn)').forEach(c => c.classList.remove('active'));
+    // Deactivate all context chips (except filters btn, signal btn, radar chip, analyzed chip)
+    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip)').forEach(c => c.classList.remove('active'));
+    resetRadarChip();
+    resetAnalyzedChip();
     // Also reset direction toggle to All
     document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
     if (wasActive) {
-      // Toggle off → back to All
       document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
       activeScannerFilter = 'all';
     } else {
@@ -3290,7 +2962,7 @@
     const upCount    = starred.filter(d => effectiveTrend(d) === 'UPTREND').length;
     if (statsEl) {
       statsEl.innerHTML = starred.length
-        ? `<span class="sig-sum-total">${starred.length} starred</span>` +
+        ? `<span class="sig-sum-total">${starred.length} analyzed</span>` +
           (withSignal ? `<span class="sig-sum-item sig-sum-buy">${withSignal} signal</span>` : '') +
           (upCount    ? `<span class="sig-sum-item" style="background:rgba(16,185,129,.15);color:var(--buy)">${upCount} uptrend</span>` : '')
         : '';
@@ -3300,7 +2972,7 @@
     if (!starred.length) {
       listEl.innerHTML = `<div class="wl-empty">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        <p>Tap ★ on any instrument in the Scanner tab to track it here</p>
+        <p>Tap ★ on any instrument after you've analyzed its chart to track it here</p>
       </div>`;
       return;
     }
@@ -3337,19 +3009,14 @@
     listEl.innerHTML = filtered.map(item => {
       const t    = effectiveTrend(item);
       const sig  = item[f('primary_signal')] || '';
-      const conf = item[f('signal_confidence')] || '';
       const buy  = isBuy(item), sell = isSell(item);
       const roc  = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const age  = signalAge(item.signal_date || item.date || '');
-      const align = item.tf_alignment || '';
-      const stripCls   = sig ? (buy ? 'strip-buy' : 'strip-sell') : '';
-      const stripLabel = sig ? (buy ? 'BUY ' + sig : 'SELL ' + sig) : '';
       const hasAlert = !!(item[f('potential_turning_point_flag')] || item[f('watch_flag')] ||
                           item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
       const _aiWl = isAI(item.instrument_name);
       return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
-        ${stripLabel ? `<div class="scanner-signal-strip ${stripCls}">${stripLabel}</div>` : ''}
         <div class="wl-card-top">
           <div class="wl-card-left">
             <span class="wl-card-name">${item.instrument_name} ${noteIndicator(item.instrument_name)}</span>
@@ -3363,15 +3030,12 @@
             <div class="scanner-actions">
               ${tvBtn(item.instrument_name, '')}
               ${shareBtn(item.instrument_name)}
-              <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Remove from watchlist" data-act="toggleStar" data-stop="1">★</button>
+              <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Unmark as analyzed" data-act="toggleStar" data-stop="1">★</button>
             </div>
           </div>
         </div>
         <div class="wl-card-badges">
           <span class="scanner-tag ${trendTag(t)}">${t}</span>
-          ${align ? `<span class="scanner-tag badge-alignment ${alignCls(align)}">${align}</span>` : ''}
-          ${conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : ''}
-          ${badge3TF(item)}
           ${age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : ''}
           ${hasAlert ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">⚡ Alert</span>` : ''}
         </div>
@@ -3426,7 +3090,7 @@
           <span class="scanner-tag ${trendTag(t)}" style="font-size:.6rem;padding:2px 5px">${t.charAt(0)}</span>
           ${sig ? `<span class="scanner-tag ${buy ? 'tag-up' : sell ? 'tag-down' : 'tag-neutral'}" style="font-size:.6rem;padding:2px 5px">${sig.slice(0,5)}</span>` : ''}
           ${tvBtn(item.instrument_name, '')}
-          <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Remove' : 'Add to watchlist'}" data-act="toggleStar" data-stop="1">★</button>
+          <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}" data-act="toggleStar" data-stop="1">★</button>
         </div>
       </div>`;
     }).join('');
@@ -3455,7 +3119,7 @@
     trackOverlay.addEventListener('click', e => { if (e.target === trackOverlay) closeTrackSheet(); });
   }
 
-  let trSheetFilter = 'all';   // 'all' | 'B1' | 'S1' | 'B2' | 'S2' | ... | 'B7' | 'S7'
+  let trSheetFilter = 'all';   // 'all' | 'B1' | 'S1' | 'B4' | 'S4'
 
   function renderTrackRecordSheet() {
     if (!backtestData || !trackBody) return;
@@ -3600,14 +3264,14 @@
   })();
 
   function closeModal() {
+    openModalName = null;
     overlay.classList.remove('open');
-    if (charts.modal)   { charts.modal.destroy();  delete charts.modal; }
-    if (charts.modalLw) { charts.modalLw.remove(); delete charts.modalLw; }
   }
 
   async function openModal(name) {
     const item = allData.find(d => d.instrument_name === name);
     if (!item) return;
+    openModalName = name;
 
     const similar     = findSimilarSetups(item);
     const explanation = explanationsData[name] || '';
@@ -3617,9 +3281,8 @@
     const sig = item[f('primary_signal')] || '';
     const conf = item[f('signal_confidence')] || '';
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
-    const levels = parseKeyLevels(item.key_levels_all);
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === 'M' ? 'm_ma_' : timeframe === 'W' ? 'w_ma_' : timeframe === '4H' ? 'h4_ma_' : 'ma_';
+    const maPrefix = timeframe === '4H' ? 'h4_ma_' : 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -3677,14 +3340,13 @@
         <div class="mh-top">
           <div class="mh-name-group">
             <div class="mh-name-row">
-              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Remove from watchlist' : 'Add to watchlist'}">★</button>
+              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Unmark as analyzed' : 'Mark as analyzed'}">★</button>
               <div class="mh-name">${item.instrument_name}</div>
             </div>
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
           </div>
           <div class="mh-sig-wrap">
-            ${sig ? `<div class="mh-sig-badge${buy ? ' buy' : sell ? ' sell' : ''}">${buy ? 'BUY' : 'SELL'} ${sig}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-plus-chip">VOL+</span>' : ''}</div>` : ''}
-            ${conf ? `<div class="mh-sig-conf">${conf} confidence</div>` : ''}
+            ${item[f('volume_spike_flag')] === 'yes' && sig ? '<span class="vol-plus-chip">VOL+</span>' : ''}
           </div>
         </div>
         <div class="mh-price-row">
@@ -3702,44 +3364,12 @@
       <!-- ===== TABS ===== -->
       <div class="mh-tabs" id="mhTabs">
         <button class="mh-tab active" data-panel="overview">Overview</button>
-        <button class="mh-tab" data-panel="chart">Chart</button>
         <button class="mh-tab" data-panel="analysis">Analysis</button>
         <button class="mh-tab" data-panel="notes">Notes</button>
       </div>
 
       <!-- ===== OVERVIEW PANEL ===== -->
       <div class="mh-panel" id="mhPanel-overview">
-        <div class="mg-grid">
-          <div class="mg-tile">
-            <div class="mg-label">Trend</div>
-            <div class="mg-val${effectiveTrend(item)==='UPTREND' ? ' buy' : effectiveTrend(item)==='DOWNTREND' ? ' sell' : ''}">${effectiveTrend(item)}</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">Run ${timeframe==='M'?'Mo':timeframe==='W'?'Wk':'Days'}</div>
-            <div class="mg-val">${item[f('trend_run_days')] || 0}</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">MA Position</div>
-            <div class="mg-val" style="color:${ribbonColor}">${ribbonPct}%</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">Alignment</div>
-            <div class="mg-val accent" style="font-size:.7rem;line-height:1.2">${item.tf_alignment || 'N/A'}</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">MA Order</div>
-            <div class="mg-val">${item[f('ma_order_score')] || '--'}/${summaryData.ma_max_pairs || 14}</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">Momentum</div>
-            <div class="mg-val ${parseFloat(item[f('roc')])>=0?'buy':'sell'}">${item[f('roc')] ? (parseFloat(item[f('roc')])>=0?'+':'')+parseFloat(item[f('roc')]).toFixed(1)+'%' : '--'}</div>
-          </div>
-          <div class="mg-tile">
-            <div class="mg-label">RSI(14)</div>
-            <div class="mg-val rsi-${rsiZone(item[f('rsi')])}">${item[f('rsi')] ? parseFloat(item[f('rsi')]).toFixed(1) : '--'}</div>
-          </div>
-        </div>
-
         ${radarBreakdownHtml}
 
         ${renderInstrumentTrackRecord(item.instrument_name)}
@@ -3752,7 +3382,7 @@
             </div>
             <div class="ribbon-gauge-labels">
               <span style="color:var(--sell)">Below all</span>
-              <span style="color:${ribbonColor};font-weight:700">${ribbonPct}% · ${item[f('ribbon_spread')]||'--'}% spread</span>
+              <span style="color:${ribbonColor};font-weight:700">${ribbonPct}% · ${item[f('ribbon_spread')]||'--'}% spread <span style="font-weight:400;font-size:.7rem;color:var(--text-muted)">(${masAbove+masBelow}/${periods.length} MAs)</span></span>
               <span style="color:var(--buy)">Above all</span>
             </div>
           </div>
@@ -3802,26 +3432,13 @@
         </div>` : ''}
       </div>
 
-      <!-- ===== CHART PANEL ===== -->
-      <div class="mh-panel mh-panel-hidden" id="mhPanel-chart">
-        ${timeframe === 'D' ? `
-        <div class="modal-section">
-          <div class="modal-section-title">Daily Chart · 100 days &nbsp;<span class="vol-spike-legend"><span class="vol-spike-dot"></span>Volume spike</span></div>
-          <div class="modal-chart-wrap lw-chart-wrap lw-chart-wrap--tall" id="lwChartContainer"></div>
-        </div>` : `
-        <div class="modal-section">
-          <div class="modal-section-title">MA Ribbon (${timeframe==='M'?'250 months':timeframe==='W'?'250 weeks':'250 periods'})</div>
-          <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
-        </div>`}
-      </div>
-
       <!-- ===== ANALYSIS PANEL ===== -->
       <div class="mh-panel mh-panel-hidden" id="mhPanel-analysis">
         <div class="mh-section">
           <div class="mh-section-title">Signal Status</div>
           <div class="modal-status-card ${buy?'status-buy':sell?'status-sell':'status-neutral'}">
-            <div class="status-main">${item[f('confirmation_status')]||'No confirmed signal'}${conf?` <span class="badge-confidence conf-${conf}">${conf}</span>`:''}</div>
-            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${item[f('last_signal_days_ago')]}${timeframe==='M'?'m':timeframe==='W'?'w':'d'} ago)</div>`:''}
+            <div class="status-main">${item[f('confirmation_status')]||'No confirmed signal'}</div>
+            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${item[f('last_signal_days_ago')]}d ago)</div>`:''}
             ${item[f('volume_spike_flag')]==='yes'&&sig?`<div class="status-sub" style="color:var(--volume)">Volume spike on signal bar</div>`:''}
           </div>
         </div>
@@ -3832,29 +3449,18 @@
           <div class="mg-tile"><div class="mg-label">Low</div><div class="mg-val sell">${formatPrice(item[f('low')])}</div></div>
         </div>
 
-        <div class="mh-section">
-          <div class="mh-section-title">RSI(14) · All Timeframes</div>
-          <div class="rsi-tf-grid">
-            ${rsiBarRow('Monthly', item.m_rsi)}
-            ${rsiBarRow('Weekly',  item.w_rsi)}
-            ${rsiBarRow('Daily',   item.rsi)}
-            ${rsiBarRow('4-Hour',  item.h4_rsi)}
-          </div>
-        </div>
-
-        ${item[f('volume')]?`<div class="mh-section">
+        ${item[f('volume')]?(() => {
+          const rv = rvol(item);
+          const rvChip = rv !== null
+            ? ` &nbsp;<span style="color:var(--volume);font-weight:700">${fmtRvol(rv)} avg</span>`
+            : '';
+          return `<div class="mh-section">
           <div class="mh-section-title">Volume</div>
           <div class="modal-status-card status-neutral">
-            <div class="status-main">${timeframe==='M'?'This month':timeframe==='W'?'This week':'Today'}: <strong>${parseInt(item[f('volume')]).toLocaleString()}</strong> &nbsp;|&nbsp; Avg: ${parseInt(item[f('volume_average')]||0).toLocaleString()}${item[f('volume_spike_flag')]==='yes'?' &nbsp;<span style="color:var(--volume);font-weight:700">SPIKE</span>':''}</div>
+            <div class="status-main">Today: <strong>${parseInt(item[f('volume')]).toLocaleString()}</strong> &nbsp;|&nbsp; Avg: ${parseInt(item[f('volume_average')]||0).toLocaleString()}${rvChip}${item[f('volume_spike_flag')]==='yes'?' &nbsp;<span style="color:var(--volume);font-weight:700">SPIKE</span>':''}</div>
           </div>
-        </div>`:''}
+        </div>`;})():''}
 
-        ${levels.length?`<div class="mh-section">
-          <div class="mh-section-title">Key Levels (${levels.length})</div>
-          <div class="modal-levels">
-            ${levels.slice(0,15).map(lv=>`<div class="level-row"><span class="level-type ${lv.type}">${lv.type}</span><span class="level-price">${formatPrice(lv.price)}</span><span class="level-touches">x${lv.touches}</span><span class="level-date">${lv.date}</span></div>`).join('')}
-          </div>
-        </div>`:''}
       </div>
 
       <!-- ===== NOTES PANEL ===== -->
@@ -3878,7 +3484,6 @@
 
     // Wire modal tabs
     const mhTabBar = document.getElementById('mhTabs');
-    let mhChartLoaded = false;
     if (mhTabBar) {
       mhTabBar.addEventListener('click', e => {
         const tab = e.target.closest('.mh-tab');
@@ -3889,10 +3494,6 @@
         document.querySelectorAll('#instrumentModal .mh-panel').forEach(p => {
           p.classList.toggle('mh-panel-hidden', p.id !== 'mhPanel-' + panel);
         });
-        if (panel === 'chart' && !mhChartLoaded) {
-          mhChartLoaded = true;
-          loadModalChart(item);
-        }
       });
     }
 
@@ -3920,220 +3521,6 @@
           }, 500);
         };
       })());
-    }
-  }
-
-  function parseKeyLevels(str) {
-    if (!str) return [];
-    return str.split(' | ').map(part => {
-      const m = part.match(/(top|bottom)@([\d.]+)\[x(\d+)\|([^\]]+)\]/);
-      if (!m) return null;
-      return { type: m[1], price: parseFloat(m[2]), touches: parseInt(m[3]), date: m[4] };
-    }).filter(Boolean);
-  }
-
-  // Volume spike detection: volume > 25-day rolling average
-  function computeVolumeSpikes(bars, lookback = 25) {
-    return bars.map((bar, i) => {
-      const win = bars.slice(Math.max(0, i - lookback + 1), i + 1);
-      const avg = win.reduce((s, b) => s + b.volume, 0) / win.length;
-      return { ...bar, volumeAvg: avg, isSpike: bar.volume > avg };
-    });
-  }
-
-  // Lazy-load Chart.js the first time the chart panel is opened
-  function ensureChartJs() {
-    if (window.Chart) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4';
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-
-  async function loadModalChart(item) {
-    // ── Daily: candlestick + volume spikes via Lightweight Charts ────────
-    if (timeframe === 'D') {
-      const container = document.getElementById('lwChartContainer');
-      if (!container || !window.LightweightCharts) return;
-      try {
-        // Wait one animation frame so the panel transitions from display:none
-        // and the container has real dimensions before Lightweight Charts reads them
-        await new Promise(r => requestAnimationFrame(r));
-
-        const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
-        if (!res.ok) return;
-        const json = await res.json();
-        const allBars = json.data || [];
-        if (!allBars.length) return;
-
-        const bars    = allBars.slice(-100);
-        const spiked  = computeVolumeSpikes(bars);
-        const isDark  = (document.documentElement.getAttribute('data-theme') || 'dark') !== 'light';
-        const textCol = isDark ? '#94a3b8' : '#334155';
-
-        const chart = LightweightCharts.createChart(container, {
-          autoSize: true,
-          layout: { background: { color: 'transparent' }, textColor: textCol },
-          grid:    { vertLines: { color: 'rgba(148,163,184,.07)' }, horzLines: { color: 'rgba(148,163,184,.07)' } },
-          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-          rightPriceScale: { borderColor: 'rgba(148,163,184,.15)', scaleMargins: { top: 0.05, bottom: 0.22 } },
-          timeScale: { borderColor: 'rgba(148,163,184,.15)', timeVisible: true },
-        });
-
-        // ── Candlesticks — amber body on spike days ──
-        const candleSeries = chart.addCandlestickSeries({
-          upColor: '#10b981', downColor: '#ef4444',
-          borderUpColor: '#10b981', borderDownColor: '#ef4444',
-          wickUpColor: '#6b7280', wickDownColor: '#6b7280',
-        });
-        candleSeries.setData(spiked.map(b => ({
-          time:  b.date,
-          open:  b.open, high: b.high, low: b.low, close: b.close,
-          ...(b.isSpike ? { color: '#f59e0b', borderColor: '#f59e0b', wickColor: '#f59e0b' } : {}),
-        })));
-
-        // ── MA ribbon fan — render ALL detected MAs as thin lines ──
-        // Hue gradient from cool (short MAs, fast) to warm (long MAs, slow)
-        const maKeys = bars.length
-          ? Object.keys(bars[bars.length - 1])
-              .filter(k => /^ma_\d+$/.test(k))
-              .sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]))
-          : [];
-        if (maKeys.length) {
-          const lastIdx = maKeys.length - 1;
-          maKeys.forEach((key, i) => {
-            const period = key.split('_')[1];
-            const data = bars
-              .filter(b => b[key] != null)
-              .map(b => ({ time: b.date, value: b[key] }));
-            if (data.length < 2) return;
-            // Hue 220 (blue) → 0 (red) across the ribbon
-            const t = lastIdx > 0 ? i / lastIdx : 0;
-            const hue = Math.round(220 - 220 * t);
-            const isAnchor = i === 0 || i === lastIdx || i === Math.floor(lastIdx / 2);
-            const color = `hsl(${hue}, 70%, ${isAnchor ? 60 : 55}%)`;
-            const line = chart.addLineSeries({
-              color,
-              lineWidth: isAnchor ? 1.4 : 1,
-              priceLineVisible: false,
-              lastValueVisible: isAnchor,
-              title: isAnchor ? `MA${period}` : '',
-            });
-            line.setData(data);
-          });
-        }
-
-        // ── Key support / resistance levels ──
-        parseKeyLevels(item.key_levels_all).slice(0, 10).forEach(lv => {
-          candleSeries.createPriceLine({
-            price: lv.price,
-            color: lv.type === 'top' ? 'rgba(239,68,68,.5)' : 'rgba(16,185,129,.5)',
-            lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
-            title: lv.type === 'top' ? `R×${lv.touches}` : `S×${lv.touches}`,
-          });
-        });
-
-        // ── Signal marker ──
-        const lsd = item['last_signal_date'], lst = item['last_signal_type'] || item['primary_signal'] || '';
-        if (lsd && lst) {
-          const sigBar = bars.find(b => b.date >= lsd);
-          if (sigBar) {
-            candleSeries.setMarkers([{
-              time: sigBar.date,
-              position: isBuy(item) ? 'belowBar' : 'aboveBar',
-              color:    isBuy(item) ? '#10b981' : '#ef4444',
-              shape:    isBuy(item) ? 'arrowUp'  : 'arrowDown',
-              text:     lst,
-            }]);
-          }
-        }
-
-        // ── Volume histogram — amber bars on spike days ──
-        const volSeries = chart.addHistogramSeries({
-          priceFormat: { type: 'volume' },
-          priceScaleId: 'vol_scale',
-        });
-        chart.priceScale('vol_scale').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 }, visible: false });
-        volSeries.setData(spiked.map(b => ({
-          time:  b.date,
-          value: b.volume,
-          color: b.isSpike ? 'rgba(245,158,11,.75)' : 'rgba(148,163,184,.22)',
-        })));
-
-        chart.timeScale().fitContent();
-        charts.modalLw = chart;
-      } catch (e) { console.warn('D chart error:', e); }
-      return;
-    }
-
-    // ── All other timeframes: MA Ribbon via Chart.js ──────────────────────
-    await ensureChartJs();
-    const c = getThemeColors();
-    try {
-      const res = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
-      if (!res.ok) return;
-      const json = await res.json();
-      const hist = json.data || [];
-      if (!hist.length) return;
-
-      const labels = hist.map(h => h.date);
-      const closes = hist.map(h => h.close);
-
-      // Pick 3 representative MAs from whatever periods are in the data
-      const _ps = detectedMaPeriods;
-      const maKeys = _ps.length >= 3
-        ? [_ps[0], _ps[Math.floor((_ps.length - 1) / 2)], _ps[_ps.length - 1]]
-        : _ps;
-      const maDatasets = maKeys.map((p, idx) => ({
-        label: 'MA ' + p,
-        data: hist.map(h => h['ma_' + p] || null),
-        borderColor: [c.accent, c.watch, c.volume][idx],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.3,
-      }));
-
-      const ctx = document.getElementById('modalChart');
-      if (!ctx) return;
-      if (charts.modal) charts.modal.destroy();
-
-      charts.modal = new Chart(ctx.getContext('2d'), {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Close',
-              data: closes,
-              borderColor: c.text,
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: { target: 'origin', above: 'rgba(99,102,241,.06)' },
-              tension: 0.2,
-            },
-            ...maDatasets,
-          ],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: true, position: 'top', labels: { padding: 8, usePointStyle: true, pointStyleWidth: 8, font: { size: 10 } } },
-            tooltip: { backgroundColor: 'rgba(0,0,0,.85)', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 10, cornerRadius: 8 },
-          },
-          scales: {
-            x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 9 }, maxRotation: 0 } },
-            y: { display: true, grid: { color: c.grid }, ticks: { font: { size: 10 } } },
-          },
-          animation: { duration: 400 },
-        },
-      });
-    } catch (e) {
-      console.warn('Chart load failed:', e);
     }
   }
 
@@ -4469,7 +3856,7 @@
     // Update all star buttons for this ticker on the page
     document.querySelectorAll(`.star-btn[data-ticker="${ticker}"]`).forEach(b => {
       b.classList.toggle('starred', nowStarred);
-      b.title = nowStarred ? 'Remove from watchlist' : 'Add to watchlist';
+      b.title = nowStarred ? 'Unmark as analyzed' : 'Mark as analyzed';
       const svg = b.querySelector('svg');
       if (svg) svg.setAttribute('fill', nowStarred ? 'currentColor' : 'none');
     });
@@ -4486,7 +3873,7 @@
     const webUrl = tvUrl(name);
     // Build tradingview:// deep link with exchange and symbol as separate params
     const tvSym  = tvMap[name] || name;
-    const ivlMap = { 'D': 'D', '4H': '240', 'W': 'W', 'M': 'M' };
+    const ivlMap = { 'D': 'D', '4H': '240' };
     const ivl    = ivlMap[timeframe] || 'D';
     const layoutId = userTvLayout();
     let appUrl;
@@ -4962,13 +4349,11 @@
     const grpSel   = document.getElementById('scannerGroupFilter');
     const trendSel = document.getElementById('scannerTrendFilter');
     const alignSel = document.getElementById('scannerAlignFilter');
-    const macroEl = document.getElementById('scannerMacroMaFilter');
     const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
     const trend = trendSel?.value !== 'all' ? trendSel.value : '';
     const align = alignSel?.value !== 'all' ? alignSel.value : '';
-    const macro = macroEl?.value !== 'all' ? macroEl.value : '';
 
-    if (!grp && !trend && !align && !macro && !activeRegionFilter) {
+    if (!grp && !trend && !align && !activeRegionFilter) {
       strip.style.display = 'none';
       strip.innerHTML = '';
       return;
@@ -4986,11 +4371,6 @@
       const lbl = { bull:'Bull Aligned', bear:'Bear Aligned', counter:'Counter-trend', mixed:'Mixed' }[align] || align;
       pills.push(`<span class="ctx-pill ctx-pill-align">Alignment: <strong>${lbl}</strong></span>`);
     }
-    if (macro) {
-      const macroLbl = macroEl.options[macroEl.selectedIndex]?.text || macro;
-      pills.push(`<span class="ctx-pill ctx-pill-macro">Level: <strong>${macroLbl}</strong></span>`);
-    }
-
     strip.style.display = 'flex';
     strip.innerHTML = pills.join('') +
       `<button class="ctx-clear-btn" id="ctxClearBtn">✕ Reset</button>`;
@@ -4999,7 +4379,6 @@
       if (grpSel)   grpSel.value   = 'all';
       if (trendSel) trendSel.value = 'all';
       if (alignSel) alignSel.value = 'all';
-      if (macroEl)  macroEl.value  = 'all';
       activeTrendFilter = '';
       activeAlignFilter = '';
       activeRegionFilter = '';
@@ -5025,17 +4404,42 @@
     await loadAll(); if (syncUser) await syncPull();
   }, AUTO_REFRESH_MS);
 
+  // ── Self-update: reload when a newer build has been deployed ───────────
+  // An installed PWA keeps the page in memory and never refetches the HTML on
+  // reopen, so it runs stale code until force-killed. We poll a tiny
+  // version.json (stamped fresh on every UI deploy) and hard-reload when the
+  // deployed build id differs from the one baked into the running page.
+  const RUNNING_BUILD = (window.__BUILD_ID__ || '').trim();
+  let _updateChecking = false;
+  let _lastUpdateCheck = 0;
+  async function checkForAppUpdate() {
+    // Skip in local dev (placeholder never replaced) or if build is unknown
+    if (!RUNNING_BUILD || RUNNING_BUILD.indexOf('__BUILDSTAMP__') !== -1) return;
+    if (_updateChecking) return;
+    if (Date.now() - _lastUpdateCheck < 30000) return; // throttle to 30s
+    _updateChecking = true;
+    _lastUpdateCheck = Date.now();
+    try {
+      const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const { build } = await res.json();
+      if (build && String(build) !== RUNNING_BUILD) window.location.reload();
+    } catch (_) { /* offline or missing — ignore */ }
+    finally { _updateChecking = false; }
+  }
+  checkForAppUpdate(); // check once on launch
+
   // Re-sync when user returns to the tab (catches changes made on another device)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && syncUser) syncPull();
+    if (document.visibilityState !== 'visible') return;
+    checkForAppUpdate();          // reload if a newer build shipped while backgrounded
+    if (syncUser) syncPull();
   });
 
   // ── Radar Tab — Confluence Entry Finder ────────────────────────────────
 
   function tfCounts(item) {
     const tfs = [
-      item.m_trend_direction  || 'NEUTRAL',
-      item.w_trend_direction  || 'NEUTRAL',
       item.trend_direction    || 'NEUTRAL',
       item.h4_trend_direction || 'NEUTRAL',
     ];
@@ -5050,7 +4454,21 @@
   // so the number and its explanation can never drift apart.
   function radarScoreFactors(item) {
     const { bull, bear, tfs } = tfCounts(item);
-    const isBullish = bull >= bear;
+
+    // Direction: use ribbon majority (same metric as the gauge) so bias label and
+    // gauge never contradict. close < MA25 alone marks DOWNTREND even when 85% of
+    // MAs are below price (pullback in uptrend) — ribbon majority is the honest read.
+    const _close = parseFloat(item.close);
+    const _periods = activeMaPeriods();
+    let _masAbove = 0, _masTotal = 0;
+    if (!isNaN(_close)) {
+      _periods.forEach(p => {
+        const v = parseFloat(item['ma_' + p]);
+        if (!isNaN(v)) { _masTotal++; if (_close > v) _masAbove++; }
+      });
+    }
+    const isBullish = _masTotal > 0 ? _masAbove * 2 >= _masTotal : bull >= bear;
+
     const lines = [];
 
     // 0. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
@@ -5067,15 +4485,15 @@
       lines.push({ label: `Ribbon rollover ${rollScore}/${rollMax} (${isBullish ? 'bull' : 'bear'} ${stageLbl})`, points: pts });
     }
 
-    // 1. TF alignment (max 34) — Monthly+Weekly carry more weight as regime setters
-    const tfWeights = [11, 11, 8, 4];   // M, W, D, 4H
+    // 1. TF alignment (max 34)
+    const tfWeights = [22, 12];   // D, 4H
     const targetTf  = isBullish ? 'UPTREND' : 'DOWNTREND';
     let tfPoints = 0;
     tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
     if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
 
-    // 2. Signal type (max 25) — B1/S1 always top authority; B7/S7 anchor bounce; B2-B6 pullbacks
-    const sig = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+    // 2. Signal type (max 25) — B1/S1 always top authority; B4/S4 anchor bounce
+    const sig = item.primary_signal || '';
     const buySig  = sig && sig.startsWith('B');
     const sellSig = sig && sig.startsWith('S');
     const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
@@ -5095,9 +4513,8 @@
 
     // 4. Ribbon squeeze (max 10) — coiled-spring setup before a breakout
     let sqPoints = 0; const sqTfs = [];
-    if (item.ribbon_compression   === 'yes') { sqPoints += 5; sqTfs.push('D'); }
-    if (item.w_ribbon_compression === 'yes') { sqPoints += 3; sqTfs.push('W'); }
-    if (item.m_ribbon_compression === 'yes') { sqPoints += 2; sqTfs.push('M'); }
+    if (item.ribbon_compression     === 'yes') { sqPoints += 7; sqTfs.push('D'); }
+    if (item.h4_ribbon_compression  === 'yes') { sqPoints += 3; sqTfs.push('4H'); }
     if (sqPoints) lines.push({ label: `Ribbon squeeze (${sqTfs.join('+')})`, points: Math.min(sqPoints, 10) });
 
     // 5. Key-level confluence (max 9) — price testing a real, well-tested S/R level
@@ -5120,45 +4537,20 @@
       if (pts > 0) lines.push({ label: `MA ribbon ${isBullish ? 'stacked' : 'inverted'} ${maOrder}/${maMax}`, points: pts });
     }
 
-    // 7. Macro MA position vs daily close (max 12)
-    const dailyClose = parseFloat(item.close);
-    const macroMas   = detectedMacroMas
-      .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
-      .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
-    if (macroMas.length > 0) {
-      const onSide = isBullish
-        ? macroMas.filter(r => dailyClose > r.val).length
-        : macroMas.filter(r => dailyClose < r.val).length;
-      const pts = Math.round((onSide / macroMas.length) * 12);
-      if (pts > 0) lines.push({
-        label: `${onSide}/${macroMas.length} macro MAs ${isBullish ? 'below' : 'above'} price`,
-        points: pts,
-      });
-    }
-
-    // 8. RSI timing (max 9) — 4H entry timing against the higher-TF trend
+    // 7. RSI timing (max 9) — 4H entry timing against the higher-TF trend
     const h4Rsi = parseFloat(item.h4_rsi);
     const dRsi  = parseFloat(item.rsi);
     if (isBullish) {
       if (!isNaN(h4Rsi) && h4Rsi < 30)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`,     points: 9 });
       else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`,  points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 3 });
+      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `D RSI ${dRsi.toFixed(0)}`,              points: 3 });
     } else {
       if (!isNaN(h4Rsi) && h4Rsi > 70)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`,   points: 9 });
       else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `Daily RSI ${dRsi.toFixed(0)}`,              points: 3 });
+      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `D RSI ${dRsi.toFixed(0)}`,              points: 3 });
     }
 
-    // 9. Macro S/R touch (max 6) — price genuinely testing a macro MA level today
-    if (isBullish && item.macro_sr_signal === 'support') {
-      lines.push({ label: 'Macro MA support touch', points: 4 });
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence support', points: 2 });
-    } else if (!isBullish && item.macro_sr_signal === 'resistance') {
-      lines.push({ label: 'Macro MA resistance touch', points: 4 });
-      if ((parseInt(item.macro_sr_strength) || 0) >= 3) lines.push({ label: 'Multi-MA confluence resistance', points: 2 });
-    }
-
-    // 10. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
+    // 8. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
     const daysAgo = parseInt(item.last_signal_days_ago);
     if (!isNaN(daysAgo)) {
       if      (daysAgo <= 1) lines.push({ label: `Signal fresh (${daysAgo}d ago)`,  points: 4 });
@@ -5166,11 +4558,9 @@
       else if (daysAgo <= 9) lines.push({ label: `Signal ${daysAgo}d ago`,          points: 1 });
     }
 
-    // 11. Volume (max 6) — daily spike + a more meaningful higher-TF spike
-    if (item.volume_spike_flag === 'yes') lines.push({ label: 'Volume spike (daily)', points: 3 });
-    if (item.w_volume_spike_flag === 'yes' || item.m_volume_spike_flag === 'yes') {
-      lines.push({ label: `Volume spike (${item.w_volume_spike_flag === 'yes' ? 'weekly' : 'monthly'})`, points: 3 });
-    }
+    // 11. Volume (max 6) — daily + 4H spike
+    if (item.volume_spike_flag    === 'yes') lines.push({ label: 'Volume spike (D)', points: 3 });
+    if (item.h4_volume_spike_flag === 'yes') lines.push({ label: 'Volume spike (4H)',    points: 3 });
 
     return { isBullish, lines };
   }
@@ -5232,45 +4622,22 @@
       const { bull, bear, tfs } = tfCounts(item);
       const isBullish = bull >= bear;
       const tier   = scoreTier(score);
-      const sig    = item.primary_signal || item.w_primary_signal || item.m_primary_signal || '';
+      const sig    = item.primary_signal || '';
       const conf   = (item.signal_confidence || '').toLowerCase();
       const sq     = item.ribbon_compression === 'yes';
       const name   = instName(item.instrument_name) || item.instrument_name;
 
       const dotCls   = t => t === 'UPTREND' ? 'radar-dot-bull' : t === 'DOWNTREND' ? 'radar-dot-bear' : 'radar-dot-neutral';
-      const tfLabels = ['M', 'W', 'D', '4H'];
+      const tfLabels = ['D', '4H'];
       const dotsHtml = tfs.map((t, i) => `<span class="radar-tf-dot ${dotCls(t)}"><span class="radar-tf-lbl">${tfLabels[i]}</span></span>`).join('');
 
       const dirBadge  = isBullish ? '<span class="radar-dir-badge radar-long">LONG</span>' : '<span class="radar-dir-badge radar-short">SHORT</span>';
-      const sigBadge  = sig  ? `<span class="feed-badge badge-${sigClass(sig) || 'p4'}">${sig}</span>` : '';
-      const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
       const sqBadge   = sq   ? '<span class="radar-sq-badge">SQZ</span>' : '';
-
-      // Macro MA position badge — always use raw daily fields regardless of active TF
-      const dailyClose = parseFloat(item.close);
-      const macroMas   = detectedMacroMas
-        .map(p => ({ period: p, val: parseFloat(item[`ma_${p}`]) }))
-        .filter(r => !isNaN(r.val) && !isNaN(dailyClose));
-      const macroBull  = macroMas.length > 0 && macroMas.every(r => dailyClose > r.val);
-      const macroBear  = macroMas.length > 0 && macroMas.every(r => dailyClose < r.val);
-      const macroBadge = macroBull ? '<span class="radar-macro-badge radar-macro-bull">▲ Macro</span>'
-                       : macroBear ? '<span class="radar-macro-badge radar-macro-bear">▼ Macro</span>' : '';
-
-      // Macro S/R touch badge — only show when it aligns with direction
-      const srSig   = item.macro_sr_signal || '';
-      const srLvl   = item.macro_sr_level  || '';
-      const srStr   = parseInt(item.macro_sr_strength) || 0;
-      const srMatch = (isBullish && srSig === 'support') || (!isBullish && srSig === 'resistance');
-      const srBadge = srMatch
-        ? `<span class="radar-sr-badge">${srStr >= 3 ? '⚡ ' : ''}${srSig === 'support' ? 'SR SUP' : 'SR RES'}${srLvl ? ' ' + srLvl : ''}</span>`
-        : '';
 
       const volBadge = item.volume_spike_flag === 'yes'
         ? '<span class="radar-sq-badge" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : '';
 
       const rsiPips = [
-        item.m_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.m_rsi)}">M ${parseFloat(item.m_rsi).toFixed(0)}</span>`   : '',
-        item.w_rsi  ? `<span class="rsi-tf-pip rsi-${rsiZone(item.w_rsi)}">W ${parseFloat(item.w_rsi).toFixed(0)}</span>`   : '',
         item.rsi    ? `<span class="rsi-tf-pip rsi-${rsiZone(item.rsi)}">D ${parseFloat(item.rsi).toFixed(0)}</span>`       : '',
         item.h4_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h4_rsi)}">4H ${parseFloat(item.h4_rsi).toFixed(0)}</span>` : '',
       ].filter(Boolean).join('');
@@ -5284,15 +4651,9 @@
             <span class="radar-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
             ${_aiRadar ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
           </div>
-          <div class="radar-score-wrap">
-            <span class="radar-score-num radar-tier-${tier}">${score}</span>
-          </div>
           <div class="radar-tf-dots">${dotsHtml}</div>
         </div>
-        <div class="radar-score-bar-wrap">
-          <div class="radar-score-bar-fill tier-${tier}" style="width:${score}%"></div>
-        </div>
-        <div class="radar-card-bot">${sigBadge}${confBadge}${sqBadge}${macroBadge}${srBadge}${volBadge}</div>
+        <div class="radar-card-bot">${sqBadge}${volBadge}</div>
         ${rsiPips ? `<div class="radar-rsi-row">${rsiPips}</div>` : ''}
       </div>`;
     }
@@ -5436,181 +4797,7 @@
     });
   }
 
-  // ── (Portfolio code removed — replaced by Radar tab) ──────────────────
-
-  function renderPortfolioStats() {
-    const acctEl = document.getElementById('pfAcctSummary');
-    const pillsEl = document.getElementById('pfStatsPills');
-    const countEl = document.getElementById('openTradeCount');
-    if (!acctEl) return;
-
-    // Account summary from XM email (portfolioData)
-    const pf = portfolioData || {};
-    const pfSumm = pf.summary || {};
-    const pfAcct = pf.account || {};
-    const xmPositions = (pf.positions || []);
-    const deals = (pf.deals || []);
-    const acctId = pfAcct.account_no || '';
-    const equity = pfSumm.equity || 0;
-    const balance = pfSumm.balance || 0;
-    const floatPL = pfSumm.floating_pl || 0;
-    const margin = pfSumm.margin || 0;
-    const hasData = equity > 0 || balance > 0;
-
-    acctEl.innerHTML = `
-      <div class="pf-acct-title">XM Account${acctId ? ' · ' + acctId : ''}${pf.date ? ' <span style="font-weight:400;color:var(--txt3);font-size:.75rem">(' + pf.date + ')</span>' : ''}</div>
-      <div class="pf-acct-grid">
-        <div>
-          <div class="pf-acct-label">Equity</div>
-          <div class="pf-acct-val pf-acct-equity">${hasData ? 'R' + equity.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
-        </div>
-        <div>
-          <div class="pf-acct-label">Floating P/L</div>
-          <div class="pf-acct-val ${floatPL >= 0 ? 'pf-acct-pos' : 'pf-acct-neg'}">${hasData ? (floatPL >= 0 ? '+' : '') + 'R' + floatPL.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
-        </div>
-        <div>
-          <div class="pf-acct-label">Balance</div>
-          <div class="pf-acct-val">${hasData ? 'R' + balance.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
-        </div>
-        <div>
-          <div class="pf-acct-label">Margin</div>
-          <div class="pf-acct-val">${hasData ? 'R' + margin.toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
-        </div>
-      </div>
-    `;
-
-    // Stats Pills — XM positions only
-    const openCount = xmPositions.length;
-    const longCount = xmPositions.filter(p => p.type === 'buy').length;
-    const shortCount = xmPositions.filter(p => p.type === 'sell').length;
-    const totalPnl = xmPositions.reduce((s, p) => s + (p.profit || 0), 0);
-    pillsEl.innerHTML = `
-      <div class="pf-pill">
-        <div class="pf-pill-num" style="color:var(--buy)">${openCount}</div>
-        <div class="pf-pill-lbl">Open</div>
-      </div>
-      <div class="pf-pill">
-        <div class="pf-pill-num" style="color:var(--buy)">${longCount}</div>
-        <div class="pf-pill-lbl">Long</div>
-      </div>
-      <div class="pf-pill">
-        <div class="pf-pill-num" style="color:var(--sell)">${shortCount}</div>
-        <div class="pf-pill-lbl">Short</div>
-      </div>
-      <div class="pf-pill">
-        <div class="pf-pill-num" style="color:${totalPnl >= 0 ? 'var(--buy)' : 'var(--sell)'}">${hasData ? (totalPnl >= 0 ? '+' : '') + 'R' + Math.abs(totalPnl).toLocaleString('en', {minimumFractionDigits:2}) : '--'}</div>
-        <div class="pf-pill-lbl">Float P/L</div>
-      </div>
-    `;
-
-    // Open trade count badge
-    if (countEl) countEl.textContent = openCount ? openCount + ' Active' : '';
-
-    // Render deals list if available
-    const dealsHdr = document.getElementById('pfDealsHdr');
-    const dealsList = document.getElementById('pfDealsList');
-    if (deals.length > 0 && dealsList) {
-      if (dealsHdr) dealsHdr.style.display = '';
-      const curr = pfAcct.currency || 'ZAR';
-      const sym = curr === 'ZAR' ? 'R' : '$';
-      dealsList.innerHTML = deals.map(d => {
-        const pnl = d.profit || 0;
-        const pnlClass = pnl >= 0 ? 'pf-pos-pnl-pos' : 'pf-pos-pnl-neg';
-        return `<div class="pf-pos-card">
-          <div class="pf-pos-strip ${d.type === 'buy' ? 'long' : 'short'}"></div>
-          <div class="pf-pos-body">
-            <div class="pf-pos-top">
-              <div>
-                <div class="pf-pos-name">${d.item}</div>
-                <div class="pf-pos-sub">${d.size} lot · ${d.type === 'buy' ? 'Buy' : 'Sell'}</div>
-              </div>
-              <div class="pf-pos-top-right">
-                <span class="pf-pos-meta-val ${pnlClass}">${pnl >= 0 ? '+' : ''}${sym}${Math.abs(pnl).toLocaleString('en', {minimumFractionDigits:2})}</span>
-              </div>
-            </div>
-            <div class="pf-pos-meta">
-              <div><div class="pf-pos-meta-label">Open</div><div class="pf-pos-meta-val">${formatPrice(d.price)}</div></div>
-              <div><div class="pf-pos-meta-label">Close</div><div class="pf-pos-meta-val">${formatPrice(d.close_price)}</div></div>
-              <div><div class="pf-pos-meta-label">Time</div><div class="pf-pos-meta-val">${(d.open_time || '').slice(5, 16).replace('.', '/')}</div></div>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
-    } else if (dealsList) {
-      dealsList.innerHTML = '';
-      if (dealsHdr) dealsHdr.style.display = 'none';
-    }
-  }
-
-
-  function renderOpenTrades() {
-    const listEl   = document.getElementById('openTradesList');
-    const countEl  = document.getElementById('openTradeCount');
-    if (!listEl) return;
-
-    const xmPositions = (portfolioData && portfolioData.positions) || [];
-
-    if (countEl) countEl.textContent = xmPositions.length || '';
-
-    if (!xmPositions.length) {
-      listEl.innerHTML = `<div class="trade-empty">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-        <p>No open positions. Run the portfolio update to fetch your XM positions.</p>
-      </div>`;
-      return;
-    }
-
-    const curr = (portfolioData.account && portfolioData.account.currency) || 'ZAR';
-    const sym = curr === 'ZAR' ? 'R' : '$';
-    listEl.innerHTML = xmPositions.map(pos => {
-      const isLong = pos.type === 'buy';
-      const side = isLong ? 'long' : 'short';
-      const pnl = pos.profit || 0;
-      const swap = pos.swap || 0;
-      const pnlClass = pnl >= 0 ? 'pf-pos-pnl-pos' : 'pf-pos-pnl-neg';
-      const pnlSign = pnl >= 0 ? '+' : '';
-      const openDate = pos.open_time ? pos.open_time.slice(5, 10).replace('.', '/') : '';
-
-      let planInfo = '';
-      if (pos.sl > 0 || pos.tp > 0) {
-        const parts = [];
-        if (pos.sl > 0) parts.push('SL ' + formatPrice(pos.sl));
-        if (pos.tp > 0) parts.push('TP ' + formatPrice(pos.tp));
-        planInfo = '<div class="pf-pos-plan">' + parts.join(' · ') + '</div>';
-      }
-
-      return `<div class="pf-pos-card">
-        <div class="pf-pos-strip ${side}"></div>
-        <div class="pf-pos-body">
-          <div class="pf-pos-top">
-            <div>
-              <div class="pf-pos-name">${pos.item}</div>
-              <div class="pf-pos-sub">${pos.size} lot · ${openDate}</div>
-            </div>
-            <div class="pf-pos-top-right">
-              <span class="pf-pos-dir ${side}">${isLong ? 'Long' : 'Short'}</span>
-            </div>
-          </div>
-          <div class="pf-pos-meta">
-            <div>
-              <div class="pf-pos-meta-label">Entry</div>
-              <div class="pf-pos-meta-val">${formatPrice(pos.price)}</div>
-            </div>
-            <div>
-              <div class="pf-pos-meta-label">Market</div>
-              <div class="pf-pos-meta-val">${formatPrice(pos.market_price)}</div>
-            </div>
-            <div>
-              <div class="pf-pos-meta-label">P/L</div>
-              <div class="pf-pos-meta-val ${pnlClass}">${pnlSign}${sym}${Math.abs(pnl).toLocaleString('en', {minimumFractionDigits:2})}</div>
-            </div>
-          </div>
-          ${planInfo}
-          ${swap !== 0 ? '<div class="pf-pos-signal-row"><span class="pf-signal-tag neutral">Swap ' + (swap >= 0 ? '+' : '') + sym + Math.abs(swap).toFixed(2) + '</span></div>' : ''}
-        </div>
-      </div>`;
-    }).join('');
-
-  }
+  function renderPortfolioStats() { return; }
+  function renderOpenTrades()     { return; }
 
 })();

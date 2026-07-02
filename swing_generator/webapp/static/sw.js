@@ -64,7 +64,7 @@ self.addEventListener('push', e => {
     const lastSeen = state.lastSeen || {};
     if (!starred.length) {
       await self.registration.showNotification('SwingPulse', {
-        body:  'New signals — tap to open and check your watchlist.',
+        body:  'New signals — tap to open and check your analyzed charts.',
         icon:  '/static/icon-192.png',
         badge: '/static/icon-192.png',
         tag:   'sp-generic',

@@ -97,7 +97,7 @@ html {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   scroll-behavior: smooth;
-  overflow-x: hidden;   /* prevent iOS Safari horizontal bounce scroll */
+  overflow-x: clip;   /* prevent horizontal scroll WITHOUT breaking position:sticky */
   max-width: 100vw;
 }
 
@@ -106,7 +106,7 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   transition: background var(--transition), color var(--transition);
 }
 
@@ -120,21 +120,65 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: -.01em; }
 h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
 
 /* ── Top Bar ──────────────────────────────────────────────────────────── */
-.topbar {
+/* Header + global timeframe toggle, pinned to the top together.
+   One translucent iOS-style frosted material on the whole stack (incl. the
+   iPhone notch safe-area), so the header + toggle read as a single floating bar. */
+.topbar-stack {
   position: sticky;
   top: 0;
   z-index: 100;
+  padding-top: env(safe-area-inset-top, 0);   /* clear the iPhone 13 notch */
+  background: rgba(18,18,20,.55);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.topbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 60px;
   padding: 0 18px;
-  background: rgba(10,10,11,.88);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  border-bottom: 1px solid rgba(251,191,36,.12);
-  box-shadow: 0 1px 20px rgba(0,0,0,.25);
+  background: transparent;                     /* inherits the stack's frosted material */
+  border-bottom: 1px solid rgba(255,255,255,.07);
   --pulse-color: var(--accent);
+}
+
+/* Global timeframe toggle — flush under the header, full-width, moves with it */
+.tf-switch-bar {
+  display: flex;
+  padding: 4px 12px;
+}
+.tf-switch {
+  display: flex;
+  width: 100%;                                      /* fill sideways */
+  background: var(--bg-input, #1e1e1d);             /* flat neutral — blocks ambient glow bleed-through */
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+  overflow: hidden;
+}
+.tf-switch-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  flex: 1 1 0;                                      /* 4H / Daily each take half */
+  border-radius: 7px;
+  color: var(--text-dim, #9aa3b2);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-align: center;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.tf-switch-btn:hover { color: var(--text, #e6e9ef); background: rgba(255,255,255,.05); }
+.tf-switch-btn.active {
+  color: #0a0a0b;
+  background: var(--accent, #fbbf24);
 }
 
 /* Sentiment-driven (keeps variable for the badge) */
@@ -352,7 +396,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 /* ── Main Content ─────────────────────────────────────────────────────── */
 .content {
-  padding: 16px 16px 80px;
+  padding: 16px 16px calc(80px + env(safe-area-inset-bottom, 0));
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -446,7 +490,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 @media (min-width: 768px) {
   .bottom-nav {
-    top: 56px; bottom: auto;
+    top: 79px; bottom: auto;   /* sits below the 60px header + 19px timeframe toggle */
     height: 48px;
     border-top: none;
     border-bottom: 1px solid var(--glass-border);
@@ -463,7 +507,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
     font-size: .8rem;
     border-radius: 10px;
   }
-  .content { padding-top: 72px; }
+  .content { padding-top: 76px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1024,24 +1068,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   flex-wrap: wrap;
   gap: 8px;
 }
-.chart-tf-badge {
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 20px;
-  background: var(--accent-glow);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  opacity: 0;
-  transition: opacity .2s;
-}
-.chart-tf-badge:not(:empty) { opacity: 1; }
-.chart-tf-badge[data-tf="D"]  { background: rgba(99,102,241,.12); color: var(--accent); border-color: var(--accent); }
-.chart-tf-badge[data-tf="4H"] { background: rgba(251,191,36,.12); color: var(--watch); border-color: var(--watch); }
-.chart-tf-badge[data-tf="W"]  { background: rgba(16,185,129,.12); color: var(--buy);   border-color: var(--buy); }
-.chart-tf-badge[data-tf="M"]  { background: rgba(251,113,133,.12); color: var(--sell); border-color: var(--sell); }
 .card-icon { display: inline-flex; margin-right: 2px; }
 .card-icon.turning { color: var(--watch); }
 .card-icon.watch { color: var(--accent); }
@@ -1509,7 +1535,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   transition: color .15s, transform .15s;
 }
 .star-btn:hover { color: var(--watch); transform: scale(1.2); }
-.star-btn.starred { color: var(--watch); }
+.star-btn.starred { color: #3b82f6; }
 
 /* Modal star button — bigger and inline with the title */
 .mh-name-row {
@@ -2293,8 +2319,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .hm-detail-btn:hover { background: rgba(0,0,0,.5); }
 .hm-star-btn { color: var(--text-muted); }
-.hm-star-btn.starred { color: #fbbf24; background: rgba(251,191,36,.18); }
-.hm-star-btn:hover { color: #fbbf24; }
+.hm-star-btn.starred { color: #3b82f6; background: rgba(59,130,246,.18); }
+.hm-star-btn:hover { color: #3b82f6; }
 
 .heatmap-cell .tv-link {
   padding: 1px 3px;
@@ -2312,6 +2338,40 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   justify-content: flex-end;
   max-width: 56%;         /* never let actions eat more than half the card width */
 }
+
+/* Two-line trend + signal box on scanner cards */
+.card-signal-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  gap: 1px;
+  line-height: 1.2;
+}
+.csb-trend {
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.csb-action {
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  min-height: 1em;
+}
+.csb-up   .csb-trend { color: var(--buy); }
+.csb-dn   .csb-trend { color: var(--sell); }
+.csb-neu  .csb-trend { color: var(--text-muted); }
+.csb-buy  .csb-action { color: var(--buy); }
+.csb-sell .csb-action { color: var(--sell); }
+.csb-up:not(.csb-buy):not(.csb-sell) .csb-action  { color: var(--text-muted); }
+.csb-dn:not(.csb-buy):not(.csb-sell) .csb-action  { color: var(--text-muted); }
 
 /* Signal row TV link alignment */
 .signal-row-name {
@@ -3512,10 +3572,8 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 4px;
+  padding: 14px 16px 6px;
   gap: 8px;
-  max-width: 100%;
-  box-sizing: border-box;
 }
 .sig-tab-count {
   font-size: .72rem;
@@ -3523,15 +3581,29 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   color: var(--text-muted);
   white-space: nowrap;
 }
-.sig-search-wrap {
-  flex: 1;
-  min-width: 0;
-  max-width: 200px;
-  position: relative;
+/* Full-width search row */
+.sig-search-row {
+  padding: 0 14px 6px;
 }
+.sig-search-row .search-wrap {
+  min-width: 0;
+  width: 100%;
+  gap: 6px;
+}
+.sig-search-icon-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.sig-search-icon-btn:hover { color: var(--accent); }
 .sig-search-wrap .search-input {
-  font-size: .78rem;
-  padding: 7px 28px 7px 30px; /* right pad for clear btn */
+  font-size: .82rem;
   width: 100%;
 }
 
@@ -3555,15 +3627,15 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 /* ── Scanner category quick-tap chips ── */
 .scanner-cat-chips {
   display: flex;
+  flex-wrap: nowrap;
   gap: 5px;
-  overflow-x: auto;
   padding: 6px 14px 4px;
-  margin: 0 -14px;
+  overflow-x: auto;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .scanner-cat-chips::-webkit-scrollbar { display: none; }
 .s-cat-chip {
-  flex-shrink: 0;
   font-size: .7rem;
   font-weight: 600;
   padding: 4px 10px;
@@ -3581,6 +3653,18 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
 }
+
+/* Per-category resting color tint */
+.s-cat-chip[data-cat="crypto"]    { color: #f59e0b; border-color: rgba(245,158,11,.4); }
+.s-cat-chip[data-cat="forex"]     { color: #10b981; border-color: rgba(16,185,129,.4); }
+.s-cat-chip[data-cat="commodity"] { color: #f97316; border-color: rgba(249,115,22,.4); }
+.s-cat-chip[data-cat="us100"]     { color: #818cf8; border-color: rgba(129,140,248,.4); }
+.s-cat-chip[data-cat="us500"]     { color: #34d399; border-color: rgba(52,211,153,.4); }
+.s-cat-chip[data-cat="banks"]     { color: #94a3b8; border-color: rgba(148,163,184,.4); }
+.s-cat-chip[data-cat="energy"]    { color: #facc15; border-color: rgba(250,204,21,.4); }
+.s-cat-chip[data-cat="tech"]      { color: #38bdf8; border-color: rgba(56,189,248,.4); }
+.s-cat-chip[data-cat="semi"]      { color: #c084fc; border-color: rgba(192,132,252,.4); }
+.s-cat-chip[data-cat="ai"]        { color: #ec4899; border-color: rgba(236,72,153,.4); }
 
 /* ── List / Ranked view toggle ── */
 .sig-view-toggle {
@@ -3639,10 +3723,17 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .tier-developing .scanner-tier-label { color: var(--text-muted); }
 
 /* ── Direction segmented toggle ── */
+/* Direction toggle + ⚙ on one row */
+.sig-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 0;
+}
 .sig-dir-toggle {
   display: flex;
   gap: 0;
-  margin: 8px 16px 0;
+  flex: 1;
   background: var(--bg-elevated);
   border-radius: 12px;
   padding: 3px;
@@ -3679,6 +3770,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 /* ── Context chip row ── */
 .sig-ctx-row {
   display: flex;
+  flex-wrap: nowrap;
   gap: 6px;
   padding: 10px 16px 6px;
   overflow-x: auto;
@@ -3688,7 +3780,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .sig-ctx-row::-webkit-scrollbar { display: none; }
 
 .sig-ctx-chip {
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -3730,7 +3821,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   border-color: rgba(236,72,153,.55);
 }
 .sig-ctx-filters {
-  margin-left: auto;
   position: relative;
 }
 .sig-ctx-filters.active {
@@ -4929,18 +5019,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background: var(--accent);
 }
 
-/* ── Lightweight Chart containers ─────────────────────────────────────── */
-.lw-chart-wrap {
-  height: 280px !important;
-  min-height: 280px;
-  background: transparent;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.lw-chart-wrap--tall {
-  height: 340px !important;
-  min-height: 340px;
-}
 
 /* ── VOL+ confirmation chip (modal hero) ───────────────────────────────── */
 .vol-plus-chip {
@@ -4957,22 +5035,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   letter-spacing: .03em;
 }
 
-/* ── Volume spike legend (chart section title) ─────────────────────────── */
-.vol-spike-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: .65rem;
-  font-weight: 500;
-  color: #f59e0b;
-  opacity: .85;
-}
-.vol-spike-dot {
-  width: 8px; height: 8px;
-  border-radius: 2px;
-  background: #f59e0b;
-  flex-shrink: 0;
-}
 
 /* ── Stale Data Warning Banner ─────────────────────────────────────────── */
 .stale-banner {
@@ -5841,6 +5903,22 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   flex-wrap: wrap;
   margin: 4px 0 2px;
 }
+
+/* Per-card relative volume — today's volume vs its own rolling average */
+.scanner-rvol {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  align-self: flex-start; width: fit-content;
+  font-size: .66rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 2px 7px; border-radius: 4px; margin: 2px 0;
+  background: var(--volume-soft); color: var(--volume);
+}
+.scanner-rvol .rvol-label {
+  font-size: .56rem; font-weight: 700; letter-spacing: .06em; opacity: .8;
+}
+.scanner-rvol .rvol-suffix { font-size: .56rem; font-weight: 600; opacity: .65; }
+/* Below-average volume is muted; at/above average uses the volume accent */
+.scanner-rvol.rvol-dn  { background: var(--bg-elevated); color: var(--text-tertiary, var(--text-secondary)); }
+.scanner-rvol.rvol-hot { box-shadow: inset 0 0 0 1px var(--volume); }
 .perf-pill {
   display: inline-flex;
   align-items: center;
@@ -6426,6 +6504,15 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .gp-bull { color: var(--buy);  }
 .gp-bear { color: var(--sell); }
 
+/* Average relative-volume per group/region (vol vs each instrument's own avg) */
+.gp-rvol {
+  min-width: 38px; flex-shrink: 0; text-align: right;
+  font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.gp-rvol-hot { color: var(--volume); }
+.gp-rvol-na  { color: var(--border); }
+
 /* Signal count dot on group rows */
 .gp-sig-dot {
   display: inline-flex; align-items: center; justify-content: center;
@@ -6813,10 +6900,35 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 }
 
 /* ── Radar Prime / Strong filter chips ───────────────────────────────── */
-.sig-chip-radar-prime  { color: var(--buy); border-color: var(--buy); }
-.sig-chip-radar-prime.active  { background: rgba(16,185,129,.18); color: var(--buy); border-color: var(--buy); }
-.sig-chip-radar-strong { color: var(--watch); border-color: var(--watch); }
-.sig-chip-radar-strong.active { background: rgba(245,158,11,.18); color: var(--watch); border-color: var(--watch); }
+.sig-chip-radar { color: var(--buy); border-color: rgba(16,185,129,.5); }
+.sig-chip-radar.prime  { background: rgba(16,185,129,.18); color: var(--buy); border-color: var(--buy); }
+.sig-chip-radar.strong { background: rgba(245,158,11,.18); color: var(--watch); border-color: var(--watch); }
+
+/* ── Analyzed / Unanalyzed filter chip ───────────────────────────────── */
+.sig-chip-analyzed { color: #3b82f6; border-color: rgba(59,130,246,.5); }
+.sig-chip-analyzed:hover { color: #3b82f6; border-color: #3b82f6; }
+.sig-chip-analyzed.on  { background: rgba(59,130,246,.18); color: #3b82f6; border-color: #3b82f6; }
+.sig-chip-analyzed.off { background: rgba(148,163,184,.18); color: var(--text-muted); border-color: var(--text-muted); }
+
+/* ── Coloured quick-filter chips (resting tint + active fill) ────────── */
+.sig-chip-best  { color: #a78bfa; border-color: rgba(167,139,250,.45); }
+.sig-chip-best:hover { color: #a78bfa; border-color: #a78bfa; }
+
+.sig-chip-today { color: #38bdf8; border-color: rgba(56,189,248,.45); }
+.sig-chip-today:hover { color: #38bdf8; border-color: #38bdf8; }
+.sig-chip-today.active { background: rgba(56,189,248,.16); color: #7dd3fc; border-color: rgba(56,189,248,.5); }
+
+.sig-chip-squeeze { color: #c084fc; border-color: rgba(192,132,252,.45); }
+.sig-chip-squeeze:hover { color: #c084fc; border-color: #c084fc; }
+.sig-chip-squeeze.active { background: rgba(192,132,252,.16); color: #d8b4fe; border-color: rgba(192,132,252,.5); }
+
+.sig-chip-keylvl { color: #f59e0b; border-color: rgba(245,158,11,.45); }
+.sig-chip-keylvl:hover { color: #f59e0b; border-color: #f59e0b; }
+.sig-chip-keylvl.active { background: rgba(245,158,11,.16); color: #fbbf24; border-color: rgba(245,158,11,.5); }
+
+.sig-chip-vol { color: #facc15; border-color: rgba(250,204,21,.45); }
+.sig-chip-vol:hover { color: #facc15; border-color: #facc15; }
+.sig-chip-vol.active { background: rgba(250,204,21,.16); color: #fde047; border-color: rgba(250,204,21,.5); }
 
 /* ── "Why this score?" panel inside instrument modal ─────────────────── */
 .mh-radar-score {
@@ -7451,12 +7563,12 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .msr-row:nth-child(even) { background: rgba(255,255,255,.015); }
 .msr-row:hover { background: var(--bg-hover); transform: translateX(2px); }
 
-/* ── Bottom nav: deeper glass, glowing active pill ────────────────────── */
+/* ── Bottom nav: iOS frosted glass, glowing active pill ───────────────── */
 .bottom-nav, nav.bottom-nav {
-  background: rgba(10,10,11,.82);
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  border-top: 1px solid rgba(255,255,255,.06);
+  background: rgba(18,18,20,.55);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-top: 1px solid rgba(255,255,255,.07);
 }
 
 /* ── Scrollbars inside card feeds: slim & quiet ───────────────────────── */

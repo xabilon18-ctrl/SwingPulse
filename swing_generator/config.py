@@ -5,8 +5,6 @@ MA ribbon: 25, 50, 75 ... 500 (step 25, 20 MAs).
 
 Data requirements:
     Daily   : 500 bars min → 45 yr history covers ~11,340 bars ✓
-    Weekly  : 500 bars     → 500 weeks ≈ 9.6 yr (45 yr gives ~2,340 weekly bars ✓)
-    Monthly : 500 bars     → 500 months ≈ 41.7 yr (45 yr gives ~540 monthly bars ✓)
     4H      : 500 bars     → Yahoo provides ~729 days of hourly (~2,919 4H bars ✓)
     Note: instruments with less than 45 yr history get MA periods clipped automatically.
 """
@@ -25,17 +23,11 @@ MA_PERIODS  = list(range(25, 501, 25))
 SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 250]   # BP2/SP2: fast MAs [25..250]
 MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA275 — midpoint of 20-MA ribbon
 
-# Long-term Support/Resistance reference MAs (daily only) — 1000+ only; 500 is in main ribbon
-MACRO_MA_PERIODS = [1000, 2000, 3000]
-
-# Macro S/R touch detection — wick must reach within this fraction of the MA.
-# Touch set is MA500 + MACRO_MA_PERIODS (4 levels → strength 4 = full confluence).
-MACRO_SR_TOLERANCE = 0.005
-
 # ---------------------------------------------------------------------------
-# Data — 18 yr covers daily/weekly MA500; monthly MA500 needs 42 yr (NaN expected)
 # ---------------------------------------------------------------------------
-HISTORY_YEARS     = 45   # 45 yr → covers monthly MA500 (500 months ≈ 41.7 yr)
+# Data
+# ---------------------------------------------------------------------------
+HISTORY_YEARS     = 45   # 45 yr → ample history for daily MA500
 CACHE_DIR         = os.path.join(BASE_DIR, 'cache_ma500')
 INSTRUMENTS_FILE  = os.path.join(ROOT_DIR, 'Instruments.txt')
 MIN_ROWS_REQUIRED = 10    # min daily bars to LIST an instrument (price/volume only).
@@ -64,18 +56,12 @@ WATCH_APPROACH_PCT        = 0.015
 MIDPOINT_BOUNCE_PCT       = 0.015
 
 # Wider MA spacing → slightly looser penetration tolerances
-MAX_PENETRATION_4H      = 0.025  # 2.5%  (was 2.0%)
-MAX_PENETRATION_DAILY   = 0.020  # 2.0%  (was 1.5%)
-MAX_PENETRATION_WEEKLY  = 0.030  # 3.0%  (was 2.5%)
-MAX_PENETRATION_MONTHLY = 0.035  # 3.5%  (was 3.0%)
-
-TOUCH_TOLERANCE_MONTHLY = 0.007  # 0.7%  (was 0.5%)
+MAX_PENETRATION_4H    = 0.025  # 2.5%  (was 2.0%)
+MAX_PENETRATION_DAILY = 0.020  # 2.0%  (was 1.5%)
 
 # Signal lookback — same cadence as original
-SIGNAL_LOOKBACK_4H      = 60
-SIGNAL_LOOKBACK_DAILY   = 20
-SIGNAL_LOOKBACK_WEEKLY  = 12
-SIGNAL_LOOKBACK_MONTHLY = 6
+SIGNAL_LOOKBACK_4H    = 60
+SIGNAL_LOOKBACK_DAILY = 20
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -95,12 +81,6 @@ SLOPE_LOOKBACK          = 10
 NEUTRAL_SLOPE_THRESHOLD = 0.5
 
 # ---------------------------------------------------------------------------
-# Google Sheets (not used for second app but kept for compat)
-# ---------------------------------------------------------------------------
-CREDENTIALS_FILE  = os.path.join(BASE_DIR, 'credentials', 'service_account.json')
-SPREADSHEET_NAME  = 'Swing Trading Signals MA500'
-
-# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
@@ -115,7 +95,6 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}date', f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
         f'{p}volume_average', f'{p}volume_spike_flag',
         *[f'{p}ma_{per}' for per in ma_periods],
-        *[f'{p}ma_{per}' for per in MACRO_MA_PERIODS],   # long-term S/R MAs (all timeframes)
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',
         f'{p}confirmation_status',
         f'{p}primary_signal',
@@ -129,31 +108,12 @@ def _tf_signal_columns(prefix, ma_periods=None):
 # Column order for output
 OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry',
-    # ── Daily ──
-    'date', 'open', 'high', 'low', 'close', 'volume',
-    'volume_average', 'volume_spike_flag',
-    *[f'ma_{p}' for p in MA_PERIODS],
-    *[f'ma_{p}' for p in MACRO_MA_PERIODS],
-    'trend_direction', 'established_trend', 'trend_run_days', 'confirmation_status',
-    'ma25_cross_count', 'neutral_oscillation',
-    'primary_signal',
-    'signal_confidence', 'new_trend_flag',
-    'last_signal_type', 'last_signal_date', 'last_signal_days_ago',
-    'watch_flag', 'potential_turning_point_flag',
-    'ribbon_spread', 'ribbon_compression', 'ribbon_slope_pct', 'ma_order_score', 'roc', 'rsi',
-    'rollover_score', 'rollover_max', 'rollover_dir', 'rollover_stage',
-    'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
-    'key_level_price', 'key_level_type', 'key_level_date',
-    'key_level_touch_count', 'key_level_touched_today',
-    'key_levels_all',
-    # ── Macro S/R touch signals (daily) ──
-    'macro_sr_signal', 'macro_sr_level', 'macro_sr_strength',
     # ── Multi-timeframe alignment ──
     'tf_alignment', 'tf_alignment_score',
-    # ── 4-Hour ──
+    # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
+    *_tf_signal_columns(''),
+    'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
+    'neutral_oscillation', 'ma25_cross_count', 'new_trend_flag',
+    # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
-    # ── Weekly ──
-    *_tf_signal_columns('w_'),
-    # ── Monthly ──
-    *_tf_signal_columns('m_'),
 ]

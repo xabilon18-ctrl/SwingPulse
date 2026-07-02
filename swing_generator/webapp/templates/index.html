@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SwingPulse">
@@ -15,37 +15,38 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=160">
+  <link rel="stylesheet" href="/static/css/style.css?v=182">
+  <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body data-profile="__APP_PROFILE__">
 
-  <!-- ===== TOP BAR ===== -->
-  <header class="topbar">
-    <div class="topbar-left">
-      <div class="logo">
-        <span class="logo-icon"><span class="profile-badge">PROFILE_BADGE</span></span>
-        <span class="logo-text">SwingPulse</span>
+  <!-- ===== TOP BAR (header + global timeframe toggle, pinned together) ===== -->
+  <div class="topbar-stack">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo">
+          <span class="logo-icon"><span class="profile-badge">PROFILE_BADGE</span></span>
+          <span class="logo-text">SwingPulse</span>
+        </div>
+        <span class="date-badge" id="dateBadge">--</span>
+        <button class="icon-btn" id="refreshBtn" title="Refresh data">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+        </button>
       </div>
-      <span class="date-badge" id="dateBadge">--</span>
-      <button class="icon-btn" id="refreshBtn" title="Refresh data">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
-      </button>
-    </div>
-    <div class="topbar-center">
-      <div class="tf-toggle" id="tfToggle" title="Timeframe">
-        <button class="tf-btn" data-tf="4H">4H</button>
-        <button class="tf-btn active" data-tf="D">D</button>
-        <button class="tf-btn" data-tf="W">W</button>
-        <button class="tf-btn" data-tf="M">M</button>
+      <div class="topbar-right">
+        <button class="icon-btn push-toggle-btn" id="pushToggleBtn" title="Notifications" onclick="window.SP && window.SP.toggleNotifPanel()"></button>
+        <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
+      </div>
+    </header>
+    <!-- ===== GLOBAL TIMEFRAME TOGGLE (4H / Daily) ===== -->
+    <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
+      <div class="tf-switch">
+        <button class="tf-switch-btn" id="tfBtn4H" data-tf="4H" role="tab" aria-selected="false">4H</button>
+        <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
       </div>
     </div>
-    <div class="topbar-right">
-      <button class="icon-btn push-toggle-btn" id="pushToggleBtn" title="Notifications" onclick="window.SP && window.SP.toggleNotifPanel()"></button>
-      <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
-    </div>
-  </header>
+  </div>
 
   <!-- ===== NOTIFICATIONS POPUP ===== -->
   <div class="notif-popup" id="notifPopup" style="display:none">
@@ -77,7 +78,6 @@
             <button class="gauge-info-btn" id="gaugeInfoBtn" title="How is the score calculated?">?</button>
             <span class="mp-card-hint">Tap row → filter scanner</span>
           </div>
-          <span class="chart-tf-badge" id="chartTfBadge1"></span>
         </div>
         <div class="gauge-tooltip" id="gaugeTooltip" style="display:none">
           <strong>Market Pulse Score (0–100)</strong><br>
@@ -214,18 +214,7 @@
         <div class="signal-feed" id="compressionFeed"></div>
       </div>
 
-      <!-- Charts Row -->
-      <!-- hidden compat canvases (JS references these IDs) -->
-      <canvas id="signalBar" style="display:none"></canvas>
-      <canvas id="sectorChart" style="display:none"></canvas>
-      <span id="chartTfBadge2" style="display:none"></span>
-      <span id="chartTfBadge3" style="display:none"></span>
-      <span id="sigBarHint" style="display:none"></span>
-      <div id="sectorDrill" style="display:none"><span id="sdName"></span><button id="sdClose"></button><div id="sdChips"></div></div>
 
-
-      <!-- AI Universe Card -->
-      <div class="card ai-universe-card" id="aiUniverseCard"></div>
 
       <!-- Signal Feed -->
       <div class="card">
@@ -233,76 +222,51 @@
         <div class="signal-feed" id="signalFeed"></div>
       </div>
 
-      <!-- Macro S/R Event Feed -->
-      <div class="card" id="macroSrCard" style="display:none">
-        <div class="card-header">
-          <h3>Macro S/R Events <span class="macro-sr-count-badge" id="macroSrCount"></span></h3>
-          <div class="macro-sr-summary" id="macroSrSummary"></div>
-        </div>
-        <div class="macro-sr-feed" id="macroSrFeed"></div>
-      </div>
-
     </section>
 
     <!-- ========== SIGNALS TAB ========== -->
     <section class="tab-pane" id="pane-scanner">
-      <!-- Header: count + search + view toggle -->
+      <!-- Header: count + view toggle -->
       <div class="sig-tab-header">
         <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
         <div class="sig-view-toggle">
           <button class="sig-view-btn active" data-view="list">List</button>
           <button class="sig-view-btn" data-view="ranked">Ranked</button>
         </div>
+      </div>
+
+      <!-- Full-width search -->
+      <div class="sig-search-row">
         <div class="search-wrap sig-search-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <button class="sig-search-icon-btn" onclick="document.getElementById('scannerSearch').focus()" aria-label="Search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
           <input type="text" class="search-input" id="scannerSearch" placeholder="Search name, category…" autocomplete="off">
           <button class="scanner-search-clear" id="scannerSearchClear" style="display:none" aria-label="Clear search">×</button>
         </div>
       </div>
 
-      <!-- Category quick-tap chips -->
+      <!-- Category chips (wrap, no scroll) -->
       <div class="scanner-cat-chips" id="scannerCatChips">
         <button class="s-cat-chip" data-cat="crypto">Crypto</button>
         <button class="s-cat-chip" data-cat="forex">Forex</button>
         <button class="s-cat-chip" data-cat="commodity">Commodity</button>
         <button class="s-cat-chip" data-cat="us100">US100</button>
-        <button class="s-cat-chip" data-cat="us30">US30</button>
         <button class="s-cat-chip" data-cat="us500">US500</button>
-        <button class="s-cat-chip" data-cat="ger40">GER40</button>
-        <button class="s-cat-chip" data-cat="uk100">UK100</button>
-        <button class="s-cat-chip" data-cat="fra40">FRA40</button>
-        <button class="s-cat-chip" data-cat="it40">IT40</button>
-        <button class="s-cat-chip" data-cat="aex">AEX</button>
-        <button class="s-cat-chip" data-cat="asx200">ASX200</button>
-        <button class="s-cat-chip" data-cat="japan">Japan</button>
-        <button class="s-cat-chip" data-cat="jse">JSE</button>
-        <button class="s-cat-chip" data-cat="ai">AI Theme</button>
-        <button class="s-cat-chip" data-cat="blockchain">Blockchain</button>
-        <button class="s-cat-chip" data-cat="space">Space</button>
-        <button class="s-cat-chip" data-cat="quantum">Quantum</button>
-        <button class="s-cat-chip" data-cat="robotics">Robotics</button>
-        <button class="s-cat-chip" data-cat="indices">Indices</button>
         <button class="s-cat-chip" data-cat="banks">Banks</button>
         <button class="s-cat-chip" data-cat="energy">Energy</button>
         <button class="s-cat-chip" data-cat="tech">Tech</button>
         <button class="s-cat-chip" data-cat="semi">Semis</button>
+        <button class="s-cat-chip" data-cat="ai">AI</button>
       </div>
 
-      <!-- Dashboard filter context strip (shown when navigated from Market Pulse / Group Pulse) -->
+      <!-- Dashboard filter context strip -->
       <div class="scanner-ctx-strip" id="scannerCtxStrip" style="display:none"></div>
 
-      <!-- Row 1: Direction toggle (segmented control) -->
-      <div class="sig-dir-toggle" id="scannerFilterChips">
-        <button class="sig-dir-btn active" data-filter="all">All</button>
-        <button class="sig-dir-btn sig-dir-buy" data-filter="buy">Buy</button>
-        <button class="sig-dir-btn sig-dir-sell" data-filter="sell">Sell</button>
-      </div>
-
-      <!-- Row 2: Context chips -->
+      <!-- Context filter chips (wrap) -->
       <div class="sig-ctx-row">
-        <button class="sig-ctx-chip sig-chip-radar-prime" data-filter="radar_prime" title="Radar score ≥75 — highest conviction setups">🎯 Prime</button>
-        <button class="sig-ctx-chip sig-chip-radar-strong" data-filter="radar_strong" title="Radar score 50–74 — strong setups">🎯 Strong</button>
-        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type (B1/S1 reversal, B2–B7/S2–S7 pullback)">
+        <button class="sig-ctx-chip sig-chip-radar" id="radarChip" title="Radar score — tap to cycle: off → Prime ≥75 → Strong ≥50">🎯 <span class="radar-label">Radar</span></button>
+        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Signal
           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
@@ -311,16 +275,37 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
           Best
         </button>
-        <button class="sig-ctx-chip" data-filter="today">Today</button>
-        <button class="sig-ctx-chip" data-filter="squeeze">Squeeze</button>
-        <button class="sig-ctx-chip" data-filter="keylvl">Key Lvl</button>
-        <button class="sig-ctx-chip" data-filter="vol">Vol Spike</button>
-        <button class="sig-ctx-chip sig-chip-macro-bull" data-filter="macro_bull" title="Price above all 4 macro MAs — strong support">🟢 Macro Bull</button>
-        <button class="sig-ctx-chip sig-chip-macro-bear" data-filter="macro_bear" title="Price below all 4 macro MAs — strong resistance">🔴 Macro Bear</button>
-        <button class="sig-ctx-chip sig-chip-macro-sup" data-filter="macro_sr_sup" title="Today's low tested a macro MA as support and bounced back above it">🔵 Macro Sup</button>
-        <button class="sig-ctx-chip sig-chip-macro-res" data-filter="macro_sr_res" title="Today's high tested a macro MA as resistance and closed back below it">🟠 Macro Res</button>
+        <button class="sig-ctx-chip sig-chip-today" data-filter="today">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Today
+        </button>
+        <button class="sig-ctx-chip sig-chip-squeeze" data-filter="squeeze">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Squeeze
+        </button>
+        <button class="sig-ctx-chip sig-chip-keylvl" data-filter="keylvl">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Key Lvl
+        </button>
+        <button class="sig-ctx-chip sig-chip-vol" data-filter="vol">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Vol Spike
+        </button>
+        <button class="sig-ctx-chip sig-chip-analyzed" id="analyzedChip" title="Filter by analyzed — tap to cycle: off → Analyzed → Unanalyzed">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
+          <span class="analyzed-label">Analyzed</span>
+        </button>
+      </div>
+
+      <!-- Direction toggle + advanced filters on one row -->
+      <div class="sig-dir-row">
+        <div class="sig-dir-toggle" id="scannerFilterChips">
+          <button class="sig-dir-btn active" data-filter="all">All</button>
+          <button class="sig-dir-btn sig-dir-buy" data-filter="buy">Buy</button>
+          <button class="sig-dir-btn sig-dir-sell" data-filter="sell">Sell</button>
+        </div>
         <button class="sig-ctx-chip sig-ctx-filters" id="sigMoreFiltersBtn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
           <span id="sigFilterBadge" class="sig-filter-badge" style="display:none">0</span>
         </button>
       </div>
@@ -333,23 +318,17 @@
         <div class="sig-sheet-grid">
           <div class="sig-sheet-col">
             <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Signals</div>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B1">B1 <span>Reversal</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>MA25</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B3">B3 <span>MA100</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B4">B4 <span>MA200</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B5">B5 <span>MA300</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B6">B6 <span>MA400</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B7">B7 <span>MA500</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B1">B1 <span>Breakout</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>Recovery</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B3">B3 <span>MA250</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B4">B4 <span>MA500</span></button>
           </div>
           <div class="sig-sheet-col">
             <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Signals</div>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S1">S1 <span>Reversal</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>MA25</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S3">S3 <span>MA100</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S4">S4 <span>MA200</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S5">S5 <span>MA300</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S6">S6 <span>MA400</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S7">S7 <span>MA500</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S1">S1 <span>Breakdown</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>Recovery</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S3">S3 <span>MA250</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S4">S4 <span>MA500</span></button>
           </div>
         </div>
         <button class="sig-sheet-clear" id="sigSheetClear">Clear Signal Filter</button>
@@ -381,43 +360,10 @@
           <label class="sig-adv-label">Alignment
             <select class="sig-adv-select" id="scannerAlignFilter">
               <option value="all">All Alignments</option>
-              <option value="bull">Bull (Triple/Aligned/Leaning)</option>
-              <option value="bear">Bear (Triple/Aligned/Leaning)</option>
+              <option value="bull">Bull Aligned</option>
+              <option value="bear">Bear Aligned</option>
               <option value="counter">Counter-trend</option>
               <option value="mixed">Mixed</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Confidence
-            <select class="sig-adv-select" id="scannerConfFilter">
-              <option value="all">All Confidence</option>
-              <option value="high">High Only</option>
-              <option value="highstd">High + Standard</option>
-              <option value="low">Low</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Macro Level (S/R)
-            <select class="sig-adv-select" id="scannerMacroMaFilter">
-              <option value="all">All</option>
-              <optgroup label="Above">
-                <option value="above_3000">Above MA3000</option>
-                <option value="above_500">Above MA500</option>
-                <option value="above_1000">Above MA1000</option>
-                <option value="above_2000">Above MA2000</option>
-                <option value="above_all">Above All Macro MAs</option>
-              </optgroup>
-              <optgroup label="Below">
-                <option value="below_3000">Below MA3000</option>
-                <option value="below_500">Below MA500</option>
-                <option value="below_1000">Below MA1000</option>
-                <option value="below_2000">Below MA2000</option>
-                <option value="below_all">Below All Macro MAs</option>
-              </optgroup>
-              <optgroup label="Near (±2%)">
-                <option value="near_3000">Near MA3000</option>
-                <option value="near_500">Near MA500</option>
-                <option value="near_1000">Near MA1000</option>
-                <option value="near_2000">Near MA2000</option>
-              </optgroup>
             </select>
           </label>
           <label class="sig-adv-label">RSI Zone
@@ -437,10 +383,6 @@
               <option value="conf_desc">Confidence ↓</option>
               <option value="pct_1d_desc">1D % ↓</option>
               <option value="pct_1d_asc">1D % ↑</option>
-              <option value="pct_1w_desc">1W % ↓</option>
-              <option value="pct_1w_asc">1W % ↑</option>
-              <option value="pct_1m_desc">1M % ↓</option>
-              <option value="pct_1m_asc">1M % ↑</option>
               <option value="pct_1y_desc">1Y % ↓</option>
               <option value="pct_1y_asc">1Y % ↑</option>
               <option value="roc_desc">ROC ↓</option>
@@ -460,9 +402,7 @@
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
           <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Price crossed all MAs (MA__SIG_SHORTEST__–MA__SIG_LONGEST__)</div>
-          <div class="sig-def"><span class="feed-badge badge-p3">B2/S2</span> <strong>MA__SIG_SHORTEST__ Pullback</strong> — Wick touch + close above/below MA__SIG_SHORTEST__</div>
-          <div class="sig-def"><span class="feed-badge badge-p3">B3–B6 / S3–S6</span> <strong>Deep Pullback</strong> — MA100 / MA200 / MA300 / MA400 bounce or rejection</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">B7/S7</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__ (deepest pullback level)</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">B7/S7</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
         </div>
         <div class="sig-legend-group">
           <div class="sig-legend-title">Confidence</div>
@@ -480,8 +420,8 @@
       <div class="card wl-my-card">
         <div class="card-header">
           <h3>
-            <span class="card-icon" style="color:#f59e0b">★</span>
-            My Watchlist
+            <span class="card-icon" style="color:#3b82f6">★</span>
+            My Analyzed
           </h3>
           <div class="wl-header-right">
             <div class="signal-summary" id="wlStats"></div>
@@ -605,8 +545,8 @@
       <span>Signals</span>
     </button>
     <button class="nav-tab" data-tab="watchlist">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      <span>Watchlist</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <span>Analyzed</span>
     </button>
     <button class="nav-tab" data-tab="trends">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg>
@@ -620,7 +560,7 @@
       <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
         <span style="font-size:1.1rem;font-weight:800">Who are you?</span>
       </div>
-      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your watchlist and trades will sync across all your devices.</p>
+      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and trades will sync across all your devices.</p>
       <div style="display:flex;gap:14px;justify-content:center">
         <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
         <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
@@ -631,6 +571,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=154"></script>
+  <script src="/static/js/app.js?v=189"></script>
 </body>
 </html>

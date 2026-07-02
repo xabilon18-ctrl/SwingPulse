@@ -2,15 +2,9 @@
 Swing Trading Signal Generator — daily runner.
 
 Usage:
-    python main.py                         # normal daily run (uses cache if fresh)
-    python main.py --refresh               # force re-download all data from Yahoo Finance
-    python main.py --date 2026-03-28       # backfill a specific date (uses cached data)
-    python main.py --profile ma500         # run the MA25-500 profile (second app)
-    python main.py --profile ma500 --refresh  # force-refresh MA500 profile data
-
-Profiles:
-    default  — MA10–108 ribbon (15 MAs, step 7)  → output/
-    ma500    — MA25–500 ribbon (20 MAs, step 25) → output_ma500/
+    python main.py                # normal daily run (uses cache if fresh)
+    python main.py --refresh      # force re-download all data from Yahoo Finance
+    python main.py --date 2026-03-28  # backfill a specific date (uses cached data)
 
 Cron (runs at 23:00 SAST / 21:00 UTC every weekday):
     0 21 * * 1-5 cd /path/to/swing_generator && /usr/bin/python3 main.py >> logs/cron.log 2>&1
@@ -36,10 +30,8 @@ import pandas as pd
 import _active_config as config
 
 from _active_config import (
-    MA_PERIODS, MACRO_MA_PERIODS, OUTPUT_COLUMNS,
-    TOUCH_TOLERANCE_MONTHLY,
+    MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_MONTHLY,
     ACTIVE_PROFILE,
 )
 
@@ -48,7 +40,6 @@ from instruments   import load_instruments, instruments_by_ticker
 from data_fetcher  import fetch_all, fetch_all_hourly
 from indicators    import add_all_indicators
 from signals       import add_signals
-from key_levels    import find_key_levels, today_level_summary
 from sheets_writer import write_output
 
 # ---------------------------------------------------------------------------
@@ -83,10 +74,8 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     row_date = target.index[-1].date()
 
     periods = ma_periods or MA_PERIODS
-    # Include macro S/R MAs for all timeframes (NaN guard handles missing bars)
-    all_periods = list(periods) + MACRO_MA_PERIODS
-    ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in all_periods}
-    lookback = signal_lookback or SIGNAL_LOOKBACK_DAILY
+    ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in periods}
+    lookback = signal_lookback or SIGNAL_LOOKBACK_4H
     last_sig = _find_last_signal(target, lookback=lookback)
     if prefix:
         last_sig = {f'{prefix}{k}': v for k, v in last_sig.items()}
@@ -128,11 +117,7 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}pct_1y':                        _fmt(row.get('pct_1y'), decimals=2),
     }
 
-    # Macro S/R touch signals — daily only (most meaningful at the daily level)
     if not prefix:
-        result['macro_sr_signal']   = row.get('macro_sr_signal', '') or ''
-        result['macro_sr_level']    = row.get('macro_sr_level', '') or ''
-        result['macro_sr_strength'] = int(row.get('macro_sr_strength', 0) or 0)
         # Daily-only choppiness/trend flags — computed in indicators/signals but
         # previously never extracted into the output row (always blank).
         result['ma25_cross_count']    = int(row.get('ma25_cross_count', 0) or 0)
@@ -302,22 +287,20 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
 
 def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     """
-    Score how many timeframes agree on direction.
+    Score how many timeframes agree on direction (Daily + 4H).
 
     Returns (label, score):
-        score: -4 to +4  (positive = bullish alignment, negative = bearish)
-        label: 'Quad Bull/Bear'   — all 4 TFs agree
-               'Triple Bull/Bear' — 3 of 4 TFs agree (no opposing TF)
-               'Double Bull/Bear' — 2 of 4 TFs agree (no opposing TF)
-               'Counter-trend'    — at least one TF in each direction
-               'Mixed'            — no TFs in any direction (all neutral)
+        score: -2 to +2  (positive = bullish alignment, negative = bearish)
+        label: 'Aligned Bull/Bear' — both TFs agree
+               'Counter-trend'     — TFs in opposite directions
+               'Mixed'             — no clear direction
 
     Uses established_trend (which persists through NEUTRAL) for each TF.
     """
     trends = []
-    for prefix in ('', 'h4_', 'w_', 'm_'):
-        key = f'{prefix}established_trend' if prefix else 'established_trend'
-        t = row.get(key, '')
+    for prefix in ('', 'h4_'):
+        key = f'{prefix}established_trend'
+        t = row.get(key, '') or row.get(f'{prefix}trend_direction', '')
         if t == 'UPTREND':
             trends.append(1)
         elif t == 'DOWNTREND':
@@ -325,23 +308,14 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
         else:
             trends.append(0)
 
-    # trends = [daily, h4, weekly, monthly]
     score = sum(trends)
     up_count = trends.count(1)
     down_count = trends.count(-1)
 
-    if up_count == 4:
-        label = 'Quad Bull'
-    elif down_count == 4:
-        label = 'Quad Bear'
-    elif up_count == 3 and down_count == 0:
-        label = 'Triple Bull'
-    elif down_count == 3 and up_count == 0:
-        label = 'Triple Bear'
-    elif up_count == 2 and down_count == 0:
-        label = 'Double Bull'
-    elif down_count == 2 and up_count == 0:
-        label = 'Double Bear'
+    if up_count == 2:
+        label = 'Aligned Bull'
+    elif down_count == 2:
+        label = 'Aligned Bear'
     elif up_count > 0 and down_count > 0:
         label = 'Counter-trend'
     else:
@@ -353,37 +327,32 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                        run_date: date, hourly_df: pd.DataFrame = None) -> Optional[dict]:
     """
-    Run the full pipeline for one instrument (4H + daily + weekly + monthly).
+    Run the full pipeline for one instrument (daily + 4H).
     Returns (row_dict, trend_segments) or (None, []) on error.
     """
     try:
-        # ── DAILY ──
+        # ── DAILY (indicators first — needed for trend segments + perf) ──
         df = add_all_indicators(df)
-        levels_df = find_key_levels(df)
-        df = add_signals(df, refire_pct=0.05, new_trend_pct=0.10,
-                         key_levels_df=levels_df)
 
-        daily_data, today_row = _extract_row(
+        # ── TREND SEGMENTS (from full daily history, ribbon-based trend_direction) ──
+        trend_segments = _extract_trend_segments(df)
+
+        # ── DAILY signals (same engine as 4H, unprefixed columns) ──
+        # Clip the ribbon to available bars so the MA500 anchor isn't all-NaN on
+        # short-history instruments (which would suppress every signal).
+        d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
+        if len(d_ma_periods) >= 3:
+            df = add_signals(df, ma_periods=d_ma_periods,
+                             refire_pct=0.05, new_trend_pct=0.05)
+        daily_data, _ = _extract_row(
             df, run_date, prefix='',
+            ma_periods=(d_ma_periods or None),
             signal_lookback=SIGNAL_LOOKBACK_DAILY,
         )
         if daily_data is None:
             return None, []
 
-        kl = today_level_summary(
-            levels_df,
-            today_high  = float(today_row['High']),
-            today_low   = float(today_row['Low']),
-            today_close = float(today_row['Close']),
-        )
-
-        # ── TREND SEGMENTS (from full daily history) ──
-        trend_segments = _extract_trend_segments(df)
-
-        ohlcv = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-
         # ── 4-HOUR (from hourly data) ──
-        # Clip MA periods to what fits in the available 4H bar count (~2yr of hourly).
         h4_data = {}
         if hourly_df is not None and len(hourly_df) >= 200:
             h4 = _resample_4h(hourly_df)
@@ -400,56 +369,13 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 if h4_data is None:
                     h4_data = {}
 
-        # ── WEEKLY ──
-        # Clip MA periods to what fits in the weekly bar count.
-        wk = _resample(ohlcv, 'W')
-        weekly_data = {}
-        weekly_ma_periods = [p for p in MA_PERIODS if p <= len(wk)]
-        if len(weekly_ma_periods) >= 3:
-            wk = add_all_indicators(wk, ma_periods=weekly_ma_periods)
-            wk = add_signals(wk, ma_periods=weekly_ma_periods,
-                             refire_pct=0.08, new_trend_pct=0.15)
-            weekly_data, _ = _extract_row(
-                wk, run_date, prefix='w_',
-                ma_periods=weekly_ma_periods,
-                signal_lookback=SIGNAL_LOOKBACK_WEEKLY,
-            )
-            if weekly_data is None:
-                weekly_data = {}
-
-        # ── MONTHLY ──
-        # Use only MA periods that fit within the available monthly bar count.
-        # 16 years of daily data ≈ 192 monthly bars → covers ma_10–ma_108 fully.
-        # Graceful clipping handles any periods that exceed available bar count.
-        mo = _resample(ohlcv, 'ME')
-        monthly_data = {}
-        monthly_ma_periods = [p for p in MA_PERIODS if p <= len(mo)]
-        if len(monthly_ma_periods) >= 3:
-            mo = add_all_indicators(mo, ma_periods=monthly_ma_periods)
-            mo = add_signals(
-                mo,
-                ma_periods=monthly_ma_periods,
-                touch_tolerance=TOUCH_TOLERANCE_MONTHLY,
-                refire_pct=0.12, new_trend_pct=0.20,
-            )
-            monthly_data, _ = _extract_row(
-                mo, run_date, prefix='m_',
-                ma_periods=monthly_ma_periods,
-                signal_lookback=SIGNAL_LOOKBACK_MONTHLY,
-            )
-            if monthly_data is None:
-                monthly_data = {}
-
         row = {
             'instrument_name':  inst_meta['name'],
             'group':            inst_meta.get('group', ''),
             'sector':           inst_meta.get('sector', ''),
             'industry':         inst_meta.get('industry', ''),
-            **daily_data,
-            **kl,
+            **(daily_data or {}),
             **(h4_data or {}),
-            **(weekly_data or {}),
-            **(monthly_data or {}),
         }
 
         # ── Multi-timeframe alignment (computed after all TFs are assembled) ──
@@ -553,14 +479,15 @@ def _process_worker(args: tuple) -> tuple:
         )
 
         if row:
-            status   = row.get('confirmation_status', '')
-            primary  = row.get('primary_signal', '')
-            conf     = row.get('signal_confidence', '')
+            primary  = row.get('h4_primary_signal', '')
+            d_primary = row.get('primary_signal', '')
+            conf     = row.get('h4_signal_confidence', '')
             tf_align = row.get('tf_alignment', '')
             tag        = f' [{primary}]'  if primary  else ''
+            d_tag      = f' D[{d_primary}]' if d_primary else ''
             conf_tag   = f' ({conf})'     if conf     else ''
             align_tag  = f' <{tf_align}>' if tf_align else ''
-            status_str = f'{status}{tag}{conf_tag}{align_tag}'.strip()
+            status_str = f'4H{tag}{conf_tag}{d_tag}{align_tag}'.strip()
         else:
             status_str = 'skipped'
 
@@ -582,8 +509,8 @@ def main():
                         help='Force re-download all data from Yahoo Finance')
     parser.add_argument('--date', type=str, default=None,
                         help='Target date YYYY-MM-DD (default: today)')
-    parser.add_argument('--profile', type=str, default='default',
-                        help='Config profile: default | ma500')
+    parser.add_argument('--profile', type=str, default='ma500',
+                        help='Config profile (default: ma500)')
     args = parser.parse_args()
 
     run_date = (
@@ -602,6 +529,7 @@ def main():
     print(f'\n  Instruments loaded: {len(instruments)}\n')
 
     # 2. Fetch / load data
+    _t1 = _time.time()
     print('  Fetching daily market data ...\n')
     data = fetch_all(instruments, force_refresh=args.refresh)
 
@@ -609,11 +537,18 @@ def main():
         print('\n  No data available. Exiting.')
         sys.exit(1)
 
+    _e1 = _time.time() - _t1
+    print(f'  Daily data: {int(_e1 // 60)}m {int(_e1 % 60):02d}s\n')
+
+    _t2 = _time.time()
     print('  Fetching hourly market data (for 4H timeframe) ...\n')
     # Populates the hourly parquet cache; workers re-read it per-ticker (no return used).
     fetch_all_hourly(instruments, force_refresh=args.refresh)
+    _e2 = _time.time() - _t2
+    print(f'  Hourly data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
+    _t3 = _time.time()
     n_workers = min(os.cpu_count() or 4, 8)
     print(f'  Computing signals ({n_workers} parallel workers) ...\n')
 
@@ -641,6 +576,9 @@ def main():
     if not rows:
         print('\n  No output rows generated.')
         sys.exit(1)
+
+    _e3 = _time.time() - _t3
+    print(f'\n  Signals: {int(_e3 // 60)}m {int(_e3 % 60):02d}s')
 
     # 4. Build output DataFrame
     output_df = pd.DataFrame(rows)

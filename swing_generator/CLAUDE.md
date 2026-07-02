@@ -6,7 +6,7 @@
 ## What is SwingPulse?
 A personal swing-trading signal dashboard that scans a watchlist of instruments (forex, indices, commodities, crypto, US/global equities) using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
 
-**Single active profile: MA500** (25, 50, 75 … 500 — step 25, 20 MAs + macro MAs 1000/2000/3000)
+**Single active profile: MA500** (25, 50, 75 … 500 — step 25, 20 MAs)
 
 | Item | Value |
 |------|-------|
@@ -14,7 +14,6 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | R2 data prefix | `ma500/` |
 | Instruments | **745** (parsed from `../Instruments.txt`) |
 | MA ribbon | MA25–MA500 (step 25, 20 MAs) |
-| Macro S/R MAs | MA1000, MA2000, MA3000 (daily only) |
 | History years | 45 (covers monthly MA500 ≈ 41.7 yr) |
 
 ---
@@ -28,7 +27,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4 + Lightweight Charts v4 (pinned) |
 | Utility helpers | `static/js/utils.js` (loaded before app.js, exposes `window.SP_UTILS`) |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | GitHub Actions (`publish.yml`) — **cron disabled, manual trigger only** |
+| CI pipeline | GitHub Actions (`publish.yml`) — cron 5×/day weekdays (04,08,12,16,20 UTC) + manual trigger |
 | Repo | https://github.com/xabilon18/SwingPulse |
 
 ---
@@ -69,7 +68,6 @@ There is now **one profile** — `ma500`. The multi-profile system is gone.
 Key constants (from `config.py`):
 ```python
 MA_PERIODS           = list(range(25, 501, 25))   # [25,50,...,500] — 20 MAs
-MACRO_MA_PERIODS     = [1000, 2000, 3000]          # daily long-term S/R only
 SMALL_MA_RANGE       = [p for p in MA_PERIODS if p <= 250]  # BP2/SP2 fast side
 MA_MIDPOINT          = MA_PERIODS[10]              # MA275
 HISTORY_YEARS        = 45
@@ -83,22 +81,20 @@ RIBBON_COMPRESSION_THRESHOLD = 5.0                 # wider than MA200 (step 25 v
 ## Signal System
 
 ### Timeframes
-`D` (Daily) · `4H` (4-Hour) · `W` (Weekly) · `M` (Monthly)
+`D` (Daily) · `4H` (4-Hour)
 
 ### Column Prefix Convention
 | Timeframe | Prefix |
 |-----------|--------|
 | Daily     | *(none)* — e.g. `primary_signal` |
 | 4-Hour    | `h4_`  — e.g. `h4_primary_signal` |
-| Weekly    | `w_`   — e.g. `w_primary_signal` |
-| Monthly   | `m_`   — e.g. `m_primary_signal` |
 
 In `app.js` the `f(field)` helper applies the active prefix.  
 **Exception:** cross-timeframe volume columns (`volume_spike_flag`, `h4_volume_spike_flag`, etc.) are absolute names — never pass them through `f()`.
 
 ### Signal Types (B = buy, S = sell — see signals.py)
 - **B1/S1** — Trend reversal: price crosses above (B1) / below (S1) **all** MAs; re-fires near MA500 within `refire_pct`
-- **B2–B6 / S2–S6** — Pullback bounce / rally rejection at the watch MA: 25→B2, 100→B3, 200→B4, 300→B5, 400→B6 (S mirror)
+- **B7/S7** — Anchor MA500 pullback bounce / rally rejection
 - **B7/S7** — Deep pullback bounce / rally rejection at the anchor MA500 — always high confidence
 
 ### Key Computed Fields (per timeframe, via `_tf_signal_columns`)
@@ -113,16 +109,15 @@ In `app.js` the `f(field)` helper applies the active prefix.
 
 ### Daily-only Fields
 `ma25_cross_count`, `neutral_oscillation`, `new_trend_flag`,  
-`pct_1d`, `pct_1w`, `pct_1m`, `pct_1y`,  
-`key_level_price`, `key_level_type`, `key_level_touch_count`, `key_level_touched_today`, `key_levels_all`,  
-`macro_sr_signal`, `macro_sr_level`, `macro_sr_strength`
+`pct_1d`, `pct_1y`,  
+`key_level_price`, `key_level_type`, `key_level_touch_count`, `key_level_touched_today`, `key_levels_all`
 
 ---
 
 ## Frontend App Tabs
-1. **Dashboard** — Market gauge, stat cards, signal feed, alignment summary, macro S/R touches
-2. **Scanner** — Instrument grid with filters: group, sector, trend, alignment, confidence, signal codes, key levels, vol spikes, macro S/R filter
-3. **Watchlist** — Starred instruments + alert sub-tabs (turning points, watch flags, key levels, vol)
+1. **Dashboard** — Market gauge, stat cards, signal feed, alignment summary
+2. **Scanner** — Instrument grid with filters: group, sector, trend, alignment, confidence, signal codes, key levels, vol spikes
+3. **Analyzed** — Instruments the user has technically analyzed (star = "I analyzed this") + alert sub-tabs (turning points, watch flags, key levels, vol). Pane id is still `pane-watchlist` and storage key is still `swingpulse-starred` — only the UI label changed.
 4. **Trends** — Trend history per instrument (timeline, stats, maturity)
 
 > Note: **Portfolio** tab was in the old CLAUDE.md but is not present in the current `index.html` nav. XM positions are fetched via `/api/portfolio` but rendered within the Dashboard.
@@ -135,14 +130,13 @@ In `app.js` the `f(field)` helper applies the active prefix.
 | Endpoint | Returns |
 |----------|---------|
 | `/api/signals` | `{ date, data: [...] }` — full instrument data |
-| `/api/summary` | Aggregate counts (buy/sell/watch/vol_spikes/macro_sr etc.) |
+| `/api/summary` | Aggregate counts (buy/sell/watch/vol_spikes etc.) |
 | `/api/trends` | `{ instrument_name: [{direction, start, end, days, pct_move}] }` |
 | `/api/history/{name}` | `{ ticker, data: [{date, open, high, low, close, volume, ma_25...ma_500}] }` — 600 bars |
 | `/api/tv-map` | `{ instrument_name: "EXCHANGE:SYMBOL" }` for TradingView links |
 | `/api/ticker-map` | `{ display_name: ticker }` |
 | `/api/ai-instruments` | List of AI-sector instrument names |
 | `/api/explanations` | Signal explanation text map |
-| `/api/portfolio` | XM broker positions (parsed from Gmail) |
 | `/api/flow` | Capital flow data for a group/region/period |
 | `/api/refresh` | POST — triggers a fresh data reload on the server |
 
@@ -157,8 +151,8 @@ In `app.js` the `f(field)` helper applies the active prefix.
 ---
 
 ## Current Versions
-- `app.js` — **v153** (~5600 lines)
-- `style.css` — **v160** (~7570 lines, single dark theme — light/midnight removed)
+- `app.js` — **v185**
+- `style.css` — **v181** (~7580 lines, single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **745 instruments**
@@ -188,7 +182,7 @@ cd swing_generator/webapp && python3 server.py
 
 | File | Profile | Cron | Cache |
 |------|---------|------|-------|
-| `publish.yml` | ma500 | **disabled** (cron commented out) — manual only | `cache_ma500/` |
+| `publish.yml` | ma500 | `0 4/8/12/16/20 * * 1-5` (5×/day weekdays, UTC) + manual | `cache_ma500/` |
 
 - Runs `python3 main.py --profile ma500` → uploads data to R2 → sends push notification with `X-Profile: ma500`
 - No UI deploy in CI — deploy UI manually with `--ui-only`

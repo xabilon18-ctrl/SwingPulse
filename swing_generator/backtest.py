@@ -161,7 +161,7 @@ def backtest_instrument(ticker: str, name: str,
         bar_date = df.index[i]
         if since and hasattr(bar_date, 'date') and bar_date.date() < since:
             continue
-        # Signal codes are B1–B7 (buy/long) / S1–S7 (sell/short)
+        # Signal codes are B1/B4 (buy/long) / S1/S4 (sell/short)
         side = 'long' if sig.startswith('B') else 'short' if sig.startswith('S') else None
         if side is None:
             continue

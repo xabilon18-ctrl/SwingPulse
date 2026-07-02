@@ -30,63 +30,6 @@ def add_ma_ribbon(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 # Volume
 # ---------------------------------------------------------------------------
 
-def add_macro_ma_levels(df: pd.DataFrame) -> pd.DataFrame:
-    """Add long-term S/R reference MAs: ma_300, ma_500, ma_1000, ma_2000 (daily only).
-    Requires enough history; silently skips if insufficient data."""
-    from _active_config import MACRO_MA_PERIODS
-    for period in MACRO_MA_PERIODS:
-        if len(df) >= period:
-            df[f'ma_{period}'] = df['Close'].rolling(period, min_periods=period).mean()
-        else:
-            df[f'ma_{period}'] = float('nan')
-    return df
-
-
-def add_macro_sr_touch(df: pd.DataFrame) -> pd.DataFrame:
-    """Detect price touching the macro S/R MAs: MA500 + MA1000/2000/3000.
-
-    A touch fires when the candle wick reaches within MACRO_SR_TOLERANCE of
-    the MA and the close confirms on one side:
-        support    — Low <= MA*(1+tol) and Close > MA  (bounce off the level)
-        resistance — High >= MA*(1-tol) and Close < MA (rejection at the level)
-
-    Adds columns (frontend contract — see renderMacroSr in app.js):
-        macro_sr_signal   – 'support' | 'resistance' | ''
-        macro_sr_level    – longest MA touched, e.g. 'MA2000'
-        macro_sr_strength – number of macro MAs touched on the signal side
-                            (1–4; 3+ = multi-MA confluence, 4 = all levels)
-    """
-    from _active_config import MACRO_MA_PERIODS, MACRO_SR_TOLERANCE
-    levels = sorted({max(MA_PERIODS), *MACRO_MA_PERIODS})
-    tol = MACRO_SR_TOLERANCE
-
-    sup_count = pd.Series(0,  index=df.index, dtype=int)
-    res_count = pd.Series(0,  index=df.index, dtype=int)
-    sup_level = pd.Series('', index=df.index, dtype=object)
-    res_level = pd.Series('', index=df.index, dtype=object)
-
-    for p in levels:
-        col = f'ma_{p}'
-        if col not in df.columns:
-            continue
-        ma    = df[col]
-        valid = ma.notna()
-        sup = valid & (df['Low']  <= ma * (1 + tol)) & (df['Close'] > ma)
-        res = valid & (df['High'] >= ma * (1 - tol)) & (df['Close'] < ma)
-        sup_count = sup_count + sup.astype(int)
-        res_count = res_count + res.astype(int)
-        # Ascending iteration → the longest touched MA wins the label
-        sup_level = sup_level.mask(sup, f'MA{p}')
-        res_level = res_level.mask(res, f'MA{p}')
-
-    is_sup = (sup_count > 0) & (sup_count >= res_count)
-    is_res = ~is_sup & (res_count > 0)
-    df['macro_sr_signal']   = np.where(is_sup, 'support', np.where(is_res, 'resistance', ''))
-    df['macro_sr_level']    = np.where(is_sup, sup_level, np.where(is_res, res_level, ''))
-    df['macro_sr_strength'] = np.where(is_sup, sup_count, np.where(is_res, res_count, 0))
-    return df
-
-
 def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add:
@@ -109,14 +52,14 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     Uses the ribbon's two anchor MAs (fastest = MA25, slowest = MA500) as
     boundaries — consistent with the signal engine in signals.py:
 
-    UPTREND   : Close > MA500 (above the slow anchor — above the full ribbon
-                in a bullish fan where MA500 is the floor)
-    DOWNTREND : Close < MA25  (below the fast anchor — below the full ribbon
-                in a bearish fan, OR pulled below the ceiling in a mixed ribbon)
+    UPTREND   : Close > MA500 (above the slow anchor — in uptrend zone, even during
+                a short-term pullback below MA25)
+    DOWNTREND : Close < MA25 AND Close ≤ MA500 (below fast MA and not above the anchor
+                — genuine downtrend, not just a pullback)
     NEUTRAL   : Close between MA25 and MA500
 
-    When the ribbon is mixed (MA25 > close > MA500 all simultaneously true),
-    DOWNTREND takes priority — price below the fast MA is the more immediate signal.
+    UPTREND takes priority so pullbacks (close < MA25 but > MA500) stay UPTREND,
+    not DOWNTREND — avoids contradicting a bullish ribbon during normal retracements.
 
     Rows where MA25 or MA500 is NaN are marked NEUTRAL.
     """
@@ -128,12 +71,13 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     ma500 = df[slow_col]
     has_both = ma25.notna() & ma500.notna()
 
-    # DOWNTREND checked first so a mixed ribbon (close < MA25 but > MA500) → DOWNTREND
+    # UPTREND checked first — above MA500 = in uptrend zone even during a pullback below MA25.
+    # DOWNTREND only fires when price is below MA25 AND not above MA500 (genuine downtrend).
     conditions = [
-        has_both & (df['Close'] < ma25),    # below fast MA → DOWNTREND
-        has_both & (df['Close'] > ma500),   # above slow MA → UPTREND
+        has_both & (df['Close'] > ma500),   # above slow anchor → UPTREND
+        has_both & (df['Close'] < ma25),    # below fast MA (and not above MA500) → DOWNTREND
     ]
-    choices = ['DOWNTREND', 'UPTREND']
+    choices = ['UPTREND', 'DOWNTREND']
 
     df['trend_direction'] = np.select(conditions, choices, default='NEUTRAL')
     return df
@@ -377,8 +321,6 @@ def add_neutral_oscillation(df: pd.DataFrame, ma_periods=None,
 
 def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_ma_ribbon(df, ma_periods=ma_periods)
-    df = add_macro_ma_levels(df)
-    df = add_macro_sr_touch(df)
     df = add_volume_analysis(df)
     df = add_trend(df, ma_periods=ma_periods)
     df = add_ribbon_analytics(df, ma_periods=ma_periods)
