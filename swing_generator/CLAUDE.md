@@ -151,7 +151,7 @@ In `app.js` the `f(field)` helper applies the active prefix.
 ---
 
 ## Current Versions
-- `app.js` — **v185**
+- `app.js` — **v191**
 - `style.css` — **v181** (~7580 lines, single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes

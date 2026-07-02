@@ -443,7 +443,9 @@
   }
 
   function isPushEnabled() {
-    return localStorage.getItem(sk('sp-push-enabled')) === '1' && Notification.permission === 'granted';
+    // Notification is undefined in iOS Safari outside an installed PWA
+    return localStorage.getItem(sk('sp-push-enabled')) === '1'
+      && typeof Notification !== 'undefined' && Notification.permission === 'granted';
   }
 
   function updatePushBadgeUI() {
@@ -452,9 +454,9 @@
     const on = isPushEnabled();
     btn.classList.toggle('push-on', on);
     btn.title = 'Notifications';
-    btn.innerHTML = on
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3,3"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+    // Always the solid bell — the green live dot (.push-on::after) is the
+    // on/off indicator; a dashed bell reads as a broken icon at 16px.
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
     const pt = document.getElementById('notifPushToggle');
     if (pt) {
       pt.textContent = on ? 'Push: on' : 'Push: off';
@@ -756,10 +758,11 @@
       const dateStr = sumRes.date || '--';
       let timeStr = '';
       if (sumRes.fetched_at) {
-        const isISO = sumRes.fetched_at.includes('T');
-        const d = isISO ? new Date(sumRes.fetched_at) : null;
-        if (d && !isNaN(d.getTime())) {
-          timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        // Accept both "2026-07-02T19:54:00Z" (published) and "2026-07-02 19:54" (local dev)
+        const d = new Date(sumRes.fetched_at.includes('T') ? sumRes.fetched_at : sumRes.fetched_at.replace(' ', 'T'));
+        if (!isNaN(d.getTime())) {
+          // hour12 pinned so a device's 24-hour clock setting can't change the header format
+          timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
         } else {
           timeStr = sumRes.fetched_at.split(' ')[1] || '';
         }
@@ -4423,7 +4426,15 @@
       const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
       if (!res.ok) return;
       const { build } = await res.json();
-      if (build && String(build) !== RUNNING_BUILD) window.location.reload();
+      if (build && String(build) !== RUNNING_BUILD) {
+        // Loop guard: if we already reloaded for this build and still run old
+        // code (CDN lag), don't reload again — wait for the next deploy.
+        if (sessionStorage.getItem('sp-reload-build') === String(build)) return;
+        sessionStorage.setItem('sp-reload-build', String(build));
+        // Query-string navigation instead of reload(): iOS PWAs can serve the
+        // cached shell on reload(), but a new URL forces a fresh HTML fetch.
+        window.location.replace('/?b=' + build);
+      }
     } catch (_) { /* offline or missing — ignore */ }
     finally { _updateChecking = false; }
   }
