@@ -213,6 +213,6 @@ cd swing_generator/webapp && python3 server.py
 
 **Debug blank chart in modal:** Ensure `autoSize: true` is set AND `await new Promise(r => requestAnimationFrame(r))` runs before `createChart()`
 
-**Data not updating:** Run workflow manually from GitHub Actions tab; stale banner appears on the site if data date ≠ today
+**Data not updating:** CI cron runs 5×/day weekdays (04/08/12/16/20 UTC); can also run manually from GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS in app.js `lastDueRunUTC`, +2.5h grace) — keep RUN_HOURS in sync with publish.yml crons.
 
 **Update version numbers:** After any UI change, bump `?v=NNN` on `app.js`, `style.css`, and/or `utils.js` in `index.html`
