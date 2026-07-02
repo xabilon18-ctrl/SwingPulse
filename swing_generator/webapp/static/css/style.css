@@ -5442,6 +5442,13 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   text-transform: uppercase;
   color: var(--text-primary);
 }
+.notif-ui-build {
+  margin-left: auto;
+  font-size: .6rem;
+  color: var(--text-muted);
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
 .notif-push-toggle {
   background: var(--bg-input);
   border: 1px solid var(--border);

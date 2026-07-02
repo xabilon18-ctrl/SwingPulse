@@ -4440,6 +4440,17 @@
   }
   checkForAppUpdate(); // check once on launch
 
+  // Show this build's deploy time in the bell popup — lets any device prove
+  // which UI build it is actually running (build id = deploy unix seconds).
+  (() => {
+    const el = document.getElementById('notifUiBuild');
+    if (!el) return;
+    const b = parseInt(RUNNING_BUILD, 10);
+    el.textContent = (isFinite(b) && b > 1e9)
+      ? 'UI ' + new Date(b * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      : 'UI dev';
+  })();
+
   // Re-sync when user returns to the tab (catches changes made on another device)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
