@@ -423,9 +423,12 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   display: flex;
   /* Grow BY the home-indicator inset — with border-box, a fixed 72px would
      lose ~34px of content height to the safe-area padding on iPhones,
-     squashing the tabs (icons clip out the top, labels out the bottom). */
-  height: calc(72px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+     squashing the tabs (icons clip out the top, labels out the bottom).
+     The inset is trimmed 14px: the full 34px reads as dead space, and the
+     home indicator only needs ~20px of clearance. */
+  --nav-inset: max(calc(env(safe-area-inset-bottom, 0px) - 14px), 0px);
+  height: calc(72px + var(--nav-inset));
+  padding-bottom: var(--nav-inset);
   background: var(--glass);
   backdrop-filter: blur(16px) saturate(1.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
