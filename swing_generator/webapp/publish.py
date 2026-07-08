@@ -229,9 +229,9 @@ def _explain_one(row: pd.Series) -> str:
         s1_clauses.append(trend_lbl)
 
     extras = []
-    align_note = _ALIGN_NOTES.get(align, '')
-    if align_note:
-        extras.append(align_note)
+    # tf_alignment note intentionally omitted — timeframes are scored and
+    # explained independently; a cross-TF "counter-trend" note here would
+    # contradict the single-timeframe read shown next to it.
     if vol == 'yes':
         extras.append('volume spike confirms institutional participation')
     if sconf:

@@ -2092,7 +2092,7 @@
 
       // MA order gauge
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 14;
+      const maMaxPairs = summaryData.ma_max_pairs || 19;
       const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const maOrderColor = maOrderPct !== null ? (maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)') : 'var(--border)';
 
@@ -2222,12 +2222,14 @@
     feed.innerHTML = compressed.map(item => {
       const spread = parseFloat(item[f('ribbon_spread')]);
       const order = parseInt(item[f('ma_order_score')]);
-      const dir = order > 8 ? 'Bullish lean' : order < 8 ? 'Bearish lean' : 'Neutral';
+      const maxPairs = summaryData.ma_max_pairs || 19;
+      const mid = maxPairs / 2;
+      const dir = order > mid ? 'Bullish lean' : order < mid ? 'Bearish lean' : 'Neutral';
       return `<div class="signal-feed-item" data-act="openModal" data-arg="${item.instrument_name}" style="border-left:3px solid var(--volume)">
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
-          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/14 | ${dir}</div>
+          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/${maxPairs} | ${dir}</div>
         </div>
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
@@ -2322,7 +2324,6 @@
     const sig = item[f('primary_signal')] || '';
     if (!sig) return '';
     const trend = item[f('established_trend')] || item[f('trend_direction')] || '';
-    const align = item.tf_alignment || '';
     const conf = item[f('signal_confidence')] || '';
     const volSpike = item[f('volume_spike_flag')] === 'yes';
     const compression = item[f('ribbon_compression')] === 'yes';
@@ -2342,7 +2343,6 @@
     const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
     if (!isNaN(trendRun) && trendRun > 0) parts.push(`${trendRun}d ${trend.toLowerCase()}`);
-    if (align) parts.push(align);
     if (volSpike) parts.push('volume spike');
     if (compression) parts.push('ribbon compression — breakout watch');
     if (conf === 'high') parts.push('high confidence');
@@ -2536,7 +2536,7 @@
       const compression = item[f('ribbon_compression')] === 'yes';
       const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 14;
+      const maMaxPairs = summaryData.ma_max_pairs || 19;
       const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
@@ -4475,31 +4475,35 @@
   // (sum → 0-100) and radarScoreBreakdown() (the modal panel) read from this,
   // so the number and its explanation can never drift apart.
   function radarScoreFactors(item) {
-    const { bull, bear, tfs } = tfCounts(item);
+    // SINGLE-TIMEFRAME SCORE: every factor reads the ACTIVE timeframe's own
+    // data (Daily or 4H, via f()). Timeframes are scored independently — no
+    // cross-TF blending, so the 4H view is a pure 4H read and vice versa.
 
-    // Direction: use ribbon majority (same metric as the gauge) so bias label and
-    // gauge never contradict. close < MA25 alone marks DOWNTREND even when 85% of
-    // MAs are below price (pullback in uptrend) — ribbon majority is the honest read.
-    const _close = parseFloat(item.close);
+    // Direction: ribbon majority on the active TF (same metric as the gauge) so
+    // bias label and gauge never contradict. close < MA25 alone marks DOWNTREND
+    // even when 85% of MAs are below price (pullback in uptrend) — ribbon
+    // majority is the honest read.
+    const _close = parseFloat(item[f('close')]);
     const _periods = activeMaPeriods();
     let _masAbove = 0, _masTotal = 0;
     if (!isNaN(_close)) {
       _periods.forEach(p => {
-        const v = parseFloat(item['ma_' + p]);
+        const v = parseFloat(item[f('ma_' + p)]);
         if (!isNaN(v)) { _masTotal++; if (_close > v) _masAbove++; }
       });
     }
-    const isBullish = _masTotal > 0 ? _masAbove * 2 >= _masTotal : bull >= bear;
+    const isBullish = _masTotal > 0 ? _masAbove * 2 >= _masTotal
+                                    : item[f('trend_direction')] !== 'DOWNTREND';
 
     const lines = [];
 
     // 0. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
     //     weighted) + lagging MA200 cutting through anchors (MA300/400/500)
     //     confirms a trend change, backing B1 (bull flip) / S1 (bear flip).
-    const rollDir   = item.rollover_dir || 'none';
-    const rollScore = parseInt(item.rollover_score) || 0;
-    const rollMax   = parseInt(item.rollover_max) || 15;
-    const rollStage = parseInt(item.rollover_stage) || 0;
+    const rollDir   = item[f('rollover_dir')] || 'none';
+    const rollScore = parseInt(item[f('rollover_score')]) || 0;
+    const rollMax   = parseInt(item[f('rollover_max')]) || 15;
+    const rollStage = parseInt(item[f('rollover_stage')]) || 0;
     const rollAligned = (isBullish && rollDir === 'bull') || (!isBullish && rollDir === 'bear');
     if (rollAligned && rollScore > 0 && rollMax > 0) {
       const pts   = Math.round((rollScore / rollMax) * 35);
@@ -4507,15 +4511,9 @@
       lines.push({ label: `Ribbon rollover ${rollScore}/${rollMax} (${isBullish ? 'bull' : 'bear'} ${stageLbl})`, points: pts });
     }
 
-    // 1. TF alignment (max 34)
-    const tfWeights = [22, 12];   // D, 4H
-    const targetTf  = isBullish ? 'UPTREND' : 'DOWNTREND';
-    let tfPoints = 0;
-    tfs.forEach((t, i) => { if (t === targetTf) tfPoints += tfWeights[i]; });
-    if (tfPoints) lines.push({ label: `Aligned timeframes (${isBullish ? 'bull' : 'bear'})`, points: tfPoints });
-
-    // 2. Signal type (max 25) — B1/S1 always top authority; B4/S4 anchor bounce
-    const sig = item.primary_signal || '';
+    // 1. Signal type (max 25) — the active TF's own signal. B1/S1 top authority;
+    //    B4/S4 anchor bounce next.
+    const sig = item[f('primary_signal')] || '';
     const buySig  = sig && sig.startsWith('B');
     const sellSig = sig && sig.startsWith('S');
     const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
@@ -4523,23 +4521,21 @@
       const sigPts = isReversal(sig) ? 25 : isLongestMa(sig) ? 15 : 10;
       lines.push({ label: `${sig} ${isReversal(sig) ? 'reversal signal' : isLongestMa(sig) ? 'anchor MA signal' : 'signal'}`,
                    points: sigPts });
-    } else if (item.watch_flag) {
-      lines.push({ label: 'Watch flag', points: 5 });
     }
 
-    // 3. Signal confidence (max 10)
-    const conf = (item.signal_confidence || '').toLowerCase();
+    // 2. Signal confidence (max 10)
+    const conf = (item[f('signal_confidence')] || '').toLowerCase();
     if (conf === 'high')          lines.push({ label: 'High confidence',     points: 10 });
     else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 6 });
     else if (conf === 'low')      lines.push({ label: 'Low confidence',      points: 3 });
 
-    // 4. Ribbon squeeze (max 10) — coiled-spring setup before a breakout
-    let sqPoints = 0; const sqTfs = [];
-    if (item.ribbon_compression     === 'yes') { sqPoints += 7; sqTfs.push('D'); }
-    if (item.h4_ribbon_compression  === 'yes') { sqPoints += 3; sqTfs.push('4H'); }
-    if (sqPoints) lines.push({ label: `Ribbon squeeze (${sqTfs.join('+')})`, points: Math.min(sqPoints, 10) });
+    // 3. Ribbon squeeze (max 10) — coiled-spring setup on the active TF
+    if (item[f('ribbon_compression')] === 'yes') {
+      lines.push({ label: `Ribbon squeeze (${timeframe})`, points: 10 });
+    }
 
-    // 5. Key-level confluence (max 9) — price testing a real, well-tested S/R level
+    // 4. Key-level confluence (max 9) — price testing a real, well-tested S/R
+    //    level. Key levels are price-based (daily columns), valid on both views.
     if (item.key_level_touched_today === 'yes') {
       let klPoints = 3;
       const touches = parseInt(item.key_level_touch_count) || 0;
@@ -4549,9 +4545,9 @@
       lines.push({ label: `Key level held ${touches}×, tested today`, points: klPoints });
     }
 
-    // 6. MA-order quality (max 8) — clean, textbook ribbon stacking in the trade direction
+    // 5. MA-order quality (max 8) — clean, textbook ribbon stacking in the trade direction
     const maOrder = parseInt(item[f('ma_order_score')]);
-    const maMax   = summaryData.ma_max_pairs || 14;
+    const maMax   = summaryData.ma_max_pairs || 19;
     if (!isNaN(maOrder) && maMax > 0) {
       const stackPct = maOrder / maMax;                       // 1 = perfectly bullish-stacked
       const aligned  = isBullish ? stackPct : (1 - stackPct); // direction-aware
@@ -4559,30 +4555,29 @@
       if (pts > 0) lines.push({ label: `MA ribbon ${isBullish ? 'stacked' : 'inverted'} ${maOrder}/${maMax}`, points: pts });
     }
 
-    // 7. RSI timing (max 9) — 4H entry timing against the higher-TF trend
-    const h4Rsi = parseFloat(item.h4_rsi);
-    const dRsi  = parseFloat(item.rsi);
-    if (isBullish) {
-      if (!isNaN(h4Rsi) && h4Rsi < 30)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (oversold)`,     points: 9 });
-      else if (!isNaN(h4Rsi) && h4Rsi < 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to run)`,  points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  < 50) lines.push({ label: `D RSI ${dRsi.toFixed(0)}`,              points: 3 });
-    } else {
-      if (!isNaN(h4Rsi) && h4Rsi > 70)      lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (overbought)`,   points: 9 });
-      else if (!isNaN(h4Rsi) && h4Rsi > 50) lines.push({ label: `4H RSI ${h4Rsi.toFixed(0)} (room to fall)`, points: 5 });
-      else if (!isNaN(dRsi)  && dRsi  > 50) lines.push({ label: `D RSI ${dRsi.toFixed(0)}`,              points: 3 });
+    // 6. RSI timing (max 9) — entry timing on the active TF only
+    const tfRsi = parseFloat(item[f('rsi')]);
+    if (!isNaN(tfRsi)) {
+      if (isBullish) {
+        if      (tfRsi < 30) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (oversold)`,    points: 9 });
+        else if (tfRsi < 50) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (room to run)`, points: 5 });
+      } else {
+        if      (tfRsi > 70) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (overbought)`,   points: 9 });
+        else if (tfRsi > 50) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (room to fall)`, points: 5 });
+      }
     }
 
-    // 8. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
-    const daysAgo = parseInt(item.last_signal_days_ago);
+    // 7. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
+    const daysAgo = parseInt(item[f('last_signal_days_ago')]);
     if (!isNaN(daysAgo)) {
       if      (daysAgo <= 1) lines.push({ label: `Signal fresh (${daysAgo}d ago)`,  points: 4 });
       else if (daysAgo <= 4) lines.push({ label: `Signal recent (${daysAgo}d ago)`, points: 2 });
       else if (daysAgo <= 9) lines.push({ label: `Signal ${daysAgo}d ago`,          points: 1 });
     }
 
-    // 11. Volume (max 6) — daily + 4H spike
-    if (item.volume_spike_flag    === 'yes') lines.push({ label: 'Volume spike (D)', points: 3 });
-    if (item.h4_volume_spike_flag === 'yes') lines.push({ label: 'Volume spike (4H)',    points: 3 });
+    // 8. Volume (max 6) — spike on the active TF
+    const _volSpike = timeframe === '4H' ? item.h4_volume_spike_flag : item.volume_spike_flag;
+    if (_volSpike === 'yes') lines.push({ label: `Volume spike (${timeframe})`, points: 6 });
 
     return { isBullish, lines };
   }

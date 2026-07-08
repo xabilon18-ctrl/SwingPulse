@@ -2,17 +2,17 @@
    SwingPulse — Complete Theme & UI System
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Design Tokens (Dark — matte charcoal, base sampled from user swatch) ── */
+/* ── Design Tokens (Dark — true black, same contrast ladder as old charcoal) ── */
 :root,
 [data-theme="dark"] {
-  --bg-base:       #242423;
-  --bg-surface:    #2a2a28;
-  --bg-elevated:   #323230;
-  --bg-card:       #2c2c2a;
-  --bg-hover:      #3a3a37;
-  --bg-input:      #1e1e1d;
-  --border:        #3e3e3a;
-  --border-active: #585853;
+  --bg-base:       #000000;
+  --bg-surface:    #0d0d0c;
+  --bg-elevated:   #1a1a19;
+  --bg-card:       #121211;
+  --bg-hover:      #262625;
+  --bg-input:      #0a0a09;
+  --border:        #2a2a28;
+  --border-active: #4a4a46;
   --text-primary:  #f4f4f5;
   --text-secondary:#a1a1aa;
   --text-muted:    #6e6e79;
@@ -38,10 +38,10 @@
   --shadow:        0 4px 24px rgba(0,0,0,.5);
   --shadow-lg:     0 12px 48px rgba(0,0,0,.7);
   --transition:    .25s cubic-bezier(.4,0,.2,1);
-  --glass:         rgba(34,34,33,.72);
+  --glass:         rgba(8,8,8,.72);
   --glass-border:  rgba(255,255,255,.07);
-  --scrollbar-bg:  #2a2a28;
-  --scrollbar-thumb:#4c4c48;
+  --scrollbar-bg:  #0d0d0c;
+  --scrollbar-thumb:#3a3a38;
 }
 
 
@@ -94,7 +94,7 @@ button, a, [role="button"], input, select, textarea, label {
 
 html {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   scroll-behavior: smooth;
   overflow-x: clip;   /* prevent horizontal scroll WITHOUT breaking position:sticky */
@@ -138,7 +138,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
+  height: 66px;
   padding: 0 18px;
   background: transparent;                     /* inherits the stack's frosted material */
   border-bottom: 1px solid rgba(255,255,255,.07);
@@ -166,16 +166,17 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   flex: 1 1 0;                                      /* 4H / Daily each take half */
   border-radius: 7px;
   color: var(--text-dim, #9aa3b2);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
   font-weight: 700;
   letter-spacing: .06em;
   text-align: center;
-  padding: 5px 0;
+  padding: 12px 0;
   cursor: pointer;
-  transition: background .15s ease, color .15s ease;
+  transition: background .15s ease, color .15s ease, transform .1s ease;
 }
 .tf-switch-btn:hover { color: var(--text, #e6e9ef); background: rgba(255,255,255,.05); }
+.tf-switch-btn:active { transform: scale(.96); filter: brightness(.9); }
 .tf-switch-btn.active {
   color: #0a0a0b;
   background: var(--accent, #fbbf24);
@@ -373,7 +374,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 
 .icon-btn {
-  width: 38px; height: 38px;
+  width: 38px; height: 42px;
   border: none;
   border-radius: 12px;
   background: rgba(255,255,255,.04);
@@ -448,7 +449,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   cursor: pointer;
   font-size: .72rem;
   font-weight: 500;
-  transition: color .2s ease, background .25s ease;
+  transition: color .2s ease, background .25s ease, transform .1s ease;
   position: relative;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -458,6 +459,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   padding: 0 6px;
   margin: 8px 4px;
 }
+.nav-tab:active { transform: scale(.93); }
 .nav-tab-ic {
   display: flex;
   align-items: center;
@@ -508,7 +510,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 @media (min-width: 768px) {
   .bottom-nav {
-    top: 79px; bottom: auto;   /* sits below the 60px header + 19px timeframe toggle */
+    top: 119px; bottom: auto;   /* sits below the 66px header + 52px timeframe toggle */
     height: 48px;
     border-top: none;
     border-bottom: 1px solid var(--glass-border);
@@ -3295,7 +3297,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
    MOBILE RESPONSIVE — applied to all tabs
    ═══════════════════════════════════════════════════════════════════════ */
 @media (max-width: 580px) {
-  html { font-size: 15px; }
+  html { font-size: 16px; }
 
   /* ── Signal row: reflow to 2-row layout ── */
   .signal-row {
@@ -5424,15 +5426,16 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   letter-spacing: .03em;
   cursor: pointer;
   flex-shrink: 0;
-  transition: opacity .15s;
+  transition: opacity .15s, transform .1s ease;
 }
 .sync-name:hover     { opacity: .75; }
+.sync-name:active    { transform: scale(.94); opacity: .7; }
 .sync-name-unset     { color: var(--text-muted); }
 
 /* ── Notifications popup ─────────────────────────────────────────────── */
 .notif-popup {
   position: fixed;
-  top: 54px;
+  top: 60px;
   right: 10px;
   width: min(380px, calc(100vw - 20px));
   max-height: 70vh;
@@ -7490,7 +7493,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 
 /* ── Machined card surface: soft vertical sheen + top edge highlight ──── */
 .card {
-  background: linear-gradient(180deg, #323230 0%, #2c2c2a 55%, #292927 100%);
+  background: linear-gradient(180deg, #171716 0%, #121211 55%, #0f0f0e 100%);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius-lg);
   padding: 18px;
@@ -7601,7 +7604,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .signal-feed::-webkit-scrollbar,
 .macro-sr-feed::-webkit-scrollbar { width: 4px; }
 .signal-feed::-webkit-scrollbar-thumb,
-.macro-sr-feed::-webkit-scrollbar-thumb { background: #2e2e36; border-radius: 4px; }
+.macro-sr-feed::-webkit-scrollbar-thumb { background: #3a3a38; border-radius: 4px; }
 
 /* ── FACELIFT round 2 (v156): display type, ambiance, hero polish ─────── */
 
@@ -7661,7 +7664,7 @@ body {
 
 /* Trend Change & Strong Signals: premium chip rail */
 .trend-alert-banner {
-  background: linear-gradient(180deg, #323230 0%, #2a2a28 100%);
+  background: linear-gradient(180deg, #171716 0%, #101010 100%);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: var(--radius-lg);
   box-shadow:
