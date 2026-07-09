@@ -771,7 +771,7 @@
 
       // Staleness warning: compare data AGE against the CI schedule, not the
       // calendar date — data from yesterday 22:00 is fine at 05:00 today.
-      // Cron starts (UTC, Mon–Fri): 04,08,12,16,20 — keep RUN_HOURS in sync
+      // Cron starts (UTC, Mon–Fri): 04,12,16 — keep RUN_HOURS in sync
       // with .github/workflows/publish.yml.
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
@@ -782,7 +782,7 @@
       }
       // Most recent scheduled run that should have finished by now
       function lastDueRunUTC(nowMs) {
-        const RUN_HOURS = [4, 8, 12, 16, 20];
+        const RUN_HOURS = [4, 12, 16];
         const GRACE_MS  = 2.5 * 3600e3; // worst-case cold-cache run ~90 min + slack
         const cutoff = nowMs - GRACE_MS;
         for (let back = 0; back < 8; back++) {
