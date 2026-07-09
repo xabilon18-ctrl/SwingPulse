@@ -39,7 +39,7 @@
   let radarWired = false;
   let wlFilter = 'all';
   let wlSort = 'signal';
-  let activeAlertTab = 'turning';
+  let activeAlertTab = 'keylvl';
   // ── Cross-device Sync ────────────────────────────────────────────────
   const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
   const SYNC_SECRET = 'swingpulse2026';
@@ -556,7 +556,7 @@
 
     const total = data.length;
     const trendCounts = {};
-    let buyCount = 0, sellCount = 0, watchCount = 0, volumeSpikes = 0;
+    let buyCount = 0, sellCount = 0, volumeSpikes = 0;
     const signalTypes = {};
     data.forEach(item => {
       const trend = effectiveTrend(item);
@@ -566,7 +566,6 @@
       if (status.includes('buy')) buyCount++;
       if (status.includes('sell')) sellCount++;
 
-      if (item[f('watch_flag')]) watchCount++;
       if (item[f('volume_spike_flag')] === 'yes') volumeSpikes++;
 
       const sig = item[f('primary_signal')] || '';
@@ -580,7 +579,6 @@
       trend_counts: trendCounts,
       buy_count: buyCount,
       sell_count: sellCount,
-      watch_count: watchCount,
       volume_spikes: volumeSpikes,
       signal_types: signalTypes,
       groups: summaryData.groups || [],
@@ -956,9 +954,6 @@
     if (sig) return sig.startsWith('S');
     return (item[f('confirmation_status')] || '').toLowerCase().includes('downtrend');
   }
-  function isWatch(item) {
-    return !!(item[f('watch_flag')]);
-  }
   function signalClass(item) {
     if (isBuy(item)) return 'buy';
     if (isSell(item)) return 'sell';
@@ -1159,7 +1154,10 @@
     }).join('');
 
     if (subEl && backtestData.generated_at) {
-      subEl.textContent = `2% stop · 2:1 R:R · updated ${formatGeneratedAt(backtestData.generated_at)}`;
+      const p = backtestData.params || {};
+      const stopStr = p.stop_model ? `${p.stop_model} stop · ${p.target_r || 2}:1 R:R` : '2% stop · 2:1 R:R';
+      const sinceStr = p.since && p.since !== 'full history' ? ` · since ${p.since}` : '';
+      subEl.textContent = `${stopStr}${sinceStr} · updated ${formatGeneratedAt(backtestData.generated_at)}`;
     }
   }
 
@@ -1229,7 +1227,6 @@
     // Stat card counts kept in hidden spans for potential JS references
     animateCount(document.getElementById('buyCount'), s.buy_count || 0);
     animateCount(document.getElementById('sellCount'), s.sell_count || 0);
-    animateCount(document.getElementById('watchCount'), s.watch_count || 0);
     animateCount(document.getElementById('volumeCount'), s.volume_spikes || 0);
 
     renderTrackRecord();
@@ -1380,7 +1377,6 @@
     const confOrd = { high: 0, standard: 1, low: 2 };
     const buys    = aiItems.filter(d => isBuy(d));
     const sells   = aiItems.filter(d => isSell(d));
-    const watches = aiItems.filter(d => d[f('watch_flag')]);
     const vols    = aiItems.filter(d => d[f('volume_spike_flag')] === 'yes');
     const extended = aiItems.filter(d => {
       const segs = trendsData[d.instrument_name] || [];
@@ -1498,7 +1494,6 @@
       <div class="ai-uc-signals">
         <div class="ai-sig-chip ai-sig-buy"><span>${buys.length}</span> Buy</div>
         <div class="ai-sig-chip ai-sig-sell"><span>${sells.length}</span> Sell</div>
-        <div class="ai-sig-chip ai-sig-watch"><span>${watches.length}</span> Watch</div>
         <div class="ai-sig-chip ai-sig-vol"><span>${vols.length}</span> Vol</div>
         <div class="ai-sig-chip ai-sig-ext"><span>${extended}</span> Extended</div>
       </div>
@@ -1965,13 +1960,11 @@
     // ── Legend filter (only show that signal type) ──
     if (activeHmLegendFilter === 'buy')     filtered = filtered.filter(isBuy);
     else if (activeHmLegendFilter === 'sell')    filtered = filtered.filter(isSell);
-    else if (activeHmLegendFilter === 'watch')   filtered = filtered.filter(isWatch);
-    else if (activeHmLegendFilter === 'neutral') filtered = filtered.filter(d => !isBuy(d) && !isSell(d) && !isWatch(d));
+    else if (activeHmLegendFilter === 'neutral') filtered = filtered.filter(d => !isBuy(d) && !isSell(d));
 
     // ── Stat card filter (show only matching) ──
     if (activeStatFilter === 'buy')      filtered = filtered.filter(isBuy);
     else if (activeStatFilter === 'sell')     filtered = filtered.filter(isSell);
-    else if (activeStatFilter === 'watch')    filtered = filtered.filter(isWatch);
     else if (activeStatFilter === 'volume')   filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
     else if (activeStatFilter === 'squeeze')  filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
     else if (activeStatFilter === 'highconf') filtered = filtered.filter(d => d[f('signal_confidence')] === 'high' || d[f('signal_confidence')] === 'standard');
@@ -2038,8 +2031,7 @@
       const hmCls = 'hm-' + cls;
       const primary = item[f('primary_signal')] ? 'hm-primary' : '';
       const sig = item[f('primary_signal')] || '';
-      const watch = isWatch(item) ? 'hm-watch' : '';
-      const finalCls = watch && cls === 'neutral' ? 'hm-watch' : hmCls;
+      const finalCls = hmCls;
       const alignColor = (item.tf_alignment || '').includes('Bull') ? 'var(--buy)' : (item.tf_alignment || '').includes('Bear') ? 'var(--sell)' : 'var(--watch)';
       const squeeze = item[f('ribbon_compression')] === 'yes';
       const triple = isTripleAligned(item);
@@ -2334,7 +2326,7 @@
       B1: `trend reversal — price crossed above all MAs (MA${maShortest}–MA${maLongest})`,
       S1: `trend reversal — price crossed below all MAs (MA${maShortest}–MA${maLongest})`,
       B2: `pullback recovery — price crossed back above MA${maShortest}`,
-      S2: `rally recovery — price crossed back below MA${maShortest}`,
+      S2: `rally rejection — price crossed back below MA${maShortest}`,
       B3: `mid-ribbon bounce off MA250`,
       S3: `mid-ribbon rejection at MA250`,
       B4: `anchor bounce off MA${maLongest}`,
@@ -3016,8 +3008,7 @@
       const roc  = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const age  = signalAge(item.signal_date || item.date || '');
-      const hasAlert = !!(item[f('potential_turning_point_flag')] || item[f('watch_flag')] ||
-                          item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
+      const hasAlert = !!(item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
       const _aiWl = isAI(item.instrument_name);
       return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="wl-card-top">
@@ -3051,20 +3042,16 @@
     const listEl = document.getElementById('wlAlertsList');
     if (!listEl) return;
 
-    const turning = allData.filter(d => d[f('potential_turning_point_flag')]);
-    const watch   = allData.filter(d => d[f('watch_flag')]);
     const keylvl  = allData.filter(d => d.key_level_touched_today === 'yes');
     const vol     = allData.filter(d => d[f('volume_spike_flag')] === 'yes');
 
     // Update count badges
     const updBadge = (id, arr) => { const e = document.getElementById(id); if (e) e.textContent = arr.length ? `(${arr.length})` : ''; };
-    updBadge('cntTurning', turning); updBadge('cntWatch', watch);
     updBadge('cntKeyLvl', keylvl);  updBadge('cntVol', vol);
 
-    const datasets = { turning, watch, keylvl, vol };
-    const active   = datasets[activeAlertTab] || turning;
-    const emptyMsg = { turning: 'No turning points today', watch: 'No watch flags today',
-                       keylvl: 'No key level touches today', vol: 'No volume spikes today' };
+    const datasets = { keylvl, vol };
+    const active   = datasets[activeAlertTab] || keylvl;
+    const emptyMsg = { keylvl: 'No key level touches today', vol: 'No volume spikes today' };
 
     if (!active.length) {
       listEl.innerHTML = `<div class="wl-empty">${emptyMsg[activeAlertTab]}</div>`;
@@ -3077,9 +3064,7 @@
       const buy     = isBuy(item), sell = isSell(item);
       const starred = userStarred.has(item.instrument_name);
       let detail = '';
-      if (activeAlertTab === 'turning') detail = item[f('potential_turning_point_flag')];
-      else if (activeAlertTab === 'watch')  detail = item[f('watch_flag')];
-      else if (activeAlertTab === 'keylvl') detail = `${item.key_level_type || ''} @ ${formatPrice(item.key_level_price)}`;
+      if (activeAlertTab === 'keylvl') detail = `${item.key_level_type || ''} @ ${formatPrice(item.key_level_price)} · ${item.key_level_touch_count || 0} touches`;
       else if (activeAlertTab === 'vol') {
         const v = parseInt(item[f('volume')] || 0), a = parseInt(item[f('volume_average')] || 0);
         detail = `Vol: ${v.toLocaleString()} (avg: ${a.toLocaleString()})`;

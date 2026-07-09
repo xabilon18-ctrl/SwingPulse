@@ -164,7 +164,6 @@
       <!-- Stat cards removed — counts now surfaced in gauge + By Group -->
       <span id="buyCount" style="display:none"></span>
       <span id="sellCount" style="display:none"></span>
-      <span id="watchCount" style="display:none"></span>
       <span id="volumeCount" style="display:none"></span>
       <span id="highConfCount" style="display:none"></span>
 
@@ -403,13 +402,13 @@
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
           <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Price crossed all MAs (MA__SIG_SHORTEST__–MA__SIG_LONGEST__)</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">B7/S7</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
         </div>
         <div class="sig-legend-group">
-          <div class="sig-legend-title">Confidence</div>
-          <div class="sig-def"><span class="badge-confidence conf-high">high</span> Signal + volume spike + key level</div>
-          <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Signal + volume spike OR key level</div>
-          <div class="sig-def"><span class="badge-confidence conf-low">low</span> Signal without confluence</div>
+          <div class="sig-legend-title">Confidence — backtested edge (10y, per signal/timeframe/asset class)</div>
+          <div class="sig-def"><span class="badge-confidence conf-high">high</span> Historically profitable (≥ +0.05R avg per trade)</div>
+          <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Marginal or unproven (small edge or thin sample)</div>
+          <div class="sig-def"><span class="badge-confidence conf-low">low</span> Historically losing — trade with extra caution</div>
         </div>
       </div>
     </section>
@@ -454,15 +453,7 @@
             Today's Alerts
           </h3>
           <div class="filter-chips" id="alertFilterChips" style="margin:0">
-            <button class="chip active" data-alert="turning">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-              Turning <span class="wl-alert-count" id="cntTurning"></span>
-            </button>
-            <button class="chip" data-alert="watch">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              Watch <span class="wl-alert-count" id="cntWatch"></span>
-            </button>
-            <button class="chip" data-alert="keylvl">
+            <button class="chip active" data-alert="keylvl">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
               Key Level <span class="wl-alert-count" id="cntKeyLvl"></span>
             </button>
@@ -572,6 +563,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=196"></script>
+  <script src="/static/js/app.js?v=197"></script>
 </body>
 </html>

@@ -36,9 +36,10 @@ from _active_config import (
 )
 
 PROFILE = ACTIVE_PROFILE
-from instruments   import load_instruments, instruments_by_ticker
+from instruments   import load_instruments, instruments_by_ticker, asset_class_of
 from data_fetcher  import fetch_all, fetch_all_hourly
 from indicators    import add_all_indicators
+from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
 from sheets_writer import write_output
 
@@ -341,16 +342,34 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # Clip the ribbon to available bars so the MA500 anchor isn't all-NaN on
         # short-history instruments (which would suppress every signal).
         d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
+        _asset_cls = asset_class_of(inst_meta.get('group', ''))
         if len(d_ma_periods) >= 3:
             df = add_signals(df, ma_periods=d_ma_periods,
-                             refire_pct=0.05, new_trend_pct=0.05)
-        daily_data, _ = _extract_row(
+                             refire_pct=0.05, new_trend_pct=0.05,
+                             tf='D', asset_class=_asset_cls)
+        daily_data, d_row = _extract_row(
             df, run_date, prefix='',
             ma_periods=(d_ma_periods or None),
             signal_lookback=SIGNAL_LOOKBACK_DAILY,
         )
         if daily_data is None:
             return None, []
+
+        # ── KEY LEVELS (daily) — historical pivots + today's touch status ──
+        # A per-instrument failure must not drop the whole row; leave fields empty.
+        daily_data.update({
+            'key_level_price': '', 'key_level_type': '', 'key_level_date': '',
+            'key_level_touch_count': '', 'key_level_touched_today': 'no',
+            'key_levels_all': '',
+        })
+        try:
+            levels = find_key_levels(df.tail(config.KEY_LEVEL_WINDOW_BARS))
+            daily_data.update(today_level_summary(
+                levels,
+                float(d_row['High']), float(d_row['Low']), float(d_row['Close']),
+            ))
+        except Exception:
+            pass
 
         # ── 4-HOUR (from hourly data) ──
         h4_data = {}
@@ -360,7 +379,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             if len(h4_ma_periods) >= 3:
                 h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                 h4 = add_signals(h4, ma_periods=h4_ma_periods,
-                                 refire_pct=0.02, new_trend_pct=0.05)
+                                 refire_pct=0.02, new_trend_pct=0.05,
+                                 tf='4H', asset_class=_asset_cls)
                 h4_data, _ = _extract_row(
                     h4, run_date, prefix='h4_',
                     ma_periods=h4_ma_periods,

@@ -41,3 +41,18 @@ def load_instruments():
 def instruments_by_ticker():
     """Return dict keyed by ticker for fast lookup."""
     return {inst['ticker']: inst for inst in load_instruments()}
+
+
+def asset_class_of(group: str) -> str:
+    """Collapse Instruments.txt groups into 5 broad classes.
+    Used to key backtest expectancy stats and signal confidence tiers."""
+    g = (group or '').strip()
+    if g in ('Crypto', 'Blockchain'):
+        return 'Crypto'
+    if g == 'Forex':
+        return 'Forex'
+    if g == 'Commodity':
+        return 'Commodity'
+    if g.endswith('Index'):
+        return 'Index'
+    return 'Equity'

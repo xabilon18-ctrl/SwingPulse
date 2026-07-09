@@ -24,6 +24,7 @@ from _active_config import (
     PIVOT_LOOKBACK,
     KEY_LEVEL_TOUCH_TOLERANCE,
     KEY_LEVEL_CLUSTER_RANGE,
+    KEY_LEVEL_MAJOR_COUNT,
 )
 
 
@@ -170,28 +171,35 @@ def today_level_summary(
     if levels_df.empty:
         return empty
 
+    # Only the instrument's MAJOR levels count — against the full level set
+    # ~80% of instruments "touch" some level every day (levels blanket the
+    # traded range), which makes the alert meaningless.
+    major = levels_df.nlargest(KEY_LEVEL_MAJOR_COUNT, 'key_level_touch_count')
+
     tol   = KEY_LEVEL_TOUCH_TOLERANCE
     upper = today_high * (1 + tol)
     lower = today_low  * (1 - tol)
 
-    touched_today = levels_df[
-        (levels_df['key_level_price'] <= upper) &
-        (levels_df['key_level_price'] >= lower)
+    touched_today = major[
+        (major['key_level_price'] <= upper) &
+        (major['key_level_price'] >= lower)
     ]
 
-    # Primary level: prefer one touched today, else nearest to close
+    # Primary level: prefer a major level touched today, else nearest major to close
     if not touched_today.empty:
         # Pick the touched level with highest touch count
         primary = touched_today.loc[touched_today['key_level_touch_count'].idxmax()]
         touched_flag = 'yes'
     else:
-        diffs   = (levels_df['key_level_price'] - today_close).abs()
-        primary = levels_df.loc[diffs.idxmin()]
+        diffs   = (major['key_level_price'] - today_close).abs()
+        primary = major.loc[diffs.idxmin()]
         touched_flag = 'no'
 
-    # Summarise all levels as a readable string
+    # Summarise the strongest levels as a readable string (capped — with 745
+    # instruments an uncapped list adds megabytes to signals.json)
+    strongest = levels_df.nlargest(12, 'key_level_touch_count')
     all_parts = []
-    for _, lvl in levels_df.iterrows():
+    for _, lvl in strongest.sort_values('key_level_price', ascending=False).iterrows():
         all_parts.append(
             f"{lvl['key_level_type']}@{lvl['key_level_price']:.4f}"
             f"[x{lvl['key_level_touch_count']}|{lvl['key_level_date']}]"

@@ -46,6 +46,10 @@ VOLUME_LOOKBACK = 25   # unchanged
 PIVOT_LOOKBACK            = 5
 KEY_LEVEL_TOUCH_TOLERANCE = 0.002
 KEY_LEVEL_CLUSTER_RANGE   = 0.005
+KEY_LEVEL_WINDOW_BARS     = 1500   # detect levels on the last ~6y of daily bars
+KEY_LEVEL_MAJOR_COUNT     = 8      # touched-today alerts consider only the N most-touched
+                                   # levels — against ALL levels ~80% of instruments "touch"
+                                   # one every day (levels blanket the range), vs ~8% for top-8
 
 # ---------------------------------------------------------------------------
 # Signal Detection
@@ -114,6 +118,8 @@ OUTPUT_COLUMNS = [
     *_tf_signal_columns(''),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma25_cross_count', 'new_trend_flag',
+    'key_level_price', 'key_level_type', 'key_level_date',
+    'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
     # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
 ]

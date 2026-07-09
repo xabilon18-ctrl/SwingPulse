@@ -17,6 +17,9 @@ S4 — Mirror of B4 (established downtrend): wick touches MA500, close below.
 5-bar dedup per signal code prevents per-bar spam.
 """
 
+import json
+import os
+
 import pandas as pd
 
 from _active_config import MA_PERIODS, MA_TOUCH_TOLERANCE
@@ -25,6 +28,13 @@ _DEFAULT_REFIRE_PCT = 0.02
 _REFIRE_DEDUP_BARS = 5
 _REFIRE_WINDOW_DAYS = 10   # B1/S1 re-fire allowed only within N calendar days of the original cross
 _MA_MID = 250
+
+# Backtest-derived confidence tiers, produced by backtest.py write_confidence_map().
+# Keys: "TF|CODE|CLASS" (e.g. "D|B2|Equity") with "TF|CODE" fallbacks.
+_CONF_MAP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              'confidence_map.json')
+_conf_tiers = None
+_conf_loaded = False
 
 # Fix 1.1/1.3 (signal-rules audit): the primary B1/S1 trigger is MA500-anchored.
 # A fresh B1/S1 fires only when price clears the full ribbon FROM a non-uptrend /
@@ -35,16 +45,36 @@ _MA_MID = 250
 B1S1_ANCHOR_GATE = True
 
 
-def _signal_confidence(signal: str, vol_spike: bool) -> str:
+def _load_conf_tiers():
+    global _conf_tiers, _conf_loaded
+    if not _conf_loaded:
+        _conf_loaded = True
+        try:
+            with open(_CONF_MAP_PATH) as f:
+                _conf_tiers = json.load(f).get('tiers') or None
+        except Exception:
+            _conf_tiers = None
+    return _conf_tiers
+
+
+def _signal_confidence(signal: str, tf: str, asset_class: str) -> str:
+    """Confidence = measured backtest expectancy for this signal code on this
+    timeframe/asset class (see backtest.py). Falls back tf|code → 'standard'
+    when the cell has too few trades; 'high' everywhere if no map exists."""
     if not signal:
         return ''
-    return 'high'
+    tiers = _load_conf_tiers()
+    if tiers is None:
+        return 'high'   # no confidence map — legacy behavior
+    hit = tiers.get(f'{tf}|{signal}|{asset_class}') or tiers.get(f'{tf}|{signal}')
+    return hit['tier'] if hit else 'standard'
 
 
 def add_signals(df: pd.DataFrame, ma_periods=None,
                 refire_pct=None, new_trend_pct=None,
                 touch_tolerance=None,
-                key_levels_df=None) -> pd.DataFrame:
+                key_levels_df=None,
+                tf='D', asset_class='') -> pd.DataFrame:
     _ma_p   = ma_periods or MA_PERIODS
     _ma500  = max(_ma_p)
     _ma25   = min(_ma_p)
@@ -84,14 +114,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
     highs_arr  = df['High'].to_numpy(dtype=float)
     ma_arrays  = {p: df[f'ma_{p}'].to_numpy(dtype=float)
                   for p in _ma_p if f'ma_{p}' in df.columns}
-
-    def _col(name, default):
-        if name in df.columns:
-            return df[name].to_numpy()
-        import numpy as _np
-        return _np.full(n, default, dtype=object)
-
-    vol_spike_arr = _col('volume_spike_flag', False)
 
     import math
 
@@ -157,8 +179,6 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
 
         et = 'UPTREND' if in_uptrend else ('DOWNTREND' if in_downtrend else '')
         established_trends.append(et)
-
-        vol_spike = bool(vol_spike_arr[i])
 
         # ── Arm B2/S2 ─────────────────────────────────────────────────────
         if in_uptrend and not above_ma25:
@@ -305,7 +325,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         elif not above_anchor and in_downtrend and pushed_above_ma25 and not above_ma25:
             if _can_fire('S2'):
                 signal = 'S2'
-                status = f'Rally recovery — S2: price crossed back below MA{_ma25}'
+                status = f'Rally rejection — S2: price crossed back below MA{_ma25}'
                 last_fired['S2'] = i
                 pushed_above_ma25 = False
             else:
@@ -317,7 +337,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         else:
             status = 'Neutral'
 
-        conf = _signal_confidence(signal, vol_spike)
+        conf = _signal_confidence(signal, tf, asset_class)
 
         prev_above_all = above_all
         prev_below_all = below_all

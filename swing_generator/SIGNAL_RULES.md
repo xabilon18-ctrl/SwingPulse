@@ -1,7 +1,8 @@
 # SwingPulse — Signal Rules Reference (for editing)
 
-> Extracted from code 2026-06-11. Each rule lists where to change it.
+> Rewritten from code 2026-07-09 — verified against signals.py/indicators.py/main.py.
 > Engine: `signals.py` · indicators: `indicators.py` · thresholds: `config.py`
+> Backtest/confidence: `backtest.py` → `confidence_map.json`
 
 ---
 
@@ -10,88 +11,76 @@
 **Price-position trend** (`trend_direction`, per bar, per timeframe) — `indicators.py add_trend()`
 | Condition | Trend |
 |---|---|
-| close < MA25 (below fastest MA) | DOWNTREND (checked first — wins in mixed ribbon) |
-| close > MA500 (above slowest MA) | UPTREND |
-| otherwise | NEUTRAL |
+| close > MA500 (above the slow anchor) | UPTREND (even during a pullback below MA25) |
+| close < MA25 AND close ≤ MA500 | DOWNTREND |
+| otherwise (between MA25 and MA500) | NEUTRAL |
 
 **Established trend** (`established_trend`, state machine) — `signals.py`
 - B1 fires → established UPTREND until an S1 fires (and vice versa).
 - Persists through NEUTRAL bars. This is the trend that "comes first" in all conflict arbitration.
+- With `B1S1_ANCHOR_GATE = True` (live), the state flips only on a genuine full-ribbon cross
+  from a non-trending state — fast-MA noise cannot flip it.
 
 ---
 
 ## 2. B1 / S1 — Trend reversal (highest priority)
 
 `signals.py add_signals()`
-- **Strict all-MA test:** compares close against the actual ribbon extremes — `max()`/`min()` of all 20 MAs —
-  not just MA25/MA500, since in a mixed/transitional ribbon MA500 is not necessarily the highest MA.
-- **Arming:** close below EVERY ribbon MA arms B1; close above EVERY ribbon MA arms S1.
-- **Fire B1:** close crosses above the HIGHEST ribbon MA (strictly above every MA) while armed and
-  not already in uptrend. S1 mirror: close below the LOWEST ribbon MA.
-- **Re-fire:** while in uptrend, any bar with distance from MA500 in `0 … refire_pct` re-fires B1
-  (confirming the anchor level), minimum **5 bars** between fires (`_REFIRE_DEDUP_BARS`, signals.py).
-- **New-trend zone:** `refire_pct < dist ≤ new_trend_pct` → consolidation; **no pullback signals fire here**
-  (except B7/S7 — see below). Sets `new_trend_flag`.
+- **Trigger:** close strictly above (B1) / below (S1) ALL ribbon MAs — `max()`/`min()` of every MA present.
+- **Anchor gate (`B1S1_ANCHOR_GATE = True`):** a fresh B1 fires only from a non-uptrend state
+  (S1 mirror). In an established trend the flag blocks fast-MA re-cross noise.
+- **Re-fire:** after a primary cross, a pullback to within `refire_pct` of MA500 re-fires the code
+  once per band entry, only within `_REFIRE_WINDOW_DAYS = 10` calendar days of the cross.
+  Opposite primary cancels the window. 5-bar dedup (`_REFIRE_DEDUP_BARS`).
 
 **Per-timeframe thresholds** (passed by `main.py process_instrument()`):
 | TF | refire_pct | new_trend_pct |
 |---|---|---|
 | 4H | 0.02 | 0.05 |
-| Daily | 0.05 | 0.10 |
-| Weekly | 0.08 | 0.15 |
-| Monthly | 0.12 | 0.20 |
-
-Confidence: **B1/S1 always `high`**.
+| Daily | 0.05 | 0.05 |
 
 ---
 
-## 3. B2–B7 / S2–S7 — Pullback (buy) / rally (sell) signals
+## 3. B2–B4 / S2–S4 — Pullback (buy) / rally (sell) signals
 
-`signals.py` — active only once `dist from MA500 > new_trend_pct` (established move), in the established direction.
+`signals.py` — require established trend (in_uptrend / in_downtrend) and the matching MA500 side.
+Single if/elif cascade: B1 > B1-refire > B4 > B3 > B2 on the buy side (deepest wins), mirror on sell.
 
-**Watch-level ladder** (`PULLBACK_LEVELS` + `_LEVEL_TO_SIGNAL`, signals.py):
-| Watch MA | Buy code | Sell code |
+| Code | Depth | Rule |
 |---|---|---|
-| MA25 | B2 | S2 |
-| MA100 | B3 | S3 |
-| MA200 | B4 | S4 |
-| MA300 | B5 | S5 |
-| MA400 | B6 | S6 |
-| MA500 | B7 | S7 |
+| B2/S2 | shallow | price pulled below MA25 (any depth) then closed back above it (mirror for S2) |
+| B3/S3 | mid-ribbon | wick (Low/High) touches MA250 within `MA_TOUCH_TOLERANCE`, close confirms beyond it |
+| B4/S4 | anchor | wick touches MA500 within tolerance, close confirms beyond it |
 
-- **Buy side:** watch level = lowest ladder MA that close is **at or above**. Fire when the wick (Low)
-  touches the watch MA within `MA_TOUCH_TOLERANCE` AND close confirms **above** it.
-- **Sell side mirror:** watch level = lowest ladder MA close is at or below; wick (High) touches; close confirms below.
-- **B7/S7 special:** fires on a wick-touch of MA500 with close confirming — allowed even inside the
-  new-trend zone (it happens by definition near MA500). **Always `high` confidence.**
-
-**Touch tolerance** (`config.py`):
-- `MA_TOUCH_TOLERANCE = 0.001` (0.1%) — all TFs except monthly
-- `TOUCH_TOLERANCE_MONTHLY = 0.007` (0.7%)
+- Touch tolerance: `MA_TOUCH_TOLERANCE = 0.001` (0.1%), config.py.
+- 5-bar dedup per code.
+- Mid-ribbon MA is MA250 (`_MA_MID` in signals.py); clipped ribbons use the middle period.
 
 ---
 
-## 4. Watch flag (pre-signal alerts)
+## 4. Signal confidence — backtest-driven (since 2026-07-09)
 
-`signals.py` — feeds the Watchlist alert tab:
-- Wick touched the watch MA but close hasn't confirmed → `"Wick touched MAxxx — waiting for close…"`.
-- Price within `WATCH_APPROACH_PCT = 0.015` (1.5%, config.py) of the watch MA without touching →
-  `"Approaching MAxxx — N.N% above/below"`.
+`signals.py _signal_confidence()` reads `confidence_map.json` (generated by `backtest.py`):
+- Lookup `TF|CODE|CLASS` (e.g. `D|B2|Equity`), falling back to `TF|CODE`, else `standard`.
+- Asset classes (`instruments.py asset_class_of`): Crypto, Forex, Commodity, Index, Equity.
+- Tiers from measured expectancy (`CONF_HIGH_R = 0.05`, `CONF_MIN_TRADES = 30` in backtest.py):
+  - **high** — avg ≥ +0.05R per trade in backtest
+  - **standard** — 0 ≤ avg < +0.05R, or too few trades for the cell
+  - **low** — negative expectancy
+- If `confidence_map.json` is missing entirely, every signal falls back to `high` (legacy).
+
+**Regenerate:** `python3 backtest.py --since 2016-01-01` (full run rewrites the map).
+Re-run after any signal-rule change, then re-run `main.py` so live confidences update.
 
 ---
 
-## 5. Signal confidence
+## 5. Backtest engine — `backtest.py`
 
-`signals.py _signal_confidence()` — evaluated in this order:
-1. B1/S1 → **high** (always)
-2. B7/S7 → **high** (always)
-3. Rollover aligned + stage ≥ 3 (full driver flip) → **high**
-4. Volume spike AND at key level → **high**
-5. Volume spike OR at key level OR (rollover aligned + stage ≥ 2) → **standard**
-6. else → **low**
-
-- *Volume spike* = today's volume > 25-day average (`VOLUME_LOOKBACK`, config.py).
-- *At key level* = close within **0.5%** of a key level with ≥ **3** touches (hardcoded in signals.py).
+- Production-parity replay: same `add_signals` params as main.py per TF, reads the parquet cache.
+- Entry next bar open, slippage 0.05%/side, stop = 2×ATR(14), target 2R,
+  time stop 30 bars (D) / 60 bars (4H). Gap opens through stop/target fill at the open.
+- Output `output_ma500/backtest_<date>.json` → published to R2 as `backtest.json`
+  (dashboard Track Record card + per-instrument modal Track Record).
 
 ---
 
@@ -103,8 +92,8 @@ Confidence: **B1/S1 always `high`**.
 - Each mover-above-anchor pair adds its weight to bull; below adds to bear → `rollover_score` 0–15,
   `rollover_dir` = dominant side.
 - **Stage** (both drivers MA25+MA100 through): MA300 → 1, MA400 → 2, MA500 → 3 (full flip).
-- Rollover is the **early-warning reversal gauge** — it deliberately may oppose the established trend;
-  it only affects confidence when aligned (rule 5).
+- Early-warning gauge — may deliberately oppose the established trend. Display-only
+  (it no longer affects confidence).
 
 ---
 
@@ -118,52 +107,46 @@ Confidence: **B1/S1 always `high`**.
 
 ---
 
-## 8. Potential turning point (TTP)
+## 8. Key levels (daily) — live since 2026-07-09
 
-`indicators.py add_neutral_oscillation()` (defaults in function signature):
-- `ma25_cross_count` = closes crossing MA25 in last **30** bars (`lookback`)
-- Fires when count ≥ **3** (`cross_threshold`) AND |MA100 slope over 10 bars| < **0.15%** (`slope_threshold`)
-- → `potential_turning_point_flag` = "Potential top/bottom/reversal …" (direction from trend state)
-
----
-
-## 9. Key levels
-
-`key_levels.py` / `config.py`:
-- Pivot = bar whose High (Low) is the extreme of ±`PIVOT_LOOKBACK = 5` bars
-- Cluster levels within `KEY_LEVEL_CLUSTER_RANGE = 0.005` (0.5%) — highest touch count kept
-- Touch = bar range overlaps level ± `KEY_LEVEL_TOUCH_TOLERANCE = 0.002` (0.2%)
-- Keep levels with ≥ **2** touches; "confirmed" for confluence needs ≥ **3**
+`key_levels.py`, wired in `main.py process_instrument()`:
+- Detected on the last `KEY_LEVEL_WINDOW_BARS = 1500` daily bars (~6 years).
+- Pivot = bar whose High (Low) is the extreme of ±`PIVOT_LOOKBACK = 5` bars.
+- Cluster levels within `KEY_LEVEL_CLUSTER_RANGE = 0.005` (0.5%) — highest touch count kept.
+- Touch = bar range overlaps level ± `KEY_LEVEL_TOUCH_TOLERANCE = 0.002` (0.2%).
+- Keep levels with ≥ 2 touches. Daily row gets: `key_level_price/type/date/touch_count`,
+  `key_level_touched_today` (yes/no), `key_levels_all` (top 12 by touches).
+- **Touched-today + the primary displayed level consider only the top `KEY_LEVEL_MAJOR_COUNT = 8`
+  levels by touch count** — against all levels ~80% of instruments touch one daily (noise);
+  against the top 8 it's ~8%/day, a real alert.
+- Surfaces: scanner "Key Lvl" chip, Analyzed→Alerts Key Level tab, modal badge,
+  summary `key_level_touches`.
 
 ---
 
-## 10. Macro S/R touches (daily)
+## 9. Choppiness (daily)
 
-`indicators.py add_macro_sr_touch()`:
-- Levels: **MA500 + MA1000 + MA2000 + MA3000** (4 → "ALL 4" confluence)
-- Tolerance `MACRO_SR_TOLERANCE = 0.005` (0.5%, config.py)
-- Support: Low ≤ MA×1.005 AND close > MA · Resistance: High ≥ MA×0.995 AND close < MA
-- `macro_sr_strength` = number of levels touched on the winning side (3+ = multi-MA confluence)
-- `macro_sr_level` = longest MA touched
+`indicators.py add_neutral_oscillation()`:
+- `ma25_cross_count` = closes crossing MA25 in last 30 bars
+- `neutral_oscillation` = yes when count ≥ 3 AND |MA100 slope over 10 bars| < 0.15%
+- Frontend treats `neutral_oscillation = yes` as NEUTRAL regardless of trend fields.
 
 ---
 
-## 11. Timeframe alignment
+## 10. Timeframe alignment
 
-`main.py _compute_tf_alignment()` — uses **established_trend** of D, 4H, W, M:
+`main.py _compute_tf_alignment()` — uses **established_trend** of Daily + 4H:
 | Agreement | Label |
 |---|---|
-| 4 same direction | Quad Bull / Quad Bear |
-| 3 same, none opposing | Triple Bull / Bear |
-| 2 same, none opposing | Double Bull / Bear |
-| at least 1 each way | Counter-trend |
-| all neutral | Mixed |
+| both up / both down | Aligned Bull / Aligned Bear |
+| one each way | Counter-trend |
+| otherwise | Mixed |
 
-Score = sum(+1 up / −1 down) → −4 … +4.
+Score = sum(+1 up / −1 down) → −2 … +2. Display-only (radar score is single-TF by design).
 
 ---
 
-## 12. Trend history segments (Trends tab)
+## 11. Trend history segments (Trends tab)
 
 `main.py _extract_trend_segments()`:
 - NEUTRAL bars inherit the prior direction; segments shorter than `MIN_TREND_DAYS = 30`
@@ -171,23 +154,29 @@ Score = sum(+1 up / −1 down) → −4 … +4.
 
 ---
 
-## Quick-edit cheat sheet (config.py)
+## Quick-edit cheat sheet
 
 | Knob | Value | Effect of raising it |
 |---|---|---|
-| `MA_TOUCH_TOLERANCE` | 0.001 | more B2–B7/S2–S7 fires (looser touches) |
-| `TOUCH_TOLERANCE_MONTHLY` | 0.007 | same, monthly only |
-| `WATCH_APPROACH_PCT` | 0.015 | more watch-flag alerts |
-| `RIBBON_COMPRESSION_THRESHOLD` | 5.0 | more squeeze alerts |
-| `VOLUME_LOOKBACK` | 25 | smoother volume baseline → fewer spikes |
-| `MACRO_SR_TOLERANCE` | 0.005 | more macro S/R touches |
-| `KEY_LEVEL_TOUCH_TOLERANCE` | 0.002 | levels accumulate touches faster |
-| `KEY_LEVEL_CLUSTER_RANGE` | 0.005 | fewer, fatter key levels |
-| `PIVOT_LOOKBACK` | 5 | fewer, more significant pivots |
-| `SIGNAL_LOOKBACK_DAILY/4H/W/M` | 20/60/12/6 | how far back "last signal" is reported |
-| In `signals.py`: `_REFIRE_DEDUP_BARS` | 5 | fewer B1/S1 re-fires |
-| In `main.py`: `MIN_TREND_DAYS` | 30 | longer → fewer, bigger trend segments |
+| `MA_TOUCH_TOLERANCE` (config) | 0.001 | more B3/B4/S3/S4 fires (looser touches) |
+| `RIBBON_COMPRESSION_THRESHOLD` (config) | 5.0 | more squeeze alerts |
+| `VOLUME_LOOKBACK` (config) | 25 | smoother volume baseline → fewer spikes |
+| `KEY_LEVEL_TOUCH_TOLERANCE` (config) | 0.002 | levels accumulate touches faster |
+| `KEY_LEVEL_CLUSTER_RANGE` (config) | 0.005 | fewer, fatter key levels |
+| `KEY_LEVEL_WINDOW_BARS` (config) | 1500 | longer level lookback window |
+| `PIVOT_LOOKBACK` (config) | 5 | fewer, more significant pivots |
+| `SIGNAL_LOOKBACK_DAILY/4H` (config) | 20/60 | how far back "last signal" is reported |
+| `_REFIRE_DEDUP_BARS` (signals.py) | 5 | fewer signal re-fires |
+| `_REFIRE_WINDOW_DAYS` (signals.py) | 10 | longer B1/S1 re-fire window after a cross |
+| `B1S1_ANCHOR_GATE` (signals.py) | True | False restores pre-audit 1-bar-edge B1/S1 |
+| `CONF_HIGH_R` (backtest.py) | 0.05 | stricter bar for "high" confidence |
+| `MIN_TREND_DAYS` (main.py) | 30 | longer → fewer, bigger trend segments |
 | refire/new-trend pcts | per-TF table §2 | passed from `main.py process_instrument()` |
 
-**Unused/dead knobs in config.py** (no effect, can ignore): `P3P4_DEDUP_WINDOW`, `P2_DEDUP_WINDOW`,
-`TTP_COOLDOWN_BARS`, `MIDPOINT_BOUNCE_PCT`, `MAX_PENETRATION_*`, `TREND_DURATION_THRESHOLD`, `MA_MIDPOINT`.
+**Dead knobs in config.py** (no effect): `P3P4_DEDUP_WINDOW`, `P2_DEDUP_WINDOW`,
+`TTP_COOLDOWN_BARS`, `MIDPOINT_BOUNCE_PCT`, `MAX_PENETRATION_*`, `TREND_DURATION_THRESHOLD`,
+`MA_MIDPOINT`, `WATCH_APPROACH_PCT`, `SMALL_MA_RANGE`.
+
+**Removed features** (2026-07-09): watch_flag and potential_turning_point_flag were emitted
+as always-empty columns with dead UI — columns remain in the payload for compatibility but the
+Analyzed alert tabs and counters were stripped. Re-implement in signals.py if ever wanted.
