@@ -4984,6 +4984,11 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background: var(--sell-soft);
   border-color: rgba(239,68,68,.3);
 }
+/* Low backtested edge — visibly demoted, still tappable for the full story */
+.trend-alert-item.tci-lowconf {
+  opacity: .55;
+  filter: saturate(.6);
+}
 
 /* P1 pulses, P2 is steady */
 .trend-alert-item.tci-p1.tci-buy  { animation: tci-pulse-buy  2.8s ease-in-out infinite; }
@@ -7000,6 +7005,7 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .mh-rs-line:last-child { border-bottom: none; }
 .mh-rs-lbl { color: var(--text-primary); }
 .mh-rs-pts { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mh-rs-pts.mh-rs-neg { color: var(--sell); }
 .mh-rs-empty { color: var(--text-muted); justify-content: flex-start; font-style: italic; }
 
 /* ═══════════════════════════════════════════════════════════════════

@@ -1668,8 +1668,12 @@
       const sig = d[f('primary_signal')];
       return isReversal(sig) || isLongestMa(sig);
     }).sort((a, b) => {
-      // Reversals first, then longest-MA bounces
-      return sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
+      // Reversals first, then longest-MA bounces; within a group, proven edge first
+      const p = sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
+      if (p !== 0) return p;
+      const ord = { high: 0, standard: 1, '': 1, low: 2 };
+      return (ord[(a[f('signal_confidence')] || '').toLowerCase()] ?? 1)
+           - (ord[(b[f('signal_confidence')] || '').toLowerCase()] ?? 1);
     });
 
     // Update signal sheet buttons with dot indicator
@@ -1693,8 +1697,12 @@
       const dir  = buy ? '▲' : '▼';
       const dCls = buy ? 'tci-buy' : 'tci-sell';
       const pCls = isReversal(sig) ? 'tci-p1' : 'tci-p2';
-      const lbl  = isReversal(sig) ? 'Trend Change' : 'Strong Signal';
-      return `<div class="trend-alert-item ${dCls} ${pCls}" data-act="openModal" data-arg="${tick}">
+      const conf = (item[f('signal_confidence')] || '').toLowerCase();
+      const lbl  = conf === 'low' ? 'Low Edge'
+                 : isReversal(sig) ? 'Trend Change' : 'Strong Signal';
+      const lowCls = conf === 'low' ? ' tci-lowconf' : '';
+      const lowTip = conf === 'low' ? ' title="This signal code has negative backtested expectancy on this timeframe/asset class"' : '';
+      return `<div class="trend-alert-item ${dCls} ${pCls}${lowCls}" data-act="openModal" data-arg="${tick}"${lowTip}>
         <span class="tci-badge">${sig}</span>
         <span class="tci-dir">${dir}</span>
         <span class="tci-name">
@@ -2332,12 +2340,15 @@
       B4: `anchor bounce off MA${maLongest}`,
       S4: `anchor rejection at MA${maLongest}`,
     };
-    const dirWord = trend === 'UPTREND' ? 'bullish' : trend === 'DOWNTREND' ? 'bearish' : '';
+    // Direction from the signal code itself — established_trend lags one bar
+    // on B1/S1 reversals, which used to label a fresh B1 "bearish".
+    const dirWord = sig.startsWith('B') ? 'bullish' : sig.startsWith('S') ? 'bearish' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
     if (!isNaN(trendRun) && trendRun > 0) parts.push(`${trendRun}d ${trend.toLowerCase()}`);
     if (volSpike) parts.push('volume spike');
     if (compression) parts.push('ribbon compression — breakout watch');
-    if (conf === 'high') parts.push('high confidence');
+    if (conf === 'high') parts.push('high confidence — backtested edge');
+    else if (conf === 'low') parts.push('low confidence — historically weak edge');
     return parts.join(' · ') + '.';
   }
 
@@ -3307,7 +3318,7 @@
     const _rBd      = radarScoreBreakdown(item);
     const _rDirLbl  = _rBd.isBullish ? 'Long bias' : 'Short bias';
     const _rLinesHtml = _rBd.lines.length
-      ? _rBd.lines.map(l => `<div class="mh-rs-line"><span class="mh-rs-lbl">${l.label}</span><span class="mh-rs-pts">+${l.points}</span></div>`).join('')
+      ? _rBd.lines.map(l => `<div class="mh-rs-line"><span class="mh-rs-lbl">${l.label}</span><span class="mh-rs-pts${l.points < 0 ? ' mh-rs-neg' : ''}">${l.points < 0 ? '' : '+'}${l.points}</span></div>`).join('')
       : '<div class="mh-rs-line mh-rs-empty">No confluence factors active.</div>';
     const radarBreakdownHtml = `
       <div class="mh-radar-score">
@@ -4508,11 +4519,13 @@
                    points: sigPts });
     }
 
-    // 2. Signal confidence (max 10)
+    // 2. Signal confidence (max 10) — backtested expectancy of this signal code
+    //    on this timeframe + asset class (confidence_map.json). 'low' means the
+    //    code historically LOSES money there, so it subtracts.
     const conf = (item[f('signal_confidence')] || '').toLowerCase();
-    if (conf === 'high')          lines.push({ label: 'High confidence',     points: 10 });
-    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 6 });
-    else if (conf === 'low')      lines.push({ label: 'Low confidence',      points: 3 });
+    if (conf === 'high')          lines.push({ label: 'High confidence — backtested edge', points: 10 });
+    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 5 });
+    else if (conf === 'low')      lines.push({ label: 'Low confidence — negative backtest expectancy', points: -10 });
 
     // 3. Ribbon squeeze (max 10) — coiled-spring setup on the active TF
     if (item[f('ribbon_compression')] === 'yes') {
@@ -4570,7 +4583,7 @@
   function radarConfluenceScore(item) {
     const { lines } = radarScoreFactors(item);
     const total = lines.reduce((sum, l) => sum + l.points, 0);
-    return Math.min(total, 100);
+    return Math.max(0, Math.min(total, 100));
   }
 
   function scoreTier(score) {
