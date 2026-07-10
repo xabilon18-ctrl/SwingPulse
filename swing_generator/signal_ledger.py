@@ -22,6 +22,8 @@ CLI:
 import glob
 import json
 import os
+import sys
+import urllib.error
 import urllib.request
 from datetime import datetime
 
@@ -55,17 +57,37 @@ def _name_to_ticker() -> dict:
 # ---------------------------------------------------------------------------
 # Load / save
 # ---------------------------------------------------------------------------
-def load_ledger() -> dict:
-    """R2 copy merged with local copy (union by id, prefer the more-graded one)."""
+def load_ledger() -> tuple[dict, bool]:
+    """R2 copy merged with local copy (union by id, prefer the more-graded one).
+
+    Returns (records, safe_to_save). safe_to_save is False when the R2 fetch
+    failed AND there is no local copy — saving then would CLOBBER the remote
+    ledger with a near-empty one (this happened 2026-07-10: an edge-cached 404
+    made a CI run overwrite 342 records with 43). Cache-busting query param +
+    retries make the fetch itself reliable."""
     remote, local = {}, {}
-    try:
-        with urllib.request.urlopen(R2_LEDGER_URL, timeout=20) as r:
-            remote = {rec['id']: rec for rec in json.load(r).get('records', [])}
-    except Exception:
-        pass
+    remote_ok = False
+    url = f'{R2_LEDGER_URL}?t={int(datetime.utcnow().timestamp())}'
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                remote = {rec['id']: rec for rec in json.load(r).get('records', [])}
+            remote_ok = True
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 404:      # genuinely absent — first-ever run
+                remote_ok = True
+                break
+            import time; time.sleep(2 * (attempt + 1))
+        except Exception:
+            import time; time.sleep(2 * (attempt + 1))
+
+    local_ok = False
     try:
         with open(LEDGER_PATH) as f:
             local = {rec['id']: rec for rec in json.load(f).get('records', [])}
+        local_ok = True
     except Exception:
         pass
 
@@ -77,7 +99,7 @@ def load_ledger() -> dict:
     for rid, rec in local.items():
         if rid not in merged or _graded_score(rec) > _graded_score(merged[rid]):
             merged[rid] = rec
-    return merged
+    return merged, (remote_ok or local_ok)
 
 
 def save_ledger(records: dict) -> None:
@@ -310,7 +332,11 @@ def write_summary(records: dict) -> dict:
 def update_ledger(output_df: pd.DataFrame) -> None:
     """Called by main.py after signals are computed: fetch, append, grade, save."""
     try:
-        records = load_ledger()
+        records, safe = load_ledger()
+        if not safe:
+            print('  Ledger: SKIPPED — could not load existing ledger '
+                  '(saving would clobber it)')
+            return
         added   = record_fires(records, output_df)
         graded  = grade_open_records(records)
         save_ledger(records)
@@ -327,7 +353,7 @@ def update_ledger(output_df: pd.DataFrame) -> None:
 # CLI — backfill from historical snapshot CSVs / manual grade
 # ---------------------------------------------------------------------------
 def backfill() -> None:
-    records = load_ledger()
+    records, _ = load_ledger()
     n2t = _name_to_ticker()
     files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_????-??-??.csv')))
     print(f'Backfilling from {len(files)} snapshot CSVs...')
@@ -362,7 +388,10 @@ if __name__ == '__main__':
     if args.backfill:
         backfill()
     elif args.grade:
-        records = load_ledger()
+        records, safe = load_ledger()
+        if not safe:
+            print('could not load existing ledger — refusing to save over it')
+            sys.exit(1)
         print(f'{grade_open_records(records)} records graded')
         save_ledger(records)
         write_summary(records)

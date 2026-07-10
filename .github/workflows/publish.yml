@@ -13,6 +13,12 @@ on:
 
 jobs:
   publish:
+    # This workflow file lives in TWO repos (origin = xabilon18-ctrl/SwingPulse,
+    # mirror = xabilon18/SwingPulse). Scheduled runs fire ONLY on origin —
+    # on 2026-07-10 both repos' crons raced each other publishing to the same
+    # R2 bucket and an out-of-date mirror overwrote fresh data. Manual
+    # workflow_dispatch still works from either repo.
+    if: github.event_name != 'schedule' || github.repository == 'xabilon18-ctrl/SwingPulse'
     runs-on: ubuntu-latest
     # 90 min so a cold-cache full download (first run / evicted cache) or a
     # Yahoo CI-IP throttle can't trip the timeout; warm runs finish in ~20 min.
