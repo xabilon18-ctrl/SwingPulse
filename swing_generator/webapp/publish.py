@@ -627,6 +627,15 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'events.json'), 'w') as f:
         json.dump({'generated': dt, 'events': events}, f, separators=(',', ':'))
 
+    # Live signal ledger + its summary — copy verbatim if present
+    for fname in ('signal_ledger.json', 'ledger_summary.json'):
+        src = os.path.join(OUTPUT_DIR, fname)
+        if os.path.exists(src):
+            with open(src) as f:
+                payload = json.load(f)
+            with open(os.path.join(output_dir, fname), 'w') as f:
+                json.dump(payload, f, separators=(',', ':'))
+
     # Backtest results — copy if a recent backtest JSON exists
     bt_files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'backtest_*.json')))
     if bt_files:
@@ -828,7 +837,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     # Core data files
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'events.json', 'names.json',
-                  'backtest.json', 'flow_volumes.json']:
+                  'backtest.json', 'flow_volumes.json',
+                  'signal_ledger.json', 'ledger_summary.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -938,6 +948,7 @@ def build_ui():
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/events'",       f"'{base}/events.json'")
+    js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")

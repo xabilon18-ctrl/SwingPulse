@@ -7006,6 +7006,15 @@ body[data-profile="ma200"] #compressionCard { display: none !important; }
 .mh-rs-lbl { color: var(--text-primary); }
 .mh-rs-pts { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .mh-rs-pts.mh-rs-neg { color: var(--sell); }
+
+/* Live signal-ledger block inside the Track Record card */
+.tr-live-head {
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+  font-size: .66rem; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 700; margin-bottom: 4px;
+}
+.tr-live-bt { color: var(--text-muted); font-weight: 600; }
+.tr-live-empty { font-size: .75rem; color: var(--text-muted); padding: 6px 0 2px; }
 .mh-rs-empty { color: var(--text-muted); justify-content: flex-start; font-style: italic; }
 
 /* ═══════════════════════════════════════════════════════════════════

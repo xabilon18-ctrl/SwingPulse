@@ -69,11 +69,16 @@ CONF_HIGH_R     = 0.05   # avg R at/above this → high (a real edge at this fre
 # ATR
 # ---------------------------------------------------------------------------
 def _add_atr(df: pd.DataFrame, period: int = ATR_PERIOD) -> pd.DataFrame:
-    prev_close = df['Close'].shift(1)
+    # Mask corrupt zero-price bars (some Yahoo feeds contain them) so one bad
+    # row doesn't blow up the true range for the next `period` bars
+    high  = df['High'].where(df['High'] > 0)
+    low   = df['Low'].where(df['Low'] > 0)
+    close = df['Close'].where(df['Close'] > 0)
+    prev_close = close.shift(1)
     tr = pd.concat([
-        df['High'] - df['Low'],
-        (df['High'] - prev_close).abs(),
-        (df['Low'] - prev_close).abs(),
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
     ], axis=1).max(axis=1)
     df['atr'] = tr.rolling(period, min_periods=period).mean()
     return df
@@ -127,7 +132,9 @@ def simulate_trade(df: pd.DataFrame, entry_idx: int, side: str, tf: str) -> Opti
         o    = float(bar['Open'])
         high = float(bar['High'])
         low  = float(bar['Low'])
-        if math.isnan(o) or math.isnan(high) or math.isnan(low):
+        # Skip corrupt bars — some Yahoo feeds (esp. EU/UK tickers) contain
+        # zero-price rows, which would read as catastrophic gaps
+        if not (o > 0 and high > 0 and low > 0):
             continue
         bars_held = j - (entry_idx + 1) + 1
 
@@ -164,10 +171,10 @@ def simulate_trade(df: pd.DataFrame, entry_idx: int, side: str, tf: str) -> Opti
     exit_price = float('nan')
     while last_idx > entry_idx:
         exit_price = float(df.iloc[last_idx]['Close'])
-        if not math.isnan(exit_price):
+        if not math.isnan(exit_price) and exit_price > 0:
             break
         last_idx -= 1
-    if math.isnan(exit_price):
+    if math.isnan(exit_price) or exit_price <= 0:
         return None
     exit_price *= (1 - SLIPPAGE_PCT) if side == 'long' else (1 + SLIPPAGE_PCT)
     return _build_outcome(entry_price, exit_price, risk, side,

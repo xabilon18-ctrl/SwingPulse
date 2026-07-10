@@ -17,6 +17,7 @@
   let allData = [];
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
+  let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
   let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
@@ -731,7 +732,7 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, ldgRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()).catch(() => ({ data: [] })),
         fetch('/api/summary').then(r => r.json()).catch(() => ({})),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
@@ -741,6 +742,7 @@
         fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
         fetch('/api/backtest').then(r => r.json()).catch(() => null),
+        fetch('/api/ledger').then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -752,6 +754,7 @@
       eventsData = evRes.events || [];
       namesData = namesRes || {};
       backtestData = btRes;
+      ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -1141,7 +1144,7 @@
     `;
 
     const sigs = backtestData.by_signal || {};
-    rows.innerHTML = Object.entries(sigs).map(([sig, s]) => {
+    const btRows = Object.entries(sigs).map(([sig, s]) => {
       const cls = s.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
       const sigCls = `sig-${sigClass(sig) || 'p4'}`;
       return `<div class="tr-row">
@@ -1152,6 +1155,34 @@
         <span class="tr-row-pf ${s.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">PF ${s.profit_factor}</span>
       </div>`;
     }).join('');
+
+    // Live record — actual production fires, graded by signal_ledger.py with
+    // the same ATR-stop simulation the backtest uses (apples to apples)
+    let liveHtml = '';
+    if (ledgerData && ledgerData.totals && ledgerData.totals.fires) {
+      const t = ledgerData.totals;
+      const codes = Object.entries(ledgerData.by_code || {})
+        .filter(([, s]) => (s.graded || 0) >= 3)
+        .sort((a, b) => ((b[1].avg_r ?? -99) - (a[1].avg_r ?? -99)));
+      liveHtml = `
+        <div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded · ${t.graded} closed · ${t.open} open</div>
+        ${codes.length ? codes.map(([code, s]) => {
+          const r = s.avg_r ?? 0;
+          const cls = r >= 0 ? 'tr-pos' : 'tr-neg';
+          const bt = sigs[code];
+          const btStr = bt ? `BT ${bt.avg_r > 0 ? '+' : ''}${bt.avg_r}R` : '';
+          return `<div class="tr-row">
+            <span class="tr-sig-badge sig-${sigClass(code) || 'p4'}">${code}</span>
+            <span class="tr-row-trades">${s.graded}/${s.fires}</span>
+            <span class="tr-row-wr">${s.win_rate != null ? s.win_rate + '%' : '--'}</span>
+            <span class="tr-row-r ${cls}">${r > 0 ? '+' : ''}${s.avg_r != null ? s.avg_r : '--'}R</span>
+            <span class="tr-row-pf tr-live-bt" title="Backtested expectancy for this code (10y) — is live matching it?">${btStr}</span>
+          </div>`;
+        }).join('')
+        : '<div class="tr-live-empty">Fires recorded — grades appear as trades resolve</div>'}
+      `;
+    }
+    rows.innerHTML = btRows + liveHtml;
 
     if (subEl && backtestData.generated_at) {
       const p = backtestData.params || {};

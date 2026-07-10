@@ -616,6 +616,10 @@ def main():
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
 
+    # 5c. Live signal ledger — record today's fires, grade earlier ones
+    from signal_ledger import update_ledger
+    update_ledger(output_df)
+
     # 6. Summary to console
     print('\n  Signal summary:')
     _print_summary(output_df)
