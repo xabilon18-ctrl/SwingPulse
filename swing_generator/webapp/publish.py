@@ -606,6 +606,12 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'summary.json'), 'w') as f:
         json.dump(summary, f, separators=(',', ':'))
 
+    # Run status — the CI failure step overwrites this with state:'failed';
+    # the service worker checks it on push to alert when a run broke.
+    with open(os.path.join(output_dir, 'status.json'), 'w') as f:
+        json.dump({'state': 'ok', 'at': fetched_at, 'date': dt},
+                  f, separators=(',', ':'))
+
     tv_map = build_tv_map()
     with open(os.path.join(output_dir, 'tv-map.json'), 'w') as f:
         json.dump(tv_map, f, separators=(',', ':'))
@@ -838,7 +844,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'events.json', 'names.json',
                   'backtest.json', 'flow_volumes.json',
-                  'signal_ledger.json', 'ledger_summary.json']:
+                  'signal_ledger.json', 'ledger_summary.json', 'status.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))

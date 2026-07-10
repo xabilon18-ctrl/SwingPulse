@@ -59,6 +59,24 @@ async function readUserState() {
 // ── Push event: fires when Worker sends an empty VAPID push ─────────────────
 self.addEventListener('push', e => {
   e.waitUntil((async () => {
+    // Pipeline health first: the CI failure step flips status.json to
+    // 'failed' and fans out a push — surface that instead of signal news.
+    try {
+      const sr = await fetch(`${R2_BASE}/status.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (sr.ok) {
+        const st = await sr.json();
+        if (st.state === 'failed' && Date.now() - Date.parse(st.at) < 12 * 3600e3) {
+          await self.registration.showNotification('SwingPulse — update FAILED', {
+            body:  'The scheduled data run failed. Signals may be stale — check GitHub Actions.',
+            icon:  '/static/icon-192.png',
+            badge: '/static/icon-192.png',
+            tag:   'sp-run-failed',
+          });
+          return;
+        }
+      }
+    } catch {}
+
     const state = await readUserState();
     const starred  = state.starred  || [];
     const lastSeen = state.lastSeen || {};

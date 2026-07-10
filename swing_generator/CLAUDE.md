@@ -27,7 +27,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4 + Lightweight Charts v4 (pinned) |
 | Utility helpers | `static/js/utils.js` (loaded before app.js, exposes `window.SP_UTILS`) |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | GitHub Actions (`publish.yml`) — cron 3×/day weekdays (04,12,16 UTC) + manual trigger |
+| CI pipeline | GitHub Actions (`publish.yml`) — cron 3×/day weekdays (04,12,16 UTC) + 1×/day weekends (08 UTC, crypto) + manual trigger |
 | Repo | https://github.com/xabilon18/SwingPulse |
 
 ---
@@ -193,7 +193,7 @@ cd swing_generator/webapp && python3 server.py
 
 | File | Profile | Cron | Cache |
 |------|---------|------|-------|
-| `publish.yml` | ma500 | `0 4/12/16 * * 1-5` (3×/day weekdays, UTC) + manual | `cache_ma500/` |
+| `publish.yml` | ma500 | `0 4/12/16 * * 1-5` + `0 8 * * 6,0` (weekday 3×, weekend 1× UTC) + manual | `cache_ma500/` |
 
 - Runs `python3 main.py --profile ma500` → uploads data to R2 → sends push notification with `X-Profile: ma500`
 - No UI deploy in CI — deploy UI manually with `--ui-only`
@@ -229,6 +229,6 @@ Run it after ANY change to signals.py/config.py signal logic.
 
 **Debug blank chart in modal:** Ensure `autoSize: true` is set AND `await new Promise(r => requestAnimationFrame(r))` runs before `createChart()`
 
-**Data not updating:** CI cron runs 3×/day weekdays (04/12/16 UTC); can also run manually from GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS in app.js `lastDueRunUTC`, +2.5h grace) — keep RUN_HOURS in sync with publish.yml crons.
+**Data not updating:** CI cron runs 3×/day weekdays (04/12/16 UTC) + 1×/day weekends (08 UTC); can also run manually from GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS_WEEKDAY/RUN_HOURS_WEEKEND in app.js `lastDueRunUTC`, +2.5h grace) — keep them in sync with publish.yml crons. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
 
 **Update version numbers:** After any UI change, bump `?v=NNN` on `app.js`, `style.css`, and/or `utils.js` in `index.html`

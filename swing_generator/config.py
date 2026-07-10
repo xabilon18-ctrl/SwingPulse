@@ -27,7 +27,9 @@ MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA275 — midpoint of 
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
-HISTORY_YEARS     = 45   # 45 yr → ample history for daily MA500
+HISTORY_YEARS     = 13   # daily MA500 warmup (~2y) + backtest window since 2016
+                         # (2016 signals need data from ~2014). Was 45 — that
+                         # depth only served the removed monthly timeframe.
 CACHE_DIR         = os.path.join(BASE_DIR, 'cache_ma500')
 INSTRUMENTS_FILE  = os.path.join(ROOT_DIR, 'Instruments.txt')
 MIN_ROWS_REQUIRED = 10    # min daily bars to LIST an instrument (price/volume only).

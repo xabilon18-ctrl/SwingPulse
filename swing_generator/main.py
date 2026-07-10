@@ -579,6 +579,7 @@ def main():
 
     rows      = []
     all_trends = {}
+    no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
     done       = 0
 
@@ -592,6 +593,21 @@ def main():
             if row:
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
+            else:
+                no_row[ticker] = status_str
+
+    # ── Silent-rot guard: name every instrument that produced no output ──
+    unfetched = [t for t in inst_by_tick if t not in data]
+    if unfetched or no_row:
+        print(f'\n  ⚠  {len(unfetched) + len(no_row)} of {len(instruments)} '
+              f'instruments produced NO output:')
+        for t in sorted(unfetched)[:20]:
+            print(f'     {inst_by_tick[t]["name"]:<12} ({t}) — no data fetched')
+        for t, reason in sorted(no_row.items())[:20]:
+            print(f'     {inst_by_tick.get(t, {}).get("name", t):<12} ({t}) — {reason}')
+        extra = len(unfetched) + len(no_row) - 40
+        if extra > 0:
+            print(f'     ... and {extra} more')
 
     if not rows:
         print('\n  No output rows generated.')

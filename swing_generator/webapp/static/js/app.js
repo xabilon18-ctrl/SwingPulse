@@ -772,8 +772,8 @@
 
       // Staleness warning: compare data AGE against the CI schedule, not the
       // calendar date — data from yesterday 22:00 is fine at 05:00 today.
-      // Cron starts (UTC, Mon–Fri): 04,12,16 — keep RUN_HOURS in sync
-      // with .github/workflows/publish.yml.
+      // Cron starts (UTC): Mon–Fri 04,12,16 · Sat+Sun 08 (crypto) — keep
+      // RUN_HOURS_* in sync with .github/workflows/publish.yml.
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
       let fetchedTime = null;
@@ -783,14 +783,16 @@
       }
       // Most recent scheduled run that should have finished by now
       function lastDueRunUTC(nowMs) {
-        const RUN_HOURS = [4, 12, 16];
+        const RUN_HOURS_WEEKDAY = [4, 12, 16];
+        const RUN_HOURS_WEEKEND = [8];      // Sat+Sun crypto run
         const GRACE_MS  = 2.5 * 3600e3; // worst-case cold-cache run ~90 min + slack
         const cutoff = nowMs - GRACE_MS;
         for (let back = 0; back < 8; back++) {
           const d = new Date(nowMs - back * 86400e3);
-          if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue; // weekend: no runs
-          for (let i = RUN_HOURS.length - 1; i >= 0; i--) {
-            const run = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), RUN_HOURS[i]);
+          const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
+          const hours = weekend ? RUN_HOURS_WEEKEND : RUN_HOURS_WEEKDAY;
+          for (let i = hours.length - 1; i >= 0; i--) {
+            const run = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hours[i]);
             if (run <= cutoff) return run;
           }
         }
@@ -810,11 +812,8 @@
           // Fallback when fetched_at is missing: old calendar-date check
           const _now  = new Date();
           const today = [_now.getFullYear(), String(_now.getMonth()+1).padStart(2,'0'), String(_now.getDate()).padStart(2,'0')].join('-');
-          const isWeekend = _now.getDay() === 0 || _now.getDay() === 6;
           if (dateStr !== today) {
-            msg = isWeekend
-              ? `Showing ${dateStr} data — markets are closed over the weekend`
-              : `Data is from ${dateStr} — an update may be overdue`;
+            msg = `Data is from ${dateStr} — an update may be overdue`;
           }
         }
         staleText.textContent = msg;

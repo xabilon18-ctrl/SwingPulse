@@ -1,11 +1,12 @@
 name: SwingPulse Daily Publish
 
 on:
-  # Keep these in sync with RUN_HOURS in webapp/static/js/app.js (stale banner)
+  # Keep these in sync with RUN_HOURS_* in webapp/static/js/app.js (stale banner)
   schedule:
     - cron: '0 4  * * 1-5'   # 06:00 SAST — daily open
     - cron: '0 12 * * 1-5'   # 14:00 SAST — midday
     - cron: '0 16 * * 1-5'   # 18:00 SAST — afternoon close
+    - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
 
   # Manual trigger
   workflow_dispatch:
@@ -67,6 +68,31 @@ jobs:
         run: |
           cd swing_generator
           python3 main.py --profile ma500
+
+      # ── 6b. On failure: mark status on R2 + push so phones hear about it ──
+      # Success runs overwrite status.json back to state:'ok' via publish.py.
+      - name: Notify failure
+        if: failure()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+        run: |
+          printf '{"state":"failed","at":"%s","run":"%s"}' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ github.run_id }}" > /tmp/status.json
+          curl -sS -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/swingpulse-data/objects/ma500/status.json" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Cache-Control: no-cache, max-age=0" \
+            --data-binary @/tmp/status.json || echo "(status upload failed)"
+          if [ -n "$SYNC_SECRET" ]; then
+            curl -sS -X POST \
+              -H "X-Sync-Secret: $SYNC_SECRET" \
+              -H "X-Profile: ma500" \
+              https://swingpulse-sync.xabilon18.workers.dev/push/notify \
+              || echo "(push fan-out failed)"
+          fi
 
       # ── 7. Fan out push notifications ────────────────────────────────────
       - name: Trigger push notifications
