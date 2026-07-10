@@ -52,6 +52,13 @@ jobs:
             echo "$SA_JSON" > swing_generator/credentials/service_account.json
           fi
 
+      # ── 5b. Golden-file regression — never publish signals from a changed
+      #        engine that nobody reviewed (fails fast, before the 20-min run)
+      - name: Signal engine golden test
+        run: |
+          cd swing_generator
+          python3 tests/golden_test.py
+
       # ── 6. Run pipeline ──────────────────────────────────────────────────
       - name: Fetch data + compute signals + publish to R2
         env:

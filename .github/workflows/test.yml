@@ -1,0 +1,35 @@
+name: Signal Engine Tests
+
+# Golden-file regression: any push that touches the signal engine must
+# reproduce the committed golden snapshot exactly (or intentionally update it).
+
+on:
+  push:
+    paths:
+      - 'swing_generator/**.py'
+      - 'swing_generator/tests/**'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r swing_generator/requirements.txt
+
+      - name: Golden-file signal regression + unit checks
+        run: |
+          cd swing_generator
+          python3 tests/golden_test.py
