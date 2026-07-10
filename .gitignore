@@ -29,12 +29,16 @@ swing_generator/webapp/publish/
 node_modules/
 package.json
 package-lock.json
-swing_generator/.wrangler/
+**/.wrangler/
 
 # ── Local clutter (installers, manuals, backups, worktrees) ───────────────
 *.pkg
+*.bak
+*.pdf
 _backup_*/
 .claude/worktrees/
+swing_generator/*.png
+swing_generator/*.zip
 
 # ── macOS ──────────────────────────────────────────────────────────────────
 .DS_Store
