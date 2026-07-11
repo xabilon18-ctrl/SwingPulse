@@ -506,6 +506,71 @@
     return (r >= 9.95 ? Math.round(r) : r.toFixed(1)) + '×';
   }
 
+  // Percentage Volume Oscillator (PVO), computed in the pipeline per timeframe:
+  // (EMA12 − EMA26) of volume as a % of EMA26, with an EMA9 signal line.
+  // > 0 = volume running above its longer baseline. Returns null when the
+  // instrument reports no volume or the data predates the column.
+  function pvo(item) {
+    const v = parseFloat(item[f('pvo')]);
+    if (!isFinite(v)) return null;
+    const s = parseFloat(item[f('pvo_signal')]);
+    return { v, s: isFinite(s) ? s : null };
+  }
+
+  function fmtPvo(v) {
+    return (v >= 0 ? '+' : '') + v.toFixed(1);
+  }
+
+  // ── Volume history sparklines ────────────────────────────────────────
+  // Daily volume bars vs their 25-bar rolling average, drawn from the
+  // per-instrument history feed. Cached per instrument (null = fetch failed
+  // or no volume, so we don't retry every render).
+  const volHistCache = new Map();
+
+  function rollingAvg(arr, n) {
+    const out = new Array(arr.length).fill(NaN);
+    let sum = 0;
+    for (let i = 0; i < arr.length; i++) {
+      sum += arr[i];
+      if (i >= n) sum -= arr[i - n];
+      out[i] = sum / Math.min(i + 1, n);
+    }
+    return out;
+  }
+
+  async function fetchVolHistory(item) {
+    const key = item.instrument_name;
+    if (volHistCache.has(key)) return volHistCache.get(key);
+    let out = null;
+    try {
+      const r = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
+      if (r.ok) {
+        const j = await r.json();
+        const vols = (j.data || []).map(d => +d.volume || 0);
+        if (vols.some(v => v > 0)) out = { vols, avgs: rollingAvg(vols, 25) };
+      }
+    } catch (e) { /* leave null */ }
+    volHistCache.set(key, out);
+    return out;
+  }
+
+  // Render volume bars + average line as an SVG string. Bars above their
+  // rolling average are purple (spike days), the rest stay muted.
+  function volSparkSvg(vols, avgs, w, h) {
+    const max = Math.max(...vols, ...avgs.filter(isFinite)) || 1;
+    const bw  = w / vols.length;
+    const bars = vols.map((v, i) => {
+      const bh  = Math.max(1, v / max * (h - 2));
+      const hot = isFinite(avgs[i]) && v > avgs[i];
+      return `<rect x="${(i * bw + bw * 0.18).toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${hot ? 'var(--volume)' : 'color-mix(in srgb, var(--volume) 22%, var(--bg-elevated))'}"/>`;
+    }).join('');
+    const pts = avgs.map((a, i) => isFinite(a)
+      ? `${(i * bw + bw / 2).toFixed(1)},${Math.min(h - 1, h - a / max * (h - 2)).toFixed(1)}`
+      : null).filter(Boolean).join(' ');
+    const line = pts ? `<polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.3" stroke-linejoin="round"/>` : '';
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${bars}${line}</svg>`;
+  }
+
   // Effective trend: extends the strict UPTREND/DOWNTREND/NEUTRAL classification
   // by using confirmation_status for instruments still in a transitioning state.
   // "Neutral — transitioning (rising ribbon)"  → UPTREND
@@ -1265,6 +1330,7 @@
     rebuildCharts();
     renderConfidenceBreakdown();
     renderGroupPulse();
+    renderVolumePulse();
     renderHeatmap();
     renderAlignmentSummary();
     renderCompressionFeed();
@@ -1685,6 +1751,133 @@
         renderGroupPulse();
       });
     }
+  }
+
+  // ── Volume Pulse card — RVOL + PVO rolled up by market / industry ──────
+  // Market = broad asset class (assetClassOf), Industry = Instruments.txt
+  // industry column, Movers = top instruments by RVOL on the active TF.
+  let vpMode = localStorage.getItem('swingpulse-vp-mode') || 'market';
+  let vpShowAll = false;
+  const VP_ROW_CAP = 12;
+
+  function renderVolumePulse() {
+    const body = document.getElementById('volumePulseBody');
+    if (!body) return;
+
+    document.querySelectorAll('#vpToggle .vp-mode-btn').forEach(btn => {
+      btn.classList.toggle('vp-active', btn.dataset.vp === vpMode);
+      if (!btn._vpBound) {
+        btn._vpBound = true;
+        btn.addEventListener('click', () => {
+          vpMode = btn.dataset.vp;
+          vpShowAll = false;
+          try { localStorage.setItem('swingpulse-vp-mode', vpMode); } catch (e) {}
+          renderVolumePulse();
+        });
+      }
+    });
+
+    // ── Movers: top instruments by RVOL ─────────────────────────────────
+    if (vpMode === 'movers') {
+      const movers = allData
+        .map(item => ({ item, rv: rvol(item) }))
+        .filter(x => x.rv !== null)
+        .sort((a, b) => b.rv - a.rv)
+        .slice(0, VP_ROW_CAP);
+      if (!movers.length) { body.innerHTML = '<div class="vp-empty">No volume data yet</div>'; return; }
+      const rvMax = Math.max(1.5, movers[0].rv);
+      body.innerHTML = movers.map(({ item, rv }) => {
+        const pv = pvo(item);
+        const spike = item[f('volume_spike_flag')] === 'yes';
+        return `
+          <div class="vp-row" data-act="openModal" data-arg="${item.instrument_name}">
+            <div class="vp-name">${item.instrument_name}${spike ? '<span class="vp-spike-dot" title="Volume spike">VOL</span>' : ''}
+              <span class="vp-sub">${item.industry || item.group || ''}</span></div>
+            <div class="vp-bar-wrap vp-spark-slot"><div class="vp-bar ${rv >= 1 ? 'vp-bar-hot' : ''}" style="width:${Math.min(100, rv / rvMax * 100)}%"></div></div>
+            <span class="vp-rvol ${rv >= 1 ? 'vp-hot' : ''}">${fmtRvol(rv)}</span>
+            <span class="vp-pvo ${pv ? (pv.v >= 0 ? 'vp-pvo-up' : 'vp-pvo-down') : ''}">${pv ? fmtPvo(pv.v) : '—'}</span>
+          </div>`;
+      }).join('') + `<div class="vp-legend">RVOL = today ÷ ${VP_LOOKBACK_LABEL()} avg · PVO = volume oscillator % · spark: 24d volume vs 25d avg</div>`;
+      hydrateMoverSparks(body, movers.map(m => m.item));
+      return;
+    }
+
+    // ── Market / Industry: aggregate per bucket ──────────────────────────
+    const buckets = {};
+    for (const item of allData) {
+      const rv = rvol(item);
+      if (rv === null) continue;                       // no volume reported
+      const key = vpMode === 'market'
+        ? assetClassOf(item)
+        : (item.industry || item.sector || 'Other');
+      if (!buckets[key]) buckets[key] = { n: 0, rvSum: 0, pvoSum: 0, pvoN: 0, spikes: 0 };
+      const b = buckets[key];
+      b.n++; b.rvSum += rv;
+      if (item[f('volume_spike_flag')] === 'yes') b.spikes++;
+      const pv = pvo(item);
+      if (pv) { b.pvoSum += pv.v; b.pvoN++; }
+    }
+
+    const entries = Object.entries(buckets)
+      .map(([name, b]) => ({ name, n: b.n, rv: b.rvSum / b.n, spikes: b.spikes,
+                             pvo: b.pvoN ? b.pvoSum / b.pvoN : null }))
+      .sort((a, b) => b.rv - a.rv);
+    if (!entries.length) { body.innerHTML = '<div class="vp-empty">No volume data yet</div>'; return; }
+
+    const shown = vpShowAll ? entries : entries.slice(0, VP_ROW_CAP);
+    const rvMax = Math.max(1.5, entries[0].rv);
+    body.innerHTML = shown.map(e => `
+      <div class="vp-row" data-vp-key="${e.name}">
+        <div class="vp-name">${e.name}${e.spikes ? `<span class="vp-spike-dot" title="${e.spikes} volume spike${e.spikes > 1 ? 's' : ''}">${e.spikes}</span>` : ''}
+          <span class="vp-sub">${e.n} instrument${e.n > 1 ? 's' : ''}</span></div>
+        <div class="vp-bar-wrap"><div class="vp-bar ${e.rv >= 1 ? 'vp-bar-hot' : ''}" style="width:${Math.min(100, e.rv / rvMax * 100)}%"></div></div>
+        <span class="vp-rvol ${e.rv >= 1 ? 'vp-hot' : ''}">${fmtRvol(e.rv)}</span>
+        <span class="vp-pvo ${e.pvo !== null ? (e.pvo >= 0 ? 'vp-pvo-up' : 'vp-pvo-down') : ''}">${e.pvo !== null ? fmtPvo(e.pvo) : '—'}</span>
+      </div>`).join('')
+      + (entries.length > VP_ROW_CAP && !vpShowAll
+          ? `<button class="vp-more-btn" id="vpMoreBtn">Show all ${entries.length}</button>` : '')
+      + `<div class="vp-legend">Avg RVOL per ${vpMode} · PVO = avg volume oscillator %</div>`;
+
+    document.getElementById('vpMoreBtn')?.addEventListener('click', () => {
+      vpShowAll = true;
+      renderVolumePulse();
+    });
+
+    // Row click → scanner filtered to that market / industry
+    body.querySelectorAll('.vp-row[data-vp-key]').forEach(row => {
+      row.addEventListener('click', () => {
+        const key = row.dataset.vpKey;
+        if (vpMode === 'market') {
+          const sel = document.getElementById('scannerClassFilter');
+          if (sel) sel.value = key;
+        } else {
+          const inp = document.getElementById('scannerSearch');
+          if (inp) inp.value = key;
+        }
+        updateScannerCtxStrip?.();
+        navigateToTab('scanner');
+        buildScannerCards();
+      });
+    });
+  }
+
+  function VP_LOOKBACK_LABEL() { return timeframe === '4H' ? '25-bar' : '25-day'; }
+
+  // Swap each mover row's plain RVOL bar for a daily volume-vs-average
+  // sparkline once its history arrives (cached, so re-renders are instant).
+  function hydrateMoverSparks(body, items) {
+    items.forEach(item => {
+      fetchVolHistory(item).then(hist => {
+        if (!hist) return;
+        if (vpMode !== 'movers' || !body.isConnected) return;   // view changed mid-fetch
+        const row = body.querySelector(`.vp-row[data-arg="${CSS.escape(item.instrument_name)}"]`);
+        const slot = row?.querySelector('.vp-spark-slot');
+        if (!slot) return;
+        const N = Math.min(24, hist.vols.length);
+        slot.classList.add('vp-spark-live');
+        slot.innerHTML = volSparkSvg(hist.vols.slice(-N), hist.avgs.slice(-N), 120, 26);
+      });
+    });
   }
 
   // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────
@@ -3499,10 +3692,16 @@
           const rvChip = rv !== null
             ? ` &nbsp;<span style="color:var(--volume);font-weight:700">${fmtRvol(rv)} avg</span>`
             : '';
+          const pv = pvo(item);
+          const pvoLine = pv ? `<div class="status-sub">Oscillator (PVO): <strong>${fmtPvo(pv.v)}</strong>${pv.s !== null
+            ? ` &nbsp;·&nbsp; signal ${fmtPvo(pv.s)} &nbsp;·&nbsp; <span style="color:${pv.v >= pv.s ? 'var(--buy)' : 'var(--sell)'};font-weight:700">${pv.v >= pv.s ? 'volume expanding' : 'volume contracting'}</span>`
+            : ''}</div>` : '';
           return `<div class="mh-section">
           <div class="mh-section-title">Volume</div>
           <div class="modal-status-card status-neutral">
             <div class="status-main">Today: <strong>${parseInt(item[f('volume')]).toLocaleString()}</strong> &nbsp;|&nbsp; Avg: ${parseInt(item[f('volume_average')]||0).toLocaleString()}${rvChip}${item[f('volume_spike_flag')]==='yes'?' &nbsp;<span style="color:var(--volume);font-weight:700">SPIKE</span>':''}</div>
+            ${pvoLine}
+            <div class="mh-vol-chart" id="mhVolChart"></div>
           </div>
         </div>`;})():''}
 
@@ -3567,6 +3766,21 @@
         };
       })());
     }
+
+    renderModalVolChart(item);
+  }
+
+  // Async: fill the modal's Volume section with a daily volume-vs-average
+  // mini chart once history arrives. The modal may close or re-render (TF
+  // switch) while fetching, so re-grab the target before injecting.
+  async function renderModalVolChart(item) {
+    if (!document.getElementById('mhVolChart')) return;
+    const hist = await fetchVolHistory(item);
+    const target = document.getElementById('mhVolChart');
+    if (!target || !hist || openModalName !== item.instrument_name) return;
+    const N = Math.min(30, hist.vols.length);
+    target.innerHTML = volSparkSvg(hist.vols.slice(-N), hist.avgs.slice(-N), 320, 72) +
+      `<div class="mh-vol-legend"><span style="color:var(--volume)">■</span> above avg &nbsp;·&nbsp; line = 25-day avg &nbsp;·&nbsp; last ${N} daily bars</div>`;
   }
 
   // ── Trends Tab — Instrument Card Grid ────────────────────────────────

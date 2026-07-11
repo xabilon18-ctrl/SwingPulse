@@ -35,9 +35,22 @@ def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
     Add:
         volume_average    – rolling mean over VOLUME_LOOKBACK days
         volume_spike_flag – True if today's volume > volume_average
+        pvo               – Percentage Volume Oscillator: (EMA12 − EMA26) of
+                            volume as a % of EMA26. >0 = volume expanding vs
+                            its longer baseline, <0 = drying up.
+        pvo_signal        – EMA9 of pvo (signal line)
     """
     df['volume_average']    = df['Volume'].rolling(VOLUME_LOOKBACK, min_periods=1).mean()
     df['volume_spike_flag'] = df['Volume'] > df['volume_average']
+
+    vol      = df['Volume'].astype('float64')
+    ema_fast = vol.ewm(span=12, adjust=False).mean()
+    ema_slow = vol.ewm(span=26, adjust=False).mean()
+    # Instruments with no reported volume (some indices/CFDs) have ema_slow == 0
+    pvo = pd.Series(np.where(ema_slow > 0, (ema_fast - ema_slow) / ema_slow * 100.0, np.nan),
+                    index=df.index)
+    df['pvo']        = pvo
+    df['pvo_signal'] = pvo.ewm(span=9, adjust=False).mean()
     return df
 
 

@@ -99,7 +99,7 @@ def _tf_signal_columns(prefix, ma_periods=None):
     p = prefix
     return [
         f'{p}date', f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
-        f'{p}volume_average', f'{p}volume_spike_flag',
+        f'{p}volume_average', f'{p}volume_spike_flag', f'{p}pvo', f'{p}pvo_signal',
         *[f'{p}ma_{per}' for per in ma_periods],
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',
         f'{p}confirmation_status',
