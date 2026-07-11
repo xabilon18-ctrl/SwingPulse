@@ -38,6 +38,11 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B4",
+    "date": "2025-08-21",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2025-12-24",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
@@ -68,9 +73,29 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2026-03-19",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-03-20",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2026-03-24",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-03-27",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2026-04-15",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -88,7 +113,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "29d35a4d5e036dd4",
+  "hash": "178bba466a7d6202",
   "trend_transitions": [
    {
     "date": "2024-06-20",
@@ -131,9 +156,19 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2018-12-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2018-12-14",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2019-03-15",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -221,6 +256,11 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2022-05-20",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2022-06-02",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
@@ -229,6 +269,16 @@
     "code": "S1",
     "date": "2022-06-10",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2022-06-29",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2022-07-22",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -246,6 +296,26 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2022-10-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-12-05",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-12-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-01-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2023-02-07",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -254,6 +324,31 @@
     "code": "B1",
     "date": "2023-02-16",
     "status": "B1 re-fire \u2014 pulled back within 5% of MA500 (9d after cross)"
+   },
+   {
+    "code": "B4",
+    "date": "2023-02-22",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-03-03",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-03-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-03-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-03-14",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "B2",
@@ -291,8 +386,18 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B4",
+    "date": "2024-04-19",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
-    "date": "2024-04-29",
+    "date": "2024-04-25",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2024-05-02",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -331,6 +436,26 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2025-05-21",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2025-06-10",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2025-06-25",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2025-07-30",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "B1",
     "date": "2025-08-08",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -356,7 +481,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "0a945bb8a18ec03a",
+  "hash": "851149a1dc4f5917",
   "trend_transitions": [
    {
     "date": "2016-03-08",
@@ -417,6 +542,11 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B2",
+    "date": "2026-01-16",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
     "code": "B1",
     "date": "2026-01-17",
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (3d after cross)"
@@ -425,6 +555,11 @@
     "code": "B1",
     "date": "2026-01-18",
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (4d after cross)"
+   },
+   {
+    "code": "B3",
+    "date": "2026-01-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -505,6 +640,11 @@
     "code": "S3",
     "date": "2026-04-07",
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
@@ -597,7 +737,7 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "ffd994b4c1e6998d",
+  "hash": "83311405a0f71230",
   "trend_transitions": [
    {
     "date": "2025-10-05",
@@ -730,8 +870,23 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2022-02-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2022-03-28",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-04-06",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
-    "date": "2022-04-10",
+    "date": "2022-04-07",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
@@ -773,6 +928,61 @@
     "code": "B1",
     "date": "2023-04-10",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2023-04-25",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-01",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-08",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-05-29",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-02",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-06-03",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-06-19",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "B2",
@@ -975,6 +1185,16 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2025-12-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-01-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
     "date": "2026-04-05",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -985,7 +1205,7 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "9bbf130c105c853c",
+  "hash": "eb44009f548d8c93",
   "trend_transitions": [
    {
     "date": "2019-05-26",
@@ -1193,6 +1413,11 @@
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
+    "code": "S4",
+    "date": "2026-01-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2026-01-13",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -1283,9 +1508,29 @@
     "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2026-05-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-05-29",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-04",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-05",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-08",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "S2",
@@ -1293,7 +1538,7 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "bbf85a96da434c4c",
+  "hash": "f3f0656b67494f2f",
   "trend_transitions": [
    {
     "date": "2025-05-16",
@@ -1360,6 +1605,16 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S4",
+    "date": "2019-03-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2019-04-03",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-04-05",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -1373,6 +1628,21 @@
     "code": "S1",
     "date": "2019-05-31",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2019-06-26",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2019-07-10",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-07-15",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
@@ -1390,6 +1660,11 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B3",
+    "date": "2019-09-19",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2019-09-27",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
@@ -1405,9 +1680,19 @@
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
+    "code": "S4",
+    "date": "2019-12-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-12-19",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2020-01-15",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -1520,13 +1805,28 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B4",
+    "date": "2022-11-18",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2022-11-21",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
     "code": "S4",
-    "date": "2023-01-03",
+    "date": "2022-12-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-01-18",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-01-27",
     "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
@@ -1550,6 +1850,11 @@
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
+    "code": "S4",
+    "date": "2023-08-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
     "date": "2023-08-16",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -1563,6 +1868,16 @@
     "code": "B1",
     "date": "2023-09-06",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2023-10-09",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-10-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -1595,9 +1910,34 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S4",
+    "date": "2024-04-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2024-04-02",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2024-04-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-05-02",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-05-13",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-05-21",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -1610,14 +1950,44 @@
     "status": "S1 re-fire \u2014 rallied within 5% of MA500 (6d after cross)"
    },
    {
+    "code": "S2",
+    "date": "2024-06-10",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2024-06-12",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2024-06-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2024-06-18",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B3",
+    "date": "2024-07-19",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-07-22",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2024-07-23",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2024-08-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S4",
@@ -1628,6 +1998,11 @@
     "code": "S2",
     "date": "2024-11-04",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2025-01-10",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
@@ -1645,9 +2020,34 @@
     "status": "S1 re-fire \u2014 rallied within 5% of MA500 (6d after cross)"
    },
    {
+    "code": "S4",
+    "date": "2025-06-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-06-18",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2025-07-02",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-07-09",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-07-28",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2025-07-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -1675,12 +2075,22 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B3",
+    "date": "2026-06-24",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-06-25",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2026-07-09",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    }
   ],
-  "hash": "1be004732020c85e",
+  "hash": "2807f42bfad3f6b6",
   "trend_transitions": [
    {
     "date": "2016-03-10",
@@ -1840,6 +2250,11 @@
     "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
+    "code": "B3",
+    "date": "2026-06-10",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "B4",
     "date": "2026-06-12",
     "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
@@ -1850,12 +2265,17 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B4",
+    "date": "2026-06-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-07-01",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    }
   ],
-  "hash": "c767c04c74fd32ad",
+  "hash": "5c7241698f569c7f",
   "trend_transitions": [
    {
     "date": "2025-03-28",
@@ -1927,6 +2347,11 @@
     "code": "B1",
     "date": "2026-01-18",
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (5d after cross)"
+   },
+   {
+    "code": "B3",
+    "date": "2026-01-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -2005,6 +2430,11 @@
    },
    {
     "code": "S4",
+    "date": "2026-04-07",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
     "date": "2026-04-09",
     "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
@@ -2064,6 +2494,16 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2026-05-16",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-05-17",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
@@ -2114,7 +2554,7 @@
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    }
   ],
-  "hash": "ca9796ccb1c01504",
+  "hash": "1b14a0bff3286340",
   "trend_transitions": [
    {
     "date": "2025-10-05",
@@ -2202,6 +2642,16 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B4",
+    "date": "2022-03-07",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2022-03-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2022-03-16",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
@@ -2257,9 +2707,69 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B2",
+    "date": "2023-05-23",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-31",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-08",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-06-28",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-08-29",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-09-07",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2023-09-11",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2023-09-16",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2023-09-22",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-09-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2023-10-05",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2023-10-16",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2023-10-23",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -2312,6 +2822,36 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2024-08-28",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2024-09-19",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2024-10-12",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2024-10-23",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2024-10-27",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2024-10-31",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2024-11-09",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -2340,6 +2880,11 @@
     "code": "B2",
     "date": "2025-01-31",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2025-02-02",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -2407,9 +2952,34 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B3",
+    "date": "2025-11-15",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2025-11-16",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2025-11-20",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2025-12-03",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2025-12-05",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2025-12-11",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "S2",
@@ -2437,7 +3007,7 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "691be75544db08f4",
+  "hash": "6a6e24b2ea548b1c",
   "trend_transitions": [
    {
     "date": "2019-05-26",
@@ -2494,6 +3064,11 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2025-10-16",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-10-17",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -2504,14 +3079,109 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2025-11-13",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-11-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2025-11-14",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-11-14",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2025-11-17",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2025-11-17",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2025-11-26",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2025-11-27",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2025-11-28",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2025-11-28",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2025-12-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-12-03",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-12-03",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B2",
+    "date": "2026-01-02",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-01-05",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-01-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-01-07",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-01-08",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-01-08",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-01-09",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2026-01-12",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "S1",
@@ -2529,9 +3199,89 @@
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (10d after cross)"
    },
    {
+    "code": "B2",
+    "date": "2026-02-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-18",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-02-23",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-23",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-24",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-25",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-02-25",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2026-02-26",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-26",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-03-02",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-03-02",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-03-02",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2026-03-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-03-25",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-04-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-08",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
@@ -2539,12 +3289,112 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B4",
+    "date": "2026-04-22",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-24",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-27",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-27",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-04-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-30",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-05",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-05-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-05-14",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-05-15",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2026-05-29",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-01",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-02",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-06-04",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-07-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-07-07",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2026-07-08",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "f89f06191e521d06",
+  "hash": "0bb249219a9c0203",
   "trend_transitions": [
    {
     "date": "2025-06-20",
@@ -2597,9 +3447,89 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2018-08-24",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2018-09-28",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-01-16",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-02-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2019-06-24",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2019-07-05",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-11-07",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-12-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2019-12-27",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2020-01-03",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2020-01-09",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2020-01-16",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2020-01-17",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2020-03-02",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-03-06",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2020-03-09",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2020-03-12",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -2607,9 +3537,49 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2020-03-31",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2020-05-28",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-06-03",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2020-06-04",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2020-07-01",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2020-10-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2020-10-20",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2020-11-04",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2020-11-12",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "B2",
@@ -2622,14 +3592,54 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B3",
+    "date": "2021-03-31",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "B2",
-    "date": "2021-04-20",
+    "date": "2021-04-07",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2021-06-17",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2021-07-29",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2021-08-30",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2021-09-29",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
     "date": "2021-09-30",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2021-10-22",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2022-01-19",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2022-02-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "S3",
@@ -2647,9 +3657,69 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S2",
+    "date": "2023-02-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2023-03-16",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-04-04",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-04-12",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2023-04-13",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2023-05-11",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-06-14",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-08-25",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-08-31",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-09-05",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-09-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2023-09-14",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -2657,9 +3727,79 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2023-10-18",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-10-24",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2023-10-26",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-11-03",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-11-10",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2023-11-14",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2023-11-15",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2024-01-23",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-01-30",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2024-02-21",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2024-02-27",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-03-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-03-19",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-04-09",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-04-12",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -2667,9 +3807,49 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2024-05-14",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2024-05-16",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2024-05-31",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-06-26",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2024-07-04",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2024-07-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-07-30",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-10-15",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-10-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -2677,9 +3857,29 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2024-10-31",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2025-02-28",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2025-03-05",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-03-06",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2025-03-27",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "B2",
@@ -2700,9 +3900,44 @@
     "code": "B2",
     "date": "2025-11-27",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-03-03",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-03-11",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-03-24",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-02",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-09",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-04-30",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-05-14",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    }
   ],
-  "hash": "84685cfc7b3be1e8",
+  "hash": "a68adf644b2d4c14",
   "trend_transitions": [
    {
     "date": "2016-07-13",
@@ -2887,6 +4122,16 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2026-04-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-02",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
     "date": "2026-04-02",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -2898,13 +4143,58 @@
    },
    {
     "code": "S2",
-    "date": "2026-04-07",
+    "date": "2026-04-06",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-08",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-10",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
     "date": "2026-04-12",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-14",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-16",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2026-04-17",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2026-04-19",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-20",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-21",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
@@ -2972,7 +4262,7 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    }
   ],
-  "hash": "ddcc88d775bb5805",
+  "hash": "ed7813cfc5b30b79",
   "trend_transitions": [
    {
     "date": "2025-05-22",
@@ -3002,14 +4292,89 @@
     "status": "B1 re-fire \u2014 pulled back within 5% of MA500 (5d after cross)"
    },
    {
+    "code": "B3",
+    "date": "2018-05-30",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-06-06",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-06-13",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2018-06-14",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
     "code": "S1",
     "date": "2018-06-21",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2018-11-14",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2018-11-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2018-12-21",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2018-12-24",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2018-12-27",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2019-04-09",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2019-04-22",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2019-05-03",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2019-05-09",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2019-05-20",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2019-05-23",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2019-05-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "B2",
@@ -3068,7 +4433,7 @@
    },
    {
     "code": "B2",
-    "date": "2021-04-06",
+    "date": "2021-04-01",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -3092,6 +4457,26 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2021-09-07",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2021-09-15",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2021-10-22",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2021-11-03",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "B1",
     "date": "2021-11-10",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -3100,6 +4485,16 @@
     "code": "S1",
     "date": "2021-11-30",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2021-12-20",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2021-12-21",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "B1",
@@ -3122,9 +4517,44 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2022-06-03",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2022-06-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2022-06-21",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2022-06-22",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-12-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-12-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2022-12-13",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2023-03-10",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "B2",
@@ -3138,7 +4568,7 @@
    },
    {
     "code": "B2",
-    "date": "2023-09-20",
+    "date": "2023-09-15",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -3187,7 +4617,7 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    }
   ],
-  "hash": "952beb49305a14f7",
+  "hash": "8f1e3159e6649542",
   "trend_transitions": [
    {
     "date": "2016-03-09",
@@ -3376,9 +4806,19 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B4",
+    "date": "2026-03-19",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-03-20",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2026-04-08",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -3416,7 +4856,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "353382312b926d54",
+  "hash": "5fec9366e34c70cd",
   "trend_transitions": [
    {
     "date": "2024-06-20",
@@ -3469,6 +4909,11 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2018-10-29",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2018-11-16",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
@@ -3514,9 +4959,24 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S4",
+    "date": "2019-10-22",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-10-25",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2019-12-03",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2020-03-16",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "B4",
@@ -3592,6 +5052,21 @@
     "code": "S1",
     "date": "2022-05-09",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2022-06-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-08-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-08-18",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
@@ -3739,7 +5214,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "c14949339dce975a",
+  "hash": "6edf7eaea3b6e53d",
   "trend_transitions": [
    {
     "date": "2016-03-08",
@@ -3779,6 +5254,16 @@
     "code": "B1",
     "date": "2025-03-04",
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (8d after cross)"
+   },
+   {
+    "code": "B3",
+    "date": "2025-03-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2025-03-07",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -3891,6 +5376,16 @@
     "status": "S1 re-fire \u2014 rallied within 2% of MA500 (8d after cross)"
    },
    {
+    "code": "S4",
+    "date": "2025-10-15",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-10-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-10-20",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -3991,6 +5486,11 @@
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
+    "code": "S4",
+    "date": "2026-04-07",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
     "date": "2026-04-10",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -4002,13 +5502,38 @@
    },
    {
     "code": "S2",
-    "date": "2026-04-16",
+    "date": "2026-04-15",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
     "date": "2026-04-21",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-23",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-04",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-08",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-12",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "B2",
@@ -4021,7 +5546,7 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    }
   ],
-  "hash": "85e617b64da878c1",
+  "hash": "7c2f6c45d982b257",
   "trend_transitions": [
    {
     "date": "2024-06-20",
@@ -4091,7 +5616,7 @@
    },
    {
     "code": "S2",
-    "date": "2019-01-31",
+    "date": "2019-01-30",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
@@ -4101,22 +5626,27 @@
    },
    {
     "code": "S2",
-    "date": "2019-03-01",
+    "date": "2019-02-27",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2019-03-18",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2019-03-22",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "S2",
-    "date": "2019-03-28",
+    "date": "2019-04-05",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "S2",
-    "date": "2019-04-09",
-    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
-   },
-   {
-    "code": "S2",
-    "date": "2019-05-02",
+    "date": "2019-04-30",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
@@ -4135,9 +5665,19 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S3",
+    "date": "2019-10-16",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-10-23",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2019-10-25",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4151,7 +5691,12 @@
    },
    {
     "code": "S2",
-    "date": "2019-12-10",
+    "date": "2019-12-02",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-12-09",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
@@ -4225,14 +5770,44 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S4",
+    "date": "2021-08-04",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2021-08-06",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B3",
+    "date": "2021-10-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2021-11-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2021-11-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
-    "date": "2021-11-23",
+    "date": "2021-11-11",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2021-12-03",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2021-12-10",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "B2",
@@ -4275,6 +5850,21 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S2",
+    "date": "2023-02-13",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-02-15",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2023-02-23",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2023-02-24",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -4285,9 +5875,74 @@
     "status": "B1 re-fire \u2014 pulled back within 5% of MA500 (4d after cross)"
    },
    {
+    "code": "B4",
+    "date": "2023-03-20",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-03-21",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2023-06-14",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-15",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2023-06-22",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-06-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-06-30",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-07-06",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-07-17",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-07-20",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-07-25",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2023-08-02",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2023-08-03",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2023-08-15",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
@@ -4295,14 +5950,64 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B4",
+    "date": "2023-10-20",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2023-10-24",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2023-10-25",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2023-11-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-11-07",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-11-15",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2023-11-22",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2023-12-22",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-01-02",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-02-06",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-02-15",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2024-02-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "B2",
@@ -4370,6 +6075,11 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2026-02-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "S2",
     "date": "2026-03-03",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -4385,9 +6095,54 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S3",
+    "date": "2026-04-08",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-17",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2026-04-29",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-30",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-05-08",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2026-05-14",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2026-06-03",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-06-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-06-12",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4395,7 +6150,7 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    }
   ],
-  "hash": "90679f2987f013f9",
+  "hash": "299d7f1609630f51",
   "trend_transitions": [
    {
     "date": "2016-05-12",
@@ -4478,7 +6233,7 @@
    },
    {
     "code": "B2",
-    "date": "2025-10-21",
+    "date": "2025-10-20",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -4522,6 +6277,11 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2026-02-04",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2026-02-04",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -4532,9 +6292,69 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2026-02-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "B1",
     "date": "2026-02-24",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2026-03-24",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2026-03-25",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-10",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-04-16",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-16",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-04-17",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-19",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-04-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-04-21",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-04-28",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4542,12 +6362,22 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2026-05-15",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2026-05-15",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2026-07-07",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "fadb35c4e999dc2c",
+  "hash": "4e72d0a63b685eff",
   "trend_transitions": [
    {
     "date": "2025-06-18",
@@ -4592,6 +6422,56 @@
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "B4",
+    "date": "2018-08-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2018-08-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-08-20",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2018-08-28",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2018-08-31",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-09-07",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2018-09-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2018-09-11",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2018-10-26",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-12-24",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2018-12-25",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
@@ -4600,6 +6480,26 @@
     "code": "S1",
     "date": "2018-12-28",
     "status": "S1 re-fire \u2014 rallied within 5% of MA500 (3d after cross)"
+   },
+   {
+    "code": "S3",
+    "date": "2019-02-11",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-02-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-02-20",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-02-27",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "B1",
@@ -4612,9 +6512,19 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2019-04-01",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-04-05",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2019-05-01",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4622,9 +6532,109 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S2",
+    "date": "2019-10-03",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2019-11-01",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2019-11-07",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2019-11-15",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2019-11-26",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-11-29",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2019-12-03",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2019-12-04",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2019-12-12",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-12-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-12-25",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2019-12-31",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2020-01-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2020-01-08",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-01-09",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2020-01-17",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2020-01-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2020-02-05",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2020-02-06",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2020-02-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2020-02-28",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4632,9 +6642,19 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2020-03-19",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2020-03-20",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2020-03-27",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "S1",
@@ -4642,9 +6662,69 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2020-04-13",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2020-05-19",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2020-06-02",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-06-05",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2020-06-30",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S3",
+    "date": "2020-07-01",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2021-02-16",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2021-02-24",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2021-03-04",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2021-03-05",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2021-05-19",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2021-08-26",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2021-09-14",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "B3",
@@ -4697,6 +6777,11 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B3",
+    "date": "2023-12-28",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2024-01-05",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
@@ -4707,9 +6792,39 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2024-08-05",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2024-08-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2024-08-26",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2024-09-04",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2024-09-23",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2024-10-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2024-10-17",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -4732,17 +6847,107 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B3",
+    "date": "2024-12-10",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2025-02-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2025-02-12",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2025-03-04",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2025-03-07",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2025-07-15",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2025-07-29",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-07-31",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-08-01",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B2",
+    "date": "2025-08-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-08-13",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-08-22",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-09-03",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-09-15",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-09-22",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2025-09-26",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2025-09-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2025-10-06",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2025-10-17",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2026-02-25",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "ae50ba1b2bf6c621",
+  "hash": "fe25a996eacd079a",
   "trend_transitions": [
    {
     "date": "2016-07-15",
@@ -4870,7 +7075,17 @@
    },
    {
     "code": "B2",
-    "date": "2025-09-29",
+    "date": "2025-09-23",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-09-24",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2025-09-26",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -4904,9 +7119,19 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2025-11-07",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2025-11-07",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2025-11-10",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -4924,9 +7149,34 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2025-12-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2025-12-02",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2025-12-04",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-12-05",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2025-12-17",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2025-12-18",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "B2",
@@ -4939,9 +7189,19 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B3",
+    "date": "2026-01-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2026-02-02",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2026-02-05",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
     "code": "B2",
@@ -4959,6 +7219,21 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2026-04-08",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2026-04-14",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2026-04-16",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2026-04-17",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -4969,12 +7244,47 @@
     "status": "B1 re-fire \u2014 pulled back within 2% of MA500 (10d after cross)"
    },
    {
+    "code": "B4",
+    "date": "2026-04-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-05",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-05-11",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-05-18",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2026-06-10",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2026-06-11",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2026-06-17",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "045060a1fe2239d1",
+  "hash": "7cae53561d643dda",
   "trend_transitions": [
    {
     "date": "2024-06-20",
@@ -5048,13 +7358,43 @@
    },
    {
     "code": "B2",
-    "date": "2018-07-18",
+    "date": "2018-07-10",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2018-07-17",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2018-07-19",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2018-08-01",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2018-08-03",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
     "code": "S1",
     "date": "2018-08-15",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2018-08-30",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2018-10-02",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
@@ -5072,9 +7412,44 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S3",
+    "date": "2019-04-09",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-04-24",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2019-05-13",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2019-05-17",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2019-05-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2019-06-07",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2019-07-19",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2019-08-01",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -5087,9 +7462,34 @@
     "status": "S1 re-fire \u2014 rallied within 5% of MA500 (1d after cross)"
    },
    {
+    "code": "S3",
+    "date": "2019-08-19",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2019-08-28",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2019-09-06",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2019-09-09",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B3",
+    "date": "2020-02-26",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2020-02-27",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "S1",
@@ -5112,9 +7512,19 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
+    "code": "B3",
+    "date": "2020-10-22",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2020-10-28",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S2",
+    "date": "2020-11-06",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "B1",
@@ -5152,9 +7562,29 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2022-02-24",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2022-03-01",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2022-04-06",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-05-31",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2022-06-08",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
    },
    {
     "code": "S2",
@@ -5162,9 +7592,34 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S4",
+    "date": "2022-12-01",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2022-12-12",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2022-12-13",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2022-12-19",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "B1",
     "date": "2023-01-06",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2023-03-16",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "B2",
@@ -5179,6 +7634,31 @@
    {
     "code": "B2",
     "date": "2023-09-20",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B3",
+    "date": "2023-09-27",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2023-10-10",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-10-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-10-30",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-11-02",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -5272,7 +7752,7 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    }
   ],
-  "hash": "911d3ee804d5330f",
+  "hash": "4f7dc99c8ac5a273",
   "trend_transitions": [
    {
     "date": "2016-04-13",
@@ -5398,9 +7878,19 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2026-03-13",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2026-03-18",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S3",
+    "date": "2026-04-09",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
    },
    {
     "code": "B1",
@@ -5413,7 +7903,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "9e5cb5fca111654b",
+  "hash": "7768744d2acf3532",
   "trend_transitions": [
    {
     "date": "2024-06-20",
@@ -5487,6 +7977,11 @@
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
+    "code": "B4",
+    "date": "2018-12-10",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
     "code": "S1",
     "date": "2018-12-17",
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
@@ -5502,9 +7997,24 @@
     "status": "B1 re-fire \u2014 pulled back within 5% of MA500 (1d after cross)"
    },
    {
+    "code": "B3",
+    "date": "2019-03-08",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2019-05-29",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
     "code": "B2",
     "date": "2019-08-29",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2020-02-28",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
    },
    {
     "code": "B3",
@@ -5517,13 +8027,38 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2020-04-28",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-05-05",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2020-05-12",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2020-05-13",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "B1",
     "date": "2020-05-27",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
    },
    {
     "code": "B3",
-    "date": "2020-06-29",
+    "date": "2020-06-11",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2020-06-26",
     "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
    },
    {
@@ -5567,6 +8102,26 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S4",
+    "date": "2022-08-02",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2022-08-23",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2022-08-26",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2022-09-08",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
     "code": "S2",
     "date": "2022-12-07",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
@@ -5577,8 +8132,23 @@
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
+    "code": "S3",
+    "date": "2023-01-30",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S4",
+    "date": "2023-02-02",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S3",
+    "date": "2023-02-21",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "S2",
-    "date": "2023-02-24",
+    "date": "2023-02-22",
     "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
@@ -5590,6 +8160,31 @@
     "code": "S3",
     "date": "2023-03-22",
     "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2023-04-25",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2023-05-03",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S2",
+    "date": "2023-05-12",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
+   },
+   {
+    "code": "S4",
+    "date": "2023-05-18",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "S2",
+    "date": "2023-05-24",
+    "status": "Rally rejection \u2014 S2: price crossed back below MA25"
    },
    {
     "code": "B1",
@@ -5604,6 +8199,31 @@
    {
     "code": "B2",
     "date": "2023-09-13",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B2",
+    "date": "2023-10-11",
+    "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
+   },
+   {
+    "code": "B4",
+    "date": "2023-10-23",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B3",
+    "date": "2023-10-31",
+    "status": "Mid-ribbon bounce \u2014 B3: wick touched MA250, close confirmed above"
+   },
+   {
+    "code": "B4",
+    "date": "2023-11-01",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   },
+   {
+    "code": "B2",
+    "date": "2023-11-02",
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    },
    {
@@ -5637,6 +8257,11 @@
     "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
    },
    {
+    "code": "S3",
+    "date": "2025-05-05",
+    "status": "Mid-ribbon rejection \u2014 S3: wick touched MA250, close confirmed below"
+   },
+   {
     "code": "B1",
     "date": "2025-05-12",
     "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
@@ -5652,7 +8277,7 @@
     "status": "Pullback recovery \u2014 B2: price crossed back above MA25"
    }
   ],
-  "hash": "74e8017ec5dd4a03",
+  "hash": "0847e02237d52ead",
   "trend_transitions": [
    {
     "date": "2016-03-08",

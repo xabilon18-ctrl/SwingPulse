@@ -32,6 +32,9 @@
 - **Re-fire:** after a primary cross, a pullback to within `refire_pct` of MA500 re-fires the code
   once per band entry, only within `_REFIRE_WINDOW_DAYS = 10` calendar days of the cross.
   Opposite primary cancels the window. 5-bar dedup (`_REFIRE_DEDUP_BARS`).
+- The anchor band claims a bar **only while a re-fire window is active**. Outside an active
+  window a near-anchor bar falls through to B4/S4 evaluation (before 2026-07-11 an expired
+  band swallowed those bars with a status-only branch — audit finding 1.4).
 
 **Per-timeframe thresholds** (passed by `main.py process_instrument()`):
 | TF | refire_pct | new_trend_pct |
@@ -43,14 +46,16 @@
 
 ## 3. B2–B4 / S2–S4 — Pullback (buy) / rally (sell) signals
 
-`signals.py` — require established trend (in_uptrend / in_downtrend) and the matching MA500 side.
-Single if/elif cascade: B1 > B1-refire > B4 > B3 > B2 on the buy side (deepest wins), mirror on sell.
+`signals.py` — require established trend (in_uptrend / in_downtrend). Since 2026-07-11 (audit 1.4)
+the sides are gated by established trend only, NOT by which side of MA500 the close landed on —
+each setup carries its own close confirmation. One signal per bar, explicit priority:
+B1/S1 primary > active B1/S1 re-fire > 4 > 3 > 2 (deepest wins).
 
 | Code | Depth | Rule |
 |---|---|---|
 | B2/S2 | shallow | price pulled below MA25 (any depth) then closed back above it (mirror for S2) |
-| B3/S3 | mid-ribbon | wick (Low/High) touches MA250 within `MA_TOUCH_TOLERANCE`, close confirms beyond it |
-| B4/S4 | anchor | wick touches MA500 within tolerance, close confirms beyond it |
+| B3/S3 | mid-ribbon | wick (Low/High) touches MA250 within `MA_TOUCH_TOLERANCE`, close confirms beyond MA250 |
+| B4/S4 | anchor | wick touches MA500 within tolerance, close confirms beyond MA500 |
 
 - Touch tolerance: `MA_TOUCH_TOLERANCE = 0.001` (0.1%), config.py.
 - 5-bar dedup per code.

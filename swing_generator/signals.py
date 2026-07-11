@@ -15,6 +15,11 @@ B4 — Anchor bounce (established uptrend): wick touches MA500, close above.
 S4 — Mirror of B4 (established downtrend): wick touches MA500, close below.
 
 5-bar dedup per signal code prevents per-bar spam.
+
+Per-bar evaluation priority (one signal per bar, deepest setup wins):
+B1/S1 primary cross > active B1/S1 re-fire window > 4 > 3 > 2.
+Setup families are gated by established trend (in_uptrend/in_downtrend),
+not by which side of the MA500 anchor the close landed on.
 """
 
 import json
@@ -192,6 +197,23 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         signal = ''
         status = ''
 
+        # B1/S1 re-fire window state — days since the most recent primary
+        # cross (bands are disjoint, so at most one side is computed per bar)
+        _b1_days = _s1_days = None
+        if b1_band and last_primary_ts['B1'] is not None:
+            _b1_days = (bar_ts - last_primary_ts['B1']).days
+        elif s1_band and last_primary_ts['S1'] is not None:
+            _s1_days = (bar_ts - last_primary_ts['S1']).days
+        b1_window = _b1_days is not None and _b1_days <= _REFIRE_WINDOW_DAYS
+        s1_window = _s1_days is not None and _s1_days <= _REFIRE_WINDOW_DAYS
+
+        # Fix 1.4 (signal-rules audit): explicit priority instead of a
+        # close-vs-anchor position split. Trend-flip primaries first, then an
+        # ACTIVE re-fire window, then in-trend setups gated by established
+        # trend (deepest wins: anchor > mid-ribbon > MA25 recovery). An
+        # expired anchor band no longer swallows B4/S4 with a status-only
+        # branch, and S2/S3 (B2/B3) stay reachable on the far side of MA500.
+
         # ================================================================
         # B1 — close crossed above ALL MAs
         # ================================================================
@@ -207,61 +229,8 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                 in_downtrend      = False
                 pulled_below_ma25 = False
                 pushed_above_ma25 = False
-            elif not signal:
+            else:
                 status = 'Uptrend — above all MAs'
-
-        # ================================================================
-        # B1 re-fire — pulled back into ribbon within refire_pct of MA500
-        # ================================================================
-        elif b1_band:
-            _days = ((bar_ts - last_primary_ts['B1']).days
-                     if last_primary_ts['B1'] is not None else None)
-            within = _days is not None and _days <= _REFIRE_WINDOW_DAYS
-            if within and not prev_b1_band:
-                signal = 'B1'
-                status = (f'B1 re-fire — pulled back within {_refire*100:.0f}% of '
-                          f'MA{_ma500} ({_days}d after cross)')
-            elif within:
-                status = f'Near MA{_ma500} — watching for B1 re-fire'
-            else:
-                status = f'Near MA{_ma500} — past {_REFIRE_WINDOW_DAYS}d re-fire window'
-
-        # ================================================================
-        # B4 — established uptrend, wick touched MA500, close above
-        # ================================================================
-        elif above_anchor and in_uptrend and low <= ma500_val * (1 + _tol):
-            if _can_fire('B4'):
-                signal = 'B4'
-                status = f'Anchor bounce — B4: wick touched MA{_ma500}, close confirmed above'
-                last_fired['B4'] = i
-            else:
-                status = f'Wick on MA{_ma500}, waiting for dedup window'
-
-        # ================================================================
-        # B3 — established uptrend, wick touched MA250, close above
-        # ================================================================
-        elif above_anchor and in_uptrend and ma250_val is not None and low <= ma250_val * (1 + _tol) and close > ma250_val:
-            if _can_fire('B3'):
-                signal = 'B3'
-                status = f'Mid-ribbon bounce — B3: wick touched MA{_ma250}, close confirmed above'
-                last_fired['B3'] = i
-            else:
-                status = f'Wick on MA{_ma250}, waiting for dedup window'
-
-        # ================================================================
-        # B2 — established uptrend, pulled below MA25, now crossed back above
-        # ================================================================
-        elif above_anchor and in_uptrend and pulled_below_ma25 and above_ma25:
-            if _can_fire('B2'):
-                signal = 'B2'
-                status = f'Pullback recovery — B2: price crossed back above MA{_ma25}'
-                last_fired['B2'] = i
-                pulled_below_ma25 = False
-            else:
-                status = f'Crossed MA{_ma25} — waiting for dedup window'
-
-        elif above_anchor:
-            status = f'Above MA{_ma500} — watching for pullback entry'
 
         # ================================================================
         # S1 — close crossed below ALL MAs
@@ -278,29 +247,71 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
                 in_uptrend        = False
                 pulled_below_ma25 = False
                 pushed_above_ma25 = False
-            elif not signal:
+            else:
                 status = 'Downtrend — below all MAs'
 
         # ================================================================
-        # S1 re-fire — rallied back into ribbon within refire_pct below MA500
+        # B1 re-fire — pulled back within refire_pct of MA500 inside an
+        # active 10-day window (the band only claims the bar while armed)
         # ================================================================
-        elif s1_band:
-            _days = ((bar_ts - last_primary_ts['S1']).days
-                     if last_primary_ts['S1'] is not None else None)
-            within = _days is not None and _days <= _REFIRE_WINDOW_DAYS
-            if within and not prev_s1_band:
+        elif b1_band and b1_window:
+            if not prev_b1_band:
+                signal = 'B1'
+                status = (f'B1 re-fire — pulled back within {_refire*100:.0f}% of '
+                          f'MA{_ma500} ({_b1_days}d after cross)')
+            else:
+                status = f'Near MA{_ma500} — watching for B1 re-fire'
+
+        # ================================================================
+        # S1 re-fire — rallied within refire_pct below MA500 inside an
+        # active 10-day window
+        # ================================================================
+        elif s1_band and s1_window:
+            if not prev_s1_band:
                 signal = 'S1'
                 status = (f'S1 re-fire — rallied within {_refire*100:.0f}% of '
-                          f'MA{_ma500} ({_days}d after cross)')
-            elif within:
-                status = f'Near MA{_ma500} — watching for S1 re-fire'
+                          f'MA{_ma500} ({_s1_days}d after cross)')
             else:
-                status = f'Near MA{_ma500} — past {_REFIRE_WINDOW_DAYS}d re-fire window'
+                status = f'Near MA{_ma500} — watching for S1 re-fire'
+
+        # ================================================================
+        # B4 — established uptrend, wick touched MA500, close above
+        # ================================================================
+        elif in_uptrend and above_anchor and low <= ma500_val * (1 + _tol):
+            if _can_fire('B4'):
+                signal = 'B4'
+                status = f'Anchor bounce — B4: wick touched MA{_ma500}, close confirmed above'
+                last_fired['B4'] = i
+            else:
+                status = f'Wick on MA{_ma500}, waiting for dedup window'
+
+        # ================================================================
+        # B3 — established uptrend, wick touched MA250, close above
+        # ================================================================
+        elif in_uptrend and ma250_val is not None and low <= ma250_val * (1 + _tol) and close > ma250_val:
+            if _can_fire('B3'):
+                signal = 'B3'
+                status = f'Mid-ribbon bounce — B3: wick touched MA{_ma250}, close confirmed above'
+                last_fired['B3'] = i
+            else:
+                status = f'Wick on MA{_ma250}, waiting for dedup window'
+
+        # ================================================================
+        # B2 — established uptrend, pulled below MA25, now crossed back above
+        # ================================================================
+        elif in_uptrend and pulled_below_ma25 and above_ma25:
+            if _can_fire('B2'):
+                signal = 'B2'
+                status = f'Pullback recovery — B2: price crossed back above MA{_ma25}'
+                last_fired['B2'] = i
+                pulled_below_ma25 = False
+            else:
+                status = f'Crossed MA{_ma25} — waiting for dedup window'
 
         # ================================================================
         # S4 — established downtrend, wick touched MA500, close below
         # ================================================================
-        elif not above_anchor and in_downtrend and high >= ma500_val * (1 - _tol):
+        elif in_downtrend and not above_anchor and high >= ma500_val * (1 - _tol):
             if _can_fire('S4'):
                 signal = 'S4'
                 status = f'Rally rejection — S4: wick touched MA{_ma500}, close confirmed below'
@@ -311,7 +322,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         # ================================================================
         # S3 — established downtrend, wick touched MA250, close below
         # ================================================================
-        elif not above_anchor and in_downtrend and ma250_val is not None and high >= ma250_val * (1 - _tol) and close < ma250_val:
+        elif in_downtrend and ma250_val is not None and high >= ma250_val * (1 - _tol) and close < ma250_val:
             if _can_fire('S3'):
                 signal = 'S3'
                 status = f'Mid-ribbon rejection — S3: wick touched MA{_ma250}, close confirmed below'
@@ -322,7 +333,7 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
         # ================================================================
         # S2 — established downtrend, pushed above MA25, now crossed back below
         # ================================================================
-        elif not above_anchor and in_downtrend and pushed_above_ma25 and not above_ma25:
+        elif in_downtrend and pushed_above_ma25 and not above_ma25:
             if _can_fire('S2'):
                 signal = 'S2'
                 status = f'Rally rejection — S2: price crossed back below MA{_ma25}'
@@ -331,11 +342,21 @@ def add_signals(df: pd.DataFrame, ma_periods=None,
             else:
                 status = f'Crossed MA{_ma25} — waiting for dedup window'
 
-        elif not above_anchor:
-            status = f'Below MA{_ma500} — watching for rally rejection'
-
+        # ================================================================
+        # No setup — trend-aware watching status
+        # ================================================================
+        elif in_uptrend:
+            status = (f'Above MA{_ma500} — watching for pullback entry'
+                      if above_anchor else
+                      f'Pullback below MA{_ma500} — uptrend intact, watching for recovery')
+        elif in_downtrend:
+            status = (f'Below MA{_ma500} — watching for rally rejection'
+                      if not above_anchor else
+                      f'Rally above MA{_ma500} — downtrend intact, watching for rejection')
         else:
-            status = 'Neutral'
+            status = (f'Above MA{_ma500} — watching for pullback entry'
+                      if above_anchor else
+                      f'Below MA{_ma500} — watching for rally rejection')
 
         conf = _signal_confidence(signal, tf, asset_class)
 
