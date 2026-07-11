@@ -4,7 +4,7 @@
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
 ## What is SwingPulse?
-A personal swing-trading signal dashboard that scans a watchlist of instruments (forex, indices, commodities, crypto, US/global equities) using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
+A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, US/global equities — forex removed 2026-07-11, replaced with AI/tech names) using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
 
 **Single active profile: MA500** (25, 50, 75 … 500 — step 25, 20 MAs)
 
@@ -12,7 +12,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 |------|-------|
 | Live URL | https://swingpulse200.pages.dev |
 | R2 data prefix | `ma500/` |
-| Instruments | **745** (parsed from `../Instruments.txt`) |
+| Instruments | **740** (parsed from `../Instruments.txt`) |
 | MA ribbon | MA25–MA500 (step 25, 20 MAs) |
 | History years | 45 (covers monthly MA500 ≈ 41.7 yr) |
 
@@ -162,11 +162,11 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 ---
 
 ## Current Versions
-- `app.js` — **v197**
-- `style.css` — **v190** (single dark theme — light/midnight removed)
+- `app.js` — **v201** (adds Scanner Asset Class filter)
+- `style.css` — **v192** (single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
-- `Instruments.txt` — **745 instruments**
+- `Instruments.txt` — **740 instruments** (57 forex → 57 AI/tech, 2026-07-11)
 
 ---
 
@@ -176,7 +176,7 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 # Run signal generation
 cd swing_generator && python3 main.py --profile ma500
 
-# Deploy data only (uploads to R2 ma500/ prefix, ~745+ files)
+# Deploy data only (uploads to R2 ma500/ prefix, ~740+ files)
 cd swing_generator && python3 webapp/publish.py --profile ma500
 
 # Deploy UI only (to swingpulse200.pages.dev)

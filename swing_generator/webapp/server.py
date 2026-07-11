@@ -649,6 +649,19 @@ _TV_BY_NAME: dict[str, str] = {
     'FAANGS_10': 'NASDAQ:QQQ',
     'EV_INDX':   'NASDAQ:DRIV',
     'CHINA_NET': 'AMEX:KWEB',
+
+    # ── Forex→AI/tech replacement batch (2026-07-11) — NYSE-listed names ──
+    'COHR': 'NYSE:COHR', 'APH':  'NYSE:APH',  'GLW':  'NYSE:GLW',
+    'JBL':  'NYSE:JBL',  'KEYS': 'NYSE:KEYS', 'TEL':  'NYSE:TEL',
+    'TDY':  'NYSE:TDY',  'AME':  'NYSE:AME',  'ONTO': 'NYSE:ONTO',
+    'S':    'NYSE:S',    'SMR':  'NYSE:SMR',  'HUBB': 'NYSE:HUBB',
+    'NVT':  'NYSE:NVT',  'EME':  'NYSE:EME',  'JOBY': 'NYSE:JOBY',
+    'ACHR': 'NYSE:ACHR', 'DT':   'NYSE:DT',   'IOT':  'NYSE:IOT',
+    'ESTC': 'NYSE:ESTC', 'RDDT': 'NYSE:RDDT', 'GRMN': 'NYSE:GRMN',
+    'SPOT': 'NYSE:SPOT', 'RBLX': 'NYSE:RBLX', 'NU':   'NYSE:NU',
+    'SE':   'NYSE:SE',   'BABA': 'NYSE:BABA', 'BLOCK': 'NYSE:XYZ',
+    'GDDY': 'NYSE:GDDY', 'HUBS': 'NYSE:HUBS', 'VEEV': 'NYSE:VEEV',
+    'TOST': 'NYSE:TOST', 'TWLO': 'NYSE:TWLO',
 }
 
 # NYSE stocks that appear under different ticker in TV

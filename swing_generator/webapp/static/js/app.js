@@ -2415,11 +2415,23 @@
     }
   }
 
+  // Mirror of instruments.py asset_class_of(): collapse groups into the broad
+  // classes used by the confidence map (Forex kept for old data compatibility).
+  function assetClassOf(d) {
+    const g = (d.group || '').trim();
+    if (g === 'Crypto' || g === 'Blockchain') return 'Crypto';
+    if (g === 'Forex') return 'Forex';
+    if (g === 'Commodity') return 'Commodity';
+    if (g.endsWith('Index')) return 'Index';
+    return 'Equity';
+  }
+
   function _buildScannerCardsInner(appendPage = false, opts = {}) {
     if (!appendPage && !opts.keepPage) scannerPage = 1;  // reset to page 1 when filters change
     const grid = document.getElementById('scannerGrid');
     const summaryEl = document.getElementById('scannerSummary');
     const search = document.getElementById('scannerSearch').value.toLowerCase();
+    const assetClass = document.getElementById('scannerClassFilter')?.value || 'all';
     const group = document.getElementById('scannerGroupFilter').value;
     const sector = document.getElementById('scannerSectorFilter').value;
     const trend = document.getElementById('scannerTrendFilter').value;
@@ -2428,6 +2440,7 @@
 
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
+    if (assetClass !== 'all') filtered = filtered.filter(d => assetClassOf(d) === assetClass);
     if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
     // Region filter — set by clicking a region row on the By Region card
     if (activeRegionFilter) {
@@ -2927,8 +2940,11 @@
 
   // Update filter badge count
   function updateFilterBadge() {
-    const selects = ['scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerConfFilter','scannerMacroMaFilter','scannerRsiFilter'];
-    let count = selects.filter(id => document.getElementById(id).value !== 'all').length;
+    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerRsiFilter'];
+    let count = selects.filter(id => {
+      const el = document.getElementById(id);
+      return el && el.value !== 'all';
+    }).length;
     if (document.getElementById('scannerSort').value !== 'signal') count++;
     const badge = document.getElementById('sigFilterBadge');
     if (count > 0) {
@@ -4375,14 +4391,16 @@
   function updateScannerCtxStrip() {
     const strip = document.getElementById('scannerCtxStrip');
     if (!strip) return;
+    const clsSel   = document.getElementById('scannerClassFilter');
     const grpSel   = document.getElementById('scannerGroupFilter');
     const trendSel = document.getElementById('scannerTrendFilter');
     const alignSel = document.getElementById('scannerAlignFilter');
+    const cls   = clsSel?.value   !== 'all' ? clsSel.value   : '';
     const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
     const trend = trendSel?.value !== 'all' ? trendSel.value : '';
     const align = alignSel?.value !== 'all' ? alignSel.value : '';
 
-    if (!grp && !trend && !align && !activeRegionFilter) {
+    if (!cls && !grp && !trend && !align && !activeRegionFilter) {
       strip.style.display = 'none';
       strip.innerHTML = '';
       return;
@@ -4390,6 +4408,7 @@
 
     const pills = [];
     if (activeRegionFilter) pills.push(`<span class="ctx-pill ctx-pill-group">Region: <strong>${activeRegionFilter}</strong></span>`);
+    if (cls)   pills.push(`<span class="ctx-pill ctx-pill-group">Class: <strong>${cls}</strong></span>`);
     if (grp)   pills.push(`<span class="ctx-pill ctx-pill-group">Group: <strong>${grp}</strong></span>`);
     if (trend) {
       const lbl = trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral';
@@ -4405,6 +4424,7 @@
       `<button class="ctx-clear-btn" id="ctxClearBtn">✕ Reset</button>`;
 
     document.getElementById('ctxClearBtn')?.addEventListener('click', () => {
+      if (clsSel)   clsSel.value   = 'all';
       if (grpSel)   grpSel.value   = 'all';
       if (trendSel) trendSel.value = 'all';
       if (alignSel) alignSel.value = 'all';

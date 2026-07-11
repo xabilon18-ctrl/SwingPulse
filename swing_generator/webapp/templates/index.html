@@ -339,6 +339,15 @@
         <div class="sig-sheet-handle"></div>
         <div class="sig-sheet-title">Filters & Sort</div>
         <div class="sig-adv-fields" id="sigAdvancedFilters">
+          <label class="sig-adv-label">Asset Class
+            <select class="sig-adv-select" id="scannerClassFilter">
+              <option value="all">All Classes</option>
+              <option value="Equity">Equity</option>
+              <option value="Crypto">Crypto</option>
+              <option value="Index">Index</option>
+              <option value="Commodity">Commodity</option>
+            </select>
+          </label>
           <label class="sig-adv-label">Group
             <select class="sig-adv-select" id="scannerGroupFilter">
               <option value="all">All Groups</option>
@@ -563,6 +572,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=200"></script>
+  <script src="/static/js/app.js?v=201"></script>
 </body>
 </html>
