@@ -66,7 +66,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
 37   | ^TWII         | NQTW          | Asia Index    | Index                     | Taiwan Weighted
 38   | ^N225         | NI225         | Asia Index    | Index                     | Nikkei 225
-39   | 000001.SS     | XINHUA        | Asia Index    | Index                     | Shanghai Composite
+39   | FXI           | CHINA50       | Asia Index    | Index                     | FTSE China 50
 40   | ^HSI          | HANGSENG      | Asia Index    | Index                     | Hang Seng
 41   | ^STI          | SG30SGD       | Asia Index    | Index                     | Straits Times
 
