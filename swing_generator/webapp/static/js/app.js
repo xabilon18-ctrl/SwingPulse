@@ -948,7 +948,6 @@
   // Category keyword → group/sector match used by the chip row and free-text search
   const CATEGORY_ALIASES = {
     'crypto':       ['crypto'],
-    'forex':        ['forex'],
     'commodities':  ['commodity'],
     'us100':        ['us100'],
     'us30':         ['us30'],
@@ -991,7 +990,7 @@
     if (!query) return true;
     const q = query.toLowerCase().trim();
     const name = (item.instrument_name || '').toUpperCase();
-    // Category alias check — "crypto", "forex", "banks", etc.
+    // Category alias check — "crypto", "indices", "banks", etc.
     for (const [cat, targets] of Object.entries(CATEGORY_ALIASES)) {
       if (q === cat || cat.startsWith(q) && q.length >= 3) {
         const haystack = ((item.group || '') + ' ' + (item.sector || '') + ' ' + (item.industry || '')).toLowerCase();
@@ -1652,7 +1651,7 @@
     'SMI20':'Europe','SPAIN35':'Europe','UK100':'Europe',
     'Asia Index':'Asia-Pacific','ASX200':'Asia-Pacific','Japan':'Asia-Pacific',
     'JSE':'Africa',
-    'Commodity':'Commodities','Crypto':'Crypto','Forex':'Forex',
+    'Commodity':'Commodities','Crypto':'Crypto',
     'AI Theme':'Themes','Blockchain':'Themes','Space':'Themes',
     'Quantum':'Themes','Robotics':'Themes','AI Energy':'Themes',
     'AI Semi':'Themes','AI Infra':'Themes','XM Index':'Themes',

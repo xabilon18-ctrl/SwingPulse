@@ -162,7 +162,7 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 ---
 
 ## Current Versions
-- `app.js` — **v204** (Volume Pulse summary strip + up/down-colored volume charts in modal and movers)
+- `app.js` — **v205** (Signals tab: Forex category chip replaced with Indices; dead forex aliases removed)
 - `style.css` — **v195** (single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
