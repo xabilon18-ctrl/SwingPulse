@@ -6565,6 +6565,25 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 .vp-mode-btn.vp-active { background: var(--volume-soft); color: var(--volume); border-color: var(--volume); }
 
+/* Summary strip: market-wide volume picture above the rows */
+.vp-summary { padding: 12px 16px 10px; border-bottom: 1px solid var(--border); }
+.vp-sum-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.vp-sum-tile {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 10px; padding: 7px 9px;
+}
+.vp-sum-lbl {
+  font-size: .55rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+  white-space: nowrap;
+}
+.vp-sum-val {
+  font-size: .84rem; font-weight: 800; color: var(--text-primary);
+  line-height: 1.1; font-variant-numeric: tabular-nums;
+}
+.vp-sum-val.vp-sum-up { color: var(--buy); }
+.vp-summary .mh-vol-pressure { margin-top: 10px; }
+
 .vp-row {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 16px; cursor: pointer; transition: background .15s;
@@ -6605,10 +6624,19 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .vp-spark-slot.vp-spark-live { height: 26px; border-radius: 3px; background: transparent; }
 .vp-spark-slot.vp-spark-live svg { width: 100%; height: 100%; display: block; }
 
-/* Modal volume mini chart (volume bars vs 25-day average line) */
+/* Modal volume chart (volume bars vs 25-day average line) */
 .mh-vol-chart { margin-top: 10px; }
-.mh-vol-chart svg { width: 100%; height: 72px; display: block; border-radius: 4px; }
+.mh-vol-chart svg { width: 100%; height: 150px; display: block; border-radius: 4px; }
 .mh-vol-legend { margin-top: 5px; font-size: .62rem; color: var(--text-muted); }
+
+/* Modal volume stat tiles + up/down-day volume pressure bar */
+.mh-vol-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.mh-vol-grid .mg-tile { padding: 8px 10px; }
+.mg-val.vol { color: var(--volume); }
+.mh-vol-pressure { margin-top: 12px; }
+.mh-vp-track { height: 7px; border-radius: 4px; background: var(--sell); overflow: hidden; }
+.mh-vp-up { height: 100%; background: var(--buy); }
+.mh-vp-lbls { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: .62rem; font-weight: 600; }
 
 .vp-more-btn {
   display: block; width: calc(100% - 32px); margin: 8px 16px 4px;

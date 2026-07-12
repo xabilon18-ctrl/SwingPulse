@@ -162,8 +162,8 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 ---
 
 ## Current Versions
-- `app.js` — **v201** (adds Scanner Asset Class filter)
-- `style.css` — **v192** (single dark theme — light/midnight removed)
+- `app.js` — **v204** (Volume Pulse summary strip + up/down-colored volume charts in modal and movers)
+- `style.css` — **v195** (single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **740 instruments** (57 forex → 57 AI/tech, 2026-07-11)

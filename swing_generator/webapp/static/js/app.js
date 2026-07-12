@@ -521,6 +521,16 @@
     return (v >= 0 ? '+' : '') + v.toFixed(1);
   }
 
+  // Compact volume: 1,234,567 → "1.2M". Used in the modal's Volume tiles
+  // where full thousands-separated numbers don't fit.
+  function fmtVol(v) {
+    if (!isFinite(v) || v <= 0) return '—';
+    if (v >= 1e9) return (v / 1e9).toFixed(v >= 1e10 ? 0 : 1) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'K';
+    return String(Math.round(v));
+  }
+
   // ── Volume history sparklines ────────────────────────────────────────
   // Daily volume bars vs their 25-bar rolling average, drawn from the
   // per-instrument history feed. Cached per instrument (null = fetch failed
@@ -546,28 +556,41 @@
       const r = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
       if (r.ok) {
         const j = await r.json();
-        const vols = (j.data || []).map(d => +d.volume || 0);
-        if (vols.some(v => v > 0)) out = { vols, avgs: rollingAvg(vols, 25) };
+        const rows = j.data || [];
+        const vols = rows.map(d => +d.volume || 0);
+        if (vols.some(v => v > 0)) out = {
+          vols,
+          avgs:   rollingAvg(vols, 25),
+          closes: rows.map(d => +d.close || 0),
+          dates:  rows.map(d => d.date || ''),
+        };
       }
     } catch (e) { /* leave null */ }
     volHistCache.set(key, out);
     return out;
   }
 
-  // Render volume bars + average line as an SVG string. Bars above their
-  // rolling average are purple (spike days), the rest stay muted.
-  function volSparkSvg(vols, avgs, w, h) {
+  // Render volume bars + average line as an SVG string (modal chart and
+  // mover sparklines). Bars are colored by the day's close direction
+  // (buy = up day, sell = down day), full strength above the 25-day average
+  // and muted below it, with the average as a dashed line. Falls back to the
+  // plain volume palette when closes aren't available.
+  function volDetailSvg(vols, avgs, closes, w, h) {
     const max = Math.max(...vols, ...avgs.filter(isFinite)) || 1;
     const bw  = w / vols.length;
+    const hasDir = Array.isArray(closes) && closes.some(c => c > 0);
     const bars = vols.map((v, i) => {
-      const bh  = Math.max(1, v / max * (h - 2));
-      const hot = isFinite(avgs[i]) && v > avgs[i];
-      return `<rect x="${(i * bw + bw * 0.18).toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${hot ? 'var(--volume)' : 'color-mix(in srgb, var(--volume) 22%, var(--bg-elevated))'}"/>`;
+      const bh   = Math.max(1, v / max * (h - 4));
+      const base = !hasDir ? 'var(--volume)'
+                 : (i === 0 || closes[i] >= closes[i - 1]) ? 'var(--buy)' : 'var(--sell)';
+      const hot  = isFinite(avgs[i]) && v > avgs[i];
+      const fill = hot ? base : `color-mix(in srgb, ${base} 28%, var(--bg-elevated))`;
+      return `<rect x="${(i * bw + bw * 0.15).toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${fill}"/>`;
     }).join('');
     const pts = avgs.map((a, i) => isFinite(a)
-      ? `${(i * bw + bw / 2).toFixed(1)},${Math.min(h - 1, h - a / max * (h - 2)).toFixed(1)}`
+      ? `${(i * bw + bw / 2).toFixed(1)},${Math.min(h - 1, h - a / max * (h - 4)).toFixed(1)}`
       : null).filter(Boolean).join(' ');
-    const line = pts ? `<polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.3" stroke-linejoin="round"/>` : '';
+    const line = pts ? `<polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linejoin="round" stroke-dasharray="4 3"/>` : '';
     return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${bars}${line}</svg>`;
   }
 
@@ -1777,6 +1800,47 @@
       }
     });
 
+    // ── Summary strip: market-wide volume picture (shown in all modes) ──
+    // Pressure bar weights each instrument by its RVOL, so it reads as
+    // "where is today's unusual volume concentrated — rising or falling names".
+    let sumHtml = '';
+    {
+      let n = 0, rvSum = 0, spikes = 0, hot = 0, pvoUp = 0, pvoN = 0, upW = 0, dnW = 0;
+      for (const item of allData) {
+        const rv = rvol(item);
+        if (rv === null) continue;
+        n++; rvSum += rv;
+        if (rv >= 1.5) hot++;
+        if (item[f('volume_spike_flag')] === 'yes') spikes++;
+        const pv = pvo(item);
+        if (pv) { pvoN++; if (pv.v >= 0) pvoUp++; }
+        const o = parseFloat(item[f('open')]), c = parseFloat(item[f('close')]);
+        if (isFinite(o) && isFinite(c) && o > 0) { if (c >= o) upW += rv; else dnW += rv; }
+      }
+      if (n) {
+        const avgRv  = rvSum / n;
+        const upPct  = (upW + dnW) ? Math.round(upW / (upW + dnW) * 100) : null;
+        const expPct = pvoN ? Math.round(pvoUp / pvoN * 100) : null;
+        sumHtml = `
+        <div class="vp-summary">
+          <div class="vp-sum-tiles">
+            <div class="vp-sum-tile" title="Average RVOL across the ${n} instruments reporting volume"><div class="vp-sum-lbl">Avg RVOL</div><div class="vp-sum-val ${avgRv >= 1 ? 'vp-hot' : ''}">${fmtRvol(avgRv)}</div></div>
+            <div class="vp-sum-tile" title="Instruments trading above their ${VP_LOOKBACK_LABEL()} average volume"><div class="vp-sum-lbl">Spikes</div><div class="vp-sum-val">${spikes}</div></div>
+            <div class="vp-sum-tile" title="Instruments at 1.5× or more of their average volume"><div class="vp-sum-lbl">≥1.5×</div><div class="vp-sum-val ${hot ? 'vp-hot' : ''}">${hot}</div></div>
+            <div class="vp-sum-tile" title="Share of instruments with a rising volume oscillator (PVO ≥ 0)"><div class="vp-sum-lbl">PVO+</div><div class="vp-sum-val ${expPct !== null && expPct >= 50 ? 'vp-sum-up' : ''}">${expPct !== null ? expPct + '%' : '—'}</div></div>
+          </div>
+          ${upPct !== null ? `
+          <div class="mh-vol-pressure" title="RVOL-weighted share of today's volume in instruments trading up vs down (close vs open, ${timeframe} bars)">
+            <div class="mh-vp-track"><div class="mh-vp-up" style="width:${upPct}%"></div></div>
+            <div class="mh-vp-lbls">
+              <span style="color:var(--buy)">▲ ${upPct}% of volume in rising names</span>
+              <span style="color:var(--sell)">${100 - upPct}% falling ▼</span>
+            </div>
+          </div>` : ''}
+        </div>`;
+      }
+    }
+
     // ── Movers: top instruments by RVOL ─────────────────────────────────
     if (vpMode === 'movers') {
       const movers = allData
@@ -1786,7 +1850,7 @@
         .slice(0, VP_ROW_CAP);
       if (!movers.length) { body.innerHTML = '<div class="vp-empty">No volume data yet</div>'; return; }
       const rvMax = Math.max(1.5, movers[0].rv);
-      body.innerHTML = movers.map(({ item, rv }) => {
+      body.innerHTML = sumHtml + movers.map(({ item, rv }) => {
         const pv = pvo(item);
         const spike = item[f('volume_spike_flag')] === 'yes';
         return `
@@ -1797,7 +1861,7 @@
             <span class="vp-rvol ${rv >= 1 ? 'vp-hot' : ''}">${fmtRvol(rv)}</span>
             <span class="vp-pvo ${pv ? (pv.v >= 0 ? 'vp-pvo-up' : 'vp-pvo-down') : ''}">${pv ? fmtPvo(pv.v) : '—'}</span>
           </div>`;
-      }).join('') + `<div class="vp-legend">RVOL = today ÷ ${VP_LOOKBACK_LABEL()} avg · PVO = volume oscillator % · spark: 24d volume vs 25d avg</div>`;
+      }).join('') + `<div class="vp-legend">RVOL = today ÷ ${VP_LOOKBACK_LABEL()} avg · PVO = volume oscillator % · spark: 24d volume — green up / red down day</div>`;
       hydrateMoverSparks(body, movers.map(m => m.item));
       return;
     }
@@ -1826,7 +1890,7 @@
 
     const shown = vpShowAll ? entries : entries.slice(0, VP_ROW_CAP);
     const rvMax = Math.max(1.5, entries[0].rv);
-    body.innerHTML = shown.map(e => `
+    body.innerHTML = sumHtml + shown.map(e => `
       <div class="vp-row" data-vp-key="${e.name}">
         <div class="vp-name">${e.name}${e.spikes ? `<span class="vp-spike-dot" title="${e.spikes} volume spike${e.spikes > 1 ? 's' : ''}">${e.spikes}</span>` : ''}
           <span class="vp-sub">${e.n} instrument${e.n > 1 ? 's' : ''}</span></div>
@@ -1875,7 +1939,7 @@
         if (!slot) return;
         const N = Math.min(24, hist.vols.length);
         slot.classList.add('vp-spark-live');
-        slot.innerHTML = volSparkSvg(hist.vols.slice(-N), hist.avgs.slice(-N), 120, 26);
+        slot.innerHTML = volDetailSvg(hist.vols.slice(-N), hist.avgs.slice(-N), (hist.closes || []).slice(-N), 120, 26);
       });
     });
   }
@@ -3688,20 +3752,26 @@
         </div>
 
         ${item[f('volume')]?(() => {
+          const v  = parseFloat(item[f('volume')]);
+          const av = parseFloat(item[f('volume_average')] || 0);
           const rv = rvol(item);
-          const rvChip = rv !== null
-            ? ` &nbsp;<span style="color:var(--volume);font-weight:700">${fmtRvol(rv)} avg</span>`
-            : '';
           const pv = pvo(item);
+          const rvCls = rv === null ? '' : rv >= 1.5 ? ' vol' : rv >= 1 ? ' buy' : '';
           const pvoLine = pv ? `<div class="status-sub">Oscillator (PVO): <strong>${fmtPvo(pv.v)}</strong>${pv.s !== null
             ? ` &nbsp;·&nbsp; signal ${fmtPvo(pv.s)} &nbsp;·&nbsp; <span style="color:${pv.v >= pv.s ? 'var(--buy)' : 'var(--sell)'};font-weight:700">${pv.v >= pv.s ? 'volume expanding' : 'volume contracting'}</span>`
             : ''}</div>` : '';
           return `<div class="mh-section">
-          <div class="mh-section-title">Volume</div>
+          <div class="mh-section-title">Volume${item[f('volume_spike_flag')]==='yes' ? ' <span class="vol-plus-chip">SPIKE</span>' : ''}</div>
+          <div class="mh-vol-grid">
+            <div class="mg-tile"><div class="mg-label">Today</div><div class="mg-val" title="${isFinite(v) ? Math.round(v).toLocaleString() : ''}">${fmtVol(v)}</div></div>
+            <div class="mg-tile" title="Average over the last 25 ${timeframe === '4H' ? '4H bars' : 'days'}"><div class="mg-label">Avg (25)</div><div class="mg-val" title="${av ? Math.round(av).toLocaleString() : ''}">${fmtVol(av)}</div></div>
+            <div class="mg-tile"><div class="mg-label">RVOL</div><div class="mg-val${rvCls}">${rv !== null ? fmtRvol(rv) : '—'}</div></div>
+            <div class="mg-tile"><div class="mg-label">PVO</div><div class="mg-val ${pv ? (pv.v >= 0 ? 'buy' : 'sell') : ''}">${pv ? fmtPvo(pv.v) : '—'}</div></div>
+          </div>
           <div class="modal-status-card status-neutral">
-            <div class="status-main">Today: <strong>${parseInt(item[f('volume')]).toLocaleString()}</strong> &nbsp;|&nbsp; Avg: ${parseInt(item[f('volume_average')]||0).toLocaleString()}${rvChip}${item[f('volume_spike_flag')]==='yes'?' &nbsp;<span style="color:var(--volume);font-weight:700">SPIKE</span>':''}</div>
             ${pvoLine}
             <div class="mh-vol-chart" id="mhVolChart"></div>
+            <div class="mh-vol-extra" id="mhVolExtra"></div>
           </div>
         </div>`;})():''}
 
@@ -3771,16 +3841,53 @@
   }
 
   // Async: fill the modal's Volume section with a daily volume-vs-average
-  // mini chart once history arrives. The modal may close or re-render (TF
-  // switch) while fetching, so re-grab the target before injecting.
+  // chart, an up/down-day volume pressure bar and peak-day stats once
+  // history arrives. The modal may close or re-render (TF switch) while
+  // fetching, so re-grab the target before injecting.
   async function renderModalVolChart(item) {
     if (!document.getElementById('mhVolChart')) return;
     const hist = await fetchVolHistory(item);
     const target = document.getElementById('mhVolChart');
     if (!target || !hist || openModalName !== item.instrument_name) return;
-    const N = Math.min(30, hist.vols.length);
-    target.innerHTML = volSparkSvg(hist.vols.slice(-N), hist.avgs.slice(-N), 320, 72) +
-      `<div class="mh-vol-legend"><span style="color:var(--volume)">■</span> above avg &nbsp;·&nbsp; line = 25-day avg &nbsp;·&nbsp; last ${N} daily bars</div>`;
+    const N      = Math.min(60, hist.vols.length);
+    const vols   = hist.vols.slice(-N);
+    const avgs   = hist.avgs.slice(-N);
+    const closes = (hist.closes || []).slice(-N);
+    const dates  = (hist.dates  || []).slice(-N);
+    const hasDir = closes.some(c => c > 0);
+    target.innerHTML = volDetailSvg(vols, avgs, closes, 640, 150) +
+      `<div class="mh-vol-legend">${hasDir
+        ? '<span style="color:var(--buy)">■</span> up day &nbsp;<span style="color:var(--sell)">■</span> down day &nbsp;·&nbsp; bright = above avg'
+        : '<span style="color:var(--volume)">■</span> above avg'} &nbsp;·&nbsp; dashed line = 25-day avg &nbsp;·&nbsp; last ${N} daily bars</div>`;
+
+    const extra = document.getElementById('mhVolExtra');
+    if (!extra) return;
+    // Where the volume went: share of window volume on up-close vs down-close days
+    let upV = 0, dnV = 0;
+    if (hasDir) {
+      for (let i = 1; i < N; i++) {
+        if      (closes[i] > closes[i - 1]) upV += vols[i];
+        else if (closes[i] < closes[i - 1]) dnV += vols[i];
+      }
+    }
+    const tot   = upV + dnV;
+    const upPct = tot ? Math.round(upV / tot * 100) : null;
+    const peakI = vols.indexOf(Math.max(...vols));
+    let peakDate = '';
+    if (dates[peakI]) {
+      const d = new Date(dates[peakI]);
+      if (!isNaN(d)) peakDate = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    }
+    const aboveN = vols.filter((v, i) => isFinite(avgs[i]) && v > avgs[i]).length;
+    extra.innerHTML = (upPct !== null ? `
+      <div class="mh-vol-pressure" title="Share of the last ${N} days' total volume traded on up-close vs down-close days">
+        <div class="mh-vp-track"><div class="mh-vp-up" style="width:${upPct}%"></div></div>
+        <div class="mh-vp-lbls">
+          <span style="color:var(--buy)">▲ ${upPct}% of volume on up days</span>
+          <span style="color:var(--sell)">${100 - upPct}% on down days ▼</span>
+        </div>
+      </div>` : '') +
+      `<div class="status-sub">Peak: <strong>${fmtVol(vols[peakI])}</strong>${peakDate ? ' on ' + peakDate : ''} &nbsp;·&nbsp; ${aboveN}/${N} days above the 25-day average</div>`;
   }
 
   // ── Trends Tab — Instrument Card Grid ────────────────────────────────
