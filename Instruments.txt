@@ -62,12 +62,13 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 36   | ^GSPTSE       | CAN60         | CA Index      | Index                     | S&P/TSX 60
 
 ═══════════════════════════════════════════════════════════════════════════════
-  ASIAN INDICES (5)
+  ASIAN INDICES (6)
 ═══════════════════════════════════════════════════════════════════════════════
 37   | ^TWII         | NQTW          | Asia Index    | Index                     | Taiwan Weighted
 38   | ^N225         | NI225         | Asia Index    | Index                     | Nikkei 225
 39   | FXI           | CHINA50       | Asia Index    | Index                     | FTSE China 50
 40   | ^HSI          | HANGSENG      | Asia Index    | Index                     | Hang Seng
+741  | ^HSCE         | CHINAH        | Asia Index    | Index                     | Hang Seng China Enterprises
 41   | ^STI          | SG30SGD       | Asia Index    | Index                     | Straits Times
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -978,7 +979,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   US Indices ..............   6
   European Indices ........   8
   Canadian Index ..........   1
-  Asian Indices ...........   6
+  Asian Indices ...........   7  (CHINAH→^HSCE added 2026-07-12)
   Africa Index ............   1
   Semiconductors ..........  29
   Tech Stocks .............  23
@@ -1012,5 +1013,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 745
+  TOTAL .................. 746
 ═══════════════════════════════════════════════════════════════════════════════

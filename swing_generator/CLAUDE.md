@@ -12,7 +12,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 |------|-------|
 | Live URL | https://swingpulse200.pages.dev |
 | R2 data prefix | `ma500/` |
-| Instruments | **740** (parsed from `../Instruments.txt`) |
+| Instruments | **741** (parsed from `../Instruments.txt`) |
 | MA ribbon | MA25–MA500 (step 25, 20 MAs) |
 | History years | 45 (covers monthly MA500 ≈ 41.7 yr) |
 
@@ -166,7 +166,7 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 - `style.css` — **v195** (single dark theme — light/midnight removed)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
-- `Instruments.txt` — **740 instruments** (57 forex → 57 AI/tech, 2026-07-11)
+- `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)
 
 ---
 

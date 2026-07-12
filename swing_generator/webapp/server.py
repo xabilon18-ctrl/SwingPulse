@@ -117,6 +117,7 @@ _TV_BY_NAME: dict[str, str] = {
     'RUSSELL':  'IG:RUSSELL',
     'DAX':      'IG:DAX',
     'CHINA50':  'AMEX:FXI',
+    'CHINAH':   'HSI:HSCEI',
     'HANGSENG': 'IG:HANGSENG',
     'NQTW':     'NASDAQ:NQTW',
     'EU50EUR':  'OANDA:EU50EUR',
