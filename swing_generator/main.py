@@ -134,9 +134,21 @@ MIN_TREND_DAYS = 30  # trends shorter than this are not real trends
 
 
 def _extract_trend_segments(df: pd.DataFrame) -> list[dict]:
-    """Extract trend segments where NEUTRAL inherits the prior established direction.
-    Trends shorter than MIN_TREND_DAYS are absorbed into neighbors.
+    """Extract trend segments as B1/S1 regimes (user decision 2026-07-13): a run
+    starts/ends exactly where the signal engine latches established_trend, so the
+    Trends tab tells the same story as every other trend badge in the app. Rows
+    without a latched state ('' before the first primary) inherit.
+
+    Fallback for short-history instruments where add_signals couldn't run:
+    ribbon trend_direction + the MIN_TREND_DAYS noise absorber (the old
+    behavior — which glued multi-year runs across brief real breaks, e.g.
+    ZURN 'up since 2016' through COVID and the 2023 CS shock).
+
     Returns a list of {direction, start, end, days, pct_move} dicts, most recent first."""
+    use_est = ('established_trend' in df.columns
+               and df['established_trend'].isin(('UPTREND', 'DOWNTREND')).any())
+    col = 'established_trend' if use_est else 'trend_direction'
+
     segments = []
     established = None
     seg_start = None
@@ -145,7 +157,9 @@ def _extract_trend_segments(df: pd.DataFrame) -> list[dict]:
     last_idx = None
 
     for idx in df.index:
-        trend = df.at[idx, 'trend_direction'] if 'trend_direction' in df.columns else 'NEUTRAL'
+        trend = df.at[idx, col] if col in df.columns else 'NEUTRAL'
+        if trend not in ('UPTREND', 'DOWNTREND'):
+            trend = 'NEUTRAL'
         dt = idx.date() if hasattr(idx, 'date') else idx
 
         if trend != 'NEUTRAL':
@@ -185,8 +199,10 @@ def _extract_trend_segments(df: pd.DataFrame) -> list[dict]:
             'pct_move': pct,
         })
 
-    # Consolidate: absorb short trends into neighbors
-    segments = _consolidate_short_trends(segments, df)
+    # B1/S1 regimes are already disciplined (anchor gate + dedup) — no absorber.
+    # Only the ribbon fallback needs short-trend consolidation.
+    if not use_est:
+        segments = _consolidate_short_trends(segments, df)
 
     segments.reverse()  # most recent first
     return segments
@@ -337,9 +353,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # ── DAILY (indicators first — needed for trend segments + perf) ──
         df = add_all_indicators(df)
 
-        # ── TREND SEGMENTS (from full daily history, ribbon-based trend_direction) ──
-        trend_segments = _extract_trend_segments(df)
-
         # ── DAILY signals (same engine as 4H, unprefixed columns) ──
         # Clip the ribbon to available bars so the MA500 anchor isn't all-NaN on
         # short-history instruments (which would suppress every signal).
@@ -349,6 +362,10 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             df = add_signals(df, ma_periods=d_ma_periods,
                              refire_pct=0.05, new_trend_pct=0.05,
                              tf='D', asset_class=_asset_cls)
+
+        # ── TREND SEGMENTS (B1/S1 established_trend regimes — needs add_signals
+        # to have run; falls back to ribbon trend_direction when it couldn't) ──
+        trend_segments = _extract_trend_segments(df)
         daily_data, d_row = _extract_row(
             df, run_date, prefix='',
             ma_periods=(d_ma_periods or None),

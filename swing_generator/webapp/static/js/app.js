@@ -4019,8 +4019,14 @@
       const totalDays  = segs.reduce((a,s) => a+s.days, 0);
       const upDays     = upSegs.reduce((a,s) => a+s.days, 0);
       const upPct      = totalDays ? Math.round(upDays/totalDays*100) : 50;
-      const established = d[f('established_trend')] || d[f('trend_direction')] || '';
-      const runDays    = currentSeg ? currentSeg.days : (parseInt(d[f('trend_run_days')]) || 0);
+      // Trend history is DAILY-only data — the card's direction must come from
+      // the same daily segment its run/since/% are read from, NOT the active-TF
+      // established_trend (a 4H downtick was painting a red badge on a
+      // multi-year daily up-run, and Extended compared the run against the
+      // wrong side's average).
+      const established = currentSeg ? currentSeg.direction
+                        : (d['established_trend'] || d['trend_direction'] || '');
+      const runDays    = currentSeg ? currentSeg.days : (parseInt(d['trend_run_days']) || 0);
       const isUp       = established === 'UPTREND';
       const isDown     = established === 'DOWNTREND';
       const avgCurrent = isUp ? avgUp : isDown ? avgDown : 0;
