@@ -3581,11 +3581,15 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   margin-left: -16px;
   margin-right: -16px;
 }
+/* Scanner cards match dashboard card width — the grid re-adds the gutter
+   the pane's full-bleed negative margin removed */
+#scannerGrid { padding-left: 16px; padding-right: 16px; }
 @media (min-width: 768px) {
   #pane-scanner {
     margin-left: -24px;
     margin-right: -24px;
   }
+  #scannerGrid { padding-left: 24px; padding-right: 24px; }
 }
 
 /* Header row */
