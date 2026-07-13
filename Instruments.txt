@@ -348,79 +348,79 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
   SEMICONDUCTORS — NEW ADDITIONS (9)
 ═══════════════════════════════════════════════════════════════════════════════
-264  | SMCI          | SMCI          | US100         | US100                     | AI Server Infrastructure
-265  | MPWR          | MPWR          | US100         | US100                     | Analog / Power
-266  | TER           | TER           | US100         | US100                     | Chip Testing Equipment
-267  | ENTG          | ENTG          | US100         | US100                     | Semiconductor Materials
-268  | QRVO          | QRVO          | US100         | US100                     | RF Semiconductors
-269  | WOLF          | WOLF          | NYSE          | NYSE                      | Silicon Carbide / Power
-270  | STM           | STM           | NYSE          | NYSE                      | Semiconductors
-271  | CRUS          | CRUS          | US100         | US100                     | Audio Semiconductors
-272  | AMBA          | AMBA          | US100         | US100                     | AI Vision Chips
+264  | SMCI          | SMCI          | US100         | Technology                | AI Server Infrastructure
+265  | MPWR          | MPWR          | US100         | Technology                | Analog / Power
+266  | TER           | TER           | US100         | Technology                | Chip Testing Equipment
+267  | ENTG          | ENTG          | US100         | Technology                | Semiconductor Materials
+268  | QRVO          | QRVO          | US100         | Technology                | RF Semiconductors
+269  | WOLF          | WOLF          | NYSE          | Technology                | Silicon Carbide / Power
+270  | STM           | STM           | NYSE          | Technology                | Semiconductors
+271  | CRUS          | CRUS          | US100         | Technology                | Audio Semiconductors
+272  | AMBA          | AMBA          | US100         | Technology                | AI Vision Chips
 
 ═══════════════════════════════════════════════════════════════════════════════
   TECH / AI PLATFORM — NEW ADDITIONS (12)
 ═══════════════════════════════════════════════════════════════════════════════
-273  | APP           | APP           | US100         | US100                     | AI Ad-Tech
-274  | ANET          | ANET          | NYSE          | NYSE                      | AI Datacenter Networking
-275  | PANW          | PANW          | US100         | US100                     | Cybersecurity Platform
-276  | NOW           | NOW           | NYSE          | NYSE                      | AI Enterprise Automation
-277  | SNOW          | SNOW          | NYSE          | NYSE                      | AI Data Cloud
-278  | DDOG          | DDOG          | US100         | US100                     | AI Observability
-279  | NET           | NET           | NYSE          | NYSE                      | AI Networking / Security
-280  | DELL          | DELL          | NYSE          | NYSE                      | AI Server Infrastructure
-281  | NFLX          | NFLX          | US100         | US100                     | Streaming / AI
-282  | ZS            | ZS            | US100         | US100                     | Cloud Security
+273  | APP           | APP           | US100         | Technology                | AI Ad-Tech
+274  | ANET          | ANET          | NYSE          | Technology                | AI Datacenter Networking
+275  | PANW          | PANW          | US100         | Technology                | Cybersecurity Platform
+276  | NOW           | NOW           | NYSE          | Technology                | AI Enterprise Automation
+277  | SNOW          | SNOW          | NYSE          | Technology                | AI Data Cloud
+278  | DDOG          | DDOG          | US100         | Technology                | AI Observability
+279  | NET           | NET           | NYSE          | Technology                | AI Networking / Security
+280  | DELL          | DELL          | NYSE          | Technology                | AI Server Infrastructure
+281  | NFLX          | NFLX          | US100         | Communication Services    | Streaming / AI
+282  | ZS            | ZS            | US100         | Technology                | Cloud Security
 
 ═══════════════════════════════════════════════════════════════════════════════
   SPAIN35 IBEX (19)
 ═══════════════════════════════════════════════════════════════════════════════
-283  | SAN.MC        | SAN           | SPAIN35       | Financials                | Banks
-284  | BBVA.MC       | BBVA          | SPAIN35       | Financials                | Banks
-285  | SAB.MC        | SAB           | SPAIN35       | Financials                | Banks
-286  | BKT.MC        | BKT           | SPAIN35       | Financials                | Banks
-287  | CABK.MC       | CABK          | SPAIN35       | Financials                | Banks
-288  | MAP.MC        | MAP           | SPAIN35       | Financials                | Insurance
+283  | SAN.MC        | SAN           | SPAIN35       | Financial Services        | Banks
+284  | BBVA.MC       | BBVA          | SPAIN35       | Financial Services        | Banks
+285  | SAB.MC        | SAB           | SPAIN35       | Financial Services        | Banks
+286  | BKT.MC        | BKT           | SPAIN35       | Financial Services        | Banks
+287  | CABK.MC       | CABK          | SPAIN35       | Financial Services        | Banks
+288  | MAP.MC        | MAP           | SPAIN35       | Financial Services        | Insurance
 289  | IBE.MC        | IBE           | SPAIN35       | Utilities                 | Electric Utilities
 290  | ELE.MC        | ELE           | SPAIN35       | Utilities                 | Electric Utilities
 291  | NTGY.MC       | NTGY          | SPAIN35       | Utilities                 | Gas Utilities
-292  | ITX.MC        | ITX           | SPAIN35       | Consumer Goods            | Apparel Retail
+292  | ITX.MC        | ITX           | SPAIN35       | Consumer Cyclical         | Apparel Retail
 293  | AMS.MC        | AMS           | SPAIN35       | Technology                | IT Services
 294  | IDR.MC        | IDR           | SPAIN35       | Technology                | Defense Technology
-295  | FER.MC        | FER           | SPAIN35       | Infrastructure            | Construction
-296  | ACS.MC        | ACS           | SPAIN35       | Infrastructure            | Construction
-297  | SCYR.MC       | SCYR          | SPAIN35       | Infrastructure            | Construction
-298  | TEF.MC        | TEF           | SPAIN35       | Telecommunications        | Telecom Services
+295  | FER.MC        | FER           | SPAIN35       | Industrials               | Construction
+296  | ACS.MC        | ACS           | SPAIN35       | Industrials               | Construction
+297  | SCYR.MC       | SCYR          | SPAIN35       | Industrials               | Construction
+298  | TEF.MC        | TEF           | SPAIN35       | Communication Services    | Telecom Services
 299  | REP.MC        | REP           | SPAIN35       | Energy                    | Oil & Gas
 300  | GRF.MC        | GRF           | SPAIN35       | Healthcare                | Biotechnology
-301  | IAG.MC        | IAG           | SPAIN35       | Consumer Services         | Airlines
+301  | IAG.MC        | IAG           | SPAIN35       | Industrials               | Airlines
 
 ═══════════════════════════════════════════════════════════════════════════════
   CAN60 TSX (23)
 ═══════════════════════════════════════════════════════════════════════════════
-302  | RY.TO         | RY            | CAN60         | Financials                | Banks
-303  | TD.TO         | TD            | CAN60         | Financials                | Banks
-304  | BNS.TO        | BNS           | CAN60         | Financials                | Banks
-305  | BMO.TO        | BMO           | CAN60         | Financials                | Banks
-306  | CM.TO         | CM            | CAN60         | Financials                | Banks
-307  | MFC.TO        | MFC           | CAN60         | Financials                | Insurance
+302  | RY.TO         | RY            | CAN60         | Financial Services        | Banks
+303  | TD.TO         | TD            | CAN60         | Financial Services        | Banks
+304  | BNS.TO        | BNS           | CAN60         | Financial Services        | Banks
+305  | BMO.TO        | BMO           | CAN60         | Financial Services        | Banks
+306  | CM.TO         | CM            | CAN60         | Financial Services        | Banks
+307  | MFC.TO        | MFC           | CAN60         | Financial Services        | Insurance
 308  | ENB.TO        | ENB           | CAN60         | Energy                    | Pipelines
 309  | TRP.TO        | TRP           | CAN60         | Energy                    | Pipelines
 310  | CNQ.TO        | CNQ           | CAN60         | Energy                    | Oil & Gas
 311  | SU.TO         | SU            | CAN60         | Energy                    | Oil & Gas
 312  | CVE.TO        | CVE           | CAN60         | Energy                    | Oil & Gas
-313  | ABX.TO        | ABX           | CAN60         | Materials                 | Gold Mining
-314  | AEM.TO        | AEM           | CAN60         | Materials                 | Gold Mining
-315  | WPM.TO        | WPM           | CAN60         | Materials                 | Precious Metals Streaming
-316  | NTR.TO        | NTR           | CAN60         | Materials                 | Agricultural Chemicals
+313  | ABX.TO        | ABX           | CAN60         | Basic Materials           | Gold Mining
+314  | AEM.TO        | AEM           | CAN60         | Basic Materials           | Gold Mining
+315  | WPM.TO        | WPM           | CAN60         | Basic Materials           | Precious Metals Streaming
+316  | NTR.TO        | NTR           | CAN60         | Basic Materials           | Agricultural Chemicals
 317  | SHOP.TO       | SHOP          | CAN60         | Technology                | E-Commerce Platform
 318  | CSU.TO        | CSU           | CAN60         | Technology                | Software
 319  | CNR.TO        | CNR           | CAN60         | Industrials               | Railroads
 320  | CP.TO         | CP            | CAN60         | Industrials               | Railroads
-321  | ATD.TO        | ATD           | CAN60         | Consumer Staples          | Convenience Stores
-322  | QSR.TO        | QSR           | CAN60         | Consumer Discretionary    | Restaurants
-323  | BCE.TO        | BCE           | CAN60         | Telecommunications        | Telecom Services
-324  | T.TO          | TELUS         | CAN60         | Telecommunications        | Telecom Services
+321  | ATD.TO        | ATD           | CAN60         | Consumer Defensive        | Convenience Stores
+322  | QSR.TO        | QSR           | CAN60         | Consumer Cyclical         | Restaurants
+323  | BCE.TO        | BCE           | CAN60         | Communication Services    | Telecom Services
+324  | T.TO          | TELUS         | CAN60         | Communication Services    | Telecom Services
 
 ═══════════════════════════════════════════════════════════════════════════════
   COMMODITIES — NEW (12)
