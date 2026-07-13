@@ -633,8 +633,9 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'events.json'), 'w') as f:
         json.dump({'generated': dt, 'events': events}, f, separators=(',', ':'))
 
-    # Live signal ledger + its summary — copy verbatim if present
-    for fname in ('signal_ledger.json', 'ledger_summary.json'):
+    # Live signal ledger + sector activity series — copy verbatim if present
+    for fname in ('signal_ledger.json', 'ledger_summary.json',
+                  'sector_activity.json', 'sector_radar.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
             with open(src) as f:
@@ -844,7 +845,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'events.json', 'names.json',
                   'backtest.json', 'flow_volumes.json',
-                  'signal_ledger.json', 'ledger_summary.json', 'status.json']:
+                  'signal_ledger.json', 'ledger_summary.json',
+                  'sector_activity.json', 'sector_radar.json', 'status.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -957,6 +959,7 @@ def build_ui():
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
+    js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",

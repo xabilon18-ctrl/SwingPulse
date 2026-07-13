@@ -638,6 +638,10 @@ def main():
     from signal_ledger import update_ledger
     update_ledger(output_df)
 
+    # 5d. Sector activity series — upsert today's per-sector rows + radar json
+    from sector_activity import update_sector_activity
+    update_sector_activity(output_df)
+
     # 6. Summary to console
     print('\n  Signal summary:')
     _print_summary(output_df)
