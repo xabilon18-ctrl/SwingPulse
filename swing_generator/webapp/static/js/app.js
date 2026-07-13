@@ -18,6 +18,7 @@
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
+  let sectorRadarData = null; // { sectors, baseline_days, alert_z } from sector_activity.py
   let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
@@ -820,7 +821,7 @@
   // ── Data Loading ─────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, ldgRes] = await Promise.all([
+      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, ldgRes, srRes] = await Promise.all([
         fetch('/api/signals').then(r => r.json()).catch(() => ({ data: [] })),
         fetch('/api/summary').then(r => r.json()).catch(() => ({})),
         fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
@@ -831,6 +832,7 @@
         fetch('/api/names').then(r => r.json()).catch(() => ({})),
         fetch('/api/backtest').then(r => r.json()).catch(() => null),
         fetch('/api/ledger').then(r => r.json()).catch(() => null),
+        fetch('/api/sector-radar').then(r => r.json()).catch(() => null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -843,6 +845,7 @@
       namesData = namesRes || {};
       backtestData = btRes;
       ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
+      sectorRadarData = srRes && Array.isArray(srRes.sectors) && srRes.sectors.length ? srRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -1353,6 +1356,7 @@
     renderConfidenceBreakdown();
     renderGroupPulse();
     renderVolumePulse();
+    renderSectorRadar();
     renderHeatmap();
     renderAlignmentSummary();
     renderCompressionFeed();
@@ -1925,6 +1929,102 @@
   }
 
   function VP_LOOKBACK_LABEL() { return timeframe === '4H' ? '25-bar' : '25-day'; }
+
+  // ── Sector Activity Radar — anomaly monitor, quiet on normal days ──
+  // Axis value = z of today's activity rate vs the sector's OWN trailing
+  // baseline (daily TF fires + RVOL>=2 spikes, per member). Display gate is
+  // stricter than the data's hot flag: z>=2 OR hot for 2+ days, so a single
+  // borderline 1.5σ day stays quiet.
+  const SR_ABBR = {
+    'Technology': 'Tech', 'Financial Services': 'Fin', 'Consumer Cyclical': 'ConsCyc',
+    'Industrials': 'Indust', 'Crypto': 'Crypto', 'Healthcare': 'Health',
+    'Consumer Defensive': 'ConsDef', 'Utilities': 'Util', 'Basic Materials': 'Matls',
+    'Communication Services': 'Comms', 'Energy': 'Energy', 'Real Estate': 'RealEst',
+    'Index': 'Indices', 'Commodities': 'Commod',
+  };
+
+  function renderSectorRadar() {
+    const card = document.getElementById('sectorRadarCard');
+    const body = document.getElementById('sectorRadarBody');
+    const badge = document.getElementById('sectorRadarBadge');
+    if (!card || !body) return;
+    const d = sectorRadarData;
+    if (!d) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const alertZ = d.alert_z || 1.5;
+    const secs = d.sectors.filter(s => s.members >= (d.min_members || 8));
+    secs.sort((a, b) => b.members - a.members);   // stable axis order
+    const N = secs.length;
+    const zc = s => Math.max(0, Math.min(3, s.z === null ? 0 : s.z));
+    const shown = s => s.hot && (s.z >= 2 || s.elevated_days >= 2);
+    const tiltCol = s => s.tilt === 'buy' ? 'var(--buy)' : s.tilt === 'sell' ? 'var(--sell)' : 'var(--accent)';
+    const hotSecs = secs.filter(shown);
+
+    if (badge) {
+      badge.textContent = hotSecs.length ? `${hotSecs.length} hot` : 'all quiet';
+      badge.classList.toggle('sr-hot-badge', hotSecs.length > 0);
+    }
+
+    // ── radar polygon SVG ──
+    const CX = 215, CY = 168, R = 118;
+    const pt = (i, r) => {
+      const a = (-90 + i * 360 / N) * Math.PI / 180;
+      return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
+    };
+    let axes = '', nodes = '', labels = '';
+    const polyPts = [];
+    secs.forEach((s, i) => {
+      const [ax, ay] = pt(i, R);
+      axes += `<line x1="${CX}" y1="${CY}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="#1c1c17"/>`;
+      const [px, py] = pt(i, zc(s) / 3 * R);
+      polyPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+      const isHot = shown(s);
+      nodes += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${isHot ? 4.5 : 2.5}" fill="${isHot ? tiltCol(s) : '#4a4a46'}"/>`;
+      const [lx, ly] = pt(i, R + 16);
+      const anchor = lx > CX + 12 ? 'start' : lx < CX - 12 ? 'end' : 'middle';
+      const lbl = SR_ABBR[s.sector] || s.sector;
+      labels += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" fill="${isHot ? tiltCol(s) : 'var(--text-muted)'}" ${isHot ? 'font-weight="600"' : ''}>${lbl}${isHot ? ' ' + s.z.toFixed(1) : ''}</text>`;
+    });
+    const ring = (z, extra) =>
+      `<circle cx="${CX}" cy="${CY}" r="${(z / 3 * R).toFixed(1)}" fill="none" ${extra}/>`;
+    const svg = `
+      <svg class="sr-radar-svg" viewBox="0 0 430 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
+        ${ring(1, 'stroke="#242420"')}${ring(2, 'stroke="#242420"')}${ring(3, 'stroke="#1d1d19"')}
+        ${ring(alertZ, 'stroke="#8a6519" stroke-dasharray="4 4"')}
+        <text x="${CX + (alertZ / 3 * R) * 0.72 + 14}" y="${CY - (alertZ / 3 * R) * 0.72}" font-size="10.5" fill="#8a6519">alert ${alertZ}σ</text>
+        ${axes}
+        <polygon points="${polyPts.join(' ')}" fill="rgba(251,191,36,.05)" stroke="#55554e" stroke-width="1.2"/>
+        ${nodes}${labels}
+      </svg>`;
+
+    // ── hot-sector cards + baseline line ──
+    const cards = hotSecs.map(s => `
+      <div class="sr-hot-card" data-sr-sector="${s.sector}" style="border-color:${tiltCol(s)}">
+        <div class="sr-hot-head" style="color:${tiltCol(s)}">
+          <span>${s.sector.toUpperCase()}${s.tilt === 'buy' ? ' ▲ buy-tilted' : s.tilt === 'sell' ? ' ▼ sell-tilted' : s.tilt === 'mixed' ? ' ◆ mixed' : ' ◆ vol only'}</span>
+          <span>z ${s.z.toFixed(1)}</span>
+        </div>
+        <div class="sr-hot-sub">elevated ${s.elevated_days} day${s.elevated_days === 1 ? '' : 's'} · ${s.buys} buy${s.buys === 1 ? '' : 's'} · ${s.sells} sell${s.sells === 1 ? '' : 's'} · ${s.vol_spikes} vol spike${s.vol_spikes === 1 ? '' : 's'}</div>
+        <div class="sr-hot-meta">${s.members} members · rate ${s.rate.toFixed(2)}${s.mean_rate !== null ? ' vs mean ' + s.mean_rate.toFixed(2) : ''} · ${s.date}</div>
+      </div>`).join('');
+    const quiet = N - hotSecs.length;
+    const baseLine = `<div class="sr-base-card">${hotSecs.length ? quiet + ' sectors' : 'All ' + N + ' sectors'} at baseline (z &lt; ${alertZ})</div>`;
+
+    body.innerHTML = svg + `<div class="sr-cards">${cards}${baseLine}</div>`
+      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only</div>`;
+
+    // Hot card click → scanner scoped to that sector
+    body.querySelectorAll('.sr-hot-card[data-sr-sector]').forEach(el => {
+      el.addEventListener('click', () => {
+        const inp = document.getElementById('scannerSearch');
+        if (inp) inp.value = el.dataset.srSector;
+        updateScannerCtxStrip?.();
+        navigateToTab('scanner');
+        buildScannerCards();
+      });
+    });
+  }
 
   // Swap each mover row's plain RVOL bar for a daily volume-vs-average
   // sparkline once its history arrives (cached, so re-renders are instant).
