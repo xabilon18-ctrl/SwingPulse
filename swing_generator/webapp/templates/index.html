@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=197">
+  <link rel="stylesheet" href="/static/css/style.css?v=198">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -82,13 +82,10 @@
         </div>
         <div class="gauge-tooltip" id="gaugeTooltip" style="display:none">
           <strong>Market Pulse Score (0–100)</strong><br>
-          Combines 6 factors across all instruments:<br>
-          • Uptrend % of universe<br>
-          • Buy signal count (P1–P4)<br>
-          • High-confidence signals<br>
-          • Volume spikes<br>
-          • Triple-timeframe alignment<br>
-          • MA ribbon strength
+          Three components, computed on the active timeframe:<br>
+          • Trend balance — uptrends vs downtrends (0–50)<br>
+          • Signal direction — buy share of active B/S signals (0–30)<br>
+          • Bonus — TF-aligned instruments + volume spikes (0–20)
         </div>
         <div class="mp-card-body">
           <div class="mp-gauge-wrap">
@@ -151,7 +148,7 @@
         <span style="display:none" id="gbSell"></span>
       </div>
 
-      <!-- Trend alert banner — B1/S1 reversals + B7/S7 anchor-MA bounces -->
+      <!-- Trend alert banner — B1/S1 reversals + B4/S4 anchor-MA bounces -->
       <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
         <div class="trend-alert-header">
           <span class="trend-alert-icon">⚡</span>
@@ -203,10 +200,6 @@
         </div>
         <div id="sectorRadarBody"></div>
       </div>
-
-      <!-- Today's Opportunities removed -->
-      <span id="todayOpps" style="display:none"></span>
-      <span id="morningBrief" style="display:none"></span>
 
       <!-- ── Signal Track Record Card ── -->
       <div class="card track-record-card" id="trackRecordCard" style="display:none" onclick="window.SP.openTrackRecord()" role="button">
@@ -594,6 +587,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=207"></script>
+  <script src="/static/js/app.js?v=208"></script>
 </body>
 </html>

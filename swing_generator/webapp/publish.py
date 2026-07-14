@@ -322,100 +322,6 @@ def generate_explanations(df: pd.DataFrame) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Events — big volume & big moves tracker across all daily CSVs
-# ---------------------------------------------------------------------------
-
-def build_events():
-    """Scan all daily signal CSVs and extract noteworthy events:
-      - volume_spike_flag == 'yes'
-      - |roc| >= 5  (5-day rate-of-change)
-    Returns a list of event dicts sorted newest → oldest.
-    """
-    csv_files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_*.csv')))
-    if not csv_files:
-        return []
-
-    CRYPTO_SECTORS = {'Crypto', 'DeFi', 'Layer 1', 'Layer 2', 'NFT / Gaming', 'Stablecoins'}
-    ROC_THRESH_STOCK  = 5.0   # 5% 5-day move for equities
-    ROC_THRESH_CRYPTO = 10.0  # 10% 5-day move for crypto
-
-    events = []
-    seen_keys = set()  # deduplicate same instrument+date
-
-    for fpath in reversed(csv_files):          # newest first
-        date_str = os.path.basename(fpath).replace('signals_', '').replace('.csv', '')
-        try:
-            df = pd.read_csv(fpath).fillna('')
-        except Exception:
-            continue
-
-        # Normalise column types (handle both old bare and new h4_ prefixed columns)
-        for col in ('volume', 'volume_average', 'close', 'open', 'high', 'low', 'roc',
-                     'h4_volume', 'h4_volume_average', 'h4_close', 'h4_open', 'h4_high', 'h4_low', 'h4_roc'):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-        for _, row in df.iterrows():
-            name    = str(row.get('instrument_name', '')).strip()
-            if not name:
-                continue
-            key = f'{date_str}|{name}'
-            if key in seen_keys:
-                continue
-
-            sector   = str(row.get('sector', '')).strip()
-            is_crypto = sector in CRYPTO_SECTORS
-            roc_thresh = ROC_THRESH_CRYPTO if is_crypto else ROC_THRESH_STOCK
-
-            vol_spike = str(row.get('h4_volume_spike_flag', row.get('volume_spike_flag', ''))).strip().lower() == 'yes'
-            roc_val   = float(row.get('h4_roc', row.get('roc', 0)))
-            big_move  = abs(roc_val) >= roc_thresh
-
-            if not vol_spike and not big_move:
-                continue
-
-            event_types = []
-            if vol_spike:
-                event_types.append('vol_spike')
-            if big_move:
-                event_types.append('big_move')
-
-            vol     = int(row.get('volume', 0))
-            vol_avg = int(row.get('volume_average', 0))
-            vol_ratio = round(vol / vol_avg, 2) if vol_avg > 0 else 0.0
-
-            close_px = float(row.get('close', 0))
-            open_px  = float(row.get('open', 0))
-            day_chg  = round((close_px - open_px) / open_px * 100, 2) if open_px > 0 else 0.0
-
-            events.append({
-                'date':              date_str,
-                'instrument_name':   name,
-                'group':             str(row.get('group', '')).strip(),
-                'sector':            sector,
-                'industry':          str(row.get('industry', '')).strip(),
-                'close':             round(close_px, 4),
-                'open':              round(open_px, 4),
-                'high':              round(float(row.get('high', 0)), 4),
-                'low':               round(float(row.get('low', 0)), 4),
-                'day_chg_pct':       day_chg,
-                'volume':            vol,
-                'volume_average':    vol_avg,
-                'volume_ratio':      vol_ratio,
-                'roc':               round(roc_val, 2),
-                'trend_direction':   str(row.get('h4_trend_direction', row.get('trend_direction', ''))).strip(),
-                'primary_signal':    str(row.get('h4_primary_signal', row.get('primary_signal', ''))).strip(),
-                'signal_confidence': str(row.get('h4_signal_confidence', row.get('signal_confidence', ''))).strip(),
-                'tf_alignment':      str(row.get('tf_alignment', '')).strip(),
-                'event_types':       event_types,
-            })
-            seen_keys.add(key)
-
-    print(f'  Events (vol spikes + big moves): {len(events)}')
-    return events
-
-
-# ---------------------------------------------------------------------------
 # Instrument names  (yfinance shortName + manual overrides for futures/indices)
 # ---------------------------------------------------------------------------
 
@@ -629,9 +535,6 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'explanations.json'), 'w') as f:
         json.dump(explanations, f, separators=(',', ':'), ensure_ascii=False)
 
-    events = build_events()
-    with open(os.path.join(output_dir, 'events.json'), 'w') as f:
-        json.dump({'generated': dt, 'events': events}, f, separators=(',', ':'))
 
     # Live signal ledger + sector activity series — copy verbatim if present
     for fname in ('signal_ledger.json', 'ledger_summary.json',
@@ -843,7 +746,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
 
     # Core data files
     for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
-                  'trends.json', 'explanations.json', 'events.json', 'names.json',
+                  'trends.json', 'explanations.json', 'names.json',
                   'backtest.json', 'flow_volumes.json',
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json', 'status.json']:
@@ -955,7 +858,6 @@ def build_ui():
     js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
-    js = js.replace("'/api/events'",       f"'{base}/events.json'")
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")

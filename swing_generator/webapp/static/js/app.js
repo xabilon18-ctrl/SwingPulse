@@ -35,10 +35,6 @@
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
-  // ── Radar filter state ──────────────────────────────────────────────────
-  const radarState = { search: '', dir: 'all', rsi: 'all',
-    collapsed: { prime: false, strong: false, developing: false }, guide: false };
-  let radarWired = false;
   let wlFilter = 'all';
   let wlSort = 'signal';
   let activeAlertTab = 'keylvl';
@@ -84,7 +80,6 @@
   let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
-  let eventsData       = [];   // historical events (vol spikes + big moves) from all daily CSVs
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
 
   function syncApplyRemote(remote) {
@@ -205,148 +200,6 @@
     const pct = ((cur - rec.price) / rec.price) * 100;
     const days = Math.round((new Date() - new Date(rec.date)) / 86400000);
     return { pct: pct.toFixed(1), days, date: rec.date, signal: rec.signal };
-  }
-
-  // ── Morning Brief ────────────────────────────────────────────────────
-  function confluenceScore(item) {
-    let score = 0;
-    const sig    = item[f('primary_signal')]      || '';
-    const conf   = (item[f('confirmation_status')]|| '').toLowerCase();
-    const align  = (item.tf_alignment       || '').toLowerCase();
-    const trend  = effectiveTrend(item).toLowerCase();
-    const volSpk = item[f('volume_spike_flag')]   === 'yes';
-    const squeeze= item[f('ribbon_compression')]  === 'yes';
-    const sigConf= (item[f('signal_confidence')] || '').toLowerCase();
-
-    if (sig) score += 3;
-    if (conf.includes('buy') || conf.includes('sell')) score += 2;
-    if (align.includes('triple')) score += 2;
-    if (volSpk)  score += 2;
-    if (isFastMa(sig)) score += 2;
-    if (sigConf === 'high') score += 1;
-    if (squeeze) score += 1;
-    if ((conf.includes('buy')  && trend === 'uptrend')  ||
-        (conf.includes('sell') && trend === 'downtrend')) score += 1;
-    return score;
-  }
-
-  function renderMorningBrief() {
-    const el = document.getElementById('morningBrief');
-    if (!el || !allData.length) return;
-
-    const top = allData
-      .filter(d => d[f('primary_signal')])
-      .map(d => ({ ...d, _score: confluenceScore(d) }))
-      .sort((a, b) => b._score - a._score)
-      .slice(0, 5);
-
-    if (!top.length) { el.style.display = 'none'; return; }
-    el.style.display = '';
-
-    const today = summaryData.date || new Date().toISOString().slice(0, 10);
-    el.innerHTML = `
-      <div class="mb-header">
-        <span class="mb-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-          Morning Brief
-        </span>
-        <span class="mb-date">${today}</span>
-      </div>
-      <div class="mb-list">
-        ${top.map(item => {
-          const buy  = isBuy(item);
-          const sell = isSell(item);
-          const dir  = buy ? 'buy' : sell ? 'sell' : 'neutral';
-          const sig  = item[f('primary_signal')] || '';
-          const align= item.tf_alignment || '';
-          const perf = signalPerf(item.instrument_name);
-          const perfHtml = perf
-            ? `<span class="mb-perf ${parseFloat(perf.pct) >= 0 ? 'perf-pos' : 'perf-neg'}">${parseFloat(perf.pct) >= 0 ? '+' : ''}${perf.pct}%</span>`
-            : '';
-          const bars = Math.min(item._score, 8);
-          return `<div class="mb-item" data-act="openModal" data-arg="${item.instrument_name}">
-            <div class="mb-item-left">
-              <span class="mb-name">${item.instrument_name}</span>
-              <span class="mb-group">${item.group || ''}</span>
-            </div>
-            <div class="mb-item-right">
-              ${perfHtml}
-              <span class="mb-sig tag-${dir}">${sig}</span>
-              <div class="mb-score-bars">${Array.from({length:8},(_,i)=>`<span class="mb-bar ${i<bars?'mb-bar-filled mb-bar-'+dir:''}"></span>`).join('')}</div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>`;
-  }
-
-  // ── Today's Opportunities ─────────────────────────────────────────────
-  function renderTodayOpportunities() {
-    const el = document.getElementById('todayOpps');
-    if (!el || !allData.length) return;
-
-    const signaled = allData
-      .filter(d => d[f('primary_signal')])
-      .map(d => ({ ...d, _score: confluenceScore(d) }))
-      .sort((a, b) => b._score - a._score)
-      .slice(0, 8);
-
-    if (!signaled.length) {
-      el.innerHTML = '<div class="opp-empty">No signals found for this timeframe</div>';
-      return;
-    }
-
-    el.innerHTML = signaled.map(item => {
-      const name     = item.instrument_name;
-      const buy      = isBuy(item);
-      const sell     = isSell(item);
-      const dir      = buy ? 'buy' : sell ? 'sell' : 'neutral';
-      const sig      = item[f('primary_signal')] || '';
-      const sigType  = ALL_SIGNAL_CODES.includes(sig) ? sig : '';
-      const sigBadge = `badge-${sigClass(sig)}`;
-      const price    = parseFloat(item[f('close')] || item.close) || 0;
-      const priceStr = price === 0 ? '--' : price >= 1000
-        ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : price.toFixed(price < 10 ? 4 : 2);
-      const roc      = parseFloat(item[f('roc')] || item.roc || 0);
-      const rocStr   = (roc >= 0 ? '▲ +' : '▼ ') + Math.abs(roc).toFixed(1) + '%';
-      const rocDir   = roc >= 0 ? 'up' : 'dn';
-      const align    = item.tf_alignment || '';
-      const isAligned = align.startsWith('Aligned');
-      const tripleTag = isAligned ? ` · ${align}` : '';
-      const bars     = Math.min(item._score, 8);
-      const dirBadge = buy
-        ? `<span class="opp-dir-badge opp-dir-buy">BUY</span>`
-        : sell ? `<span class="opp-dir-badge opp-dir-sell">SELL</span>` : '';
-      const noteInd  = noteIndicator(name);
-      const tripleB  = isAligned
-        ? `<span class="badge-3tf ${align.includes('Bull') ? 'badge-3tf-bull' : 'badge-3tf-bear'}">2TF</span>`
-        : '';
-      // Meaningful sparkbar heights: each bar maps to a real data dimension
-      const maOrd = parseInt(item[f('ma_order_score')]);
-      const sigStr = { p1:100, p2:80, p3:55, p4:35, '':15 }[sigClass(sigType)] || 15;
-      const alignStr = align.startsWith('Aligned') ? 100 : 35;
-      const volH   = item[f('volume_spike_flag')] === 'yes' ? 95 : 25;
-      const rocH   = Math.min(Math.round(Math.abs(roc) / 4 * 100), 95);
-      const sqzH   = item[f('ribbon_compression')] === 'yes' ? 80 : 35;
-      const confH  = { high:100, standard:60, low:28 }[(item[f('signal_confidence')]||'').toLowerCase()] || 20;
-      const maH    = !isNaN(maOrd) ? Math.round(maOrd / 16 * 100) : 50;
-      const REAL_HEIGHTS = [maH, sigStr, alignStr, volH, rocH || 30, sqzH, confH, Math.round(bars / 8 * 100)];
-      const sparkbars = Array.from({ length: 8 }, (_, i) =>
-        `<span class="opp-bar${i < bars ? ` opp-bar-filled opp-bar-${dir}` : ''}" style="height:${Math.max(REAL_HEIGHTS[i], 12)}%"></span>`
-      ).join('');
-
-      return `<div class="opp-card opp-card-${dir}" data-act="openModal" data-arg="${name}">
-        <div class="opp-card-strip"></div>
-        <div class="opp-card-body">
-          <div class="opp-name">${name}${noteInd}</div>
-          <div class="opp-group">${item.group || item.sector || ''}</div>
-          <div class="opp-badges"><span class="feed-badge ${sigBadge}">${sigType}</span>${dirBadge}${tripleB}</div>
-          <div class="opp-price">${priceStr}</div>
-          <div class="opp-change ${rocDir}">${rocStr}${tripleTag}</div>
-          <div class="opp-sparkbars">${sparkbars}</div>
-        </div>
-      </div>`;
-    }).join('');
   }
 
   // ── Push Notifications ───────────────────────────────────────────────
@@ -819,20 +672,28 @@
   });
 
   // ── Data Loading ─────────────────────────────────────────────────────
+  // Fetch JSON with a hard timeout so one hung endpoint (flaky network,
+  // stalled proxy) can't block the whole Promise.all and blank the app.
+  const FETCH_TIMEOUT_MS = 15000;
+  function fetchJson(url, fallback) {
+    const opts = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
+      ? { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) } : {};
+    return fetch(url, opts).then(r => r.json()).catch(() => fallback);
+  }
+
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, evRes, namesRes, btRes, ldgRes, srRes] = await Promise.all([
-        fetch('/api/signals').then(r => r.json()).catch(() => ({ data: [] })),
-        fetch('/api/summary').then(r => r.json()).catch(() => ({})),
-        fetch('/api/tv-map').then(r => r.json()).catch(() => ({})),
-        fetch('/api/ai-instruments').then(r => r.json()).catch(() => []),
-        fetch('/api/trends').then(r => r.json()).catch(() => ({})),
-        fetch('/api/explanations').then(r => r.json()).catch(() => ({})),
-        fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
-        fetch('/api/names').then(r => r.json()).catch(() => ({})),
-        fetch('/api/backtest').then(r => r.json()).catch(() => null),
-        fetch('/api/ledger').then(r => r.json()).catch(() => null),
-        fetch('/api/sector-radar').then(r => r.json()).catch(() => null),
+      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes] = await Promise.all([
+        fetchJson('/api/signals', { data: [] }),
+        fetchJson('/api/summary', {}),
+        fetchJson('/api/tv-map', {}),
+        fetchJson('/api/ai-instruments', []),
+        fetchJson('/api/trends', {}),
+        fetchJson('/api/explanations', {}),
+        fetchJson('/api/names', {}),
+        fetchJson('/api/backtest', null),
+        fetchJson('/api/ledger', null),
+        fetchJson('/api/sector-radar', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -841,7 +702,6 @@
       aiSet = new Set(aiRes || []);
       trendsData = trendsRes || {};
       explanationsData = explRes || {};
-      eventsData = evRes.events || [];
       namesData = namesRes || {};
       backtestData = btRes;
       ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
@@ -1032,7 +892,6 @@
   function isFastMa(code)    { return code === 'B2'  || code === 'S2'; }
   function isMidMa(code)     { return code === 'B3'  || code === 'S3'; }
   function isLongestMa(code) { return code === 'B4'  || code === 'S4'; }
-  function isKeyLevel(code)  { return false; }
 
   const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4'];
 
@@ -1350,7 +1209,6 @@
     animateCount(document.getElementById('volumeCount'), s.volume_spikes || 0);
 
     renderTrackRecord();
-    // renderTodayOpportunities(); — removed
     renderAlertBanner();
     rebuildCharts();
     renderConfidenceBreakdown();
@@ -1475,174 +1333,6 @@
         window.SP?.openModal?.(row.dataset.arg);
       });
     });
-  }
-
-  function renderAIDashboardCard() {
-    // removed
-  }
-  function _renderAIDashboardCard_REMOVED() {
-    const el = document.getElementById('aiUniverseCard');
-    if (!el) return;
-
-    const aiItems = allData.filter(d => isAI(d.instrument_name));
-    if (!aiItems.length) { el.style.display = 'none'; return; }
-    el.style.display = '';
-
-    // Trend breakdown
-    const up   = aiItems.filter(d => effectiveTrend(d) === 'UPTREND').length;
-    const dn   = aiItems.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
-    const neu  = aiItems.length - up - dn;
-    const upPct = Math.round(up / aiItems.length * 100);
-    const dnPct = Math.round(dn / aiItems.length * 100);
-
-    // Signals
-    const confOrd = { high: 0, standard: 1, low: 2 };
-    const buys    = aiItems.filter(d => isBuy(d));
-    const sells   = aiItems.filter(d => isSell(d));
-    const vols    = aiItems.filter(d => d[f('volume_spike_flag')] === 'yes');
-    const extended = aiItems.filter(d => {
-      const segs = trendsData[d.instrument_name] || [];
-      if (!segs.length) return false;
-      const cur = segs[0];
-      const same = segs.filter(s => s.direction === cur.direction);
-      const avg = same.length ? Math.round(same.reduce((a,s) => a+s.days,0)/same.length) : 0;
-      return avg && Math.round(cur.days/avg*100) >= 150;
-    }).length;
-
-    // ── Sector groups ──
-    const AI_SECTORS = {
-      'Chips':      new Set(['NVDA','AMD','AVGO','ARM','MRVL','INTC','ON','QCOM','NXPI','STM','MPWR','AMBA','IFX']),
-      'Semi Equip': new Set(['ASML','AMAT','LRCX','KLAC','ENTG','TER','TOKYOELEC','BESI','CDNS','SNPS']),
-      'Cloud/Mega': new Set(['MSFT','GOOGL','GOOG','META','AMZN','TSLA','AAPL','SOFTBANK']),
-      'Software':   new Set(['PLTR','SNOW','DDOG','NET','CRM','NOW','WDAY','INTU','ADBE','ORCL','SAP_DE','CRWD','PANW','ZS','APP']),
-      'Hardware':   new Set(['SMCI','DELL','ANET','CSCO','IBM']),
-      'Europe/Asia':new Set(['SIE','CAP_FR','DSY','ERICB','EXPN','RELX','LSEG','KEYENCE','FANUC']),
-    };
-
-    const sectorHtml = Object.entries(AI_SECTORS).map(([label, members]) => {
-      const items = aiItems.filter(d => members.has(d.instrument_name));
-      if (!items.length) return '';
-      const sUp  = items.filter(d => effectiveTrend(d) === 'UPTREND').length;
-      const sDn  = items.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
-      const sNeu = items.length - sUp - sDn;
-      const sPct = Math.round(sUp / items.length * 100);
-      return `<div class="ai-sector-row">
-        <span class="ai-sector-name">${label}</span>
-        <div class="ai-sector-bar">
-          <div class="ai-sector-fill" style="width:${sPct}%"></div>
-        </div>
-        <span class="ai-sector-counts">
-          <span style="color:var(--buy)">${sUp}↑</span>
-          <span style="color:var(--sell)">${sDn}↓</span>
-          ${sNeu ? `<span style="color:var(--text-muted)">${sNeu}–</span>` : ''}
-        </span>
-      </div>`;
-    }).join('');
-
-    // ── Tile grid — all AI instruments ──
-    const sortedItems = [...aiItems].sort((a,b) => {
-      const ta = effectiveTrend(a), tb = effectiveTrend(b);
-      const order = { UPTREND:0, NEUTRAL:1, DOWNTREND:2 };
-      if (order[ta] !== order[tb]) return order[ta] - order[tb];
-      // Within same trend: buy signals first
-      return (isBuy(b)?1:0) - (isBuy(a)?1:0);
-    });
-
-    const tilesHtml = sortedItems.map(item => {
-      const td  = effectiveTrend(item);
-      const buy = isBuy(item), sell = isSell(item);
-      const vol = item[f('volume_spike_flag')] === 'yes';
-      const tileCls = buy ? 'ai-tile-buy' : sell ? 'ai-tile-sell' : td === 'UPTREND' ? 'ai-tile-up' : td === 'DOWNTREND' ? 'ai-tile-dn' : 'ai-tile-neu';
-      const arrow = td === 'UPTREND' ? '↑' : td === 'DOWNTREND' ? '↓' : '–';
-      return `<div class="ai-tile ${tileCls}" data-arg="${item.instrument_name}" title="${item.instrument_name} — ${td}${buy?' · BUY':''}${vol?' · VOL':''}">
-        <span class="ai-tile-name">${item.instrument_name}</span>
-        <span class="ai-tile-arrow">${arrow}${vol?'⚡':''}</span>
-      </div>`;
-    }).join('');
-
-    // ── Top signals leaderboard (buy + sell, conf sorted) ──
-    const topSignals = [...buys, ...sells]
-      .sort((a,b) => (confOrd[a[f('signal_confidence')]||'']??3) - (confOrd[b[f('signal_confidence')]||'']??3))
-      .slice(0, el._aiExpanded ? 20 : 5);
-
-    const leaderHtml = topSignals.length
-      ? topSignals.map(item => {
-          const conf = item[f('signal_confidence')] || '';
-          const sig  = item[f('primary_signal')] || '';
-          const td   = effectiveTrend(item);
-          const buy  = isBuy(item);
-          const confCls = conf === 'high' ? 'ai-conf-high' : conf === 'standard' ? 'ai-conf-std' : 'ai-conf-low';
-          const vol  = item[f('volume_spike_flag')] === 'yes' ? '<span class="ai-vol-pip">VOL</span>' : '';
-          const tdColor = td === 'UPTREND' ? 'var(--buy)' : td === 'DOWNTREND' ? 'var(--sell)' : 'var(--text-muted)';
-          return `<div class="ai-inst-row" data-arg="${item.instrument_name}">
-            <div class="ai-inst-left">
-              <span class="ai-inst-name">${item.instrument_name}</span>
-              <span class="ai-inst-group">${item.group||''}</span>
-            </div>
-            <div class="ai-inst-right">
-              ${vol}
-              <span class="ai-inst-trend" style="color:${tdColor}">${td==='UPTREND'?'↑':td==='DOWNTREND'?'↓':'–'}</span>
-              <span class="ai-inst-sig" style="color:${buy?'var(--buy)':'var(--sell)'}">${sig}</span>
-              <span class="ai-conf-pip ${confCls}">${conf||'–'}</span>
-            </div>
-          </div>`;
-        }).join('')
-      : `<div class="ai-card-empty">No active signals in AI universe</div>`;
-
-    el.innerHTML = `
-      <div class="ai-uc-header">
-        <div class="ai-uc-title">
-          <span class="ai-uc-icon">⬡</span>
-          <span>AI Universe</span>
-          <span class="ai-uc-count">${aiItems.length}</span>
-        </div>
-        <div class="ai-uc-meta">
-          <span style="color:var(--buy)">↑ ${up}</span>
-          <span style="color:var(--sell)">↓ ${dn}</span>
-          <span style="color:var(--text-muted)">– ${neu}</span>
-        </div>
-      </div>
-
-      <div class="ai-uc-ratio">
-        <div class="ai-uc-bar-up" style="flex:${up||0}"></div>
-        <div class="ai-uc-bar-neu" style="flex:${neu||0}"></div>
-        <div class="ai-uc-bar-dn" style="flex:${dn||0}"></div>
-      </div>
-      <div class="ai-uc-ratio-lbl">
-        <span style="color:var(--buy)">${upPct}% bullish</span>
-        <span style="color:var(--sell)">${dnPct}% bearish</span>
-      </div>
-
-      <div class="ai-uc-signals">
-        <div class="ai-sig-chip ai-sig-buy"><span>${buys.length}</span> Buy</div>
-        <div class="ai-sig-chip ai-sig-sell"><span>${sells.length}</span> Sell</div>
-        <div class="ai-sig-chip ai-sig-vol"><span>${vols.length}</span> Vol</div>
-        <div class="ai-sig-chip ai-sig-ext"><span>${extended}</span> Extended</div>
-      </div>
-
-      <div class="ai-uc-section-hdr">By Sector</div>
-      <div class="ai-sector-list">${sectorHtml}</div>
-
-      <div class="ai-uc-section-hdr">Instrument Map</div>
-      <div class="ai-tile-grid">${tilesHtml}</div>
-
-      <div class="ai-uc-list-hdr">
-        <span>Active Signals</span>
-        ${(buys.length + sells.length) > 5 ? `<button class="ai-expand-btn" id="aiExpandBtn">${el._aiExpanded ? 'Show less' : 'Show all ' + (buys.length+sells.length)}</button>` : ''}
-      </div>
-      <div class="ai-inst-list">${leaderHtml}</div>
-    `;
-
-    el.querySelectorAll('[data-arg]').forEach(r =>
-      r.addEventListener('click', () => openModal(r.dataset.arg))
-    );
-    const expandBtn = el.querySelector('#aiExpandBtn');
-    if (expandBtn) {
-      expandBtn.addEventListener('click', () => {
-        el._aiExpanded = !el._aiExpanded;
-        _renderAIDashboardCard_REMOVED();
-      });
-    }
   }
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
@@ -4930,18 +4620,6 @@
     if (syncUser) syncPull();
   });
 
-  // ── Radar Tab — Confluence Entry Finder ────────────────────────────────
-
-  function tfCounts(item) {
-    const tfs = [
-      item.trend_direction    || 'NEUTRAL',
-      item.h4_trend_direction || 'NEUTRAL',
-    ];
-    const bull = tfs.filter(t => t === 'UPTREND').length;
-    const bear = tfs.filter(t => t === 'DOWNTREND').length;
-    return { bull, bear, tfs };
-  }
-
   // ── Single source of truth for the confluence score ───────────────────
   // Returns { isBullish, lines: [{label, points}] }. Both radarConfluenceScore()
   // (sum → 0-100) and radarScoreBreakdown() (the modal panel) read from this,
@@ -5076,219 +4754,5 @@
   // renderRadar() removed — Radar is now the "Ranked" view inside Signals.
   // Scoring functions (radarConfluenceScore, radarScoreFactors) are still used by scanner cards.
 
-  function _renderRadar_REMOVED() {
-    const allData = getActiveData(); // respect AI filter
-    const el = document.getElementById('pane-radar');
-    if (!el || !allData.length) return;
-    wireRadarOnce(el);
-
-    // ── score all instruments and sort descending ─────────────────────────
-    const scored = allData.map(item => ({ item, score: radarConfluenceScore(item) }));
-    scored.sort((a, b) => b.score - a.score);
-    const primeAll      = scored.filter(s => s.score >= 75);
-    const strongAll     = scored.filter(s => s.score >= 50 && s.score < 75);
-    const developingAll = scored.filter(s => s.score >= 25 && s.score < 50);
-
-    // ── apply filters ─────────────────────────────────────────────────────
-    const q = radarState.search.toLowerCase().trim();
-    function passFilter({ item }) {
-      if (q && !matchesSearch(item, q)) return false;
-      if (radarState.dir !== 'all') {
-        const { bull, bear } = tfCounts(item);
-        const isBullish = bull >= bear;
-        if (radarState.dir === 'long'  && !isBullish) return false;
-        if (radarState.dir === 'short' &&  isBullish) return false;
-      }
-      if (radarState.rsi !== 'all') {
-        if (rsiZone(item.rsi) !== radarState.rsi) return false;
-      }
-      return true;
-    }
-    const prime      = primeAll.filter(passFilter);
-    const strong     = strongAll.filter(passFilter);
-    const developing = developingAll.filter(passFilter);
-
-    // ── card builder ──────────────────────────────────────────────────────
-    function radarCard({ item, score }) {
-      const { bull, bear, tfs } = tfCounts(item);
-      const isBullish = bull >= bear;
-      const tier   = scoreTier(score);
-      const sig    = item.primary_signal || '';
-      const conf   = (item.signal_confidence || '').toLowerCase();
-      const sq     = item.ribbon_compression === 'yes';
-      const name   = instName(item.instrument_name) || item.instrument_name;
-
-      const dotCls   = t => t === 'UPTREND' ? 'radar-dot-bull' : t === 'DOWNTREND' ? 'radar-dot-bear' : 'radar-dot-neutral';
-      const tfLabels = ['D', '4H'];
-      const dotsHtml = tfs.map((t, i) => `<span class="radar-tf-dot ${dotCls(t)}"><span class="radar-tf-lbl">${tfLabels[i]}</span></span>`).join('');
-
-      const dirBadge  = isBullish ? '<span class="radar-dir-badge radar-long">LONG</span>' : '<span class="radar-dir-badge radar-short">SHORT</span>';
-      const sqBadge   = sq   ? '<span class="radar-sq-badge">SQZ</span>' : '';
-
-      const volBadge = item.volume_spike_flag === 'yes'
-        ? '<span class="radar-sq-badge" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : '';
-
-      const rsiPips = [
-        item.rsi    ? `<span class="rsi-tf-pip rsi-${rsiZone(item.rsi)}">D ${parseFloat(item.rsi).toFixed(0)}</span>`       : '',
-        item.h4_rsi ? `<span class="rsi-tf-pip rsi-${rsiZone(item.h4_rsi)}">4H ${parseFloat(item.h4_rsi).toFixed(0)}</span>` : '',
-      ].filter(Boolean).join('');
-
-      const _aiRadar = isAI(item.instrument_name);
-      return `<div class="radar-card${_aiRadar ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="radar-card-top">
-          ${dirBadge}
-          <div class="radar-card-name">
-            <span class="radar-inst">${name}</span>
-            <span class="radar-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
-            ${_aiRadar ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
-          </div>
-          <div class="radar-tf-dots">${dotsHtml}</div>
-        </div>
-        <div class="radar-card-bot">${sqBadge}${volBadge}</div>
-        ${rsiPips ? `<div class="radar-rsi-row">${rsiPips}</div>` : ''}
-      </div>`;
-    }
-
-    // ── section builder ───────────────────────────────────────────────────
-    function radarSection(key, title, subtitle, items, totalCount, sectionCls) {
-      const collapsed = radarState.collapsed[key];
-      const chevron = `<svg class="radar-chevron ${collapsed ? 'collapsed' : ''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`;
-      const isFiltered = items.length !== totalCount;
-      const countLabel = isFiltered ? `${items.length} of ${totalCount}` : `${items.length}`;
-      const header = `
-        <div class="radar-section-header radar-section-${sectionCls}" data-radar-collapse="${key}">
-          <div class="radar-section-text">
-            <div class="radar-section-title">${title}</div>
-            <div class="radar-section-sub">${subtitle}</div>
-          </div>
-          <span class="radar-section-count">${countLabel}</span>
-          ${chevron}
-        </div>`;
-      const body = collapsed ? '' : (
-        items.length
-          ? `<div class="radar-cards">${items.map(radarCard).join('')}</div>`
-          : `<div class="radar-empty-section">No setups match your filters</div>`
-      );
-      return `<div class="radar-section">${header}${body}</div>`;
-    }
-
-    // ── RSI guide panel ───────────────────────────────────────────────────
-    const guideHtml = radarState.guide ? `
-      <div class="radar-guide-panel">
-        <div class="radar-guide-title">RSI(14) · How to read it</div>
-        <p class="radar-guide-intro">RSI measures momentum strength on a 0–100 scale. Use it to time entries — not to trade against the trend.</p>
-        <div class="radar-guide-zones">
-          <div class="radar-guide-zone">
-            <span class="rsi-badge rsi-oversold">&lt; 30 · OS</span>
-            <div class="radar-guide-zone-text">
-              <strong>Oversold</strong> — sellers exhausted, bounce likely.<br>
-              <span class="radar-guide-tip">Best for LONG entries. Look for 4H going OS while D+W uptrend holds.</span>
-            </div>
-          </div>
-          <div class="radar-guide-zone">
-            <span class="rsi-badge rsi-bearish">30–50 · Bear</span>
-            <div class="radar-guide-zone-text">
-              <strong>Bearish zone</strong> — below midpoint, momentum weak.<br>
-              <span class="radar-guide-tip">Wait for RSI to reclaim 50 before going long. Good for SHORT setups.</span>
-            </div>
-          </div>
-          <div class="radar-guide-zone">
-            <span class="rsi-badge rsi-bullish">50–70 · Bull</span>
-            <div class="radar-guide-zone-text">
-              <strong>Bullish zone</strong> — above midpoint, buyers in control.<br>
-              <span class="radar-guide-tip">Best for LONG entries in established uptrends. Trend continuation zone.</span>
-            </div>
-          </div>
-          <div class="radar-guide-zone">
-            <span class="rsi-badge rsi-overbought">&gt; 70 · OB</span>
-            <div class="radar-guide-zone-text">
-              <strong>Overbought</strong> — rally extended, pullback risk.<br>
-              <span class="radar-guide-tip">Best for SHORT entries. Look for 4H going OB while D+W downtrend holds.</span>
-            </div>
-          </div>
-        </div>
-        <div class="radar-guide-tips">
-          <div class="radar-guide-tip-row">💡 <strong>Ideal BUY:</strong> 4H oversold → D bullish → W/M uptrend. Enter as 4H turns up from OS.</div>
-          <div class="radar-guide-tip-row">💡 <strong>Ideal SELL:</strong> 4H overbought → D bearish → W/M downtrend. Enter as 4H turns down from OB.</div>
-          <div class="radar-guide-tip-row">📖 <strong>Top-down read:</strong> M+W set the regime → D sets the swing → 4H gives exact entry timing.</div>
-        </div>
-      </div>` : '';
-
-    // ── controls ──────────────────────────────────────────────────────────
-    const dBtn = v => `<button class="radar-dir-btn${radarState.dir===v?' active':''}" data-radar-dir="${v}">${v==='all'?'All':v==='long'?'Long':'Short'}</button>`;
-    const rBtn = (v, lbl) => `<button class="radar-rsi-btn${radarState.rsi===v?' active':''}" data-radar-rsi="${v}">${lbl}</button>`;
-
-    // ── render ────────────────────────────────────────────────────────────
-    el.innerHTML = `
-      <div class="radar-controls">
-        <div class="radar-search-wrap">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="radar-search-input" id="radarSearch" type="text" placeholder="Search instruments…" value="${radarState.search.replace(/"/g,'&quot;')}">
-        </div>
-        <div class="radar-filter-row">
-          <div class="radar-dir-toggle">
-            ${dBtn('all')}${dBtn('long')}${dBtn('short')}
-          </div>
-          <button class="radar-guide-btn${radarState.guide?' active':''}" data-radar-guide="1">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
-            RSI Guide
-          </button>
-        </div>
-        <div class="radar-rsi-row-filters">
-          ${rBtn('all','All')}${rBtn('oversold','OS &lt;30')}${rBtn('bearish','Bear 30–50')}${rBtn('bullish','Bull 50–70')}${rBtn('overbought','OB &gt;70')}
-        </div>
-      </div>
-      ${guideHtml}
-      ${radarSection('prime',      'PRIME',      'Score 75+ · Highest confluence — act now',   prime,      primeAll.length,      'prime')}
-      ${radarSection('strong',     'STRONG',     'Score 50–74 · Good setup — plan your entry', strong,     strongAll.length,     'strong')}
-      ${radarSection('developing', 'DEVELOPING', 'Score 25–49 · Building — watch and wait',    developing, developingAll.length, 'developing')}
-    `;
-
-    if (radarState.search) {
-      const inp = document.getElementById('radarSearch');
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-    }
-  }
-
-  function _wireRadarOnce_REMOVED(el) {
-    if (radarWired) return;
-    radarWired = true;
-    let searchTimer;
-    el.addEventListener('input', e => {
-      if (e.target.id === 'radarSearch') {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => { radarState.search = e.target.value; renderRadar(); }, 200);
-      }
-    });
-    el.addEventListener('click', e => {
-      // Section collapse
-      const colHdr = e.target.closest('[data-radar-collapse]');
-      if (colHdr) {
-        const key = colHdr.dataset.radarCollapse;
-        radarState.collapsed[key] = !radarState.collapsed[key];
-        renderRadar(); return;
-      }
-      // Direction filter
-      const dirBtn = e.target.closest('[data-radar-dir]');
-      if (dirBtn) {
-        radarState.dir = dirBtn.dataset.radarDir;
-        renderRadar(); return;
-      }
-      // RSI zone filter
-      const rsiBtn = e.target.closest('[data-radar-rsi]');
-      if (rsiBtn) {
-        radarState.rsi = rsiBtn.dataset.radarRsi;
-        renderRadar(); return;
-      }
-      // RSI guide toggle
-      if (e.target.closest('[data-radar-guide]')) {
-        radarState.guide = !radarState.guide;
-        renderRadar(); return;
-      }
-    });
-  }
-
-  function renderPortfolioStats() { return; }
-  function renderOpenTrades()     { return; }
 
 })();

@@ -122,8 +122,8 @@ async function checkForNewSignals(starred, lastSeen) {
 
       await self.registration.showNotification(`${emoji} ${name} — New Signal`, {
         body:    `${current}${conf ? '  ·  ' + conf : ''}  ·  ${item.group || ''}`,
-        icon:    '/static/img/icon-192.png',
-        badge:   '/static/img/icon-192.png',
+        icon:    '/static/icon-192.png',
+        badge:   '/static/icon-192.png',
         tag:     `sp-signal-${name}`,
         renotify: true,
         data:    { ticker: name },
