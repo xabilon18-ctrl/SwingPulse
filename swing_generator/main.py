@@ -437,7 +437,7 @@ def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
 
     Returns dict with last_signal_type, last_signal_date, last_signal_days_ago.
     """
-    empty = {'last_signal_type': '', 'last_signal_date': '', 'last_signal_days_ago': ''}
+    empty = {'last_signal_type': '', 'last_signal_date': '', 'last_signal_days_ago': '', 'last_signal_price': ''}
 
     if target.empty:
         return empty
@@ -464,6 +464,7 @@ def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
                 'last_signal_type':     sig,
                 'last_signal_date':     str(sig_date),
                 'last_signal_days_ago': days_ago,
+                'last_signal_price':    _fmt(row.get('Close')),
             }
 
     return empty

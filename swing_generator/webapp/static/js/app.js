@@ -77,7 +77,7 @@
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
-  let signalHistory    = JSON.parse(localStorage.getItem('sp-signal-history') || '{}');
+  localStorage.removeItem('sp-signal-history');   // retired per-device tracker (2026-07-15)
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
@@ -166,40 +166,18 @@
     badge.classList.toggle('sync-name-unset', !syncUser);
   }
 
-  // ── Signal Performance Tracker ───────────────────────────────────────
-  function updateSignalHistory() {
-    const today = new Date().toISOString().slice(0, 10);
-    let changed = false;
-    for (const item of allData) {
-      const sig   = item[f('primary_signal')] || '';
-      const conf  = item[f('confirmation_status')] || '';
-      const key   = `${item.instrument_name}_${timeframe}`;
-      const price = parseFloat(item.close) || 0;
-      if (sig) {
-        const prev = signalHistory[key];
-        if (!prev || prev.signal !== sig) {
-          signalHistory[key] = { signal: sig, conf, date: today, price, tf: timeframe };
-          changed = true;
-        }
-      } else if (signalHistory[key]) {
-        delete signalHistory[key];
-        changed = true;
-      }
-    }
-    if (changed) localStorage.setItem('sp-signal-history', JSON.stringify(signalHistory));
-  }
-
-  function signalPerf(name) {
-    const key  = `${name}_${timeframe}`;
-    const rec  = signalHistory[key];
-    if (!rec || !rec.price) return null;
-    const item = allData.find(d => d.instrument_name === name);
-    if (!item) return null;
-    const cur = parseFloat(item.close) || 0;
-    if (!cur) return null;
-    const pct = ((cur - rec.price) / rec.price) * 100;
-    const days = Math.round((new Date() - new Date(rec.date)) / 86400000);
-    return { pct: pct.toFixed(1), days, date: rec.date, signal: rec.signal };
+  // ── Signal Performance ("since fired") ───────────────────────────────
+  // Engine-computed: last_signal_price is the fire-bar close, last_signal_date
+  // the fire date (up to 20 bars back within the same trend). Same on every device.
+  function signalPerf(item) {
+    const sig   = item[f('last_signal_type')] || '';
+    const fired = parseFloat(item[f('last_signal_price')]) || 0;
+    const cur   = parseFloat(item[f('close')]) || 0;
+    const date  = item[f('last_signal_date')] || '';
+    if (!sig || !fired || !cur || !date) return null;
+    const pct  = ((cur - fired) / fired) * 100;
+    const days = Math.max(0, Math.round((new Date() - new Date(date)) / 86400000));
+    return { pct: pct.toFixed(1), days, date, signal: sig };
   }
 
   // ── Push Notifications ───────────────────────────────────────────────
@@ -209,9 +187,6 @@
     if (!('serviceWorker' in navigator)) return;
     try {
       swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      navigator.serviceWorker.addEventListener('message', e => {
-        if (e.data && e.data.type === 'SIGNALS_CHECKED') updateSignalHistory();
-      });
     } catch(err) {
       console.warn('SW registration failed:', err);
     }
@@ -225,17 +200,37 @@
     return result === 'granted';
   }
 
+  // Notification dedup store — last signal/conf handed to the SW per instrument.
+  // Daily TF only (sw.js checkForNewSignals compares item.primary_signal).
+  // Per-device by design: each device dedups its own notifications.
+  let notifiedSignals = JSON.parse(localStorage.getItem('sp-last-notified') || '{}');
+
+  function updateNotifiedStore() {
+    let changed = false;
+    for (const item of allData) {
+      const name = item.instrument_name;
+      const sig  = item.primary_signal || '';
+      const conf = item.confirmation_status || '';
+      const prev = notifiedSignals[name];
+      if (sig) {
+        if (!prev || prev.signal !== sig || prev.conf !== conf) {
+          notifiedSignals[name] = { signal: sig, conf };
+          changed = true;
+        }
+      } else if (prev) {
+        delete notifiedSignals[name];
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem('sp-last-notified', JSON.stringify(notifiedSignals));
+  }
+
   function checkAndNotifyNewSignals() {
     if (!swRegistration || !allData.length) return;
     if (Notification.permission !== 'granted') return;
     const starred = [...userStarred];
     if (!starred.length) return;
-    // Build lastSeen map from signalHistory
-    const lastSeen = {};
-    for (const [key, rec] of Object.entries(signalHistory)) {
-      const name = key.replace(/_[A-Z0-9H]+$/, '');
-      lastSeen[name] = { signal: rec.signal, conf: rec.conf };
-    }
+    const lastSeen = notifiedSignals;
     navigator.serviceWorker.ready.then(reg => {
       if (!reg.active) return;
       reg.active.postMessage({ type: 'CHECK_SIGNALS', starred, lastSeen });
@@ -771,7 +766,7 @@
         staleBanner.style.display = msg ? '' : 'none';
       }
 
-      updateSignalHistory();
+      updateNotifiedStore();
       checkAndNotifyNewSignals();
       renderAll();
     } catch (e) {
@@ -2670,7 +2665,7 @@
           </div>
         </div>
         <div class="scanner-price" style="color:${(isBuySignal && t === 'UPTREND') ? 'var(--buy)' : (isSellSignal && t === 'DOWNTREND') ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
-        ${(() => { const p = signalPerf(item.instrument_name); return p ? `<div class="scanner-since-sig ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">Since ${p.signal}: ${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</div>` : ''; })()}
+        ${(() => { const p = signalPerf(item); return p ? `<div class="scanner-since-sig ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">Since ${p.signal}: ${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</div>` : ''; })()}
         ${perfRow ? `<div class="perf-row">${perfRow}</div>` : ''}
         ${(() => {
           const rv = rvol(item);
@@ -3123,7 +3118,7 @@
           </div>
           <div class="wl-card-right">
             <span class="wl-card-price">${formatPrice(item[f('close')])}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}">${rocStr}</span>` : ''}</span>
-            ${(() => { const p = signalPerf(item.instrument_name); return p ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
+            ${(() => { const p = signalPerf(item); return p ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
             <div class="scanner-actions">
               ${tvBtn(item.instrument_name, '')}
               ${shareBtn(item.instrument_name)}
@@ -3507,7 +3502,7 @@
               const sAlign= s.tf_alignment || '';
               const sConf = s[f('signal_confidence')] || '';
               const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '');
-              const sPerf = signalPerf(s.instrument_name);
+              const sPerf = signalPerf(s);
               return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
                 <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
                 <div class="sim-card-group">${s.group||''}</div>

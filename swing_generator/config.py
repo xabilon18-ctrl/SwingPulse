@@ -105,7 +105,7 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}confirmation_status',
         f'{p}primary_signal',
         f'{p}signal_confidence',
-        f'{p}last_signal_type', f'{p}last_signal_date', f'{p}last_signal_days_ago',
+        f'{p}last_signal_type', f'{p}last_signal_date', f'{p}last_signal_days_ago', f'{p}last_signal_price',
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ribbon_slope_pct', f'{p}ma_order_score', f'{p}roc', f'{p}rsi',
         f'{p}rollover_score', f'{p}rollover_max', f'{p}rollover_dir', f'{p}rollover_stage',
