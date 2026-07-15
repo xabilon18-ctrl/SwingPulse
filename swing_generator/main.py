@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import math
 import os
 import sys
 import traceback
@@ -33,6 +34,7 @@ from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
     ACTIVE_PROFILE,
+    CONTEXT_RULES, CONF_TIER_ORDER,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -99,6 +101,7 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}confirmation_status':           row.get('confirmation_status', ''),
         f'{prefix}primary_signal':                row.get('primary_signal', ''),
         f'{prefix}signal_confidence':             row.get('signal_confidence', ''),
+        f'{prefix}confidence_context':            '',   # filled by apply_context_confidence()
         **last_sig,
         f'{prefix}watch_flag':                    row.get('watch_flag', ''),
         f'{prefix}potential_turning_point_flag':   row.get('potential_turning_point_flag', ''),
@@ -128,6 +131,60 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         result['new_trend_flag']      = 'yes' if row.get('new_trend_flag') else 'no'
 
     return result, row
+
+
+def _to_float(s):
+    try:
+        f = float(s)
+        return f if not math.isnan(f) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _shift_tier(tier: str, delta: int) -> str:
+    if tier not in CONF_TIER_ORDER:
+        return tier
+    idx = CONF_TIER_ORDER.index(tier) + delta
+    idx = max(0, min(len(CONF_TIER_ORDER) - 1, idx))
+    return CONF_TIER_ORDER[idx]
+
+
+def _rule_hits(rule: dict, row: dict, prefix: str) -> bool:
+    """Same-timeframe field test. (Cross-TF tests would branch on rule['test'].)"""
+    val = _to_float(row.get(f"{prefix}{rule['field']}"))
+    if val is None:
+        return False
+    op, thr = rule['op'], rule['value']
+    if op == 'ge':
+        return val >= thr
+    if op == 'le':
+        return val <= thr
+    if op == 'eq':
+        return val == thr
+    return False
+
+
+def apply_context_confidence(row: dict) -> None:
+    """Nudge signal_confidence per config.CONTEXT_RULES (edge-audit phase 3a).
+    Mutates row in place: adjusts {prefix}signal_confidence and writes a
+    human-readable {prefix}confidence_context. Only fired signals are touched."""
+    for tf, prefix in (('D', ''), ('4H', 'h4_')):
+        sig = row.get(f'{prefix}primary_signal', '')
+        base = row.get(f'{prefix}signal_confidence', '')
+        if not sig or base not in CONF_TIER_ORDER:
+            continue
+        total, reasons = 0, []
+        for rule in CONTEXT_RULES:
+            if rule['tf'] != tf:
+                continue
+            if rule['signals'] is not None and sig not in rule['signals']:
+                continue
+            if _rule_hits(rule, row, prefix):
+                total += rule['delta']
+                reasons.append(f"{rule['reason']} {'+' if rule['delta'] > 0 else ''}{rule['delta']}")
+        if reasons:
+            row[f'{prefix}signal_confidence'] = _shift_tier(base, total)
+            row[f'{prefix}confidence_context'] = '; '.join(reasons)
 
 
 MIN_TREND_DAYS = 30  # trends shorter than this are not real trends
@@ -421,6 +478,10 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         tf_label, tf_score = _compute_tf_alignment(row)
         row['tf_alignment'] = tf_label
         row['tf_alignment_score'] = tf_score
+
+        # ── Context confidence modifiers (edge-audit phase 3a) — needs the
+        # assembled row so same-TF fields are present; deltas per CONTEXT_RULES.
+        apply_context_confidence(row)
 
         return row, trend_segments
 

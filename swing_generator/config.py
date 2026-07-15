@@ -106,10 +106,40 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}primary_signal',
         f'{p}signal_confidence',
         f'{p}last_signal_type', f'{p}last_signal_date', f'{p}last_signal_days_ago', f'{p}last_signal_price',
+        f'{p}confidence_context',
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ribbon_slope_pct', f'{p}ma_order_score', f'{p}roc', f'{p}rsi',
         f'{p}rollover_score', f'{p}rollover_max', f'{p}rollover_dir', f'{p}rollover_stage',
     ]
+
+# ---------------------------------------------------------------------------
+# Context confidence modifiers — edge-audit phase 3a (2026-07-15)
+# ---------------------------------------------------------------------------
+# Each rule nudges signal_confidence one tier (high > standard > low) when its
+# condition holds at fire. Deltas stack; the result is clamped at the ends.
+# Provenance = measured edge in R vs the signal's blind baseline + trade count n
+# from the 120k-trade context backtest (edge_audit.py / EDGE_AUDIT_PHASE3.md).
+# R1 (4H counter-to-daily-trend) was REJECTED in 3a: after the look-ahead fix its
+# edge attenuated (B2 -0.061 robust, B3/B4 directional) below the ship bar.
+CONTEXT_RULES = [
+    # R2a  D B1 overbought entry — edge -0.099 R, n=1862, robust
+    {'id': 'R2a', 'tf': 'D', 'signals': ('B1',), 'field': 'rsi',
+     'op': 'ge', 'value': 70, 'delta': -1, 'reason': 'RSI 70+'},
+    # R2b  D B1 ribbon not yet ordered — edge -0.134 R, n=718, robust
+    {'id': 'R2b', 'tf': 'D', 'signals': ('B1',), 'field': 'ma_order_score',
+     'op': 'le', 'value': 5, 'delta': -1, 'reason': 'ribbon disordered'},
+    # R3a  D B2 chasing strength — edge -0.059 R, n=5826, robust
+    {'id': 'R3a', 'tf': 'D', 'signals': ('B2',), 'field': 'roc',
+     'op': 'ge', 'value': 3, 'delta': -1, 'reason': 'chasing (ROC 3%+)'},
+    # R3b  D B2 buying into weakness — edge +0.082 R, n=829, robust
+    {'id': 'R3b', 'tf': 'D', 'signals': ('B2',), 'field': 'roc',
+     'op': 'le', 'value': -3, 'delta': 1, 'reason': 'buying weakness (ROC -3%+)'},
+    # R4   D S3/S4 topping structure present — edge S3 +0.114 (n713), S4 +0.136 (n1240), robust
+    {'id': 'R4', 'tf': 'D', 'signals': ('S3', 'S4'), 'field': 'rollover_stage',
+     'op': 'eq', 'value': 2, 'delta': 1, 'reason': 'rollover stage 2'},
+]
+
+CONF_TIER_ORDER = ['low', 'standard', 'high']
 
 # Column order for output
 OUTPUT_COLUMNS = [

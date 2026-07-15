@@ -207,7 +207,7 @@ def _build_outcome(entry_price, exit_price, risk, side, entry_date, exit_date,
 # Edge-audit context — snapshot of the fire bar, no new computation
 # ---------------------------------------------------------------------------
 def _fire_context(df: pd.DataFrame, i: int, ma_periods: list,
-                  other_trend: Optional[pd.Series]) -> dict:
+                  other_trend: Optional[pd.Series], fire_tf: str = 'D') -> dict:
     row = df.iloc[i]
 
     def _num(col, nd=3):
@@ -246,16 +246,20 @@ def _fire_context(df: pd.DataFrame, i: int, ma_periods: list,
         'rollover_dir':    str(row.get('rollover_dir') or ''),
     }
 
-    # Other-timeframe trend at (or before) the fire bar
+    # Other-timeframe trend as it was KNOWN at the fire bar (no look-ahead).
     ctx['other_tf_trend'] = ''
     if other_trend is not None and len(other_trend):
         ts = df.index[i]
         if getattr(ts, 'tz', None) is not None:
             ts = ts.tz_localize(None)
-        # D fires match any other-TF bar from the same calendar day
-        if getattr(ts, 'hour', 0) == 0:
+        if fire_tf == '4H':
+            # 4H fire intraday: the SAME day's daily bar hasn't closed yet, so
+            # take the last daily bar strictly before this calendar day.
+            pos = other_trend.index.searchsorted(ts.normalize(), side='left') - 1
+        else:
+            # D fire: 4H bars all close before the daily close — same-day is safe.
             ts = ts + pd.Timedelta(hours=23, minutes=59)
-        pos = other_trend.index.searchsorted(ts, side='right') - 1
+            pos = other_trend.index.searchsorted(ts, side='right') - 1
         if pos >= 0:
             ctx['other_tf_trend'] = str(other_trend.iloc[pos] or '')
     return ctx
@@ -290,7 +294,7 @@ def _collect_trades(df: pd.DataFrame, tf: str, name: str, asset_class: str,
         outcome['signal']     = sig
         outcome['tf']         = tf
         outcome['class']      = asset_class
-        outcome.update(_fire_context(df, i, ma_periods, other_trend))
+        outcome.update(_fire_context(df, i, ma_periods, other_trend, fire_tf=tf))
         trades.append(outcome)
     return trades
 

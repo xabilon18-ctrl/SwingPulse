@@ -3366,6 +3366,7 @@
     const sell = isSell(item);
     const sig = item[f('primary_signal')] || '';
     const conf = item[f('signal_confidence')] || '';
+    const confCtx = item[f('confidence_context')] || '';   // edge-audit context modifiers
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const close = parseFloat(item[f('close')]);
     const maPrefix = timeframe === '4H' ? 'h4_ma_' : 'ma_';
@@ -3457,6 +3458,11 @@
       <!-- ===== OVERVIEW PANEL ===== -->
       <div class="mh-panel" id="mhPanel-overview">
         ${radarBreakdownHtml}
+
+        ${confCtx && conf ? `<div class="mh-conf-ctx">
+          <span class="badge-confidence conf-${conf}">${conf}</span>
+          <span class="mh-conf-ctx-why">adjusted for backtested edge — ${confCtx}</span>
+        </div>` : ''}
 
         ${renderInstrumentTrackRecord(item.instrument_name)}
 

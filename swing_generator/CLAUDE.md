@@ -104,8 +104,14 @@ on that timeframe + asset class — looked up from `confidence_map.json` (genera
 `backtest.py --since 2016-01-01`). high = avg ≥ +0.05R, low = negative expectancy.
 Re-run the backtest after any signal-rule change so the map stays honest.
 
+**Context modifiers (edge-audit phase 3a, 2026-07-15):** after the base tier, `main.py
+apply_context_confidence()` shifts it ±1 per matching `config.CONTEXT_RULES` entry (D B1
+overbought/disordered −1, D B2 chasing −1 / weakness +1, D S3/S4 rollover-stage-2 +1).
+Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIGNAL_RULES.md`
+§4a and `EDGE_AUDIT_PHASE3.md`. Phase 3b (ATR/volatility rules, 4H alignment) deferred.
+
 ### Key Computed Fields (per timeframe, via `_tf_signal_columns`)
-`primary_signal`, `secondary_signal`, `confirmation_status`, `signal_confidence` (high/standard/low),  
+`primary_signal`, `secondary_signal`, `confirmation_status`, `signal_confidence` (high/standard/low), `confidence_context`,  
 `trend_direction` (UPTREND/DOWNTREND/NEUTRAL), `established_trend`, `trend_run_days`,  
 `tf_alignment`, `tf_alignment_score`, `ma_order_score`,  
 `ribbon_compression`, `ribbon_spread`, `ribbon_slope_pct`,  
@@ -162,8 +168,8 @@ Re-run the backtest after any signal-rule change so the map stays honest.
 ---
 
 ## Current Versions
-- `app.js` — **v205** (Signals tab: Forex category chip replaced with Indices; dead forex aliases removed)
-- `style.css` — **v195** (single dark theme — light/midnight removed)
+- `app.js` — **v210** (modal Overview shows confidence_context line — edge-audit context modifiers)
+- `style.css` — **v199** (`.mh-conf-ctx` confidence-context row)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)

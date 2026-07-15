@@ -1514,6 +1514,14 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .conf-standard { background: var(--neutral-soft); color: var(--text-secondary); }
 .conf-low { background: var(--sell-soft); color: var(--sell); }
 
+.mh-conf-ctx {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 8px 12px; border-radius: 8px;
+  background: var(--card-2, rgba(255,255,255,.03));
+  border: 1px solid var(--border, rgba(255,255,255,.06));
+}
+.mh-conf-ctx-why { font-size: .72rem; color: var(--text-secondary); line-height: 1.4; }
+
 .badge-alignment {
   font-size: .58rem; font-weight: 700; padding: 2px 7px; border-radius: 4px;
   letter-spacing: .03em;

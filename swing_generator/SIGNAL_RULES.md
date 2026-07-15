@@ -77,6 +77,30 @@ B1/S1 primary > active B1/S1 re-fire > 4 > 3 > 2 (deepest wins).
 **Regenerate:** `python3 backtest.py --since 2016-01-01` (full run rewrites the map).
 Re-run after any signal-rule change, then re-run `main.py` so live confidences update.
 
+### 4a. Context confidence modifiers — edge-audit phase 3a (since 2026-07-15)
+
+After the base tier is set, `main.py apply_context_confidence()` nudges it one step
+per matching rule in `config.CONTEXT_RULES` (deltas stack; clamped at high/low). Rules
+come from the 120k-trade context backtest (`edge_audit.py`, see `EDGE_AUDIT_PHASE3.md`):
+each is a signal + a fire-time condition whose measured expectancy differs materially
+(≥0.04R) from that signal's blind baseline, stable across both history halves and not a
+one-asset-class fluke. The reason string is written to `{tf}confidence_context`.
+
+| Rule | Signal (TF) | Condition at fire | Δ | Measured edge (n) |
+|------|-------------|-------------------|---|-------------------|
+| R2a | D B1 | `rsi ≥ 70` | −1 | −0.099R (1862) |
+| R2b | D B1 | `ma_order_score ≤ 5` | −1 | −0.134R (718) |
+| R3a | D B2 | `roc ≥ 3` (chasing) | −1 | −0.059R (5826) |
+| R3b | D B2 | `roc ≤ −3` (buying weakness) | +1 | +0.082R (829) |
+| R4  | D S3, D S4 | `rollover_stage == 2` | +1 | S3 +0.114R (713), S4 +0.136R (1240) |
+
+**Rejected R1** (4H signal counter to daily trend): after removing a look-ahead bias in
+the 4H↔daily join, its edge attenuated (B2 −0.061R robust, B3/B4 directional-only) below
+the ship bar. Deferred to 3b along with ATR/volatility rules and aligned boosts.
+
+Historical check on the 120k set: high-bucket avg R +0.133→+0.144, low −0.153→−0.156,
+high-minus-low separation +0.286→+0.299 (labels discriminate better).
+
 ---
 
 ## 5. Backtest engine — `backtest.py`
