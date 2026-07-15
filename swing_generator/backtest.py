@@ -204,10 +204,70 @@ def _build_outcome(entry_price, exit_price, risk, side, entry_date, exit_date,
 
 
 # ---------------------------------------------------------------------------
+# Edge-audit context — snapshot of the fire bar, no new computation
+# ---------------------------------------------------------------------------
+def _fire_context(df: pd.DataFrame, i: int, ma_periods: list,
+                  other_trend: Optional[pd.Series]) -> dict:
+    row = df.iloc[i]
+
+    def _num(col, nd=3):
+        v = row.get(col)
+        try:
+            v = float(v)
+            return round(v, nd) if not math.isnan(v) else None
+        except (TypeError, ValueError):
+            return None
+
+    close    = _num('Close', 6)
+    anchor_p = ma_periods[-1]
+    anchor   = _num(f'ma_{anchor_p}', 6)
+    ma_fast  = _num(f'ma_{ma_periods[0]}', 6)
+    atr      = _num('atr', 6)
+    vol      = _num('Volume', 0)
+    vol_avg  = _num('volume_average', 0)
+
+    ctx = {
+        'rsi':             _num('rsi', 1),
+        'roc':             _num('roc', 2),
+        'ribbon_spread':   _num('ribbon_spread', 2),
+        'ribbon_slope':    _num('ribbon_slope_pct', 3),
+        'ma_order_score':  _num('ma_order_score', 0),
+        'pvo':             _num('pvo', 1),
+        'pvo_signal':      _num('pvo_signal', 1),
+        'rvol':            round(vol / vol_avg, 2) if vol and vol_avg else None,
+        'atr_pct':         round(atr / close * 100, 2) if atr and close else None,
+        'dist_anchor_pct': round((close - anchor) / anchor * 100, 2) if close and anchor else None,
+        'dist_fast_pct':   round((close - ma_fast) / ma_fast * 100, 2) if close and ma_fast else None,
+        'anchor_period':   anchor_p,
+        'trend':           str(row.get('trend_direction') or ''),
+        'established':     str(row.get('established_trend') or ''),
+        'trend_age':       int(_num('trend_run_days', 0) or 0),
+        'rollover_stage':  int(_num('rollover_stage', 0) or 0),
+        'rollover_dir':    str(row.get('rollover_dir') or ''),
+    }
+
+    # Other-timeframe trend at (or before) the fire bar
+    ctx['other_tf_trend'] = ''
+    if other_trend is not None and len(other_trend):
+        ts = df.index[i]
+        if getattr(ts, 'tz', None) is not None:
+            ts = ts.tz_localize(None)
+        # D fires match any other-TF bar from the same calendar day
+        if getattr(ts, 'hour', 0) == 0:
+            ts = ts + pd.Timedelta(hours=23, minutes=59)
+        pos = other_trend.index.searchsorted(ts, side='right') - 1
+        if pos >= 0:
+            ctx['other_tf_trend'] = str(other_trend.iloc[pos] or '')
+    return ctx
+
+
+# ---------------------------------------------------------------------------
 # Per-timeframe signal replay (production parity)
 # ---------------------------------------------------------------------------
 def _collect_trades(df: pd.DataFrame, tf: str, name: str, asset_class: str,
-                    signal_filter: Optional[set], since: Optional[date]) -> list[dict]:
+                    signal_filter: Optional[set], since: Optional[date],
+                    ma_periods: list,
+                    other_trend: Optional[pd.Series] = None) -> list[dict]:
     trades = []
     signals_col = df['primary_signal'].to_numpy()
     for i in range(len(df)):
@@ -230,6 +290,7 @@ def _collect_trades(df: pd.DataFrame, tf: str, name: str, asset_class: str,
         outcome['signal']     = sig
         outcome['tf']         = tf
         outcome['class']      = asset_class
+        outcome.update(_fire_context(df, i, ma_periods, other_trend))
         trades.append(outcome)
     return trades
 
@@ -239,7 +300,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
                         since: Optional[date] = None,
                         tf_filter: Optional[str] = None) -> list[dict]:
     asset_class = asset_class_of(group)
-    trades = []
+    frames: dict[str, tuple] = {}
 
     # ── DAILY — mirror main.py: full-ribbon indicators, clipped-ribbon signals ──
     if tf_filter in (None, 'D'):
@@ -253,8 +314,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
                 if len(d_ma_periods) >= 3:
                     df = add_signals(df, ma_periods=d_ma_periods,
                                      **TF_SIGNAL_PARAMS['D'])
-                    trades += _collect_trades(df, 'D', name, asset_class,
-                                              signal_filter, since)
+                    frames['D'] = (df, d_ma_periods)
 
     # ── 4H — mirror main.py: resample hourly cache, clip ribbon ──
     if tf_filter in (None, '4H'):
@@ -269,9 +329,26 @@ def backtest_instrument(ticker: str, name: str, group: str,
                     h4 = _add_atr(h4)
                     h4 = add_signals(h4, ma_periods=h4_ma_periods,
                                      **TF_SIGNAL_PARAMS['4H'])
-                    trades += _collect_trades(h4, '4H', name, asset_class,
-                                              signal_filter, since)
+                    frames['4H'] = (h4, h4_ma_periods)
 
+    def _trend_series(tf: str) -> Optional[pd.Series]:
+        if tf not in frames:
+            return None
+        f = frames[tf][0]
+        s = f['trend_direction']
+        if getattr(s.index, 'tz', None) is not None:
+            s = s.copy()
+            s.index = s.index.tz_localize(None)
+        return s
+
+    trades = []
+    for tf in ('D', '4H'):
+        if tf not in frames:
+            continue
+        df, periods = frames[tf]
+        other_trend = _trend_series('4H' if tf == 'D' else 'D')
+        trades += _collect_trades(df, tf, name, asset_class,
+                                  signal_filter, since, periods, other_trend)
     return trades
 
 
@@ -532,6 +609,11 @@ def main():
         # Confidence map only from complete runs (all codes, both TFs)
         if not sig_filter and not args.tf and not args.quick:
             write_confidence_map(all_trades, results)
+
+            # Edge-audit dataset: every trade with its fire-bar context snapshot
+            edge_path = os.path.join(OUTPUT_DIR, f'edge_audit_{date.today()}.csv.gz')
+            pd.DataFrame(all_trades).to_csv(edge_path, index=False, compression='gzip')
+            print(f'✓ Edge-audit dataset: {len(all_trades)} trades → {edge_path}')
 
 
 if __name__ == '__main__':
