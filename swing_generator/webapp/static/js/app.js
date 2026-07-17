@@ -718,8 +718,9 @@
 
       // Staleness warning: compare data AGE against the CI schedule, not the
       // calendar date — data from yesterday 22:00 is fine at 05:00 today.
-      // Cron starts (UTC): Mon–Fri 04,12,16 · Sat+Sun 08 (crypto) — keep
-      // RUN_HOURS_* in sync with .github/workflows/publish.yml.
+      // Crons (UTC): Mon–Fri 10:35,14:35 · Sat+Sun 08:00 (crypto). RUN_HOURS_*
+      // below are the expected LANDING hours (cron + GitHub queue delay) — keep
+      // in sync with .github/workflows/publish.yml.
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
       let fetchedTime = null;
@@ -729,7 +730,7 @@
       }
       // Most recent scheduled run that should have finished by now
       function lastDueRunUTC(nowMs) {
-        const RUN_HOURS_WEEKDAY = [4, 12, 16];
+        const RUN_HOURS_WEEKDAY = [11, 15]; // crons 10:35/14:35 UTC land ~1h later
         const RUN_HOURS_WEEKEND = [8];      // Sat+Sun crypto run
         const GRACE_MS  = 2.5 * 3600e3; // worst-case cold-cache run ~90 min + slack
         const cutoff = nowMs - GRACE_MS;

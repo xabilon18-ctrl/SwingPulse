@@ -27,7 +27,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4 + Lightweight Charts v4 (pinned) |
 | Utility helpers | `static/js/utils.js` (loaded before app.js, exposes `window.SP_UTILS`) |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | GitHub Actions (`publish.yml`) — cron 3×/day weekdays (04,12,16 UTC) + 1×/day weekends (08 UTC, crypto) + manual trigger |
+| CI pipeline | GitHub Actions (`publish.yml`) — cron 2×/day weekdays (10:35, 14:35 UTC — land ~14:00/18:00 SAST after GitHub queue delay) + 1×/day weekends (08 UTC, crypto) + manual trigger (mornings run manually) |
 | Repo | https://github.com/xabilon18/SwingPulse |
 
 ---
@@ -168,7 +168,7 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 ---
 
 ## Current Versions
-- `app.js` — **v210** (modal Overview shows confidence_context line — edge-audit context modifiers)
+- `app.js` — **v211** (RUN_HOURS_WEEKDAY [11,15] — matches new 2×/day cron schedule)
 - `style.css` — **v199** (`.mh-conf-ctx` confidence-context row)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
@@ -199,7 +199,7 @@ cd swing_generator/webapp && python3 server.py
 
 | File | Profile | Cron | Cache |
 |------|---------|------|-------|
-| `publish.yml` | ma500 | `0 4/12/16 * * 1-5` + `0 8 * * 6,0` (weekday 3×, weekend 1× UTC) + manual | `cache_ma500/` |
+| `publish.yml` | ma500 | `35 10/14 * * 1-5` + `0 8 * * 6,0` (weekday 2×, weekend 1× UTC; :35 dodges GitHub's top-of-hour queue) + manual (mornings) | `cache_ma500/` |
 
 - Runs `python3 main.py --profile ma500` → uploads data to R2 → sends push notification with `X-Profile: ma500`
 - No UI deploy in CI — deploy UI manually with `--ui-only`
@@ -235,6 +235,6 @@ Run it after ANY change to signals.py/config.py signal logic.
 
 **Debug blank chart in modal:** Ensure `autoSize: true` is set AND `await new Promise(r => requestAnimationFrame(r))` runs before `createChart()`
 
-**Data not updating:** CI cron runs 3×/day weekdays (04/12/16 UTC) + 1×/day weekends (08 UTC); can also run manually from GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS_WEEKDAY/RUN_HOURS_WEEKEND in app.js `lastDueRunUTC`, +2.5h grace) — keep them in sync with publish.yml crons. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
+**Data not updating:** CI cron runs 2×/day weekdays (10:35/14:35 UTC, landing ~1-2h later due to GitHub queue) + 1×/day weekends (08 UTC); mornings + ad-hoc runs are manual from the GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS_WEEKDAY/RUN_HOURS_WEEKEND in app.js `lastDueRunUTC`, +2.5h grace) — keep them in sync with publish.yml crons. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
 
 **Update version numbers:** After any UI change, bump `?v=NNN` on `app.js`, `style.css`, and/or `utils.js` in `index.html`
