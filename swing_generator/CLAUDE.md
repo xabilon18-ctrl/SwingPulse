@@ -168,8 +168,8 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 ---
 
 ## Current Versions
-- `app.js` — **v211** (RUN_HOURS_WEEKDAY [11,15] — matches new 2×/day cron schedule)
-- `style.css` — **v199** (`.mh-conf-ctx` confidence-context row)
+- `app.js` — **v213** (sector radar v2: every spoke labeled with z, tilt-colored stems, warming tier ≥1σ, quiet-day collapse to header row)
+- `style.css` — **v201** (`.sr-quiet-badge`, `.sr-collapsed`)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)

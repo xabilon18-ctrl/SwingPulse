@@ -1621,6 +1621,8 @@
   // baseline (daily TF fires + RVOL>=2 spikes, per member). Display gate is
   // stricter than the data's hot flag: z>=2 OR hot for 2+ days, so a single
   // borderline 1.5σ day stays quiet.
+  // Quiet days collapse to the header row alone; on alert days every spoke
+  // carries its z value (hot = tilt color, 1σ..alert = dim "warming" tier).
   const SR_ABBR = {
     'Technology': 'Tech', 'Financial Services': 'Fin', 'Consumer Cyclical': 'ConsCyc',
     'Industrials': 'Indust', 'Crypto': 'Crypto', 'Healthcare': 'Health',
@@ -1644,44 +1646,70 @@
     const N = secs.length;
     const zc = s => Math.max(0, Math.min(3, s.z === null ? 0 : s.z));
     const shown = s => s.hot && (s.z >= 2 || s.elevated_days >= 2);
+    const warming = s => !shown(s) && s.z !== null && s.z >= 1;   // building, not yet at alert
     const tiltCol = s => s.tilt === 'buy' ? 'var(--buy)' : s.tilt === 'sell' ? 'var(--sell)' : 'var(--accent)';
+    const tiltGlyph = s => s.tilt === 'buy' ? '▲' : s.tilt === 'sell' ? '▼' : '◆';
     const hotSecs = secs.filter(shown);
 
     if (badge) {
-      badge.textContent = hotSecs.length ? `${hotSecs.length} hot` : 'all quiet';
+      badge.textContent = hotSecs.length ? `${hotSecs.length} hot` : `✓ all ${N} at baseline`;
       badge.classList.toggle('sr-hot-badge', hotSecs.length > 0);
+      badge.classList.toggle('sr-quiet-badge', hotSecs.length === 0);
     }
 
-    // ── radar polygon SVG ──
-    const CX = 215, CY = 168, R = 118;
+    // Quiet day → collapse to the header row alone (~44px, not ~390px)
+    card.classList.toggle('sr-collapsed', !hotSecs.length);
+    if (!hotSecs.length) { body.innerHTML = ''; return; }
+
+    // ── radar polygon SVG — every spoke labeled with its z ──
+    const CX = 230, CY = 178, R = 118;
     const pt = (i, r) => {
       const a = (-90 + i * 360 / N) * Math.PI / 180;
       return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
     };
-    let axes = '', nodes = '', labels = '';
+    let axes = '', stems = '', nodes = '', labels = '';
     const polyPts = [];
     secs.forEach((s, i) => {
       const [ax, ay] = pt(i, R);
       axes += `<line x1="${CX}" y1="${CY}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="#1c1c17"/>`;
       const [px, py] = pt(i, zc(s) / 3 * R);
       polyPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-      const isHot = shown(s);
-      nodes += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${isHot ? 4.5 : 2.5}" fill="${isHot ? tiltCol(s) : '#4a4a46'}"/>`;
+      const isHot = shown(s), isWarm = warming(s);
+      const col = tiltCol(s);
+      if (isHot) {
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity=".9"/>`;
+        nodes += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.5" fill="${col}"/>`;
+      } else if (isWarm) {
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>`;
+        nodes += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.5" fill="${col}" opacity=".75"/>`;
+      } else {
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#34342f" stroke-width="2" stroke-linecap="round"/>`;
+        nodes += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.2" fill="#4a4a46"/>`;
+      }
       const [lx, ly] = pt(i, R + 16);
       const anchor = lx > CX + 12 ? 'start' : lx < CX - 12 ? 'end' : 'middle';
       const lbl = SR_ABBR[s.sector] || s.sector;
-      labels += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" fill="${isHot ? tiltCol(s) : 'var(--text-muted)'}" ${isHot ? 'font-weight="600"' : ''}>${lbl}${isHot ? ' ' + s.z.toFixed(1) : ''}</text>`;
+      const zStr = s.z === null ? '' : s.z.toFixed(1);
+      if (isHot) {
+        labels += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="600" fill="${col}">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
+      } else if (isWarm) {
+        labels += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" fill="${col}" opacity=".8">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
+      } else {
+        labels += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="10.5" fill="var(--text-muted)">${lbl}${zStr ? ` <tspan fill="#8c8c96">${zStr}</tspan>` : ''}</text>`;
+      }
     });
     const ring = (z, extra) =>
       `<circle cx="${CX}" cy="${CY}" r="${(z / 3 * R).toFixed(1)}" fill="none" ${extra}/>`;
     const svg = `
-      <svg class="sr-radar-svg" viewBox="0 0 430 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
+      <svg class="sr-radar-svg" viewBox="0 0 460 352" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
         ${ring(1, 'stroke="#242420"')}${ring(2, 'stroke="#242420"')}${ring(3, 'stroke="#1d1d19"')}
         ${ring(alertZ, 'stroke="#8a6519" stroke-dasharray="4 4"')}
         <text x="${CX + (alertZ / 3 * R) * 0.72 + 14}" y="${CY - (alertZ / 3 * R) * 0.72}" font-size="10.5" fill="#8a6519">alert ${alertZ}σ</text>
+        <text x="${CX + 4}" y="${Math.round(CY - R / 3 + 11)}" font-size="9" fill="#4a4a46">1σ</text>
+        <text x="${CX + 4}" y="${Math.round(CY - 2 * R / 3 + 11)}" font-size="9" fill="#4a4a46">2σ</text>
         ${axes}
         <polygon points="${polyPts.join(' ')}" fill="rgba(251,191,36,.05)" stroke="#55554e" stroke-width="1.2"/>
-        ${nodes}${labels}
+        ${stems}${nodes}${labels}
       </svg>`;
 
     // ── hot-sector cards + baseline line ──
@@ -1698,7 +1726,7 @@
     const baseLine = `<div class="sr-base-card">${hotSecs.length ? quiet + ' sectors' : 'All ' + N + ' sectors'} at baseline (z &lt; ${alertZ})</div>`;
 
     body.innerHTML = svg + `<div class="sr-cards">${cards}${baseLine}</div>`
-      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only</div>`;
+      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only · dim = building (1σ+) · grey = at baseline</div>`;
 
     // Hot card click → scanner scoped to that sector
     body.querySelectorAll('.sr-hot-card[data-sr-sector]').forEach(el => {
@@ -2619,9 +2647,9 @@
       const lastSigAge  = signalAge(item[f('last_signal_date')] || '').label;
       const lastIsBuy   = lastSigType.startsWith('B');
       const runDays = parseInt(item[f('trend_run_days')]) || 0;
-      const barWidth = Math.min(runDays / 100 * 100, 100);
       const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
       const compression = item[f('ribbon_compression')] === 'yes';
+      const ribbonSpread = parseFloat(item[f('ribbon_spread')]);
       const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
       const maMaxPairs = summaryData.ma_max_pairs || 19;
@@ -2647,10 +2675,19 @@
         perfPill(item.pct_1y, '1Y'),
       ].filter(Boolean).join('');
 
+      // One signal chip carries direction + type + action + age (no duplicate trend/age badges)
+      const hasBuyAction  = isBuySignal && t === 'UPTREND';
+      const hasSellAction = isSellSignal && t === 'DOWNTREND';
+      const csbGlyph = t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
+      const csbCode  = ((hasBuyAction && lastIsBuy) || (hasSellAction && lastSigType.startsWith('S'))) ? lastSigType : '';
+      const csbLine  = (hasBuyAction || hasSellAction)
+        ? `${csbGlyph} ${csbCode ? csbCode + ' ' : ''}${hasBuyAction ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago','') : ''}`
+        : `${csbGlyph} ${t}`;
+
       return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="scanner-top">
           <div>
-            <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${compression ? ' <span class="compression-alert">SQZ</span>' : ''}${item[f('volume_spike_flag')] === 'yes' ? ' <span class="vol-spike-indicator">VOL</span>' : ''}</div>
+            <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}</div>
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             ${_aiScan ? '<div><span class="ai-label">Artificial Intelligence</span></div>' : ''}
             <div class="scanner-group">${item.group || ''}${item.sector ? ' / ' + item.sector : ''}</div>
@@ -2659,13 +2696,12 @@
             ${tvBtn(item.instrument_name, '')}
             ${shareBtn(item.instrument_name)}
             <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}" data-act="toggleStar" data-stop="1">★</button>
-            <div class="card-signal-box csb-${t === 'UPTREND' ? 'up' : t === 'DOWNTREND' ? 'dn' : 'neu'}${(isBuySignal && t === 'UPTREND') ? ' csb-buy' : (isSellSignal && t === 'DOWNTREND') ? ' csb-sell' : ''}">
-              <span class="csb-trend">${t}</span>
-              <span class="csb-action">${(isBuySignal && t === 'UPTREND') ? 'BUY' : (isSellSignal && t === 'DOWNTREND') ? 'SELL' : ''}</span>
+            <div class="card-signal-box csb-${t === 'UPTREND' ? 'up' : 'DOWNTREND' === t ? 'dn' : 'neu'}${hasBuyAction ? ' csb-buy' : hasSellAction ? ' csb-sell' : ''}">
+              <span class="csb-line">${csbLine}</span>
             </div>
           </div>
         </div>
-        <div class="scanner-price" style="color:${(isBuySignal && t === 'UPTREND') ? 'var(--buy)' : (isSellSignal && t === 'DOWNTREND') ? 'var(--sell)' : 'inherit'}">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}</div>
+        <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
         ${(() => { const p = signalPerf(item); return p ? `<div class="scanner-since-sig ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">Since ${p.signal}: ${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</div>` : ''; })()}
         ${perfRow ? `<div class="perf-row">${perfRow}</div>` : ''}
         ${(() => {
@@ -2681,8 +2717,8 @@
           const extras = [];
           const push = (p, html) => { if (html) extras.push({ p, html }); };
           push(60, item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : '');
-          push(55, compression ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE</span>' : '');
-          push(40, age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : '');
+          push(55, compression ? `<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE${!isNaN(ribbonSpread) ? ' ' + ribbonSpread.toFixed(1) + '%' : ''}</span>` : '');
+          push(40, (!hasBuyAction && !hasSellAction && age.label) ? `<span class="sig-age ${age.decayClass}">${lastSigType ? lastSigType + ' ' : ''}${age.label}</span>` : '');
           push(35, trendMaturityBadge(item));
           push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : '');
           extras.sort((a, b) => b.p - a.p);
@@ -2691,19 +2727,14 @@
           const overflow = extras.length > MAX
             ? `<span class="scanner-tag scanner-overflow" title="Open card to see all signals">+${extras.length - MAX}</span>`
             : '';
-          return `<div class="scanner-meta">
-            <span class="scanner-tag ${trendTag(t)}">${t}</span>
-            ${visible}${overflow}
-          </div>`;
+          return (visible || overflow) ? `<div class="scanner-meta">${visible}${overflow}</div>` : '';
         })()}
-        ${maOrderPct !== null ? `<div class="ma-order-gauge">
-          <span style="font-size:.6rem;color:var(--text-muted)">MA Order</span>
-          <div class="ma-order-track"><div class="ma-order-fill" style="width:${maOrderPct}%;background:${maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)'}"></div></div>
+        ${maOrderPct !== null ? `<div class="ma-order-gauge" title="${maOrder} of ${maMaxPairs} MA pairs in bullish order">
+          <span style="font-size:.6rem;color:var(--text-muted)">MA order</span>
+          <div class="ma-order-segs">${Array.from({ length: maMaxPairs }, (_, si) =>
+            `<span class="ma-order-seg${si < maOrder ? ' on' : ''}"${si < maOrder ? ` style="background:${barColor}"` : ''}></span>`).join('')}</div>
           <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
-        <div class="scanner-mini-bar" style="background:var(--border)">
-          <div class="scanner-mini-bar-inner" style="width:${barWidth}%;background:${barColor}"></div>
-        </div>
       </div>`;
     };
 
@@ -3793,14 +3824,37 @@
       const priceStr = d.close ? `<span class="tc-price">${d.close < 10 ? d.close.toFixed(3) : d.close < 1000 ? d.close.toFixed(2) : d.close.toFixed(0)}</span>` : '';
       const volDot   = d.volSpike ? `<span class="tc-vol-dot" title="Volume spike">VOL</span>` : '';
 
-      // Mini history strip
+      // Mini history strip + year axis + caption (strip spans today − histTotal → today)
       const histTotal = d.histSegs.reduce((a,s) => a+s.days, 0);
-      const histHtml  = d.histSegs.length >= 2
-        ? `<div class="tc-hist-strip">${d.histSegs.map(s => {
-            const pct = histTotal ? (s.days/histTotal*100).toFixed(1) : '12.5';
-            const hc  = s.direction === 'UPTREND' ? 'var(--buy)' : 'var(--sell)';
-            return `<div class="tc-hist-seg" style="flex:${s.days};background:${hc}" title="${s.direction === 'UPTREND' ? '↑' : '↓'} ${s.days}d"></div>`;
-          }).join('')}</div>` : '';
+      let histHtml = '';
+      if (d.histSegs.length >= 2 && histTotal > 0) {
+        const segsHtml = d.histSegs.map(s => {
+          const hc = s.direction === 'UPTREND' ? 'var(--buy)' : 'var(--sell)';
+          return `<div class="tc-hist-seg" style="flex:${s.days};background:${hc}" title="${s.direction === 'UPTREND' ? '↑' : '↓'} ${s.days}d"></div>`;
+        }).join('');
+        const MS_D = 86400000;
+        const hEnd = Date.now();
+        const hStart = hEnd - histTotal * MS_D;
+        let ticks = '';
+        for (let y = new Date(hStart).getFullYear() + 1; y <= new Date(hEnd).getFullYear(); y++) {
+          const p = (new Date(y, 0, 1).getTime() - hStart) / (histTotal * MS_D) * 100;
+          if (p < 4 || p > 96) continue;
+          ticks += `<span class="tc-hist-year" style="left:${p.toFixed(1)}%">${histTotal > 2200 ? '’' + String(y).slice(2) : y}</span>`;
+        }
+        const axis = ticks
+          ? `<div class="tc-hist-axis">${ticks}</div>`
+          : `<div class="tc-hist-axis"><span class="tc-hist-year" style="left:0;transform:none">${new Date(hStart).toISOString().slice(0, 7)}</span><span class="tc-hist-year" style="left:auto;right:0;transform:none">now</span></div>`;
+        const spanStr = histTotal >= 330
+          ? (histTotal / 365.25).toFixed(1).replace(/\.0$/, '') + 'y'
+          : Math.max(1, Math.round(histTotal / 30.4)) + 'mo';
+        const capTxt = d.hasData
+          ? `<span style="color:${d.upPct >= 50 ? 'var(--buy)' : 'var(--sell)'};font-weight:600">${d.upPct}%</span> of the last ${spanStr} in uptrend`
+          : '';
+        const matChip = d.avgCurrent
+          ? `<span class="tc-mat-chip" style="color:${matColor};border-color:${matColor}">${matIcon} ${d.maturity} — ${(d.pctOfAvg / 100).toFixed(1)}× the ${d.avgCurrent}d avg</span>`
+          : '';
+        histHtml = `<div class="tc-hist-strip">${segsHtml}</div>${axis}${(capTxt || matChip) ? `<div class="tc-hist-cap">${capTxt}${capTxt && matChip ? ' · ' : ''}${matChip}</div>` : ''}`;
+      }
 
       const _aiTrend = isAI(d.name);
 
@@ -3822,17 +3876,12 @@
           <span class="tc-sig-label" style="color:${sigColor}">${sigLabel}</span>
           <div style="display:flex;align-items:center;gap:5px">${volDot}${priceStr}</div>
         </div>
-        ${d.avgCurrent ? `<div class="tc-meta-row">
+        ${!histHtml && d.avgCurrent ? `<div class="tc-meta-row">
           <span class="tc-mat" style="color:${matColor}">${matIcon} ${d.maturity}</span>
           <span class="tc-avg">avg ${d.avgCurrent}d &middot; <span style="color:${matColor}">${d.pctOfAvg}%</span></span>
         </div>
         <div class="tc-mat-bar"><div class="tc-mat-fill" style="width:${matFill.toFixed(1)}%"></div></div>` : ''}
         ${histHtml}
-        ${d.hasData ? `<div class="tc-ratio-bar">
-          <div class="tc-rb-up" style="width:${d.upPct}%"></div>
-          <div class="tc-rb-down" style="width:${100-d.upPct}%"></div>
-        </div>
-        <div class="tc-ratio-lbl"><span style="color:var(--buy)">${d.upPct}% ↑</span><span style="color:var(--sell)">${100-d.upPct}% ↓</span></div>` : ''}
       </div>`;
     }).join('');
 
