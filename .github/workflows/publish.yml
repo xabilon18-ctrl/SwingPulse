@@ -44,10 +44,15 @@ jobs:
 
       # ── 3. Restore MA200 parquet cache ───────────────────────────────────
       # Node/Wrangler not needed in CI — R2 uploads go direct via CLOUDFLARE_API_TOKEN
+      # names_cache.json rides along: without it build_names() refetches all 741
+      # company names from yfinance every run, and a rate-limited run would
+      # publish a names.json full of blanks (cards show full names since v214).
       - name: Restore MA500 parquet cache
         uses: actions/cache@v4
         with:
-          path: swing_generator/cache_ma500
+          path: |
+            swing_generator/cache_ma500
+            swing_generator/output_ma500/names_cache.json
           key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
           restore-keys: parquet-ma500-${{ runner.os }}-
 
