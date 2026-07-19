@@ -169,8 +169,8 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 ---
 
 ## Current Versions
-- `app.js` — **v214** (scanner card v3: setup panel separates trend state + ribbon phase [REACTION/RALLY via `ribbonPos()`] from signal event chip; stats tiles 1D/1Y/VOL; corner csb chip, age badge, Since strip, perf pills, rvol pill removed; AI chip inline mini)
-- `style.css` — **v203** (`.sc-setup*`, `.sc-sig-chip*`, `.sc-stat*`, `.ai-chip-mini`, `.sc-ma-lbl`)
+- `app.js` — **v215** (setup panel extracted to shared `setupPanelHtml()` — used by scanner cards AND modal Overview; modal hero shows full name; Analyzed wl-cards get phase tag + signal code in age badge [also fixed stale `item.signal_date` field → ages were always "Today"]; Trends + Analyzed use `.ai-chip-mini`)
+- `style.css` — **v204** (dead CSS removed: `.card-signal-box`/`.csb-*`, `.perf-pill`/`.perf-label`, `.scanner-since-sig`, `.scanner-rvol`/`.rvol-*`, `.ai-label`, generic bg `.perf-pos/.perf-neg` duo)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)

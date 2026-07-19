@@ -2223,45 +2223,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   max-width: 56%;         /* never let actions eat more than half the card width */
 }
 
-/* Two-line trend + signal box on scanner cards */
-.card-signal-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 62px;
-  padding: 3px 7px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  gap: 1px;
-  line-height: 1.2;
-}
-.csb-trend {
-  font-size: .58rem;
-  font-weight: 700;
-  letter-spacing: .04em;
-  white-space: nowrap;
-}
-.csb-action {
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .06em;
-  min-height: 1em;
-}
-.csb-up   .csb-trend { color: var(--buy); }
-.csb-dn   .csb-trend { color: var(--sell); }
-.csb-neu  .csb-trend { color: var(--text-muted); }
-/* Single-line signal chip: direction glyph + code + action + age */
-.csb-line { font-size: .66rem; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
-.csb-up  .csb-line { color: var(--buy); }
-.csb-dn  .csb-line { color: var(--sell); }
-.csb-neu .csb-line { color: var(--text-muted); }
-.csb-buy  .csb-action { color: var(--buy); }
-.csb-sell .csb-action { color: var(--sell); }
-.csb-up:not(.csb-buy):not(.csb-sell) .csb-action  { color: var(--text-muted); }
-.csb-dn:not(.csb-buy):not(.csb-sell) .csb-action  { color: var(--text-muted); }
-
 /* Signal row TV link alignment */
 .signal-row-name {
   display: flex;
@@ -2295,17 +2256,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .wl-signal-perf.perf-pos { background: var(--buy-soft);  color: var(--buy); }
 .wl-signal-perf.perf-neg { background: var(--sell-soft); color: var(--sell); }
-.scanner-since-sig {
-  display: inline-block;
-  font-size: .62rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin: 4px 0;
-  white-space: nowrap;
-}
-.scanner-since-sig.perf-pos { background: var(--buy-soft);  color: var(--buy); }
-.scanner-since-sig.perf-neg { background: var(--sell-soft); color: var(--sell); }
 
 /* ── TradingView Picker Popover ──────────────────────────────────────── */
 .tv-picker {
@@ -2581,24 +2531,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   background-repeat: no-repeat !important;
   background-position: center !important;
 }
-
-/* ── AI label chip ── */
-.ai-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: .58rem;
-  font-weight: 700;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: #a78bfa;
-  background: rgba(139,92,246,.1);
-  border: 1px solid rgba(139,92,246,.22);
-  border-radius: 4px;
-  padding: 1px 5px;
-  white-space: nowrap;
-}
-.ai-label::before { content: '⬡'; font-size: .55rem; }
 
 /* Signal row */
 .tc-signal-row {
@@ -5614,39 +5546,6 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   flex-wrap: wrap;
   margin: 4px 0 2px;
 }
-
-/* Per-card relative volume — today's volume vs its own rolling average */
-.scanner-rvol {
-  display: inline-flex; align-items: baseline; gap: 3px;
-  align-self: flex-start; width: fit-content;
-  font-size: .66rem; font-weight: 800; font-variant-numeric: tabular-nums;
-  padding: 2px 7px; border-radius: 4px; margin: 2px 0;
-  background: var(--volume-soft); color: var(--volume);
-}
-.scanner-rvol .rvol-label {
-  font-size: .56rem; font-weight: 700; letter-spacing: .06em; opacity: .8;
-}
-.scanner-rvol .rvol-suffix { font-size: .56rem; font-weight: 600; opacity: .65; }
-/* Below-average volume is muted; at/above average uses the volume accent */
-.scanner-rvol.rvol-dn  { background: var(--bg-elevated); color: var(--text-tertiary, var(--text-secondary)); }
-.scanner-rvol.rvol-hot { box-shadow: inset 0 0 0 1px var(--volume); }
-.perf-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: .62rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: .01em;
-}
-.perf-label {
-  font-weight: 500;
-  opacity: .7;
-  font-size: .58rem;
-}
-.perf-pos { background: rgba(16,185,129,.12); color: var(--buy); }
-.perf-neg { background: rgba(239,68,68,.10);  color: var(--sell); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Signal Track Record Card

@@ -694,7 +694,8 @@
       "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/names.json\")",
       "Bash(curl -s -o /dev/null -w \"prod ticker-map.json -> %{http_code}\\\\n\" \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/ticker-map.json\")",
       "Bash(grep -v \"^$\")",
-      "Bash(grep -n \"^\\\\.perf-pos\\\\|^\\\\.perf-neg\\\\|\\\\.perf-pos {\\\\|\\\\.perf-neg {\\\\|\\\\.perf-pos,\\\\|\\\\.perf-neg,\" \"/Users/zabmbandze/Documents/Trading/Swing Trading Strategy/swing_generator/webapp/static/css/style.css\")"
+      "Bash(grep -n \"^\\\\.perf-pos\\\\|^\\\\.perf-neg\\\\|\\\\.perf-pos {\\\\|\\\\.perf-neg {\\\\|\\\\.perf-pos,\\\\|\\\\.perf-neg,\" \"/Users/zabmbandze/Documents/Trading/Swing Trading Strategy/swing_generator/webapp/static/css/style.css\")",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/publish.yml'\\)\\); print\\('publish.yml YAML valid'\\)\")"
     ]
   }
 }

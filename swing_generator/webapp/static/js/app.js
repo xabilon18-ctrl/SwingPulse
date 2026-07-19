@@ -997,6 +997,50 @@
     return 'inside';
   }
 
+  function ribbonPhase(item, t) {
+    if (ribbonPos(item) !== 'inside') return '';
+    return t === 'UPTREND' ? 'REACTION' : t === 'DOWNTREND' ? 'RALLY' : '';
+  }
+
+  // Setup panel — shared by the scanner cards and the instrument modal:
+  // line 1 = market state (trend + ribbon phase), line 2 = signal event +
+  // since-fire performance. Trend and signal never share an element, so
+  // counter-trend signals stay visible.
+  const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA25', S2: 'lost MA25', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
+  function setupPanelHtml(item) {
+    const t = effectiveTrend(item);
+    const sig = item[f('primary_signal')] || '';
+    const buySig = isBuy(item);
+    const lastSigType = item[f('last_signal_type')] || '';
+    const lastIsBuy = lastSigType.startsWith('B');
+    const lastSigAge = signalAge(item[f('last_signal_date')] || '').label;
+    const conf = (item[f('signal_confidence')] || '').toLowerCase();
+    const pos = ribbonPos(item);
+    const phase = ribbonPhase(item, t);
+    let posNote = pos === 'inside' ? 'price in ribbon' : pos === 'above' ? 'price above ribbon' : pos === 'below' ? 'price below ribbon' : '';
+    if (phase === 'REACTION') posNote = 'in MAs — watch B2 / B3 / B4';
+    if (phase === 'RALLY')    posNote = 'in MAs — watch S2 / S3 / S4';
+    const stGlyph = t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
+    const stCls   = t === 'UPTREND' ? 'sc-state-up' : t === 'DOWNTREND' ? 'sc-state-dn' : 'sc-state-neu';
+    const stateLine = `<div class="sc-setup-state ${stCls}">${stGlyph} ${t}${phase ? ` <span class="sc-phase">· ${phase}</span>` : ''}${posNote ? ` <span class="sc-hint">${posNote}</span>` : ''}</div>`;
+
+    let sigChip;
+    if (sig) {
+      sigChip = `<span class="sc-sig-chip ${buySig ? 'sc-sig-buy' : 'sc-sig-sell'}">${sig} ${buySig ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}${conf ? ' · ' + conf : ''}</span>`;
+    } else if (lastSigType) {
+      sigChip = `<span class="sc-sig-chip sc-sig-aged"><b class="${lastIsBuy ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b>${lastSigAge ? ' · ' + lastSigAge : ''}${SIG_CTX[lastSigType] ? ` · <span class="sc-ctx">${SIG_CTX[lastSigType]}</span>` : ''}</span>`;
+    } else {
+      sigChip = '<span class="sc-sig-chip sc-sig-aged">no recent signal</span>';
+    }
+    const sp = signalPerf(item);
+    const sinceHtml = sp ? `<span class="sc-since ${parseFloat(sp.pct) >= 0 ? 'perf-pos' : 'perf-neg'}" title="Since ${sp.signal} on ${sp.date} (${sp.days}d)">${parseFloat(sp.pct) >= 0 ? '+' : ''}${sp.pct}% since</span>` : '';
+
+    return `<div class="sc-setup ${t === 'UPTREND' ? 'sc-setup-up' : t === 'DOWNTREND' ? 'sc-setup-dn' : 'sc-setup-neu'}">
+      ${stateLine}
+      <div class="sc-setup-event">${sigChip}${sinceHtml}</div>
+    </div>`;
+  }
+
   function animateCount(el, target) {
     const start = parseInt(el.textContent) || 0;
     const diff = target - start;
@@ -2658,13 +2702,7 @@
 
     const makeCard = (item, i) => {
       const t = effectiveTrend(item);
-      const sig = item[f('primary_signal')] || '';
       const _aiScan  = isAI(item.instrument_name);
-      const isBuySignal  = isBuy(item);
-      const isSellSignal = isSell(item);
-      const lastSigType = item[f('last_signal_type')] || '';
-      const lastSigAge  = signalAge(item[f('last_signal_date')] || '').label;
-      const lastIsBuy   = lastSigType.startsWith('B');
       const runDays = parseInt(item[f('trend_run_days')]) || 0;
       const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
       const compression = item[f('ribbon_compression')] === 'yes';
@@ -2679,31 +2717,6 @@
       const pct = pctFromMa(item);
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
-
-      // ── Setup panel: line 1 = market state (trend + ribbon phase), line 2 =
-      // signal event + since-fire performance. Trend and signal never share an
-      // element, so counter-trend signals stay visible.
-      const pos = ribbonPos(item);
-      let phase = '';
-      let posNote = pos === 'inside' ? 'price in ribbon' : pos === 'above' ? 'price above ribbon' : pos === 'below' ? 'price below ribbon' : '';
-      if (t === 'UPTREND'  && pos === 'inside') { phase = 'REACTION'; posNote = 'in MAs — watch B2 / B3 / B4'; }
-      if (t === 'DOWNTREND' && pos === 'inside') { phase = 'RALLY';   posNote = 'in MAs — watch S2 / S3 / S4'; }
-      const stGlyph = t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
-      const stCls   = t === 'UPTREND' ? 'sc-state-up' : t === 'DOWNTREND' ? 'sc-state-dn' : 'sc-state-neu';
-      const stateLine = `<div class="sc-setup-state ${stCls}">${stGlyph} ${t}${phase ? ` <span class="sc-phase">· ${phase}</span>` : ''}${posNote ? ` <span class="sc-hint">${posNote}</span>` : ''}</div>`;
-
-      const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA25', S2: 'lost MA25', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
-      const conf = (item[f('signal_confidence')] || '').toLowerCase();
-      let sigChip;
-      if (sig) {
-        sigChip = `<span class="sc-sig-chip ${isBuySignal ? 'sc-sig-buy' : 'sc-sig-sell'}">${sig} ${isBuySignal ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}${conf ? ' · ' + conf : ''}</span>`;
-      } else if (lastSigType) {
-        sigChip = `<span class="sc-sig-chip sc-sig-aged"><b class="${lastIsBuy ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b>${lastSigAge ? ' · ' + lastSigAge : ''}${SIG_CTX[lastSigType] ? ` · <span class="sc-ctx">${SIG_CTX[lastSigType]}</span>` : ''}</span>`;
-      } else {
-        sigChip = '<span class="sc-sig-chip sc-sig-aged">no recent signal</span>';
-      }
-      const sp = signalPerf(item);
-      const sinceHtml = sp ? `<span class="sc-since ${parseFloat(sp.pct) >= 0 ? 'perf-pos' : 'perf-neg'}" title="Since ${sp.signal} on ${sp.date} (${sp.days}d)">${parseFloat(sp.pct) >= 0 ? '+' : ''}${sp.pct}% since</span>` : '';
 
       // Stats row: three uniform tiles (1D / 1Y / VOL)
       const statTile = (label, val) => {
@@ -2730,10 +2743,7 @@
           </div>
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
-        <div class="sc-setup ${t === 'UPTREND' ? 'sc-setup-up' : t === 'DOWNTREND' ? 'sc-setup-dn' : 'sc-setup-neu'}">
-          ${stateLine}
-          <div class="sc-setup-event">${sigChip}${sinceHtml}</div>
-        </div>
+        ${setupPanelHtml(item)}
         <div class="sc-stats">${statTile('1D', item.pct_1d)}${statTile('1Y', item.pct_1y)}${volTile}</div>
         ${(() => {
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
@@ -3159,7 +3169,9 @@
       const buy  = isBuy(item), sell = isSell(item);
       const roc  = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-      const age  = signalAge(item.signal_date || item.date || '');
+      const lastSigType = item[f('last_signal_type')] || '';
+      const age  = signalAge(item[f('last_signal_date')] || '');
+      const phase = ribbonPhase(item, t);
       const hasAlert = !!(item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
       const _aiWl = isAI(item.instrument_name);
       return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
@@ -3167,8 +3179,7 @@
           <div class="wl-card-left">
             <span class="wl-card-name">${item.instrument_name} ${noteIndicator(item.instrument_name)}</span>
             ${instName(item.instrument_name) ? `<span class="inst-fullname">${instName(item.instrument_name)}</span>` : ''}
-            ${_aiWl ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
-            <span class="wl-card-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</span>
+            <span class="wl-card-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}${_aiWl ? ' <span class="ai-chip-mini">AI</span>' : ''}</span>
           </div>
           <div class="wl-card-right">
             <span class="wl-card-price">${formatPrice(item[f('close')])}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}">${rocStr}</span>` : ''}</span>
@@ -3182,7 +3193,8 @@
         </div>
         <div class="wl-card-badges">
           <span class="scanner-tag ${trendTag(t)}">${t}</span>
-          ${age.label ? `<span class="sig-age ${age.decayClass}">${age.label}</span>` : ''}
+          ${phase ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${phase}</span>` : ''}
+          ${lastSigType && age.label ? `<span class="sig-age ${age.decayClass}"><b class="${lastSigType.startsWith('B') ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b> ${age.label}</span>` : ''}
           ${hasAlert ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">⚡ Alert</span>` : ''}
         </div>
       </div>`;
@@ -3484,6 +3496,7 @@
               <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Unmark as analyzed' : 'Mark as analyzed'}">★</button>
               <div class="mh-name">${item.instrument_name}</div>
             </div>
+            ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
           </div>
           <div class="mh-sig-wrap">
@@ -3511,6 +3524,8 @@
 
       <!-- ===== OVERVIEW PANEL ===== -->
       <div class="mh-panel" id="mhPanel-overview">
+        ${setupPanelHtml(item)}
+
         ${radarBreakdownHtml}
 
         ${confCtx && conf ? `<div class="mh-conf-ctx">
@@ -3884,7 +3899,7 @@
         <div class="tc-header">
           <div class="tc-name-wrap">
             <span class="tc-name">${d.name}</span>
-            ${_aiTrend ? '<span class="ai-label">Artificial Intelligence</span>' : ''}
+            ${_aiTrend ? '<span class="ai-chip-mini">AI</span>' : ''}
             <span class="tc-group">${d.group}</span>
           </div>
           <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
