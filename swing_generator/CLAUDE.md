@@ -151,6 +151,7 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 | `/api/history/{name}` | `{ ticker, data: [{date, open, high, low, close, volume, ma_25...ma_500}] }` — 600 bars |
 | `/api/tv-map` | `{ instrument_name: "EXCHANGE:SYMBOL" }` for TradingView links |
 | `/api/ticker-map` | `{ display_name: ticker }` |
+| `/api/names` | `{ display_name: full company name }` — keyed by display name since 2026-07-19 (was yf ticker, which never matched `instName()` lookups) |
 | `/api/ai-instruments` | List of AI-sector instrument names |
 | `/api/explanations` | Signal explanation text map |
 | `/api/flow` | Capital flow data for a group/region/period |
@@ -168,8 +169,8 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 ---
 
 ## Current Versions
-- `app.js` — **v213** (sector radar v2: every spoke labeled with z, tilt-colored stems, warming tier ≥1σ, quiet-day collapse to header row)
-- `style.css` — **v201** (`.sr-quiet-badge`, `.sr-collapsed`)
+- `app.js` — **v214** (scanner card v3: setup panel separates trend state + ribbon phase [REACTION/RALLY via `ribbonPos()`] from signal event chip; stats tiles 1D/1Y/VOL; corner csb chip, age badge, Since strip, perf pills, rvol pill removed; AI chip inline mini)
+- `style.css` — **v203** (`.sc-setup*`, `.sc-sig-chip*`, `.sc-stat*`, `.ai-chip-mini`, `.sc-ma-lbl`)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)

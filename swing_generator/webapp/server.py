@@ -1056,6 +1056,18 @@ def api_ledger():
         return jsonify(_json.load(f))
 
 
+@app.route('/api/names')
+def api_names():
+    """Return {display_name: full company name} built by publish.py build_names().
+    Reads the file the last publish wrote; empty until a publish has run."""
+    import json as _json
+    path = os.path.join(os.path.dirname(__file__), 'publish', 'data_ma500', 'names.json')
+    if not os.path.exists(path):
+        return jsonify({})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
 @app.route('/api/sector-radar')
 def api_sector_radar():
     """Return the sector activity radar summary written by sector_activity.py."""

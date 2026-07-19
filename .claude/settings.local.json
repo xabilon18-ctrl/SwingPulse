@@ -686,7 +686,15 @@
       "Bash(node scripts/validate_palette.js \"#10b981,#ef4444,#f59e0b,#8b5cf6\" --mode dark --surface \"#121211\")",
       "Bash(python3 radar_v2.py)",
       "Bash(curl -s http://localhost:5050/api/sector-radar)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\\\\n\" \"https://swingpulse200.pages.dev/api/sector-radar\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\\\\n\" \"https://swingpulse200.pages.dev/api/sector-radar\")",
+      "Bash(echo \"ORIGIN_EXIT=$?\")",
+      "Bash(echo \"PROD_EXIT=$?\")",
+      "Bash(curl -s http://localhost:5050/api/names)",
+      "Bash(curl -s -o /dev/null -w \"local /api/names -> %{http_code}\\\\n\" http://localhost:5050/api/names)",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/names.json\")",
+      "Bash(curl -s -o /dev/null -w \"prod ticker-map.json -> %{http_code}\\\\n\" \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/ticker-map.json\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -n \"^\\\\.perf-pos\\\\|^\\\\.perf-neg\\\\|\\\\.perf-pos {\\\\|\\\\.perf-neg {\\\\|\\\\.perf-pos,\\\\|\\\\.perf-neg,\" \"/Users/zabmbandze/Documents/Trading/Swing Trading Strategy/swing_generator/webapp/static/css/style.css\")"
     ]
   }
 }

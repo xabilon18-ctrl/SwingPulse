@@ -7244,6 +7244,39 @@ body {
 .sr-badge.sr-hot-badge { color: var(--accent); }
 .sr-badge.sr-quiet-badge { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); padding: 3px 10px; border-radius: 8px; }
 .card.sr-collapsed .card-header { margin-bottom: 0; }
+
+/* ── Scanner card v3: setup panel (state + signal) and stats row ── */
+.sc-setup { background: var(--bg-elevated); border: 1px solid #242423; border-left-width: 3px; border-radius: 12px; padding: 10px 12px; margin: 8px 0 10px; }
+.sc-setup-up  { border-left-color: var(--buy); }
+.sc-setup-dn  { border-left-color: var(--sell); }
+.sc-setup-neu { border-left-color: #6b7280; }
+.sc-setup-state { font-size: .82rem; font-weight: 700; letter-spacing: .03em; }
+.sc-state-up  { color: var(--buy); }
+.sc-state-dn  { color: var(--sell); }
+.sc-state-neu { color: var(--text-secondary); }
+.sc-phase { color: var(--accent); }
+.sc-hint { color: var(--text-muted); font-weight: 400; font-size: .68rem; letter-spacing: 0; }
+.sc-setup-event { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
+.sc-sig-chip { font-size: .76rem; font-weight: 700; padding: 4px 11px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sc-sig-buy  { background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); color: var(--buy); }
+.sc-sig-sell { background: var(--sell-soft); border: 1px solid rgba(239,68,68,.4); color: var(--sell); }
+.sc-sig-aged { background: var(--bg-card); border: 1px solid #2c2c2b; color: var(--text-secondary); font-weight: 600; }
+.sc-code-buy  { color: var(--buy); }
+.sc-code-sell { color: var(--sell); }
+.sc-ctx { color: var(--text-muted); font-weight: 400; }
+.sc-since { font-size: .7rem; font-weight: 600; flex: 0 0 auto; }
+.sc-since.perf-pos { color: var(--buy); background: none; }
+.sc-since.perf-neg { color: var(--sell); background: none; }
+.sc-stats { display: flex; gap: 8px; margin: 0 0 10px; }
+.sc-stat { flex: 1; background: var(--bg-elevated); border: 1px solid #242423; border-radius: 10px; padding: 7px 10px; min-width: 0; }
+.sc-stat-lbl { font-size: .58rem; font-weight: 600; letter-spacing: .1em; color: var(--text-muted); }
+.sc-stat-val { font-size: .8rem; font-weight: 700; margin-top: 2px; }
+.sc-stat-val.perf-pos { color: var(--buy); background: none; }
+.sc-stat-val.perf-neg { color: var(--sell); background: none; }
+.sc-stat-val.sc-stat-vol { color: var(--volume, #a78bfa); }
+.sc-stat-val.sc-stat-na { color: var(--text-muted); font-weight: 400; }
+.ai-chip-mini { border: 1px solid rgba(139,92,246,.5); color: #a78bfa; font-size: .56rem; font-weight: 600; letter-spacing: .1em; padding: 1px 7px; border-radius: 99px; vertical-align: 1px; }
+.sc-ma-lbl { font-size: .58rem; font-weight: 600; letter-spacing: .1em; color: var(--text-muted); }
 .sr-radar-svg { width: 100%; max-width: 460px; height: auto; display: block; margin: 0 auto; }
 .sr-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sr-hot-card { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: background .15s; }

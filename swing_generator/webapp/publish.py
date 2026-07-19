@@ -435,19 +435,22 @@ def build_names():
         except Exception:
             pass
 
+    # result is keyed by the DISPLAY name (item.instrument_name — what app.js
+    # instName() looks up); the cache stays keyed by yfinance ticker.
     instruments = load_instruments()
-    tickers     = [inst['ticker'] for inst in instruments]
     result      = {}
     fetched     = 0
 
-    for ticker in tickers:
+    for inst in instruments:
+        ticker = inst['ticker']
+        disp   = inst['name']
         # 1. Hard override wins
         if ticker in OVERRIDES:
-            result[ticker] = OVERRIDES[ticker]
+            result[disp] = OVERRIDES[ticker]
             continue
         # 2. Cache hit
         if ticker in cache and cache[ticker]:
-            result[ticker] = cache[ticker]
+            result[disp] = cache[ticker]
             continue
         # 3. Fetch from yfinance
         try:
@@ -468,12 +471,12 @@ def build_names():
             name = _re.sub(r'\s{2,}[A-Za-z]\s*$', '', name).strip()
             name = name.rstrip(',').strip()
             cache[ticker] = name
-            result[ticker] = name
+            result[disp] = name
             fetched += 1
         except Exception as exc:
             print(f'    ✗ Name fetch failed for {ticker}: {exc}')
             cache[ticker] = ''
-            result[ticker] = ''
+            result[disp] = ''
 
     # Persist updated cache
     try:
