@@ -19,7 +19,7 @@
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
   let sectorRadarData = null; // { sectors, baseline_days, alert_z } from sector_activity.py
-  let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (provisional)
+  let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
@@ -489,8 +489,10 @@
     return 'NEUTRAL';
   }
 
-  // ── Sector-mood conviction layer (PROVISIONAL — validated on raw returns only,
-  // not yet in R; see sector-mood-signal-plan). Data from instrument_flavours.json.
+  // ── Sector-mood conviction layer (VALIDATED 2026-07-22 on real backtested R,
+  // Phase 0 / 14.5k trades: SELL+sell_thrust +0.15R t2.6, BUY-into-fighting -0.16R
+  // t-3.2, SELL+market_wide -0.23R t-3.7; one up-market regime, daily only).
+  // Data from instrument_flavours.json.
   const FLAVOUR_CHIP = {
     normal:       { cls: 'm-calm',   lbl: 'CALM' },
     buy_thrust:   { cls: 'm-active', lbl: 'ACTIVE · no edge' },
@@ -505,7 +507,7 @@
     const fl = flavourOf(item);
     const c = FLAVOUR_CHIP[fl] || FLAVOUR_CHIP.normal;
     const sec = (item.sector || item.group || '').toUpperCase();
-    return `<span class="sc-mood-chip ${c.cls}" title="Sector mood today (provisional): ${fl.replace('_',' ')}"><i class="mood-dot"></i>${sec ? sec + ' · ' : ''}${c.lbl}</span>`;
+    return `<span class="sc-mood-chip ${c.cls}" title="Sector mood today: ${fl.replace('_',' ')}"><i class="mood-dot"></i>${sec ? sec + ' · ' : ''}${c.lbl}</span>`;
   }
   // Grade a fired signal by its sector's mood. Maps to the validated candidate
   // rules: SELL+sell_thrust = confirmed (+); BUY into sinking/churn = fighting (−);
@@ -1253,7 +1255,7 @@
     }
   }
 
-  // Sector-mood market state (provisional): sit-out warning on market-wide churn
+  // Sector-mood market state (validated Phase 0): sit-out warning on market-wide churn
   // days, otherwise a stock-picking-OK note when there are fresh fires.
   function renderMarketState() {
     const el = document.getElementById('marketStateBanner');
@@ -1264,11 +1266,11 @@
     if (flavourMkt.market_wide) {
       el.innerHTML = `<div class="market-state sit"><div class="ms-ic">🌐</div><div>`
         + `<div class="ms-t">Sit-out day — market-wide churn</div>`
-        + `<div class="ms-s">Every sector is firing at once (options-expiry / rebalance). Signals are unreliable today and <b>sells often snap back up</b>. Best to hold, not chase. <span class="ms-prov">provisional</span></div></div></div>`;
+        + `<div class="ms-s">Every sector is firing at once (options-expiry / rebalance). Signals are unreliable today and <b>sells often snap back up</b> (−0.23R vs normal). Best to hold, not chase. <span class="ms-prov">validated · 2024–26</span></div></div></div>`;
     } else if (fires.length) {
       el.innerHTML = `<div class="market-state ok"><div class="ms-ic">✓</div><div>`
         + `<div class="ms-t">Stock-picking conditions</div>`
-        + `<div class="ms-s">Sectors moving on their own.${confirmed ? ` <b>${confirmed} sector-confirmed</b> setup${confirmed > 1 ? 's' : ''} today.` : ''}${fighting ? ` ${fighting} fighting-sector fire${fighting > 1 ? 's' : ''} dimmed.` : ''} <span class="ms-prov">grades provisional</span></div></div></div>`;
+        + `<div class="ms-s">Sectors moving on their own.${confirmed ? ` <b>${confirmed} sector-confirmed</b> setup${confirmed > 1 ? 's' : ''} today.` : ''}${fighting ? ` ${fighting} fighting-sector fire${fighting > 1 ? 's' : ''} dimmed.` : ''} grades <span class="ms-prov">validated · 2024–26</span></div></div></div>`;
     } else {
       el.innerHTML = '';
     }
@@ -2837,7 +2839,7 @@
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const starred = userStarred.has(item.instrument_name);
       const pct = pctFromMa(item);
-      const conv = convictionOf(item);   // sector-mood grade (provisional); null when no signal
+      const conv = convictionOf(item);   // sector-mood grade (validated Phase 0); null when no signal
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
