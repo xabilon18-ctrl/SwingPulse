@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=204">
+  <link rel="stylesheet" href="/static/css/style.css?v=207">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -70,6 +70,9 @@
         <span id="staleBannerText">Data may be from a previous session</span>
         <button class="stale-dismiss" onclick="document.getElementById('staleBanner').style.display='none'">✕</button>
       </div>
+
+      <!-- ── Sector-mood market-state banner (provisional conviction layer) ── -->
+      <div id="marketStateBanner"></div>
 
       <!-- ── Market Pulse Card (gauge + breakdown) ── -->
       <div class="card mp-pulse-card" id="marketPulse">
@@ -402,6 +405,7 @@
           <label class="sig-adv-label">Sort by
             <select class="sig-adv-select" id="scannerSort">
               <option value="signal">Signal First</option>
+              <option value="conviction">Conviction ↓ (sector mood)</option>
               <option value="radar_score">Radar Score ↓</option>
               <option value="date_desc">Newest First</option>
               <option value="conf_desc">Confidence ↓</option>
@@ -587,6 +591,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=215"></script>
+  <script src="/static/js/app.js?v=219"></script>
 </body>
 </html>

@@ -7141,6 +7141,7 @@ body {
 #sectorRadarBody { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 .sr-badge { font-size: .72rem; color: var(--text-muted); font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .5px; }
 .sr-badge.sr-hot-badge { color: var(--accent); }
+.sr-badge.sr-warm-badge { color: var(--accent); opacity: .8; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.28); padding: 3px 10px; border-radius: 8px; }
 .sr-badge.sr-quiet-badge { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); padding: 3px 10px; border-radius: 8px; }
 .card.sr-collapsed .card-header { margin-bottom: 0; }
 
@@ -7184,5 +7185,67 @@ body {
 .sr-hot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .78rem; font-weight: 600; letter-spacing: .8px; }
 .sr-hot-sub { font-size: .72rem; color: var(--text-secondary); margin-top: 3px; }
 .sr-hot-meta { font-size: .68rem; color: var(--text-muted); margin-top: 1px; }
+.sr-warm-card { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s; opacity: .82; }
+.sr-warm-card:hover { background: var(--bg-hover); opacity: 1; }
+.sr-warm-card:active { transform: scale(.99); }
+.sr-warm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .74rem; font-weight: 600; letter-spacing: .6px; color: var(--text-secondary); }
 .sr-base-card { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: .72rem; color: var(--text-muted); }
+.sr-base-head { font-size: .66rem; letter-spacing: .04em; color: var(--text-muted); margin: 2px 0 6px; }
+.sr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-chip { font: inherit; font-size: .68rem; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px; cursor: pointer; transition: background .15s, border-color .15s; }
+.sr-chip:hover { background: var(--bg-hover); border-color: rgba(251,191,36,.35); color: var(--text-primary); }
+.sr-chip:active { transform: scale(.97); }
+.sr-chip-z { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.sr-spoke { -webkit-tap-highlight-color: transparent; }
+.sr-spoke:hover text, .sr-spoke:focus text { text-decoration: underline; }
+.sr-spoke:focus { outline: none; }
+.sr-spoke:focus-visible > text { text-decoration: underline; }
 .sr-legend { font-size: .66rem; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+
+/* ── Sector-mood conviction layer (PROVISIONAL — validated on raw returns only) ── */
+.sc-mood-chip { display: inline-flex; align-items: center; gap: 5px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .6rem; font-weight: 600; letter-spacing: .02em; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.sc-mood-chip .mood-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.sc-mood-chip.m-calm   { color: var(--text-secondary); background: var(--neutral-soft); }
+.sc-mood-chip.m-calm   .mood-dot { background: var(--text-muted); }
+.sc-mood-chip.m-active { color: var(--text-secondary); background: var(--neutral-soft); }
+.sc-mood-chip.m-active .mood-dot { background: var(--buy); }
+.sc-mood-chip.m-dist   { color: #fca5a5; background: var(--sell-soft); }
+.sc-mood-chip.m-dist   .mood-dot { background: var(--sell); }
+.sc-mood-chip.m-conf   { color: #fcd9a1; background: var(--watch-soft); }
+.sc-mood-chip.m-conf   .mood-dot { background: var(--watch); }
+.sc-mood-chip.m-churn  { color: #c9b8f2; background: var(--volume-soft); }
+.sc-mood-chip.m-churn  .mood-dot { background: var(--volume); }
+.sc-mood-chip.m-wide   { color: var(--text-secondary); background: var(--neutral-soft); }
+.sc-mood-chip.m-wide   .mood-dot { background: var(--text-secondary); }
+
+.sc-conv { display: flex; align-items: center; gap: 8px; padding-top: 9px; margin-top: 9px; border-top: 1px solid var(--border); }
+.sc-pips { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.sc-pip { width: 6px; height: 13px; border-radius: 2px; background: var(--neutral); opacity: .4; }
+.sc-pip.on { opacity: 1; }
+.sc-pip.on.buy  { background: var(--buy); }
+.sc-pip.on.sell { background: var(--sell); }
+.sc-pip.on.n    { background: var(--text-muted); opacity: .85; }
+.sc-conv-lab { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; }
+.sc-conv-lab.hi-buy  { color: var(--buy); }
+.sc-conv-lab.hi-sell { color: var(--sell); }
+.sc-conv-lab.std     { color: var(--text-muted); }
+.sc-conv-lab.low     { color: #fca5a5; }
+.sc-conv-note { font-size: .62rem; color: var(--text-muted); margin-left: auto; text-align: right; }
+.sc-conv-note.warn { color: #fca5a5; }
+
+/* card promote / demote by conviction */
+.scanner-card.sc-confirmed { border-color: rgba(239,68,68,.42); box-shadow: 0 0 0 1px rgba(239,68,68,.16); }
+.scanner-card.sc-fighting { opacity: .64; }
+
+/* market-state banner (Dashboard) */
+.market-state { display: flex; gap: 11px; align-items: flex-start; border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.market-state.sit { background: linear-gradient(180deg, rgba(245,158,11,.14), rgba(245,158,11,.05)); border: 1px solid rgba(245,158,11,.4); }
+.market-state.ok  { background: var(--buy-soft); border: 1px solid rgba(16,185,129,.3); }
+.market-state .ms-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; flex: 0 0 auto; }
+.market-state.sit .ms-ic { background: var(--watch-soft); }
+.market-state.ok  .ms-ic { background: var(--buy-soft); }
+.market-state .ms-t { font-weight: 700; font-size: .86rem; margin-bottom: 2px; }
+.market-state.sit .ms-t { color: var(--watch); }
+.market-state.ok  .ms-t { color: var(--buy); }
+.market-state .ms-s { font-size: .72rem; color: var(--text-secondary); line-height: 1.45; }
+.market-state .ms-prov { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }

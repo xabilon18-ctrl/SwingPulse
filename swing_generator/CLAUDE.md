@@ -169,8 +169,8 @@ Reason written to `confidence_context`. Rules mined by `edge_audit.py`; see `SIG
 ---
 
 ## Current Versions
-- `app.js` — **v215** (setup panel extracted to shared `setupPanelHtml()` — used by scanner cards AND modal Overview; modal hero shows full name; Analyzed wl-cards get phase tag + signal code in age badge [also fixed stale `item.signal_date` field → ages were always "Today"]; Trends + Analyzed use `.ai-chip-mini`)
-- `style.css` — **v204** (dead CSS removed: `.card-signal-box`/`.csb-*`, `.perf-pill`/`.perf-label`, `.scanner-since-sig`, `.scanner-rvol`/`.rvol-*`, `.ai-label`, generic bg `.perf-pos/.perf-neg` duo)
+- `app.js` — **v219** (sector-mood conviction layer, PROVISIONAL: scanner cards get a `.sc-mood-chip` (sector flavour today) + a `.sc-conv` grade row (pips + label); SELL+sell_thrust = confirmed/glow, BUY into sinking/churn or SELL on a market-wide day = fighting/dim; `convictionOf()`/`moodChipHtml()` read `instrument_flavours.json` (per-instrument, keyed by name). New "Conviction ↓" scanner sort + Dashboard `#marketStateBanner` (sit-out day on market-wide churn). Grade is DISPLAY-ONLY — does NOT touch the validated `signal_confidence`; validated on raw returns only, R-validation still pending. v217: sector radar interactive + activity-ranked; clickable `.sr-spoke`/`.sr-chip`s → `srGoToSector()`. v216: stays expanded on building days)
+- `style.css` — **v207** (`.sc-mood-chip`/`.sc-conv`/`.sc-pip` + `.scanner-card.sc-confirmed`/`.sc-fighting` promote/demote + `.market-state` banner; v206 `.sr-chip`/`.sr-spoke` clickable baseline chips)
 - `utils.js` — **v1**
 - `index.html` — bump all three `?v=` query strings when deploying UI changes
 - `Instruments.txt` — **741 instruments** (CHINA50→FXI swap + CHINAH added, 2026-07-12)

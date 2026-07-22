@@ -40,6 +40,7 @@ from instruments import load_instruments, radar_sector_of
 
 ACTIVITY_PATH = os.path.join(OUTPUT_DIR, 'sector_activity.json')
 RADAR_PATH    = os.path.join(OUTPUT_DIR, 'sector_radar.json')
+FLAVOUR_PATH  = os.path.join(OUTPUT_DIR, 'instrument_flavours.json')
 # Public R2 data prefix — keep in sync with R2_BASE_URL in webapp/publish.py
 R2_ACTIVITY_URL = ('https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
                    '/ma500/sector_activity.json')
@@ -50,6 +51,7 @@ BASELINE_DAYS  = 20      # trailing window for mean/std of rate
 MIN_BASELINE   = 10      # need at least this many trailing rows to score z
 Z_ALERT        = 1.5     # hot threshold (UI display-gates harder: z>=2 or 2 days)
 MIN_MEMBERS    = 8       # sectors below this are logged but never flagged hot
+MARKET_WIDE_MIN = 6      # >= this many sectors hot on one day = market-wide churn
 RETAIN_DAYS    = 400     # rows kept per sector
 
 
@@ -193,20 +195,43 @@ def _tilt(buys: int, sells: int) -> str:
     return 'mixed'
 
 
+def _classify_flavour(zs_sig, zs_vol, tilt: str, eligible: bool,
+                      market_wide: bool) -> str:
+    """Sector 'mood' for the latest day (ported from research/instrument_flavour_
+    check.build_flavours). Priority: market_wide > directional thrust > churn >
+    normal. zs_sig = z of (buys+sells)/members, zs_vol = z of vol_spikes/members,
+    both vs the trailing BASELINE_DAYS window. tilt = _tilt(buys, sells)."""
+    if not eligible or zs_sig is None:
+        return 'normal'
+    if market_wide:
+        return 'market_wide'
+    if zs_sig >= Z_ALERT:
+        return f'{tilt}_thrust' if tilt in ('buy', 'sell', 'mixed') else 'thrust'
+    if zs_vol is not None and zs_vol >= Z_ALERT and zs_sig < 1.0:
+        return 'churn'
+    return 'normal'
+
+
 def compute_radar(rows: dict) -> dict:
     by_sector: dict = {}
     for row in rows.values():
         by_sector.setdefault(row['sector'], []).append(row)
 
-    sectors = []
+    interim = []
+    hot_count = 0
     for sector, recs in sorted(by_sector.items()):
         recs.sort(key=lambda r: r['date'])
         latest = recs[-1]
         members = latest.get('members', 0)
+        m = members or 1
         zs = _z_series([r['rate'] for r in recs], members)
+        z_sig = _z_series([(r['buys'] + r['sells']) / m for r in recs], members)
+        z_vol = _z_series([r['vol_spikes'] / m for r in recs], members)
         z = zs[-1]
         eligible = members >= MIN_MEMBERS
         hot = bool(eligible and z is not None and z >= Z_ALERT)
+        if hot:
+            hot_count += 1
         elevated = 0
         for zi, ri in zip(reversed(zs), reversed(recs)):
             if eligible and zi is not None and zi >= Z_ALERT:
@@ -214,7 +239,7 @@ def compute_radar(rows: dict) -> dict:
             else:
                 break
         base = [r['rate'] for r in recs[-(BASELINE_DAYS + 1):-1]]
-        sectors.append({
+        interim.append({
             'sector':        sector,
             'date':          latest['date'],
             'members':       members,
@@ -228,15 +253,48 @@ def compute_radar(rows: dict) -> dict:
             'elevated_days': elevated,
             'tilt':          _tilt(latest['buys'], latest['sells']),
             'history_days':  len(recs),
+            '_z_sig':        z_sig[-1],
+            '_z_vol':        z_vol[-1],
+            '_eligible':     eligible,
         })
+
+    market_wide = hot_count >= MARKET_WIDE_MIN
+
+    sectors = []
+    for t in interim:
+        t['flavour'] = _classify_flavour(t.pop('_z_sig'), t.pop('_z_vol'),
+                                         t['tilt'], t.pop('_eligible'),
+                                         market_wide)
+        sectors.append(t)
 
     return {
         'generated_at':  _now(),
         'baseline_days': BASELINE_DAYS,
         'alert_z':       Z_ALERT,
         'min_members':   MIN_MEMBERS,
+        'market_wide':   market_wide,
         'sectors':       sectors,
     }
+
+
+def write_instrument_flavours(radar: dict) -> None:
+    """Per-instrument sector-mood map the Signals cards read (keyed by instrument
+    name via radar_sector_of, so the frontend needs no sector-mapping logic).
+    Provisional conviction layer — see [[sector-mood-signal-plan]]."""
+    name_to_sector, _ = _sector_maps()
+    sec_flav = {s['sector']: s['flavour'] for s in radar['sectors']}
+    payload = {
+        'generated_at': radar.get('generated_at'),
+        'market_wide':  radar.get('market_wide', False),
+        'instruments':  {name: sec_flav.get(sec, 'normal')
+                         for name, sec in name_to_sector.items()},
+        'sectors':      {s['sector']: {'flavour': s['flavour'], 'z': s['z'],
+                                       'buys': s['buys'], 'sells': s['sells'],
+                                       'tilt': s['tilt'], 'members': s['members']}
+                         for s in radar['sectors']},
+    }
+    with open(FLAVOUR_PATH, 'w') as f:
+        json.dump(payload, f, separators=(',', ':'))
 
 
 def write_radar(rows: dict) -> dict:
@@ -244,6 +302,7 @@ def write_radar(rows: dict) -> dict:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(RADAR_PATH, 'w') as f:
         json.dump(radar, f, separators=(',', ':'))
+    write_instrument_flavours(radar)
     return radar
 
 
