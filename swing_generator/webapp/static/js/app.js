@@ -31,6 +31,7 @@
   let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
+  let scannerMoodFilter = 'all';   // sector-mood filter (all/confirmed/fighting/calm/distributing/active/churn/mixed/marketwide)
   let scannerSort = 'signal';
   let scannerView = 'list';   // 'list' | 'ranked'
   let gpViewMode = 'region';   // 'group' | 'region'
@@ -540,6 +541,64 @@
     return `<div class="sc-conv">${convPipsHtml(c.pips, c.tone)}<span class="sc-conv-lab ${labCls}">${c.lab}</span><span class="sc-conv-note${c.pips === 0 ? ' warn' : ''}">${c.note}</span></div>`;
   }
 
+  // Plain-language verdict at the top of a card: fuses the signal's backtest
+  // confidence tier with the sector-mood grade into one "how strong is this" line.
+  function verdictOf(item) {
+    const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
+    if (!code) return null;
+    const buy = code[0] === 'B';
+    const dir = buy ? 'BUY' : 'SELL';
+    const fl = flavourOf(item);
+    // sector fights the signal → caution regardless of base confidence
+    if (!buy && fl === 'market_wide')
+      return { label: '⚠ LIKELY TRAP', sub: 'sell on a market-wide day', tone: 'warn' };
+    if (buy && (fl === 'sell_thrust' || fl === 'mixed_thrust' || fl === 'churn'))
+      return { label: '⚠ FIGHTING SECTOR', sub: 'buying into a sell-off', tone: 'warn' };
+    const conf = (item[f('signal_confidence')] || '').toLowerCase();
+    const conv = convictionOf(item);
+    let score = conf === 'high' ? 3 : conf === 'low' ? 1 : 2;       // backtest tier
+    if (conv && conv.pips === 3) score = Math.min(4, score + 1);    // sector-confirmed bump
+    if (score >= 4)   return { label: `★ HIGH-CONVICTION ${dir}`, sub: 'strong edge · sector agrees', tone: buy ? 'buy' : 'sell' };
+    if (score === 3)  return { label: `STRONG ${dir}`,            sub: 'above-average edge',        tone: buy ? 'buy' : 'sell' };
+    if (score === 2)  return { label: `${dir} SETUP`,             sub: 'standard edge',             tone: buy ? 'buy' : 'sell' };
+    return              { label: `⚠ LOW-EDGE ${dir}`,           sub: 'weak backtest edge',        tone: 'warn' };
+  }
+  function verdictBarHtml(item) {
+    const v = verdictOf(item);
+    if (!v) return '';
+    return `<div class="sc-verdict sc-v-${v.tone}"><span class="sc-v-label">${v.label}</span><span class="sc-v-sub">${v.sub}</span></div>`;
+  }
+
+  // Sector-mood filter/search predicates (shared by the Mood dropdown + search box).
+  function matchesMoodFilter(item, mood) {
+    const fl = flavourOf(item);
+    const conv = convictionOf(item);
+    switch (mood) {
+      case 'confirmed':    return !!(conv && conv.pips === 3);
+      case 'fighting':     return !!(conv && conv.pips === 0);
+      case 'calm':         return fl === 'normal';
+      case 'distributing': return fl === 'sell_thrust';
+      case 'active':       return fl === 'buy_thrust';
+      case 'churn':        return fl === 'churn';
+      case 'mixed':        return fl === 'mixed_thrust';
+      case 'marketwide':   return fl === 'market_wide';
+      default:             return true;
+    }
+  }
+  // Free-text mood terms so the search box finds e.g. "distributing", "confirmed".
+  const MOOD_SEARCH = {
+    confirmed: 'confirmed', 'sector-confirmed': 'confirmed', fighting: 'fighting',
+    trap: 'fighting', calm: 'calm', distributing: 'distributing', distribution: 'distributing',
+    active: 'active', churn: 'churn', mixed: 'mixed', 'market-wide': 'marketwide',
+    marketwide: 'marketwide',
+  };
+  function matchesMoodSearch(item, q) {
+    for (const term in MOOD_SEARCH) {
+      if (q.length >= 3 && term.startsWith(q) && matchesMoodFilter(item, MOOD_SEARCH[term])) return true;
+    }
+    return false;
+  }
+
   // Compute summary stats client-side from the active timeframe fields
   function computeSummary() {
     const data = getActiveData();
@@ -915,6 +974,8 @@
     // Instrument-level aliases
     const aliases = SEARCH_ALIASES[name] || [];
     if (aliases.some(a => a.includes(q) || q.includes(a))) return true;
+    // Sector-mood terms ("distributing", "confirmed", "calm", "trap", …)
+    if (matchesMoodSearch(item, q)) return true;
     return (
       (item.instrument_name || '').toLowerCase().includes(q) ||
       (namesData[item.instrument_name] || '').toLowerCase().includes(q) ||
@@ -2661,6 +2722,7 @@
   function buildScannerCards(appendPage = false, opts = {}) {
     try {
       _buildScannerCardsInner(appendPage, opts);
+      if (typeof updateFilterPills === 'function') updateFilterPills();
     } catch (err) {
       console.error('buildScannerCards crashed:', err);
       const grid = document.getElementById('scannerGrid');
@@ -2714,6 +2776,11 @@
     const rsiVal = rsiSel ? rsiSel.value : 'all';
     if (rsiVal !== 'all') {
       filtered = filtered.filter(d => rsiZone(d[f('rsi')]) === rsiVal);
+    }
+
+    // ── Sector-mood filter ──
+    if (scannerMoodFilter !== 'all') {
+      filtered = filtered.filter(d => matchesMoodFilter(d, scannerMoodFilter));
     }
 
     // ── Chip filter (skip when user is searching by name) ──
@@ -2868,6 +2935,7 @@
           </div>
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
+        ${verdictBarHtml(item)}
         ${setupPanelHtml(item)}
         <div class="sc-stats">${statTile('1D', item.pct_1d)}${statTile('1Y', item.pct_1y)}${volTile}</div>
         ${(() => {
@@ -3009,6 +3077,60 @@
       buildScannerCards();
     });
   })();
+
+  // ── Grouped filter pills (dropdown behavior + Mood filter) ──
+  const MOOD_LABELS = {
+    all: '', confirmed: 'Confirmed', fighting: 'Fighting', calm: 'Calm',
+    distributing: 'Distributing', active: 'Active', churn: 'Churn',
+    mixed: 'Mixed', marketwide: 'Market-wide',
+  };
+  function updateFilterPills() {
+    const catActive   = !!document.querySelector('#scannerCatChips .s-cat-chip.active');
+    const classActive = (document.getElementById('scannerClassFilter')?.value || 'all') !== 'all';
+    const ctxActive   = !['all', 'buy', 'sell'].includes(activeScannerFilter);
+    document.getElementById('pillClass')?.classList.toggle('has-active', catActive || classActive);
+    document.getElementById('pillFilters')?.classList.toggle('has-active', ctxActive);
+    const moodPill = document.getElementById('pillMood');
+    if (moodPill) {
+      moodPill.classList.toggle('has-active', scannerMoodFilter !== 'all');
+      const val = moodPill.querySelector('.fp-val');
+      if (val) val.textContent = scannerMoodFilter !== 'all' ? ' · ' + MOOD_LABELS[scannerMoodFilter] : '';
+    }
+  }
+
+  const moodOpts = document.getElementById('scannerMoodOpts');
+  if (moodOpts) {
+    moodOpts.addEventListener('click', e => {
+      const btn = e.target.closest('.mood-opt');
+      if (!btn) return;
+      moodOpts.querySelectorAll('.mood-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      scannerMoodFilter = btn.dataset.mood;
+      document.getElementById('pillMood')?.removeAttribute('open');
+      buildScannerCards();
+    });
+  }
+
+  // Picking a chip inside Class / Filters closes that dropdown (Signal opens a sheet, keep open)
+  document.getElementById('scannerCatChips')?.addEventListener('click', e => {
+    if (e.target.closest('.s-cat-chip')) document.getElementById('pillClass')?.removeAttribute('open');
+  });
+  document.querySelector('#pillFilters .sig-ctx-row')?.addEventListener('click', e => {
+    const chip = e.target.closest('.sig-ctx-chip');
+    if (chip && chip.id !== 'sigTypeBtn') document.getElementById('pillFilters')?.removeAttribute('open');
+  });
+
+  // Only one pill open at a time; click outside closes any open pill
+  document.querySelectorAll('.filter-pill').forEach(d => {
+    d.addEventListener('toggle', () => {
+      if (d.open) document.querySelectorAll('.filter-pill').forEach(o => { if (o !== d) o.removeAttribute('open'); });
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.filter-pill')) {
+      document.querySelectorAll('.filter-pill[open]').forEach(d => d.removeAttribute('open'));
+    }
+  });
 
   // Advanced filter selects — applied via Apply button in bottom sheet
   document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; });

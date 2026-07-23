@@ -7249,3 +7249,37 @@ body {
 .market-state.ok  .ms-t { color: var(--buy); }
 .market-state .ms-s { font-size: .72rem; color: var(--text-secondary); line-height: 1.45; }
 .market-state .ms-prov { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
+
+/* ── Top-of-card verdict bar (signal + confidence + sector mood → one call) ── */
+.sc-verdict { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 9px 0 3px; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-elevated); }
+.sc-v-label { font-weight: 800; font-size: .82rem; letter-spacing: .01em; }
+.sc-v-sub { font-size: .64rem; color: var(--text-muted); }
+.sc-verdict.sc-v-buy  { background: var(--buy-soft);   border-color: rgba(16,185,129,.38); }
+.sc-verdict.sc-v-buy  .sc-v-label { color: var(--buy); }
+.sc-verdict.sc-v-sell { background: var(--sell-soft);  border-color: rgba(239,68,68,.38); }
+.sc-verdict.sc-v-sell .sc-v-label { color: var(--sell); }
+.sc-verdict.sc-v-warn { background: var(--watch-soft); border-color: rgba(245,158,11,.42); }
+.sc-verdict.sc-v-warn .sc-v-label { color: var(--watch); }
+
+/* ── Grouped filter pills (native <details> dropdowns) ── */
+.sig-filter-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.filter-pill { position: relative; }
+.filter-pill > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 999px; padding: 7px 13px; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.filter-pill > summary::-webkit-details-marker { display: none; }
+.filter-pill > summary:active { transform: scale(.97); }
+.filter-pill[open] > summary { border-color: var(--border-active); color: var(--text-primary); }
+.filter-pill.has-active > summary { background: var(--accent-glow); border-color: rgba(251,191,36,.5); color: var(--accent); }
+.fp-chev { transition: transform .15s ease; flex: 0 0 auto; }
+.filter-pill[open] .fp-chev { transform: rotate(180deg); }
+.filter-pill.has-active .fp-cv::before { content: '•'; color: var(--accent); }
+.fp-val { font-weight: 700; color: var(--accent); }
+.filter-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 210px; max-width: min(92vw, 320px); background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 14px; padding: 12px; box-shadow: var(--shadow-lg); }
+.filter-pop .scanner-cat-chips, .filter-pop .sig-ctx-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
+
+/* mood options list */
+.mood-opts { display: flex; flex-direction: column; gap: 5px; min-width: 190px; }
+.mood-opt { text-align: left; font-size: .8rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mood-opt:hover { background: var(--bg-hover); color: var(--text-primary); }
+.mood-opt.active { background: var(--accent-glow); border-color: rgba(251,191,36,.5); color: var(--accent); }
+.mood-opt.mo-confirmed.active { background: var(--sell-soft); border-color: rgba(239,68,68,.5); color: var(--sell); }
+.mood-opt.mo-fighting.active, .mood-opt.mo-dist.active { background: var(--sell-soft); border-color: rgba(239,68,68,.4); color: #fca5a5; }

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=207">
+  <link rel="stylesheet" href="/static/css/style.css?v=208">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -264,25 +264,47 @@
         </div>
       </div>
 
-      <!-- Category chips (wrap, no scroll) -->
-      <div class="scanner-cat-chips" id="scannerCatChips">
-        <button class="s-cat-chip" data-cat="crypto">Crypto</button>
-        <button class="s-cat-chip" data-cat="indices">Indices</button>
-        <button class="s-cat-chip" data-cat="commodity">Commodity</button>
-        <button class="s-cat-chip" data-cat="us100">US100</button>
-        <button class="s-cat-chip" data-cat="us500">US500</button>
-        <button class="s-cat-chip" data-cat="banks">Banks</button>
-        <button class="s-cat-chip" data-cat="energy">Energy</button>
-        <button class="s-cat-chip" data-cat="tech">Tech</button>
-        <button class="s-cat-chip" data-cat="semi">Semis</button>
-        <button class="s-cat-chip" data-cat="ai">AI</button>
-      </div>
+      <!-- Grouped filter pills (dropdowns) -->
+      <div class="sig-filter-pills" id="sigFilterPills">
+        <details class="filter-pill" id="pillClass">
+          <summary>Class<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+          <div class="filter-pop">
+            <div class="scanner-cat-chips" id="scannerCatChips">
+              <button class="s-cat-chip" data-cat="crypto">Crypto</button>
+              <button class="s-cat-chip" data-cat="indices">Indices</button>
+              <button class="s-cat-chip" data-cat="commodity">Commodity</button>
+              <button class="s-cat-chip" data-cat="us100">US100</button>
+              <button class="s-cat-chip" data-cat="us500">US500</button>
+              <button class="s-cat-chip" data-cat="banks">Banks</button>
+              <button class="s-cat-chip" data-cat="energy">Energy</button>
+              <button class="s-cat-chip" data-cat="tech">Tech</button>
+              <button class="s-cat-chip" data-cat="semi">Semis</button>
+              <button class="s-cat-chip" data-cat="ai">AI</button>
+            </div>
+          </div>
+        </details>
 
-      <!-- Dashboard filter context strip -->
-      <div class="scanner-ctx-strip" id="scannerCtxStrip" style="display:none"></div>
+        <details class="filter-pill" id="pillMood">
+          <summary>Mood<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+          <div class="filter-pop">
+            <div class="mood-opts" id="scannerMoodOpts">
+              <button class="mood-opt active" data-mood="all">All moods</button>
+              <button class="mood-opt mo-confirmed" data-mood="confirmed">★ Sector-confirmed</button>
+              <button class="mood-opt mo-fighting" data-mood="fighting">⚠ Fighting / trap</button>
+              <button class="mood-opt" data-mood="calm">Calm sectors</button>
+              <button class="mood-opt mo-dist" data-mood="distributing">Distributing</button>
+              <button class="mood-opt" data-mood="active">Active · no edge</button>
+              <button class="mood-opt" data-mood="churn">Churn</button>
+              <button class="mood-opt" data-mood="mixed">Mixed</button>
+              <button class="mood-opt" data-mood="marketwide">Market-wide day</button>
+            </div>
+          </div>
+        </details>
 
-      <!-- Context filter chips (wrap) -->
-      <div class="sig-ctx-row">
+        <details class="filter-pill" id="pillFilters">
+          <summary>Filters<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+          <div class="filter-pop">
+            <div class="sig-ctx-row">
         <button class="sig-ctx-chip sig-chip-radar" id="radarChip" title="Radar score — tap to cycle: off → Prime ≥75 → Strong ≥50">🎯 <span class="radar-label">Radar</span></button>
         <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -313,10 +335,10 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
           <span class="analyzed-label">Analyzed</span>
         </button>
-      </div>
+            </div>
+          </div>
+        </details>
 
-      <!-- Direction toggle + advanced filters on one row -->
-      <div class="sig-dir-row">
         <div class="sig-dir-toggle" id="scannerFilterChips">
           <button class="sig-dir-btn active" data-filter="all">All</button>
           <button class="sig-dir-btn sig-dir-buy" data-filter="buy">Buy</button>
@@ -327,6 +349,9 @@
           <span id="sigFilterBadge" class="sig-filter-badge" style="display:none">0</span>
         </button>
       </div>
+
+      <!-- Dashboard filter context strip -->
+      <div class="scanner-ctx-strip" id="scannerCtxStrip" style="display:none"></div>
 
       <!-- Signal type bottom sheet -->
       <div class="sig-sheet-overlay" id="sigSheetOverlay"></div>
@@ -591,6 +616,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=221"></script>
+  <script src="/static/js/app.js?v=222"></script>
 </body>
 </html>
