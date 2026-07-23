@@ -1270,7 +1270,7 @@
     } else if (fires.length) {
       el.innerHTML = `<div class="market-state ok"><div class="ms-ic">✓</div><div>`
         + `<div class="ms-t">Stock-picking conditions</div>`
-        + `<div class="ms-s">Sectors moving on their own.${confirmed ? ` <b>${confirmed} sector-confirmed</b> setup${confirmed > 1 ? 's' : ''} today.` : ''}${fighting ? ` ${fighting} fighting-sector fire${fighting > 1 ? 's' : ''} dimmed.` : ''} grades <span class="ms-prov">validated · 2024–26</span></div></div></div>`;
+        + `<div class="ms-s">Sectors are moving on their own, not all together — a normal day to pick setups.${confirmed ? ` <b>${confirmed} sector-confirmed</b> setup${confirmed > 1 ? 's' : ''} today.` : ''}${fighting ? ` ${fighting} fighting-sector fire${fighting > 1 ? 's' : ''} dimmed.` : ''} <span class="ms-prov" title="Sector-mood grades were backtested on 2024–26 real trades">grades validated · 2024–26</span></div></div></div>`;
     } else {
       el.innerHTML = '';
     }
