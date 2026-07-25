@@ -169,9 +169,29 @@
     badge.classList.toggle('sync-name-unset', !syncUser);
   }
 
+  // Whole days between two YYYY-MM-DD strings, both read as UTC midnight so the
+  // result can't slip a day in a negative-offset timezone. `asOfStr` omitted
+  // falls back to the wall clock. Returns null on an unparseable date.
+  function daysBetween(dateStr, asOfStr) {
+    const utc = s => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+      return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN;
+    };
+    const from = utc(dateStr);
+    if (isNaN(from)) return null;
+    let to = utc(asOfStr);
+    if (isNaN(to)) {
+      const n = new Date();
+      to = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+    }
+    return Math.max(0, Math.round((to - from) / 86400000));
+  }
+
   // ── Signal Performance ("since fired") ───────────────────────────────
   // Engine-computed: last_signal_price is the fire-bar close, last_signal_date
   // the fire date (up to 20 bars back within the same trend). Same on every device.
+  // Age counts from the item's own latest BAR date, not the wall clock — a fire
+  // on the newest bar is 0d old however long the calendar has since moved on.
   function signalPerf(item) {
     const sig   = item[f('last_signal_type')] || '';
     const fired = parseFloat(item[f('last_signal_price')]) || 0;
@@ -179,8 +199,8 @@
     const date  = item[f('last_signal_date')] || '';
     if (!sig || !fired || !cur || !date) return null;
     const pct  = ((cur - fired) / fired) * 100;
-    const days = Math.max(0, Math.round((new Date() - new Date(date)) / 86400000));
-    return { pct: pct.toFixed(1), days, date, signal: sig };
+    const days = daysBetween(date, item[f('date')]);
+    return { pct: pct.toFixed(1), days: days === null ? 0 : days, date, signal: sig };
   }
 
   // ── Push Notifications ───────────────────────────────────────────────
@@ -492,84 +512,95 @@
 
   // ── Sector-mood conviction layer (VALIDATED 2026-07-22 on real backtested R,
   // Phase 0 / 14.5k trades: SELL+sell_thrust +0.15R t2.6, BUY-into-fighting -0.16R
-  // t-3.2, SELL+market_wide -0.23R t-3.7; one up-market regime, daily only).
+  // t-3.2, SELL+market_wide -0.23R t-3.7; one up-market regime, DAILY ONLY).
   // Data from instrument_flavours.json.
-  const FLAVOUR_CHIP = {
-    normal:       { cls: 'm-calm',   lbl: 'CALM' },
-    buy_thrust:   { cls: 'm-active', lbl: 'ACTIVE · no edge' },
-    sell_thrust:  { cls: 'm-dist',   lbl: 'DISTRIBUTING' },
-    mixed_thrust: { cls: 'm-conf',   lbl: 'MIXED' },
-    thrust:       { cls: 'm-active', lbl: 'ACTIVE' },
-    churn:        { cls: 'm-churn',  lbl: 'CHURN' },
-    market_wide:  { cls: 'm-wide',   lbl: 'MARKET-WIDE' },
-  };
-  function flavourOf(item) { return instFlavours[item.instrument_name] || 'normal'; }
-  function moodChipHtml(item) {
-    const fl = flavourOf(item);
-    const c = FLAVOUR_CHIP[fl] || FLAVOUR_CHIP.normal;
-    const sec = (item.sector || item.group || '').toUpperCase();
-    return `<span class="sc-mood-chip ${c.cls}" title="Sector mood today: ${fl.replace('_',' ')}"><i class="mood-dot"></i>${sec ? sec + ' · ' : ''}${c.lbl}</span>`;
+  //
+  // Two guards keep the display inside what was actually tested:
+  //   • 4H is never graded — Phase 0 ran TF='D' only.
+  //   • Only a fire on the item's LATEST BAR is graded. instrument_flavours.json
+  //     carries one mood — today's. Phase 0 scored every fire against its OWN
+  //     fire-day mood, so grading a 15-bar-old signal against today's sector
+  //     weather is a different (untested) claim.
+  // 'unknown' = sector too small / too little history to judge (sector_activity.py).
+  // It is NOT the same as 'normal' and must never read as a positive all-clear.
+  function flavourOf(item) { return instFlavours[item.instrument_name] || 'unknown'; }
+  function moodApplies(item) {
+    if (timeframe !== 'D') return false;                          // validated on daily only
+    const fired = item[f('last_signal_date')] || '';
+    return !!fired && fired === (item[f('date')] || '');          // fire is on the newest bar
   }
-  // Grade a fired signal by its sector's mood. Maps to the validated candidate
-  // rules: SELL+sell_thrust = confirmed (+); BUY into sinking/churn = fighting (−);
-  // SELL on a market-wide day = likely trap (−). Returns null when no signal.
+
+  // Sector-mood modifier for a fired signal: +1 sector-confirmed, −1 fighting/trap,
+  // 0 when the sector has no validated opinion (calm, busy-but-no-edge, unknown,
+  // or the guards above rule the layer out). `pips` is kept 0/2/3 for the existing
+  // conviction sort, card glow/dim and Mood filter. Returns null when no signal.
   function convictionOf(item) {
     const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
     if (!code) return null;
-    const fl = flavourOf(item);
     const buy = code.charAt(0) === 'B';
-    const sinking = (fl === 'sell_thrust' || fl === 'mixed_thrust' || fl === 'churn');
+    const neutral = { pips: 2, delta: 0, tone: 'n', note: '', cls: '' };
+    if (!moodApplies(item)) return neutral;
+    const fl = flavourOf(item);
     if (buy) {
-      if (sinking)             return { pips: 0, tone: 'sell', lab: '⚠ Fighting sector', note: 'buying into a sell-off', cls: 'sc-fighting' };
-      if (fl === 'buy_thrust') return { pips: 2, tone: 'n',    lab: 'Standard',            note: 'busy sector ≠ edge',   cls: '' };
-      if (fl === 'market_wide')return { pips: 2, tone: 'n',    lab: 'Standard',            note: 'market-wide day',     cls: '' };
-      return                          { pips: 2, tone: 'n',    lab: 'Clean',               note: 'calm sector',         cls: '' };
+      // FIGHTING bucket (sell_thrust + mixed_thrust + churn): −0.164R, t −3.2, n 731.
+      if (fl === 'sell_thrust' || fl === 'mixed_thrust' || fl === 'churn')
+        return { pips: 0, delta: -1, tone: 'warn', note: 'sector selling off', cls: 'sc-fighting' };
+      return neutral;   // buy_thrust +0.06R t1.5 → no edge; market_wide +0.24R held back as regime-suspect
     }
-    if (fl === 'sell_thrust')  return { pips: 3, tone: 'sell', lab: '★ Sector-confirmed', note: 'whole sector selling', cls: 'sc-confirmed' };
-    if (fl === 'market_wide')  return { pips: 0, tone: 'sell', lab: '⚠ Likely trap',      note: 'expiry sell · often snaps back', cls: 'sc-fighting' };
-    return                            { pips: 2, tone: 'n',    lab: 'Standard sell',          note: fl === 'mixed_thrust' ? 'mixed sector' : 'on its own', cls: '' };
-  }
-  function convPipsHtml(pips, tone) {
-    let h = '<span class="sc-pips">';
-    for (let i = 0; i < 3; i++) h += `<i class="sc-pip${i < pips ? ' on ' + tone : ''}"></i>`;
-    return h + '</span>';
-  }
-  function convictionRowHtml(item) {
-    const c = convictionOf(item);
-    if (!c) return '';
-    const labCls = c.pips === 3 ? (c.tone === 'sell' ? 'hi-sell' : 'hi-buy') : c.pips === 0 ? 'low' : 'std';
-    return `<div class="sc-conv">${convPipsHtml(c.pips, c.tone)}<span class="sc-conv-lab ${labCls}">${c.lab}</span><span class="sc-conv-note${c.pips === 0 ? ' warn' : ''}">${c.note}</span></div>`;
+    // SELL + sell_thrust: +0.152R, t +2.6, n 548.
+    if (fl === 'sell_thrust')
+      return { pips: 3, delta: 1, tone: 'sell', note: 'whole sector selling', cls: 'sc-confirmed' };
+    // SELL + market_wide: −0.228R, t −3.7, n 378, win% 25.
+    if (fl === 'market_wide')
+      return { pips: 0, delta: -1, tone: 'warn', note: 'market-wide day · sells snap back', cls: 'sc-fighting' };
+    return neutral;
   }
 
-  // Plain-language verdict at the top of a card: fuses the signal's backtest
-  // confidence tier with the sector-mood grade into one "how strong is this" line.
+  // Plain-language verdict at the top of a card. The backtest confidence tier sets
+  // the base; the sector mood ADJUSTS it. It does not override it — Phase 0 measured
+  // sector mood as a delta vs the same signal's baseline, so a strong setup in a bad
+  // sector must land above a weak setup in a bad sector, not equal to it.
+  // Note the ★ tier is reachable only via the sector-confirmed bump, which today
+  // exists for SELLs only: no buy-side promotion has cleared the evidence bar
+  // (buy_thrust t=+1.5; the big market-wide buy effect is held back as
+  // regime-suspect). That asymmetry is the evidence's, not an oversight.
+  const VERDICT_TIERS = [
+    { label: '★ HIGH-CONVICTION', sub: 'strong edge' },   // 4
+    { label: 'STRONG',            sub: 'above-average edge' },
+    { label: '',                  sub: 'standard edge' },  // 2 → "BUY SETUP"
+    { label: '⚠ LOW-EDGE',        sub: 'weak backtest edge' },
+    { label: '⚠ AVOID',           sub: 'weak edge · sector against it' },  // 0
+  ];
   function verdictOf(item) {
     const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
     if (!code) return null;
     const buy = code[0] === 'B';
     const dir = buy ? 'BUY' : 'SELL';
-    const fl = flavourOf(item);
-    // sector fights the signal → caution regardless of base confidence
-    if (!buy && fl === 'market_wide')
-      return { label: '⚠ LIKELY TRAP', sub: 'sell on a market-wide day', tone: 'warn' };
-    if (buy && (fl === 'sell_thrust' || fl === 'mixed_thrust' || fl === 'churn'))
-      return { label: '⚠ FIGHTING SECTOR', sub: 'buying into a sell-off', tone: 'warn' };
     const conf = (item[f('signal_confidence')] || '').toLowerCase();
     const conv = convictionOf(item);
-    let score = conf === 'high' ? 3 : conf === 'low' ? 1 : 2;       // backtest tier
-    if (conv && conv.pips === 3) score = Math.min(4, score + 1);    // sector-confirmed bump
-    if (score >= 4)   return { label: `★ HIGH-CONVICTION ${dir}`, sub: 'strong edge · sector agrees', tone: buy ? 'buy' : 'sell' };
-    if (score === 3)  return { label: `STRONG ${dir}`,            sub: 'above-average edge',        tone: buy ? 'buy' : 'sell' };
-    if (score === 2)  return { label: `${dir} SETUP`,             sub: 'standard edge',             tone: buy ? 'buy' : 'sell' };
-    return              { label: `⚠ LOW-EDGE ${dir}`,           sub: 'weak backtest edge',        tone: 'warn' };
+    const base = conf === 'high' ? 3 : conf === 'low' ? 1 : 2;      // backtest tier
+    const delta = conv ? conv.delta : 0;                            // sector mood
+    const score = Math.max(0, Math.min(4, base + delta));
+    const t = VERDICT_TIERS[4 - score];
+    const tone = score <= 1 ? 'warn' : buy ? 'buy' : 'sell';
+    return {
+      label: t.label ? `${t.label} ${dir}` : `${dir} SETUP`,
+      sub: t.sub,
+      note: conv && conv.note ? conv.note : '',   // only set when the sector has something to say
+      tone,
+    };
   }
   function verdictBarHtml(item) {
     const v = verdictOf(item);
     if (!v) return '';
-    return `<div class="sc-verdict sc-v-${v.tone}"><span class="sc-v-label">${v.label}</span><span class="sc-v-sub">${v.sub}</span></div>`;
+    return `<div class="sc-verdict sc-v-${v.tone}"><span class="sc-v-label">${v.label}</span>`
+      + `<span class="sc-v-sub">${v.sub}</span>`
+      + (v.note ? `<span class="sc-v-note">${v.note}</span>` : '')
+      + `</div>`;
   }
 
-  // Sector-mood filter/search predicates (shared by the Mood dropdown + search box).
+  // Sector-mood filter predicate (the Mood dropdown). Mood terms are intentionally
+  // NOT wired into free-text search — see the note in matchesSearch.
   function matchesMoodFilter(item, mood) {
     const fl = flavourOf(item);
     const conv = convictionOf(item);
@@ -582,21 +613,9 @@
       case 'churn':        return fl === 'churn';
       case 'mixed':        return fl === 'mixed_thrust';
       case 'marketwide':   return fl === 'market_wide';
+      case 'unknown':      return fl === 'unknown';
       default:             return true;
     }
-  }
-  // Free-text mood terms so the search box finds e.g. "distributing", "confirmed".
-  const MOOD_SEARCH = {
-    confirmed: 'confirmed', 'sector-confirmed': 'confirmed', fighting: 'fighting',
-    trap: 'fighting', calm: 'calm', distributing: 'distributing', distribution: 'distributing',
-    active: 'active', churn: 'churn', mixed: 'mixed', 'market-wide': 'marketwide',
-    marketwide: 'marketwide',
-  };
-  function matchesMoodSearch(item, q) {
-    for (const term in MOOD_SEARCH) {
-      if (q.length >= 3 && term.startsWith(q) && matchesMoodFilter(item, MOOD_SEARCH[term])) return true;
-    }
-    return false;
   }
 
   // Compute summary stats client-side from the active timeframe fields
@@ -612,14 +631,24 @@
       const trend = effectiveTrend(item);
       trendCounts[trend] = (trendCounts[trend] || 0) + 1;
 
-      const status = (item[f('confirmation_status')] || '').toLowerCase();
-      if (status.includes('buy')) buyCount++;
-      if (status.includes('sell')) sellCount++;
-
       if (item[f('volume_spike_flag')] === 'yes') volumeSpikes++;
 
+      // Count FIRED signals by code prefix — same definition publish.py/server.py
+      // use for summary.json (buy_mask = primary_signal.startswith('B')).
+      // This used to test confirmation_status.includes('buy'/'sell'), but that
+      // field's vocabulary is "Uptrend — above all MAs" / "Above MA500 — watching
+      // for pullback entry" — it never contains either word, so both counts were
+      // structurally 0 on every run. That silently pinned the Market Pulse gauge's
+      // signal-direction component (buy share, 0–30) to its no-signals fallback
+      // of 15, permanently. Do NOT use isBuy()/isSell() here: those fall back to
+      // the trend when no signal fired, which would count every uptrending
+      // instrument as a buy and inflate the share to meaninglessness.
       const sig = item[f('primary_signal')] || '';
-      if (sig) signalTypes[sig] = (signalTypes[sig] || 0) + 1;
+      if (sig) {
+        signalTypes[sig] = (signalTypes[sig] || 0) + 1;
+        if (sig.startsWith('B')) buyCount++;
+        else if (sig.startsWith('S')) sellCount++;
+      }
     });
 
     return {
@@ -974,8 +1003,10 @@
     // Instrument-level aliases
     const aliases = SEARCH_ALIASES[name] || [];
     if (aliases.some(a => a.includes(q) || q.includes(a))) return true;
-    // Sector-mood terms ("distributing", "confirmed", "calm", "trap", …)
-    if (matchesMoodSearch(item, q)) return true;
+    // NOTE: sector-mood terms are deliberately NOT searchable. They used to be,
+    // via prefix matching, but mood words describe most of the universe at once —
+    // "cal" (→ calm) returned 661 of 741 instruments, "act" (→ active) 102. Search
+    // must narrow. The Mood pill is the way to filter by mood.
     return (
       (item.instrument_name || '').toLowerCase().includes(q) ||
       (namesData[item.instrument_name] || '').toLowerCase().includes(q) ||
@@ -1130,7 +1161,7 @@
     const buySig = isBuy(item);
     const lastSigType = item[f('last_signal_type')] || '';
     const lastIsBuy = lastSigType.startsWith('B');
-    const lastSigAge = signalAge(item[f('last_signal_date')] || '').label;
+    const lastSigAge = signalAge(item[f('last_signal_date')] || '', item[f('date')]).label;
     const conf = (item[f('signal_confidence')] || '').toLowerCase();
     const pos = ribbonPos(item);
     const phase = ribbonPhase(item, t);
@@ -1149,8 +1180,10 @@
     } else {
       sigChip = '<span class="sc-sig-chip sc-sig-aged">no recent signal</span>';
     }
+    // Suppressed at 0 days: the fire is on the newest bar we hold, so "since" is
+    // structurally +0.0% and says nothing. It appears once a bar has closed on it.
     const sp = signalPerf(item);
-    const sinceHtml = sp ? `<span class="sc-since ${parseFloat(sp.pct) >= 0 ? 'perf-pos' : 'perf-neg'}" title="Since ${sp.signal} on ${sp.date} (${sp.days}d)">${parseFloat(sp.pct) >= 0 ? '+' : ''}${sp.pct}% since</span>` : '';
+    const sinceHtml = (sp && sp.days > 0) ? `<span class="sc-since ${parseFloat(sp.pct) >= 0 ? 'perf-pos' : 'perf-neg'}" title="Since ${sp.signal} on ${sp.date} (${sp.days}d)">${parseFloat(sp.pct) >= 0 ? '+' : ''}${sp.pct}% since</span>` : '';
 
     return `<div class="sc-setup ${t === 'UPTREND' ? 'sc-setup-up' : t === 'DOWNTREND' ? 'sc-setup-dn' : 'sc-setup-neu'}">
       ${stateLine}
@@ -2590,14 +2623,22 @@
 
   // ── Signals Tab ──────────────────────────────────────────────────────
   // ── Signal age helper (Feature 6: visual decay) ─────────────────────
-  function signalAge(dateStr) {
+  // Age is measured against the DATA's own latest bar (asOfStr), not the wall
+  // clock — a signal that fired on the newest bar we hold must read "Today" even
+  // if the calendar has since rolled over. Otherwise every fresh fire showed
+  // "1d ago" alongside a structurally-0.0% "since fired" (no new bar had closed).
+  // Both dates are parsed as UTC midnight so the diff can't slip a day in a
+  // negative-offset timezone.
+  function signalAge(dateStr, asOfStr) {
     if (!dateStr) return { label: '', isToday: false, decayClass: '' };
-    const d = new Date(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    d.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((today - d) / 86400000);
-    if (diffDays === 0) return { label: 'Today',           isToday: true,  decayClass: 'age-fresh'  };
+    const diffDays = daysBetween(dateStr, asOfStr);
+    if (diffDays === null) return { label: '', isToday: false, decayClass: '' };
+    // A fire on the newest bar is "Today" only if that bar IS today's date;
+    // when the feed is behind, say "Latest bar" rather than claim it's today.
+    if (diffDays === 0) {
+      const fresh = !asOfStr || daysBetween(asOfStr) === 0;
+      return { label: fresh ? 'Today' : 'Latest bar', isToday: true, decayClass: 'age-fresh' };
+    }
     if (diffDays === 1) return { label: '1d ago',          isToday: false, decayClass: 'age-1d'     };
     if (diffDays <= 3)  return { label: diffDays + 'd ago', isToday: false, decayClass: 'age-aging'  };
     if (diffDays <= 7)  return { label: diffDays + 'd ago', isToday: false, decayClass: 'age-old'    };
@@ -2952,8 +2993,7 @@
           const overflow = extras.length > MAX
             ? `<span class="scanner-tag scanner-overflow" title="Open card to see all signals">+${extras.length - MAX}</span>`
             : '';
-          const moodChip = conv ? moodChipHtml(item) : '';
-          return (visible || overflow || moodChip) ? `<div class="scanner-meta">${moodChip}${visible}${overflow}</div>` : '';
+          return (visible || overflow) ? `<div class="scanner-meta">${visible}${overflow}</div>` : '';
         })()}
         ${maOrderPct !== null ? `<div class="ma-order-gauge" title="${maOrder} of ${maMaxPairs} MA pairs in bullish order">
           <span class="sc-ma-lbl">MA ORDER</span>
@@ -2961,7 +3001,6 @@
             `<span class="ma-order-seg${si < maOrder ? ' on' : ''}"${si < maOrder ? ` style="background:${barColor}"` : ''}></span>`).join('')}</div>
           <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
         </div>` : ''}
-        ${convictionRowHtml(item)}
       </div>`;
     };
 
@@ -3082,7 +3121,7 @@
   const MOOD_LABELS = {
     all: '', confirmed: 'Confirmed', fighting: 'Fighting', calm: 'Calm',
     distributing: 'Distributing', active: 'Active', churn: 'Churn',
-    mixed: 'Mixed', marketwide: 'Market-wide',
+    mixed: 'Mixed', marketwide: 'Market-wide', unknown: 'No read',
   };
   function updateFilterPills() {
     const catActive   = !!document.querySelector('#scannerCatChips .s-cat-chip.active');
@@ -3419,7 +3458,7 @@
       const roc  = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const lastSigType = item[f('last_signal_type')] || '';
-      const age  = signalAge(item[f('last_signal_date')] || '');
+      const age  = signalAge(item[f('last_signal_date')] || '', item[f('date')]);
       const phase = ribbonPhase(item, t);
       const hasAlert = !!(item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
       const _aiWl = isAI(item.instrument_name);
@@ -3432,7 +3471,7 @@
           </div>
           <div class="wl-card-right">
             <span class="wl-card-price">${formatPrice(item[f('close')])}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}">${rocStr}</span>` : ''}</span>
-            ${(() => { const p = signalPerf(item); return p ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
+            ${(() => { const p = signalPerf(item); return (p && p.days > 0) ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
             <div class="scanner-actions">
               ${tvBtn(item.instrument_name, '')}
               ${shareBtn(item.instrument_name)}
@@ -3825,7 +3864,7 @@
               const sSig  = s[f('primary_signal')] || '';
               const sAlign= s.tf_alignment || '';
               const sConf = s[f('signal_confidence')] || '';
-              const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '');
+              const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '', s[f('date')]);
               const sPerf = signalPerf(s);
               return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
                 <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
@@ -3835,7 +3874,7 @@
                   ${sConf?`<span class="badge-confidence conf-${sConf}" style="font-size:.58rem">${sConf}</span>`:''}
                   ${badge3TF(s)}${sAge.label?`<span class="sig-age ${sAge.decayClass}" style="font-size:.58rem">${sAge.label}</span>`:''}
                 </div>
-                <div class="sim-card-bottom"><span class="sim-card-price">${formatPrice(s[f('close')])}</span>${sPerf?`<span class="wl-signal-perf ${parseFloat(sPerf.pct)>=0?'perf-pos':'perf-neg'}" style="font-size:.58rem">${parseFloat(sPerf.pct)>=0?'+':''}${sPerf.pct}%</span>`:''}</div>
+                <div class="sim-card-bottom"><span class="sim-card-price">${formatPrice(s[f('close')])}</span>${(sPerf && sPerf.days > 0)?`<span class="wl-signal-perf ${parseFloat(sPerf.pct)>=0?'perf-pos':'perf-neg'}" style="font-size:.58rem">${parseFloat(sPerf.pct)>=0?'+':''}${sPerf.pct}%</span>`:''}</div>
               </div>`;
             }).join('')}
           </div>

@@ -3353,13 +3353,8 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .tier-developing .scanner-tier-label { color: var(--text-muted); }
 
 /* ── Direction segmented toggle ── */
-/* Direction toggle + ⚙ on one row */
-.sig-dir-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px 0;
-}
+/* (.sig-dir-row removed — the wrapper div went away when the filter chips were
+   regrouped into .sig-filter-pills; the toggle is a direct child of it now.) */
 .sig-dir-toggle {
   display: flex;
   gap: 0;
@@ -7202,36 +7197,11 @@ body {
 .sr-spoke:focus-visible > text { text-decoration: underline; }
 .sr-legend { font-size: .66rem; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
 
-/* ── Sector-mood conviction layer (PROVISIONAL — validated on raw returns only) ── */
-.sc-mood-chip { display: inline-flex; align-items: center; gap: 5px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .6rem; font-weight: 600; letter-spacing: .02em; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-.sc-mood-chip .mood-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
-.sc-mood-chip.m-calm   { color: var(--text-secondary); background: var(--neutral-soft); }
-.sc-mood-chip.m-calm   .mood-dot { background: var(--text-muted); }
-.sc-mood-chip.m-active { color: var(--text-secondary); background: var(--neutral-soft); }
-.sc-mood-chip.m-active .mood-dot { background: var(--buy); }
-.sc-mood-chip.m-dist   { color: #fca5a5; background: var(--sell-soft); }
-.sc-mood-chip.m-dist   .mood-dot { background: var(--sell); }
-.sc-mood-chip.m-conf   { color: #fcd9a1; background: var(--watch-soft); }
-.sc-mood-chip.m-conf   .mood-dot { background: var(--watch); }
-.sc-mood-chip.m-churn  { color: #c9b8f2; background: var(--volume-soft); }
-.sc-mood-chip.m-churn  .mood-dot { background: var(--volume); }
-.sc-mood-chip.m-wide   { color: var(--text-secondary); background: var(--neutral-soft); }
-.sc-mood-chip.m-wide   .mood-dot { background: var(--text-secondary); }
-
-.sc-conv { display: flex; align-items: center; gap: 8px; padding-top: 9px; margin-top: 9px; border-top: 1px solid var(--border); }
-.sc-pips { display: inline-flex; gap: 3px; flex: 0 0 auto; }
-.sc-pip { width: 6px; height: 13px; border-radius: 2px; background: var(--neutral); opacity: .4; }
-.sc-pip.on { opacity: 1; }
-.sc-pip.on.buy  { background: var(--buy); }
-.sc-pip.on.sell { background: var(--sell); }
-.sc-pip.on.n    { background: var(--text-muted); opacity: .85; }
-.sc-conv-lab { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; }
-.sc-conv-lab.hi-buy  { color: var(--buy); }
-.sc-conv-lab.hi-sell { color: var(--sell); }
-.sc-conv-lab.std     { color: var(--text-muted); }
-.sc-conv-lab.low     { color: #fca5a5; }
-.sc-conv-note { font-size: .62rem; color: var(--text-muted); margin-left: auto; text-align: right; }
-.sc-conv-note.warn { color: #fca5a5; }
+/* ── Sector-mood conviction layer (validated on real R — Phase 0, 2026-07-22) ──
+   The mood chip and pip row that used to live on every card are gone: on a normal
+   day they said "calm / no opinion" 60+ times per screen. The sector now speaks
+   only through .sc-verdict (score adjustment) and .sc-v-note (why), which render
+   only when it has something to say. */
 
 /* card promote / demote by conviction */
 .scanner-card.sc-confirmed { border-color: rgba(239,68,68,.42); box-shadow: 0 0 0 1px rgba(239,68,68,.16); }
@@ -7254,6 +7224,10 @@ body {
 .sc-verdict { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 9px 0 3px; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-elevated); }
 .sc-v-label { font-weight: 800; font-size: .82rem; letter-spacing: .01em; }
 .sc-v-sub { font-size: .64rem; color: var(--text-muted); }
+/* Sector note — rendered ONLY when the sector mood actually moved the score.
+   Silent on calm / no-read days, which is most of them. */
+.sc-v-note { flex-basis: 100%; font-size: .63rem; color: var(--text-secondary); font-style: italic; }
+.sc-verdict.sc-v-warn .sc-v-note { color: #fca5a5; font-style: normal; font-weight: 600; }
 .sc-verdict.sc-v-buy  { background: var(--buy-soft);   border-color: rgba(16,185,129,.38); }
 .sc-verdict.sc-v-buy  .sc-v-label { color: var(--buy); }
 .sc-verdict.sc-v-sell { background: var(--sell-soft);  border-color: rgba(239,68,68,.38); }
@@ -7273,13 +7247,73 @@ body {
 .filter-pill[open] .fp-chev { transform: rotate(180deg); }
 .filter-pill.has-active .fp-cv::before { content: '•'; color: var(--accent); }
 .fp-val { font-weight: 700; color: var(--accent); }
-.filter-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 210px; max-width: min(92vw, 320px); background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 14px; padding: 12px; box-shadow: var(--shadow-lg); }
-.filter-pop .scanner-cat-chips, .filter-pop .sig-ctx-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
-
-/* mood options list */
-.mood-opts { display: flex; flex-direction: column; gap: 5px; min-width: 190px; }
-.mood-opt { text-align: left; font-size: .8rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.mood-opt:hover { background: var(--bg-hover); color: var(--text-primary); }
-.mood-opt.active { background: var(--accent-glow); border-color: rgba(251,191,36,.5); color: var(--accent); }
+.filter-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 210px; max-width: min(92vw, 320px); max-height: min(58vh, 430px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 14px; padding: 12px; box-shadow: var(--shadow-lg); }
+/* The rightmost pill opens right-aligned — left-anchored it ran 6px past the
+   390px viewport (pill starts at x=180, list is 216 wide). Never side-scroll. */
+.filter-pill:last-of-type .filter-pop { left: auto; right: 0; }
+/* ── Filter-pill dropdown contents ─────────────────────────────────────────
+   All three pills (Class / Mood / Filters) present identically: a vertical list
+   of full-width option rows. Class and Filters keep their ORIGINAL markup, ids
+   and classes — #scannerCatChips and .sig-ctx-row are only re-skinned here,
+   scoped to .filter-pop, so every existing handler (cat shortcuts, radar
+   cycling, signal sheet, delegated ctx clicks) is untouched. Outside a pill
+   these classes keep their old chip-row styling. */
+.mood-opts,
+.filter-pop .scanner-cat-chips,
+.filter-pop .sig-ctx-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 190px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;          /* was overflow-x:auto for the old horizontal row */
+}
+/* Shared option row */
+.mood-opt,
+.filter-pop .s-cat-chip,
+.filter-pop .sig-ctx-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  font-size: .8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.mood-opt:hover,
+.filter-pop .s-cat-chip:hover,
+.filter-pop .sig-ctx-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+/* Selected — same amber treatment in all three lists */
+.mood-opt.active,
+.filter-pop .s-cat-chip.active,
+.filter-pop .sig-ctx-chip.active {
+  background: var(--accent-glow);
+  border-color: rgba(251,191,36,.5);
+  color: var(--accent);
+}
+/* Rows whose selected state carries its own meaning keep their colour */
 .mood-opt.mo-confirmed.active { background: var(--sell-soft); border-color: rgba(239,68,68,.5); color: var(--sell); }
 .mood-opt.mo-fighting.active, .mood-opt.mo-dist.active { background: var(--sell-soft); border-color: rgba(239,68,68,.4); color: #fca5a5; }
+.filter-pop .sig-ctx-chip.sig-chip-best.active { background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); color: #a78bfa; }
+/* Radar cycles off → Prime → Strong; keep that tier feedback visible */
+.filter-pop .sig-ctx-chip.sig-chip-radar.prime  { background: rgba(16,185,129,.18); border-color: var(--buy);   color: var(--buy); }
+.filter-pop .sig-ctx-chip.sig-chip-radar.strong { background: rgba(245,158,11,.18); border-color: var(--watch); color: var(--watch); }
+/* Icons sit as a fixed-width gutter so the labels line up down the list */
+.filter-pop .sig-ctx-chip > svg { flex: 0 0 12px; }

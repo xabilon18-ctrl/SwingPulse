@@ -200,9 +200,13 @@ def _classify_flavour(zs_sig, zs_vol, tilt: str, eligible: bool,
     """Sector 'mood' for the latest day (ported from research/instrument_flavour_
     check.build_flavours). Priority: market_wide > directional thrust > churn >
     normal. zs_sig = z of (buys+sells)/members, zs_vol = z of vol_spikes/members,
-    both vs the trailing BASELINE_DAYS window. tilt = _tilt(buys, sells)."""
+    both vs the trailing BASELINE_DAYS window. tilt = _tilt(buys, sells).
+
+    'unknown' (too few members / no baseline yet) is deliberately NOT 'normal':
+    the frontend must not present "we can't judge this sector" as a calm all-clear.
+    Both are neutral for grading, but only one of them is a claim."""
     if not eligible or zs_sig is None:
-        return 'normal'
+        return 'unknown'
     if market_wide:
         return 'market_wide'
     if zs_sig >= Z_ALERT:
@@ -286,7 +290,7 @@ def write_instrument_flavours(radar: dict) -> None:
     payload = {
         'generated_at': radar.get('generated_at'),
         'market_wide':  radar.get('market_wide', False),
-        'instruments':  {name: sec_flav.get(sec, 'normal')
+        'instruments':  {name: sec_flav.get(sec, 'unknown')
                          for name, sec in name_to_sector.items()},
         'sectors':      {s['sector']: {'flavour': s['flavour'], 'z': s['z'],
                                        'buys': s['buys'], 'sells': s['sells'],
