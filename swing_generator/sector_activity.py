@@ -337,14 +337,17 @@ def update_sector_activity(output_df: pd.DataFrame) -> None:
 def _backfill_instrument(inst: dict, cutoff: str) -> list:
     """[(date, sector, kind)] events for one instrument; kind in B/S/V."""
     from backtest import TF_SIGNAL_PARAMS
-    from data_fetcher import _cache_path
+    from data_fetcher import _cache_path, _drop_priceless
     from indicators import add_all_indicators
     from signals import add_signals
 
     path = _cache_path(inst['ticker'])
     if not os.path.exists(path):
         return []
-    df = pd.read_parquet(path)
+    # Drop Yahoo's volume-but-no-price bars before deriving activity — one at
+    # the end blanks the MAs and silently zeroes the instrument's contribution
+    # to its sector's signal counts, which is what feeds the mood/flavour layer.
+    df = _drop_priceless(pd.read_parquet(path))
     if len(df) < 250:
         return []
     df = add_all_indicators(df)

@@ -52,6 +52,54 @@ def _normalise(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _drop_priceless(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop bars Yahoo returned with no Close.
+
+    Yahoo intermittently serves a bar carrying real Volume but NaN OHLC — an
+    upstream defect, not a market holiday (2026-07-24: 365 of 741 instruments
+    had one, MU showing 40.3M shares traded against NaN prices; re-fetching
+    returns the same broken bar, so the prices are simply unrecoverable).
+
+    Left in place these are corrosive out of all proportion to their size,
+    because a rolling mean whose window contains a NaN is itself NaN:
+      - as the LAST bar it blanks close + all 20 MAs for that instrument, and
+        `trend_direction` (indicators.py) then falls through np.select to its
+        default of NEUTRAL. 426 of 727 instruments read NEUTRAL on the Daily
+        tab, of which only 49 were genuinely between the MAs; the rest were
+        strong trends with no data. No daily signal can fire for them either.
+      - mid-history one NaN blanks MA500 for the following 500 bars.
+
+    The 4H path never had this problem because `_resample_4h` in main.py ends
+    in .dropna(subset=['Close']); daily fed the raw frame to add_all_indicators.
+
+    Verified safe before adopting: across 1,587 caches ZERO NaN-Close rows
+    carried a real Open/High/Low, and a 300-cache sample found ZERO rows with
+    a real Close but NaN OHLC (which this would keep). Nothing of value is lost.
+    """
+    if 'Close' not in df.columns or df.empty:
+        return df
+    return df.dropna(subset=['Close'])
+
+
+def _read_cache(path: str) -> pd.DataFrame:
+    """Read a parquet cache, healing any priceless bars already stored in it.
+
+    Existing caches are cleaned on read and rewritten, so the fix reaches the
+    365 files that already hold a bad bar without forcing a full re-download.
+    Rewriting also rolls the cache's last date back to the last real bar, which
+    makes the next incremental run re-request the bad day — so if Yahoo ever
+    repairs it, the bar returns on its own with no manual step.
+    """
+    df = pd.read_parquet(path)
+    cleaned = _drop_priceless(df)
+    if len(cleaned) != len(df):
+        try:
+            cleaned.to_parquet(path)
+        except Exception:
+            pass        # read-only FS / race — the in-memory frame is still correct
+    return cleaned
+
+
 def _full_download(ticker: str, start: datetime, end: datetime,
                    interval: str = '1d') -> pd.DataFrame | None:
     """Download a date range from Yahoo Finance. Raises on empty response.
@@ -77,7 +125,9 @@ def _full_download(ticker: str, start: datetime, end: datetime,
             df.index = df.index.tz_localize(None).normalize()
         else:
             df.index = df.index.tz_convert('UTC')
-    return _normalise(df)
+    # Never let a priceless bar into the cache. May return an empty frame when
+    # the only bar on offer is broken — callers handle that as "no new bars".
+    return _drop_priceless(_normalise(df))
 
 
 def _append_new_bars(path: str, new_df: pd.DataFrame) -> pd.DataFrame:
@@ -86,6 +136,7 @@ def _append_new_bars(path: str, new_df: pd.DataFrame) -> pd.DataFrame:
     combined = pd.concat([existing, new_df])
     combined = combined[~combined.index.duplicated(keep='last')]
     combined.sort_index(inplace=True)
+    combined = _drop_priceless(combined)
     combined.to_parquet(path)
     return combined
 
@@ -107,7 +158,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
 
     # ── Already fresh: return immediately ────────────────────────────────
     if not force_refresh and _is_fresh(path):
-        return pd.read_parquet(path)
+        return _read_cache(path)
 
     # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bar.
     end = datetime.today() + timedelta(days=1)
@@ -117,18 +168,23 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
         start = end - timedelta(days=int(HISTORY_YEARS * 365.25))
         try:
             df = _full_download(ticker, start, end)
+            if df.empty:
+                raise ValueError('no priced bars in response')
             df.to_parquet(path)
             return df
         except Exception as exc:
             print(f'    WARN [{ticker}] download failed: {exc}')
             if os.path.exists(path):
                 print(f'    INFO [{ticker}] using stale cache')
-                return pd.read_parquet(path)
+                return _read_cache(path)
             return None
 
     # ── Incremental: fetch only new bars ─────────────────────────────────
     try:
-        existing   = pd.read_parquet(path)
+        # Clean BEFORE reading last_date: a trailing priceless bar would
+        # otherwise make last_date the broken day and start the fetch the day
+        # AFTER it, so the missing session would never be requested again.
+        existing   = _read_cache(path)
         last_date  = existing.index[-1]
         start      = last_date + timedelta(days=1)
 
@@ -138,6 +194,13 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
             return existing
 
         new_df = _full_download(ticker, start, end)
+
+        # Every bar on offer was priceless (Yahoo serving NaN OHLC for a session
+        # it has volume for). Not an error and not worth a warning — there is
+        # simply nothing new to add. The next run asks for the same day again.
+        if new_df.empty:
+            os.utime(path, None)
+            return _drop_priceless(existing)
 
         # Sanity guard: a long gap or an absurd price discontinuity between
         # the cached series and the new bars means the cache went stale or
@@ -164,7 +227,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
     except Exception as exc:
         print(f'    WARN [{ticker}] incremental update failed: {exc}')
         if os.path.exists(path):
-            return pd.read_parquet(path)
+            return _read_cache(path)
         return None
 
 
@@ -189,7 +252,7 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
 
     # ── Already fresh ─────────────────────────────────────────────────────
     if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
-        return pd.read_parquet(path)
+        return _read_cache(path)
 
     # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bars.
     end = datetime.today() + timedelta(days=1)
@@ -199,13 +262,15 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
         start = end - timedelta(days=HOURLY_HISTORY_DAYS)
         try:
             df = _full_download(ticker, start, end, interval='1h')
+            if df.empty:
+                raise ValueError('no priced bars in response')
             df.to_parquet(path)
             return df
         except Exception as exc:
             print(f'    WARN [{ticker}] hourly download failed: {exc}')
             if os.path.exists(path):
                 print(f'    INFO [{ticker}] using stale hourly cache')
-                return pd.read_parquet(path)
+                return _read_cache(path)
             return None
 
     # ── Incremental: fetch from the last cached bar onward ───────────────
@@ -213,7 +278,7 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
     # repeats) so a multi-day pause between runs can't leave a gap in the cache.
     # Clamped to Yahoo's 729-day hourly limit.
     try:
-        existing  = pd.read_parquet(path)
+        existing  = _read_cache(path)   # clean first — see the daily path
         last_date = existing.index[-1]
         if getattr(last_date, 'tzinfo', None) is not None:
             last_date = last_date.tz_localize(None)
@@ -223,6 +288,11 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
         )
 
         new_df = _full_download(ticker, start, end, interval='1h')
+
+        # Nothing priced on offer — see the daily path. Not an error.
+        if new_df.empty:
+            os.utime(path, None)
+            return _drop_priceless(existing)
 
         # Sanity guard (same as daily): an absurd discontinuity between the
         # cached series and the new bars means the cache holds bad data —
@@ -245,7 +315,7 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
     except Exception as exc:
         print(f'    WARN [{ticker}] hourly incremental failed: {exc}')
         if os.path.exists(path):
-            return pd.read_parquet(path)
+            return _read_cache(path)
         return None
 
 

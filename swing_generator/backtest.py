@@ -34,7 +34,7 @@ from typing import Optional
 import pandas as pd
 
 from _active_config import MA_PERIODS, OUTPUT_DIR
-from data_fetcher import _cache_path
+from data_fetcher import _cache_path, _drop_priceless
 from indicators import add_all_indicators
 from instruments import load_instruments, asset_class_of
 from main import _resample_4h
@@ -310,7 +310,10 @@ def backtest_instrument(ticker: str, name: str, group: str,
     if tf_filter in (None, 'D'):
         path = _cache_path(ticker)
         if os.path.exists(path):
-            df = pd.read_parquet(path)
+            # Same guard as the live fetcher: a Yahoo bar with volume but NaN
+            # OHLC blanks every rolling MA in its window. Reading the cache raw
+            # would let one back into the replay and diverge from production.
+            df = _drop_priceless(pd.read_parquet(path))
             if len(df) >= 250:
                 df = add_all_indicators(df)
                 df = _add_atr(df)
@@ -324,7 +327,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
     if tf_filter in (None, '4H'):
         h_path = _cache_path(ticker, suffix='1h')
         if os.path.exists(h_path):
-            hourly = pd.read_parquet(h_path)
+            hourly = _drop_priceless(pd.read_parquet(h_path))
             if len(hourly) >= 200:
                 h4 = _resample_4h(hourly)
                 h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
