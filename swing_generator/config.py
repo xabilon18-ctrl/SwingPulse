@@ -93,12 +93,18 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
-    """Return signal-related column names for a timeframe prefix."""
+    """Return signal-related column names for a timeframe prefix.
+
+    Intraday prefixes also carry `{p}datetime` — the exact bar timestamp. A 4H
+    date holds 2-6 bars, so the date alone can't identify which bar fired
+    (see main.py _extract_row). Daily needs no such column.
+    """
     if ma_periods is None:
         ma_periods = MA_PERIODS
     p = prefix
     return [
-        f'{p}date', f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
+        f'{p}date', *([f'{p}datetime'] if p else []),
+        f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
         f'{p}volume_average', f'{p}volume_spike_flag', f'{p}pvo', f'{p}pvo_signal',
         *[f'{p}ma_{per}' for per in ma_periods],
         f'{p}trend_direction', f'{p}established_trend', f'{p}trend_run_days',

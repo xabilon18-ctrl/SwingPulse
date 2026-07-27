@@ -74,7 +74,8 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         return None, None
 
     row = target.iloc[-1]
-    row_date = target.index[-1].date()
+    row_ts   = target.index[-1]
+    row_date = row_ts.date()
 
     periods = ma_periods or MA_PERIODS
     ma_values = {f'{prefix}ma_{p}': _fmt(row.get(f'ma_{p}')) for p in periods}
@@ -83,8 +84,17 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     if prefix:
         last_sig = {f'{prefix}{k}': v for k, v in last_sig.items()}
 
+    # Intraday timeframes only: the exact bar timestamp. `date` alone is
+    # ambiguous when a day holds 2-6 bars — the ledger used to resolve a 4H fire
+    # to the LAST bar of that date, which (runs land midday) is typically 1-5
+    # bars after the bar that actually fired, so every graded 4H trade was
+    # entered up to a session late. Daily bars are uniquely identified by their
+    # date already, so no column is emitted there.
+    intraday_ts = {f'{prefix}datetime': str(row_ts)} if prefix else {}
+
     result = {
         f'{prefix}date':                          str(row_date),
+        **intraday_ts,
         f'{prefix}open':                          _fmt(row.get('Open')),
         f'{prefix}high':                          _fmt(row.get('High')),
         f'{prefix}low':                           _fmt(row.get('Low')),

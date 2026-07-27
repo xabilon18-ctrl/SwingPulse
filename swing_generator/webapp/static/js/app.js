@@ -710,6 +710,17 @@
     });
   }
 
+  // Tabs the timeframe toggle does NOT drive. Trends is built from daily trend
+  // segments (trends.json), so the switch sat there doing nothing — it now says
+  // what timeframe you're actually looking at instead of offering a dead choice.
+  const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only' };
+  function syncTfLock() {
+    const note = TF_LOCKED_TABS[currentTab] || '';
+    document.body.classList.toggle('tf-locked', !!note);
+    const el = document.getElementById('tfSwitchNote');
+    if (el) el.textContent = note;
+  }
+
   function setTimeframe(tf) {
     if (tf !== 'D' && tf !== '4H') return;
     if (tf === timeframe) return;
@@ -775,6 +786,7 @@
     if (!paneEl) { console.warn('No pane for tab:', tab); return; }
     paneEl.classList.add('active');
     currentTab = tab;
+    syncTfLock();
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
   }
@@ -1155,7 +1167,12 @@
   // since-fire performance. Trend and signal never share an element, so
   // counter-trend signals stay visible.
   const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA25', S2: 'lost MA25', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
-  function setupPanelHtml(item) {
+  // opts.showConf — append the confidence tier to the signal chip. Off on the
+  // scanner card, where the verdict bar directly above already states the edge
+  // ("SELL SETUP · standard edge" then "S2 SELL · Today · standard" said it
+  // twice). On in the modal, which has no verdict bar.
+  function setupPanelHtml(item, opts = {}) {
+    const showConf = opts.showConf !== false;
     const t = effectiveTrend(item);
     const sig = item[f('primary_signal')] || '';
     const buySig = isBuy(item);
@@ -1174,7 +1191,7 @@
 
     let sigChip;
     if (sig) {
-      sigChip = `<span class="sc-sig-chip ${buySig ? 'sc-sig-buy' : 'sc-sig-sell'}">${sig} ${buySig ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}${conf ? ' · ' + conf : ''}</span>`;
+      sigChip = `<span class="sc-sig-chip ${buySig ? 'sc-sig-buy' : 'sc-sig-sell'}">${sig} ${buySig ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}${showConf && conf ? ' · ' + conf : ''}</span>`;
     } else if (lastSigType) {
       sigChip = `<span class="sc-sig-chip sc-sig-aged"><b class="${lastIsBuy ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b>${lastSigAge ? ' · ' + lastSigAge : ''}${SIG_CTX[lastSigType] ? ` · <span class="sc-ctx">${SIG_CTX[lastSigType]}</span>` : ''}</span>`;
     } else {
@@ -1314,29 +1331,58 @@
     }).join('');
 
     // Live record — actual production fires, graded by signal_ledger.py with
-    // the same ATR-stop simulation the backtest uses (apples to apples)
+    // the same ATR-stop simulation the backtest uses.
+    //
+    // A code is only shown once enough of its fires have MATURED (`counted` —
+    // the full 30-bar/60-bar window elapsed). Resolved-but-immature fires are
+    // deliberately excluded: a 1R stop resolves in days, a 2R target takes
+    // weeks, so averaging everything that has closed so far reports only the
+    // fast losers. This card used to do that, and it made every code look
+    // catastrophic (B1 −1.078R off fires that were days old).
     let liveHtml = '';
     if (ledgerData && ledgerData.totals && ledgerData.totals.fires) {
       const t = ledgerData.totals;
-      const codes = Object.entries(ledgerData.by_code || {})
-        .filter(([, s]) => (s.graded || 0) >= 3)
-        .sort((a, b) => ((b[1].avg_r ?? -99) - (a[1].avg_r ?? -99)));
+      const MIN_COUNTED = 10;   // below this a code's avgR is noise, not a result
+      // Pre-maturity-gate payload (a UI deploy can land before the next data
+      // run). Its avgR figures are the biased ones this card was built to stop
+      // showing, and its per-code `counted` is missing, so say so and stop.
+      if (t.counted === undefined) {
+        rows.innerHTML = btRows +
+          `<div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded</div>` +
+          `<div class="tr-live-empty">Live grades are being recomputed on the next data run — they only count a fire once its full outcome window has passed.</div>`;
+        if (subEl && backtestData.generated_at) {
+          const p0 = backtestData.params || {};
+          subEl.textContent = `${p0.stop_model ? `${p0.stop_model} stop · ${p0.target_r || 2}:1 R:R` : '2% stop · 2:1 R:R'}`
+            + `${p0.since && p0.since !== 'full history' ? ` · since ${p0.since}` : ''}`
+            + ` · updated ${formatGeneratedAt(backtestData.generated_at)}`;
+        }
+        return;
+      }
+      const all = Object.entries(ledgerData.by_code || {});
+      const ready   = all.filter(([, s]) => (s.counted || 0) >= MIN_COUNTED)
+                         .sort((a, b) => ((b[1].avg_r ?? -99) - (a[1].avg_r ?? -99)));
+      const pending = all.filter(([, s]) => (s.counted || 0) < MIN_COUNTED && s.fires);
+      const maturingTotal = t.maturing != null
+        ? t.maturing
+        : pending.reduce((n, [, s]) => n + (s.maturing || 0), 0);
+
       liveHtml = `
-        <div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded · ${t.graded} closed · ${t.open} open</div>
-        ${codes.length ? codes.map(([code, s]) => {
+        <div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded · ${t.counted != null ? t.counted : 0} counted · ${maturingTotal} maturing · ${t.open} open</div>
+        ${ready.length ? ready.map(([code, s]) => {
           const r = s.avg_r ?? 0;
           const cls = r >= 0 ? 'tr-pos' : 'tr-neg';
           const bt = sigs[code];
           const btStr = bt ? `BT ${bt.avg_r > 0 ? '+' : ''}${bt.avg_r}R` : '';
+          const approxNote = s.approx ? ` · ${s.approx} on an inferred entry bar` : '';
           return `<div class="tr-row">
             <span class="tr-sig-badge sig-${sigClass(code) || 'p4'}">${code}</span>
-            <span class="tr-row-trades">${s.graded}/${s.fires}</span>
+            <span class="tr-row-trades" title="Fires whose full outcome window has elapsed, out of all fires recorded${approxNote}">${s.counted}/${s.fires}</span>
             <span class="tr-row-wr">${s.win_rate != null ? s.win_rate + '%' : '--'}</span>
             <span class="tr-row-r ${cls}">${r > 0 ? '+' : ''}${s.avg_r != null ? s.avg_r : '--'}R</span>
             <span class="tr-row-pf tr-live-bt" title="Backtested expectancy for this code (10y) — is live matching it?">${btStr}</span>
           </div>`;
-        }).join('')
-        : '<div class="tr-live-empty">Fires recorded — grades appear as trades resolve</div>'}
+        }).join('') : ''}
+        ${pending.length ? `<div class="tr-live-empty">${ready.length ? 'Still maturing: ' : 'Nothing has matured yet — '}${pending.map(([c, s]) => `${c} ${s.counted || 0}/${MIN_COUNTED}`).join(' · ')}. A signal only counts once its full window (${t.window ? `${t.window.D || 30} daily bars, ${t.window['4H'] || 60} 4H bars` : '30 daily bars'}) has passed, so winners aren't left out.</div>` : ''}
       `;
     }
     rows.innerHTML = btRows + liveHtml;
@@ -2921,11 +2967,9 @@
       countEl.textContent = `${signaled} signals · ${filtered.length} shown`;
     }
 
-    if (summaryEl) {
-      summaryEl.innerHTML = filtered.length
-        ? `<span class="sig-sum-total" data-sum-filter="all" title="Clear filters">${filtered.length} shown</span>`
-        : '';
-    }
+    // The count lives in the sticky header (#sigActiveCount) only — this strip
+    // repeated "725 shown" one line below it.
+    if (summaryEl) summaryEl.innerHTML = '';
 
     if (!filtered.length) {
       grid.innerHTML = '<div class="scanner-empty">No instruments match</div>';
@@ -2977,7 +3021,7 @@
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
         ${verdictBarHtml(item)}
-        ${setupPanelHtml(item)}
+        ${setupPanelHtml(item, { showConf: false })}
         <div class="sc-stats">${statTile('1D', item.pct_1d)}${statTile('1Y', item.pct_1y)}${volTile}</div>
         ${(() => {
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
@@ -3271,17 +3315,9 @@
     buildScannerCards();
   });
 
-  // ── Summary stat pills → tap to apply the matching filter ──
-  // Reuses the existing chip/toggle wiring by triggering their click handlers.
-  document.getElementById('scannerSummary').addEventListener('click', e => {
-    const pill = e.target.closest('[data-sum-filter]');
-    if (!pill) return;
-    const filter = pill.dataset.sumFilter;
-    // 'buy'/'sell'/'all' live on the direction toggle; the rest are context chips
-    const target = document.querySelector(`.sig-dir-btn[data-filter="${filter}"]`)
-                || document.querySelector(`.sig-ctx-chip[data-filter="${filter}"]`);
-    if (target) target.click();
-  });
+  // (The #scannerSummary strip no longer renders pills — its only content was a
+  // second copy of the header count, and "clear filters" is the All button in
+  // the pill row right above it. Its delegated click handler went with it.)
 
   // ── Signal type bottom sheet ──
   const sigTypeBtn = document.getElementById('sigTypeBtn');

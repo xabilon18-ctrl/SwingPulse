@@ -112,8 +112,11 @@ def save_ledger(records: dict) -> None:
 # ---------------------------------------------------------------------------
 # Recording fires
 # ---------------------------------------------------------------------------
-def _make_record(name, ticker, group, tf, code, conf, fire_date):
+def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time=''):
     return {
+        # Keyed by DATE, not fire_time: one fire per instrument/code/day, the
+        # same dedup the ledger has always used. Keying on the timestamp would
+        # mint a second id for fires already recorded before fire_time existed.
         'id':          f'{fire_date}|{tf}|{name}|{code}',
         'instrument':  name,
         'ticker':      ticker,
@@ -123,6 +126,7 @@ def _make_record(name, ticker, group, tf, code, conf, fire_date):
         'code':        code,
         'conf':        conf or '',
         'fire_date':   fire_date,      # bar date the signal fired on
+        'fire_time':   fire_time,      # exact bar timestamp (intraday TFs only)
         'recorded_at': _now(),
         'trade':       None,           # filled by grading (ATR-stop simulation)
     }
@@ -131,9 +135,9 @@ def _make_record(name, ticker, group, tf, code, conf, fire_date):
 def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
     """Append this instrument's fired signals (both TFs) to the ledger. Returns #new."""
     added = 0
-    for tf, sig_col, conf_col, date_col in (
-        ('D',  'primary_signal',    'signal_confidence',    'date'),
-        ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date'),
+    for tf, sig_col, conf_col, date_col, ts_col in (
+        ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
+        ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date', 'h4_datetime'),
     ):
         code = str(row.get(sig_col) or '').strip()
         fire_date = str(row.get(date_col) or '').strip()
@@ -141,12 +145,23 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
             continue
         if code not in CURRENT_CODES or fire_date < LEDGER_EPOCH:
             continue  # old engine's codes/behavior — not comparable
+        fire_time = str(row.get(ts_col) or '').strip() if ts_col else ''
+        if fire_time.lower() == 'nan':
+            fire_time = ''
         rec = _make_record(row.get('instrument_name', ''), ticker,
                            str(row.get('group') or ''), tf, code,
-                           str(row.get(conf_col) or '').strip(), fire_date)
-        if rec['id'] not in records:
+                           str(row.get(conf_col) or '').strip(), fire_date,
+                           fire_time)
+        existing = records.get(rec['id'])
+        if existing is None:
             records[rec['id']] = rec
             added += 1
+        elif fire_time and not existing.get('fire_time'):
+            # Same fire, recorded by an earlier run before the bar timestamp
+            # existed (or by an earlier run today). Backfill it so the record
+            # grades off the bar that actually fired.
+            existing['fire_time'] = fire_time
+            existing.pop('bar_approx', None)
     return added
 
 
@@ -187,17 +202,35 @@ def _load_tf_frame(ticker: str, tf: str):
     return _add_atr(df)
 
 
-def _fire_index(df: pd.DataFrame, tf: str, fire_date: str):
-    """Bar index the signal fired on. 4H fires are recorded by date only, so we
-    use the last 4H bar of that date (matches how the pipeline extracts rows)."""
-    ts = pd.Timestamp(fire_date)
+def _fire_index(df: pd.DataFrame, rec: dict):
+    """Bar index the signal fired on, and whether that bar is exact.
+
+    Returns (index, exact) — index is None when the bar isn't in the cache.
+
+    With `fire_time` (every intraday fire recorded since 2026-07-27) the bar is
+    matched exactly. Older 4H records only carry a date, and a date holds 2-6
+    4H bars, so they fall back to the last bar of that date — which is what the
+    whole ledger used to do, and is typically 1-5 bars LATE (runs land midday).
+    Those records are flagged `bar_approx` so the summary can report how much of
+    a bucket rests on a guessed entry bar. Daily dates are unambiguous.
+    """
+    fire_time = rec.get('fire_time') or ''
+    if fire_time:
+        ts = pd.Timestamp(fire_time)
+        pos = df.index.searchsorted(ts, side='left')
+        if pos < len(df) and df.index[pos] == ts:
+            return int(pos), True
+        # Timestamp not in this frame (cache rebuilt / resample boundary moved)
+        # — fall through to the date-level match rather than dropping the fire.
+
+    ts = pd.Timestamp(rec['fire_date'])
     end = df.index.searchsorted(ts + pd.Timedelta(days=1), side='left') - 1
     if end < 0:
-        return None
+        return None, False
     bar_date = df.index[end].date() if hasattr(df.index[end], 'date') else None
     if bar_date != ts.date():
-        return None
-    return int(end)
+        return None, False
+    return int(end), (rec['tf'] == 'D')
 
 
 def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
@@ -206,7 +239,10 @@ def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
 
     changed = False
     tf = rec['tf']
-    fire_idx = _fire_index(df, tf, rec['fire_date'])
+    fire_idx, exact_bar = _fire_index(df, rec)
+    if fire_idx is not None and not exact_bar and not rec.get('bar_approx'):
+        rec['bar_approx'] = True
+        changed = True
     if fire_idx is None:
         # Bar not in cache (delisted / symbol change) — give up on old records
         if len(df) and (pd.Timestamp.now() - pd.Timestamp(rec['fire_date'])).days > 200:
@@ -218,6 +254,17 @@ def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
     entry_idx = fire_idx + 1
     if entry_idx >= len(df):
         return changed  # entry bar hasn't happened yet
+
+    # Has this fire had its FULL outcome window? Only matured records may enter
+    # the win-rate / avgR averages: a trade is written the moment it resolves,
+    # and stops (1R) resolve far sooner than targets (2R), so averaging over
+    # whatever has resolved so far systematically samples the losers. Nothing
+    # about the trade changes here — only whether it is old enough to count.
+    window_elapsed = (len(df) - entry_idx) >= TIME_STOP_BARS.get(tf, 30)
+    if window_elapsed and not rec.get('matured'):
+        rec['matured'] = True
+        changed = True
+
     side = 'long' if rec['code'].startswith('B') else 'short'
 
     if rec.get('entry') is None:
@@ -250,8 +297,7 @@ def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
     if rec.get('trade') is None:
         outcome = simulate_trade(df, fire_idx, side, tf)
         if outcome is not None:
-            available_fwd = len(df) - (fire_idx + 1)
-            if outcome['exit_reason'] != 'time' or available_fwd >= TIME_STOP_BARS.get(tf, 30):
+            if outcome['exit_reason'] != 'time' or window_elapsed:
                 rec['trade'] = {k: outcome[k] for k in
                                 ('exit_reason', 'exit_date', 'bars_held',
                                  'pnl_pct', 'r_multiple', 'win')}
@@ -262,9 +308,13 @@ def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
 
 def grade_open_records(records: dict) -> int:
     """Grade everything still missing marks or a trade outcome. Returns #changed."""
+    # `matured` is part of this: a record that resolved at bar 3 still has to be
+    # revisited until its full window has elapsed, otherwise it could never
+    # become eligible for the averages.
     open_recs = [r for r in records.values()
                  if not r.get('grade_error')
                  and (r.get('trade') is None
+                      or not r.get('matured')
                       or any(r.get(f'h{h}_pct') is None for h in HORIZONS))]
     if not open_recs:
         return 0
@@ -288,20 +338,48 @@ def grade_open_records(records: dict) -> int:
 # Summary (small file the frontend fetches)
 # ---------------------------------------------------------------------------
 def _bucket_stats(recs: list) -> dict:
-    done = [r for r in recs if r.get('trade')]
-    out = {'fires': len(recs), 'graded': len(done)}
-    if done:
-        wins = [r for r in done if r['trade']['win']]
-        out['win_rate'] = round(len(wins) / len(done) * 100, 1)
-        out['avg_r']    = round(sum(r['trade']['r_multiple'] for r in done) / len(done), 3)
-        out['avg_pct']  = round(sum(r['trade']['pnl_pct'] for r in done) / len(done), 2)
-    h20 = [r[f'h20_pct'] for r in recs if r.get('h20_pct') is not None]
+    """Stats for one bucket. Averages come from MATURED trades only.
+
+    A trade is written as soon as it resolves, and a 1R stop resolves much
+    sooner than a 2R target — so averaging every resolved trade samples the
+    fast losers and reports a live expectancy far below the truth. Until
+    2026-07-27 the card did exactly that: on Daily, where a window is 30 bars
+    and the ledger was 4 weeks old, NOT ONE fire had matured, so every daily
+    number on screen was drawn purely from early stop-outs (D|B4 read 0% win
+    off 1 of 69 fires while its unbiased +20-bar mark was strongly positive).
+
+    `graded` (resolved) and `counted` (resolved AND matured) are both reported
+    so the UI can say "38 of 92 counted, 54 still maturing" instead of quietly
+    averaging a biased subset.
+    """
+    done    = [r for r in recs if r.get('trade')]
+    counted = [r for r in done if r.get('matured')]
+    out = {
+        'fires':    len(recs),
+        'graded':   len(done),
+        'counted':  len(counted),
+        'maturing': len(done) - len(counted),
+        # counted trades whose entry bar was inferred from a date (legacy 4H
+        # records, pre-fire_time) rather than matched exactly
+        'approx':   sum(1 for r in counted if r.get('bar_approx')),
+    }
+    if counted:
+        wins = [r for r in counted if r['trade']['win']]
+        out['win_rate'] = round(len(wins) / len(counted) * 100, 1)
+        out['avg_r']    = round(sum(r['trade']['r_multiple'] for r in counted) / len(counted), 3)
+        out['avg_pct']  = round(sum(r['trade']['pnl_pct'] for r in counted) / len(counted), 2)
+    h20 = [r['h20_pct'] for r in recs if r.get('h20_pct') is not None]
     if h20:
+        # Unbiased by construction: every fire with 20 bars behind it counts,
+        # win or lose. Worth watching when `counted` is still thin.
         out['h20_avg_pct'] = round(sum(h20) / len(h20), 2)
+        out['h20_n']       = len(h20)
     return out
 
 
 def write_summary(records: dict) -> dict:
+    from backtest import TIME_STOP_BARS   # deferred — see _load_tf_frame
+
     recs = list(records.values())
     by_signal: dict = {}
     by_code: dict = {}
@@ -312,10 +390,14 @@ def write_summary(records: dict) -> dict:
     summary = {
         'generated_at': _now(),
         'totals': {
-            'fires':  len(recs),
-            'graded': sum(1 for r in recs if r.get('trade')),
-            'open':   sum(1 for r in recs if not r.get('trade') and not r.get('grade_error')),
-            'since':  min((r['fire_date'] for r in recs), default=''),
+            'fires':    len(recs),
+            'graded':   sum(1 for r in recs if r.get('trade')),
+            'counted':  sum(1 for r in recs if r.get('trade') and r.get('matured')),
+            'maturing': sum(1 for r in recs if r.get('trade') and not r.get('matured')),
+            'open':     sum(1 for r in recs if not r.get('trade') and not r.get('grade_error')),
+            'since':    min((r['fire_date'] for r in recs), default=''),
+            # bars each fire needs behind it before it may enter the averages
+            'window':   dict(TIME_STOP_BARS),
         },
         'by_signal': {k: _bucket_stats(v) for k, v in sorted(by_signal.items())},
         'by_code':   {k: _bucket_stats(v) for k, v in sorted(by_code.items())},

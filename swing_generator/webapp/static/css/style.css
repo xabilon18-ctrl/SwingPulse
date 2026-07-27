@@ -181,6 +181,25 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   color: #0a0a0b;
   background: var(--accent, #fbbf24);
 }
+/* Stand-in for the buttons on tabs the timeframe doesn't drive. Same padding
+   and line-height as .tf-switch-btn so the bar keeps its exact height (the
+   desktop .bottom-nav offset below is hard-synced to it). */
+.tf-switch-note {
+  display: none;
+  flex: 1 1 0;
+  padding: 12px 0;
+  font-size: 13px;
+  line-height: 14px;   /* == .tf-switch-btn's 14px/1 box, so the bar height is identical */
+  text-align: center;
+  color: var(--text-muted);
+  letter-spacing: .02em;
+}
+body.tf-locked .tf-switch-btn  { display: none; }
+body.tf-locked .tf-switch-note { display: block; }
+/* Desktop: the toggle spanned the full window — the largest thing on screen. */
+@media (min-width: 768px) {
+  .tf-switch { max-width: 460px; margin: 0 auto; }
+}
 
 /* Sentiment-driven (keeps variable for the badge) */
 .topbar.sentiment-bullish { --pulse-color: var(--buy); }
@@ -3319,7 +3338,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .sig-view-btn:first-child { border-right: 1px solid var(--border); }
 .sig-view-btn.active {
   background: var(--accent);
-  color: #fff;
+  color: #0a0a0b;   /* same ink-on-amber as .tf-switch-btn.active — white on amber is barely legible */
 }
 .sig-view-btn:hover:not(.active) { background: rgba(255,255,255,.05); color: var(--text-primary); }
 
@@ -3378,8 +3397,11 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   line-height: 1;
   letter-spacing: .02em;
 }
+/* Selected state is the same amber everywhere (see the toggle note below the
+   Volume Pulse rules) — this one was a leftover blue. Buy/Sell keep green/red
+   because there the colour carries meaning, not selection. */
 .sig-dir-btn.active {
-  background: rgba(79,158,255,.15);
+  background: var(--accent-glow);
   color: var(--accent);
   box-shadow: 0 1px 4px rgba(0,0,0,.15);
 }
@@ -6055,14 +6077,17 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 #groupPulseCard { padding: 0; overflow: hidden; }
 #groupPulseCard .card-header { padding: 14px 16px 10px; margin-bottom: 0; }
 
+/* Card-header toggle — shares its box and selected state with .vp-mode-btn on
+   the next card down; they sat in the same position looking like two different
+   controls (pill vs square, indigo vs violet). */
 .gp-view-toggle {
-  font-size: .68rem; font-weight: 700; padding: 3px 9px;
-  border-radius: 20px; letter-spacing: .04em; cursor: pointer;
-  background: rgba(255,255,255,.06); color: var(--text-muted);
-  border: 1px solid var(--border); transition: background .15s, color .15s;
+  font-size: .68rem; font-weight: 700; padding: 4px 10px;
+  border-radius: 8px; letter-spacing: .04em; cursor: pointer; line-height: 1;
+  background: var(--bg-elevated); color: var(--text-muted);
+  border: 1px solid var(--border); transition: background .15s, color .15s, border-color .15s;
 }
-.gp-view-toggle:hover { background: rgba(255,255,255,.1); color: var(--text-secondary); }
-.gp-view-toggle.gp-view-active { background: rgba(99,102,241,.18); color: var(--accent); border-color: rgba(99,102,241,.35); }
+.gp-view-toggle:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.gp-view-toggle.gp-view-active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
 
 .gp-risk-badge {
   font-size: .72rem; font-weight: 700; padding: 3px 9px;
@@ -6130,11 +6155,16 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .vp-toggle { display: flex; gap: 4px; }
 .vp-mode-btn {
   font-size: .68rem; font-weight: 700; letter-spacing: .04em;
-  padding: 4px 9px; border-radius: 6px; line-height: 1;
+  padding: 4px 10px; border-radius: 8px; line-height: 1;
   background: var(--bg-elevated); color: var(--text-muted);
   border: 1px solid var(--border); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
 }
-.vp-mode-btn.vp-active { background: var(--volume-soft); color: var(--volume); border-color: var(--volume); }
+.vp-mode-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+/* Selected = accent, the same signal used by the timeframe switch, List/Ranked,
+   the direction toggle and the filter chips. --volume (violet) stays on this
+   card's DATA (RVOL/PVO values), where it means "volume", not "selected". */
+.vp-mode-btn.vp-active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
 
 /* Summary strip: market-wide volume picture above the rows */
 .vp-summary { padding: 12px 16px 10px; border-bottom: 1px solid var(--border); }
@@ -7133,8 +7163,12 @@ body {
 }
 
 /* ── Sector Activity Radar ── */
-#sectorRadarBody { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
-.sr-badge { font-size: .72rem; color: var(--text-muted); font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .5px; }
+/* Was set in ui-monospace, which made this the one card that read like a
+   different application. The z-scores are short numeric labels, not a table
+   that needs column alignment, so they sit fine in the app face; only the
+   tabular sector chips keep tnum so the numbers don't jitter. */
+#sectorRadarBody { font-variant-numeric: tabular-nums; }
+.sr-badge { font-size: .72rem; color: var(--text-muted); letter-spacing: .04em; }
 .sr-badge.sr-hot-badge { color: var(--accent); }
 .sr-badge.sr-warm-badge { color: var(--accent); opacity: .8; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.28); padding: 3px 10px; border-radius: 8px; }
 .sr-badge.sr-quiet-badge { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); padding: 3px 10px; border-radius: 8px; }
@@ -7218,7 +7252,7 @@ body {
 .market-state.sit .ms-t { color: var(--watch); }
 .market-state.ok  .ms-t { color: var(--buy); }
 .market-state .ms-s { font-size: .72rem; color: var(--text-secondary); line-height: 1.45; }
-.market-state .ms-prov { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
+.market-state .ms-prov { font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
 
 /* ── Top-of-card verdict bar (signal + confidence + sector mood → one call) ── */
 .sc-verdict { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 9px 0 3px; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-elevated); }
