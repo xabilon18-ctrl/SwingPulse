@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (740)
+  GANN SCANNER — FULL INSTRUMENT LIST (736)
   Generated: 11 Jul 2026
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -228,7 +228,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 173  | BAYN.DE       | BAYN          | GER40         | Healthcare                | Drug Manufacturers
 174  | BMW.DE        | BMW           | GER40         | Consumer Cyclical         | Auto Manufacturers
 175  | CON.DE        | CON           | GER40         | Consumer Cyclical         | Auto Parts
-176  | 1COV.DE       | 1COV          | GER40         | Basic Materials           | Chemicals
 177  | DHER.DE       | DHER          | GER40         | Consumer Cyclical         | Internet Retail
 178  | DTE.DE        | DTE_DE        | GER40         | Communication Services    | Telecom
 179  | DBK.DE        | DBK           | GER40         | Financial Services        | Banks
@@ -521,7 +520,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 402  | CAP.PA        | CAP_FR        | FRA40         | Technology                | IT Services
 403  | DSY.PA        | DSY           | FRA40         | Technology                | Software
 404  | BNP.PA        | BNP           | FRA40         | Financial Services        | Banks
-405  | AXA.PA        | AXA           | FRA40         | Financial Services        | Insurance
+405  | CS.PA         | AXA           | FRA40         | Financial Services        | Insurance
 406  | GLE.PA        | GLE           | FRA40         | Financial Services        | Banks
 407  | SAN.PA        | SANOFI        | FRA40         | Healthcare                | Drug Manufacturers
 408  | ENGI.PA       | ENGI          | FRA40         | Utilities                 | Utilities
@@ -594,18 +593,17 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 459  | ADM.L         | ADM           | UK100         | Financial Services        | Insurance
 460  | ABF.L         | ABF           | UK100         | Consumer Defensive        | Packaged Foods
 461  | AUTO.L        | AUTO          | UK100         | Technology                | Online Marketplace
-462  | BDEV.L        | BDEV          | UK100         | Consumer Cyclical         | Homebuilding
+462  | BTRW.L        | BTRW          | UK100         | Consumer Cyclical         | Homebuilding
 463  | BKG.L         | BKG           | UK100         | Consumer Cyclical         | Homebuilding
 464  | BLND.L        | BLND          | UK100         | Real Estate               | REIT
 465  | BNZL.L        | BNZL          | UK100         | Industrials               | Distribution
 466  | BRBY.L        | BRBY          | UK100         | Consumer Cyclical         | Luxury Goods
-467  | CCL.L         | CCL           | UK100         | Consumer Cyclical         | Travel & Leisure
+467  | CCL           | CCL           | NYSE          | Consumer Cyclical         | Travel & Leisure
 468  | CNA.L         | CNA           | UK100         | Utilities                 | Gas Utilities
 469  | CCH.L         | CCH           | UK100         | Consumer Defensive        | Beverages
 470  | CTEC.L        | CTEC          | UK100         | Healthcare                | Medical Devices
-471  | CRH.L         | CRH           | UK100         | Basic Materials           | Building Materials
+471  | CRH           | CRH           | NYSE          | Basic Materials           | Building Materials
 472  | CRDA.L        | CRDA          | UK100         | Basic Materials           | Specialty Chemicals
-473  | SMDS.L        | SMDS          | UK100         | Consumer Cyclical         | Packaging
 474  | EZJ.L         | EZJ           | UK100         | Consumer Cyclical         | Airlines
 475  | ENT.L         | ENT           | UK100         | Consumer Cyclical         | Gambling
 476  | FRES.L        | FRES          | UK100         | Basic Materials           | Precious Metals Mining
@@ -623,7 +621,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 488  | OCDO.L        | OCDO          | UK100         | Consumer Cyclical         | Internet Retail
 489  | PSON.L        | PSON          | UK100         | Communication Services    | Publishing
 490  | PSN.L         | PSN           | UK100         | Consumer Cyclical         | Homebuilding
-491  | PHNX.L        | PHNX          | UK100         | Financial Services        | Insurance
 492  | RKT.L         | RKT           | UK100         | Consumer Defensive        | Household Products
 493  | RTO.L         | RTO           | UK100         | Industrials               | Business Services
 494  | SGE.L         | SGE           | UK100         | Technology                | Software
@@ -650,13 +647,13 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   IT40 MIB — ADDITIONAL (14)
 ═══════════════════════════════════════════════════════════════════════════════
 509  | A2A.MI        | A2A           | IT40          | Utilities                 | Electric Utilities
-510  | BPER.MI       | BPER          | IT40          | Financial Services        | Banks
+510  | BPE.MI        | BPER          | IT40          | Financial Services        | Banks
 511  | BMPS.MI       | BMPS          | IT40          | Financial Services        | Banks
-512  | INWIT.MI      | INWIT         | IT40          | Communication Services    | Telecom Infrastructure
+512  | INW.MI        | INWIT         | IT40          | Communication Services    | Telecom Infrastructure
 513  | IG.MI         | IG_IT         | IT40          | Utilities                 | Gas Utilities
-514  | CNHI.MI       | CNHI          | IT40          | Industrials               | Agricultural Machinery
+514  | CNH           | CNH           | NYSE          | Industrials               | Agricultural Machinery
 515  | FBK.MI        | FBK           | IT40          | Financial Services        | Banks
-516  | HERA.MI       | HERA          | IT40          | Utilities                 | Utilities
+516  | HER.MI        | HERA          | IT40          | Utilities                 | Utilities
 517  | PRY.MI        | PRY           | IT40          | Industrials               | Cables
 518  | REC.MI        | REC_IT        | IT40          | Healthcare                | Drug Manufacturers
 519  | SRG.MI        | SRG           | IT40          | Utilities                 | Gas Utilities
@@ -687,7 +684,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
 537  | NESN.SW       | NESN          | SMI20         | Consumer Defensive        | Packaged Foods
 538  | NOVN.SW       | NOVN          | SMI20         | Healthcare                | Drug Manufacturers
-539  | ROG.SW        | ROG_SW        | SMI20         | Healthcare                | Drug Manufacturers
+539  | RHHBY         | ROCHE         | SMI20         | Healthcare                | Drug Manufacturers
 540  | ABBN.SW       | ABBN          | SMI20         | Industrials               | Industrial Machinery
 541  | CFR.SW        | CFR           | SMI20         | Consumer Cyclical         | Luxury Goods
 542  | ZURN.SW       | ZURN          | SMI20         | Financial Services        | Insurance
@@ -714,9 +711,8 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 559  | WOW.AX        | WOW           | ASX200        | Consumer Defensive        | Grocery
 560  | TLS.AX        | TLS           | ASX200        | Communication Services    | Telecom
 561  | FMG.AX        | FMG           | ASX200        | Basic Materials           | Mining
-562  | NCM.AX        | NCM           | ASX200        | Basic Materials           | Gold Mining
 563  | STO.AX        | STO           | ASX200        | Energy                    | Oil & Gas
-564  | WPL.AX        | WPL           | ASX200        | Energy                    | Oil & Gas
+564  | WDS.AX        | WDS           | ASX200        | Energy                    | Oil & Gas
 565  | QAN.AX        | QAN           | ASX200        | Consumer Cyclical         | Airlines
 566  | TCL.AX        | TCL_AX        | ASX200        | Industrials               | Infrastructure
 567  | GMG.AX        | GMG           | ASX200        | Real Estate               | REIT
@@ -744,7 +740,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 581  | NPN.JO        | NPN           | JSE           | Technology                | Internet Media
 582  | PRX.JO        | PRX           | JSE           | Technology                | Internet Media
 583  | SOL.JO        | SOL_ZA        | JSE           | Energy                    | Oil & Gas
-584  | BIL.JO        | BIL           | JSE           | Basic Materials           | Mining
+584  | BHG.JO        | BHG           | JSE           | Basic Materials           | Mining
 585  | MTN.JO        | MTN           | JSE           | Communication Services    | Telecom
 586  | SBK.JO        | SBK           | JSE           | Financial Services        | Banks
 587  | FSR.JO        | FSR           | JSE           | Financial Services        | Banks
@@ -810,7 +806,6 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 639  | MET           | MET           | US500         | Financial Services        | Insurance
 640  | AFL           | AFL           | US500         | Financial Services        | Insurance
 641  | PGR           | PGR           | US500         | Financial Services        | Insurance
-642  | MMC           | MMC           | US500         | Financial Services        | Insurance Brokers
 643  | AON           | AON           | US500         | Financial Services        | Insurance Brokers
 644  | WTW           | WTW           | US500         | Financial Services        | Insurance Brokers
 645  | FISV          | FISV          | US500         | Technology                | Fintech

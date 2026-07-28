@@ -101,9 +101,27 @@ def build_summary(df, dt):
     sell_mask     = sigs.str.startswith('S')
     signal_types  = sigs[sigs != ''].value_counts().to_dict()
     groups = sorted([g for g in df['group'].unique().tolist() if g])
+
+    # ── Coverage ── main.py already names the dropouts in its run log, but a
+    # buried log line in a 700-instrument CI run is not a signal anyone sees:
+    # 16 instruments (incl. AXA, Roche, Marsh) had been fetching nothing for
+    # months while the app happily published 725 of 741. Carrying the count in
+    # the payload lets the app say so on screen.
+    try:
+        from instruments import load_instruments
+        expected = load_instruments()
+        published = set(df['instrument_name'].astype(str))
+        missing = sorted(i['name'] for i in expected if i['name'] not in published)
+    except Exception:
+        expected, missing = [], []
+
     return {
         'date':             dt,
         'total':            len(df),
+        'expected':         len(expected),
+        'missing_count':    len(missing),
+        'missing':          missing[:50],
+
         'trend_counts':     trend_counts,
         'buy_count':        int(buy_mask.sum()),
         'sell_count':       int(sell_mask.sum()),

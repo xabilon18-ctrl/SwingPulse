@@ -350,7 +350,8 @@ _TV_BY_NAME: dict[str, str] = {
     'MT_NL':     'EURONEXT:MT',
 
     # ── Swiss (SIX) stocks — special name overrides ──
-    'ROG_SW':    'SIX:ROG',
+    'ROG_SW':    'SIX:ROG',   # retired 2026-07-28 — ROG.SW returns no Yahoo data;
+                              # the instrument is now 'ROCHE' on the RHHBY ADR (see below)
 
     # ── Australian (ASX) stocks — special name overrides ──
     'TCL_AX':    'ASX:TCL',
@@ -378,20 +379,26 @@ _TV_BY_NAME: dict[str, str] = {
     'SN':        'LSE:SN.',
     'TW':        'LSE:TW.',
     'UU':        'LSE:UU.',
-    # Exchange / ticker corrections
-    'CRH':       'NYSE:CRH',          # moved primary listing LSE → NYSE
-    'CCL':       'NYSE:CCL',          # Carnival
-    'CNHI':      'NYSE:CNH',          # CNH Industrial (re-tickered)
-    '1COV':      'GETTEX:1COV',       # Covestro (XETR feed dropped)
-    'AXA':       'GETTEX:AXA',        # AXA SA
-    'BPER':      'MIL:BPE',           # BPER Banca
-    'HERA':      'MIL:HER',           # Hera SpA
-    'INWIT':     'MIL:INW',           # Infrastrutture Wireless Italiane
-    'WPL':       'ASX:WDS',           # Woodside (renamed WPL → WDS)
-    'BIL':       'JSE:BHG',           # BHP Group (ex-Billiton)
-    'BDEV':      'LSE:BTRW',          # Barratt (merged → Barratt Redrow)
-    'NCM':       'NYSE:NEM',          # Newcrest delisted → successor Newmont
-    'SMDS':      'NYSE:IP',           # DS Smith delisted → successor International Paper
+    # Exchange / ticker corrections.
+    # NOTE (2026-07-28): these entries were added when the chart LINKS broke,
+    # but the Yahoo data tickers in Instruments.txt were never updated to match
+    # — so all of these silently fetched nothing and dropped out of the payload
+    # for months. The instrument file now carries the working symbols, and the
+    # keys here follow the display names it uses. Whenever a link override is
+    # added because an instrument re-tickered, check the DATA ticker too.
+    'CRH':       'NYSE:CRH',          # data CRH   — moved primary listing LSE → NYSE
+    'CCL':       'NYSE:CCL',          # data CCL   — Carnival plc left the LSE
+    'CNH':       'NYSE:CNH',          # data CNH   — CNH Industrial (was CNHI/IT40)
+    'AXA':       'EURONEXT:CS',       # data CS.PA — AXA's Euronext code is CS, not AXA
+    'BPER':      'MIL:BPE',           # data BPE.MI
+    'HERA':      'MIL:HER',           # data HER.MI
+    'INWIT':     'MIL:INW',           # data INW.MI
+    'WDS':       'ASX:WDS',           # data WDS.AX — Woodside (was WPL)
+    'BHG':       'JSE:BHG',           # data BHG.JO — BHP Group (was BIL)
+    'BTRW':      'LSE:BTRW',          # data BTRW.L — Barratt Redrow (was BDEV)
+    'ROCHE':     'OTC:RHHBY',         # data RHHBY — the US ADR, so the chart matches
+                                      # the card. The Swiss line (SIX:ROG) is dead on
+                                      # Yahoo; note the ADR prices in USD, not CHF.
 
     # ── Indices (additional) ──
     'SOX':   'NASDAQ:SOX',
@@ -958,9 +965,22 @@ def api_summary():
 
         groups = sorted([g for g in df['group'].unique().tolist() if g]) if 'group' in df.columns else []
 
+        # Coverage — kept identical to publish.py build_summary() so local dev
+        # and the published payload never disagree about what's missing.
+        try:
+            from instruments import load_instruments
+            expected  = load_instruments()
+            published = set(df['instrument_name'].astype(str))
+            missing   = sorted(i['name'] for i in expected if i['name'] not in published)
+        except Exception:
+            expected, missing = [], []
+
         return jsonify({
             'date': dt,
             'total': len(df),
+            'expected': len(expected),
+            'missing_count': len(missing),
+            'missing': missing[:50],
             'trend_counts': trend_counts,
             'buy_count': int(buy_mask.sum()),
             'sell_count': int(sell_mask.sum()),

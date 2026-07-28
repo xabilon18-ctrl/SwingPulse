@@ -31,6 +31,17 @@
   let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
   let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
+  // Class chips (Crypto / Indices / Banks / Tech / …). These used to work by
+  // writing their term into the search box, which made every other chip filter
+  // silently switch off — see the note on the chip handler.
+  let scannerCatFilter = '';
+  // Dashboard cards that jump into the Signals tab with a search term must drop
+  // any class chip first, or the jump lands pre-narrowed for no visible reason.
+  function clearCatChip() {
+    scannerCatFilter = '';
+    document.querySelectorAll('#scannerCatChips .s-cat-chip.active')
+      .forEach(c => c.classList.remove('active'));
+  }
   let scannerMoodFilter = 'all';   // sector-mood filter (all/confirmed/fighting/calm/distributing/active/churn/mixed/marketwide)
   let scannerSort = 'signal';
   let scannerView = 'list';   // 'list' | 'ranked'
@@ -919,6 +930,17 @@
             msg = `Data is from ${dateStr} — an update may be overdue`;
           }
         }
+        // Coverage — instruments in the list that produced no data at all.
+        // main.py has always named these in its run log, but nobody reads a
+        // 700-line CI log: 16 (incl. AXA, Roche, Marsh) had been fetching
+        // nothing for months while the app quietly published 725 of 741.
+        const missN = parseInt(sumRes.missing_count) || 0;
+        if (!msg && missN > 0) {
+          const names = Array.isArray(sumRes.missing) ? sumRes.missing.slice(0, 6).join(', ') : '';
+          msg = `${missN} instrument${missN > 1 ? 's' : ''} have no data`
+              + (names ? ` — ${names}${missN > 6 ? '…' : ''}` : '');
+        }
+
         staleText.textContent = msg;
         staleBanner.style.display = msg ? '' : 'none';
       }
@@ -1887,6 +1909,7 @@
         } else {
           const inp = document.getElementById('scannerSearch');
           if (inp) inp.value = key;
+          clearCatChip();
         }
         updateScannerCtxStrip?.();
         navigateToTab('scanner');
@@ -2046,6 +2069,7 @@
     const srGoToSector = sector => {
       const inp = document.getElementById('scannerSearch');
       if (inp) inp.value = sector;
+      clearCatChip();
       scannerSort = 'signal';
       const sortSel = document.getElementById('scannerSort');
       if (sortSel) sortSel.value = 'signal';
@@ -2842,6 +2866,10 @@
 
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
+    // Class chip — same matcher the term used to get when it was typed into the
+    // search box, but as its own filter, so it composes with everything below
+    // instead of suppressing it.
+    if (scannerCatFilter) filtered = filtered.filter(d => matchesSearch(d, scannerCatFilter));
     if (assetClass !== 'all') filtered = filtered.filter(d => assetClassOf(d) === assetClass);
     if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
     // Region filter — set by clicking a region row on the By Region card
@@ -3124,12 +3152,10 @@
     const clearBtn = document.getElementById('scannerSearchClear');
     const chipRow  = document.getElementById('scannerCatChips');
 
-    // Show/hide clear button + deactivate category chips on input
+    // Show/hide clear button on input. Category chips are NO LONGER cleared
+    // here — they hold their own state now and compose with the search box.
     searchEl.addEventListener('input', debounce(() => {
-      const hasVal = searchEl.value.length > 0;
-      clearBtn.style.display = hasVal ? '' : 'none';
-      // Deactivate all chips if user typed something manually
-      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
+      clearBtn.style.display = searchEl.value.length > 0 ? '' : 'none';
       buildScannerCards();
     }, 150));
 
@@ -3137,7 +3163,6 @@
     clearBtn.addEventListener('click', () => {
       searchEl.value = '';
       clearBtn.style.display = 'none';
-      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
       buildScannerCards();
       searchEl.focus();
     });
@@ -3147,16 +3172,13 @@
       const chip = e.target.closest('.s-cat-chip');
       if (!chip) return;
       const wasActive = chip.classList.contains('active');
-      // Toggle off if already active (clear search), otherwise activate
       chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
-      if (wasActive) {
-        searchEl.value = '';
-        clearBtn.style.display = 'none';
-      } else {
-        chip.classList.add('active');
-        searchEl.value = chip.dataset.cat;
-        clearBtn.style.display = '';
-      }
+      // Own state — these used to write into the search box, which made the
+      // scanner treat "picked a class" as "typing a name" and silently skip
+      // the whole chip-filter block (Buy/Sell/Today/Squeeze/Key Lvl/Vol/Radar/
+      // Analyzed). Picking Crypto turned all of those off without a word.
+      scannerCatFilter = wasActive ? '' : (chip.dataset.cat || '');
+      if (!wasActive) chip.classList.add('active');
       buildScannerCards();
     });
   })();

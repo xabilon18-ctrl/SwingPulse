@@ -737,7 +737,9 @@
       "Bash(grep -oE \"function [A-Za-z_$]+\" app.js)",
       "Bash(python3 -c \"import ast,sys; [ast.parse\\(open\\(f\\).read\\(\\),f\\) for f in \\('signal_ledger.py','main.py','config.py'\\)]; print\\('syntax ok'\\)\")",
       "Bash(grep -n \"Key Computed Fields\\\\|^- \\\\`app.js\\\\` — \\\\*\\\\*v225\\\\*\\\\*\" CLAUDE.md)",
-      "Bash(grep -nE '^\\\\.?[a-z0-9_.# -]*\\(tf-switch-btn|sig-view-btn|sig-dir-btn|vp-mode-btn|gp-view-toggle\\)[a-z0-9_.:# ,>-]*\\\\{' style.css)"
+      "Bash(grep -nE '^\\\\.?[a-z0-9_.# -]*\\(tf-switch-btn|sig-view-btn|sig-dir-btn|vp-mode-btn|gp-view-toggle\\)[a-z0-9_.:# ,>-]*\\\\{' style.css)",
+      "Bash(grep -vE \"possibly delisted|^$\")",
+      "Bash(awk -F'|' '{gsub\\(/^ +| +$/,\"\",$4\\); print $4}')"
     ]
   }
 }
