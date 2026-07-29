@@ -149,7 +149,7 @@ CONF_TIER_ORDER = ['low', 'standard', 'high']
 
 # Column order for output
 OUTPUT_COLUMNS = [
-    'instrument_name', 'group', 'sector', 'industry',
+    'instrument_name', 'group', 'sector', 'industry', 'asset_class',
     # ── Multi-timeframe alignment ──
     'tf_alignment', 'tf_alignment_score',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──

@@ -154,6 +154,19 @@
     const overlay = document.getElementById('userPickerOverlay');
     if (overlay) overlay.style.display = 'flex';
   }
+  function hideUserPicker() {
+    const overlay = document.getElementById('userPickerOverlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+  // Backdrop tap dismisses too (clicks on the sheet itself must not).
+  (function wireUserPickerDismiss() {
+    const overlay = document.getElementById('userPickerOverlay');
+    if (!overlay) return;
+    overlay.addEventListener('click', e => { if (e.target === overlay) hideUserPicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display !== 'none') hideUserPicker();
+    });
+  })();
 
   window.toggleAIFilter = toggleAIFilter;   // exposed for nav button onclick
 
@@ -535,10 +548,21 @@
   // 'unknown' = sector too small / too little history to judge (sector_activity.py).
   // It is NOT the same as 'normal' and must never read as a positive all-clear.
   function flavourOf(item) { return instFlavours[item.instrument_name] || 'unknown'; }
+
+  // "Fired on the newest bar we hold for THIS instrument" — the single
+  // definition of a fresh fire. Per-instrument on purpose: feeds run at
+  // different times and some names lag (a stale instrument's newest bar is not
+  // today's date), so comparing against a global run date would call a
+  // three-day-old fire "today". This is also what the card badge reads as
+  // "Today"/"Latest bar" via signalAge(fireDate, itemDate).
+  function firedOnLatestBar(item) {
+    const fired = item[f('last_signal_date')] || '';
+    return !!fired && fired === (item[f('date')] || '');
+  }
+
   function moodApplies(item) {
     if (timeframe !== 'D') return false;                          // validated on daily only
-    const fired = item[f('last_signal_date')] || '';
-    return !!fired && fired === (item[f('date')] || '');          // fire is on the newest bar
+    return firedOnLatestBar(item);
   }
 
   // Sector-mood modifier for a fired signal: +1 sector-confirmed, −1 fighting/trap,
@@ -2856,9 +2880,13 @@
     }
   }
 
-  // Mirror of instruments.py asset_class_of(): collapse groups into the broad
-  // classes used by the confidence map (Forex kept for old data compatibility).
+  // Asset class comes from the pipeline (`asset_class`, added 2026-07-29) —
+  // instruments.py asset_class_of() is the one implementation. The fallback
+  // below is the old hand-copy, kept ONLY so a payload published before that
+  // column existed still filters; delete it once no such payload can be served.
+  // Do not "improve" the fallback: if the rule changes, change it in Python.
   function assetClassOf(d) {
+    if (d.asset_class) return d.asset_class;
     const g = (d.group || '').trim();
     if (g === 'Crypto' || g === 'Blockchain') return 'Crypto';
     if (g === 'Forex') return 'Forex';
@@ -2877,7 +2905,6 @@
     const sector = document.getElementById('scannerSectorFilter').value;
     const trend = document.getElementById('scannerTrendFilter').value;
     const alignFilter = document.getElementById('scannerAlignFilter').value;
-    const today = new Date(); today.setHours(0,0,0,0);
 
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
@@ -2925,11 +2952,11 @@
       else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
       else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
       else if (activeScannerFilter === 'today') {
-        filtered = filtered.filter(d => {
-          const sd = new Date(d[f('last_signal_date')] || d[f('date')] || '');
-          sd.setHours(0,0,0,0);
-          return sd.getTime() === today.getTime();
-        });
+        // Was: parse the date and compare against the DEVICE's midnight — so on
+        // a weekend, or any time the feed ran behind, the chip returned nothing
+        // while the cards right below it read "Today". Now it uses the same
+        // test the cards do: the fire is on this instrument's newest bar.
+        filtered = filtered.filter(firedOnLatestBar);
       } else if (activeScannerFilter === 'best') {
         filtered = filtered.filter(d => {
           const align = d.tf_alignment || '';
@@ -2992,16 +3019,9 @@
       filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1y)||0) - (parseFloat(b.pct_1y)||0));
     }
 
-    // ── Summary bar ──
-    const buyCount  = filtered.filter(isBuy).length;
-    const sellCount = filtered.filter(isSell).length;
-    const sqzCount  = filtered.filter(d => d[f('ribbon_compression')] === 'yes').length;
-    const klCount   = filtered.filter(d => d.key_level_touched_today === 'yes').length;
-    const todayCount = filtered.filter(d => {
-      const sd = new Date(d[f('last_signal_date')] || d[f('date')] || '');
-      sd.setHours(0,0,0,0);
-      return sd.getTime() === today.getTime();
-    }).length;
+    // (The buy/sell/squeeze/key-level/today tallies that used to live here fed
+    // the #scannerSummary pills, which were removed in v226 — they were five
+    // full passes over the filtered list computing numbers nobody rendered.)
 
     // Update count header
     const countEl = document.getElementById('sigActiveCount');
@@ -4923,7 +4943,7 @@
     window._renderFlow = renderFlow;
   })();
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel };
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)

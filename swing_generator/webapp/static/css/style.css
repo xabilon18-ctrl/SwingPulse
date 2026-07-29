@@ -7162,6 +7162,17 @@ body {
   .mp-bd-val { font-size: 1.1rem; }
 }
 
+/* User picker — "Not now" escape (the sheet used to have no way out) */
+.up-skip {
+  display: block; width: 100%; margin: 18px auto 0; padding: 10px 0;
+  font: inherit; font-size: .8rem; font-weight: 600;
+  color: var(--text-muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.up-skip:hover { color: var(--text-secondary); border-color: var(--border-active); }
+.up-skip:active { transform: scale(.98); }
+
 /* ── Sector Activity Radar ── */
 /* Was set in ui-monospace, which made this the one card that read like a
    different application. The z-scores are short numeric labels, not a table

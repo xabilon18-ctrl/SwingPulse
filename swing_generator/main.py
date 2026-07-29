@@ -480,6 +480,11 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             'group':            inst_meta.get('group', ''),
             'sector':           inst_meta.get('sector', ''),
             'industry':         inst_meta.get('industry', ''),
+            # Shipped rather than re-derived in the browser: app.js carried a
+            # hand-copy of asset_class_of() to key the same confidence tiers.
+            # Two implementations of one rule in two languages is how the
+            # buy/sell counting bug survived a year — one source now.
+            'asset_class':      _asset_cls,
             **(daily_data or {}),
             **(h4_data or {}),
         }

@@ -15,9 +15,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=212">
+  <link rel="stylesheet" href="/static/css/style.css?v=213">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
+       4.x release: a bad or tampered publish would have executed on this page
+       with no warning. If this ever needs upgrading, fetch the new file and
+       recompute: openssl dgst -sha384 -binary chart.umd.min.js | openssl base64 -A -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+          integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+          crossorigin="anonymous"></script>
 </head>
 <body data-profile="__APP_PROFILE__">
 
@@ -632,12 +638,17 @@
         <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
         <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
       </div>
+      <!-- A way out. This sheet opens on first load and used to have none:
+           no close, no backdrop dismiss, so a new device was stuck on it
+           before it could show a single signal. Skipping just means no
+           cross-device sync — the badge in the header sets it later. -->
+      <button class="up-skip" onclick="window.SP && window.SP.hideUserPicker()">Not now — just browsing</button>
     </div>
   </div>
 
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=228"></script>
+  <script src="/static/js/app.js?v=229"></script>
 </body>
 </html>
