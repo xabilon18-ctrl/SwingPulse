@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=211">
+  <link rel="stylesheet" href="/static/css/style.css?v=212">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -303,6 +303,22 @@
               <button class="mood-opt" data-mood="mixed">Mixed</button>
               <button class="mood-opt" data-mood="marketwide">Market-wide day</button>
               <button class="mood-opt" data-mood="unknown">No sector read</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="filter-pill" id="pillSort">
+          <summary>Sort<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+          <div class="filter-pop">
+            <div class="sort-opts" id="scannerSortOpts">
+              <button class="sort-opt active" data-sort="signal">Signal first</button>
+              <button class="sort-opt" data-sort="pct_1y_desc">Year % — high → low</button>
+              <button class="sort-opt" data-sort="pct_1y_asc">Year % — low → high</button>
+              <button class="sort-opt" data-sort="pct_1d_desc">Day % — high → low</button>
+              <button class="sort-opt" data-sort="pct_1d_asc">Day % — low → high</button>
+              <button class="sort-opt" data-sort="conviction">Conviction</button>
+              <button class="sort-opt" data-sort="radar_score">Radar score</button>
+              <button class="sort-opt" data-sort="date_desc">Newest signal</button>
             </div>
           </div>
         </details>
@@ -622,6 +638,6 @@
 
 
   <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=227"></script>
+  <script src="/static/js/app.js?v=228"></script>
 </body>
 </html>

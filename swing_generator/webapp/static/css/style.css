@@ -7168,7 +7168,7 @@ body {
    that needs column alignment, so they sit fine in the app face; only the
    tabular sector chips keep tnum so the numbers don't jitter. */
 #sectorRadarBody { font-variant-numeric: tabular-nums; }
-.sr-badge { font-size: .72rem; color: var(--text-muted); letter-spacing: .04em; }
+.sr-badge { font-size: .78rem; color: var(--text-muted); letter-spacing: .04em; }
 .sr-badge.sr-hot-badge { color: var(--accent); }
 .sr-badge.sr-warm-badge { color: var(--accent); opacity: .8; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.28); padding: 3px 10px; border-radius: 8px; }
 .sr-badge.sr-quiet-badge { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); padding: 3px 10px; border-radius: 8px; }
@@ -7206,22 +7206,30 @@ body {
 .sc-stat-val.sc-stat-na { color: var(--text-muted); font-weight: 400; }
 .ai-chip-mini { border: 1px solid rgba(139,92,246,.5); color: #a78bfa; font-size: .56rem; font-weight: 600; letter-spacing: .1em; padding: 1px 7px; border-radius: 99px; vertical-align: 1px; }
 .sc-ma-lbl { font-size: .58rem; font-weight: 600; letter-spacing: .1em; color: var(--text-muted); }
+/* Full-bleed on phones: the card's own side padding was costing the radar ~28px
+   of width, which the labels need now that they're set bigger. Desktop keeps a
+   sane cap so it doesn't balloon. */
 .sr-radar-svg { width: 100%; max-width: 460px; height: auto; display: block; margin: 0 auto; }
+@media (max-width: 600px) {
+  .sr-radar-svg { width: calc(100% + 24px); max-width: none; margin-left: -12px; margin-right: -12px; }
+}
 .sr-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sr-hot-card { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: background .15s; }
 .sr-hot-card:hover { background: var(--bg-hover); }
 .sr-hot-card:active { transform: scale(.99); }
-.sr-hot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .78rem; font-weight: 600; letter-spacing: .8px; }
-.sr-hot-sub { font-size: .72rem; color: var(--text-secondary); margin-top: 3px; }
-.sr-hot-meta { font-size: .68rem; color: var(--text-muted); margin-top: 1px; }
+.sr-hot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .84rem; font-weight: 600; letter-spacing: .8px; }
+.sr-hot-sub { font-size: .76rem; color: var(--text-secondary); margin-top: 3px; }
+.sr-hot-meta { font-size: .72rem; color: var(--text-muted); margin-top: 1px; }
 .sr-warm-card { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s; opacity: .82; }
 .sr-warm-card:hover { background: var(--bg-hover); opacity: 1; }
 .sr-warm-card:active { transform: scale(.99); }
-.sr-warm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .74rem; font-weight: 600; letter-spacing: .6px; color: var(--text-secondary); }
+.sr-warm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: .78rem; font-weight: 600; letter-spacing: .6px; color: var(--text-secondary); }
 .sr-base-card { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: .72rem; color: var(--text-muted); }
-.sr-base-head { font-size: .66rem; letter-spacing: .04em; color: var(--text-muted); margin: 2px 0 6px; }
+.sr-base-head { font-size: .74rem; letter-spacing: .04em; color: var(--text-muted); margin: 2px 0 6px; }
+.sr-hot-head > span:last-child,
+.sr-warm-head > span:last-child { white-space: nowrap; flex-shrink: 0; }
 .sr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.sr-chip { font: inherit; font-size: .68rem; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px; cursor: pointer; transition: background .15s, border-color .15s; }
+.sr-chip { font: inherit; font-size: .78rem; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; cursor: pointer; transition: background .15s, border-color .15s; }
 .sr-chip:hover { background: var(--bg-hover); border-color: rgba(251,191,36,.35); color: var(--text-primary); }
 .sr-chip:active { transform: scale(.97); }
 .sr-chip-z { color: var(--text-muted); font-variant-numeric: tabular-nums; }
@@ -7229,7 +7237,7 @@ body {
 .sr-spoke:hover text, .sr-spoke:focus text { text-decoration: underline; }
 .sr-spoke:focus { outline: none; }
 .sr-spoke:focus-visible > text { text-decoration: underline; }
-.sr-legend { font-size: .66rem; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+.sr-legend { font-size: .72rem; color: var(--text-muted); margin-top: 10px; line-height: 1.55; }
 
 /* ── Sector-mood conviction layer (validated on real R — Phase 0, 2026-07-22) ──
    The mood chip and pip row that used to live on every card are gone: on a normal
@@ -7293,6 +7301,7 @@ body {
    cycling, signal sheet, delegated ctx clicks) is untouched. Outside a pill
    these classes keep their old chip-row styling. */
 .mood-opts,
+.sort-opts,
 .filter-pop .scanner-cat-chips,
 .filter-pop .sig-ctx-row {
   display: flex;
@@ -7307,6 +7316,7 @@ body {
 }
 /* Shared option row */
 .mood-opt,
+.sort-opt,
 .filter-pop .s-cat-chip,
 .filter-pop .sig-ctx-chip {
   display: flex;
@@ -7328,6 +7338,7 @@ body {
   transition: background .15s, border-color .15s, color .15s;
 }
 .mood-opt:hover,
+.sort-opt:hover,
 .filter-pop .s-cat-chip:hover,
 .filter-pop .sig-ctx-chip:hover {
   background: var(--bg-hover);
@@ -7336,6 +7347,7 @@ body {
 }
 /* Selected — same amber treatment in all three lists */
 .mood-opt.active,
+.sort-opt.active,
 .filter-pop .s-cat-chip.active,
 .filter-pop .sig-ctx-chip.active {
   background: var(--accent-glow);

@@ -739,7 +739,11 @@
       "Bash(grep -n \"Key Computed Fields\\\\|^- \\\\`app.js\\\\` — \\\\*\\\\*v225\\\\*\\\\*\" CLAUDE.md)",
       "Bash(grep -nE '^\\\\.?[a-z0-9_.# -]*\\(tf-switch-btn|sig-view-btn|sig-dir-btn|vp-mode-btn|gp-view-toggle\\)[a-z0-9_.:# ,>-]*\\\\{' style.css)",
       "Bash(grep -vE \"possibly delisted|^$\")",
-      "Bash(awk -F'|' '{gsub\\(/^ +| +$/,\"\",$4\\); print $4}')"
+      "Bash(awk -F'|' '{gsub\\(/^ +| +$/,\"\",$4\\); print $4}')",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/summary.json?cb=$\\(date +%s\\)\")",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/ledger_summary.json?cb=$\\(date +%s\\)\")",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/signals.json?cb=$\\(date +%s\\)\" -o s2.json)",
+      "Bash(node --check swing_generator/webapp/static/js/app.js)"
     ]
   }
 }

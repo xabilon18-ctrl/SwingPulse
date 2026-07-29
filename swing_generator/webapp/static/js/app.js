@@ -798,6 +798,14 @@
     paneEl.classList.add('active');
     currentTab = tab;
     syncTfLock();
+    // Start every tab at the top. The panes share the document's scroll
+    // offset, so tapping through from halfway down the Dashboard used to drop
+    // you into the middle of the signal list — worst from a Sector Radar tap,
+    // where the whole point is to look at what it filtered to.
+    // 'auto' (not smooth): a tab switch should already be at the top when the
+    // new pane paints, not glide there afterwards.
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); }
+    catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
   }
@@ -1977,7 +1985,13 @@
     card.classList.remove('sr-collapsed');
 
     // ── radar polygon SVG — every spoke labeled with its z ──
-    const CX = 230, CY = 178, R = 118;
+    // Sized for a phone: the SVG scales to the card width, so a SMALLER viewBox
+    // renders everything LARGER. 460→418 wide plus bigger type is ~+25% on the
+    // labels at 375px. Label anchors use a shorter horizontal radius than
+    // vertical (LR_X < LR_Y) — the left/right labels are the ones that run out
+    // of room, and pulling them in buys the width the bigger type needs.
+    const CX = 209, CY = 162, R = 108;
+    const LR_X = R + 10, LR_Y = R + 15;   // label placement radii
     const pt = (i, r) => {
       const a = (-90 + i * 360 / N) * Math.PI / 180;
       return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
@@ -1993,42 +2007,43 @@
       const col = tiltCol(s);
       let node;
       if (isHot) {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity=".9"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.5" fill="${col}"/>`;
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="3.4" stroke-linecap="round" opacity=".9"/>`;
+        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5" fill="${col}"/>`;
       } else if (isWarm) {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.5" fill="${col}" opacity=".75"/>`;
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="2.7" stroke-linecap="round" opacity=".55"/>`;
+        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="${col}" opacity=".75"/>`;
       } else {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#34342f" stroke-width="2" stroke-linecap="round"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.2" fill="#4a4a46"/>`;
+        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#34342f" stroke-width="2.2" stroke-linecap="round"/>`;
+        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#4a4a46"/>`;
       }
-      const [lx, ly] = pt(i, R + 16);
+      const la = (-90 + i * 360 / N) * Math.PI / 180;
+      const lx = CX + LR_X * Math.cos(la), ly = CY + LR_Y * Math.sin(la);
       const anchor = lx > CX + 12 ? 'start' : lx < CX - 12 ? 'end' : 'middle';
       const lbl = SR_ABBR[s.sector] || s.sector;
       const zStr = s.z === null ? '' : s.z.toFixed(1);
       let label;
       if (isHot) {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="600" fill="${col}">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
+        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="13" font-weight="600" fill="${col}">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
       } else if (isWarm) {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="11" fill="${col}" opacity=".8">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
+        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="13" fill="${col}" opacity=".8">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
       } else {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}" font-size="10.5" fill="var(--text-muted)">${lbl}${zStr ? ` <tspan fill="#8c8c96">${zStr}</tspan>` : ''}</text>`;
+        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="12.5" fill="var(--text-muted)">${lbl}${zStr ? ` <tspan fill="#8c8c96">${zStr}</tspan>` : ''}</text>`;
       }
       // Whole spoke (node + label) is a tap target → Signals filtered to this
       // sector. Generous transparent hit-circle over the label makes it usable
       // on touch without overlapping neighbours.
       spokes += `<g class="sr-spoke" data-sr-sector="${s.sector}" style="cursor:pointer" role="button" tabindex="0" aria-label="${s.sector} — open in Signals">`
-        + `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="20" fill="transparent"/>${node}${label}</g>`;
+        + `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="21" fill="transparent"/>${node}${label}</g>`;
     });
     const ring = (z, extra) =>
       `<circle cx="${CX}" cy="${CY}" r="${(z / 3 * R).toFixed(1)}" fill="none" ${extra}/>`;
     const svg = `
-      <svg class="sr-radar-svg" viewBox="0 0 460 352" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
+      <svg class="sr-radar-svg" viewBox="0 0 418 324" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
         ${ring(1, 'stroke="#242420"')}${ring(2, 'stroke="#242420"')}${ring(3, 'stroke="#1d1d19"')}
         ${ring(alertZ, 'stroke="#8a6519" stroke-dasharray="4 4"')}
-        <text x="${CX + (alertZ / 3 * R) * 0.72 + 14}" y="${CY - (alertZ / 3 * R) * 0.72}" font-size="10.5" fill="#8a6519">alert ${alertZ}σ</text>
-        <text x="${CX + 4}" y="${Math.round(CY - R / 3 + 11)}" font-size="9" fill="#4a4a46">1σ</text>
-        <text x="${CX + 4}" y="${Math.round(CY - 2 * R / 3 + 11)}" font-size="9" fill="#4a4a46">2σ</text>
+        <text x="${CX + (alertZ / 3 * R) * 0.72 + 12}" y="${CY - (alertZ / 3 * R) * 0.72}" font-size="11.5" fill="#8a6519">alert ${alertZ}σ</text>
+        <text x="${CX + 4}" y="${Math.round(CY - R / 3 + 11)}" font-size="10" fill="#4a4a46">1σ</text>
+        <text x="${CX + 4}" y="${Math.round(CY - 2 * R / 3 + 11)}" font-size="10" fill="#4a4a46">2σ</text>
         ${axes}
         <polygon points="${polyPts.join(' ')}" fill="rgba(251,191,36,.05)" stroke="#55554e" stroke-width="1.2"/>
         ${stems}${spokes}
@@ -3189,6 +3204,16 @@
     distributing: 'Distributing', active: 'Active', churn: 'Churn',
     mixed: 'Mixed', marketwide: 'Market-wide', unknown: 'No read',
   };
+  // Sort pill. Every one of these already existed in the advanced sheet's Sort
+  // dropdown — three taps deep behind the sliders icon, which is where the
+  // day/year sorts had been sitting unused. The pill and the sheet's <select>
+  // are two views of the same `scannerSort`, kept in sync both ways.
+  const SORT_LABELS = {
+    signal: '', pct_1y_desc: 'Year ↓', pct_1y_asc: 'Year ↑',
+    pct_1d_desc: 'Day ↓', pct_1d_asc: 'Day ↑', conviction: 'Conviction',
+    radar_score: 'Radar', date_desc: 'Newest', conf_desc: 'Confidence',
+    roc_desc: 'ROC ↓', roc_asc: 'ROC ↑', order_desc: 'MA order', run_desc: 'Run',
+  };
   function updateFilterPills() {
     const catActive   = !!document.querySelector('#scannerCatChips .s-cat-chip.active');
     const classActive = (document.getElementById('scannerClassFilter')?.value || 'all') !== 'all';
@@ -3201,6 +3226,28 @@
       const val = moodPill.querySelector('.fp-val');
       if (val) val.textContent = scannerMoodFilter !== 'all' ? ' · ' + MOOD_LABELS[scannerMoodFilter] : '';
     }
+    const sortPill = document.getElementById('pillSort');
+    if (sortPill) {
+      sortPill.classList.toggle('has-active', scannerSort !== 'signal');
+      const val = sortPill.querySelector('.fp-val');
+      if (val) val.textContent = scannerSort !== 'signal' ? ' · ' + (SORT_LABELS[scannerSort] || '') : '';
+      sortPill.querySelectorAll('.sort-opt').forEach(b =>
+        b.classList.toggle('active', b.dataset.sort === scannerSort));
+    }
+  }
+
+  const sortOpts = document.getElementById('scannerSortOpts');
+  if (sortOpts) {
+    sortOpts.addEventListener('click', e => {
+      const btn = e.target.closest('.sort-opt');
+      if (!btn) return;
+      scannerSort = btn.dataset.sort;
+      // Keep the advanced sheet's <select> showing the same thing
+      const sel = document.getElementById('scannerSort');
+      if (sel) sel.value = scannerSort;
+      document.getElementById('pillSort')?.removeAttribute('open');
+      buildScannerCards();
+    });
   }
 
   const moodOpts = document.getElementById('scannerMoodOpts');
