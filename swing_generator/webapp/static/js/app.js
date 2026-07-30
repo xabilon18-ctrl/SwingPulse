@@ -527,11 +527,16 @@
     // Daily-only field — referenced as an absolute name (not via f()).
     if (item.neutral_oscillation === 'yes') return 'NEUTRAL';
     const td = item[f('trend_direction')] || '';
-    if (td === 'UPTREND' || td === 'DOWNTREND') return td;
-    const cs = (item[f('confirmation_status')] || '').toLowerCase();
-    if (cs.includes('uptrend') || cs.includes('rising ribbon')) return 'UPTREND';
-    if (cs.includes('downtrend') || cs.includes('declining ribbon')) return 'DOWNTREND';
-    return 'NEUTRAL';
+    return (td === 'UPTREND' || td === 'DOWNTREND') ? td : 'NEUTRAL';
+    // NB there used to be a confirmation_status keyword fallback here, for
+    // "Neutral — transitioning (rising/declining ribbon)" statuses. signals.py
+    // stopped emitting those, so by 2026-07-30 the only strings it still caught
+    // were "Pullback below MA500 — uptrend intact" and "Rally above MA500 —
+    // downtrend intact" (57 rows on the 07-28 run). Those come from the
+    // in_uptrend/in_downtrend LATCH, which only clears on a full-ribbon B1/S1
+    // cross — so the fallback was quietly overriding the ribbon-position read
+    // in trend_direction with a regime flag that can be months stale. Trend
+    // direction is decided in indicators.add_trend; do not second-guess it here.
   }
 
   // ── Sector-mood conviction layer (VALIDATED 2026-07-22 on real backtested R,

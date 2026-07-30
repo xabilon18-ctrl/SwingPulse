@@ -87,6 +87,24 @@ SLOPE_LOOKBACK          = 10
 NEUTRAL_SLOPE_THRESHOLD = 0.5
 
 # ---------------------------------------------------------------------------
+# Trend classification (indicators.add_trend)
+# ---------------------------------------------------------------------------
+# trend_direction is decided by how much of the RIBBON price holds, not by the
+# MA500 anchor alone. The old rule was `UPTREND ⇔ Close > MA500` — one line, the
+# other 19 ignored, and (because np.select takes the first true condition)
+# DOWNTREND was unreachable while price sat above the anchor at all. On 4H that
+# anchor spans ~305 calendar days for equities/indices (2 bars/session), so the
+# "4-hour trend" was really a 10-month trend and could not report a 4H
+# breakdown until price gave up a year's worth of average.
+#
+# Now: UPTREND needs price above TREND_UP_FRAC of the ribbon AND above the
+# anchor; DOWNTREND needs price below all but TREND_DOWN_FRAC of it AND below
+# MA25. Anything in between is NEUTRAL — price is inside the ribbon, which is
+# the honest read for a pullback or a chop zone.
+TREND_UP_FRAC   = 0.75   # ≥15 of 20 MAs held → UPTREND
+TREND_DOWN_FRAC = 0.25   # ≤5  of 20 MAs held → DOWNTREND
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')

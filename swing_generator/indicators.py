@@ -8,7 +8,8 @@ are designed to be called sequentially from main.py.
 import numpy as np
 import pandas as pd
 
-from _active_config import MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD, SLOPE_LOOKBACK, MA_TOUCH_TOLERANCE
+from _active_config import (MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD,
+                            SLOPE_LOOKBACK, MA_TOUCH_TOLERANCE, TREND_UP_FRAC, TREND_DOWN_FRAC)
 
 
 # ---------------------------------------------------------------------------
@@ -60,35 +61,65 @@ def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     """
-    Classify each row as UPTREND, DOWNTREND, or NEUTRAL.
+    Classify each row as UPTREND, DOWNTREND, or NEUTRAL from the position of
+    price within the WHOLE ribbon.
 
-    Uses the ribbon's two anchor MAs (fastest = MA25, slowest = MA500) as
-    boundaries — consistent with the signal engine in signals.py:
+    UPTREND   : price holds ≥ TREND_UP_FRAC of the ribbon (15 of 20) AND is above
+                the MA500 anchor. A shallow pullback below MA25 still reads
+                UPTREND — the slow ribbon is what has to break.
+    DOWNTREND : price holds ≤ TREND_DOWN_FRAC of the ribbon (5 of 20) AND is
+                below MA25.
+    NEUTRAL   : anything else — price is inside the ribbon. This is the honest
+                label for a deep pullback and for a chop zone.
 
-    UPTREND   : Close > MA500 (above the slow anchor — in uptrend zone, even during
-                a short-term pullback below MA25)
-    DOWNTREND : Close < MA25 AND Close ≤ MA500 (below fast MA and not above the anchor
-                — genuine downtrend, not just a pullback)
-    NEUTRAL   : Close between MA25 and MA500
+    Rows without both a fast and a slow MA are NEUTRAL.
 
-    UPTREND takes priority so pullbacks (close < MA25 but > MA500) stay UPTREND,
-    not DOWNTREND — avoids contradicting a bullish ribbon during normal retracements.
+    HISTORY (fixed 2026-07-30). The rule used to be `UPTREND ⇔ Close > MA500`,
+    with DOWNTREND checked second — so:
+      • 19 of the 20 ribbon MAs had no vote. COHR read UPTREND on 4H with price
+        below 19 of 20 of its own MAs and RSI 32; PLTR read UPTREND on Daily
+        below 19 of 20 with a negative ribbon slope.
+      • DOWNTREND was UNREACHABLE while price was above the anchor, because
+        np.select takes the first true condition. Whatever happened to the other
+        19 lines, the label stayed UPTREND until price lost MA500 outright.
+      • The 4H suffered worst. Equities/indices resample to ~2 four-hour bars a
+        session, so 4H MA500 spans ~305 calendar days (US100: verified). The
+        "4-hour trend" was a 10-month trend and could not report a 4H breakdown
+        until price gave up a year of average.
+    Re-classified 110 of 736 Daily rows and 113 of 735 4H rows on the
+    2026-07-28 run; 17 4H rows moved UPTREND → DOWNTREND, a transition the old
+    rule could not make at all.
 
-    Rows where MA25 or MA500 is NaN are marked NEUTRAL.
+    trend_direction is NOT the signal-firing gate (signals.py keeps its own
+    strict above_all/below_all ribbon test and its in_uptrend/in_downtrend
+    latch), so this does not change which signals fire.
     """
     periods  = ma_periods or MA_PERIODS
+    ma_cols  = [f'ma_{p}' for p in periods if f'ma_{p}' in df.columns]
     fast_col = f'ma_{min(periods)}'   # MA25
     slow_col = f'ma_{max(periods)}'   # MA500
 
-    ma25  = df[fast_col]
-    ma500 = df[slow_col]
-    has_both = ma25.notna() & ma500.notna()
+    if not ma_cols or fast_col not in df.columns or slow_col not in df.columns:
+        df['trend_direction'] = 'NEUTRAL'
+        return df
 
-    # UPTREND checked first — above MA500 = in uptrend zone even during a pullback below MA25.
-    # DOWNTREND only fires when price is below MA25 AND not above MA500 (genuine downtrend).
+    ribbon = df[ma_cols]
+    close  = df['Close']
+
+    # Fraction of the AVAILABLE ribbon that price closes above. Counting only
+    # non-NaN MAs keeps short-history instruments (where the deep MAs haven't
+    # warmed up) on the same scale instead of scoring them as all-below.
+    n_avail = ribbon.notna().sum(axis=1)
+    held    = ribbon.lt(close, axis=0).sum(axis=1)
+    frac    = held.divide(n_avail.where(n_avail > 0))
+
+    has_both = df[fast_col].notna() & df[slow_col].notna()
+    above_anchor = close > df[slow_col]
+    above_fast   = close > df[fast_col]
+
     conditions = [
-        has_both & (df['Close'] > ma500),   # above slow anchor → UPTREND
-        has_both & (df['Close'] < ma25),    # below fast MA (and not above MA500) → DOWNTREND
+        has_both & (frac >= TREND_UP_FRAC)   & above_anchor,
+        has_both & (frac <= TREND_DOWN_FRAC) & ~above_fast,
     ]
     choices = ['UPTREND', 'DOWNTREND']
 

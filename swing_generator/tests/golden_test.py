@@ -212,6 +212,67 @@ def unit_checks() -> list:
     _signals_mod._conf_loaded = False   # restore lazy loading for golden run
     _signals_mod._conf_tiers = None
 
+    # 4. trend_direction must read the RIBBON, not the MA500 anchor alone
+    #    (2026-07-30 bug). The old rule was `UPTREND ⇔ Close > MA500` with
+    #    DOWNTREND checked second, so while price stayed above the anchor the
+    #    other 19 MAs had no vote and DOWNTREND was unreachable. The golden
+    #    snapshot covers primary_signal / established_trend /
+    #    confirmation_status only — it never looked at trend_direction, which is
+    #    how this survived. Both fixtures below are COMPOUNDING uptrends: that
+    #    is what drags MA500 far enough under price for a deep selloff to still
+    #    close above the anchor, which is the whole shape of the bug (US100 4H
+    #    2026-07-28: close 6% over an anchor drawn from 305 days of bars).
+    from indicators import add_ma_ribbon, add_trend
+
+    _rise = list(100 * np.exp(np.linspace(0, 1.6, max(MA_PERIODS) + 400)))
+
+    def _ribbon(closes):
+        df = pd.DataFrame({'Close': closes})
+        df['Open'] = df['High'] = df['Low'] = df['Close']
+        df.index = pd.date_range('2018-01-01', periods=len(df), freq='D')
+        p = [q for q in MA_PERIODS if q <= len(df)]
+        last = add_trend(add_ma_ribbon(df, p), p).iloc[-1]
+        mas = {q: last[f'ma_{q}'] for q in p if pd.notna(last.get(f'ma_{q}'))}
+        held = sum(1 for m in mas.values() if last['Close'] > m)
+        return last['trend_direction'], held, len(mas), last['Close'] > mas[max(p)]
+
+    def _selloff(frac, bars=30):
+        return _rise + list(np.linspace(_rise[-1], _rise[-1] * frac, bars))
+
+    # Selloff that cuts through all but 3 of the ribbon while price is STILL
+    # above MA500. Old rule: UPTREND. Correct: DOWNTREND.
+    lbl, held, size, above_anchor = _ribbon(_selloff(0.72))
+    if not above_anchor or held > size * 0.25:
+        failures.append(f'trend fixture drifted (holds {held}/{size}, above anchor '
+                        f'{above_anchor}) — the above-anchor DOWNTREND case is '
+                        f'no longer being exercised')
+    elif lbl != 'DOWNTREND':
+        failures.append(f'price below {size - held} of {size} MAs is not DOWNTREND '
+                        f'(got {lbl}) — MA500-only rule regressed')
+
+    # Shallower selloff, mid-ribbon: neither trend. Old rule: UPTREND.
+    lbl, held, size, above_anchor = _ribbon(_selloff(0.85))
+    if not above_anchor or not (size * 0.25 < held < size * 0.75):
+        failures.append(f'mid-ribbon fixture drifted (holds {held}/{size}, above '
+                        f'anchor {above_anchor})')
+    elif lbl != 'NEUTRAL':
+        failures.append(f'price mid-ribbon ({held}/{size} held) is not NEUTRAL (got {lbl})')
+
+    # Mirror: an unbroken rise holds every MA and must be UPTREND.
+    lbl, held, size, _ = _ribbon(_rise)
+    if held != size:
+        failures.append(f'rise fixture does not hold the whole ribbon ({held}/{size})')
+    elif lbl != 'UPTREND':
+        failures.append(f'price above the whole ribbon is not UPTREND (got {lbl})')
+
+    # A shallow dip below MA25 stays UPTREND — the documented intent: normal
+    # retracements must not read as downtrends.
+    lbl, held, size, _ = _ribbon(_selloff(0.97, bars=4))
+    if held >= size:
+        failures.append('pullback fixture never dips below MA25')
+    elif lbl != 'UPTREND':
+        failures.append(f'shallow pullback below MA25 no longer reads UPTREND (got {lbl})')
+
     return failures
 
 

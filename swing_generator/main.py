@@ -381,12 +381,20 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
                'Counter-trend'     — TFs in opposite directions
                'Mixed'             — no clear direction
 
-    Uses established_trend (which persists through NEUTRAL) for each TF.
+    Reads trend_direction — where price sits in each timeframe's ribbon RIGHT
+    NOW. It used to read established_trend and fall back to trend_direction,
+    but established_trend is a latch: signals.py sets in_uptrend on B1 (close
+    above all 20 MAs) and clears it only on S1 (close below all 20), so it
+    survives any decline that stops short of the anchor. US100 on 2026-07-28
+    was labelled 'Aligned Bull' while its 4H close sat below MA25–MA175 with
+    RSI 31, because a 4H B2 on 07-14 had latched in_uptrend and nothing since
+    could un-latch it. Alignment is a question about now, so it takes the
+    positional read; established_trend stays untouched for the Trends tab
+    segments and the signal gates that legitimately want the latch.
     """
     trends = []
     for prefix in ('', 'h4_'):
-        key = f'{prefix}established_trend'
-        t = row.get(key, '') or row.get(f'{prefix}trend_direction', '')
+        t = row.get(f'{prefix}trend_direction', '')
         if t == 'UPTREND':
             trends.append(1)
         elif t == 'DOWNTREND':

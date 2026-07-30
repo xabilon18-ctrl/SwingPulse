@@ -9,17 +9,43 @@
 ## 1. Trend definitions
 
 **Price-position trend** (`trend_direction`, per bar, per timeframe) — `indicators.py add_trend()`
+
+Decided by how much of the **whole ribbon** price holds — `TREND_UP_FRAC` / `TREND_DOWN_FRAC`
+in `config.py`. Only non-NaN MAs are counted, so short-history instruments score on the same scale.
+
 | Condition | Trend |
 |---|---|
-| close > MA500 (above the slow anchor) | UPTREND (even during a pullback below MA25) |
-| close < MA25 AND close ≤ MA500 | DOWNTREND |
-| otherwise (between MA25 and MA500) | NEUTRAL |
+| holds ≥ 75% of the ribbon (15 of 20) AND close > MA500 | UPTREND (a shallow pullback below MA25 still counts) |
+| holds ≤ 25% of the ribbon (5 of 20) AND close < MA25 | DOWNTREND |
+| otherwise — price inside the ribbon | NEUTRAL (deep pullback or chop) |
+
+> **Fixed 2026-07-30.** The rule was `UPTREND ⇔ close > MA500`, DOWNTREND checked second.
+> One line decided it and the other 19 had no vote; because `np.select` takes the first true
+> condition, **DOWNTREND was unreachable while price was above the anchor at all.** COHR read
+> UPTREND on 4H below 19 of 20 of its own MAs at RSI 32; PLTR read UPTREND on Daily below 19 of 20
+> with a negative ribbon slope. Worst on 4H: equities/indices resample to ~2 four-hour bars a
+> session, so 4H MA500 spans **~305 calendar days** — the "4-hour trend" was a 10-month trend and
+> could not report a 4H breakdown until price surrendered a year of average. Re-classified 109 of
+> 734 Daily rows and 113 of 735 4H rows on the 07-28 run, 17 of them UPTREND → DOWNTREND (a
+> transition the old rule could not make). Pinned by unit check 4 in `tests/golden_test.py`; the
+> golden snapshot itself never covered `trend_direction`, which is how it survived.
+>
+> `trend_direction` is **not** the signal-firing gate — `signals.py` keeps its own strict
+> `above_all`/`below_all` test — so this changed no fires (golden identical, 1454 fires).
 
 **Established trend** (`established_trend`, state machine) — `signals.py`
 - B1 fires → established UPTREND until an S1 fires (and vice versa).
 - Persists through NEUTRAL bars. This is the trend that "comes first" in all conflict arbitration.
 - With `B1S1_ANCHOR_GATE = True` (live), the state flips only on a genuine full-ribbon cross
   from a non-trending state — fast-MA noise cannot flip it.
+- **It is a latch, and nothing else clears it.** `in_uptrend` is set by B1 (close above all 20 MAs)
+  and cleared only by S1 (close below all 20), so it survives any decline that stops short of the
+  anchor. US100 on 2026-07-28 still carried `h4_established_trend = UPTREND` from a 4H B2 on
+  07-14 while its 4H close sat below MA25–MA175 at RSI 31. **Consumers that mean "right now" must
+  read `trend_direction`, not this** — `tf_alignment` (main.py) and `effectiveTrend()` (app.js)
+  were both switched off the latch on 2026-07-30 for exactly this reason. Un-latching it early
+  would change which B2/B3/B4 setups fire and therefore invalidate `confidence_map.json`; still
+  open, needs a backtest before any change.
 
 ---
 
