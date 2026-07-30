@@ -33,6 +33,38 @@ in `config.py`. Only non-NaN MAs are counted, so short-history instruments score
 > `trend_direction` is **not** the signal-firing gate — `signals.py` keeps its own strict
 > `above_all`/`below_all` test — so this changed no fires (golden identical, 1454 fires).
 
+**4H bar geometry** — `config.py` §"4H bar geometry", `data_fetcher.h4_ticker()`, `main._h4_ma_periods()`
+
+A 4H bar is only as fast as the session behind it. yfinance 1h returns **regular session only**
+for a cash index, so `^NDX` gave 2 four-hour bars a session where the 24h contract gives 6 —
+MA500 spanning ~305 calendar days instead of ~83. The 4H was a 10-month read wearing a 4H badge.
+
+| | bars/session | MA500 spans |
+|---|---|---|
+| 24h contract (`NQ=F`) | 6 | ~83 days |
+| Cash index (`^NDX`) | 2 | ~305 days |
+
+Measured on the 07-28 cache: **all 20 cash indices** carried a 4H trend label that disagreed with
+a true-4H read, and **5 produced no fire while a true 4H fired** — US100 S1 (07-24), SOX S1
+(07-27), NI225 S1 (07-28), NQTW S1 (07-28), CHINAH B1.
+
+- `H4_SOURCE` — US100/US500/US30/RUSSELL/NI225 take their **4H feed from `NQ=F`/`ES=F`/`YM=F`/
+  `RTY=F`/`NKD=F`**. Exact fix: real 24h bars, so wick-touch setups (B3/B4) are right too. The
+  cache is keyed by the SOURCE ticker; `main.py` and `backtest.py` both resolve the mapping.
+- `H4_SESSION_NORMALIZE` — the other 15 indices have no usable yfinance future, so the ribbon is
+  scaled by bars/session instead: MA12–MA250 (EU, 3/session), MA8–MA167 (2/session). Approximate
+  — the bars are still session bars — but far closer than reaching 3x too far back.
+- **Daily is untouched.** It stays on the cash index; the timeframes are independent.
+- **Not a universal problem.** A US equity really does trade 6.5h, so its 4H chart is ~2
+  bars/session everywhere including TradingView — those 642 instruments were already correct and
+  are deliberately left alone. Forcing a 6-bar target on them would invent fires.
+
+Backtest after the change (`backtest.py --since 2016-01-01`, 123,977 trades): **Index class
+avg R −0.048 → −0.021** (PF 0.92 → 0.94), 4H buys up across the board (B4 +0.098 → +0.122,
+B2 +0.052 → +0.060, B1 −0.001 → +0.008). Daily Index cells unchanged to 3dp — the parity check
+that proves this is 4H-only. Four tier flips, two of them (`4H|S2|Index` high→low,
+`4H|S3|Index` low→high) on samples of 199 and 96 — treat as noise, not signal.
+
 **Established trend** (`established_trend`, state machine) — `signals.py`
 - B1 fires → established UPTREND until an S1 fires (and vice versa).
 - Persists through NEUTRAL bars. This is the trend that "comes first" in all conflict arbitration.

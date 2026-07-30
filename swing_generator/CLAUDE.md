@@ -83,6 +83,20 @@ RIBBON_COMPRESSION_THRESHOLD = 5.0                 # wider than MA200 (step 25 v
 ### Timeframes
 `D` (Daily) · `4H` (4-Hour)
 
+**4H bar geometry (2026-07-30).** A 4H bar is only as fast as its session. yfinance 1h is
+regular-session only for a cash index, so `^NDX` gave 2 four-hour bars/session vs the 24h
+contract's 6 — MA500 spanned ~305 days instead of ~83, and the 4H could not report a
+breakdown until price gave up a year of average. All 20 cash indices carried a wrong 4H
+trend label and 5 missed a fire (US100 S1 07-24, SOX S1 07-27, NI225 S1 07-28, NQTW S1
+07-28, CHINAH B1). Fixed two ways, both in `config.py`:
+- `H4_SOURCE` — US100/US500/US30/RUSSELL/NI225 take their **4H feed** from
+  `NQ=F`/`ES=F`/`YM=F`/`RTY=F`/`NKD=F` (`data_fetcher.h4_ticker()`). Cache is keyed by the
+  SOURCE ticker; `main.py` and `backtest.py` both resolve the mapping.
+- `H4_SESSION_NORMALIZE` — the other 15 indices scale the ribbon by bars/session instead
+  (`main._h4_ma_periods()`): MA12–MA250 for EU, MA8–MA167 for 2/session.
+**Daily is untouched** and individual equities are deliberately left alone — a US stock
+really does trade 6.5h, so its 4H is ~2 bars/session everywhere. See SIGNAL_RULES.md §1.
+
 ### Column Prefix Convention
 | Timeframe | Prefix |
 |-----------|--------|

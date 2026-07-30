@@ -105,6 +105,49 @@ TREND_UP_FRAC   = 0.75   # ≥15 of 20 MAs held → UPTREND
 TREND_DOWN_FRAC = 0.25   # ≤5  of 20 MAs held → DOWNTREND
 
 # ---------------------------------------------------------------------------
+# 4H bar geometry  (fixed 2026-07-30)
+# ---------------------------------------------------------------------------
+# A "4H bar" is only as fast as the session it comes from. yfinance 1h returns
+# REGULAR SESSION ONLY for a cash index — ^NDX gives 13:00–19:00 UTC, which
+# _resample_4h buckets into 2 bars a session. A 24h contract gives 6. Same
+# label, three times the bar count, so MA500 spanned ~305 calendar days instead
+# of ~83 and the 4H was a 10-month read wearing a 4H badge. Measured cost on the
+# 07-28 cache: all 20 cash indices carried a 4H trend label that disagreed with
+# a true-4H read, and 5 produced NO fire while a true 4H fired — US100 S1
+# (07-24), SOX S1 (07-27), NI225 S1 (07-28), NQTW S1 (07-28), CHINAH B1.
+#
+# NB this is NOT a universal problem. A US equity really does trade 6.5h, so its
+# 4H chart is ~2 bars/session everywhere, TradingView included — our ribbon
+# already matches. Only instruments CHARTED as 24h contracts are affected.
+#
+# Two fixes, in order of preference:
+#   1. H4_SOURCE — pull the 4H timeframe from the 24h contract. Exact: real 24h
+#      bars, so wick-touch setups (B3/B4) are right too. Daily is untouched and
+#      still comes from the cash index — the timeframes are independent.
+#   2. H4_SESSION_NORMALIZE — where no 24h feed exists, scale the ribbon by the
+#      instrument's bars/session so it spans the calendar window a 24h chart
+#      would. Approximate (the BARS are still session bars) but far closer than
+#      a ribbon reaching 3x too far back.
+H4_BARS_PER_SESSION_TARGET = 6      # what a ~23h-session 4H chart delivers
+
+# Cash index → 24h contract, for the 4H TIMEFRAME ONLY. Verified 2026-07-30:
+# each returns 1h bars across 0–23 UTC → 6.0 four-hour bars/session.
+H4_SOURCE = {
+    '^NDX':  'NQ=F',    # US100
+    '^GSPC': 'ES=F',    # US500
+    '^DJI':  'YM=F',    # US30
+    '^RUT':  'RTY=F',   # RUSSELL
+    '^N225': 'NKD=F',   # NI225
+}
+
+# Charted as 24h contracts but with no usable yfinance future — scale the
+# ribbon instead. Every remaining cash index in the book.
+H4_SESSION_NORMALIZE = {
+    '^SOX', '^FTSE', '^GDAXI', '^FCHI', '^IBEX', '^AEX', '^STOXX50E', '^SSMI',
+    '^GSPTSE', '^TWII', '^HSI', '^HSCE', '^STI', '^AXJO', '^J200.JO',
+}
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')

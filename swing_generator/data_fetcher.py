@@ -18,7 +18,19 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from _active_config import HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED
+from _active_config import HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED, H4_SOURCE
+
+
+def h4_ticker(ticker: str) -> str:
+    """The ticker the 4H timeframe is built from.
+
+    A cash index's 1h feed is regular-session only (~2 four-hour bars a
+    session), so its 4H ribbon reaches ~3x further back than the 24h contract
+    the instrument is actually charted on. H4_SOURCE redirects the 4H feed to
+    that contract. DAILY is unaffected and still comes from `ticker` — the two
+    timeframes are independent. See config.py §"4H bar geometry".
+    """
+    return H4_SOURCE.get(ticker, ticker)
 
 
 # ---------------------------------------------------------------------------
@@ -378,10 +390,17 @@ def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str,
 
 def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False,
                      max_age_hours: int = 20) -> dict[str, pd.DataFrame]:
-    """Fetch hourly data for every instrument. Returns dict ticker → DataFrame."""
+    """Fetch hourly data for every instrument. Returns dict ticker → DataFrame.
+
+    Cash indices in H4_SOURCE are fetched from their 24h contract instead. The
+    cache is keyed by the SOURCE ticker (NQ=F lands in NQ_EQ_F_1h.parquet, not
+    under ^NDX), so a file always holds what its name says and the incremental
+    fetch/freshness logic keeps working per real ticker. main.py resolves the
+    same mapping when it reads the cache back.
+    """
     data = _fetch_all_parallel(
         instruments,
-        lambda t: fetch_hourly(t, force_refresh, max_age_hours=max_age_hours),
+        lambda t: fetch_hourly(h4_ticker(t), force_refresh, max_age_hours=max_age_hours),
         min_rows=200,
         kind='hourly ',
     )

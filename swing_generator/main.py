@@ -35,11 +35,12 @@ from _active_config import (
     SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
+    H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
 )
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import fetch_all, fetch_all_hourly
+from data_fetcher  import fetch_all, fetch_all_hourly, h4_ticker
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -367,6 +368,37 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     return resampled
 
 
+def _h4_bars_per_session(h4: pd.DataFrame) -> float:
+    """Median 4H bars per trading session. 6 = a ~23h contract, 2 = a US cash
+    session, 3 = a European one."""
+    if h4.empty:
+        return 0.0
+    return float(h4.groupby(h4.index.date).size().median() or 0.0)
+
+
+def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
+    """Ribbon periods for the 4H timeframe.
+
+    For an instrument charted as a 24h contract but fed by a session-limited
+    index (H4_SESSION_NORMALIZE — the cash indices with no usable yfinance
+    future), the raw ribbon reaches ~3x too far back: 500 bars at 2/session is
+    250 sessions, where a 24h chart's 500 bars is ~83. Scale the periods by
+    bars-per-session so the ribbon spans the calendar window the chart shows.
+
+    Everything else keeps MA_PERIODS untouched — a US equity really does trade
+    6.5h, so 2 bars/session is what its 4H chart shows everywhere and the
+    ribbon is already right. Instruments redirected via H4_SOURCE arrive with 6
+    bars/session already, so they fall through here unchanged too.
+    """
+    periods = MA_PERIODS
+    if ticker in H4_SESSION_NORMALIZE:
+        bps = _h4_bars_per_session(h4)
+        if 0 < bps < H4_BARS_PER_SESSION_TARGET:
+            scale   = bps / H4_BARS_PER_SESSION_TARGET
+            periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
+    return [p for p in periods if p <= len(h4)]
+
+
 # ---------------------------------------------------------------------------
 # Multi-timeframe alignment
 # ---------------------------------------------------------------------------
@@ -469,7 +501,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         h4_data = {}
         if hourly_df is not None and len(hourly_df) >= 200:
             h4 = _resample_4h(hourly_df)
-            h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
+            h4_ma_periods = _h4_ma_periods(h4, ticker)
             if len(h4_ma_periods) >= 3:
                 h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                 h4 = add_signals(h4, ma_periods=h4_ma_periods,
@@ -594,8 +626,11 @@ def _process_worker(args: tuple) -> tuple:
             return ticker, None, [], 'no cache'
         df = pd.read_parquet(path)
 
-        # Read hourly data if available
-        h_path = _cache_path(ticker, suffix='1h')
+        # Read hourly data if available. The 4H feed may be redirected to a 24h
+        # contract (H4_SOURCE) — that cache is keyed by the SOURCE ticker, so
+        # resolve the same mapping fetch_all_hourly used. Daily above is
+        # unaffected: it stays on `ticker`.
+        h_path = _cache_path(h4_ticker(ticker), suffix='1h')
         h_df   = pd.read_parquet(h_path) if os.path.exists(h_path) else None
 
         row, trend_segs = process_instrument(

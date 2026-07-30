@@ -34,10 +34,10 @@ from typing import Optional
 import pandas as pd
 
 from _active_config import MA_PERIODS, OUTPUT_DIR
-from data_fetcher import _cache_path, _drop_priceless
+from data_fetcher import _cache_path, _drop_priceless, h4_ticker
 from indicators import add_all_indicators
 from instruments import load_instruments, asset_class_of
-from main import _resample_4h
+from main import _resample_4h, _h4_ma_periods
 from signals import add_signals
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -325,12 +325,17 @@ def backtest_instrument(ticker: str, name: str, group: str,
 
     # ── 4H — mirror main.py: resample hourly cache, clip ribbon ──
     if tf_filter in (None, '4H'):
-        h_path = _cache_path(ticker, suffix='1h')
+        # h4_ticker/_h4_ma_periods mirror main.py exactly — the 4H feed may come
+        # from a 24h contract (H4_SOURCE) and the ribbon may be session-scaled
+        # (H4_SESSION_NORMALIZE). Replaying the raw cache with raw MA_PERIODS
+        # would grade a different geometry than production fires on, and
+        # confidence_map.json would stop matching the live engine.
+        h_path = _cache_path(h4_ticker(ticker), suffix='1h')
         if os.path.exists(h_path):
             hourly = _drop_priceless(pd.read_parquet(h_path))
             if len(hourly) >= 200:
                 h4 = _resample_4h(hourly)
-                h4_ma_periods = [p for p in MA_PERIODS if p <= len(h4)]
+                h4_ma_periods = _h4_ma_periods(h4, ticker)
                 if len(h4_ma_periods) >= 3:
                     h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                     h4 = _add_atr(h4)
