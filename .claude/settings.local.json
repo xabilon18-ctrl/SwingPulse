@@ -746,7 +746,9 @@
       "Bash(node --check swing_generator/webapp/static/js/app.js)",
       "Bash(awk 'NR>=3004 && NR<=3120' app.js)",
       "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/chart.js@4\")",
-      "Bash(sed -i '' 's|app.js?v=228|app.js?v=229|; s|style.css?v=212|style.css?v=213|' templates/index.html)"
+      "Bash(sed -i '' 's|app.js?v=228|app.js?v=229|; s|style.css?v=212|style.css?v=213|' templates/index.html)",
+      "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/status.json\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\({k:v for k,v in d.items\\(\\) if k in \\('date','fetched_at','generated_at','count','instruments'\\)}\\)\")"
     ]
   }
 }

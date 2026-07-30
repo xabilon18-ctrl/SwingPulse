@@ -946,6 +946,17 @@ def api_signals():
     return jsonify({'date': dt, 'data': df.to_dict(orient='records')})
 
 
+@app.route('/api/status')
+def api_status():
+    """Pipeline health, mirroring the status.json publish.py writes to R2 (the
+    CI failure step flips it to state:'failed'). Local dev has no CI, so a run
+    that produced a signals file is reported ok."""
+    df, dt = get_signals()
+    if df.empty:
+        return jsonify({'state': 'unknown'})
+    return jsonify({'state': 'ok', 'at': None, 'date': str(dt)})
+
+
 @app.route('/api/summary')
 def api_summary():
     df, dt = get_signals()

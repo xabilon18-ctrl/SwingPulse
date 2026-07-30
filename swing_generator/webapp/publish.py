@@ -877,6 +877,7 @@ def build_ui():
     base = R2_BASE_URL.rstrip('/')   # profile-aware: R2_PUBLIC_URL or R2_PUBLIC_URL/ma200
     js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
     js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
+    js = js.replace("'/api/status'",       f"'{base}/status.json'")
     js = js.replace("'/api/tv-map'",          f"'{base}/tv-map.json'")
     js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")

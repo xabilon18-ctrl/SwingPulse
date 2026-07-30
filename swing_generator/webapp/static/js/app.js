@@ -877,11 +877,28 @@
     return fetch(url, opts).then(r => r.json()).catch(() => fallback);
   }
 
+  // Retry loop that runs only while the stale/failed banner is showing, so the
+  // warning resolves itself instead of lingering until the next 4-hourly
+  // refresh. Cleared the moment a load comes back fresh.
+  let _staleRetryTimer = null;
+  function scheduleStaleRetry(isStale) {
+    if (!isStale) {
+      if (_staleRetryTimer) { clearInterval(_staleRetryTimer); _staleRetryTimer = null; }
+      return;
+    }
+    if (_staleRetryTimer) return;              // already retrying
+    _staleRetryTimer = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      loadAll();                                // clears the timer when fresh
+    }, 10 * 60 * 1000);                         // every 10 minutes
+  }
+
   async function loadAll() {
     try {
-      const [sigRes, sumRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
+        fetchJson('/api/status', {}),
         fetchJson('/api/tv-map', {}),
         fetchJson('/api/ai-instruments', []),
         fetchJson('/api/trends', {}),
@@ -922,9 +939,35 @@
 
       // Staleness warning: compare data AGE against the CI schedule, not the
       // calendar date — data from yesterday 22:00 is fine at 05:00 today.
-      // Crons (UTC): Mon–Fri 10:35,14:35 · Sat+Sun 08:00 (crypto). RUN_HOURS_*
-      // below are the expected LANDING hours (cron + GitHub queue delay) — keep
-      // in sync with .github/workflows/publish.yml.
+      // Freshness. This used to reconstruct the CI schedule in the browser —
+      // RUN_HOURS_WEEKDAY = [11,15] as the expected LANDING hours (cron + an
+      // assumed queue delay) plus 2.5h grace — and warn whenever the data
+      // predated the run that "should" have finished. Two problems: it had to
+      // be hand-kept in sync with publish.yml, and the assumed delay was
+      // fiction. GitHub queues these crons 1.5–3h; on 2026-07-27 the 10:35 run
+      // did not start until 13:26 and landed ~13:32, two minutes past the
+      // banner's 13:30 cutoff, so a perfectly healthy pipeline was reported
+      // late. The weekend margin was worse: cron 08:00, observed start 10:00,
+      // cutoff 10:30.
+      //
+      // Now the pipeline speaks for itself. summary.json's `fetched_at` is
+      // stamped on every SUCCESSFUL publish (same value as status.json's `at`),
+      // so freshness is just "how long since the last success" — no schedule
+      // knowledge, nothing to keep in sync.
+      //
+      // The threshold is set from MEASURED gaps between successful runs, not
+      // from the cron times. Over 30 runs (07-15..07-30) the largest legitimate
+      // gap was 27.4h — Sun 07-26 10:00 to Mon 07-27 13:26, i.e. the weekend
+      // 08:00 cron landing early and Monday's 10:35 landing three hours late.
+      // Weeknights are only ~20h. 32h clears that ceiling with room for a bad
+      // queue on both sides, so a healthy pipeline never trips it. (A first
+      // attempt at 26h would have false-alarmed every Monday morning.)
+      //
+      // This is deliberately a BACKSTOP for "CI never fired at all" — a run
+      // that fails is caught immediately and separately by status.json, which
+      // the CI failure step flips to state:'failed'. Previously only the
+      // service worker ever read that.
+      const STALE_AFTER_H = 32;
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
       let fetchedTime = null;
@@ -932,32 +975,19 @@
         const fd = new Date(sumRes.fetched_at);
         if (!isNaN(fd.getTime())) fetchedTime = fd.getTime();
       }
-      // Most recent scheduled run that should have finished by now
-      function lastDueRunUTC(nowMs) {
-        const RUN_HOURS_WEEKDAY = [11, 15]; // crons 10:35/14:35 UTC land ~1h later
-        const RUN_HOURS_WEEKEND = [8];      // Sat+Sun crypto run
-        const GRACE_MS  = 2.5 * 3600e3; // worst-case cold-cache run ~90 min + slack
-        const cutoff = nowMs - GRACE_MS;
-        for (let back = 0; back < 8; back++) {
-          const d = new Date(nowMs - back * 86400e3);
-          const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
-          const hours = weekend ? RUN_HOURS_WEEKEND : RUN_HOURS_WEEKDAY;
-          for (let i = hours.length - 1; i >= 0; i--) {
-            const run = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hours[i]);
-            if (run <= cutoff) return run;
-          }
-        }
-        return null;
-      }
       if (staleBanner && staleText) {
         const nowMs = Date.now();
-        const due   = lastDueRunUTC(nowMs);
         let msg = '';
-        if (fetchedTime !== null) {
-          if (due !== null && fetchedTime < due) {
-            const ageH   = Math.round((nowMs - fetchedTime) / 3600e3);
-            const ageStr = ageH < 48 ? `${ageH}h` : `${Math.round(ageH / 24)} days`;
-            msg = `Data is ${ageStr} old (${dateStr}) — the scheduled update hasn't arrived yet`;
+        if (statusRes && statusRes.state === 'failed') {
+          // The CI failure step flips status.json — this is a REAL problem and
+          // is the only case worth interrupting for.
+          msg = 'The last data update failed — signals may be out of date';
+        } else if (fetchedTime !== null) {
+          const ageH = (nowMs - fetchedTime) / 3600e3;
+          if (ageH > STALE_AFTER_H) {
+            const n = Math.round(ageH);
+            const ageStr = n < 48 ? `${n}h` : `${Math.round(n / 24)} days`;
+            msg = `Data is ${ageStr} old (${dateStr}) — no successful update in over a day`;
           }
         } else if (dateStr !== '--') {
           // Fallback when fetched_at is missing: old calendar-date check
@@ -980,6 +1010,11 @@
 
         staleText.textContent = msg;
         staleBanner.style.display = msg ? '' : 'none';
+        // The banner must not sit there once the data arrives. loadAll only
+        // re-runs every 4h (or on visibilitychange), so a tab left open would
+        // keep showing a warning long after the pipeline recovered. While it is
+        // up, retry on a short timer and let a successful reload clear it.
+        scheduleStaleRetry(!!msg);
       }
 
       updateNotifiedStore();
