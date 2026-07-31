@@ -257,6 +257,6 @@ Run it after ANY change to signals.py/config.py signal logic.
 
 **Debug blank chart in modal:** Ensure `autoSize: true` is set AND `await new Promise(r => requestAnimationFrame(r))` runs before `createChart()`
 
-**Data not updating:** CI cron runs 2×/day weekdays (10:35/14:35 UTC, landing ~1-2h later due to GitHub queue) + 1×/day weekends (08 UTC); mornings + ad-hoc runs are manual from the GitHub Actions tab. Stale banner appears when `fetched_at` is older than the last scheduled run that should have finished (RUN_HOURS_WEEKDAY/RUN_HOURS_WEEKEND in app.js `lastDueRunUTC`, +2.5h grace) — keep them in sync with publish.yml crons. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
+**Data not updating:** CI cron runs 3×/day weekdays (01:35/09:35/14:35 UTC, landing ~1.5h later due to GitHub queue → ~05:00/13:00/18:00 SAST) + 1×/day weekends (08 UTC → 10:00 SAST); ad-hoc runs are manual from the GitHub Actions tab. Stale banner is schedule-agnostic since app.js v231 — it flags `now - summary.fetched_at > 32h`, so publish.yml cron changes need no front-end sync. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
 
 **Update version numbers:** After any UI change, bump `?v=NNN` on `app.js`, `style.css`, and/or `utils.js` in `index.html`

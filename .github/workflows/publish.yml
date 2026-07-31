@@ -1,12 +1,16 @@
 name: SwingPulse Daily Publish
 
 on:
-  # Keep these in sync with RUN_HOURS_* in webapp/static/js/app.js (stale banner).
-  # GitHub queues scheduled jobs 1-2h at busy slots (worst at :00), so crons are
-  # set EARLIER and off-peak (:35) so runs LAND near the target local time.
-  # Weekday morning run removed 2026-07-16 — trigger manually from the Actions tab.
+  # GitHub queues scheduled jobs 1.5-3h at busy slots (worst at :00), so crons are
+  # set ~1.5h EARLIER and off-peak (:35) so runs LAND near the target local time.
+  # Target landing times are 05:00 / 13:00 / 18:00 SAST (UTC+2), restored to three
+  # runs on 2026-07-31 — a warm run finishes in ~20 min, so the extra passes cost
+  # little. The morning run was manual-only from 2026-07-16 until then.
+  # The stale banner does NOT need to be kept in sync: since app.js v231 it reads
+  # summary.fetched_at against a flat 32h and knows nothing about this schedule.
   schedule:
-    - cron: '35 10 * * 1-5'  # lands ~14:00 SAST — midday
+    - cron: '35 1  * * 1-5'  # lands ~05:00 SAST — pre-market, on the US close
+    - cron: '35 9  * * 1-5'  # lands ~13:00 SAST — midday
     - cron: '35 14 * * 1-5'  # lands ~18:00 SAST — afternoon close
     - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
 
