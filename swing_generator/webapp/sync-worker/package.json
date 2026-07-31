@@ -1,0 +1,8 @@
+{
+  "name": "swingpulse-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/auth_test.mjs"
+  }
+}

@@ -748,7 +748,18 @@
       "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/chart.js@4\")",
       "Bash(sed -i '' 's|app.js?v=228|app.js?v=229|; s|style.css?v=212|style.css?v=213|' templates/index.html)",
       "Bash(curl -s \"https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/status.json\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\({k:v for k,v in d.items\\(\\) if k in \\('date','fetched_at','generated_at','count','instruments'\\)}\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\({k:v for k,v in d.items\\(\\) if k in \\('date','fetched_at','generated_at','count','instruments'\\)}\\)\")",
+      "Bash(node --check src/index.js)",
+      "Bash(cp \"/Users/zabmbandze/Documents/Trading/Swing Trading Strategy/swing_generator/webapp/sync-worker/src/index.js\" worker.mjs)",
+      "Bash(node worker_auth_test.mjs)",
+      "Bash(sed -i '' \"s|await check\\('right pw also blocked while locked', await call\\('GET', '/sync?user=zabs', { token: good }\\), 429\\);|await check\\('right pw still works while locked', await call\\('GET', '/sync?user=zabs', { token: good }\\), 200\\);\\\\nawait check\\('wrong pw still blocked after that', await call\\('GET', '/sync?user=zabs', { token: bad }\\), 429\\);|\" worker_auth_test.mjs)",
+      "Bash(mkdir -p test)",
+      "Bash(cp \"/private/tmp/claude-501/-Users-zabmbandze-Documents-Trading-Swing-Trading-Strategy/78675721-0e1e-45b3-bbc1-671eea3cb890/scratchpad/worker_auth_test.mjs\" test/auth_test.mjs)",
+      "Bash(sed -i '' \"s|import worker from './worker.mjs';|import worker from '../src/index.js';|\" test/auth_test.mjs)",
+      "Bash(npm test *)",
+      "Bash(python3 /private/tmp/claude-501/-Users-zabmbandze-Documents-Trading-Swing-Trading-Strategy/78675721-0e1e-45b3-bbc1-671eea3cb890/scratchpad/cut_dead.py)",
+      "Bash(python3 sweep_dead_fns.py)",
+      "Bash(python3 dead_css.py)"
     ]
   }
 }

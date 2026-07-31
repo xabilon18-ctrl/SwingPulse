@@ -5,14 +5,6 @@
 (function () {
   'use strict';
 
-  // ── Pure utilities loaded from utils.js (window.SP_UTILS) ────────────
-  // Aliased here so the rest of the file can use them as plain locals.
-  // If utils.js failed to load, fall back to inline definitions below
-  // so app.js still works (defensive).
-  const SPU = window.SP_UTILS || {};
-  // (formatPrice, debounce, urlBase64ToUint8Array re-defined below as
-  //  fallbacks if utils.js didn't load — kept identical to utils.js)
-
   // ── State ────────────────────────────────────────────────────────────
   let allData = [];
   let summaryData = {};
@@ -25,7 +17,6 @@
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
   let currentTab = 'dashboard';
-  let activeHeatmapGroup = 'all';
   let activeStatFilter = '';      // stat card rearrange filter
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
   let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
@@ -54,8 +45,27 @@
   let activeAlertTab = 'keylvl';
   // ── Cross-device Sync ────────────────────────────────────────────────
   const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
-  const SYNC_SECRET = 'swingpulse2026';
   let syncUser = localStorage.getItem('sp-user') || '';
+
+  // Sync auth. This file is PUBLIC — it used to carry a hard-coded
+  // `SYNC_SECRET` literal, the one credential the Worker
+  // accepted, so anyone who opened the site could overwrite a user's starred
+  // list and notes or fan out push notifications to their phones. Reads
+  // needed nothing at all. Now each user has a password they type once per
+  // device; what leaves the browser is sha256("swingpulse:user:password"), and
+  // the Worker stores only a hash OF THAT. Nothing reusable is in the bundle.
+  // The CI push trigger keeps its own server-side secret (GitHub → Worker).
+  async function syncTokenFor(user, password) {
+    if (!crypto.subtle) return '';        // http:// LAN dev — no secure context
+    const buf = await crypto.subtle.digest(
+      'SHA-256', new TextEncoder().encode(`swingpulse:${user}:${password}`));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function syncToken()   { return syncUser ? (localStorage.getItem(sk('sp-sync-token')) || '') : ''; }
+  function syncHeaders(extra) {
+    const t = syncToken();
+    return t ? { ...(extra || {}), 'Authorization': `Bearer ${t}` } : (extra || {});
+  }
 
   // Per-user TV layout defaults for this profile — injected by publish.py at build time
   const TV_LAYOUT_DEFAULTS = {
@@ -110,10 +120,12 @@
   }
 
   async function syncPull() {
-    if (!syncUser) return;
+    if (!syncUser || !syncToken()) return;
     const badge = document.getElementById('syncUserBadge');
     try {
-      const res = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`, { cache: 'no-store' });
+      const res = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`,
+                              { cache: 'no-store', headers: syncHeaders() });
+      if (res.status === 401) { syncPasswordRejected(); return; }
       if (!res.ok) return;
       const remote = await res.json();
       if (!remote || !remote.lastModified) return;
@@ -136,12 +148,16 @@
       notes:        instrumentNotes,
       lastModified: Date.now(),
     });
+    // Always record locally — a device with no sync password still works, it
+    // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
+    if (!syncToken()) return;
     fetch(`${SYNC_WORKER}/sync?user=${syncUser}`, {
       method:  'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Sync-Secret': SYNC_SECRET },
+      headers: syncHeaders({ 'Content-Type': 'application/json' }),
       body:    payload,
-    }).catch(() => { /* offline — silent */ });
+    }).then(res => { if (res.status === 401) syncPasswordRejected(); })
+      .catch(() => { /* offline — silent */ });
   }
 
   // Debounce pushes so rapid changes (e.g. starring several instruments) send one request
@@ -150,9 +166,66 @@
     syncPushTimer = setTimeout(syncPushNow, 800);
   }
 
+  // ── Sync password step (shown after picking a user on a new device) ──────
+  function upShowStep(step, msg) {
+    const who  = document.getElementById('upStepWho');
+    const pass = document.getElementById('upStepPass');
+    if (!who || !pass) return;
+    who.style.display  = step === 'pass' ? 'none'  : 'block';
+    pass.style.display = step === 'pass' ? 'block' : 'none';
+    const label = document.getElementById('upPassWho');
+    if (label) label.textContent = syncUser ? syncUser.charAt(0).toUpperCase() + syncUser.slice(1) : '';
+    upPassMsg(msg || '');
+    if (step === 'pass') {
+      const inp = document.getElementById('upPassInput');
+      if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 60); }
+    }
+  }
+  function upPassMsg(text, ok) {
+    const el = document.getElementById('upPassMsg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? 'var(--buy)' : 'var(--sell)';
+  }
+
+  // The stored password no longer works (changed on another device, or the
+  // account was claimed by someone else). Drop it and ask again.
+  function syncPasswordRejected() {
+    if (!syncUser) return;
+    localStorage.removeItem(sk('sp-sync-token'));
+    showUserPicker();
+    upShowStep('pass', 'Sync password needed again — please re-enter it.');
+  }
+
+  window.SP_submitSyncPassword = async function() {
+    const inp = document.getElementById('upPassInput');
+    const pw  = (inp && inp.value || '').trim();
+    if (pw.length < 4) { upPassMsg('At least 4 characters.'); return; }
+    const token = await syncTokenFor(syncUser, pw);
+    if (!token) { upPassMsg('Sync needs a secure (https) connection.'); return; }
+    upPassMsg('Checking…', true);
+    let res;
+    try {
+      res = await fetch(`${SYNC_WORKER}/sync/auth?user=${syncUser}`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` },
+      });
+    } catch (_) { upPassMsg("Can't reach sync right now — try again later."); return; }
+    if (res.status === 429) { upPassMsg('Too many tries. Wait an hour and retry.'); return; }
+    if (res.status === 401) { upPassMsg(`That's not the sync password for ${syncUser}.`); return; }
+    if (!res.ok)            { upPassMsg('Sync said no (' + res.status + '). Try again later.'); return; }
+    let claimed = false;
+    try { claimed = !!(await res.json()).claimed; } catch (_) {}
+    localStorage.setItem(sk('sp-sync-token'), token);
+    hideUserPicker();
+    updateSyncBadge();
+    if (claimed) console.info('[sync] password set for', syncUser);
+    syncPull().then(() => { if (allData.length) renderAll(); });
+  };
+
   function showUserPicker() {
     const overlay = document.getElementById('userPickerOverlay');
     if (overlay) overlay.style.display = 'flex';
+    upShowStep('who');
   }
   function hideUserPicker() {
     const overlay = document.getElementById('userPickerOverlay');
@@ -178,9 +251,11 @@
     // Reload user-specific data from their own storage bucket
     userStarred    = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
     instrumentNotes = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}');
-    const overlay = document.getElementById('userPickerOverlay');
-    if (overlay) overlay.style.display = 'none';
     updateSyncBadge();
+    // A device that has never synced this user needs the password once; after
+    // that the token is stored and this step never shows again.
+    if (!syncToken()) { upShowStep('pass'); return; }
+    hideUserPicker();
     // Pull remote data and do a full re-render so all tabs update immediately
     syncPull().then(() => { if (allData.length) renderAll(); });
   };
@@ -312,9 +387,10 @@
       // POST to Worker
       const res = await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: syncHeaders({ 'Content-Type': 'application/json' }),
         body:    JSON.stringify(sub),
       });
+      if (res.status === 401) { syncPasswordRejected(); return false; }
       if (res.ok) {
         localStorage.setItem(sk('sp-push-enabled'), '1');
         updatePushBadgeUI();
@@ -331,7 +407,8 @@
     try {
       const sub = await swRegistration.pushManager.getSubscription();
       if (sub) await sub.unsubscribe();
-      await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`, { method: 'DELETE' });
+      await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`,
+                  { method: 'DELETE', headers: syncHeaders() });
       localStorage.removeItem(sk('sp-push-enabled'));
       updatePushBadgeUI();
     } catch (e) {
@@ -719,20 +796,7 @@
     return `<button class="tv-link tv-picker-trigger" title="Open ${name} on TradingView" onclick="event.stopPropagation();window.SP.openTvPicker(this,'${name}')">${TV_ICON}${label ? `<span>${label}</span>` : ''}</button>`;
   }
 
-  function tvBtnFull(name) {
-    const url = tvUrl(name);
-    return `<a href="${url}" target="_blank" rel="noopener" class="tv-btn-full" onclick="event.stopPropagation()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      <span>Open on TradingView</span>
-    </a>`;
-  }
 
-  function tvWidgetUrl(name) {
-    const sym = tvMap[name] || name;
-    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-    const ivl = timeframe === '4H' ? '240' : 'D';
-    return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(sym)}&interval=${ivl}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=f1f3f6&studies=%5B%5D&theme=${theme}&style=1&timezone=exchange&withdateranges=1&hide_top_toolbar=0&hide_legend=0&allow_symbol_change=0&details=0&calendar=0`;
-  }
 
   // ── Theme — single dark theme ────────────────────────────────────────
   document.documentElement.setAttribute('data-theme', 'dark');
@@ -1139,8 +1203,6 @@
     return 5;
   }
   function isReversal(code)  { return code === 'B1'  || code === 'S1'; }
-  function isFastMa(code)    { return code === 'B2'  || code === 'S2'; }
-  function isMidMa(code)     { return code === 'B3'  || code === 'S3'; }
   function isLongestMa(code) { return code === 'B4'  || code === 'S4'; }
 
   const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4'];
@@ -1154,16 +1216,6 @@
     const sig = item[f('primary_signal')];
     if (sig) return sig.startsWith('S');
     return (item[f('confirmation_status')] || '').toLowerCase().includes('downtrend');
-  }
-  function signalClass(item) {
-    if (isBuy(item)) return 'buy';
-    if (isSell(item)) return 'sell';
-    return 'neutral';
-  }
-  function trendClass(trend) {
-    if (trend === 'UPTREND') return 'trend-up';
-    if (trend === 'DOWNTREND') return 'trend-down';
-    return 'trend-neutral';
   }
   function trendTag(trend) {
     if (trend === 'UPTREND') return 'tag-up';
@@ -1187,39 +1239,6 @@
     if (v >= 50) return 'bullish';
     if (v >= 30) return 'bearish';
     return 'oversold';
-  }
-  function rsiZoneLabel(val) {
-    const z = rsiZone(val);
-    if (z === 'overbought') return 'OB';
-    if (z === 'bullish')    return 'Bull';
-    if (z === 'bearish')    return 'Bear';
-    if (z === 'oversold')   return 'OS';
-    return '';
-  }
-  // Compact inline badge: "RSI 62 Bull"
-  function rsiHtml(rsiVal, opts = {}) {
-    const v = parseFloat(rsiVal);
-    if (isNaN(v)) return '';
-    const zone  = rsiZone(v);
-    const label = opts.noLabel ? '' : ` <span class="rsi-zone-lbl">${rsiZoneLabel(v)}</span>`;
-    return `<span class="rsi-badge rsi-${zone}">RSI ${v.toFixed(0)}${label}</span>`;
-  }
-  // Wide bar row for the multi-TF panel
-  function rsiBarRow(label, rsiVal) {
-    const v = parseFloat(rsiVal);
-    if (isNaN(v)) return '';
-    const zone  = rsiZone(v);
-    const pct   = Math.round(v);
-    const color = zone === 'overbought' ? 'var(--sell)' : zone === 'bullish' ? 'var(--buy)' : zone === 'bearish' ? 'var(--sell)' : 'var(--buy)';
-    return `<div class="rsi-tf-row">
-      <span class="rsi-tf-label">${label}</span>
-      <div class="rsi-bar-track">
-        <div class="rsi-bar-ob-line"></div>
-        <div class="rsi-bar-os-line"></div>
-        <div class="rsi-bar-fill" style="width:${pct}%;background:${color}"></div>
-      </div>
-      <span class="rsi-tf-val rsi-${zone}">${v.toFixed(1)}</span>
-    </div>`;
   }
 
   function pctFromMa(item) {
@@ -1586,7 +1605,6 @@
     renderGroupPulse();
     renderVolumePulse();
     renderSectorRadar();
-    renderHeatmap();
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
@@ -2322,36 +2340,6 @@
     `;
   }
 
-  // ── Stat Card → Heatmap Filter + Section Lift ───────────────────────
-  // Store the heatmap's original position once the DOM is ready so we can
-  // restore it when the filter is cleared.
-  let hmOriginalNextSibling = null;
-  let hmOriginalParent = null;
-
-  function liftHeatmap() {
-    const hm = document.getElementById('heatmapCard');
-    const statCards = document.querySelector('.stat-cards');
-    if (!hm || !statCards) return;
-    // Save original position the first time
-    if (!hmOriginalParent) {
-      hmOriginalParent = hm.parentNode;
-      hmOriginalNextSibling = hm.nextSibling;
-    }
-    // Move heatmap to appear immediately after stat cards
-    statCards.insertAdjacentElement('afterend', hm);
-    hm.classList.add('heatmap-lifted');
-  }
-
-  function dropHeatmap() {
-    const hm = document.getElementById('heatmapCard');
-    if (!hm || !hmOriginalParent) return;
-    // Restore to original position
-    hmOriginalParent.insertBefore(hm, hmOriginalNextSibling);
-    hm.classList.remove('heatmap-lifted');
-  }
-
-  // Stat card heatmap filter removed — stat cards no longer in DOM
-
   // ── Tab navigation helper ─────────────────────────────────────────────
   function navigateToTab(tabName) {
     // 'radar' and 'flow' tabs are now gone — redirect to their new homes
@@ -2465,129 +2453,6 @@
     Chart.defaults.borderColor = c.grid;
 
     renderGauge();
-  }
-
-  // ── Heatmap ──────────────────────────────────────────────────────────
-  function renderHeatmap() {
-    const filtersEl = document.getElementById('heatmapFilters');
-    if (!filtersEl) return;   // heatmap removed from dashboard
-    const groups = summaryData.groups || [];
-    filtersEl.innerHTML = '<button class="heatmap-filter-btn active" data-group="all">All</button>' +
-      groups.map(g => `<button class="heatmap-filter-btn" data-group="${g}">${g}</button>`).join('');
-    filtersEl.querySelectorAll('.heatmap-filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        filtersEl.querySelectorAll('.heatmap-filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeHeatmapGroup = btn.dataset.group;
-        buildHeatmapCells();
-      });
-    });
-
-    buildHeatmapCells();
-  }
-
-  function buildHeatmapCells() {
-    const grid = document.getElementById('heatmapGrid');
-    if (!grid) return;  // heatmap card was removed from the dashboard — no-op (avoids null.innerHTML that aborted the row-tap → scanner handler)
-    let filtered = activeHeatmapGroup === 'all' ? allData : allData.filter(d => d.group === activeHeatmapGroup);
-
-    // ── Legend filter (only show that signal type) ──
-    if (activeHmLegendFilter === 'buy')     filtered = filtered.filter(isBuy);
-    else if (activeHmLegendFilter === 'sell')    filtered = filtered.filter(isSell);
-    else if (activeHmLegendFilter === 'neutral') filtered = filtered.filter(d => !isBuy(d) && !isSell(d));
-
-    // ── Stat card filter (show only matching) ──
-    if (activeStatFilter === 'buy')      filtered = filtered.filter(isBuy);
-    else if (activeStatFilter === 'sell')     filtered = filtered.filter(isSell);
-    else if (activeStatFilter === 'volume')   filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
-    else if (activeStatFilter === 'squeeze')  filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
-    else if (activeStatFilter === 'highconf') filtered = filtered.filter(d => d[f('signal_confidence')] === 'high' || d[f('signal_confidence')] === 'standard');
-
-    // ── Trend direction filter (uses effectiveTrend so transitioning instruments are included) ──
-    if (activeTrendFilter) filtered = filtered.filter(d => effectiveTrend(d) === activeTrendFilter);
-
-    // ── Alignment filter ──
-    if (activeAlignFilter) filtered = filtered.filter(d => (d.tf_alignment || '') === activeAlignFilter);
-
-    // ── Update legend active state ──
-    document.querySelectorAll('.legend-item[data-legend-filter]').forEach(el => {
-      el.classList.toggle('legend-active', el.dataset.legendFilter === activeHmLegendFilter);
-    });
-
-    // ── Update trend pill active states ──
-    ['pulseUptrend','pulseDowntrend','pulseNeutral'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const map = { pulseUptrend: 'UPTREND', pulseDowntrend: 'DOWNTREND', pulseNeutral: 'NEUTRAL' };
-      el.classList.toggle('pulse-stat-active', activeTrendFilter === map[id]);
-    });
-    const alignEl = document.getElementById('pulseAlignment');
-    if (alignEl) alignEl.classList.toggle('pulse-stat-active', !!activeAlignFilter);
-
-    // ── Active states on new MP card rows ──
-    const bdTrendMap = { mpBdUp: 'UPTREND', mpBdDown: 'DOWNTREND', mpBdNeutral: 'NEUTRAL' };
-    Object.entries(bdTrendMap).forEach(([id, trend]) => {
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle('mp-bd-active', activeTrendFilter === trend);
-    });
-    const bdAlign = document.getElementById('mpBdAlign');
-    if (bdAlign) bdAlign.classList.toggle('mp-bd-active', !!activeAlignFilter && activeAlignFilter === (bdAlign.dataset.filterAlign || ''));
-
-    // ── Clear-filter chip in heatmap header ──
-    const clearChip = document.getElementById('hmTrendClear');
-    if (clearChip) {
-      const activeLabel = activeTrendFilter
-        ? activeTrendFilter.charAt(0) + activeTrendFilter.slice(1).toLowerCase()
-        : activeAlignFilter || '';
-      if (activeLabel) {
-        clearChip.textContent = activeLabel + ' ×';
-        clearChip.style.display = 'inline-flex';
-        clearChip.onclick = () => {
-          activeTrendFilter = '';
-          activeAlignFilter = '';
-          buildHeatmapCells();
-        };
-      } else {
-        clearChip.style.display = 'none';
-        clearChip.onclick = null;
-      }
-    }
-
-    // Cap heatmap at 200 cells to keep the Dashboard responsive
-    const HM_CAP = 200;
-    const hmFiltered = filtered.length > HM_CAP ? filtered.slice(0, HM_CAP) : filtered;
-    const hmOverflow = filtered.length > HM_CAP
-      ? `<div class="hm-overflow-note">${filtered.length - HM_CAP} more — use group filter to narrow</div>`
-      : '';
-
-    grid.innerHTML = hmFiltered.map((item, i) => {
-      const cls = signalClass(item);
-      const hmCls = 'hm-' + cls;
-      const primary = item[f('primary_signal')] ? 'hm-primary' : '';
-      const sig = item[f('primary_signal')] || '';
-      const finalCls = hmCls;
-      const alignColor = (item.tf_alignment || '').includes('Bull') ? 'var(--buy)' : (item.tf_alignment || '').includes('Bear') ? 'var(--sell)' : 'var(--watch)';
-      const squeeze = item[f('ribbon_compression')] === 'yes';
-      const triple = isTripleAligned(item);
-      const hmDelay = Math.min(i, 25) * 15;  // cap at 375 ms
-      return `<div class="heatmap-cell ${finalCls} ${primary} pop-in" style="animation-delay:${hmDelay}ms"
-                   data-ticker="${item.instrument_name}">
-        ${squeeze ? '<div class="hm-squeeze-dot"></div>' : ''}
-        ${triple ? '<div class="hm-3tf-dot"></div>' : ''}
-        <span class="cell-name">${item.instrument_name}</span>
-        ${sig ? `<span class="cell-signal">${sig}</span>` : ''}
-        <div class="heatmap-cell-actions">
-          ${tvBtn(item.instrument_name, '')}
-          <button class="hm-detail-btn" data-act="openModal" data-arg="${item.instrument_name}" data-stop="1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          </button>
-          <button class="hm-detail-btn hm-star-btn star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Unmark as analyzed' : 'Mark as analyzed'}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="${userStarred.has(item.instrument_name) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </button>
-        </div>
-        <div class="hm-align-bar" style="background:${alignColor}"></div>
-      </div>`;
-    }).join('') + hmOverflow;
   }
 
   // ── Signal Feed (Dashboard) ──────────────────────────────────────────
@@ -4615,44 +4480,6 @@
     setTimeout(() => document.addEventListener('click', () => document.getElementById('tvPicker')?.remove(), { once: true }), 0);
   }
 
-  // ── Events Tab — Big Volume & Big Moves Tracker ──────────────────────
-  // ── Volume Tab — Multi-Timeframe Volume Tracker ─────────────────────
-  // ── Trends Tab — Historical Summary Bar ─────────────────────────────
-  function renderTrendsSummary() {
-    const el = id => document.getElementById(id);
-    if (!el('trhUpCount')) return;
-
-    let upCount = 0, downCount = 0;
-    let upDaysSum = 0, downDaysSum = 0;
-    let upPctSum = 0, downPctSum = 0;
-
-    for (const segs of Object.values(trendsData)) {
-      if (!Array.isArray(segs)) continue;
-      for (const seg of segs) {
-        if (seg.direction === 'UPTREND') {
-          upCount++;
-          upDaysSum += seg.days || 0;
-          upPctSum  += Math.abs(seg.pct_move || 0);
-        } else if (seg.direction === 'DOWNTREND') {
-          downCount++;
-          downDaysSum += seg.days || 0;
-          downPctSum  += Math.abs(seg.pct_move || 0);
-        }
-      }
-    }
-
-    const avgUpDays   = upCount   ? Math.round(upDaysSum / upCount)   : 0;
-    const avgDownDays = downCount ? Math.round(downDaysSum / downCount): 0;
-    const avgUpPct    = upCount   ? (upPctSum / upCount).toFixed(1)    : '0.0';
-    const avgDownPct  = downCount ? (downPctSum / downCount).toFixed(1): '0.0';
-
-    el('trhUpCount').textContent    = upCount.toLocaleString();
-    el('trhDownCount').textContent  = downCount.toLocaleString();
-    el('trhAvgUpDays').textContent  = avgUpDays + 'd';
-    el('trhAvgDownDays').textContent= avgDownDays + 'd';
-    el('trhAvgUpPct').textContent   = '+' + avgUpPct + '%';
-    el('trhAvgDownPct').textContent = '-' + avgDownPct + '%';
-  }
 
 
   // ── Share card ────────────────────────────────────────────────────────
@@ -4801,188 +4628,6 @@
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
 
-  // ── Flow Tab — Indices Aggregate Volume ──────────────────────────────
-  (function initFlowTab() {
-    let flowChart   = null;
-    let flowRegion  = 'All';
-
-    // Format large volume numbers compactly
-    function fmtVol(v) {
-      if (!v || v === 0) return '—';
-      if (v >= 1e12) return (v / 1e12).toFixed(1) + 'T';
-      if (v >= 1e9)  return (v / 1e9).toFixed(1)  + 'B';
-      if (v >= 1e6)  return (v / 1e6).toFixed(1)  + 'M';
-      return v.toLocaleString();
-    }
-
-    function renderFlow() {
-      fetchFlowData(flowRegion);
-    }
-
-    async function fetchFlowData(region) {
-      try {
-        const res  = await fetch('/api/flow?group=Indices&region=' + region + '&days=252');
-        const json = await res.json();
-
-        let data, stats;
-        if (json.Indices) {
-          // Pre-built JSON (Cloudflare Pages) — filter client-side
-          data = (json.Indices[region] || []).slice(-252);
-          const vols   = data.map(d => d.volume).filter(v => v > 0);
-          const recent = data.slice(-30).map(d => d.volume).filter(v => v > 0);
-          stats = {
-            current:     data.length ? data[data.length - 1].volume : 0,
-            avg_30d:     recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : 0,
-            window_high: vols.length ? Math.max(...vols) : 0,
-            window_low:  vols.length ? Math.min(...vols) : 0,
-            mean:        vols.length ? Math.round(vols.reduce((a, b) => a + b, 0) / vols.length) : 0,
-          };
-        } else {
-          // Flask API response (local dev server)
-          data  = json.data  || [];
-          stats = json.stats || {};
-        }
-        drawFlowChart(data, stats);
-      } catch (e) {
-        console.error('Flow fetch error', e);
-      }
-    }
-
-    function drawFlowChart(data, stats) {
-      const canvas = document.getElementById('flowChart');
-      if (!canvas) return;
-
-      // Destroy existing chart instance
-      if (flowChart) { flowChart.destroy(); flowChart = null; }
-
-      // Pad right with empty bars (2 months ≈ 42 trading days)
-      const EMPTY_BARS = 42;
-      const labels   = data.map(d => d.date);
-      const volumes  = data.map(d => d.volume);
-      const meanVol  = stats.mean || (volumes.length ? Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length) : 0);
-
-      // Pad right with nulls
-      for (let i = 0; i < EMPTY_BARS; i++) { labels.push(''); volumes.push(null); }
-
-      // Today boundary = index of last real data point
-      const todayIdx = data.length - 1;
-
-      flowChart = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Volume',
-              data: volumes,
-              borderColor: '#6366f1',
-              borderWidth: 2,
-              pointRadius: 0,
-              pointHoverRadius: 4,
-              tension: 0.3,
-              fill: false,
-              spanGaps: false,
-            },
-            {
-              label: 'Mean',
-              data: Array(labels.length).fill(meanVol),
-              borderColor: 'rgba(255,255,255,0.18)',
-              borderWidth: 1,
-              borderDash: [4, 4],
-              pointRadius: 0,
-              pointHoverRadius: 0,
-              tension: 0,
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 300 },
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: 'rgba(15,20,40,0.95)',
-              titleColor: '#e2e8f0',
-              bodyColor: '#94a3b8',
-              borderColor: '#1e2d4a',
-              borderWidth: 1,
-              callbacks: {
-                label: ctx => ctx.datasetIndex === 0 && ctx.raw !== null
-                  ? ' ' + fmtVol(ctx.raw)
-                  : null,
-              },
-            },
-            // Today marker as a vertical annotation using afterDraw
-          },
-          scales: {
-            x: {
-              ticks: {
-                color: '#64748b',
-                font: { size: 10 },
-                maxTicksLimit: 8,
-                maxRotation: 0,
-              },
-              grid: { color: 'rgba(255,255,255,0.04)' },
-            },
-            y: {
-              position: 'right',
-              ticks: {
-                color: '#64748b',
-                font: { size: 10 },
-                callback: v => fmtVol(v),
-              },
-              grid: { color: 'rgba(255,255,255,0.06)' },
-            },
-          },
-        },
-        plugins: [{
-          id: 'todayLine',
-          afterDraw(chart) {
-            const ctx2 = chart.ctx;
-            const xScale = chart.scales.x;
-            const xPos = xScale.getPixelForValue(todayIdx);
-            const { top, bottom } = chart.chartArea;
-            ctx2.save();
-            ctx2.setLineDash([3, 5]);
-            ctx2.strokeStyle = 'rgba(255,255,255,0.18)';
-            ctx2.lineWidth = 1;
-            ctx2.beginPath();
-            ctx2.moveTo(xPos, top);
-            ctx2.lineTo(xPos, bottom);
-            ctx2.stroke();
-            ctx2.restore();
-          },
-        }],
-      });
-
-      // Update stat row
-      const vals = [stats.current, stats.avg_30d, stats.window_high, stats.window_low];
-      vals.forEach((v, i) => {
-        const el = document.getElementById('fsStat' + i);
-        if (el) el.textContent = fmtVol(v);
-      });
-    }
-
-    // Wire filter chips
-    const chips = document.getElementById('flowChips');
-    if (chips) {
-      chips.addEventListener('click', e => {
-        const chip = e.target.closest('.flow-chip');
-        if (!chip) return;
-        chips.querySelectorAll('.flow-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        flowRegion = chip.dataset.region;
-        fetchFlowData(flowRegion);
-      });
-    }
-
-    // Expose renderFlow so renderCurrentTab() can call it
-    window._renderFlow = renderFlow;
-  })();
-
   window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel };
 
   // ── Init ─────────────────────────────────────────────────────────────
@@ -4991,7 +4636,6 @@
     el.addEventListener('click', () => {
       const val = el.dataset.legendFilter;
       activeHmLegendFilter = activeHmLegendFilter === val ? '' : val;
-      buildHeatmapCells();
     });
   });
 
@@ -5036,7 +4680,6 @@
       // Also keep heatmap filter in sync for when user scrolls back to dashboard
       activeTrendFilter = trendSel.value !== 'all' ? trendSel.value : '';
       activeAlignFilter = '';
-      buildHeatmapCells();
 
       updateScannerCtxStrip();
       navigateToTab('scanner');
@@ -5088,7 +4731,6 @@
       activeTrendFilter = '';
       activeAlignFilter = '';
       activeRegionFilter = '';
-      buildHeatmapCells();
       renderGroupPulse();
       updateScannerCtxStrip();
       buildScannerCards();

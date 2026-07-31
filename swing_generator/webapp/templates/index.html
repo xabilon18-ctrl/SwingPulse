@@ -630,13 +630,34 @@
 <!-- ===== USER PICKER ===== -->
   <div class="trade-sheet-overlay" id="userPickerOverlay" style="display:none;z-index:9999">
     <div class="trade-sheet" style="max-width:320px;text-align:center">
-      <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
-        <span style="font-size:1.1rem;font-weight:800">Who are you?</span>
+      <!-- Step 1 — who -->
+      <div id="upStepWho">
+        <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
+          <span style="font-size:1.1rem;font-weight:800">Who are you?</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and trades will sync across all your devices.</p>
+        <div style="display:flex;gap:14px;justify-content:center">
+          <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
+          <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
+        </div>
       </div>
-      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and trades will sync across all your devices.</p>
-      <div style="display:flex;gap:14px;justify-content:center">
-        <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
-        <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
+      <!-- Step 2 — sync password. Shown once per device: the app.js bundle is
+           public, so it can no longer carry a shared secret of its own. -->
+      <div id="upStepPass" style="display:none">
+        <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
+          <span style="font-size:1.1rem;font-weight:800">Sync password &mdash; <span id="upPassWho"></span></span>
+        </div>
+        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 16px">
+          Type it once on each device. First device to use it sets it.
+        </p>
+        <input id="upPassInput" type="password" autocomplete="current-password"
+               enterkeyhint="go" placeholder="Sync password"
+               onkeydown="if(event.key==='Enter')window.SP_submitSyncPassword()"
+               style="width:100%;padding:12px 14px;font-size:1rem;border-radius:10px;
+                      border:1px solid var(--border);background:var(--bg);color:var(--text)">
+        <div id="upPassMsg" style="font-size:.8rem;min-height:1.1em;margin:10px 0 4px"></div>
+        <button onclick="window.SP_submitSyncPassword()" class="trade-email-btn"
+                style="font-size:1rem;padding:14px 28px;width:100%">Continue</button>
       </div>
       <!-- A way out. This sheet opens on first load and used to have none:
            no close, no backdrop dismiss, so a new device was stuck on it
@@ -648,7 +669,6 @@
 
 
 
-  <script src="/static/js/utils.js?v=1"></script>
-  <script src="/static/js/app.js?v=231"></script>
+  <script src="/static/js/app.js?v=232"></script>
 </body>
 </html>
