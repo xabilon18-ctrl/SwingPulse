@@ -35,7 +35,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from _active_config import OUTPUT_DIR, MA_PERIODS, VOLUME_LOOKBACK
+from _active_config import OUTPUT_DIR, MA_PERIODS
 from instruments import load_instruments, radar_sector_of
 
 ACTIVITY_PATH = os.path.join(OUTPUT_DIR, 'sector_activity.json')
@@ -338,7 +338,7 @@ def _backfill_instrument(inst: dict, cutoff: str) -> list:
     """[(date, sector, kind)] events for one instrument; kind in B/S/V."""
     from backtest import TF_SIGNAL_PARAMS
     from data_fetcher import _cache_path, _drop_priceless
-    from indicators import add_all_indicators
+    from indicators import add_all_indicators, _reported_volume
     from signals import add_signals
 
     path = _cache_path(inst['ticker'])
@@ -358,7 +358,13 @@ def _backfill_instrument(inst: dict, cutoff: str) -> list:
         return []
 
     sector = radar_sector_of(inst)
-    vol_avg = df['Volume'].rolling(VOLUME_LOOKBACK, min_periods=1).mean()
+    # Read the baseline add_all_indicators just computed rather than rolling our
+    # own — this used to recompute the 25-bar mean off raw df['Volume'], which
+    # meant Yahoo's zero-volume bars deflated it here even after the pipeline
+    # learned to exclude them (indicators._reported_volume). Two copies of one
+    # rule is how the radar ends up disagreeing with the card above it.
+    vol     = _reported_volume(df)
+    vol_avg = df['volume_average']
     sig = df['primary_signal'].to_numpy()
     events = []
     for i in range(len(df)):
@@ -368,7 +374,7 @@ def _backfill_instrument(inst: dict, cutoff: str) -> list:
         code = sig[i]
         if code in CODES:
             events.append((d, sector, 'B' if code.startswith('B') else 'S'))
-        v, a = float(df['Volume'].iloc[i]), float(vol_avg.iloc[i])
+        v, a = float(vol.iloc[i]), float(vol_avg.iloc[i])
         if a > 0 and v / a >= VOL_SPIKE_RVOL:
             events.append((d, sector, 'V'))
     return events

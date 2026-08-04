@@ -31,20 +31,58 @@ def add_ma_ribbon(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 # Volume
 # ---------------------------------------------------------------------------
 
+def _reported_volume(df: pd.DataFrame) -> pd.Series:
+    """Volume with UNREPORTED (zero) bars masked to NaN.
+
+    Yahoo intermittently serves a bar with a perfectly good price and a volume
+    of 0 — the mirror of the volume-but-no-price bar `_drop_priceless` catches
+    in data_fetcher.py. It cannot be dropped the same way: the price is real
+    and the ribbon needs it. It must only be kept out of the volume BASELINE.
+
+    Left in the rolling mean it is corrosive in a way that is easy to miss,
+    because the damage lands on the days AFTER it: a zero drags the 25-bar
+    average down, so the next perfectly ordinary bar reads as a spike.
+    Measured on the cache 2026-08-04 — 43 of 736 instruments carry at least one
+    zero bar in 60 days, and the intermittent ones are the dangerous set:
+
+        SPAIN35  ^IBEX  52/60 zero bars → 25d average 0.24x its true value
+        HANGSENG ^HSI   22/60           → 0.28x
+        NI225    ^N225  22/60           → 0.29x
+        AUS200   ^AXJO  23/60           → 0.27x
+        COCOA    CC=F   18/60           → 0.52x
+
+    A 0.27x average means an ordinary bar prints ~3.7x RVOL, which clears
+    sector_activity.VOL_SPIKE_RVOL (2.0) on nothing at all: cocoa generated 60
+    volume-spike events in 250 days against AAPL's 7 and ^GSPC's 0, so the
+    Commodities and Asia radar rows were substantially measuring Yahoo's data
+    holes. The published 2026-07-31 payload showed whole groups at 0.0x RVOL
+    (SPAIN35 all 19 names, UK100 median 0.00x).
+
+    Instruments that never report volume at all (^SOX, DX-Y.NYB, ^J200.JO,
+    ONE-USD — 60/60 zeros) are deliberately unaffected in EFFECT: masking every
+    bar leaves an all-NaN series, whose rolling mean is NaN, so app.js `rvol()`
+    still returns null and the UI still renders "—" for them.
+    """
+    return df['Volume'].astype('float64').replace(0.0, np.nan)
+
+
 def add_volume_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add:
-        volume_average    – rolling mean over VOLUME_LOOKBACK days
-        volume_spike_flag – True if today's volume > volume_average
+        volume_average    – rolling mean over VOLUME_LOOKBACK days, computed
+                            over REPORTED bars only (see _reported_volume)
+        volume_spike_flag – True if today's volume > volume_average. A bar with
+                            no reported volume is never a spike (NaN > x → False).
         pvo               – Percentage Volume Oscillator: (EMA12 − EMA26) of
                             volume as a % of EMA26. >0 = volume expanding vs
                             its longer baseline, <0 = drying up.
         pvo_signal        – EMA9 of pvo (signal line)
     """
-    df['volume_average']    = df['Volume'].rolling(VOLUME_LOOKBACK, min_periods=1).mean()
-    df['volume_spike_flag'] = df['Volume'] > df['volume_average']
+    vol = _reported_volume(df)
 
-    vol      = df['Volume'].astype('float64')
+    df['volume_average']    = vol.rolling(VOLUME_LOOKBACK, min_periods=1).mean()
+    df['volume_spike_flag'] = vol > df['volume_average']
+
     ema_fast = vol.ewm(span=12, adjust=False).mean()
     ema_slow = vol.ewm(span=26, adjust=False).mean()
     # Instruments with no reported volume (some indices/CFDs) have ema_slow == 0

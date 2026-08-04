@@ -466,10 +466,17 @@
   // Relative volume (RVOL): today's volume ÷ rolling-average volume, for the
   // active timeframe. Returns null when volume isn't reported (forex/CFDs) or
   // the average is zero, so callers can simply skip rendering.
+  //
+  // v233: a volume of ZERO is "not reported", not "nothing traded". Yahoo
+  // serves a good price with 0 volume on cash indices routinely — ^IBEX did it
+  // on 52 of 60 sessions — and returning 0 here rendered a confident "0.0×"
+  // across whole groups (SPAIN35 all 19 names, UK100 median 0.00× on the
+  // 07-31 payload). Treated as missing it falls through to the same "—" the
+  // never-report instruments already show.
   function rvol(item) {
     const v  = parseFloat(item[f('volume')]);
     const av = parseFloat(item[f('volume_average')]);
-    if (!isFinite(v) || !isFinite(av) || av <= 0) return null;
+    if (!isFinite(v) || !isFinite(av) || av <= 0 || v <= 0) return null;
     return v / av;
   }
 

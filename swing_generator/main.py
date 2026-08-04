@@ -40,7 +40,7 @@ from _active_config import (
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import fetch_all, fetch_all_hourly, h4_ticker
+from data_fetcher  import fetch_all, fetch_all_hourly, h4_ticker, drop_unfinished_4h
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -365,7 +365,10 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
         'Close': 'last',
         'Volume': 'sum',
     }).dropna(subset=['Close'])
-    return resampled
+    # Same rule as the daily timeframe: a bucket still being filled is not a
+    # bar. Hourly caches are stored in UTC, so the window test needs no
+    # per-exchange timetable. See data_fetcher §"Finished sessions only".
+    return drop_unfinished_4h(resampled)
 
 
 def _h4_bars_per_session(h4: pd.DataFrame) -> float:
@@ -618,7 +621,8 @@ def _process_worker(args: tuple) -> tuple:
         if _dir not in sys.path:
             sys.path.insert(0, _dir)
 
-        from data_fetcher import _cache_path
+        from data_fetcher import (_cache_path, drop_unfinished_daily,
+                                  heal_daily_gaps_from_hourly)
 
         # Read daily data from cache
         path = _cache_path(ticker)
@@ -632,6 +636,19 @@ def _process_worker(args: tuple) -> tuple:
         # unaffected: it stays on `ticker`.
         h_path = _cache_path(h4_ticker(ticker), suffix='1h')
         h_df   = pd.read_parquet(h_path) if os.path.exists(h_path) else None
+
+        # A 24/7 instrument's daily bar is just its UTC day, so an omission in
+        # Yahoo's daily feed can be rebuilt exactly from the hourly one. Guarded
+        # to crypto — a session-based instrument cannot be reconstructed this way.
+        if inst_meta.get('sector') == 'Crypto' and h_df is not None:
+            df = heal_daily_gaps_from_hourly(df, h_df)
+
+        # Admit finished sessions only. Applied HERE rather than in fetch_all
+        # because this is the read that feeds the indicators — fetch_all's
+        # frames are used for their keys alone. The cache on disk deliberately
+        # keeps the raw bar so a late-settling volume can still be healed by the
+        # next run's re-request. See data_fetcher §"Finished sessions only".
+        df = drop_unfinished_daily(df)
 
         row, trend_segs = process_instrument(
             ticker, df.copy(), inst_meta, run_date, hourly_df=h_df

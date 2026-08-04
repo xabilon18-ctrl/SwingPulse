@@ -93,6 +93,98 @@ def _drop_priceless(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna(subset=['Close'])
 
 
+# ---------------------------------------------------------------------------
+# Finished sessions only
+# ---------------------------------------------------------------------------
+#
+# A bar is admitted to the pipeline only once the session that builds it has
+# ENDED. A run that lands while a market is open otherwise reads a half-made
+# day as if it were a close.
+#
+# This is not hypothetical. The 20-hour freshness gate in fetch() means that of
+# the three CI runs a day, only the first actually downloads — so the whole
+# day's dashboard is built from ONE snapshot taken at 03:00 UTC. At 03:00 UTC
+# New York has closed and London has not opened (both fine), but Tokyo, Hong
+# Kong and Sydney are MID-SESSION and crypto never stops. Measured 2026-08-04
+# against a fresh pull: ASX200 held 28% of its session's volume, Japan 51%,
+# the Asian indices 0%, and their closes were off by 0.5-1.3% — an unfinished
+# price that then fed the ribbon and the signals.
+#
+# Deliberately NOT a per-exchange timetable. Every venue in the universe closes
+# before midnight UTC on its own bar date (Asia ~06:00, Europe ~16:30, US
+# ~20:00-21:00, CME ~21:00) and a crypto UTC day ends exactly there, so "the
+# UTC day after the bar's date has begun" is one rule that is correct for all
+# 736 instruments with no table to maintain and nothing to drift.
+#
+# Late volume is a SEPARATE problem and is not solved here — Yahoo settles the
+# close immediately but backfills volume for hours (US bars first arrive at
+# ~79% of final volume, UK/Spain far less). That is what re-requesting the last
+# cached date in fetch() is for. The two work together: this keeps unfinished
+# bars OUT, the re-request pulls late corrections IN.
+
+def _utc_now() -> pd.Timestamp:
+    return pd.Timestamp.utcnow().tz_localize(None)
+
+
+def drop_unfinished_daily(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop trailing daily bars whose session has not closed yet."""
+    if df.empty:
+        return df
+    idx = df.index
+    if getattr(idx, 'tz', None) is not None:
+        idx = idx.tz_convert('UTC').tz_localize(None)
+    # Bar dated D is final once the UTC day after D has started.
+    return df[pd.DatetimeIndex(idx).normalize() + pd.Timedelta(days=1) <= _utc_now()]
+
+
+def drop_unfinished_4h(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop trailing 4H bars whose 4-hour window has not elapsed yet.
+
+    Applied after resampling, so a bucket is judged by its own window rather
+    than by the session — the last bucket of a short session is simply admitted
+    a few hours late, which the once-a-day fetch cadence makes free.
+    """
+    if df.empty:
+        return df
+    idx = df.index
+    if getattr(idx, 'tz', None) is not None:
+        idx = idx.tz_convert('UTC').tz_localize(None)
+    return df[pd.DatetimeIndex(idx) + pd.Timedelta(hours=4) <= _utc_now()]
+
+
+def heal_daily_gaps_from_hourly(daily: pd.DataFrame, hourly: pd.DataFrame) -> pd.DataFrame:
+    """Rebuild whole daily bars Yahoo's daily feed simply omitted.
+
+    ONLY safe for 24/7 instruments, and only called for them: a crypto daily
+    bar IS the UTC day, so resampling the hourly feed reproduces it exactly.
+    An equity's daily bar is a session with pre/post-market either side of it
+    and cannot be reconstructed this way, so equities are never passed here.
+
+    Yahoo drops crypto days routinely — 2026-08-03 was missing for all 55 coins
+    while the hourly feed had every hour of it. Measured over ~400 days: every
+    one of the 55 has gaps, median 6 days each, GALA 32. Mid-history a gap is a
+    small ribbon distortion, but at the tail it collides with the finished-
+    sessions rule — drop the in-progress day, fall back to a missing one, and
+    the instrument reads two days stale.
+    """
+    if daily.empty or hourly is None or hourly.empty:
+        return daily
+    h = hourly.copy()
+    if getattr(h.index, 'tz', None) is not None:
+        h.index = h.index.tz_convert('UTC').tz_localize(None)
+    rebuilt = h.resample('1D').agg({'Open': 'first', 'High': 'max', 'Low': 'min',
+                                    'Close': 'last', 'Volume': 'sum'}).dropna(subset=['Close'])
+    have = pd.DatetimeIndex(daily.index).normalize()
+    missing = rebuilt.index.difference(have)
+    # Only fill INSIDE the daily series' own span — never extend it past the
+    # end, or an in-progress day would sneak back in through this door.
+    missing = missing[(missing > have.min()) & (missing < have.max())]
+    if len(missing) == 0:
+        return daily
+    out = pd.concat([daily, rebuilt.loc[missing, [c for c in rebuilt.columns if c in daily.columns]]])
+    return out.sort_index()
+
+
 def _read_cache(path: str) -> pd.DataFrame:
     """Read a parquet cache, healing any priceless bars already stored in it.
 
@@ -198,9 +290,27 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
         # AFTER it, so the missing session would never be requested again.
         existing   = _read_cache(path)
         last_date  = existing.index[-1]
-        start      = last_date + timedelta(days=1)
+        # Re-request the last cached date rather than starting the day AFTER it.
+        #
+        # A run that lands mid-session writes a bar that is real but INCOMPLETE,
+        # and starting at last_date+1 meant that bar was never asked for again —
+        # it froze at whatever the market had done by the time the run fired.
+        # Measured 2026-08-04 against a fresh pull: 299 of 727 cached last bars
+        # (41%) held less volume than the session finally traded.
+        #
+        # Two flavours, same cause. Yahoo settles the CLOSE immediately but
+        # backfills VOLUME for some venues, so UK100 (75 names) and SPAIN35 (19)
+        # froze at ~0.1% of true volume with a correct close — volume-only
+        # damage. Where the run caught a genuinely live session the PRICE is
+        # wrong too: Crypto off 1.34%, Commodity 1.05%, Japan 0.77%, ASX200
+        # 0.54% at the median, which reaches the ribbon and the signals.
+        #
+        # `_append_new_bars` already dedupes with keep='last', so the corrected
+        # bar simply overwrites the stale one; a bar that was already complete
+        # is rewritten identically. Costs one extra bar per instrument per run.
+        start      = last_date
 
-        if start.date() >= end.date():
+        if start.date() > end.date():
             # Cache is already up to date — touch file to reset freshness timer
             os.utime(path, None)
             return existing
@@ -378,7 +488,12 @@ def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
 
 
 def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
-    """Fetch daily data for every instrument. Returns dict ticker → DataFrame."""
+    """Fetch daily data for every instrument. Returns dict ticker → DataFrame.
+
+    NB the frames are used for their KEYS only — main.py's workers re-read each
+    parquet per-ticker. `drop_unfinished_daily` is therefore applied there, at
+    the read that actually feeds the indicators, NOT here.
+    """
     data = _fetch_all_parallel(
         instruments,
         lambda t: fetch(t, force_refresh),
