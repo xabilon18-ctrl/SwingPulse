@@ -759,7 +759,16 @@
       "Bash(npm test *)",
       "Bash(python3 /private/tmp/claude-501/-Users-zabmbandze-Documents-Trading-Swing-Trading-Strategy/78675721-0e1e-45b3-bbc1-671eea3cb890/scratchpad/cut_dead.py)",
       "Bash(python3 sweep_dead_fns.py)",
-      "Bash(python3 dead_css.py)"
+      "Bash(python3 dead_css.py)",
+      "Bash(python3 vol_check.py)",
+      "Bash(python3 fetch_all.py)",
+      "Bash(python3 analyze.py)",
+      "Bash(awk '{print $NF}')",
+      "Bash(python3 merge_caches.py)",
+      "Bash(rm -rf fresh_daily)",
+      "Bash(python3 refresh_v2.py)",
+      "Bash(python3 merge_v2.py)",
+      "Bash(python3 merge_v2.py --apply)"
     ]
   }
 }
