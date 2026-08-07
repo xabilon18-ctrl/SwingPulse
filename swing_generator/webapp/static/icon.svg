@@ -1,24 +1,33 @@
+<!-- SwingPulse app icon — vector source of truth for the PNG set.
+     Regenerate the PNGs with tools/gen_icons.py after editing this file.
+
+     Two rules this file must keep:
+       1. FULL BLEED, NO rx ON THE BACKGROUND RECT. The previous icon baked in
+          rx="108", leaving transparent corners; iOS composites transparency
+          onto BLACK and then applies its own squircle, so the icon read as a
+          black tile. Let the platform do the masking.
+       2. Everything inside the maskable safe circle (radius 40% = 204.8px).
+          The mark is scaled 0.88 about the centre for this — at 1.0 the pulse
+          dot reaches 229.8px and Android's maskable crop would clip it.
+
+     Detail that does not survive 60pt was removed deliberately: the three
+     0.045-opacity grid lines, the target rings, and the "500" chip whose
+     26px text rendered about 3pt tall on a home screen. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b2b29"/>
-      <stop offset="1" stop-color="#1d1d1b"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#4BE3A0"/>
+      <stop offset="1" stop-color="#1FA97A"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <g stroke="#ffffff" stroke-opacity="0.045" stroke-width="2">
-    <line x1="92" y1="186" x2="420" y2="186"/>
-    <line x1="92" y1="262" x2="420" y2="262"/>
-    <line x1="92" y1="338" x2="420" y2="338"/>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <g transform="translate(256,256) scale(0.88) translate(-256,-256)" fill="none"
+     stroke="#0E1714" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 268 C162 300 226 302 272 240" stroke-width="16" opacity="0.20"/>
+    <path d="M104 300 C160 344 236 348 288 268 C326 210 366 190 402 178" stroke-width="22" opacity="0.32"/>
+    <path d="M96 334 C158 392 248 396 304 300 C346 228 388 202 426 186" stroke-width="42"/>
+    <circle cx="426" cy="186" r="46" fill="#0E1714" stroke="none"/>
   </g>
-  <path d="M130 266 C170 290 220 292 268 258" fill="none" stroke="#6ee7c4" stroke-width="6" stroke-linecap="round" opacity="0.25"/>
-  <path d="M120 282 C165 312 225 314 280 268" fill="none" stroke="#2DD4BF" stroke-width="8" stroke-linecap="round" opacity="0.4"/>
-  <path d="M110 300 C160 340 230 345 290 285 C330 245 370 235 408 225" fill="none" stroke="#3ECF8E" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="256" y1="150" x2="346" y2="242" stroke="#7a7a76" stroke-width="8" stroke-linecap="round"/>
-  <circle cx="256" cy="150" r="11" fill="#8a8a86"/>
-  <circle cx="346" cy="242" r="46" fill="none" stroke="#3ECF8E" stroke-width="4" opacity="0.22"/>
-  <circle cx="346" cy="242" r="30" fill="none" stroke="#3ECF8E" stroke-width="5" opacity="0.5"/>
-  <circle cx="346" cy="242" r="18" fill="#3ECF8E"/>
-  <rect x="214" y="392" width="84" height="42" rx="13" fill="#3ECF8E" fill-opacity="0.10" stroke="#3ECF8E" stroke-width="3"/>
-  <text x="256" y="421" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#3ECF8E" letter-spacing="1">500</text>
 </svg>
