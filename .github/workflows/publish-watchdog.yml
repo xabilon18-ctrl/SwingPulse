@@ -1,0 +1,130 @@
+name: Publish Watchdog
+
+# WHY THIS EXISTS (2026-08-06)
+# publish.yml marks status.json as 'failed' from a step INSIDE its own job. That
+# only works if the job actually starts. On 2026-08-06 both 14:35 UTC runs died
+# with "The job was not acquired by Runner of type hosted even after multiple
+# attempts" — GitHub never allocated a runner, so not one step ran, the failure
+# notifier never fired, and status.json sat at state:'ok' from the 09:35 run.
+# The app looked healthy for the next 32h until the stale banner tripped on
+# summary.fetched_at. Runs: 31119778097 / 31119780169.
+#
+# workflow_run fires on the COMPLETION RECORD of the publish workflow, not from
+# inside its job, so it survives a job that never got a runner.
+#
+# Caveat, stated plainly: this watchdog needs a runner too. A total Actions
+# outage takes it down with the thing it is watching. It covers the common case
+# (a capacity blip on one job) and not the rare one.
+
+on:
+  workflow_run:
+    workflows: ["SwingPulse Daily Publish"]
+    types: [completed]
+
+  workflow_dispatch:
+
+jobs:
+  mark-failed:
+    # Only act on a genuinely bad outcome. 'cancelled' is excluded on purpose —
+    # it means a human stopped the run (e.g. de-duplicating two concurrent
+    # publishes), which is not a pipeline failure and must not raise an alarm.
+    # Origin-only, same guard publish.yml uses. This file also lives in the
+    # mirror (xabilon18/SwingPulse), and status.json must have exactly ONE
+    # writer or the two repos race each other on the same R2 key.
+    if: >-
+      github.repository == 'xabilon18-ctrl/SwingPulse' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'failure' ||
+       github.event.workflow_run.conclusion == 'timed_out' ||
+       github.event.workflow_run.conclusion == 'startup_failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Guard against a late watchdog stomping a good publish. The three daily
+      # runs overlap in the queue, so a failed 09:35 can finish AFTER a healthy
+      # 14:35 has already written state:'ok'. Writing 'failed' then would put a
+      # red banner on fresh, correct data. Only mark failure if what is on R2
+      # right now is older than this run's start.
+      - name: Check whether R2 already has a newer successful publish
+        id: check
+        env:
+          R2_PUBLIC: https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev
+          RUN_STARTED: ${{ github.event.workflow_run.run_started_at }}
+        run: |
+          set -uo pipefail
+          summary="$(curl -sS --max-time 30 "$R2_PUBLIC/ma500/summary.json" || echo '')"
+          fetched_at="$(printf '%s' "$summary" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("fetched_at",""))' 2>/dev/null || echo '')"
+
+          echo "R2 summary.fetched_at = ${fetched_at:-<unreadable>}"
+          echo "failed run started at = ${RUN_STARTED:-<manual>}"
+
+          # Unreadable summary → alarm. Silence is the failure mode we are here for.
+          if [ -z "$fetched_at" ] || [ -z "${RUN_STARTED:-}" ]; then
+            echo "mark=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          newer="$(python3 -c '
+import sys
+from datetime import datetime, timezone
+
+def parse(s):
+    d = datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+try:
+    print("true" if parse(sys.argv[1]) >= parse(sys.argv[2]) else "false")
+except Exception:
+    print("false")   # unparseable -> do not suppress the alarm
+' "$fetched_at" "$RUN_STARTED")"
+
+          if [ "$newer" = "true" ]; then
+            echo "R2 data is newer than the failed run — a later publish already succeeded. Staying quiet."
+            echo "mark=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "mark=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mark status.json failed on R2
+        if: steps.check.outputs.mark == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FAILED_RUN: ${{ github.event.workflow_run.id }}
+          REASON: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          printf '{"state":"failed","at":"%s","run":"%s","reason":"%s","by":"watchdog"}' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${FAILED_RUN:-manual}" "${REASON:-unknown}" \
+            > /tmp/status.json
+          cat /tmp/status.json
+          curl -sS --fail-with-body -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/swingpulse-data/objects/ma500/status.json" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Cache-Control: no-cache, max-age=0" \
+            --data-binary @/tmp/status.json
+
+      - name: Fan out failure push
+        if: steps.check.outputs.mark == 'true'
+        env:
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+        run: |
+          if [ -n "${SYNC_SECRET:-}" ]; then
+            curl -sS -X POST \
+              -H "X-Sync-Secret: $SYNC_SECRET" \
+              -H "X-Profile: ma500" \
+              https://swingpulse-sync.xabilon18.workers.dev/push/notify \
+              || echo "(push fan-out failed — non-fatal)"
+          else
+            echo "(SYNC_SECRET not set — skipping push fan-out)"
+          fi
+
+      - name: Report
+        run: |
+          if [ "${{ steps.check.outputs.mark }}" = "true" ]; then
+            echo "Publish run ${{ github.event.workflow_run.id }} failed (${{ github.event.workflow_run.conclusion }}) — status.json marked failed, push sent."
+          else
+            echo "Publish run ${{ github.event.workflow_run.id }} failed but newer data is already live — no alarm raised."
+          fi
