@@ -21,6 +21,11 @@ on:
     workflows: ["SwingPulse Daily Publish"]
     types: [completed]
 
+  # Manual runs are a DRY RUN on purpose. A dispatch carries no
+  # github.event.workflow_run context, so RUN_STARTED is empty and the
+  # freshness comparison below cannot suppress anything — an unguarded manual
+  # run would flip a healthy live app to state:'failed'. Dispatch therefore
+  # evaluates the logic and prints the verdict without writing to R2.
   workflow_dispatch:
 
 jobs:
@@ -87,7 +92,7 @@ except Exception:
           fi
 
       - name: Mark status.json failed on R2
-        if: steps.check.outputs.mark == 'true'
+        if: steps.check.outputs.mark == 'true' && github.event_name != 'workflow_dispatch'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -107,7 +112,7 @@ except Exception:
             --data-binary @/tmp/status.json
 
       - name: Fan out failure push
-        if: steps.check.outputs.mark == 'true'
+        if: steps.check.outputs.mark == 'true' && github.event_name != 'workflow_dispatch'
         env:
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
@@ -123,7 +128,9 @@ except Exception:
 
       - name: Report
         run: |
-          if [ "${{ steps.check.outputs.mark }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "DRY RUN — nothing written to R2. Would have marked failed: ${{ steps.check.outputs.mark }}"
+          elif [ "${{ steps.check.outputs.mark }}" = "true" ]; then
             echo "Publish run ${{ github.event.workflow_run.id }} failed (${{ github.event.workflow_run.conclusion }}) — status.json marked failed, push sent."
           else
             echo "Publish run ${{ github.event.workflow_run.id }} failed but newer data is already live — no alarm raised."
