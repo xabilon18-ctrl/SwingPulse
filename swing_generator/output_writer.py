@@ -1,5 +1,21 @@
-"""
-Output writer — CSV (always) + Excel (if openpyxl is installed).
+"""Output writer — writes the daily snapshot CSV.
+
+The CSV is NOT a convenience dump, despite reading like one. It is the handoff
+between the signal engine and everything downstream, and four things read it:
+
+  webapp/publish.py  load_latest_signals() — the newest signals_<date>.csv IS
+                     what gets published to R2. Its FILE MTIME also becomes
+                     summary.json's `fetched_at`, which drives the app's stale
+                     banner and tools/health_check.py.
+  webapp/server.py   the local dev server reads the same latest file
+  signal_ledger.py   --backfill replays the whole signals_*.csv history
+  main.py            compute_flow_volumes() backfills from the same glob
+
+Stop writing it and the pipeline has nothing to publish. Route it somewhere
+else and all four have to move together.
+
+The .xlsx that used to be written beside it was removed on 2026-08-13: nothing
+in the repo ever read it, and it cost 78 MB across 50 files.
 """
 
 from __future__ import annotations
@@ -18,7 +34,7 @@ from _active_config import (
 
 def write_output(df: pd.DataFrame, run_date: Optional[date] = None,
                  output_dir: str = None, output_columns: list = None) -> None:
-    """Write the daily snapshot to CSV and (if openpyxl is available) Excel."""
+    """Write the daily snapshot CSV that publish.py picks up."""
     if run_date is None:
         run_date = date.today()
 
@@ -34,42 +50,3 @@ def write_output(df: pd.DataFrame, run_date: Optional[date] = None,
     csv_path = os.path.join(dest, f'signals_{run_date.isoformat()}.csv')
     out.to_csv(csv_path, index=False)
     print(f'  [CSV]    Saved → {csv_path}')
-
-    xlsx_path = os.path.join(dest, f'signals_{run_date.isoformat()}.xlsx')
-    try:
-        import openpyxl
-        from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = str(run_date)
-        header_fill = PatternFill(start_color='1a2332', end_color='1a2332', fill_type='solid')
-        header_font = Font(color='FFFFFF', bold=True, size=10)
-        buy_fill  = PatternFill(start_color='d4edda', end_color='d4edda', fill_type='solid')
-        sell_fill = PatternFill(start_color='f8d7da', end_color='f8d7da', fill_type='solid')
-        thin_border = Border(bottom=Side(style='thin', color='e2e8f0'))
-        headers = out.columns.tolist()
-        for col_idx, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_idx, value=header)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center')
-        for row_idx, (_, row) in enumerate(out.iterrows(), 2):
-            for col_idx, header in enumerate(headers, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=row[header])
-                cell.border = thin_border
-                cell.alignment = Alignment(horizontal='center')
-            status = str(row.get('confirmation_status', '')).lower()
-            fill = buy_fill if 'buy' in status else sell_fill if 'sell' in status else None
-            if fill:
-                for col_idx in range(1, len(headers) + 1):
-                    ws.cell(row=row_idx, column=col_idx).fill = fill
-        for col_idx, header in enumerate(headers, 1):
-            ws.column_dimensions[get_column_letter(col_idx)].width = min(max(len(str(header)) + 2, 10), 20)
-        ws.freeze_panes = 'A2'
-        ws.auto_filter.ref = ws.dimensions
-        wb.save(xlsx_path)
-        print(f'  [Excel]  Saved → {xlsx_path}')
-    except ImportError:
-        pass
