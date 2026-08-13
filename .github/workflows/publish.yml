@@ -86,6 +86,26 @@ jobs:
           cd swing_generator
           python3 main.py --profile ma500
 
+      # ── 6a. Did the publish actually MOVE the data? ───────────────────────
+      # A green run is not proof of a good publish. From 07-28 to 08-13 every
+      # run here exited 0 while the ledger, radar, sector series and flavours
+      # sat frozen at an 08-04 timestamp — the loaders could not read their own
+      # series back from R2 and correctly declined to save, which is not an
+      # error, so nothing failed and nothing said anything.
+      #
+      # Checks LIVE R2, not the local working copy, so it also proves the
+      # upload landed. --max-age-hours 3 asserts "this run wrote every file":
+      # the closest two crons are 5h apart, so a file left over from the
+      # previous run cannot sneak past. See tools/health_check.py.
+      #
+      # MUST stay above the notifier below — `if: failure()` only fires for
+      # steps that already ran, so a check placed after it would fail the run
+      # without ever flipping status.json or raising the banner.
+      - name: Verify the publish moved the data
+        run: |
+          cd swing_generator
+          python3 tools/health_check.py --max-age-hours 3
+
       # ── 6b. On failure: mark status on R2 + push so phones hear about it ──
       # Success runs overwrite status.json back to state:'ok' via publish.py.
       - name: Notify failure
