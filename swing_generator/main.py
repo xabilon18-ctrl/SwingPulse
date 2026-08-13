@@ -44,7 +44,7 @@ from data_fetcher  import fetch_all, fetch_all_hourly, h4_ticker, drop_unfinishe
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
-from sheets_writer import write_output
+from output_writer import write_output
 
 # ---------------------------------------------------------------------------
 # Per-instrument processor

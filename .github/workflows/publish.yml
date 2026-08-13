@@ -60,17 +60,7 @@ jobs:
           key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
           restore-keys: parquet-ma500-${{ runner.os }}-
 
-      # ── 5. Google Sheets credentials (optional) ──────────────────────────
-      - name: Write Google service account
-        env:
-          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          if [ -n "$SA_JSON" ]; then
-            mkdir -p swing_generator/credentials
-            echo "$SA_JSON" > swing_generator/credentials/service_account.json
-          fi
-
-      # ── 5b. Golden-file regression — never publish signals from a changed
+      # ── 5. Golden-file regression — never publish signals from a changed
       #        engine that nobody reviewed (fails fast, before the 20-min run)
       - name: Signal engine golden test
         run: |
