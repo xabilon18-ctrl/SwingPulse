@@ -36,6 +36,9 @@ LEDGER_PATH  = os.path.join(OUTPUT_DIR, 'signal_ledger.json')
 SUMMARY_PATH = os.path.join(OUTPUT_DIR, 'ledger_summary.json')
 # Public R2 data prefix — keep in sync with R2_BASE_URL in webapp/publish.py
 R2_LEDGER_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/signal_ledger.json'
+# r2.dev answers 403 to the default 'Python-urllib/3.x' agent — see the same
+# constant in sector_activity.py for what that silently cost.
+R2_USER_AGENT = 'SwingPulse-pipeline/1.0'
 
 HORIZONS = (5, 10, 20)          # bars after entry for % marks
 
@@ -70,7 +73,8 @@ def load_ledger() -> tuple[dict, bool]:
     url = f'{R2_LEDGER_URL}?t={int(datetime.utcnow().timestamp())}'
     for attempt in range(3):
         try:
-            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache',
+                                                       'User-Agent': R2_USER_AGENT})
             with urllib.request.urlopen(req, timeout=20) as r:
                 remote = {rec['id']: rec for rec in json.load(r).get('records', [])}
             remote_ok = True
@@ -79,8 +83,10 @@ def load_ledger() -> tuple[dict, bool]:
             if e.code == 404:      # genuinely absent — first-ever run
                 remote_ok = True
                 break
+            print(f'  Ledger: R2 fetch failed (HTTP {e.code})')
             import time; time.sleep(2 * (attempt + 1))
-        except Exception:
+        except Exception as exc:
+            print(f'  Ledger: R2 fetch failed ({exc})')
             import time; time.sleep(2 * (attempt + 1))
 
     local_ok = False

@@ -44,6 +44,12 @@ FLAVOUR_PATH  = os.path.join(OUTPUT_DIR, 'instrument_flavours.json')
 # Public R2 data prefix — keep in sync with R2_BASE_URL in webapp/publish.py
 R2_ACTIVITY_URL = ('https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
                    '/ma500/sector_activity.json')
+# r2.dev answers 403 to the default 'Python-urllib/3.x' agent. Without this the
+# fetch below fails on every CI run, and since a CI checkout has no local
+# sector_activity.json the load returns safe=False and the whole radar update is
+# skipped — the R2 copy then only ever advances when the pipeline is run from a
+# machine that happens to hold the file. Same header in signal_ledger.py.
+R2_USER_AGENT = 'SwingPulse-pipeline/1.0'
 
 CODES          = {'B1', 'B2', 'B3', 'B4', 'S1', 'S2', 'S3', 'S4'}
 VOL_SPIKE_RVOL = 2.0     # volume >= 2x its 25d average = a volume event
@@ -80,7 +86,8 @@ def load_activity() -> tuple[dict, bool]:
     url = f'{R2_ACTIVITY_URL}?t={int(datetime.utcnow().timestamp())}'
     for attempt in range(3):
         try:
-            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache',
+                                                       'User-Agent': R2_USER_AGENT})
             with urllib.request.urlopen(req, timeout=20) as r:
                 remote = {f"{row['date']}|{row['sector']}": row
                           for row in json.load(r).get('rows', [])}
@@ -90,8 +97,10 @@ def load_activity() -> tuple[dict, bool]:
             if e.code == 404:          # first-ever run
                 remote_ok = True
                 break
+            print(f'  Sector activity: R2 fetch failed (HTTP {e.code})')
             import time; time.sleep(2 * (attempt + 1))
-        except Exception:
+        except Exception as exc:
+            print(f'  Sector activity: R2 fetch failed ({exc})')
             import time; time.sleep(2 * (attempt + 1))
 
     local_ok = False
