@@ -38,7 +38,18 @@ import sys
 
 
 def _is_py(path):
-    return path.endswith('.py')
+    # _active_config.py is THE shim — the one file that MUST pull straight from
+    # config.py, since every other module then imports from it. Exempting it is
+    # not a loophole, it is the rule's own definition. Found the honest way:
+    # this hook blocked its author from adding INSTRUMENTS_FILE to that
+    # re-export list, minutes after going live. config.py is exempt for the
+    # same reason.
+    #
+    # NB the exemption is checked on the PATH, not the text. An earlier attempt
+    # to explain this in a comment tripped the rule on its own prose, which is
+    # its own small argument for keeping these patterns narrow.
+    return path.endswith('.py') and not path.endswith(
+        ('_active_config.py', '/config.py'))
 
 
 def _is_web(path):

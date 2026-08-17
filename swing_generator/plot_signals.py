@@ -20,7 +20,7 @@ from matplotlib.lines import Line2D
 from data_fetcher import fetch
 from indicators import add_all_indicators
 from signals import add_signals
-from config import MA_PERIODS, SMALL_MA_RANGE
+from _active_config import MA_PERIODS, SMALL_MA_RANGE
 
 TICKER = sys.argv[1] if len(sys.argv) > 1 else 'BTC-USD'
 LABEL  = sys.argv[2] if len(sys.argv) > 2 else TICKER

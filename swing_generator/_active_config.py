@@ -3,6 +3,7 @@ _active_config.py — MA500 profile (single active config).
 All modules import from here.
 """
 from config import (
+    INSTRUMENTS_FILE,
     MA_PERIODS, SMALL_MA_RANGE, MA_MIDPOINT,
     HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED,
     VOLUME_LOOKBACK,

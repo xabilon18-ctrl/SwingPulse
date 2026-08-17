@@ -11,7 +11,7 @@ Each dict contains:
 """
 
 import re
-from config import INSTRUMENTS_FILE
+from _active_config import INSTRUMENTS_FILE
 
 
 _LINE_PATTERN = re.compile(
