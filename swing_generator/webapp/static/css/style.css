@@ -1642,9 +1642,6 @@ body.tf-locked .tf-switch-note { display: block; }
 .scanner-card:hover { transform: translateY(-2px); border-color: var(--border-active); box-shadow: var(--shadow); }
 
 .scanner-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 6px; }
-.scanner-name { font-weight: 700; font-size: .98rem; line-height: 1.2; }
-.scanner-group { font-size: .72rem; color: var(--text-muted); line-height: 1.3; margin-top: 2px; }
-
 /* ── Full instrument name (shows below ticker on all card types) ─── */
 .inst-fullname {
   display: block;
@@ -1809,8 +1806,6 @@ body.tf-locked .tf-switch-note { display: block; }
 
 .wl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .wl-card-left { min-width: 0; flex: 1; }
-.wl-card-name { display: block; font-weight: 700; font-size: .98rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wl-card-group { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
 /* Right column: price stacked above the action icons (icons go HORIZONTAL — no more wasted vertical space) */
 .wl-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .wl-card-right .scanner-actions { flex-direction: row; max-width: none; }
@@ -7296,12 +7291,38 @@ body {
    Silent on calm / no-read days, which is most of them. */
 .sc-v-note { flex-basis: 100%; font-size: .63rem; color: var(--text-secondary); font-style: italic; }
 .sc-verdict.sc-v-warn .sc-v-note { color: #fca5a5; font-style: normal; font-weight: 600; }
-.sc-verdict.sc-v-buy  { background: var(--buy-soft);   border-color: rgba(16,185,129,.38); }
-.sc-verdict.sc-v-buy  .sc-v-label { color: var(--buy); }
-.sc-verdict.sc-v-sell { background: var(--sell-soft);  border-color: rgba(239,68,68,.38); }
-.sc-verdict.sc-v-sell .sc-v-label { color: var(--sell); }
-.sc-verdict.sc-v-warn { background: var(--watch-soft); border-color: rgba(245,158,11,.42); }
-.sc-verdict.sc-v-warn .sc-v-label { color: var(--watch); }
+/* Tone is shared with .sc-verdict-chip by widening these selectors rather than
+   restating the colours. One definition of "a buy verdict looks like this". */
+.sc-verdict.sc-v-buy,  .sc-verdict-chip.sc-v-buy  { background: var(--buy-soft);   border-color: rgba(16,185,129,.38); }
+.sc-verdict.sc-v-buy  .sc-v-label, .sc-verdict-chip.sc-v-buy  { color: var(--buy); }
+.sc-verdict.sc-v-sell, .sc-verdict-chip.sc-v-sell { background: var(--sell-soft);  border-color: rgba(239,68,68,.38); }
+.sc-verdict.sc-v-sell .sc-v-label, .sc-verdict-chip.sc-v-sell { color: var(--sell); }
+.sc-verdict.sc-v-warn, .sc-verdict-chip.sc-v-warn { background: var(--watch-soft); border-color: rgba(245,158,11,.42); }
+.sc-verdict.sc-v-warn .sc-v-label, .sc-verdict-chip.sc-v-warn { color: var(--watch); }
+
+/* ── Shared card vocabulary ────────────────────────────────────────────────
+   Backing cardIdentityHtml() / verdictChipHtml() in app.js. The Signals card,
+   Analyzed row and Trends card keep their own densities on purpose — the tabs
+   answer different questions — but a given fact now renders as the same
+   element in all three instead of three lookalike spellings. */
+.card-name  { font-weight: 700; font-size: .98rem; line-height: 1.2; }
+.card-group { font-size: .72rem; color: var(--text-muted); line-height: 1.3; margin-top: 2px; }
+
+/* The Analyzed row is a dense list item, so its identity clips instead of
+   wrapping. This was the ONLY real difference between the two old rule sets. */
+.wl-card .card-name, .wl-card .card-group { display: block; }
+.wl-card .card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The verdict at chip density, for the two surfaces where the full bar would
+   bury the list it sits in. */
+.sc-verdict-chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--bg-elevated);
+  font-size: .62rem; font-weight: 800; letter-spacing: .01em;
+  white-space: nowrap;
+}
+.tc-verdict-row { display: flex; margin-top: 6px; }
 
 /* ── Grouped filter pills (native <details> dropdowns) ── */
 .sig-filter-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }

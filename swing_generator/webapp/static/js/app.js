@@ -734,6 +734,47 @@
       + `</div>`;
   }
 
+  // ── Shared card vocabulary ────────────────────────────────────────────────
+  // The Signals card, the Analyzed row and the Trends card describe the SAME
+  // instrument, and until now each said it differently: three spellings of the
+  // identity block, two hand-copies of the action buttons, and the verdict —
+  // the app's actual headline judgement — visible on exactly one of the three.
+  //
+  // These are deliberately NOT one identical card. The tabs answer different
+  // questions (what should I look at / what have I studied / how long has this
+  // run), so density SHOULD differ. What must not differ is the vocabulary: the
+  // same fact renders as the same element everywhere, and each fact has one
+  // implementation. Same reason `asset_class` moved into the pipeline and
+  // `verdictOf` is shared — two implementations of one rule in two places is
+  // how the buy/sell bug lived for a year.
+
+  function cardIdentityHtml(item, opts = {}) {
+    const { tag = 'div', isAi = false, sep = ' / ' } = opts;
+    const full = instName(item.instrument_name);
+    const meta = [item.group || '', item.sector || ''].filter(Boolean).join(sep);
+    const o = tag, c = tag;
+    return `<${o} class="card-name">${item.instrument_name}${noteIndicator(item.instrument_name)}</${c}>`
+      + (full ? `<${o} class="inst-fullname">${full}</${c}>` : '')
+      + `<${o} class="card-group">${meta}${isAi ? ' <span class="ai-chip-mini">AI</span>' : ''}</${c}>`;
+  }
+
+  function cardActionsHtml(name, opts = {}) {
+    const { starred = false } = opts;
+    return `<div class="scanner-actions">${tvBtn(name, '')}${shareBtn(name)}`
+      + `<button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${name}"`
+      + ` title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}"`
+      + ` data-act="toggleStar" data-stop="1">★</button></div>`;
+  }
+
+  // The verdict at chip density, for surfaces where the full bar would bury the
+  // list it sits in. Same verdictOf() call, same tone classes, same words — a
+  // second opinion computed a second way is the failure mode being avoided.
+  function verdictChipHtml(item) {
+    const v = verdictOf(item);
+    if (!v) return '';
+    return `<span class="sc-verdict-chip sc-v-${v.tone}" title="${v.sub}">${v.label}</span>`;
+  }
+
   // Sector-mood filter predicate (the Mood dropdown). Mood terms are intentionally
   // NOT wired into free-text search — see the note in matchesSearch.
   function matchesMoodFilter(item, mood) {
@@ -3015,16 +3056,8 @@
 
       return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="scanner-top">
-          <div>
-            <div class="scanner-name">${item.instrument_name}${noteIndicator(item.instrument_name)}</div>
-            ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
-            <div class="scanner-group">${item.group || ''}${item.sector ? ' / ' + item.sector : ''}${_aiScan ? ' <span class="ai-chip-mini">AI</span>' : ''}</div>
-          </div>
-          <div class="scanner-actions">
-            ${tvBtn(item.instrument_name, '')}
-            ${shareBtn(item.instrument_name)}
-            <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}" data-act="toggleStar" data-stop="1">★</button>
-          </div>
+          <div>${cardIdentityHtml(item, { isAi: _aiScan, sep: ' / ' })}</div>
+          ${cardActionsHtml(item.instrument_name, { starred })}
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
         ${verdictBarHtml(item)}
@@ -3577,22 +3610,15 @@
       const _aiWl = isAI(item.instrument_name);
       return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="wl-card-top">
-          <div class="wl-card-left">
-            <span class="wl-card-name">${item.instrument_name} ${noteIndicator(item.instrument_name)}</span>
-            ${instName(item.instrument_name) ? `<span class="inst-fullname">${instName(item.instrument_name)}</span>` : ''}
-            <span class="wl-card-group">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}${_aiWl ? ' <span class="ai-chip-mini">AI</span>' : ''}</span>
-          </div>
+          <div class="wl-card-left">${cardIdentityHtml(item, { tag: 'span', isAi: _aiWl, sep: ' · ' })}</div>
           <div class="wl-card-right">
             <span class="wl-card-price">${formatPrice(item[f('close')])}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}">${rocStr}</span>` : ''}</span>
             ${(() => { const p = signalPerf(item); return (p && p.days > 0) ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
-            <div class="scanner-actions">
-              ${tvBtn(item.instrument_name, '')}
-              ${shareBtn(item.instrument_name)}
-              <button class="star-btn starred" data-ticker="${item.instrument_name}" title="Unmark as analyzed" data-act="toggleStar" data-stop="1">★</button>
-            </div>
+            ${cardActionsHtml(item.instrument_name, { starred: true })}
           </div>
         </div>
         <div class="wl-card-badges">
+          ${verdictChipHtml(item)}
           <span class="scanner-tag ${trendTag(t)}">${t}</span>
           ${phase ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${phase}</span>` : ''}
           ${lastSigType && age.label ? `<span class="sig-age ${age.decayClass}"><b class="${lastSigType.startsWith('B') ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b> ${age.label}</span>` : ''}
@@ -4207,7 +4233,11 @@
       const histSegs   = segs.slice(0, 8).reverse();
       return { name: d.instrument_name, group: d.group||'', established, runDays,
                avgCurrent, pctOfAvg, maturity, upPct, currentSeg, move, hasData: segs.length > 0,
-               signal, close, volSpike, histSegs };
+               signal, close, volSpike, histSegs,
+               // The raw row, so the card can call the SHARED helpers
+               // (verdictChipHtml et al) instead of growing its own second
+               // spelling of facts the other two cards already render.
+               raw: d };
     });
 
     // Filter
@@ -4324,6 +4354,7 @@
           <span class="tc-sig-label" style="color:${sigColor}">${sigLabel}</span>
           <div style="display:flex;align-items:center;gap:5px">${volDot}${priceStr}</div>
         </div>
+        ${d.raw ? `<div class="tc-verdict-row">${verdictChipHtml(d.raw)}</div>` : ''}
         ${!histHtml && d.avgCurrent ? `<div class="tc-meta-row">
           <span class="tc-mat" style="color:${matColor}">${matIcon} ${d.maturity}</span>
           <span class="tc-avg">avg ${d.avgCurrent}d &middot; <span style="color:${matColor}">${d.pctOfAvg}%</span></span>
