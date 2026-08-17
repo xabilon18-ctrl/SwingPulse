@@ -96,7 +96,28 @@ jobs:
           cd swing_generator
           python3 tools/health_check.py --max-age-hours 3
 
-      # ── 6b. On failure: mark status on R2 + push so phones hear about it ──
+      # ── 6b. Does the data LOOK like data? ────────────────────────────────
+      # health_check.py above proves every file was written by this run. It
+      # cannot tell you the numbers inside are sane, and that is the failure
+      # that has cost the most here: on 2026-07-25 Yahoo served bars with
+      # volume and no price, 365 instruments went silently NEUTRAL, and every
+      # file published on time. The app showed half its board as blank cards,
+      # which reads as a quiet market rather than a broken feed.
+      #
+      # --only data on purpose. The tool also has code-shape checks (does the
+      # front end compare against a value that never occurs), but those cannot
+      # change between two runs of the same commit, so gating the daily data
+      # publish on them would let a cosmetic front-end slip block a day of
+      # market data. They run in test.yml, on the code push, where they belong.
+      #
+      # MUST stay above the `if: failure()` notifier below, same as 6a — that
+      # notifier only fires for steps that already ran.
+      - name: Shape audit — do the numbers look like numbers
+        run: |
+          cd swing_generator
+          python3 tools/shape_audit.py --only data
+
+      # ── 6c. On failure: mark status on R2 + push so phones hear about it ──
       # Success runs overwrite status.json back to state:'ok' via publish.py.
       - name: Notify failure
         if: failure()

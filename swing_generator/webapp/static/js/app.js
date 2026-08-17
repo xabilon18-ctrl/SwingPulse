@@ -34,6 +34,17 @@
       .forEach(c => c.classList.remove('active'));
   }
   let scannerMoodFilter = 'all';   // sector-mood filter (all/confirmed/fighting/calm/distributing/active/churn/mixed/marketwide)
+  // ── Move filter (period return) ──
+  // The four period returns ship unprefixed from the pipeline (config.py
+  // OUTPUT_COLUMNS: pct_1d/pct_1w/pct_1m/pct_1y) and are DAILY-close based on
+  // every timeframe — there is no h4_pct_*, so these never go through f().
+  // Direction and size are separate axes on purpose: "any 10%+ move" and "any
+  // move up" are both things you want, and folding them into one list of
+  // up2/up5/down2/… buttons would have needed 12 rows to say the same thing.
+  const MOVE_PERIODS = { pct_1d: '1D', pct_1w: '1W', pct_1m: '1M', pct_1y: '1Y' };
+  let scannerMovePeriod = 'pct_1d';   // which return the Move filter reads
+  let scannerMoveDir = 'all';         // 'all' | 'up' | 'down'
+  let scannerMoveMin = 0;             // minimum |move| in %, 0 = any size
   let scannerSort = 'signal';
   let scannerView = 'list';   // 'list' | 'ranked'
   let gpViewMode = 'region';   // 'group' | 'region'
@@ -2852,6 +2863,20 @@
       filtered = filtered.filter(d => matchesMoodFilter(d, scannerMoodFilter));
     }
 
+    // ── Move filter (period return) ──
+    // Deliberately OUTSIDE the `if (!search)` chip block below: like Class and
+    // Mood it composes with everything else, so searching a name does not
+    // silently switch it off.
+    if (scannerMoveDir !== 'all' || scannerMoveMin > 0) {
+      filtered = filtered.filter(d => {
+        const v = parseFloat(d[scannerMovePeriod]);
+        if (isNaN(v)) return false;   // no return for this period — can't judge it
+        if (scannerMoveDir === 'up' && v < 0) return false;
+        if (scannerMoveDir === 'down' && v > 0) return false;
+        return Math.abs(v) >= scannerMoveMin;
+      });
+    }
+
     // ── Chip filter (skip when user is searching by name) ──
     if (!search) {
       if (activeScannerFilter === 'buy')          filtered = filtered.filter(isBuy);
@@ -2921,14 +2946,15 @@
       filtered = [...filtered].sort((a, b) => (parseInt(b[f('ma_order_score')])||0) - (parseInt(a[f('ma_order_score')])||0));
     } else if (scannerSort === 'run_desc') {
       filtered = [...filtered].sort((a, b) => (parseInt(b[f('trend_run_days')])||0) - (parseInt(a[f('trend_run_days')])||0));
-    } else if (scannerSort === 'pct_1d_desc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1d)||0) - (parseFloat(a.pct_1d)||0));
-    } else if (scannerSort === 'pct_1d_asc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1d)||0) - (parseFloat(b.pct_1d)||0));
-    } else if (scannerSort === 'pct_1y_desc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(b.pct_1y)||0) - (parseFloat(a.pct_1y)||0));
-    } else if (scannerSort === 'pct_1y_asc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(a.pct_1y)||0) - (parseFloat(b.pct_1y)||0));
+    } else if (/^pct_1[dwmy]_(desc|asc)$/.test(scannerSort)) {
+      // One branch for all four periods — the day/year pair used to be written
+      // out twice each, and adding week and month by the same hand-copy would
+      // have made eight near-identical sorts to keep in step.
+      const asc = scannerSort.endsWith('_asc');
+      const col = scannerSort.slice(0, asc ? -4 : -5); // pct_1d_desc → pct_1d
+      const dir = asc ? 1 : -1;
+      filtered = [...filtered].sort((a, b) =>
+        dir * ((parseFloat(a[col]) || 0) - (parseFloat(b[col]) || 0)));
     }
 
     // (The buy/sell/squeeze/key-level/today tallies that used to live here fed
@@ -2970,11 +2996,17 @@
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
       const delay = Math.min(i, 30) * 20;
 
-      // Stats row: three uniform tiles (1D / 1Y / VOL)
-      const statTile = (label, val) => {
+      // Stats row: five uniform tiles (1D / 1W / 1M / 1Y / VOL).
+      // One decimal, not two — at five tiles across a 280px card a "-45.07%"
+      // wraps, and it matches the ROC / MA500 chips right above. Past ±100%
+      // the decimal is dropped too: "+221.5%" measured 52px in a 51px tile at
+      // 375px wide, and a year is quite capable of a four-figure crypto move.
+      const statTile = (label, val, title) => {
         const v = parseFloat(val);
-        if (isNaN(v)) return `<div class="sc-stat"><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val sc-stat-na">—</div></div>`;
-        return `<div class="sc-stat"><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val ${v >= 0 ? 'perf-pos' : 'perf-neg'}">${(v >= 0 ? '+' : '') + v.toFixed(2)}%</div></div>`;
+        const t = title ? ` title="${title}"` : '';
+        if (isNaN(v)) return `<div class="sc-stat"${t}><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val sc-stat-na">—</div></div>`;
+        const txt = (v >= 0 ? '+' : '') + v.toFixed(Math.abs(v) >= 100 ? 0 : 1) + '%';
+        return `<div class="sc-stat"${t}><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val ${v >= 0 ? 'perf-pos' : 'perf-neg'}">${txt}</div></div>`;
       };
       const rv = rvol(item);
       const volTile = rv === null
@@ -2997,7 +3029,7 @@
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
         ${verdictBarHtml(item)}
         ${setupPanelHtml(item, { showConf: false })}
-        <div class="sc-stats">${statTile('1D', item.pct_1d)}${statTile('1Y', item.pct_1y)}${volTile}</div>
+        <div class="sc-stats">${statTile('1D', item.pct_1d, 'Move over the last daily bar')}${statTile('1W', item.pct_1w, 'Move over the last 5 trading days')}${statTile('1M', item.pct_1m, 'Move over the last 21 trading days')}${statTile('1Y', item.pct_1y, 'Move over the last 252 trading days')}${volTile}</div>
         ${(() => {
           // Build prioritized badge list — trend tag always shown, then top 4 by priority
           const extras = [];
@@ -3142,10 +3174,19 @@
   // are two views of the same `scannerSort`, kept in sync both ways.
   const SORT_LABELS = {
     signal: '', pct_1y_desc: 'Year ↓', pct_1y_asc: 'Year ↑',
+    pct_1m_desc: 'Month ↓', pct_1m_asc: 'Month ↑',
+    pct_1w_desc: 'Week ↓', pct_1w_asc: 'Week ↑',
     pct_1d_desc: 'Day ↓', pct_1d_asc: 'Day ↑', conviction: 'Conviction',
     radar_score: 'Radar', date_desc: 'Newest', conf_desc: 'Confidence',
     roc_desc: 'ROC ↓', roc_asc: 'ROC ↑', order_desc: 'MA order', run_desc: 'Run',
   };
+  // Move pill label: "1W ▲ 5%+" / "1M ▼ any" / "1D 10%+" (either direction)
+  function moveFilterLabel() {
+    if (scannerMoveDir === 'all' && !scannerMoveMin) return '';
+    const arrow = scannerMoveDir === 'up' ? ' ▲' : scannerMoveDir === 'down' ? ' ▼' : '';
+    const size  = scannerMoveMin ? ' ' + scannerMoveMin + '%+' : ' any';
+    return MOVE_PERIODS[scannerMovePeriod] + arrow + size;
+  }
   function updateFilterPills() {
     const catActive   = !!document.querySelector('#scannerCatChips .s-cat-chip.active');
     const classActive = (document.getElementById('scannerClassFilter')?.value || 'all') !== 'all';
@@ -3157,6 +3198,19 @@
       moodPill.classList.toggle('has-active', scannerMoodFilter !== 'all');
       const val = moodPill.querySelector('.fp-val');
       if (val) val.textContent = scannerMoodFilter !== 'all' ? ' · ' + MOOD_LABELS[scannerMoodFilter] : '';
+    }
+    const movePill = document.getElementById('pillMove');
+    if (movePill) {
+      const lbl = moveFilterLabel();
+      movePill.classList.toggle('has-active', !!lbl);
+      const val = movePill.querySelector('.fp-val');
+      if (val) val.textContent = lbl ? ' · ' + lbl : '';
+      movePill.querySelectorAll('.move-per-opt').forEach(b =>
+        b.classList.toggle('active', b.dataset.period === scannerMovePeriod));
+      movePill.querySelectorAll('.move-dir-opt').forEach(b =>
+        b.classList.toggle('active', b.dataset.dir === scannerMoveDir));
+      movePill.querySelectorAll('.move-min-opt').forEach(b =>
+        b.classList.toggle('active', parseFloat(b.dataset.min) === scannerMoveMin));
     }
     const sortPill = document.getElementById('pillSort');
     if (sortPill) {
@@ -3181,6 +3235,28 @@
       buildScannerCards();
     });
   }
+
+  // Move pill — period / direction / size are three independent choices, so the
+  // dropdown stays OPEN on click (unlike Mood and Sort, which are one pick and
+  // done). updateFilterPills() repaints the active states.
+  const moveOpts = document.getElementById('scannerMoveOpts');
+  if (moveOpts) {
+    moveOpts.addEventListener('click', e => {
+      const btn = e.target.closest('.move-per-opt, .move-dir-opt, .move-min-opt');
+      if (!btn) return;
+      if (btn.dataset.period !== undefined)  scannerMovePeriod = btn.dataset.period;
+      else if (btn.dataset.dir !== undefined) scannerMoveDir = btn.dataset.dir;
+      else scannerMoveMin = parseFloat(btn.dataset.min) || 0;
+      buildScannerCards();
+    });
+  }
+  document.getElementById('scannerMoveClear')?.addEventListener('click', () => {
+    scannerMovePeriod = 'pct_1d';
+    scannerMoveDir = 'all';
+    scannerMoveMin = 0;
+    document.getElementById('pillMove')?.removeAttribute('open');
+    buildScannerCards();
+  });
 
   const moodOpts = document.getElementById('scannerMoodOpts');
   if (moodOpts) {
@@ -4118,7 +4194,13 @@
       const pctOfAvg   = avgCurrent ? Math.round(runDays / avgCurrent * 100) : 0;
       const maturity   = pctOfAvg >= 150 ? 'Extended' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
       const move       = currentSeg?.pct_move ?? null;
-      const signal     = d[f('signal_type')] || d[f('signal')] || '';
+      // `signal_type` and `signal` are NOT columns — never have been. The
+      // payload carries `primary_signal` (today's fire) and `last_signal_type`
+      // (the most recent one). Both reads returned undefined on every row, so
+      // every Trends card's badge read a muted "No signal" for all 736
+      // instruments regardless of what fired. Third instance of the same family
+      // as the Market Pulse gauge (v225) and shareCard (v235).
+      const signal     = d[f('primary_signal')] || '';
       const close      = parseFloat(d[f('close')]) || null;
       const volSpike   = d[f('volume_spike_flag')] === 'yes';
       // Last 8 segments for the history strip (segs is newest-first; reverse for L→R display)
@@ -4177,12 +4259,16 @@
       const matFill     = d.avgCurrent ? Math.min(d.pctOfAvg, 150) / 1.5 : 0; // 0–100% of bar
 
       // Signal badge
-      const sig = (d.signal || '').toLowerCase();
-      const isBuy  = sig.includes('buy');
-      const isSell = sig.includes('sell');
-      const isWatch= sig.includes('watch');
-      const sigColor = isBuy ? 'var(--buy)' : isSell ? 'var(--sell)' : isWatch ? 'var(--watch)' : 'var(--text-muted)';
-      const sigLabel = isBuy ? '▲ Buy' : isSell ? '▼ Sell' : isWatch ? '◆ Watch' : 'No signal';
+      // Direction from the CODE (B1..B4 / S1..S4), matching publish.py and
+      // server.py's buy_mask — not from prose. The old test looked for the
+      // words 'buy'/'sell'/'watch' inside a value that is a code, so it could
+      // never have matched even once d.signal was populated. There is no
+      // 'watch' code (watch_flag is a dead column), so that branch is gone.
+      const sig = d.signal || '';
+      const isBuy  = sig.startsWith('B');
+      const isSell = sig.startsWith('S');
+      const sigColor = isBuy ? 'var(--buy)' : isSell ? 'var(--sell)' : 'var(--text-muted)';
+      const sigLabel = isBuy ? `▲ Buy · ${sig}` : isSell ? `▼ Sell · ${sig}` : 'No signal';
       const priceStr = d.close ? `<span class="tc-price">${d.close < 10 ? d.close.toFixed(3) : d.close < 1000 ? d.close.toFixed(2) : d.close.toFixed(0)}</span>` : '';
       const volDot   = d.volSpike ? `<span class="tc-vol-dot" title="Volume spike">VOL</span>` : '';
 
@@ -4510,13 +4596,22 @@
     const trend   = effectiveTrend(item);
     const run     = parseInt(item[f('trend_run_days')]);
     const sig     = item[f('primary_signal')] || '';
-    const conf    = item[f('confirmation_status')] || '';
     const align   = item[f('tf_alignment')] || '';
     const sigConf = item[f('signal_confidence')] || '';
     const volSpk  = item[f('volume_spike_flag')] === 'yes';
 
     const trendEmoji = trend === 'UPTREND' ? '📈' : trend === 'DOWNTREND' ? '📉' : '➡️';
-    const dirLabel   = conf.toLowerCase().includes('buy') ? '🟢 Buy' : conf.toLowerCase().includes('sell') ? '🔴 Sell' : '';
+    // Direction comes from the SIGNAL CODE, not from prose. This used to test
+    // conf.toLowerCase().includes('buy'), but confirmation_status reads
+    // "Uptrend — above all MAs" / "Trend breakout — B1: ..." and contains
+    // neither 'buy' nor 'sell' in any of its 18 phrasings — so dirLabel was
+    // always '', the `if (sig && dirLabel)` line below could never fire, and a
+    // shared card silently lost its direction + code line AND printed the
+    // trend line twice (once from the else-branch, once from `if (sig &&
+    // trend)`). Same bug v225 fixed in computeSummary(); this was its second
+    // call site and it was missed. Prefix test matches publish.py/server.py's
+    // buy_mask = primary_signal.startswith('B') exactly — one definition.
+    const dirLabel   = sig.startsWith('B') ? '🟢 Buy' : sig.startsWith('S') ? '🔴 Sell' : '';
 
     let lines = [];
     lines.push(`⚡ *${title}*`);

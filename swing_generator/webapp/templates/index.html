@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=213">
+  <link rel="stylesheet" href="/static/css/style.css?v=214">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -317,15 +317,56 @@
           </div>
         </details>
 
+        <details class="filter-pill" id="pillMove">
+          <summary>Move<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+          <div class="filter-pop">
+            <div class="move-opts" id="scannerMoveOpts">
+              <div class="move-sect">
+                <div class="move-sect-lbl">Period</div>
+                <div class="move-row move-row-4">
+                  <button class="move-opt move-per-opt active" data-period="pct_1d">1D</button>
+                  <button class="move-opt move-per-opt" data-period="pct_1w">1W</button>
+                  <button class="move-opt move-per-opt" data-period="pct_1m">1M</button>
+                  <button class="move-opt move-per-opt" data-period="pct_1y">1Y</button>
+                </div>
+              </div>
+              <div class="move-sect">
+                <div class="move-sect-lbl">Direction</div>
+                <div class="move-row move-row-3">
+                  <button class="move-opt move-dir-opt active" data-dir="all">Either</button>
+                  <button class="move-opt move-dir-opt mv-up" data-dir="up">▲ Up</button>
+                  <button class="move-opt move-dir-opt mv-dn" data-dir="down">▼ Down</button>
+                </div>
+              </div>
+              <div class="move-sect">
+                <div class="move-sect-lbl">At least</div>
+                <div class="move-row move-row-3">
+                  <button class="move-opt move-min-opt active" data-min="0">Any</button>
+                  <button class="move-opt move-min-opt" data-min="2">2%</button>
+                  <button class="move-opt move-min-opt" data-min="5">5%</button>
+                  <button class="move-opt move-min-opt" data-min="10">10%</button>
+                  <button class="move-opt move-min-opt" data-min="25">25%</button>
+                  <button class="move-opt move-min-opt" data-min="50">50%</button>
+                </div>
+              </div>
+              <button class="move-clear" id="scannerMoveClear">Clear move filter</button>
+            </div>
+          </div>
+        </details>
+
         <details class="filter-pill" id="pillSort">
           <summary>Sort<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
           <div class="filter-pop">
             <div class="sort-opts" id="scannerSortOpts">
               <button class="sort-opt active" data-sort="signal">Signal first</button>
-              <button class="sort-opt" data-sort="pct_1y_desc">Year % — high → low</button>
-              <button class="sort-opt" data-sort="pct_1y_asc">Year % — low → high</button>
               <button class="sort-opt" data-sort="pct_1d_desc">Day % — high → low</button>
               <button class="sort-opt" data-sort="pct_1d_asc">Day % — low → high</button>
+              <button class="sort-opt" data-sort="pct_1w_desc">Week % — high → low</button>
+              <button class="sort-opt" data-sort="pct_1w_asc">Week % — low → high</button>
+              <button class="sort-opt" data-sort="pct_1m_desc">Month % — high → low</button>
+              <button class="sort-opt" data-sort="pct_1m_asc">Month % — low → high</button>
+              <button class="sort-opt" data-sort="pct_1y_desc">Year % — high → low</button>
+              <button class="sort-opt" data-sort="pct_1y_asc">Year % — low → high</button>
               <button class="sort-opt" data-sort="conviction">Conviction</button>
               <button class="sort-opt" data-sort="radar_score">Radar score</button>
               <button class="sort-opt" data-sort="date_desc">Newest signal</button>
@@ -468,6 +509,10 @@
               <option value="conf_desc">Confidence ↓</option>
               <option value="pct_1d_desc">1D % ↓</option>
               <option value="pct_1d_asc">1D % ↑</option>
+              <option value="pct_1w_desc">1W % ↓</option>
+              <option value="pct_1w_asc">1W % ↑</option>
+              <option value="pct_1m_desc">1M % ↓</option>
+              <option value="pct_1m_asc">1M % ↑</option>
               <option value="pct_1y_desc">1Y % ↓</option>
               <option value="pct_1y_asc">1Y % ↑</option>
               <option value="roc_desc">ROC ↓</option>
@@ -673,6 +718,6 @@
 
 
 
-  <script src="/static/js/app.js?v=233"></script>
+  <script src="/static/js/app.js?v=236"></script>
 </body>
 </html>

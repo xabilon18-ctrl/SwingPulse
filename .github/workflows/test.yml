@@ -9,6 +9,12 @@ on:
       - 'swing_generator/**.py'
       - 'swing_generator/tests/**'
       - '.github/workflows/test.yml'
+      # app.js and index.html are here for the shape audit's code checks. The
+      # gauge bug (a front-end predicate that could never be true) was a pure
+      # app.js change, so a .py-only filter would never have run the one check
+      # that catches it.
+      - 'swing_generator/webapp/static/js/**'
+      - 'swing_generator/webapp/templates/**'
   workflow_dispatch:
 
 jobs:
@@ -33,3 +39,22 @@ jobs:
         run: |
           cd swing_generator
           python3 tests/golden_test.py
+
+      # Does the FRONT END still agree with the payload's vocabulary? Catches
+      # the class of bug where app.js tests a field for a word that field never
+      # contains — the Market Pulse gauge sat on a constant for months that way,
+      # and a second copy of the same mistake survived in shareCard() until
+      # 2026-08-17. Reads the live public payload for the vocabulary; an
+      # unreachable bucket fails the step rather than skipping quietly, which
+      # is the same stance health_check.py takes and for the same reason.
+      #
+      # tools/shape_audit_replay.py is deliberately NOT run here. It replays the
+      # checks against the 2026-07-25 outage and the pre-fix front end, which
+      # needs output_ma500/ (gitignored) and real git history (checkout@v4 fetches
+      # one commit). It would fail for reasons that have nothing to do with the
+      # code under test. Run it by hand after changing a check:
+      #     cd swing_generator && python3 tools/shape_audit_replay.py
+      - name: Shape audit — does the front end still match the payload
+        run: |
+          cd swing_generator
+          python3 tools/shape_audit.py --only code

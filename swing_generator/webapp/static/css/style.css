@@ -7207,10 +7207,25 @@ body {
 .sc-since { font-size: .7rem; font-weight: 600; flex: 0 0 auto; }
 .sc-since.perf-pos { color: var(--buy); background: none; }
 .sc-since.perf-neg { color: var(--sell); background: none; }
-.sc-stats { display: flex; gap: 8px; margin: 0 0 10px; }
-.sc-stat { flex: 1; background: var(--bg-elevated); border: 1px solid #242423; border-radius: 10px; padding: 7px 10px; min-width: 0; }
-.sc-stat-lbl { font-size: .58rem; font-weight: 600; letter-spacing: .1em; color: var(--text-muted); }
-.sc-stat-val { font-size: .8rem; font-weight: 700; margin-top: 2px; }
+/* Five tiles (1D/1W/1M/1Y/VOL) across a 280px card — flex:1 on five children
+   left ~24px of text room and wrapped every value, so this is an explicit
+   equal-column grid with the padding and type scaled to fit "-45.1%". */
+.sc-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 10px; }
+.sc-stat { background: var(--bg-elevated); border: 1px solid #242423; border-radius: 9px; padding: 6px 2px; min-width: 0; text-align: center; }
+.sc-stat-lbl { font-size: .52rem; font-weight: 600; letter-spacing: .04em; color: var(--text-muted); }
+.sc-stat-val { font-size: .66rem; font-weight: 700; margin-top: 2px; white-space: nowrap; }
+/* Tile width tracks the CARD, not the viewport — a 1280px desktop lays the
+   scanner out in 4 columns of 297px (44px of text per tile), which is TIGHTER
+   than a 375px phone showing one full-width card (54px), and a 320px phone is
+   tighter still (41px). A viewport media query would tighten the wrong case in
+   both directions, so the row claws back its pixels from gap and padding when
+   the card itself is narrow. Verified 0 clipped tiles at 320/375/768/1280. */
+.scanner-card { container-type: inline-size; }
+@container (max-width: 290px) {
+  .sc-stats { gap: 3px; }
+  .sc-stat { padding: 6px 1px; }
+  .sc-stat-lbl { letter-spacing: 0; }
+}
 .sc-stat-val.perf-pos { color: var(--buy); background: none; }
 .sc-stat-val.perf-neg { color: var(--sell); background: none; }
 .sc-stat-val.sc-stat-vol { color: var(--volume, #a78bfa); }
@@ -7374,3 +7389,61 @@ body {
 .filter-pop .sig-ctx-chip.sig-chip-radar.strong { background: rgba(245,158,11,.18); border-color: var(--watch); color: var(--watch); }
 /* Icons sit as a fixed-width gutter so the labels line up down the list */
 .filter-pop .sig-ctx-chip > svg { flex: 0 0 12px; }
+
+/* ── Move pill ──
+   The odd one out among the pills: three independent choices (period,
+   direction, size) instead of one list of mutually exclusive rows, so its
+   options are short centred chips in labelled grids rather than full-width
+   rows, and the dropdown stays open while you set all three. */
+/* This pop is wider than the others (three labelled grids, not one column of
+   rows) and its pill sits mid-row, so left-anchored to the PILL it ran ~30px
+   off a 375px screen — the same overflow the :last-of-type rule above fixes
+   for the rightmost pill, but right-anchoring only moves the problem to the
+   left edge whenever the pill wraps to the start of a row. Anchoring to the
+   pill ROW (pill goes position:static, so the row becomes the containing
+   block) bounds it by the row's own box wherever the pill lands, at the cost
+   of opening below the whole row rather than directly under the pill. */
+.sig-filter-pills { position: relative; }
+#pillMove { position: static; }
+#pillMove .filter-pop { left: 0; right: auto; width: min(300px, 100%); }
+.move-opts { min-width: 0; }
+.move-sect + .move-sect { margin-top: 11px; }
+.move-sect-lbl { font-size: .55rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 6px; }
+.move-row { display: grid; gap: 5px; }
+.move-row-4 { grid-template-columns: repeat(4, 1fr); }
+.move-row-3 { grid-template-columns: repeat(3, 1fr); }
+.move-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .74rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.move-opt:hover { background: var(--bg-hover); color: var(--text-primary); }
+.move-opt.active { background: var(--accent-glow); border-color: rgba(251,191,36,.5); color: var(--accent); }
+/* Direction keeps its own meaning when selected */
+.move-opt.mv-up.active { background: var(--buy-soft);  border-color: rgba(16,185,129,.5); color: var(--buy); }
+.move-opt.mv-dn.active { background: var(--sell-soft); border-color: rgba(239,68,68,.5);  color: var(--sell); }
+.move-clear {
+  width: 100%;
+  margin-top: 11px;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px;
+  cursor: pointer;
+}
+.move-clear:hover { color: var(--text-primary); border-color: var(--border-active); }
