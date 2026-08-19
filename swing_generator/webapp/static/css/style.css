@@ -7523,11 +7523,13 @@ body {
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 
+/* Wraps, deliberately. This row used to scroll sideways (overflow-x: auto),
+   which clipped every dropdown inside it — a 250px menu in a 30px-tall scroll
+   container is open but unreachable, so the filters looked broken. A scroll
+   container cannot show an overflowing popup, so the row wraps instead. */
 .reel-filter-pills {
-  display: flex; gap: 6px; margin-top: 7px;
-  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px;
 }
-.reel-filter-pills::-webkit-scrollbar { display: none; }
 .reel-filter-pills .filter-pill { flex: 0 0 auto; }
 
 .reel-opts { display: flex; flex-direction: column; gap: 2px; min-width: 168px; }

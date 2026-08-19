@@ -887,14 +887,19 @@
   function setTimeframe(tf) {
     if (tf !== 'D' && tf !== '4H') return;
     if (tf === timeframe) return;
+    // Which chart the reader is on, captured BEFORE anything re-renders:
+    // renderAll() rebuilds the reel and resets its scroll, so asking afterwards
+    // always answered "the first card".
+    const reelAnchor = (currentTab === 'charts') ? reelVisibleName() : null;
+
     timeframe = tf;
     try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
     syncTfButtons();
     renderAll();  // re-renders dashboard (recomputes summary), scanner, watchlist
     // The reel is per-timeframe all the way down — different bundles, different
-    // ribbon periods, different signal row. Redraw it where the reader is
-    // rather than bouncing them back to the top of 700 charts.
-    if (currentTab === 'charts') { tabDirty.charts = false; reelRebuildKeepingPlace(); }
+    // ribbon periods, different signal row. Redraw it on the same instrument
+    // rather than bouncing the reader to the top of 700 charts.
+    if (currentTab === 'charts') { tabDirty.charts = false; reelRebuildKeepingPlace(reelAnchor); }
     // If an instrument modal is open, rebuild it so its signal data AND the
     // TradingView interval (Daily→D / 4H→240) match the newly selected timeframe.
     if (openModalName && typeof overlay !== 'undefined' && overlay.classList.contains('open')) {
@@ -5194,6 +5199,10 @@
   // this cap the ribbon clips and an edge tag says how far off-panel it sits.
   const RIBBON_SCALE_CAP = 2.2;
 
+  // Empty bar-widths held back on the right, between the newest bar and the
+  // price scale.
+  const REEL_RIGHT_PAD_BARS = 10;
+
   function reelScale(b, L) {
     const lows  = b.l.filter(v => v != null);
     const highs = b.h.filter(v => v != null);
@@ -5284,7 +5293,10 @@
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
-    const bw = (L.x1 - L.x0) / n;
+    // Leave a margin of empty bars between the last bar and the price axis,
+    // the way a real chart does — price pinned to the scale is hard to read,
+    // and the ribbon needs somewhere to run to.
+    const bw = (L.x1 - L.x0) / (n + REEL_RIGHT_PAD_BARS);
     const xOf = i => L.x0 + i * bw + bw / 2;
 
     // ── Price axis ──
@@ -5633,14 +5645,18 @@
 
   // Rebuild without losing the reader's place — used on timeframe flip, where
   // the instrument under your thumb should stay under your thumb.
-  function reelRebuildKeepingPlace() {
+  function reelRebuildKeepingPlace(anchorName) {
     const host = document.getElementById('chartReel');
     if (!host || !host.children.length) { buildReel(); return; }
-    const anchorName = reelVisibleName();
+    if (!anchorName) anchorName = reelVisibleName();
     buildReel();
     if (!anchorName) return;
     const el = host.querySelector(`.reel-card[data-name="${CSS.escape(anchorName)}"]`);
-    if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
+    if (!el) return;
+    // Position the container directly rather than scrollIntoView, which can
+    // scroll the page around the fixed pane instead of the reel itself.
+    host.scrollTop = el.offsetTop - host.offsetTop;
+    reelPaintVisible();
   }
 
   function reelVisibleName() {
