@@ -7337,9 +7337,12 @@ body {
 .filter-pill.has-active .fp-cv::before { content: '•'; color: var(--accent); }
 .fp-val { font-weight: 700; color: var(--accent); }
 .filter-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 210px; max-width: min(92vw, 320px); max-height: min(58vh, 430px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 14px; padding: 12px; box-shadow: var(--shadow-lg); }
-/* The rightmost pill opens right-aligned — left-anchored it ran 6px past the
-   390px viewport (pill starts at x=180, list is 216 wide). Never side-scroll. */
-.filter-pill:last-of-type .filter-pop { left: auto; right: 0; }
+/* Every pop opens left-anchored to its pill; wireFilterPopClamp() then nudges
+   it back inside the viewport if it would hang off either edge.
+   This used to be `:last-of-type { left:auto; right:0 }`, which assumed the
+   last pill sits at the right edge. Once the rows wrapped, the last pill was
+   the FIRST one on row two — and right-aligning from there threw the menu off
+   the left of the screen entirely. Position is measured now, not assumed. */
 /* ── Filter-pill dropdown contents ─────────────────────────────────────────
    All three pills (Class / Mood / Filters) present identically: a vertical list
    of full-width option rows. Class and Filters keep their ORIGINAL markup, ids

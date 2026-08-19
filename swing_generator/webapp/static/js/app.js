@@ -5839,8 +5839,42 @@
   }
 
 
+  // ── Filter dropdown clamping ─────────────────────────────────────────
+  // Every .filter-pop opens left-anchored under its pill, which runs off the
+  // right of a narrow screen for a pill near the right edge. The old fix
+  // right-aligned the LAST pill, which broke the moment the pill rows wrapped:
+  // the last pill is then the leftmost one on row two, and right-aligning sent
+  // its menu off the left of the screen. So measure where it actually landed
+  // and slide it back inside. Applies to both tabs' pills — same class.
+  function clampFilterPop(pill) {
+    const pop = pill.querySelector('.filter-pop');
+    if (!pop) return;
+    pop.style.transform = '';           // measure un-nudged
+    const margin = 8;
+    const r = pop.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    let dx = 0;
+    if (r.right > vw - margin) dx = (vw - margin) - r.right;   // pull left
+    if (r.left + dx < margin)  dx = margin - r.left;           // but never past the left edge
+    if (dx) pop.style.transform = `translateX(${Math.round(dx)}px)`;
+  }
+
+  function wireFilterPopClamp() {
+    // `toggle` does not bubble, so listen in the capture phase.
+    document.addEventListener('toggle', e => {
+      const pill = e.target;
+      if (!(pill instanceof HTMLElement) || !pill.classList.contains('filter-pill')) return;
+      if (pill.open) clampFilterPop(pill);
+    }, true);
+
+    window.addEventListener('resize', debounce(() => {
+      document.querySelectorAll('.filter-pill[open]').forEach(clampFilterPop);
+    }, 150));
+  }
+
   // Wired here, not with the other boot wiring: `reel` is declared in this
   // block, so an earlier call would hit its temporal dead zone.
   wireReel();
+  wireFilterPopClamp();
 
 })();
