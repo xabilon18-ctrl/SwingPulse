@@ -2,13 +2,13 @@
 """
 Chart feed — compact OHLC + MA-ribbon bundles for the Charts reel.
 
-Why this is not `history/`
---------------------------
-`build_history` emits 600 bars as an array of objects with 20 named MA keys per
-bar — ~250 KB per instrument. That is fine for one modal chart on demand and
-impossible for a reel you scroll through: 1012 instruments x 2 timeframes of
-that is half a gigabyte per publish, on an R2 upload that already sees 429s at
-700 files.
+Why this is not the old `history/` feed
+---------------------------------------
+That feed emitted 600 bars as an array of objects with 20 named MA keys per bar
+— ~250 KB per instrument. Fine for one modal chart on demand, impossible for a
+reel you scroll through: 736 instruments x 2 timeframes of it is well over half
+a gigabyte per publish, on an R2 upload that already sees 429s at 700 files. It
+has since been deleted; this feed replaced it for the sparklines too.
 
 So this feed trades away what a glance chart never uses:
 
@@ -98,11 +98,15 @@ def _ma_frame(df: pd.DataFrame, periods: list[int]) -> dict[int, pd.Series]:
     return {p: close.rolling(p, min_periods=p).mean() for p in periods}
 
 
-def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str) -> dict | None:
+def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
+            with_volume: bool = False) -> dict | None:
     """Columnar OHLC + ribbon for the last BARS rows of an indicator-ready df.
 
-    No volume: these charts are read as price against the ribbon, and a volume
-    strip would only take height away from the fan.
+    The reel draws no volume — these charts are read as price against the
+    ribbon, and a volume strip only takes height from the fan. Daily bundles
+    still CARRY volume, because the dashboard's mover sparklines and the
+    modal's volume panel need it and this feed replaced the one they used to
+    read.
     """
     if df is None or df.empty or len(df) < 2:
         return None
@@ -127,6 +131,9 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str) -> dict | None:
         'ms': MA_STRIDE,
         'mi': keep,
         'm':  [[_round(v) for v in mas[p].tail(BARS).iloc[keep]] for p in periods],
+        **({'v': [int(v) if pd.notna(v) and math.isfinite(v) else 0
+                  for v in tail['Volume']]}
+           if with_volume and 'Volume' in tail.columns else {}),
     }
 
 
@@ -138,7 +145,7 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
-    return _bundle(df, periods, '%Y-%m-%d')
+    return _bundle(df, periods, '%Y-%m-%d', with_volume=True)
 
 
 def build_4h(cache_dir: str, ticker: str) -> dict | None:

@@ -1027,46 +1027,6 @@ def api_ai_instruments():
     return jsonify(build_ai_set())
 
 
-@app.route('/api/history/<name>')
-def api_history(name: str):
-    """Return last 250 days of OHLCV + MAs for charting.
-    Accepts either a display name (e.g. AAPL) or a raw ticker (e.g. GC=F)."""
-    tm = get_ticker_map()
-    ticker = tm.get(name, name)  # try display name first, fall back to raw
-    path = os.path.join(CACHE_DIR, _ticker_to_filename(ticker))
-    if not os.path.exists(path):
-        return jsonify({'error': 'not found'}), 404
-
-    df = pd.read_parquet(path).tail(250).copy()
-
-    for p in MA_PERIODS:
-        col = f'ma_{p}'
-        if col not in df.columns:
-            # Compute on the full dataset for accuracy, then slice
-            full = pd.read_parquet(path)
-            full[col] = full['Close'].rolling(p, min_periods=p).mean()
-            df[col] = full[col].tail(250)
-
-    df.index = df.index.strftime('%Y-%m-%d')
-    records = []
-    for dt_str, row in df.iterrows():
-        rec = {
-            'date': dt_str,
-            'open': round(float(row.get('Open', 0)), 4),
-            'high': round(float(row.get('High', 0)), 4),
-            'low': round(float(row.get('Low', 0)), 4),
-            'close': round(float(row.get('Close', 0)), 4),
-            'volume': int(row.get('Volume', 0)),
-        }
-        for p in MA_PERIODS:
-            v = row.get(f'ma_{p}')
-            if pd.notna(v):
-                rec[f'ma_{p}'] = round(float(v), 4)
-        records.append(rec)
-
-    return jsonify({'ticker': ticker, 'data': records})
-
-
 # ---------------------------------------------------------------------------
 # Chart reel feed
 # ---------------------------------------------------------------------------

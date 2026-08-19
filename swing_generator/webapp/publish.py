@@ -136,36 +136,6 @@ def build_summary(df, dt):
     }
 
 
-def build_history(name, ticker):
-    path = os.path.join(CACHE_DIR, _ticker_to_filename(ticker))
-    if not os.path.exists(path):
-        return None
-    df = pd.read_parquet(path).tail(600).copy()
-    for p in MA_PERIODS:
-        col = f'ma_{p}'
-        if col not in df.columns:
-            full      = pd.read_parquet(path)
-            full[col] = full['Close'].rolling(p, min_periods=p).mean()
-            df[col]   = full[col].tail(600)
-    df.index = df.index.strftime('%Y-%m-%d')
-    records  = []
-    for dt_str, row in df.iterrows():
-        rec = {
-            'date':   dt_str,
-            'open':   round(float(row.get('Open',   0)), 4),
-            'high':   round(float(row.get('High',   0)), 4),
-            'low':    round(float(row.get('Low',    0)), 4),
-            'close':  round(float(row.get('Close',  0)), 4),
-            'volume': int(row.get('Volume', 0)),
-        }
-        for p in MA_PERIODS:
-            v = row.get(f'ma_{p}')
-            if pd.notna(v):
-                rec[f'ma_{p}'] = round(float(v), 4)
-        records.append(rec)
-    return {'ticker': ticker, 'data': records}
-
-
 # ---------------------------------------------------------------------------
 # Signal Explanations — rule-based, no API required
 # ---------------------------------------------------------------------------
@@ -517,9 +487,6 @@ def build_data(output_dir, src_signals_dir=None):
 
     src_signals_dir — override where signals CSVs are read from (intraday pipeline).
     """
-    history_dir = os.path.join(output_dir, 'history')
-    os.makedirs(history_dir, exist_ok=True)
-
     df, dt, fetched_at = load_latest_signals(src_dir=src_signals_dir)
     print(f'  Signals date: {dt}')
     print(f'  Data fetched: {fetched_at}')
@@ -607,11 +574,10 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
 
-    # Chart reel feed. The old per-instrument `history/` build (build_history)
-    # was switched off when the modal's Lightweight Charts view was removed —
-    # which also silently starved the volume sparklines that still fetch it.
-    # The reel needs real chart data, so it gets its own compact feed rather
-    # than reviving a 250 KB-per-instrument dump; see webapp/chart_feed.py.
+    # Chart reel feed — the app's only source of price history now. It also
+    # feeds the volume sparklines, which used to read the per-instrument
+    # `history/` dump that stopped being built when the modal's Lightweight
+    # Charts view was removed. See webapp/chart_feed.py.
     try:
         t_chart = time.time()
         cstats  = build_chart_feed(output_dir, CACHE_DIR, get_ticker_map())
@@ -660,6 +626,20 @@ def _wrangler_bin():
     return None
 
 
+def _cache_control_for(r2_key):
+    """Cache-Control for an R2 object.
+
+    Signals and summary must never be served stale — the app's freshness banner
+    reads them — so they stay no-cache. The chart bundles change once per
+    publish and are ~250 KB each; serving them no-cache meant every scroll
+    re-downloaded from the origin, which costs the reader mobile data and the
+    bucket a Class B op per card.
+    """
+    if r2_key.split('/', 1)[-1].startswith('chart/'):
+        return 'public, max-age=900'
+    return 'no-cache, max-age=0'
+
+
 def _is_gzipped(path):
     """True if the file on disk is gzip data (magic bytes 1f 8b).
 
@@ -695,7 +675,7 @@ def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120, max_429_
     headers = {
         'Authorization': f'Bearer {api_token}',
         'Content-Type':  'application/json',
-        'Cache-Control': 'no-cache, max-age=0',
+        'Cache-Control': _cache_control_for(r2_key),
     }
     if _is_gzipped(local_path):
         headers['Content-Encoding'] = 'gzip'
@@ -732,6 +712,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
     wrangler = _wrangler_bin()
     cmd = [wrangler] if wrangler else ['npx', 'wrangler']
     enc = ['--content-encoding', 'gzip'] if _is_gzipped(local_path) else []
+    cc  = _cache_control_for(r2_key)
     # --remote needed in wrangler 4.x (defaults to local emulator without it)
     # wrangler 3.x accepts but ignores it (already remote by default)
     try:
@@ -740,7 +721,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
                    f'{R2_BUCKET}/{r2_key}',
                    '--file', local_path,
                    '--content-type', 'application/json',
-                   '--cache-control', 'no-cache, max-age=0',
+                   '--cache-control', cc,
                    *enc, '--remote'],
             capture_output=True, text=True, env=env, timeout=timeout,
         )
@@ -753,7 +734,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
                            f'{R2_BUCKET}/{r2_key}',
                            '--file', local_path,
                            '--content-type', 'application/json',
-                           '--cache-control', 'no-cache, max-age=0',
+                           '--cache-control', cc,
                            *enc],
                     capture_output=True, text=True, env=env, timeout=timeout,
                 )
@@ -806,12 +787,11 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
         if os.path.exists(p):
             files.append((p, _key(fname)))
 
-    # History charts
-    history_dir = os.path.join(data_dir, 'history')
-    if os.path.exists(history_dir):
-        for fname in os.listdir(history_dir):
-            if fname.endswith('.json'):
-                files.append((os.path.join(history_dir, fname), _key(f'history/{fname}')))
+    # No history/ block: that feed's builder had been dead code since the
+    # Lightweight Charts view was removed, so the directory only ever held
+    # whatever a long-past run left behind — 184 MB of files last written
+    # 2026-06-23, re-uploaded every publish. Its one remaining reader, the
+    # volume sparklines, now reads the chart feed.
 
     # Chart reel feed — chart/index.json + chart/<tf>/<chunk>.json
     chart_dir = os.path.join(data_dir, 'chart')
@@ -932,10 +912,6 @@ def build_ui():
     js = js.replace(
         "'/api/chart/' + tf + '/' + cid",
         f"'{base}/chart/' + tf + '/' + cid + '.json'"
-    )
-    js = js.replace(
-        "'/api/history/' + encodeURIComponent(item.instrument_name)",
-        f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"
     )
     js = js.replace(
         "await fetch('/api/refresh', { method: 'POST' })",

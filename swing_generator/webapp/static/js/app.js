@@ -539,23 +539,25 @@
     return out;
   }
 
+  // Reads the DAILY chart bundle — always daily, whatever timeframe the app is
+  // on, because these sparklines are defined as daily volume vs its 25-day
+  // average. This used to fetch `history/<name>.json`, a feed whose builder had
+  // been dead code since the Lightweight Charts view was removed: it served
+  // whatever was last written to it, which by 2026-08 was two months stale.
   async function fetchVolHistory(item) {
     const key = item.instrument_name;
     if (volHistCache.has(key)) return volHistCache.get(key);
     let out = null;
     try {
-      const r = await fetch('/api/history/' + encodeURIComponent(item.instrument_name));
-      if (r.ok) {
-        const j = await r.json();
-        const rows = j.data || [];
-        const vols = rows.map(d => +d.volume || 0);
-        if (vols.some(v => v > 0)) out = {
-          vols,
-          avgs:   rollingAvg(vols, 25),
-          closes: rows.map(d => +d.close || 0),
-          dates:  rows.map(d => d.date || ''),
-        };
-      }
+      const data = await reelLoadChunk(key, 'D');
+      const b = data && data[key];
+      const vols = (b && b.v) ? b.v.map(v => +v || 0) : [];
+      if (vols.some(v => v > 0)) out = {
+        vols,
+        avgs:   rollingAvg(vols, 25),
+        closes: (b.c || []).map(v => +v || 0),
+        dates:  b.t || [],
+      };
     } catch (e) { /* leave null */ }
     volHistCache.set(key, out);
     return out;
@@ -5139,16 +5141,19 @@
   }
 
   // Fetch the bundle file holding `name`, memoised per (timeframe, chunk).
-  async function reelLoadChunk(name) {
+  // `tf` defaults to the active timeframe; the volume sparklines pass 'D'
+  // explicitly because they are daily by definition.
+  async function reelLoadChunk(name, tf) {
+    tf = tf || timeframe;
     const idx = await reelLoadIndex();
     const cid = idx.chunks ? idx.chunks[name] : undefined;
     if (cid === undefined) return null;
 
-    const key = timeframe + ':' + cid;
+    const key = tf + ':' + cid;
     if (reel.chunks.has(key)) return reel.chunks.get(key);
     if (reel.inflight.has(key)) return reel.inflight.get(key);
 
-    const p = fetch(reelChunkUrl(timeframe, cid))
+    const p = fetch(reelChunkUrl(tf, cid))
       .then(r => r.ok ? r.json() : null)
       .then(j => {
         const data = (j && j.data) || {};
