@@ -24,6 +24,13 @@ bar resolution, and the ribbon is drawn dotted, so the dropped vertices are not
 visible. Measured on 10 instruments at 520 bars: 40.0 KB per instrument
 gzipped at full resolution, 18.8 KB at stride 3.
 
+The bundles are WRITTEN gzipped, under their plain .json names, and uploaded
+with Content-Encoding: gzip. R2's public r2.dev endpoint does no compression of
+its own — verified: a chunk came back byte-identical with and without
+Accept-Encoding — so an uncompressed feed would cost 51 KB per chart on a phone
+instead of 19 KB. Browsers decompress transparently, so the URLs and the fetch
+code are unchanged.
+
 The 4H ribbon
 -------------
 4H ribbon periods are per-instrument: an instrument in H4_SESSION_NORMALIZE has
@@ -37,6 +44,7 @@ card above it. Each bundle carries its own `p` (period list) for that reason.
 from __future__ import annotations
 
 import concurrent.futures
+import gzip
 import json
 import math
 import os
@@ -159,6 +167,17 @@ def _cache_name(ticker: str, suffix: str = '') -> str:
     return f'{safe}{tag}.parquet'
 
 
+def _write_gz(path: str, payload: dict) -> None:
+    """Write JSON gzipped, under the plain .json name.
+
+    upload_to_r2 detects the gzip magic bytes and sets Content-Encoding, so the
+    object is served compressed under the same URL the app already fetches.
+    """
+    raw = json.dumps(payload, separators=(',', ':')).encode('utf-8')
+    with gzip.GzipFile(path, 'wb', compresslevel=6, mtime=0) as f:
+        f.write(raw)
+
+
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
@@ -202,13 +221,11 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
             grouped.setdefault(chunk_of[name], {})[name] = payload
 
         for cid, group in grouped.items():
-            with open(os.path.join(tf_dir, f'{cid}.json'), 'w') as f:
-                json.dump({'tf': tf, 'bars': BARS, 'data': group},
-                          f, separators=(',', ':'))
+            _write_gz(os.path.join(tf_dir, f'{cid}.json'),
+                      {'tf': tf, 'bars': BARS, 'data': group})
             stats['chunks'] += 1
 
-    with open(os.path.join(chart_dir, 'index.json'), 'w') as f:
-        json.dump({'chunk_size': CHUNK_SIZE, 'bars': BARS, 'chunks': chunk_of},
-                  f, separators=(',', ':'))
+    _write_gz(os.path.join(chart_dir, 'index.json'),
+              {'chunk_size': CHUNK_SIZE, 'bars': BARS, 'chunks': chunk_of})
 
     return stats

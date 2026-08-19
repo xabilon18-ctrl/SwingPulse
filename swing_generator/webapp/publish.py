@@ -660,6 +660,21 @@ def _wrangler_bin():
     return None
 
 
+def _is_gzipped(path):
+    """True if the file on disk is gzip data (magic bytes 1f 8b).
+
+    The chart feed is written pre-compressed so R2 can serve it with
+    Content-Encoding: gzip — the public r2.dev endpoint does not compress
+    anything itself, so without this a chart costs 51 KB on the wire instead
+    of 19 KB.
+    """
+    try:
+        with open(path, 'rb') as fh:
+            return fh.read(2) == b'\x1f\x8b'
+    except OSError:
+        return False
+
+
 def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120, max_429_retries=6):
     """Upload via Cloudflare REST API (used in CI where API token is available).
 
@@ -677,17 +692,17 @@ def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120, max_429_
     )
     with open(local_path, 'rb') as fh:
         data = fh.read()
+    headers = {
+        'Authorization': f'Bearer {api_token}',
+        'Content-Type':  'application/json',
+        'Cache-Control': 'no-cache, max-age=0',
+    }
+    if _is_gzipped(local_path):
+        headers['Content-Encoding'] = 'gzip'
     backoff = 2.0
     for attempt in range(max_429_retries + 1):
         try:
-            req = urllib.request.Request(
-                url, data=data, method='PUT',
-                headers={
-                    'Authorization': f'Bearer {api_token}',
-                    'Content-Type':  'application/json',
-                    'Cache-Control': 'no-cache, max-age=0',
-                },
-            )
+            req = urllib.request.Request(url, data=data, method='PUT', headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = resp.read(500).decode('utf-8', errors='replace')
                 # Cloudflare returns 200 with {"success":true} on success
@@ -716,6 +731,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     wrangler = _wrangler_bin()
     cmd = [wrangler] if wrangler else ['npx', 'wrangler']
+    enc = ['--content-encoding', 'gzip'] if _is_gzipped(local_path) else []
     # --remote needed in wrangler 4.x (defaults to local emulator without it)
     # wrangler 3.x accepts but ignores it (already remote by default)
     try:
@@ -725,7 +741,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
                    '--file', local_path,
                    '--content-type', 'application/json',
                    '--cache-control', 'no-cache, max-age=0',
-                   '--remote'],
+                   *enc, '--remote'],
             capture_output=True, text=True, env=env, timeout=timeout,
         )
         if result.returncode != 0:
@@ -737,7 +753,8 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
                            f'{R2_BUCKET}/{r2_key}',
                            '--file', local_path,
                            '--content-type', 'application/json',
-                           '--cache-control', 'no-cache, max-age=0'],
+                           '--cache-control', 'no-cache, max-age=0',
+                           *enc],
                     capture_output=True, text=True, env=env, timeout=timeout,
                 )
             if result.returncode != 0:
