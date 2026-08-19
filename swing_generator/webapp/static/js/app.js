@@ -5421,8 +5421,11 @@
         const tri = isB
           ? `${x},${yv - 10} ${x - 7},${yv + 3} ${x + 7},${yv + 3}`
           : `${x},${yv + 10} ${x - 7},${yv - 3} ${x + 7},${yv - 3}`;
+        // Arrow and tag only — no vertical rule down the panel. The last signal
+        // is usually recent, so that line sat a few pixels from the right edge
+        // and read as a border between the chart and the price scale rather
+        // than as a mark on a bar. The arrow already says which bar it was.
         marker =
-          `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" stroke="${col}" stroke-width="1" stroke-dasharray="3 4" stroke-opacity=".5"/>` +
           `<polygon points="${tri}" fill="${col}"/>` +
           `<text x="${x.toFixed(1)}" y="${(isB ? yv + 22 : yv - 16).toFixed(1)}" class="reel-sig-tag" fill="${col}" text-anchor="middle">${sigType}</text>`;
       }
