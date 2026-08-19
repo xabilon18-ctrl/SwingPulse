@@ -58,6 +58,7 @@ sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments
 from server import build_tv_map, build_ai_set, get_ticker_map, _ticker_to_filename
+from chart_feed import build_chart_feed
 
 
 # ---------------------------------------------------------------------------
@@ -606,8 +607,19 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
 
-    # History charts disabled — Chart tab removed from modal UI (app.js loadModalChart
-    # early-exits when #lwChartContainer is absent). Skip the 743-file parquet loop.
+    # Chart reel feed. The old per-instrument `history/` build (build_history)
+    # was switched off when the modal's Lightweight Charts view was removed —
+    # which also silently starved the volume sparklines that still fetch it.
+    # The reel needs real chart data, so it gets its own compact feed rather
+    # than reviving a 250 KB-per-instrument dump; see webapp/chart_feed.py.
+    try:
+        t_chart = time.time()
+        cstats  = build_chart_feed(output_dir, CACHE_DIR, get_ticker_map())
+        print(f'  Chart feed: {cstats["D"]} daily / {cstats["4H"]} 4H '
+              f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
+    except Exception as e:
+        # A missing chart feed costs you the Charts tab, not the publish.
+        print(f'  Chart feed: FAILED ({e})')
 
     return dt, fetched_at
 
@@ -784,6 +796,17 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
             if fname.endswith('.json'):
                 files.append((os.path.join(history_dir, fname), _key(f'history/{fname}')))
 
+    # Chart reel feed — chart/index.json + chart/<tf>/<chunk>.json
+    chart_dir = os.path.join(data_dir, 'chart')
+    if os.path.exists(chart_dir):
+        for root, _dirs, fnames in os.walk(chart_dir):
+            for fname in fnames:
+                if not fname.endswith('.json'):
+                    continue
+                full = os.path.join(root, fname)
+                rel  = os.path.relpath(full, data_dir)
+                files.append((full, _key(rel)))
+
     total  = len(files)
     print(f'  Uploading {total} files to R2...', flush=True)
 
@@ -888,6 +911,11 @@ def build_ui():
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
+    js = js.replace("'/api/chart-index'",  f"'{base}/chart/index.json'")
+    js = js.replace(
+        "'/api/chart/' + tf + '/' + cid",
+        f"'{base}/chart/' + tf + '/' + cid + '.json'"
+    )
     js = js.replace(
         "'/api/history/' + encodeURIComponent(item.instrument_name)",
         f"'{base}/history/' + encodeURIComponent(item.instrument_name) + '.json'"

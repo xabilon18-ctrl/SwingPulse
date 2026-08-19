@@ -31,6 +31,9 @@ sys.path.insert(0, PARENT_DIR)
 
 from _active_config import MA_PERIODS  # MA25–MA500 (active profile ribbon)
 
+sys.path.insert(0, BASE_DIR)
+import chart_feed          # compact OHLC + ribbon bundles for the Charts reel
+
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
@@ -1062,6 +1065,58 @@ def api_history(name: str):
         records.append(rec)
 
     return jsonify({'ticker': ticker, 'data': records})
+
+
+# ---------------------------------------------------------------------------
+# Chart reel feed
+# ---------------------------------------------------------------------------
+# Production serves these as static files from R2 (built by chart_feed.py during
+# publish). Locally we build each chunk on demand and memoise it, so the reel
+# shows whatever is in the parquet cache right now without a publish first.
+
+_chart_chunk_cache: dict = {}
+
+
+def _chart_chunk_map() -> dict:
+    """name -> chunk id, using the same sorted-name rule as the published feed."""
+    names = sorted(get_ticker_map())
+    return {n: i // chart_feed.CHUNK_SIZE for i, n in enumerate(names)}
+
+
+@app.route('/api/chart-index')
+def api_chart_index():
+    return jsonify({
+        'chunk_size': chart_feed.CHUNK_SIZE,
+        'bars': chart_feed.BARS,
+        'chunks': _chart_chunk_map(),
+    })
+
+
+@app.route('/api/chart/<tf>/<int:cid>')
+def api_chart_chunk(tf: str, cid: int):
+    if tf not in ('D', '4H'):
+        return jsonify({'error': 'bad timeframe'}), 400
+
+    key = (tf, cid)
+    if key in _chart_chunk_cache:
+        return jsonify(_chart_chunk_cache[key])
+
+    tm      = get_ticker_map()
+    members = [n for n, c in _chart_chunk_map().items() if c == cid]
+    builder = chart_feed.build_daily if tf == 'D' else chart_feed.build_4h
+
+    data = {}
+    for name in members:
+        try:
+            payload = builder(CACHE_DIR, tm[name])
+        except Exception:
+            payload = None       # one bad parquet must not empty the chunk
+        if payload:
+            data[name] = payload
+
+    out = {'tf': tf, 'bars': chart_feed.BARS, 'data': data}
+    _chart_chunk_cache[key] = out
+    return jsonify(out)
 
 
 @app.route('/api/trends')

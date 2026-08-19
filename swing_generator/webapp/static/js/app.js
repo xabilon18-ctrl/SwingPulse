@@ -891,6 +891,10 @@
     try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
     syncTfButtons();
     renderAll();  // re-renders dashboard (recomputes summary), scanner, watchlist
+    // The reel is per-timeframe all the way down — different bundles, different
+    // ribbon periods, different signal row. Redraw it where the reader is
+    // rather than bouncing them back to the top of 700 charts.
+    if (currentTab === 'charts') { tabDirty.charts = false; reelRebuildKeepingPlace(); }
     // If an instrument modal is open, rebuild it so its signal data AND the
     // TradingView interval (Daily→D / 4H→240) match the newly selected timeframe.
     if (openModalName && typeof overlay !== 'undefined' && overlay.classList.contains('open')) {
@@ -917,7 +921,7 @@
   }
 
   // Track which lazy tabs need a re-render (set dirty after every data refresh)
-  const tabDirty = { trends: true };
+  const tabDirty = { trends: true, charts: true };
 
   function renderAll() {
     renderDashboard();
@@ -926,14 +930,22 @@
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
     tabDirty.trends = true;
+    tabDirty.charts = true;
     // If the user is already on the trends tab (e.g. background refresh), render it now
     if (currentTab === 'trends') renderTrendsLazy();
+    if (currentTab === 'charts') renderChartsLazy();
   }
 
   function renderTrendsLazy() {
     if (!tabDirty.trends) return;
     tabDirty.trends = false;
     buildTrendsCards();
+  }
+
+  function renderChartsLazy() {
+    if (!tabDirty.charts) return;
+    tabDirty.charts = false;
+    buildReel();
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
@@ -960,6 +972,7 @@
     catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
+    if (tab === 'charts') renderChartsLazy();
   }
 
   navTabs.forEach(btn => {
@@ -5070,5 +5083,743 @@
   // renderRadar() removed — Radar is now the "Ranked" view inside Signals.
   // Scoring functions (radarConfluenceScore, radarScoreFactors) are still used by scanner cards.
 
+
+
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Charts reel — full-screen scrollable candle charts
+  // ══════════════════════════════════════════════════════════════════════
+  // One instrument per screen, snap-scrolled. Data comes from the compact
+  // chart feed (webapp/chart_feed.py): columnar OHLC + the MA ribbon, bundled
+  // ~10 instruments per file so scrolling costs one fetch per 10 cards.
+  //
+  // The timeframe is the app-wide one. Charts is deliberately absent from
+  // TF_LOCKED_TABS, so the topbar 4H/Daily switch redraws the reel.
+
+  const REEL_BARS_FALLBACK = 140;
+
+  const reel = {
+    scope:  'all',
+    cat:    '',
+    trend:  'all',
+    sort:   'signal',
+    search: '',
+    range:  0,               // trailing bars to draw; 0 = the whole window
+    index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
+    chunks: new Map(),       // "D:3" → { name: bundle }
+    inflight: new Map(),     // "D:3" → Promise
+    list:   [],              // filtered+sorted rows, in reel order
+    drawn:  new Set(),       // names whose SVG is currently in the DOM
+    io:     null,
+  };
+
+  // ── Data access ──────────────────────────────────────────────────────
+
+  function reelChunkUrl(tf, cid) {
+    return '/api/chart/' + tf + '/' + cid;
+  }
+
+  let reelIndexPromise = null;
+  function reelLoadIndex() {
+    // Memoise the PROMISE, not just the result: the first two cards paint
+    // concurrently and both would sail past an `if (reel.index)` check while
+    // the first fetch was still in flight.
+    if (reel.index) return Promise.resolve(reel.index);
+    if (!reelIndexPromise) {
+      reelIndexPromise = fetchJson('/api/chart-index',
+        { chunk_size: 10, bars: REEL_BARS_FALLBACK, chunks: {} })
+        .then(idx => { reel.index = idx; return idx; });
+    }
+    return reelIndexPromise;
+  }
+
+  // Fetch the bundle file holding `name`, memoised per (timeframe, chunk).
+  async function reelLoadChunk(name) {
+    const idx = await reelLoadIndex();
+    const cid = idx.chunks ? idx.chunks[name] : undefined;
+    if (cid === undefined) return null;
+
+    const key = timeframe + ':' + cid;
+    if (reel.chunks.has(key)) return reel.chunks.get(key);
+    if (reel.inflight.has(key)) return reel.inflight.get(key);
+
+    const p = fetch(reelChunkUrl(timeframe, cid))
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        const data = (j && j.data) || {};
+        reel.chunks.set(key, data);
+        reel.inflight.delete(key);
+        return data;
+      })
+      .catch(() => {
+        // Cache the failure as empty so a dead chunk doesn't refetch on every
+        // scroll tick. A refresh clears it.
+        reel.chunks.set(key, {});
+        reel.inflight.delete(key);
+        return {};
+      });
+
+    reel.inflight.set(key, p);
+    return p;
+  }
+
+  // ── Chart rendering ──────────────────────────────────────────────────
+
+  // Geometry, derived from the card's real aspect ratio.
+  // A fixed viewBox would letterbox hard: the card is roughly 0.8 wide-to-tall
+  // on a phone, so a 1.6 viewBox would waste half the card on empty bands.
+  // preserveAspectRatio="none" would fill it but stretch the text and strokes,
+  // so instead the viewBox height follows the box we were given.
+  function reelLayout(host) {
+    const W  = 1000;
+    const cw = host.clientWidth  || 360;
+    const ch = host.clientHeight || 440;
+    // Floor only guards against a degenerate box mid-layout — set it near the
+    // real card aspect and a wide desktop card letterboxes instead of filling.
+    const H  = Math.max(200, Math.min(1800, Math.round(W * ch / Math.max(1, cw))));
+    const gutW  = 118;                       // price labels live here
+    const axisH = 30;                        // date row
+    return {
+      W, H,
+      x0: 4, x1: W - gutW,
+      py0: 14, py1: H - axisH - 14,
+      gut: W - gutW + 10,
+    };
+  }
+
+  // How far the ribbon may stretch the price scale before we stop following
+  // it. Measured over the universe: the median instrument's ribbon widens the
+  // range 1.25x, but 15% go past 2x and the worst is 7.3x — at which point the
+  // bars are a 1-pixel smear and the chart has stopped being a chart. Past
+  // this cap the ribbon clips and an edge tag says how far off-panel it sits.
+  const RIBBON_SCALE_CAP = 2.2;
+
+  function reelScale(b, L) {
+    const lows  = b.l.filter(v => v != null);
+    const highs = b.h.filter(v => v != null);
+    if (!lows.length || !highs.length) return null;
+
+    const pLo = Math.min(...lows), pHi = Math.max(...highs);
+    const pRange = (pHi - pLo) || (pHi * 0.02) || 1;
+
+    let mLo = Infinity, mHi = -Infinity;
+    for (const series of b.m) {
+      for (const v of series) {
+        if (v == null) continue;
+        if (v < mLo) mLo = v;
+        if (v > mHi) mHi = v;
+      }
+    }
+    const hasMa = isFinite(mLo);
+
+    let lo = pLo, hi = pHi;
+    if (hasMa) {
+      lo = Math.min(lo, mLo);
+      hi = Math.max(hi, mHi);
+      if ((hi - lo) > pRange * RIBBON_SCALE_CAP) {
+        // Keep the bars legible, clip the ribbon, and centre the price.
+        const pad = pRange * (RIBBON_SCALE_CAP - 1) / 2;
+        lo = pLo - pad;
+        hi = pHi + pad;
+      }
+    }
+    const pad = (hi - lo) * 0.04;
+    lo -= pad; hi += pad;
+
+    const span = (hi - lo) || 1;
+    return {
+      lo, hi, span,
+      clipped: hasMa && (mLo < lo || mHi > hi),
+      maLo: mLo, maHi: mHi,
+      y: v => L.py1 - ((v - lo) / span) * (L.py1 - L.py0),
+    };
+  }
+
+  function reelFmtPrice(v) {
+    if (v == null || !isFinite(v)) return '—';
+    const a = Math.abs(v);
+    if (a >= 10000) return Math.round(v).toLocaleString('en-US');
+    if (a >= 1000) return v.toFixed(0);
+    if (a >= 10)   return v.toFixed(2);
+    if (a >= 0.1)  return v.toFixed(4);
+    return v.toPrecision(4);
+  }
+
+  // Round gridline levels — 1/2/5 x 10^n, the steps a price axis is read in.
+  function reelTicks(lo, hi, want) {
+    const raw  = (hi - lo) / Math.max(1, want);
+    const mag  = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+    const out  = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
+    return out;
+  }
+
+  // Trim a bundle to its last `bars` bars. The ribbon is stored decimated with
+  // its own bar indices (b.mi), so those are filtered and rebased rather than
+  // sliced by the same count — slicing them naively would slide the ribbon
+  // sideways against the price.
+  function reelSlice(b, bars) {
+    const n = b.c.length;
+    if (!bars || bars >= n) return b;
+    const from = n - bars;
+    const keep = [];
+    const mi   = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
+    for (let j = 0; j < mi.length; j++) if (mi[j] >= from) keep.push(j);
+    return {
+      t: b.t.slice(from), o: b.o.slice(from), h: b.h.slice(from),
+      l: b.l.slice(from), c: b.c.slice(from),
+      p: b.p, ms: b.ms,
+      mi: keep.map(j => mi[j] - from),
+      m:  b.m.map(series => keep.map(j => series[j])),
+    };
+  }
+
+  // Build the whole chart as one SVG string.
+  function reelChartSvg(bundle, item, host) {
+    const b  = reelSlice(bundle, reel.range);
+    const L  = reelLayout(host);
+    const sc = reelScale(b, L);
+    if (!sc) return '<div class="reel-nodata">No price data</div>';
+
+    const n  = b.c.length;
+    const bw = (L.x1 - L.x0) / n;
+    const xOf = i => L.x0 + i * bw + bw / 2;
+
+    // ── Price axis ──
+    // Drawn first so everything else sits on top of the gridlines.
+    const ticks = reelTicks(sc.lo, sc.hi, L.H > 700 ? 8 : 6);
+    const grid = ticks.map(v => {
+      const y = sc.y(v);
+      return `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-opacity=".55"/>` +
+             `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`;
+    }).join('');
+
+    // ── MA ribbon ──
+    // Dotted, and each line coloured by its OWN slope: falling red, rising
+    // neutral. That colouring is the trend read — a ribbon that has rolled
+    // over goes red from the fast edge inward, and you see it without reading
+    // a single label. Split into runs of constant direction so each run is one
+    // polyline; the MAs are smooth, so there are only a handful of runs each.
+    //
+    // Points are sampled every b.ms bars (chart_feed decimates the ribbon);
+    // b.mi carries the bar index of each sample so the x mapping stays exact.
+    const nMa  = b.p.length;
+    const mIdx = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
+    let ribbon = '';
+    for (let k = nMa - 1; k >= 0; k--) {          // slowest first, fast on top
+      const series = b.m[k];
+      const isAnchor = k === nMa - 1;
+      const wid  = isAnchor ? 3.4 : 1.9;
+      const dash = isAnchor ? `${wid * 0.55} ${wid * 2.1}` : `${wid * 0.6} ${wid * 2.4}`;
+
+      let run = [], runDown = null;
+      const flush = () => {
+        if (run.length >= 2) {
+          const col = runDown ? 'var(--sell)' : 'var(--reel-ma-up)';
+          ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isAnchor ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
+        }
+        run = [];
+      };
+
+      let prev = null;
+      for (let j = 0; j < series.length; j++) {
+        const v = series[j];
+        if (v == null) { flush(); prev = null; runDown = null; continue; }
+        const pt = xOf(mIdx[j]).toFixed(1) + ',' + sc.y(v).toFixed(1);
+        if (prev == null) { run = [pt]; prev = v; continue; }
+        const down = v < prev;
+        if (runDown === null) runDown = down;
+        else if (down !== runDown) {
+          // Direction flipped: close the run at this point, reopen from it so
+          // the line has no gap where the colour changes.
+          run.push(pt); flush(); run = [pt]; runDown = down;
+          prev = v; continue;
+        }
+        run.push(pt);
+        prev = v;
+      }
+      flush();
+    }
+
+    // ── OHLC bars ──
+    // One neutral colour. Direction is the ribbon's job here, not the bars'.
+    // Price has to stay findable inside a 20-line ribbon, so the bars keep a
+    // minimum weight even when 520 of them share the width.
+    const tick = Math.max(1.1, Math.min(bw * 0.4, 4));
+    const bwid = Math.max(0.9, Math.min(bw * 0.24, 1.8));
+    let bars = '';
+    for (let i = 0; i < n; i++) {
+      const o = b.o[i], h = b.h[i], l = b.l[i], c = b.c[i];
+      if (c == null) continue;
+      const x = xOf(i);
+      if (h != null && l != null && h !== l) {
+        bars += `<line x1="${x.toFixed(1)}" y1="${sc.y(h).toFixed(1)}" x2="${x.toFixed(1)}" y2="${sc.y(l).toFixed(1)}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+      }
+      if (o != null) {
+        const yo = sc.y(o).toFixed(1);
+        bars += `<line x1="${(x - tick).toFixed(1)}" y1="${yo}" x2="${x.toFixed(1)}" y2="${yo}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+      }
+      const yc = sc.y(c).toFixed(1);
+      bars += `<line x1="${x.toFixed(1)}" y1="${yc}" x2="${(x + tick).toFixed(1)}" y2="${yc}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+    }
+
+    // ── Last-signal marker ──
+    // Taken from the signal row, not recomputed here: re-deriving fires in the
+    // browser is exactly how a chart ends up disagreeing with the card above
+    // it. Matched on the date prefix so a 4H timestamp lands on its bar.
+    let marker = '';
+    const sigDate = item[f('last_signal_date')] || '';
+    const sigType = item[f('last_signal_type')] || '';
+    if (sigDate && sigType) {
+      const day = String(sigDate).slice(0, 10);
+      let hit = -1;
+      for (let i = n - 1; i >= 0; i--) {
+        if (String(b.t[i]).slice(0, 10) === day) { hit = i; break; }
+      }
+      if (hit >= 0) {
+        const isB = sigType.toUpperCase().startsWith('B');
+        const col = isB ? 'var(--buy)' : 'var(--sell)';
+        const x = xOf(hit);
+        const yv = isB ? sc.y(b.l[hit] ?? b.c[hit]) + 18 : sc.y(b.h[hit] ?? b.c[hit]) - 18;
+        const tri = isB
+          ? `${x},${yv - 10} ${x - 7},${yv + 3} ${x + 7},${yv + 3}`
+          : `${x},${yv + 10} ${x - 7},${yv - 3} ${x + 7},${yv - 3}`;
+        marker =
+          `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" stroke="${col}" stroke-width="1" stroke-dasharray="3 4" stroke-opacity=".5"/>` +
+          `<polygon points="${tri}" fill="${col}"/>` +
+          `<text x="${x.toFixed(1)}" y="${(isB ? yv + 22 : yv - 16).toFixed(1)}" class="reel-sig-tag" fill="${col}" text-anchor="middle">${sigType}</text>`;
+      }
+    }
+
+    // ── Last price ──
+    const last = b.c[n - 1];
+    const lastY = sc.y(last);
+    const lastTag =
+      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 4" stroke-opacity=".8"/>` +
+      `<rect x="${L.x1 + 2}" y="${(lastY - 13).toFixed(1)}" width="${L.W - L.x1 - 4}" height="26" rx="4" fill="var(--accent)"/>` +
+      `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 6).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
+
+    // Clipped-ribbon tag — says which way the ribbon ran off and by how much,
+    // so a capped scale never silently hides where the anchor is.
+    let clipTag = '';
+    if (sc.clipped) {
+      const above = sc.maHi > sc.hi;
+      const dist  = above ? (sc.maHi / last - 1) : (sc.maLo / last - 1);
+      clipTag = `<text x="${L.x1 - 6}" y="${above ? L.py0 + 16 : L.py1 - 6}" class="reel-clip-tag" text-anchor="end">ribbon ${above ? '↑' : '↓'} ${Math.abs(dist * 100).toFixed(0)}%</text>`;
+    }
+
+    // ── Date labels ──
+    const dticks = [0, Math.floor(n / 3), Math.floor(2 * n / 3), n - 1]
+      .filter((v, i, a) => a.indexOf(v) === i);
+    const dates = dticks.map(i => {
+      const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+      const x = i === 0 ? L.x0 : i === n - 1 ? L.x1 : xOf(i);
+      return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${String(b.t[i]).slice(0, 10)}</text>`;
+    }).join('');
+
+    return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
+      ${grid}${ribbon}${bars}${marker}${lastTag}${clipTag}${dates}
+    </svg>`;
+  }
+
+  // ── Card shell ───────────────────────────────────────────────────────
+
+  function reelCardHtml(item, i) {
+    const name  = item.instrument_name;
+    const sig   = item[f('primary_signal')] || '';
+    const trend = effectiveTrend(item);
+    const conf  = item[f('signal_confidence')] || '';
+    const mv    = parseFloat(item.pct_1d);
+    const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
+    const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
+    const trCls = trend === 'UPTREND' ? 'up' : trend === 'DOWNTREND' ? 'down' : 'flat';
+    const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
+    const starred = userStarred.has(name);
+
+    return `<article class="reel-card" data-name="${name}" data-idx="${i}">
+      <header class="reel-head">
+        <div class="reel-head-main">
+          <span class="reel-name">${name}</span>
+          <span class="reel-group">${item.group || ''}</span>
+        </div>
+        <div class="reel-head-meta">
+          ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
+          ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+        </div>
+      </header>
+
+      <div class="reel-chart" id="reelChart-${i}">
+        <div class="reel-skel"><span></span></div>
+      </div>
+
+      <footer class="reel-foot">
+        <span class="reel-trend ${trCls}">${trend}</span>
+        <span class="reel-tf-tag">${timeframe === '4H' ? '4H' : 'Daily'}</span>
+        <div class="reel-foot-actions">
+          <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
+          <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
+          <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
+        </div>
+      </footer>
+    </article>`;
+  }
+
+  // ── Filtering ────────────────────────────────────────────────────────
+
+  function reelFiltered() {
+    let rows = getActiveData();
+
+    if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
+    if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
+    if (reel.trend !== 'all') rows = rows.filter(d => effectiveTrend(d) === reel.trend);
+
+    switch (reel.scope) {
+      case 'today':   rows = rows.filter(firedOnLatestBar); break;
+      case 'signal':  rows = rows.filter(d => !!d[f('primary_signal')]); break;
+      case 'buy':     rows = rows.filter(isBuy); break;
+      case 'sell':    rows = rows.filter(isSell); break;
+      case 'watch':   rows = rows.filter(d => d[f('watch_flag')] === 'yes'); break;
+      case 'starred': rows = rows.filter(d => userStarred.has(d.instrument_name)); break;
+    }
+
+    const sigRank = d => {
+      if (firedOnLatestBar(d)) return 0;
+      if (d[f('primary_signal')]) return 1;
+      if (d[f('watch_flag')] === 'yes') return 2;
+      return 3;
+    };
+    const daysAgo = d => {
+      const v = parseFloat(d[f('last_signal_days_ago')]);
+      return isNaN(v) ? 1e9 : v;
+    };
+
+    const sorted = [...rows];
+    if (reel.sort === 'name') {
+      sorted.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
+    } else if (reel.sort === 'move') {
+      sorted.sort((a, b) => Math.abs(parseFloat(b.pct_1d) || 0) - Math.abs(parseFloat(a.pct_1d) || 0));
+    } else if (reel.sort === 'recent') {
+      sorted.sort((a, b) => daysAgo(a) - daysAgo(b));
+    } else {
+      // Signals first, then by how recently they fired, then name.
+      sorted.sort((a, b) =>
+        sigRank(a) - sigRank(b) ||
+        daysAgo(a) - daysAgo(b) ||
+        a.instrument_name.localeCompare(b.instrument_name));
+    }
+    return sorted;
+  }
+
+  // ── Lazy paint ───────────────────────────────────────────────────────
+
+  async function reelPaint(idx) {
+    const item = reel.list[idx];
+    if (!item) return;
+    const host = document.getElementById('reelChart-' + idx);
+    if (!host || host.dataset.painted === timeframe) return;
+
+    const name = item.instrument_name;
+    const data = await reelLoadChunk(name);
+
+    // The user may have scrolled far away, or flipped timeframe, while the
+    // chunk was in flight — re-check before touching the DOM.
+    const stillThere = document.getElementById('reelChart-' + idx);
+    if (!stillThere || reel.list[idx] !== item) return;
+
+    const bundle = data && data[name];
+    if (!bundle) {
+      stillThere.innerHTML = '<div class="reel-nodata">No chart data for this instrument</div>';
+      stillThere.dataset.painted = timeframe;
+      return;
+    }
+    stillThere.innerHTML = reelChartSvg(bundle, item, stillThere);
+    stillThere.dataset.painted = timeframe;
+    reel.drawn.add(idx);
+  }
+
+  function reelObserve() {
+    if (reel.io) reel.io.disconnect();
+    // rootMargin pre-paints roughly one screen either side, so a normal scroll
+    // never lands on a blank card.
+    reel.io = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        const idx = +e.target.dataset.idx;
+        if (e.isIntersecting) {
+          reelPaint(idx);
+        } else if (reel.drawn.size > 24) {
+          // Keep the DOM light on a 700-card reel: drop the SVG of cards well
+          // out of view. The shell keeps its height, so scroll position holds.
+          const host = document.getElementById('reelChart-' + idx);
+          if (host && host.dataset.painted && reel.drawn.has(idx)) {
+            host.innerHTML = '<div class="reel-skel"><span></span></div>';
+            delete host.dataset.painted;
+            reel.drawn.delete(idx);
+          }
+        }
+      }
+    }, { root: null, rootMargin: '120% 0px', threshold: 0 });
+
+    document.querySelectorAll('#chartReel .reel-card').forEach(el => reel.io.observe(el));
+
+    // Belt and braces: if the observer is not delivering, scrolling still
+    // paints. Cheap — reelPaint early-exits on anything already drawn.
+    const host = document.getElementById('chartReel');
+    if (host && !host.dataset.scrollWired) {
+      host.dataset.scrollWired = '1';
+      host.addEventListener('scroll', debounce(reelPaintVisible, 120), { passive: true });
+    }
+  }
+
+  // The pane is a fixed layer, so it needs the topbar's real height — which
+  // moves with the notch inset and the tf-switch row. Measured, not assumed.
+  function reelSyncTop() {
+    const bar = document.querySelector('.topbar-stack');
+    if (!bar) return;
+    const h = Math.round(bar.getBoundingClientRect().height);
+    if (h > 0) document.documentElement.style.setProperty('--reel-top', h + 'px');
+  }
+
+  function buildReel() {
+    reelSyncTop();
+    const host = document.getElementById('chartReel');
+    const empty = document.getElementById('reelEmpty');
+    const count = document.getElementById('reelCount');
+    if (!host) return;
+
+    reel.list = reelFiltered();
+    reel.drawn.clear();
+
+    if (count) {
+      count.textContent = reel.list.length + (reel.list.length === 1 ? ' chart' : ' charts');
+    }
+    if (!reel.list.length) {
+      host.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    host.innerHTML = reel.list.map(reelCardHtml).join('');
+    reelObserve();
+    // Paint what is already on screen directly. IntersectionObserver is
+    // supposed to deliver an initial callback for every observed target, but
+    // it is asynchronous and, in some engines, does not fire at all until the
+    // page is composited — which left the first card spinning forever. The
+    // observer still handles everything the reader scrolls to.
+    reelPaintVisible();
+    reelSyncPills();
+  }
+
+  // Drop every drawn chart and redraw what is on screen — for changes that
+  // alter the drawing but not the list (range, resize).
+  function reelRepaintAll() {
+    document.querySelectorAll('#chartReel .reel-chart[data-painted]').forEach(el => {
+      el.innerHTML = '<div class="reel-skel"><span></span></div>';
+      delete el.dataset.painted;
+    });
+    reel.drawn.clear();
+    reelPaintVisible();
+  }
+
+  // Paint every card intersecting the viewport right now.
+  function reelPaintVisible() {
+    document.querySelectorAll('#chartReel .reel-card').forEach(c => {
+      const r = c.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < window.innerHeight) reelPaint(+c.dataset.idx);
+    });
+  }
+
+  // Rebuild without losing the reader's place — used on timeframe flip, where
+  // the instrument under your thumb should stay under your thumb.
+  function reelRebuildKeepingPlace() {
+    const host = document.getElementById('chartReel');
+    if (!host || !host.children.length) { buildReel(); return; }
+    const anchorName = reelVisibleName();
+    buildReel();
+    if (!anchorName) return;
+    const el = host.querySelector(`.reel-card[data-name="${CSS.escape(anchorName)}"]`);
+    if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }
+
+  function reelVisibleName() {
+    const cards = document.querySelectorAll('#chartReel .reel-card');
+    for (const c of cards) {
+      const r = c.getBoundingClientRect();
+      if (r.bottom > window.innerHeight * 0.35) return c.dataset.name;
+    }
+    return null;
+  }
+
+  // ── Filter wiring ────────────────────────────────────────────────────
+
+  function reelSyncPills() {
+    const set = (id, txt) => {
+      const el = document.querySelector('#' + id + ' .fp-val');
+      if (el) el.textContent = txt ? ' · ' + txt : '';
+    };
+    const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
+                       sell: 'sells', watch: 'watch', starred: 'starred' };
+    set('reelPillScope', scopeLbl[reel.scope] || '');
+    set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
+    const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
+    set('reelPillSort', sortLbl[reel.sort] || '');
+    set('reelPillRange', reel.range ? reel.range + ' bars' : '');
+    const cv = document.querySelector('#reelPillClass .fp-cv');
+    if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
+
+    const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
+                  reel.sort !== 'signal' || reel.search || reel.range;
+    const rst = document.getElementById('reelReset');
+    if (rst) rst.style.display = dirty ? '' : 'none';
+  }
+
+  function wireReel() {
+    try {
+      const savedRange = parseInt(localStorage.getItem('swingpulse-reel-range') || '0', 10);
+      if (savedRange > 0) {
+        reel.range = savedRange;
+        const box = document.getElementById('reelRangeOpts');
+        if (box) {
+          box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
+          const m = box.querySelector(`[data-range="${savedRange}"]`);
+          if (m) m.classList.add('active');
+        }
+      }
+    } catch (_) {}
+
+    const search = document.getElementById('reelSearch');
+    const clear  = document.getElementById('reelSearchClear');
+    if (search) {
+      search.addEventListener('input', debounce(() => {
+        reel.search = search.value.trim().toLowerCase();
+        if (clear) clear.style.display = reel.search ? '' : 'none';
+        buildReel();
+      }, 220));
+    }
+    if (clear) {
+      clear.addEventListener('click', () => {
+        search.value = ''; reel.search = '';
+        clear.style.display = 'none';
+        buildReel();
+      });
+    }
+
+    const optGroup = (containerId, key, attr) => {
+      const box = document.getElementById(containerId);
+      if (!box) return;
+      box.addEventListener('click', e => {
+        const btn = e.target.closest('.reel-opt');
+        if (!btn) return;
+        box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        reel[key] = btn.dataset[attr];
+        const pill = btn.closest('.filter-pill');
+        if (pill) pill.open = false;
+        buildReel();
+      });
+    };
+    optGroup('reelScopeOpts', 'scope', 'scope');
+    optGroup('reelTrendOpts', 'trend', 'trend');
+    optGroup('reelSortOpts',  'sort',  'sort');
+
+    // Range is the only filter that changes nothing about WHICH instruments
+    // are listed — just how much history each card draws — so it repaints in
+    // place instead of rebuilding the list.
+    const rangeBox = document.getElementById('reelRangeOpts');
+    if (rangeBox) {
+      rangeBox.addEventListener('click', e => {
+        const btn = e.target.closest('.reel-opt');
+        if (!btn) return;
+        rangeBox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        reel.range = +btn.dataset.range || 0;
+        try { localStorage.setItem('swingpulse-reel-range', String(reel.range)); } catch (_) {}
+        const pill = btn.closest('.filter-pill');
+        if (pill) pill.open = false;
+        reelRepaintAll();
+        reelSyncPills();
+      });
+    }
+
+    const chips = document.getElementById('reelCatChips');
+    if (chips) {
+      chips.addEventListener('click', e => {
+        const chip = e.target.closest('.s-cat-chip');
+        if (!chip) return;
+        const cat = chip.dataset.cat;
+        const on = reel.cat === cat;
+        chips.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
+        reel.cat = on ? '' : cat;             // tapping the active chip clears it
+        if (!on) chip.classList.add('active');
+        buildReel();
+      });
+    }
+
+    window.addEventListener('resize', debounce(() => {
+      if (currentTab !== 'charts') return;
+      reelSyncTop();
+      // Card height changed, so every drawn chart's viewBox aspect is stale.
+      document.querySelectorAll('#chartReel .reel-chart[data-painted]').forEach(el => {
+        el.innerHTML = '<div class="reel-skel"><span></span></div>';
+        delete el.dataset.painted;
+      });
+      reel.drawn.clear();
+      reelPaintVisible();
+    }, 250));
+
+    const rst = document.getElementById('reelReset');
+    if (rst) {
+      rst.addEventListener('click', () => {
+        reel.scope = 'all'; reel.cat = ''; reel.trend = 'all'; reel.sort = 'signal';
+        reel.search = ''; reel.range = 0;
+        try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
+        const rbox = document.getElementById('reelRangeOpts');
+        if (rbox) {
+          rbox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
+          const d = rbox.querySelector('[data-range="0"]');
+          if (d) d.classList.add('active');
+        }
+        if (search) search.value = '';
+        if (clear) clear.style.display = 'none';
+        document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
+        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
+          const box = document.getElementById(id);
+          if (!box) return;
+          box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
+          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-sort="${def}"]`);
+          if (d) d.classList.add('active');
+        });
+        buildReel();
+      });
+    }
+
+    // Card actions — delegated, so re-rendering the reel never orphans them.
+    const host = document.getElementById('chartReel');
+    if (host) {
+      host.addEventListener('click', e => {
+        const btn = e.target.closest('.reel-act');
+        if (btn) {
+          const name = btn.dataset.name;
+          if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return; }
+          if (btn.dataset.act === 'detail') { window.SP.openModal(name); return; }
+          if (btn.dataset.act === 'star')   {
+            window.SP.toggleStar(name);
+            btn.classList.toggle('on', userStarred.has(name));
+            return;
+          }
+        }
+        // Tapping the chart itself opens the full instrument view.
+        const card = e.target.closest('.reel-card');
+        if (card && e.target.closest('.reel-chart')) window.SP.openModal(card.dataset.name);
+      });
+    }
+  }
+
+
+  // Wired here, not with the other boot wiring: `reel` is declared in this
+  // block, so an earlier call would hit its temporal dead zone.
+  wireReel();
 
 })();

@@ -7468,3 +7468,176 @@ body {
   cursor: pointer;
 }
 .move-clear:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CHARTS REEL
+   ══════════════════════════════════════════════════════════════════════════
+   Full-screen snap-scrolled charts, one instrument per screen.
+
+   The pane becomes its own fixed layer while active, because the reel needs
+   to be its own scroll container to snap — the shared document scroll can't
+   snap one tab without snapping all of them. --reel-top is measured from the
+   real topbar in JS (it is sticky, and its height moves with the notch inset),
+   with a sane default here so the first paint is never wrong by a screenful. */
+
+/* Ribbon + bar colours. The reference this is drawn from is a light TradingView
+   theme where a rising MA is black and a falling one red; on this dark theme
+   "black" becomes a light neutral, and red stays exactly red. Bars sit a shade
+   brighter than a rising MA so price still separates from the ribbon. */
+:root {
+  --reel-ma-up: #b6bac6;      /* rising MA — the neutral "default" line */
+  --reel-bar:   #f2f2f4;      /* OHLC bars */
+  --reel-top:   112px;
+}
+
+#pane-charts.active {
+  position: fixed;
+  top: var(--reel-top);
+  left: 0;
+  right: 0;
+  bottom: calc(72px + max(calc(env(safe-area-inset-bottom, 0px) - 14px), 0px));
+  display: flex;
+  flex-direction: column;
+  animation: none;                    /* the pane-fade would fight the snap */
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────────────── */
+.reel-filter-bar {
+  flex: 0 0 auto;
+  padding: 8px 12px 6px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border);
+}
+.reel-filter-row { display: flex; align-items: center; gap: 10px; }
+.reel-search-wrap { position: relative; flex: 1; display: flex; align-items: center; }
+.reel-search-ic {
+  position: absolute; left: 10px; color: var(--text-muted); pointer-events: none;
+}
+.reel-search-wrap .search-input { padding-left: 30px; width: 100%; }
+.reel-search-clear {
+  position: absolute; right: 8px; background: none; border: none;
+  color: var(--text-muted); font-size: 1.1rem; cursor: pointer; line-height: 1;
+}
+.reel-count {
+  flex: 0 0 auto; font-size: .72rem; color: var(--text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+.reel-filter-pills {
+  display: flex; gap: 6px; margin-top: 7px;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.reel-filter-pills::-webkit-scrollbar { display: none; }
+.reel-filter-pills .filter-pill { flex: 0 0 auto; }
+
+.reel-opts { display: flex; flex-direction: column; gap: 2px; min-width: 168px; }
+.reel-opt {
+  text-align: left; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: none; border: none; color: var(--text-secondary);
+  font-size: .78rem; cursor: pointer;
+}
+.reel-opt:hover { background: var(--bg-hover); color: var(--text-primary); }
+.reel-opt.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; }
+.reel-opt i {
+  font-style: normal; float: right; margin-left: 14px;
+  color: var(--text-muted); font-size: .68rem; font-weight: 400;
+}
+
+.reel-reset {
+  flex: 0 0 auto; padding: 6px 12px; border-radius: 999px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: .72rem; cursor: pointer;
+}
+
+/* ── The reel ───────────────────────────────────────────────────────────── */
+.reel {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;     /* no rubber-banding the page behind it */
+}
+.reel-card {
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;           /* one flick = one instrument, not five */
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.reel-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.reel-head-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.reel-name {
+  font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em;
+  color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reel-group { font-size: .68rem; color: var(--text-muted); white-space: nowrap; }
+.reel-head-meta { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+
+.reel-sig {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .02em;
+}
+.reel-sig i { font-style: normal; font-weight: 500; opacity: .75; font-size: .62rem; }
+.reel-sig.buy  { background: var(--buy-soft);  color: var(--buy); }
+.reel-sig.sell { background: var(--sell-soft); color: var(--sell); }
+.reel-move { font-size: .74rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.reel-move.up   { color: var(--buy); }
+.reel-move.down { color: var(--sell); }
+
+.reel-chart { flex: 1 1 auto; min-height: 0; margin: 6px 0; position: relative; }
+.reel-svg { width: 100%; height: 100%; display: block; }
+.reel-axis {
+  font-size: 19px; fill: var(--text-secondary);
+  font-family: inherit; font-variant-numeric: tabular-nums;
+}
+.reel-axis-last { fill: #1a1a19; font-weight: 700; text-anchor: end; }
+.reel-sig-tag  { font-size: 20px; font-weight: 700; }
+.reel-clip-tag { font-size: 19px; fill: var(--text-muted); font-weight: 600; }
+
+.reel-skel { width: 100%; height: 100%; display: grid; place-items: center; }
+.reel-skel span {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin .9s linear infinite;
+}
+.reel-nodata {
+  width: 100%; height: 100%; display: grid; place-items: center;
+  color: var(--text-muted); font-size: .78rem; text-align: center;
+}
+
+.reel-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+.reel-trend { font-size: .68rem; font-weight: 700; letter-spacing: .04em; }
+.reel-trend.up   { color: var(--buy); }
+.reel-trend.down { color: var(--sell); }
+.reel-trend.flat { color: var(--text-muted); }
+.reel-tf-tag {
+  font-size: .62rem; color: var(--text-muted);
+  padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px;
+}
+.reel-foot-actions { margin-left: auto; display: flex; gap: 6px; }
+.reel-act {
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: .7rem; cursor: pointer;
+}
+.reel-act:hover { border-color: var(--border-active); color: var(--text-primary); }
+.reel-act.on { color: var(--accent); border-color: var(--accent); }
+.reel-act.tv { color: var(--accent); }
+
+.reel-empty {
+  padding: 40px 20px; text-align: center;
+  color: var(--text-muted); font-size: .82rem;
+}
+
+/* Desktop: the reel is a reading column, not a full-bleed phone screen. */
+@media (min-width: 768px) {
+  .reel-card { padding: 14px 24px 16px; max-width: 1100px; margin: 0 auto; width: 100%; }
+  .reel-name { font-size: 1.15rem; }
+  .reel-axis, .reel-clip-tag { font-size: 15px; }
+  .reel-sig-tag { font-size: 16px; }
+}

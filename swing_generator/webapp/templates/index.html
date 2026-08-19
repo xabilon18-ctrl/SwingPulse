@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=215">
+  <link rel="stylesheet" href="/static/css/style.css?v=216">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -656,6 +656,104 @@
     </div>
   </div>
 
+    <!-- ========== CHARTS TAB ========== -->
+    <!-- Full-screen chart reel. One instrument per screen, snap-scrolled.
+         The timeframe comes from the global 4H/Daily switch in the topbar —
+         this tab is deliberately NOT in TF_LOCKED_TABS, so that one control
+         drives the reel like it drives everything else. -->
+    <section class="tab-pane" id="pane-charts">
+
+      <div class="reel-filter-bar" id="reelFilterBar">
+        <div class="reel-filter-row">
+          <div class="search-wrap reel-search-wrap">
+            <svg class="reel-search-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="reelSearch" placeholder="Search name, category…" autocomplete="off">
+            <button class="reel-search-clear" id="reelSearchClear" style="display:none" aria-label="Clear search">×</button>
+          </div>
+          <span class="reel-count" id="reelCount">—</span>
+        </div>
+
+        <div class="reel-filter-pills" id="reelFilterPills">
+          <details class="filter-pill" id="reelPillScope">
+            <summary>Show<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="reel-opts" id="reelScopeOpts">
+                <button class="reel-opt active" data-scope="all">Everything</button>
+                <button class="reel-opt" data-scope="today">Fired today</button>
+                <button class="reel-opt" data-scope="signal">Any open signal</button>
+                <button class="reel-opt" data-scope="buy">Buys only</button>
+                <button class="reel-opt" data-scope="sell">Sells only</button>
+                <button class="reel-opt" data-scope="watch">Watch flagged</button>
+                <button class="reel-opt" data-scope="starred">Analyzed (starred)</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="filter-pill" id="reelPillClass">
+            <summary>Class<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="scanner-cat-chips" id="reelCatChips">
+                <button class="s-cat-chip" data-cat="crypto">Crypto</button>
+                <button class="s-cat-chip" data-cat="indices">Indices</button>
+                <button class="s-cat-chip" data-cat="commodity">Commodity</button>
+                <button class="s-cat-chip" data-cat="us100">US100</button>
+                <button class="s-cat-chip" data-cat="us500">US500</button>
+                <button class="s-cat-chip" data-cat="banks">Banks</button>
+                <button class="s-cat-chip" data-cat="energy">Energy</button>
+                <button class="s-cat-chip" data-cat="tech">Tech</button>
+                <button class="s-cat-chip" data-cat="semi">Semis</button>
+                <button class="s-cat-chip" data-cat="ai">AI</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="filter-pill" id="reelPillTrend">
+            <summary>Trend<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="reel-opts" id="reelTrendOpts">
+                <button class="reel-opt active" data-trend="all">Any trend</button>
+                <button class="reel-opt" data-trend="UPTREND">▲ Uptrend</button>
+                <button class="reel-opt" data-trend="DOWNTREND">▼ Downtrend</button>
+                <button class="reel-opt" data-trend="NEUTRAL">— Neutral</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="filter-pill" id="reelPillRange">
+            <summary>Range<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <!-- Bars, not months: 520 bars is ~2 years on Daily but ~4 months
+                   on 4H, so a month label would be wrong on one of them. -->
+              <div class="reel-opts" id="reelRangeOpts">
+                <button class="reel-opt active" data-range="0">Full window<i>520 bars</i></button>
+                <button class="reel-opt" data-range="260">Half<i>260 bars</i></button>
+                <button class="reel-opt" data-range="130">Quarter<i>130 bars</i></button>
+                <button class="reel-opt" data-range="65">Close up<i>65 bars</i></button>
+              </div>
+            </div>
+          </details>
+
+          <details class="filter-pill" id="reelPillSort">
+            <summary>Sort<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="reel-opts" id="reelSortOpts">
+                <button class="reel-opt active" data-sort="signal">Signals first</button>
+                <button class="reel-opt" data-sort="recent">Newest fire</button>
+                <button class="reel-opt" data-sort="move">Biggest move</button>
+                <button class="reel-opt" data-sort="name">Name A–Z</button>
+              </div>
+            </div>
+          </details>
+
+          <button class="reel-reset" id="reelReset" style="display:none">Reset</button>
+        </div>
+      </div>
+
+      <div class="reel" id="chartReel"></div>
+      <div class="reel-empty" id="reelEmpty" style="display:none">Nothing matches those filters.</div>
+
+    </section>
+
   <!-- ===== BOTTOM TAB BAR (mobile) ===== -->
   <nav class="bottom-nav" id="bottomNav">
     <button class="nav-tab active" data-tab="dashboard">
@@ -673,6 +771,10 @@
     <button class="nav-tab" data-tab="trends">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg></span>
       <span class="nav-tab-label">Trends</span>
+    </button>
+    <button class="nav-tab" data-tab="charts">
+      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="4" x2="6" y2="20"/><rect x="3.5" y="8" width="5" height="7" rx="1"/><line x1="14" y1="4" x2="14" y2="20"/><rect x="11.5" y="6" width="5" height="9" rx="1"/><line x1="21" y1="9" x2="21" y2="20"/></svg></span>
+      <span class="nav-tab-label">Charts</span>
     </button>
   </nav>
 
@@ -718,6 +820,6 @@
 
 
 
-  <script src="/static/js/app.js?v=237"></script>
+  <script src="/static/js/app.js?v=238"></script>
 </body>
 </html>
