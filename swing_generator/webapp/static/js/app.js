@@ -5324,18 +5324,36 @@
     // b.mi carries the bar index of each sample so the x mapping stays exact.
     const nMa  = b.p.length;
     const mIdx = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
+
+    // The three MAs the signal rules actually name — the fast edge (MA25, where
+    // B2/S2 fire), mid-ribbon (MA250, B3/S3) and the anchor (MA500, B4/S4) —
+    // are drawn heavier so they stay findable inside twenty lines.
+    //
+    // Picked by POSITION, not by the number: a 4H ribbon on a session-
+    // normalised instrument has its periods scaled (see _h4_ma_periods), and a
+    // short-history instrument has the tail of the ribbon truncated, so
+    // `period === 250` is not a test that survives either case. Mid-ribbon is
+    // whichever period sits closest to half the slowest one.
+    const slowest = b.p[nMa - 1];
+    let midIdx = 0, midGap = Infinity;
+    for (let k = 0; k < nMa; k++) {
+      const gap = Math.abs(b.p[k] - slowest / 2);
+      if (gap < midGap) { midGap = gap; midIdx = k; }
+    }
+
     let ribbon = '';
     for (let k = nMa - 1; k >= 0; k--) {          // slowest first, fast on top
       const series = b.m[k];
       const isAnchor = k === nMa - 1;
-      const wid  = isAnchor ? 3.4 : 1.9;
-      const dash = isAnchor ? `${wid * 0.55} ${wid * 2.1}` : `${wid * 0.6} ${wid * 2.4}`;
+      const isKey    = isAnchor || k === 0 || k === midIdx;
+      const wid  = isKey ? 3.4 : 1.9;
+      const dash = isKey ? `${wid * 0.55} ${wid * 2.1}` : `${wid * 0.6} ${wid * 2.4}`;
 
       let run = [], runDown = null;
       const flush = () => {
         if (run.length >= 2) {
           const col = runDown ? 'var(--sell)' : 'var(--reel-ma-up)';
-          ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isAnchor ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
+          ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isKey ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
         }
         run = [];
       };
