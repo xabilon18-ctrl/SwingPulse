@@ -7671,6 +7671,21 @@ body {
   }
 }
 /* Phones: widen the tap target without moving the text a pixel. */
+/* The circled i, hot/warm cards only. Inherits the tilt colour from .sr-hot-head
+   so it reads as part of the z, not a bolted-on control. Chips never get one —
+   that is what wrecked their two-up grid. */
+.sr-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; margin-left: 5px;
+  border: 1px solid currentColor; border-radius: 50%;
+  font-family: Georgia, 'Times New Roman', serif; font-style: italic;
+  font-size: .62rem; font-weight: 700; line-height: 1;
+  opacity: .62; vertical-align: 1px; flex-shrink: 0;
+  transition: opacity .12s;
+}
+.sr-z-tap:active .sr-i, .sr-z-tap:focus-visible .sr-i { opacity: 1; }
+@media (hover: hover) { .sr-z-tap:hover .sr-i { opacity: 1; } }
+
 .sr-chip-z[data-sr-info] { position: relative; }
 .sr-chip-z[data-sr-info]::after {
   content: ''; position: absolute; top: -9px; right: -9px; bottom: -9px; left: -5px;
