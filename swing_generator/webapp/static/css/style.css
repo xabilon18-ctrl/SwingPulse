@@ -7646,3 +7646,110 @@ body {
   .reel-axis, .reel-clip-tag { font-size: 15px; }
   .reel-sig-tag { font-size: 16px; }
 }
+
+/* ── Sector Radar: z readout doubles as the info trigger ─────────────────
+   No extra chrome — the chips keep their original compact two-up grid. The z
+   value is what the modal explains, so it IS the affordance. */
+.sr-chip-z[data-sr-info], .sr-z-tap {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color .12s, background .12s;
+  /* NO resting decoration — the z must look exactly as it always has. The
+     gesture is taught by the legend line, not by decorating the number.
+     Feedback is press/hover/focus only, so at rest nothing changes. */
+}
+.sr-chip-z[data-sr-info]:active, .sr-z-tap:active,
+.sr-chip-z[data-sr-info]:focus-visible, .sr-z-tap:focus-visible {
+  color: var(--accent);
+  background: rgba(251,191,36,.16);
+  outline: none;
+}
+@media (hover: hover) {
+  .sr-chip-z[data-sr-info]:hover, .sr-z-tap:hover {
+    color: var(--accent);
+    background: rgba(251,191,36,.14);
+  }
+}
+/* Phones: widen the tap target without moving the text a pixel. */
+.sr-chip-z[data-sr-info] { position: relative; }
+.sr-chip-z[data-sr-info]::after {
+  content: ''; position: absolute; top: -9px; right: -9px; bottom: -9px; left: -5px;
+}
+
+.sr-modal-loading, .sr-modal-nohist {
+  padding: 24px 4px; text-align: center; color: var(--text-muted); font-size: .8rem;
+}
+.sr-modal-head { margin-bottom: 18px; }
+.sr-modal-head h2 { margin: 0 0 7px; font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; }
+.sr-modal-badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sr-st {
+  font-size: .58rem; font-weight: 800; letter-spacing: .08em;
+  padding: 3px 8px; border-radius: 20px;
+}
+.sr-st-hot  { background: rgba(239,68,68,.14);  color: #f87171; }
+.sr-st-warm { background: rgba(245,158,11,.14); color: #fbbf24; }
+.sr-st-base { background: rgba(82,82,92,.22);   color: var(--text-secondary); }
+.sr-tilt { font-size: .72rem; font-weight: 700; }
+
+.sr-modal-sec { margin-bottom: 20px; }
+.sr-modal-sec h4 {
+  margin: 0 0 10px; font-size: .64rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 700;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.sr-modal-date { letter-spacing: 0; text-transform: none; font-weight: 400; }
+
+.sr-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; }
+.sr-stat-grid > div {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 4px; text-align: center;
+}
+.sr-stat-grid b {
+  display: block; font-size: 1.2rem; font-weight: 800;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.sr-stat-grid span { display: block; font-size: .57rem; color: var(--text-muted); margin-top: 3px; }
+.sr-modal-eq {
+  margin: 10px 0 0; font-size: .76rem; color: var(--text-secondary); line-height: 1.5;
+}
+.sr-modal-eq b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+.sr-calc { width: 100%; border-collapse: collapse; font-size: .76rem; }
+.sr-calc td { padding: 7px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+.sr-calc td:last-child {
+  text-align: right; color: var(--text-primary); font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px;
+}
+.sr-calc tr:last-child td { border-bottom: 0; }
+.sr-calc-hl td { color: var(--accent) !important; }
+.sr-dim { color: var(--text-muted); font-weight: 400; }
+
+.sr-spark {
+  width: 100%; height: 96px; display: block;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.sr-spark-key {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-top: 7px; font-size: .62rem; color: var(--text-muted);
+}
+.sr-spark-key span { display: inline-flex; align-items: center; gap: 5px; }
+.sr-spark-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.sr-spark-span { margin-left: auto; }
+
+.sr-modal-warn {
+  background: rgba(251,191,36,.06); border: 1px solid rgba(251,191,36,.22);
+  border-radius: var(--radius-sm); padding: 13px 15px;
+}
+.sr-modal-warn h4 { color: var(--accent); margin-bottom: 8px; }
+.sr-modal-warn ul { margin: 0; padding-left: 17px; }
+.sr-modal-warn li {
+  font-size: .73rem; line-height: 1.55; color: #fcd34d; margin-bottom: 7px;
+}
+.sr-modal-warn li:last-child { margin-bottom: 0; }
+.sr-modal-warn b { color: var(--accent); }
+
+@media (max-width: 420px) {
+  .sr-stat-grid { grid-template-columns: repeat(2,1fr); }
+  .sr-spark-span { margin-left: 0; width: 100%; }
+}

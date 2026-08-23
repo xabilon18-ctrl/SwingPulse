@@ -973,9 +973,12 @@
     // offset, so tapping through from halfway down the Dashboard used to drop
     // you into the middle of the signal list — worst from a Sector Radar tap,
     // where the whole point is to look at what it filtered to.
-    // 'auto' (not smooth): a tab switch should already be at the top when the
-    // new pane paints, not glide there afterwards.
-    try { window.scrollTo({ top: 0, behavior: 'auto' }); }
+    // 'instant', NOT 'auto': per spec 'auto' defers to the CSS scroll-behavior
+    // property, and html{} sets `scroll-behavior: smooth` — so 'auto' silently
+    // started an ANIMATED scroll. Any caller that re-rendered the pane right
+    // after (srGoToSector rebuilds the whole card list) killed that animation
+    // mid-flight and left you stranded halfway down. 'instant' forces the jump.
+    try { window.scrollTo({ top: 0, behavior: 'instant' }); }
     catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
@@ -2215,7 +2218,7 @@
       <div class="sr-hot-card" data-sr-sector="${s.sector}" style="border-color:${tiltCol(s)}">
         <div class="sr-hot-head" style="color:${tiltCol(s)}">
           <span>${s.sector.toUpperCase()}${s.tilt === 'buy' ? ' ▲ buy-tilted' : s.tilt === 'sell' ? ' ▼ sell-tilted' : s.tilt === 'mixed' ? ' ◆ mixed' : ' ◆ vol only'}</span>
-          <span>z ${s.z.toFixed(1)}</span>
+          <span class="sr-z-tap" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated">z ${s.z.toFixed(1)}</span>
         </div>
         <div class="sr-hot-sub">elevated ${s.elevated_days} day${s.elevated_days === 1 ? '' : 's'} · ${s.buys} buy${s.buys === 1 ? '' : 's'} · ${s.sells} sell${s.sells === 1 ? '' : 's'} · ${s.vol_spikes} vol spike${s.vol_spikes === 1 ? '' : 's'}</div>
         <div class="sr-hot-meta">${s.members} members · rate ${s.rate.toFixed(2)}${s.mean_rate !== null ? ' vs mean ' + s.mean_rate.toFixed(2) : ''} · ${s.date}</div>
@@ -2225,7 +2228,7 @@
       <div class="sr-warm-card" data-sr-sector="${s.sector}" style="border-left-color:${tiltCol(s)}">
         <div class="sr-warm-head">
           <span>${s.sector.toUpperCase()} · building${s.tilt === 'buy' ? ' ▲ buy-tilted' : s.tilt === 'sell' ? ' ▼ sell-tilted' : s.tilt === 'mixed' ? ' ◆ mixed' : ''}</span>
-          <span>z ${s.z.toFixed(1)}</span>
+          <span class="sr-z-tap" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated">z ${s.z.toFixed(1)}</span>
         </div>
         <div class="sr-hot-meta">${s.buys} buy${s.buys === 1 ? '' : 's'} · ${s.sells} sell${s.sells === 1 ? '' : 's'} · ${s.vol_spikes} vol spike${s.vol_spikes === 1 ? '' : 's'} · ${s.members} members · ${s.date}</div>
       </div>`).join('');
@@ -2234,11 +2237,11 @@
       <div class="sr-base-head">${baseSecs.length === N ? 'All ' + N + ' sectors' : baseSecs.length + ' sector' + (baseSecs.length === 1 ? '' : 's')} at baseline (z &lt; 1σ) · tap to scan</div>
       <div class="sr-chips">${baseSecs.map(s => {
         const zStr = s.z === null ? '–' : s.z.toFixed(1);
-        return `<button class="sr-chip" data-sr-sector="${s.sector}">${SR_ABBR[s.sector] || s.sector} <span class="sr-chip-z">${zStr}</span></button>`;
+        return `<button class="sr-chip" data-sr-sector="${s.sector}">${SR_ABBR[s.sector] || s.sector} <span class="sr-chip-z" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated" aria-label="${s.sector} — how this z is calculated">${zStr}</span></button>`;
       }).join('')}</div>` : '';
 
     body.innerHTML = svg + `<div class="sr-cards">${cards}${warmCards}${baseChips}</div>`
-      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only · dim = building (1σ+) · grey = at baseline · tap any sector → Signals</div>`;
+      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only · dim = building (1σ+) · grey = at baseline · tap a sector → Signals · tap its z → how it's scored</div>`;
 
     // Any sector element (spoke, hot/building card, baseline chip) → Signals
     // filtered to that sector, ranked activity-first (signal-bearing on top).
@@ -2252,7 +2255,23 @@
       updateScannerCtxStrip?.();
       navigateToTab('scanner');
       buildScannerCards();
+      // Re-assert the top AFTER the cards exist. navigateToTab scrolls while the
+      // scanner still holds the previous card set; rebuilding changes the document
+      // height, and scroll anchoring can pull the viewport back down.
+      try { window.scrollTo({ top: 0, behavior: 'instant' }); }
+      catch (_) { document.scrollingElement.scrollTop = 0; }
     };
+    body.querySelectorAll('[data-sr-info]').forEach(el => {
+      // The z readout sits INSIDE the chip/card, which navigates to Signals on
+      // click. Without stopPropagation the modal would open AND the tab would
+      // switch underneath it.
+      el.addEventListener('click', e => { e.stopPropagation(); openSectorInfo(el.dataset.srInfo); });
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault(); e.stopPropagation(); openSectorInfo(el.dataset.srInfo);
+        }
+      });
+    });
     body.querySelectorAll('[data-sr-sector]').forEach(el => {
       el.addEventListener('click', () => srGoToSector(el.dataset.srSector));
       if (el.tagName.toLowerCase() === 'g') {   // keyboard access for SVG spokes
@@ -2704,6 +2723,138 @@
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
     }).join('');
+  }
+
+
+  // ── Sector Info Modal ────────────────────────────────────────────────
+  // Breakdown of how one radar spoke was computed. Everything here already
+  // ships in sector_radar.json / sector_activity.json — no new pipeline work.
+  const sectorOverlay = document.getElementById('sectorOverlay');
+  const sectorBody    = document.getElementById('sectorModalBody');
+  let sectorActivity  = null;    // { updated_at, rows: [{date,sector,...}] }
+  let sectorActivityTried = false;
+
+  function closeSectorInfo() { if (sectorOverlay) sectorOverlay.classList.remove('open'); }
+  if (sectorOverlay) {
+    document.getElementById('sectorClose').addEventListener('click', closeSectorInfo);
+    sectorOverlay.addEventListener('click', e => { if (e.target === sectorOverlay) closeSectorInfo(); });
+  }
+
+  // 572K file — fetched ONCE, on first info tap, never during boot.
+  async function ensureSectorActivity() {
+    if (sectorActivity || sectorActivityTried) return sectorActivity;
+    sectorActivityTried = true;
+    const r = await fetchJson('/api/sector-activity', null);
+    sectorActivity = (r && Array.isArray(r.rows)) ? r : null;
+    return sectorActivity;
+  }
+
+  async function openSectorInfo(sector) {
+    if (!sectorOverlay || !sectorBody) return;
+    sectorBody.innerHTML = '<div class="sr-modal-loading">Loading…</div>';
+    sectorOverlay.classList.add('open');
+    await ensureSectorActivity();
+    renderSectorInfo(sector);
+  }
+
+  // 30-day sparkline of the sector's own activity rate, with its mean drawn in.
+  function sectorSparkline(rows, meanRate) {
+    if (!rows || rows.length < 2) {
+      return '<div class="sr-modal-nohist">No history available for this sector yet.</div>';
+    }
+    const W = 460, H = 96, PAD = 6;
+    const vals = rows.map(r => r.rate);
+    const peak = Math.max(...vals, meanRate || 0, 0.0001);
+    const x = i => PAD + i * (W - PAD * 2) / Math.max(1, rows.length - 1);
+    const y = v => H - PAD - (v / peak) * (H - PAD * 2);
+    const bars = rows.map((r, i) => {
+      const bw = Math.max(2, (W - PAD * 2) / rows.length - 2);
+      const bh = Math.max(0, H - PAD - y(r.rate));
+      const last = i === rows.length - 1;
+      return `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${y(r.rate).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${last ? 'var(--accent)' : '#3a3a36'}"><title>${r.date} — rate ${r.rate.toFixed(3)} (${r.buys}B ${r.sells}S ${r.vol_spikes}V)</title></rect>`;
+    }).join('');
+    const my = y(meanRate || 0);
+    const meanLine = meanRate
+      ? `<line x1="${PAD}" y1="${my.toFixed(1)}" x2="${W - PAD}" y2="${my.toFixed(1)}" stroke="var(--volume)" stroke-width="1.2" stroke-dasharray="4 3"/>`
+      : '';
+    return `<svg class="sr-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Activity over the last ${rows.length} days">${bars}${meanLine}</svg>
+      <div class="sr-spark-key"><span><i style="background:var(--accent)"></i>today</span>
+        <span><i style="background:var(--volume)"></i>${(meanRate || 0).toFixed(3)} average</span>
+        <span class="sr-spark-span">${rows[0].date} → ${rows[rows.length - 1].date}</span></div>`;
+  }
+
+  function renderSectorInfo(sector) {
+    const d = sectorRadarData;
+    const s = d && d.sectors ? d.sectors.find(x => x.sector === sector) : null;
+    if (!s) { sectorBody.innerHTML = '<div class="sr-modal-nohist">No radar data for this sector.</div>'; return; }
+
+    const alertZ  = d.alert_z || 1.5;
+    const baseDays = d.baseline_days || 20;
+    const minMem  = d.min_members || 8;
+    const events  = (s.buys || 0) + (s.sells || 0) + (s.vol_spikes || 0);
+    const isHot   = s.hot && (s.z >= 2 || s.elevated_days >= 2);
+    const isWarm  = !isHot && s.z !== null && s.z >= 1;
+    const state   = isHot ? 'HOT' : isWarm ? 'BUILDING' : 'AT BASELINE';
+    const stateCls= isHot ? 'sr-st-hot' : isWarm ? 'sr-st-warm' : 'sr-st-base';
+    const tiltTxt = s.tilt === 'buy' ? '▲ buy-tilted' : s.tilt === 'sell' ? '▼ sell-tilted'
+                  : s.tilt === 'mixed' ? '◆ mixed' : '◆ no tilt';
+    const tiltCol = s.tilt === 'buy' ? 'var(--buy)' : s.tilt === 'sell' ? 'var(--sell)' : 'var(--accent)';
+    const zStr    = s.z === null ? '–' : (s.z > 0 ? '+' : '') + s.z.toFixed(2);
+
+    const rows = sectorActivity
+      ? sectorActivity.rows.filter(r => r.sector === sector).slice(-30)
+      : null;
+
+    const shownCount = d.sectors.filter(x => x.members >= minMem).length;
+
+    sectorBody.innerHTML = `
+      <div class="sr-modal-head">
+        <h2>${sector}</h2>
+        <div class="sr-modal-badges">
+          <span class="sr-st ${stateCls}">${state}</span>
+          <span class="sr-tilt" style="color:${tiltCol}">${tiltTxt}</span>
+        </div>
+      </div>
+
+      <div class="sr-modal-sec">
+        <h4>Today <span class="sr-modal-date">${s.date || ''}</span></h4>
+        <div class="sr-stat-grid">
+          <div><b>${s.members}</b><span>instruments</span></div>
+          <div><b style="color:var(--buy)">${s.buys}</b><span>new buy${s.buys === 1 ? '' : 's'}</span></div>
+          <div><b style="color:var(--sell)">${s.sells}</b><span>new sell${s.sells === 1 ? '' : 's'}</span></div>
+          <div><b style="color:var(--volume)">${s.vol_spikes}</b><span>vol spike${s.vol_spikes === 1 ? '' : 's'}</span></div>
+        </div>
+        <p class="sr-modal-eq"><b>${events}</b> event${events === 1 ? '' : 's'} across <b>${s.members}</b> instruments
+          = activity rate <b>${s.rate.toFixed(3)}</b></p>
+      </div>
+
+      <div class="sr-modal-sec">
+        <h4>How that becomes the spoke</h4>
+        <table class="sr-calc">
+          <tr><td>Today's rate</td><td>${s.rate.toFixed(3)}</td></tr>
+          <tr><td>Normal for this sector <span class="sr-dim">(avg of last ${baseDays} days)</span></td>
+              <td>${s.mean_rate === null ? '–' : s.mean_rate.toFixed(3)}</td></tr>
+          <tr class="sr-calc-hl"><td>Difference, in standard deviations</td><td>z = ${zStr}</td></tr>
+          <tr><td>Flags hot at</td><td>z ≥ ${alertZ}</td></tr>
+          <tr><td>Consecutive elevated days</td><td>${s.elevated_days || 0}</td></tr>
+          <tr><td>Baseline built from</td><td>${s.history_days} days</td></tr>
+        </table>
+      </div>
+
+      <div class="sr-modal-sec">
+        <h4>Last ${rows ? rows.length : 0} days</h4>
+        ${sectorSparkline(rows, s.mean_rate)}
+      </div>
+
+      <div class="sr-modal-sec sr-modal-warn">
+        <h4>What this is not telling you</h4>
+        <ul>
+          <li>It measures <b>signal fires and volume spikes — not price</b>. A sector can be up 3% and still read flat here.</li>
+          <li>Each sector is scored against <b>its own</b> baseline. A busy sector's normal is higher than a quiet one's — that's why this is a z-score and not a raw count.</li>
+          <li><b>Daily timeframe only.</b> The 4H toggle at the top of the app does not change this card.</li>
+          <li>Sectors with fewer than ${minMem} members are excluded from the radar (${shownCount} of ${d.sectors.length} shown today).</li>
+        </ul>
+      </div>`;
   }
 
   // ── Alignment helper ─────────────────────────────────────────────────

@@ -906,6 +906,7 @@ def build_ui():
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
+    js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     js = js.replace("'/api/chart-index'",  f"'{base}/chart/index.json'")

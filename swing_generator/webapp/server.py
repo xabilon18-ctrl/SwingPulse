@@ -1125,6 +1125,18 @@ def api_sector_radar():
         return jsonify(_json.load(f))
 
 
+@app.route('/api/sector-activity')
+def api_sector_activity():
+    """Per-day sector activity series — powers the radar info modal sparkline.
+    572K, so the frontend lazy-loads it on first info-button tap, never at boot."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, 'sector_activity.json')
+    if not os.path.exists(path):
+        return jsonify(None)
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
 @app.route('/api/instrument-flavours')
 def api_instrument_flavours():
     """Per-instrument sector-mood map (provisional conviction layer)."""

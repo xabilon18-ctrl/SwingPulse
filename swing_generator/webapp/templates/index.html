@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=218">
+  <link rel="stylesheet" href="/static/css/style.css?v=221">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -656,6 +656,18 @@
     </div>
   </div>
 
+  <!-- ===== SECTOR INFO MODAL (radar breakdown) ===== -->
+  <div class="modal-overlay" id="sectorOverlay">
+    <div class="modal" id="sectorModal">
+      <button class="modal-close" id="sectorClose">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-body" id="sectorModalBody">
+        <!-- Populated by renderSectorInfo() -->
+      </div>
+    </div>
+  </div>
+
     <!-- ========== CHARTS TAB ========== -->
     <!-- Full-screen chart reel. One instrument per screen, snap-scrolled.
          The timeframe comes from the global 4H/Daily switch in the topbar —
@@ -820,6 +832,6 @@
 
 
 
-  <script src="/static/js/app.js?v=243"></script>
+  <script src="/static/js/app.js?v=245"></script>
 </body>
 </html>
