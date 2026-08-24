@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=222">
+  <link rel="stylesheet" href="/static/css/style.css?v=223">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -175,6 +175,12 @@
         <div id="sectorRadarBody"></div>
       </div>
 
+      <!-- Timeframe Alignment Summary -->
+      <div class="card">
+        <div class="card-header"><h3>TF Alignment</h3></div>
+        <div class="alignment-summary" id="alignmentSummary"></div>
+      </div>
+
       <!-- Trend alert banner — B1/S1 reversals + B4/S4 anchor-MA bounces -->
       <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
         <div class="trend-alert-header">
@@ -228,12 +234,6 @@
         </div>
         <div class="tr-overall" id="trOverall"></div>
         <div class="tr-rows" id="trRows"></div>
-      </div>
-
-      <!-- Timeframe Alignment Summary -->
-      <div class="card">
-        <div class="card-header"><h3>TF Alignment</h3></div>
-        <div class="alignment-summary" id="alignmentSummary"></div>
       </div>
 
 
@@ -832,6 +832,6 @@
 
 
 
-  <script src="/static/js/app.js?v=246"></script>
+  <script src="/static/js/app.js?v=247"></script>
 </body>
 </html>
