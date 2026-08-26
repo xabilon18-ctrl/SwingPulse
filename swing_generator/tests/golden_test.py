@@ -205,9 +205,9 @@ def unit_checks() -> list:
     }
     if _signal_confidence('B1', 'D', 'Crypto') != 'high':
         failures.append('confidence lookup ignored the class-specific cell')
-    if _signal_confidence('B1', 'D', 'Forex') != 'low':
+    if _signal_confidence('B1', 'D', 'Currency') != 'low':
         failures.append('confidence lookup did not fall back to TF|CODE')
-    if _signal_confidence('B2', 'D', 'Forex') != 'standard':
+    if _signal_confidence('B2', 'D', 'Currency') != 'standard':
         failures.append('confidence lookup did not default to standard')
     _signals_mod._conf_loaded = False   # restore lazy loading for golden run
     _signals_mod._conf_tiers = None

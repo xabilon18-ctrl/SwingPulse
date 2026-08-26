@@ -68,8 +68,9 @@ def radar_sector_of(inst: dict) -> str:
         return 'Index'
     if cls == 'Commodity':
         return 'Commodities'
-    if cls == 'Forex':
-        return 'Currency'
+    # No Currency branch needed: unlike Commodity (class 'Commodity' vs sector
+    # 'Commodities'), the currency rows name the class, group and sector all
+    # 'Currency', so the sector fall-through below already returns it.
     return inst['sector']
 
 
@@ -84,8 +85,8 @@ def asset_class_of(group: str) -> str:
     g = (group or '').strip()
     if g in ('Crypto', 'Blockchain'):
         return 'Crypto'
-    if g == 'Forex':
-        return 'Forex'
+    if g == 'Currency':
+        return 'Currency'
     if g == 'Commodity':
         return 'Commodity'
     if g.endswith('Index'):

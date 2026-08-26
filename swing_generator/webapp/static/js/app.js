@@ -1204,12 +1204,12 @@
   const CATEGORY_ALIASES = {
     'crypto':       ['crypto'],
     'commodities':  ['commodity'],
-    // Registry entry for the Forex Class chip. Strictly redundant — group is
-    // literally 'Forex', so the generic group/sector tail below already
-    // returns the same 57 rows (measured on the live payload, as does
-    // "currency" via sector) — but every other data-cat has an entry here and
-    // a chip whose term is absent from this map reads as unsupported.
-    'forex':        ['forex'],
+    // Registry entry for the Currency Class chip. Strictly redundant — the
+    // group, sector AND asset class are all literally 'Currency', so the
+    // generic group/sector tail below already returns the same 57 rows — but
+    // every other data-cat has an entry here and a chip whose term is absent
+    // from this map reads as unsupported.
+    'currency':     ['currency'],
     'us100':        ['us100'],
     'us30':         ['us30'],
     'us500':        ['us500'],
@@ -1822,7 +1822,7 @@
     'SMI20':'Europe','SPAIN35':'Europe','UK100':'Europe',
     'Asia Index':'Asia-Pacific','ASX200':'Asia-Pacific','Japan':'Asia-Pacific',
     'JSE':'Africa',
-    'Commodity':'Commodities','Crypto':'Crypto','Forex':'Currencies',
+    'Commodity':'Commodities','Crypto':'Crypto','Currency':'Currencies',
     'AI Theme':'Themes','Blockchain':'Themes','Space':'Themes',
     'Quantum':'Themes','Robotics':'Themes','AI Energy':'Themes',
     'AI Semi':'Themes','AI Infra':'Themes','XM Index':'Themes',
@@ -2110,7 +2110,7 @@
     'Industrials': 'Indust', 'Crypto': 'Crypto', 'Healthcare': 'Health',
     'Consumer Defensive': 'ConsDef', 'Utilities': 'Util', 'Basic Materials': 'Matls',
     'Communication Services': 'Comms', 'Energy': 'Energy', 'Real Estate': 'RealEst',
-    'Index': 'Indices', 'Commodities': 'Commod', 'Currency': 'FX',
+    'Index': 'Indices', 'Commodities': 'Commod',
   };
 
   function renderSectorRadar() {
@@ -3030,7 +3030,7 @@
     if (d.asset_class) return d.asset_class;
     const g = (d.group || '').trim();
     if (g === 'Crypto' || g === 'Blockchain') return 'Crypto';
-    if (g === 'Forex') return 'Forex';
+    if (g === 'Currency') return 'Currency';
     if (g === 'Commodity') return 'Commodity';
     if (g.endsWith('Index')) return 'Index';
     return 'Equity';

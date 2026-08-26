@@ -4,7 +4,7 @@
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
 ## What is SwingPulse?
-A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, forex, US/global equities — forex was removed 2026-07-11 for worst-class backtest expectancy and RESTORED 2026-08-25 at the user's request, 57 pairs, #742-798) using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
+A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, currencies, US/global equities — the currency pairs were removed 2026-07-11 for worst-class backtest expectancy and RESTORED 2026-08-25 at the user's request, 57 pairs, #742-798). **Vocabulary: the asset class is called `Currency` everywhere** — group, sector, asset_class, Class chip and radar spoke all use that one word (renamed 2026-08-26; it had been a mix of Forex/FX/Currency/Currencies). The only `FX` left is TradingView's `FX:`/`FX_IDC:` exchange prefixes, which are their identifiers, not ours. using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
 
 **Single active profile: MA500** (25, 50, 75 … 500 — step 25, 20 MAs)
 
@@ -12,7 +12,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 |------|-------|
 | Live URL | https://swingpulse200.pages.dev |
 | R2 data prefix | `ma500/` |
-| Instruments | **793** (parsed from `../Instruments.txt`) — 736 + 57 forex restored 2026-08-25 |
+| Instruments | **793** (parsed from `../Instruments.txt`) — 736 + 57 currency pairs restored 2026-08-25 |
 | MA ribbon | MA25–MA500 (step 25, 20 MAs) |
 | History years | 13 (`HISTORY_YEARS` in config.py — daily MA500 warmup + the backtest window since 2016; the 45 that used to be here only served the removed monthly timeframe) |
 

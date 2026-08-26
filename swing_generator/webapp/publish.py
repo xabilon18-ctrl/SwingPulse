@@ -336,7 +336,7 @@ def build_names():
         'NQ=F':   'Nasdaq Futures',
         'YM=F':   'Dow Futures',
         'RTY=F':  'Russell 2000 Futures',
-        # Forex
+        # Currency pairs
         'EURUSD=X': 'EUR/USD',
         'GBPUSD=X': 'GBP/USD',
         'USDJPY=X': 'USD/JPY',

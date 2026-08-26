@@ -64,7 +64,10 @@ def get_ticker_map() -> dict[str, str]:
 
 # Direct overrides: display_name → EXCHANGE:SYMBOL
 _TV_BY_NAME: dict[str, str] = {
-    # ── Forex — exotic pairs (FX_IDC covers non-G8 currencies that FX: doesn't have) ──
+    # ── Currency — exotic pairs. NB 'FX:'/'FX_IDC:' are TRADINGVIEW's own
+    #    exchange prefixes, not our category name — FX_IDC carries the non-G8
+    #    crosses that FX: does not. Do not rename these to match the app's
+    #    Currency vocabulary; they are someone else's identifiers.
     # USD base
     'USDPLN':   'FX_IDC:USDPLN',
     'USDZAR':   'FX_IDC:USDZAR',
