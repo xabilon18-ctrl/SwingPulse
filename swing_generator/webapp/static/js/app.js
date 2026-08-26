@@ -1204,6 +1204,12 @@
   const CATEGORY_ALIASES = {
     'crypto':       ['crypto'],
     'commodities':  ['commodity'],
+    // Registry entry for the Forex Class chip. Strictly redundant — group is
+    // literally 'Forex', so the generic group/sector tail below already
+    // returns the same 57 rows (measured on the live payload, as does
+    // "currency" via sector) — but every other data-cat has an entry here and
+    // a chip whose term is absent from this map reads as unsupported.
+    'forex':        ['forex'],
     'us100':        ['us100'],
     'us30':         ['us30'],
     'us500':        ['us500'],
