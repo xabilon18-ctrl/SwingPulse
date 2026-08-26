@@ -99,8 +99,9 @@ _TV_BY_NAME: dict[str, str] = {
     'ZARJPY':   'FX_IDC:ZARJPY',
     'TRYJPY':   'FX_IDC:TRYJPY',
     'MXNJPY':   'FX_IDC:MXNJPY',
-    # Reversed display name fix (Yahoo: AUDUSD=X, display: USDAUD)
-    'USDAUD':   'FX:AUDUSD',
+    # (The old 'USDAUD' → FX:AUDUSD reversal override died with the 2026-08-25
+    # forex restore: the pair now ships as AUDUSD, matching XM and Yahoo, so
+    # the generic *=X → FX:name rule already lands on FX:AUDUSD.)
 
     # ── Commodities (TVC) ──
     'GOLD':     'TVC:GOLD',

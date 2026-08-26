@@ -16,6 +16,17 @@ on:
 
   # Manual trigger
   workflow_dispatch:
+    inputs:
+      backfill_sectors:
+        description: >-
+          Rebuild sector-activity history from the parquet cache, then
+          republish. One-off, for after instruments are ADDED: the radar scores
+          each sector against its own 20-day baseline, so a brand-new sector
+          (Currency, when forex came back 2026-08-25) has no history to score
+          against and its spoke reads "--" for ~10 sessions. Leave OFF for
+          normal runs — it costs a second full R2 upload pass.
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -75,6 +86,25 @@ jobs:
         run: |
           cd swing_generator
           python3 main.py --profile ma500
+
+      # ── 6-bis. One-off: seed radar history for newly added instruments ───
+      # Runs AFTER main.py on purpose — backfill() reads the parquet cache, and
+      # a brand-new instrument has no parquet until main.py has fetched it. The
+      # republish is what carries the rebuilt sector_activity.json to R2;
+      # publish.py re-reads THIS run's own fresh CSVs, so it is not the stale
+      # local-publish trap (that one is a dev machine publishing day-old CSVs).
+      # health_check below still passes: the republish rewrites every file with
+      # a newer timestamp, which is exactly what --max-age-hours 3 asserts.
+      - name: Backfill sector activity + republish
+        if: ${{ inputs.backfill_sectors }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd swing_generator
+          python3 sector_activity.py --backfill
+          python3 sector_activity.py --report
+          python3 webapp/publish.py --profile ma500
 
       # ── 6a. Did the publish actually MOVE the data? ───────────────────────
       # A green run is not proof of a good publish. From 07-28 to 08-13 every

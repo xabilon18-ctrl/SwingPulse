@@ -1816,7 +1816,7 @@
     'SMI20':'Europe','SPAIN35':'Europe','UK100':'Europe',
     'Asia Index':'Asia-Pacific','ASX200':'Asia-Pacific','Japan':'Asia-Pacific',
     'JSE':'Africa',
-    'Commodity':'Commodities','Crypto':'Crypto',
+    'Commodity':'Commodities','Crypto':'Crypto','Forex':'Currencies',
     'AI Theme':'Themes','Blockchain':'Themes','Space':'Themes',
     'Quantum':'Themes','Robotics':'Themes','AI Energy':'Themes',
     'AI Semi':'Themes','AI Infra':'Themes','XM Index':'Themes',
@@ -2104,7 +2104,7 @@
     'Industrials': 'Indust', 'Crypto': 'Crypto', 'Healthcare': 'Health',
     'Consumer Defensive': 'ConsDef', 'Utilities': 'Util', 'Basic Materials': 'Matls',
     'Communication Services': 'Comms', 'Energy': 'Energy', 'Real Estate': 'RealEst',
-    'Index': 'Indices', 'Commodities': 'Commod',
+    'Index': 'Indices', 'Commodities': 'Commod', 'Currency': 'FX',
   };
 
   function renderSectorRadar() {

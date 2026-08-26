@@ -1,6 +1,6 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (736)
-  Generated: 11 Jul 2026
+  GANN SCANNER — FULL INSTRUMENT LIST (793)
+  Generated: 11 Jul 2026   |   Forex restored: 25 Aug 2026 (57 pairs, #742-798)
 ═══════════════════════════════════════════════════════════════════════════════
 
 FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector                    | Industry
@@ -967,6 +967,95 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 740  | SPCX          | SPACEX        | Space         | Industrials               | Launch Vehicles
 
 ═══════════════════════════════════════════════════════════════════════════════
+  FOREX — MAJORS (7)
+═══════════════════════════════════════════════════════════════════════════════
+742  | EURUSD=X      | EURUSD        | Forex         | Currency                  | EUR/USD Major
+743  | GBPUSD=X      | GBPUSD        | Forex         | Currency                  | GBP/USD Major
+744  | USDJPY=X      | USDJPY        | Forex         | Currency                  | USD/JPY Major
+745  | USDCHF=X      | USDCHF        | Forex         | Currency                  | USD/CHF Major
+746  | USDCAD=X      | USDCAD        | Forex         | Currency                  | USD/CAD Major
+747  | AUDUSD=X      | AUDUSD        | Forex         | Currency                  | AUD/USD Major
+748  | NZDUSD=X      | NZDUSD        | Forex         | Currency                  | NZD/USD Major
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — EUR CROSSES (6)
+═══════════════════════════════════════════════════════════════════════════════
+749  | EURJPY=X      | EURJPY        | Forex         | Currency                  | EUR/JPY EUR Cross
+750  | EURGBP=X      | EURGBP        | Forex         | Currency                  | EUR/GBP EUR Cross
+751  | EURCHF=X      | EURCHF        | Forex         | Currency                  | EUR/CHF EUR Cross
+752  | EURCAD=X      | EURCAD        | Forex         | Currency                  | EUR/CAD EUR Cross
+753  | EURAUD=X      | EURAUD        | Forex         | Currency                  | EUR/AUD EUR Cross
+754  | EURNZD=X      | EURNZD        | Forex         | Currency                  | EUR/NZD EUR Cross
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — GBP CROSSES (5)
+═══════════════════════════════════════════════════════════════════════════════
+755  | GBPJPY=X      | GBPJPY        | Forex         | Currency                  | GBP/JPY GBP Cross
+756  | GBPCHF=X      | GBPCHF        | Forex         | Currency                  | GBP/CHF GBP Cross
+757  | GBPCAD=X      | GBPCAD        | Forex         | Currency                  | GBP/CAD GBP Cross
+758  | GBPAUD=X      | GBPAUD        | Forex         | Currency                  | GBP/AUD GBP Cross
+759  | GBPNZD=X      | GBPNZD        | Forex         | Currency                  | GBP/NZD GBP Cross
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — COMMODITY & CHF/JPY CROSSES (10)
+═══════════════════════════════════════════════════════════════════════════════
+760  | AUDJPY=X      | AUDJPY        | Forex         | Currency                  | AUD/JPY Cross
+761  | AUDCHF=X      | AUDCHF        | Forex         | Currency                  | AUD/CHF Cross
+762  | AUDCAD=X      | AUDCAD        | Forex         | Currency                  | AUD/CAD Cross
+763  | AUDNZD=X      | AUDNZD        | Forex         | Currency                  | AUD/NZD Cross
+764  | NZDJPY=X      | NZDJPY        | Forex         | Currency                  | NZD/JPY Cross
+765  | NZDCHF=X      | NZDCHF        | Forex         | Currency                  | NZD/CHF Cross
+766  | NZDCAD=X      | NZDCAD        | Forex         | Currency                  | NZD/CAD Cross
+767  | CADJPY=X      | CADJPY        | Forex         | Currency                  | CAD/JPY Cross
+768  | CADCHF=X      | CADCHF        | Forex         | Currency                  | CAD/CHF Cross
+769  | CHFJPY=X      | CHFJPY        | Forex         | Currency                  | CHF/JPY Cross
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — SCANDINAVIAN (5)
+═══════════════════════════════════════════════════════════════════════════════
+770  | USDSEK=X      | USDSEK        | Forex         | Currency                  | USD/SEK Scandi
+771  | USDNOK=X      | USDNOK        | Forex         | Currency                  | USD/NOK Scandi
+772  | EURSEK=X      | EURSEK        | Forex         | Currency                  | EUR/SEK Scandi
+773  | EURNOK=X      | EURNOK        | Forex         | Currency                  | EUR/NOK Scandi
+774  | GBPSEK=X      | GBPSEK        | Forex         | Currency                  | GBP/SEK Scandi
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — EMEA EXOTIC (12)
+═══════════════════════════════════════════════════════════════════════════════
+775  | USDZAR=X      | USDZAR        | Forex         | Currency                  | USD/ZAR Exotic
+776  | EURZAR=X      | EURZAR        | Forex         | Currency                  | EUR/ZAR Exotic
+777  | GBPZAR=X      | GBPZAR        | Forex         | Currency                  | GBP/ZAR Exotic
+778  | USDTRY=X      | USDTRY        | Forex         | Currency                  | USD/TRY Exotic
+779  | EURTRY=X      | EURTRY        | Forex         | Currency                  | EUR/TRY Exotic
+780  | TRYJPY=X      | TRYJPY        | Forex         | Currency                  | TRY/JPY Exotic
+781  | ZARJPY=X      | ZARJPY        | Forex         | Currency                  | ZAR/JPY Exotic
+782  | USDPLN=X      | USDPLN        | Forex         | Currency                  | USD/PLN Exotic
+783  | EURPLN=X      | EURPLN        | Forex         | Currency                  | EUR/PLN Exotic
+784  | USDHUF=X      | USDHUF        | Forex         | Currency                  | USD/HUF Exotic
+785  | EURHUF=X      | EURHUF        | Forex         | Currency                  | EUR/HUF Exotic
+786  | USDCZK=X      | USDCZK        | Forex         | Currency                  | USD/CZK Exotic
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — AMERICAS EXOTIC (4)
+═══════════════════════════════════════════════════════════════════════════════
+787  | USDMXN=X      | USDMXN        | Forex         | Currency                  | USD/MXN Exotic
+788  | EURMXN=X      | EURMXN        | Forex         | Currency                  | EUR/MXN Exotic
+789  | GBPMXN=X      | GBPMXN        | Forex         | Currency                  | GBP/MXN Exotic
+790  | MXNJPY=X      | MXNJPY        | Forex         | Currency                  | MXN/JPY Exotic
+
+═══════════════════════════════════════════════════════════════════════════════
+  FOREX — ASIA EXOTIC (8)
+═══════════════════════════════════════════════════════════════════════════════
+791  | USDSGD=X      | USDSGD        | Forex         | Currency                  | USD/SGD Exotic
+792  | EURSGD=X      | EURSGD        | Forex         | Currency                  | EUR/SGD Exotic
+793  | GBPSGD=X      | GBPSGD        | Forex         | Currency                  | GBP/SGD Exotic
+794  | AUDSGD=X      | AUDSGD        | Forex         | Currency                  | AUD/SGD Exotic
+795  | NZDSGD=X      | NZDSGD        | Forex         | Currency                  | NZD/SGD Exotic
+796  | SGDJPY=X      | SGDJPY        | Forex         | Currency                  | SGD/JPY Exotic
+797  | CNY=X         | USDCNH        | Forex         | Currency                  | USD/CNH Exotic (CNY=X proxy — Yahoo killed USDCNH=X daily history 2026)
+798  | USDHKD=X      | USDHKD        | Forex         | Currency                  | USD/HKD Exotic
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)
@@ -993,11 +1082,12 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   Japan TSE ...............   9  (new)
   JSE South African .......  13  (new)
   Scandinavian ............  12  (new)
-  Forex USD ...............   8
-  Forex EUR ...............  10
-  Forex GBP ...............   9
-  Forex Cross .............  15
-  Forex Exotic ............  15  (new)
+  Forex Majors ............   7  (restored 2026-08-25)
+  Forex EUR crosses .......   6  (restored 2026-08-25)
+  Forex GBP crosses .......   5  (restored 2026-08-25)
+  Forex other crosses .....  10  (restored 2026-08-25)
+  Forex Scandinavian ......   5  (restored 2026-08-25)
+  Forex Exotic ............  24  (restored 2026-08-25 — EMEA 12 / Americas 4 / Asia 8)
   AI Theme ................   5  (C3AI, SOUN, BBAI, CEREBRAS, CRWV)
   Blockchain ..............   9  (COIN, MARA, RIOT, MSTR, CLSK, HUT, WULF, IREN, HOOD)
   Space ...................   8  (RKLB, ASTS, LUNR, IRDM, PLANET, GSAT, VSAT, RDW)
@@ -1008,5 +1098,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 746
+  TOTAL .................. 793  (load_instruments() count, 2026-08-25)
 ═══════════════════════════════════════════════════════════════════════════════

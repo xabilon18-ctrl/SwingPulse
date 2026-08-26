@@ -25,7 +25,7 @@ CANONICAL_SECTORS = {
     'Technology', 'Financial Services', 'Consumer Cyclical', 'Industrials',
     'Healthcare', 'Consumer Defensive', 'Utilities', 'Basic Materials',
     'Communication Services', 'Energy', 'Real Estate',
-    'Crypto', 'Index', 'Commodities',
+    'Crypto', 'Index', 'Commodities', 'Currency',
 }
 
 
@@ -68,6 +68,8 @@ def radar_sector_of(inst: dict) -> str:
         return 'Index'
     if cls == 'Commodity':
         return 'Commodities'
+    if cls == 'Forex':
+        return 'Currency'
     return inst['sector']
 
 
