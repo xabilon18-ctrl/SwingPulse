@@ -218,6 +218,10 @@ _TV_BY_NAME: dict[str, str] = {
     'DUK':   'NYSE:DUK',
     'CEG':   'NASDAQ:CEG',
     'PCG':   'NYSE:PCG',
+    # Ferguson moved its primary listing to the NYSE; the LSE line (FERG.L)
+    # went dead 2026-07-17 and Yahoo serves it a single bar. Without this
+    # override the generic rule-4 fall-through would send it to NASDAQ.
+    'FERG':  'NYSE:FERG',
 
     # ── Spanish stocks (BME) ──
     'SAN':   'BME:SAN',
@@ -442,7 +446,7 @@ _TV_BY_NAME: dict[str, str] = {
     'DLTR':  'NASDAQ:DLTR',
     'DOCU':  'NASDAQ:DOCU',
     'DXCM':  'NASDAQ:DXCM',
-    'EA':    'NASDAQ:EA',
+    'TTWO':  'NASDAQ:TTWO',
     'EBAY':  'NASDAQ:EBAY',
     'GOOG':  'NASDAQ:GOOG',
     'GOOGL': 'NASDAQ:GOOGL',

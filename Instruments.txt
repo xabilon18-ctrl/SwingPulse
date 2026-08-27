@@ -164,7 +164,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 117  | DLTR          | DLTR          | US100         | Consumer Defensive        | Discount Stores
 118  | DOCU          | DOCU          | US100         | Technology                | Software - Application
 119  | DXCM          | DXCM          | US100         | Healthcare                | Medical Devices
-120  | EA            | EA            | US100         | Communication Services    | Gaming
+120  | TTWO          | TTWO          | US100         | Communication Services    | Gaming
 121  | EBAY          | EBAY          | US100         | Consumer Cyclical         | Internet Retail
 122  | GOOG          | GOOG          | US100         | Communication Services    | Internet Content
 123  | IDXX          | IDXX          | US100         | Healthcare                | Diagnostics
@@ -499,7 +499,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 385  | EXPN.L        | EXPN          | UK100         | Industrials               | Business Services
 386  | BA.L          | BAE           | UK100         | Industrials               | Aerospace & Defense
 387  | RR.L          | RR_UK         | UK100         | Industrials               | Aerospace & Defense
-388  | FERG.L        | FERG          | UK100         | Industrials               | Industrial Distribution
+388  | FERG          | FERG          | US500         | Industrials               | Industrial Distribution
 389  | MKS.L         | MKS           | UK100         | Consumer Cyclical         | Apparel Retail
 390  | TSCO.L        | TSCO          | UK100         | Consumer Defensive        | Discount Stores
 391  | FLTR.L        | FLTR          | UK100         | Consumer Cyclical         | Gambling
