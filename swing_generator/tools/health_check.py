@@ -26,12 +26,20 @@ UTC midnight boundary (the 01:35 cron lands either side of it depending on how
 long GitHub queues it) and about weekends. An age threshold has neither problem.
 
 TWO THRESHOLDS, BECAUSE THERE ARE TWO QUESTIONS
-  --max-age-hours 3 (what publish.yml passes, straight after a publish) asks
-      "did THIS run write every file?" 3h is chosen against the run spacing,
-      not picked round: the closest two scheduled runs are 09:35 and 14:35 UTC,
-      five hours apart, so a file skipped by this run but written by the
-      previous one is at least 5h old and fails. A healthy file is seconds old,
-      minutes if written early in a slow run. Nothing lands in between.
+  --max-age-hours 2 (what publish.yml passes, straight after a publish) asks
+      "did THIS run write every file?" It is chosen against the run spacing,
+      not picked round: the threshold has to be SMALLER than the gap between
+      two consecutive runs, or a file the previous run wrote still looks fresh
+      enough to pass. It was 3h while the tightest gap was 5h (09:35 → 14:35);
+      the evening run added 2026-08-27 lands 14:35 → 17:05, a 2.5h gap, so 3h
+      would now wave through a file this run skipped. A healthy file is seconds
+      old, minutes if written early in a slow run. Nothing lands in between.
+
+      CAVEAT, and it is not fixable from here: GitHub queues scheduled runs by
+      1.5–3h, so two runs can LAND far closer together than their crons are
+      spaced. A long-queued 14:35 and a prompt 17:05 could finish 30 min apart,
+      inside any threshold worth setting. This check is therefore sound against
+      the nominal schedule and best-effort against a badly queued one.
   32h (the default, for running this by hand) asks "is the live app stale right
       now?" and deliberately matches the flat 32h the stale banner uses since
       app.js v231 — so a hand run agrees with what a phone is showing rather

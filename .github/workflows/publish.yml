@@ -12,6 +12,7 @@ on:
     - cron: '35 1  * * 1-5'  # lands ~05:00 SAST — pre-market, on the US close
     - cron: '35 9  * * 1-5'  # lands ~13:00 SAST — midday
     - cron: '35 14 * * 1-5'  # lands ~18:00 SAST — afternoon close
+    - cron: '5 17  * * 1-5'  # lands ~20:30 SAST — evening, after the US open settles
     - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
 
   # Manual trigger
@@ -94,7 +95,7 @@ jobs:
       # publish.py re-reads THIS run's own fresh CSVs, so it is not the stale
       # local-publish trap (that one is a dev machine publishing day-old CSVs).
       # health_check below still passes: the republish rewrites every file with
-      # a newer timestamp, which is exactly what --max-age-hours 3 asserts.
+      # a newer timestamp, which is exactly what --max-age-hours 2 asserts.
       - name: Backfill sector activity + republish
         if: ${{ inputs.backfill_sectors }}
         env:
@@ -114,9 +115,11 @@ jobs:
       # error, so nothing failed and nothing said anything.
       #
       # Checks LIVE R2, not the local working copy, so it also proves the
-      # upload landed. --max-age-hours 3 asserts "this run wrote every file":
-      # the closest two crons are 5h apart, so a file left over from the
-      # previous run cannot sneak past. See tools/health_check.py.
+      # upload landed. --max-age-hours 2 asserts "this run wrote every file":
+      # a file left over from the previous run has to be older than the gap
+      # between two crons, or it sneaks past. Was 3h when the tightest gap was
+      # 5h; the 17:05 run added 2026-08-27 sits 2.5h after 14:35, so 3h would
+      # now accept a file the previous run wrote. See tools/health_check.py.
       #
       # MUST stay above the notifier below — `if: failure()` only fires for
       # steps that already ran, so a check placed after it would fail the run
@@ -124,7 +127,7 @@ jobs:
       - name: Verify the publish moved the data
         run: |
           cd swing_generator
-          python3 tools/health_check.py --max-age-hours 3
+          python3 tools/health_check.py --max-age-hours 2
 
       # ── 6b. Does the data LOOK like data? ────────────────────────────────
       # health_check.py above proves every file was written by this run. It
