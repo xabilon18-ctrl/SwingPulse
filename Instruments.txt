@@ -502,7 +502,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 388  | FERG          | FERG          | US500         | Industrials               | Industrial Distribution
 389  | MKS.L         | MKS           | UK100         | Consumer Cyclical         | Apparel Retail
 390  | TSCO.L        | TSCO          | UK100         | Consumer Defensive        | Discount Stores
-391  | FLTR.L        | FLTR          | UK100         | Consumer Cyclical         | Gambling
+391  | FLUT          | FLUT          | US500         | Consumer Cyclical         | Gambling
 392  | WPP.L         | WPP           | UK100         | Communication Services    | Advertising
 393  | LGEN.L        | LGEN          | UK100         | Financial Services        | Insurance
 

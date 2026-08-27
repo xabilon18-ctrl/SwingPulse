@@ -111,6 +111,28 @@ STALE_RETRIES = 2
 STALE_RETRY_WAIT_S = 20
 
 
+# An instrument whose newest daily bar is this far behind the rest of the board
+# has stopped trading, whatever its cache still says. Measured against the
+# board's own newest bar, never against today: the daily series drops the
+# unfinished session, so on any given run every healthy instrument sits one or
+# two days back and a weekend run sits three.
+#
+# 10 days is sized for the longest real market closure, not picked round —
+# Japan's Golden Week and Lunar New Year each shut an exchange for about a week,
+# and either can land against a weekend. Every dropout this has had to catch was
+# far past that: EA was 16 days behind when it was found, FERG.L was 40.
+#
+# WHY THIS IS NOT COVERED BY missing_count (2026-08-27)
+# EA went private on 2026-08-10 and Yahoo wiped its history; FERG.L died on
+# 2026-07-17. Neither was ever reported missing, because origin's Actions cache
+# still held their old parquet and the incremental fetch appended nothing to it
+# — both published every day as "OK 3283 rows", frozen. The coverage counter
+# only sees an instrument vanish; it cannot see one stop moving. The only thing
+# that ever noticed was a runner with a cold cache, which did the full download,
+# got 6 rows and 1 row, and dropped them — 41 days after FERG.L stopped.
+MAX_INSTRUMENT_STALE_DAYS = 10
+
+
 def _fetch(fname):
     """GET a published file, bypassing every cache between here and the bucket."""
     url = f'{R2_BASE}/{fname}?_hc={int(datetime.now(timezone.utc).timestamp())}'
@@ -157,6 +179,10 @@ def main():
     ap.add_argument('--warn-only', action='store_true',
                     help='report problems but always exit 0')
     ap.add_argument('--max-age-hours', type=float, default=MAX_AGE_HOURS)
+    ap.add_argument('--max-stale-days', type=float,
+                    default=MAX_INSTRUMENT_STALE_DAYS,
+                    help='how far an instrument may lag the newest daily '
+                         'bar on the board before it counts as frozen')
     args = ap.parse_args()
 
     failures, warnings = [], []
@@ -239,6 +265,44 @@ def main():
             failures.append(
                 f'signals.json: {len(rows)} rows but summary says {total} '
                 f'instruments — the app would render a partial board')
+
+        # Present is not the same as moving. missing_count above only catches an
+        # instrument that vanished; this catches one that is still published
+        # every day off a cache that stopped receiving bars. See
+        # MAX_INSTRUMENT_STALE_DAYS for why the comparison is against the
+        # board's own newest bar rather than today.
+        if isinstance(rows, list) and rows:
+            dated, undated = [], []
+            for row in rows:
+                who = str(row.get('instrument_name') or '?')
+                try:
+                    bar = datetime.strptime(str(row.get('date') or ''),
+                                            '%Y-%m-%d').date()
+                except ValueError:
+                    undated.append(who)
+                    continue
+                dated.append((bar, who))
+
+            if dated:
+                newest = max(bar for bar, _ in dated)
+                frozen = sorted((((newest - bar).days, who)
+                                 for bar, who in dated
+                                 if (newest - bar).days > args.max_stale_days),
+                                reverse=True)
+                if frozen:
+                    worst = ', '.join(f'{who} {age}d' for age, who in frozen[:8])
+                    failures.append(
+                        f'signals.json: {len(frozen)} instrument(s) frozen more '
+                        f'than {args.max_stale_days:g}d behind the newest bar '
+                        f'on the board ({newest}) — {worst}')
+                else:
+                    print(f'  instrument freshness      all within '
+                          f'{args.max_stale_days:g}d of {newest}  OK')
+
+            if undated:
+                failures.append(
+                    f'signals.json: {len(undated)} row(s) carry no daily bar '
+                    f'date at all — {undated[:8]}')
 
     ledger = payloads.get('signal_ledger.json')
     if isinstance(ledger, dict):

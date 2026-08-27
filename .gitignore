@@ -33,6 +33,7 @@ package-lock.json
 
 # ── Local clutter (installers, manuals, backups, worktrees) ───────────────
 *.pkg
+*.dmg
 *.bak
 *.pdf
 _backup_*/

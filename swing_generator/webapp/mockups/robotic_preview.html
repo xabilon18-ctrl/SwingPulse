@@ -1,0 +1,622 @@
+<title>Instrument Grade</title>
+<style>
+/* ═══ SwingPulse — "future robotic" design direction ═══
+   Committed single theme: this is a pitch for a true-black OLED trading app.
+   The direction does not exist on a light ground, so the page paints its own. */
+
+:root {
+  --ink:       #000000;
+  --panel:     #0d0e0c;   /* warm-black, biased toward the amber */
+  --panel-2:   #141513;
+  --rule:      #24251f;
+  --rule-hot:  #3d3e33;
+  --text:      #e9e9e1;
+  --muted:     #8b8c80;
+  --dim:       #5d5e55;
+  --amber:     #fbbf24;   /* unchanged — it is already avionics amber */
+  --amber-dim: #6b5214;
+  --buy:       #10b981;
+  --sell:      #ef4444;
+  --violet:    #8b5cf6;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+
+  --step: cubic-bezier(.4,0,.2,1);
+}
+
+* , *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  /* the substrate: a machined grid, barely there */
+  background-image:
+    linear-gradient(rgba(251,191,36,.030) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(251,191,36,.030) 1px, transparent 1px);
+  background-size: 48px 48px, 48px 48px;
+}
+
+/* ── shared machine primitives ─────────────────────────────────────── */
+.mono { font-family: var(--mono); }
+
+.key {
+  font-family: var(--mono);
+  font-size: .66rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* chamfer: a 45° cut on two opposing corners. Panel = 1px shell + inner face. */
+.pnl {
+  background: var(--rule);
+  padding: 1px;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+.pnl > * {
+  background: var(--panel);
+  clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
+  height: 100%;
+}
+.pnl.hot { background: var(--amber-dim); }
+
+/* tick rail — an instrument bezel, 1px of it */
+.rail {
+  height: 6px;
+  background-image: repeating-linear-gradient(90deg, var(--rule-hot) 0 1px, transparent 1px 9px);
+  opacity: .8;
+}
+
+/* ── system rail (the proposed component, doubling as page furniture) ── */
+#sysrail {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; gap: 0; align-items: center;
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .1em;
+  text-transform: uppercase;
+  background: rgba(6,6,5,.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+  padding: 7px 16px;
+  color: var(--dim);
+  overflow-x: auto; scrollbar-width: none;
+  white-space: nowrap;
+}
+#sysrail::-webkit-scrollbar { display: none; }
+#sysrail span { padding: 0 10px; border-right: 1px solid var(--rule); }
+#sysrail span:last-child { border-right: 0; }
+#sysrail .on { color: var(--amber); }
+
+/* ── layout ─────────────────────────────────────────────────────────── */
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px 96px; }
+section { margin-top: 88px; }
+.prose { max-width: 64ch; }
+p { margin: 0 0 1.1em; color: #c8c9c0; }
+p strong { color: var(--text); font-weight: 600; }
+code {
+  font-family: var(--mono); font-size: .85em;
+  background: var(--panel-2); border: 1px solid var(--rule);
+  padding: 1px 5px; color: var(--amber);
+}
+
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 {
+  font-size: clamp(2.6rem, 7vw, 4.6rem);
+  line-height: .96; letter-spacing: -.035em; font-weight: 700;
+  margin: 0 0 22px;
+}
+h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -.02em; font-weight: 650; margin: 0 0 6px;
+}
+h3 { font-size: 1.02rem; letter-spacing: -.01em; font-weight: 650; margin: 0 0 4px; }
+.sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 28px; flex-wrap: wrap; }
+.sec-head .key { flex-shrink: 0; }
+.sec-sub { color: var(--muted); font-size: .95rem; max-width: 62ch; margin: 4px 0 0; }
+
+/* ── hero ───────────────────────────────────────────────────────────── */
+header.hero { padding: 76px 0 8px; position: relative; overflow: hidden; }
+.eyebrow {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--amber); margin-bottom: 26px;
+}
+.hero-lede { font-size: 1.18rem; line-height: 1.55; color: #c8c9c0; max-width: 58ch; }
+.hero-lede em { color: var(--amber); font-style: normal; }
+.sweep {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(251,191,36,.10) 45%, rgba(251,191,36,.28) 50%, rgba(251,191,36,.10) 55%, transparent 100%);
+  width: 34%;
+  animation: sweep 2.6s var(--step) 1 both;
+}
+@keyframes sweep { from { transform: translateX(-120%); } to { transform: translateX(420%); } }
+
+/* ── vocabulary grid ────────────────────────────────────────────────── */
+.vocab { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.vcard { padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.vcard .vhead { display: flex; align-items: baseline; gap: 10px; }
+.vcard .vhead .key { color: var(--amber); }
+.vcard p { font-size: .9rem; margin: 0; color: var(--muted); line-height: 1.5; }
+.spec {
+  margin-top: auto; padding-top: 14px; border-top: 1px dashed var(--rule);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+
+/* specimens */
+.sw { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: .68rem; color: var(--dim); letter-spacing: .08em; }
+.chip-old { background: #1a1a19; border: 1px solid #2a2a28; border-radius: 12px; padding: 6px 12px; font-family: var(--sans); font-size: .78rem; color: var(--muted); }
+.chip-new {
+  background: var(--panel-2); border: 1px solid var(--rule-hot); padding: 6px 12px;
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+.led { width: 7px; height: 7px; flex-shrink: 0; background: var(--dim); }
+.led.buy { background: var(--buy); box-shadow: 0 0 7px rgba(16,185,129,.75); }
+.led.sell { background: var(--sell); box-shadow: 0 0 7px rgba(239,68,68,.75); animation: blink 1s steps(1,end) infinite; }
+.led.hold { background: var(--amber); animation: breathe 2.4s ease-in-out infinite; }
+@keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: .12 } }
+@keyframes breathe { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+
+.glow-old {
+  width: 92px; height: 30px; border-radius: 12px;
+  background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.5);
+  box-shadow: 0 0 14px rgba(16,185,129,.35);
+}
+
+.segbar { display: flex; gap: 2px; width: 120px; }
+.segbar i { flex: 1; height: 8px; background: #222320; }
+.segbar i.f { background: var(--buy); }
+.smoothbar { width: 120px; height: 4px; border-radius: 2px; background: #222320; overflow: hidden; }
+.smoothbar i { display: block; height: 100%; width: 62%; background: var(--buy); border-radius: 2px; }
+
+.num-step { font-family: var(--mono); font-size: 1.5rem; font-weight: 600; color: var(--amber); font-variant-numeric: tabular-nums; }
+
+/* ── before / after ─────────────────────────────────────────────────── */
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.ba + .ba { margin-top: 34px; }
+.ba-col { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.ba-tag { font-family: var(--mono); font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.ba-tag.now { color: var(--muted); }
+.ba-tag.next { color: var(--amber); }
+.ba-note { font-size: .82rem; color: var(--muted); line-height: 1.45; margin: 0; }
+@media (max-width: 760px) { .ba { grid-template-columns: 1fr; } }
+
+/* ---- specimen: the app as it is today (faithful to style.css) ---- */
+.old {
+  background: #121211; border: 1px solid #2a2a28; border-radius: 12px;
+  padding: 14px 16px; font-family: var(--sans);
+}
+.old-pulse { border: 2px solid rgba(16,185,129,.45); border-radius: 16px; box-shadow: 0 0 18px rgba(16,185,129,.28); animation: heart 3.5s ease-in-out infinite; }
+@keyframes heart {
+  0% { box-shadow: 0 0 0 transparent; border-color: rgba(16,185,129,.3) }
+  14% { box-shadow: 0 0 18px rgba(16,185,129,.5); border-color: var(--buy) }
+  28% { box-shadow: 0 0 4px rgba(16,185,129,.2); border-color: rgba(16,185,129,.5) }
+  42% { box-shadow: 0 0 22px rgba(16,185,129,.45); border-color: var(--buy) }
+  60%,100% { box-shadow: 0 0 0 transparent; border-color: rgba(16,185,129,.3) }
+}
+.old-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #6e6e79; }
+.old-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1e1e1d; }
+.old-row:last-child { border-bottom: 0; }
+.old-row b { font-size: 1.28rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.old-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+.old-name { font-size: .92rem; }
+
+/* ---- specimen: the proposed dialect ---- */
+.new-face { padding: 0; }
+.new-body { padding: 14px 16px 16px; }
+.new-hdr {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 16px; border-bottom: 1px solid var(--rule); background: #0a0b09;
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dim);
+}
+.new-hdr .lit { color: var(--amber); }
+.new-row {
+  display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid #191a17;
+}
+.new-row:last-child { border-bottom: 0; }
+.new-row .lbl { font-family: var(--mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.new-row .val { font-family: var(--mono); font-size: 1.34rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.v-buy { color: var(--buy); } .v-sell { color: var(--sell); } .v-neu { color: var(--muted); }
+
+/* scan cycle — the machine equivalent of the heartbeat */
+.scan { position: relative; overflow: hidden; }
+.scan::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 1px; top: 0;
+  background: linear-gradient(90deg, transparent, var(--buy), transparent);
+  opacity: .55;
+  animation: scanline 4s steps(28, end) infinite;
+}
+@keyframes scanline { from { transform: translateY(0) } to { transform: translateY(var(--scanh, 240px)) } }
+
+/* card specimen */
+.sc-old-verdict { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.38); border-radius: 8px; padding: 7px 10px; margin-top: 10px; }
+.sc-new-verdict {
+  background: rgba(16,185,129,.10); border-left: 2px solid var(--buy); padding: 7px 10px; margin-top: 10px;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.sc-new-verdict .lab { font-family: var(--mono); font-size: .74rem; letter-spacing: .14em; color: var(--buy); font-weight: 600; }
+.sc-new-verdict .sub { font-family: var(--mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 12px; background: var(--rule); border: 1px solid var(--rule); }
+.meta-grid div { background: var(--panel); padding: 7px 9px; }
+.meta-grid .k { font-family: var(--mono); font-size: .58rem; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+.meta-grid .v { font-family: var(--mono); font-size: .92rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+/* ── ladder ─────────────────────────────────────────────────────────── */
+.tiers { display: grid; gap: 14px; }
+.tier { display: grid; grid-template-columns: 74px 1fr; gap: 0; }
+.tier-n {
+  font-family: var(--mono); font-size: 2rem; font-weight: 600; color: var(--rule-hot);
+  padding: 18px 0 0 18px; letter-spacing: -.03em;
+}
+.tier.rec .tier-n { color: var(--amber); }
+.tier-body { padding: 18px 20px 20px 0; }
+.tier-body h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rec-flag {
+  font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink); background: var(--amber); padding: 2px 7px;
+}
+.tier-body ul { margin: 10px 0 0; padding-left: 0; list-style: none; display: grid; gap: 5px; }
+.tier-body li { font-size: .89rem; color: var(--muted); padding-left: 18px; position: relative; line-height: 1.5; }
+.tier-body li::before { content: '·'; position: absolute; left: 6px; color: var(--rule-hot); font-weight: 700; }
+.cost { font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-top: 12px; }
+
+/* ── guardrails ─────────────────────────────────────────────────────── */
+.guards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.guard { padding: 16px 18px 18px; }
+.guard .key { color: var(--sell); }
+.guard h3 { margin: 8px 0 6px; font-size: .96rem; }
+.guard p { font-size: .86rem; color: var(--muted); margin: 0; line-height: 1.5; }
+
+footer { margin-top: 88px; padding-top: 22px; border-top: 1px solid var(--rule); color: var(--dim); font-family: var(--mono); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div id="sysrail">
+  <span class="on">SYS · SWINGPULSE</span>
+  <span>MA500</span>
+  <span>TF 4H</span>
+  <span>INST 717</span>
+  <span>Δ 2026-08-13 21:23</span>
+  <span class="on">LNK OK</span>
+  <span>DESIGN DIRECTION · REV A</span>
+</div>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="sweep"></div>
+    <div class="eyebrow">SwingPulse · visual direction</div>
+    <h1>Your app is<br>already half<br>machine.</h1>
+    <p class="hero-lede">
+      The amber gave it away. <em>#fbbf24 on true black is avionics amber</em> — cockpit
+      annunciators, CRT terminals, lab equipment. The palette is already an instrument
+      panel. What still reads as a consumer app is the <em>geometry, the lettering, and
+      the motion</em>: 12px bubbles, a humanist typeface on the numbers, and a heartbeat.
+      A touch of robotic doesn't repaint anything. It changes those three.
+    </p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <span class="key">Vocabulary</span>
+      <div>
+        <h2>Six moves, no repaint</h2>
+        <p class="sec-sub">Every colour below is already in <code>style.css</code>. These are shape, type and timing rules — the parts of the design that say "a machine wrote this" without saying it in words.</p>
+      </div>
+    </div>
+
+    <div class="vocab">
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">GEOM</span><h3>Chamfer, don't round</h3></div>
+        <p>A 45° cut on two opposing corners reads instantly as <em>panel</em>. Uniform 12px radius reads as <em>bubble</em>. Split the difference by meaning: machine-authored surfaces get the cut, things a finger presses keep the radius.</p>
+        <div class="spec">
+          <span class="chip-old">Market Pulse</span>
+          <span class="sw">→</span>
+          <span class="chip-new">Market Pulse</span>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">TYPE</span><h3>Mono for machine speech</h3></div>
+        <p>Numbers, tickers, timestamps, state words and micro-labels move to <code>ui-monospace</code> — SF Mono on your devices, so no webfont, no extra kilobyte. Prose stays humanist. The split <em>is</em> the effect: the machine reports, the app explains.</p>
+        <div class="spec">
+          <span class="sw" style="font-family:var(--sans);font-size:1.1rem;letter-spacing:0;color:var(--muted)">365 / 136 / 216</span>
+          <span class="sw">→</span>
+          <span class="sw" style="font-size:1.1rem;color:var(--text)">365/136/216</span>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">STAT</span><h3>LEDs, not glows</h3></div>
+        <p>A soft coloured halo is a mood. A 7px square that is solid, breathing or hard-blinking is a <em>readout</em> — three discrete states a person learns once and reads forever. Pair it with a mono status word and the glow budget drops to near zero.</p>
+        <div class="spec">
+          <span class="glow-old"></span>
+          <span class="sw">→</span>
+          <span class="sw"><i class="led buy"></i> ARMED</span>
+          <span class="sw"><i class="led hold"></i> WATCH</span>
+          <span class="sw"><i class="led sell"></i> FIRED</span>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">MOTN</span><h3>Move in quanta</h3></div>
+        <p>The single strongest signal, and the cheapest. Machines don't ease — they step. Swap <code>cubic-bezier</code> for <code>steps(12)</code> on counters and bars, and the same component reads as sampled rather than animated.</p>
+        <div class="spec">
+          <span class="smoothbar"><i></i></span>
+          <span class="sw">→</span>
+          <span class="segbar"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="num-step" data-count="365">0</span>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">RAIL</span><h3>Let it report on itself</h3></div>
+        <p>One hairline strip under the topbar, mono and muted, stating what the machine currently is: dataset, timeframe, instrument count, last tick, link state. It's the strip at the top of this page. It also gives the stale-data banner a permanent home instead of a red interruption.</p>
+        <div class="spec">
+          <span class="sw" style="color:var(--muted)">MA500 · TF 4H · INST 717 · <span style="color:var(--amber)">LNK OK</span></span>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="vcard">
+        <div class="vhead"><span class="key">SUBS</span><h3>Machined surface</h3></div>
+        <p>A 48px grid at 3% amber behind the page, and a 1px tick rail along a panel's edge. Neither is legible as decoration — you only notice that surfaces feel milled instead of drawn. Both are pure gradients: no images, no DOM.</p>
+        <div class="spec" style="align-items:stretch">
+          <div class="rail" style="flex:1"></div>
+        </div>
+      </div></div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="key">Applied</span>
+      <div>
+        <h2>The same three components, both dialects</h2>
+        <p class="sec-sub">Left is what's live today, rebuilt from your own tokens. Right is the same data through the six rules. No component gains or loses a single fact.</p>
+      </div>
+    </div>
+
+    <div class="ba">
+      <div class="ba-col">
+        <div class="ba-tag now">Live · Market Pulse</div>
+        <div class="old old-pulse">
+          <div class="old-label">Market Pulse</div>
+          <div style="font-size:.72rem;color:#6e6e79;margin-bottom:8px">Tap row → filter scanner</div>
+          <div class="old-row"><span class="old-name"><i class="old-dot" style="background:var(--buy)"></i>Uptrend</span><b style="color:var(--buy)">365</b></div>
+          <div class="old-row"><span class="old-name"><i class="old-dot" style="background:var(--sell)"></i>Downtrend</span><b style="color:var(--sell)">136</b></div>
+          <div class="old-row"><span class="old-name"><i class="old-dot" style="background:#52525c"></i>Neutral</span><b>216</b></div>
+          <div class="old-row"><span class="old-name"><i class="old-dot" style="background:var(--buy)"></i>Aligned Bull</span><b style="color:var(--buy)">311</b></div>
+        </div>
+        <p class="ba-note">Rounded 16px, 2px border, and a heartbeat glow on a 3.5s loop. Warm and alive — but the pulse is ambient, so it stops carrying information after a day of use.</p>
+      </div>
+      <div class="ba-col">
+        <div class="ba-tag next">Proposed · Market Pulse</div>
+        <div class="pnl hot"><div class="new-face scan" style="--scanh:250px">
+          <div class="new-hdr"><span>Market Pulse</span><span class="lit">SCAN 4H</span></div>
+          <div class="new-body">
+            <div class="new-row"><i class="led buy"></i><span class="lbl">Uptrend</span><span class="val v-buy" data-count="365">0</span></div>
+            <div class="new-row"><i class="led sell"></i><span class="lbl">Downtrend</span><span class="val v-sell" data-count="136">0</span></div>
+            <div class="new-row"><i class="led"></i><span class="lbl">Neutral</span><span class="val v-neu" data-count="216">0</span></div>
+            <div class="new-row"><i class="led buy"></i><span class="lbl">Aligned Bull</span><span class="val v-buy" data-count="311">0</span></div>
+          </div>
+          <div class="rail"></div>
+        </div></div>
+        <p class="ba-note">The heartbeat becomes a <strong>scan cycle</strong> — a stepped line crossing the panel, which is what the component actually does. Counts tick up in 12 discrete frames. Same four numbers, same four colours.</p>
+      </div>
+    </div>
+
+    <div class="ba">
+      <div class="ba-col">
+        <div class="ba-tag now">Live · signal counts</div>
+        <div class="old" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:#0d0d0c;border:1px solid #2a2a28;border-radius:12px;padding:10px 12px">
+            <div style="font-size:.68rem;color:#6e6e79">Buy signals</div>
+            <div style="font-size:2rem;font-weight:700;color:var(--buy);line-height:1.1">24</div>
+            <div class="smoothbar" style="width:100%"><i style="width:68%"></i></div>
+          </div>
+          <div style="background:#0d0d0c;border:1px solid #2a2a28;border-radius:12px;padding:10px 12px">
+            <div style="font-size:.68rem;color:#6e6e79">Sell signals</div>
+            <div style="font-size:2rem;font-weight:700;color:var(--sell);line-height:1.1">11</div>
+            <div class="smoothbar" style="width:100%"><i style="width:31%;background:var(--sell)"></i></div>
+          </div>
+        </div>
+        <p class="ba-note">A continuous bar implies a continuous quantity. These are counts of discrete events.</p>
+      </div>
+      <div class="ba-col">
+        <div class="ba-tag next">Proposed · signal counts</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="pnl"><div style="padding:11px 13px">
+            <div class="key">Buy · B1</div>
+            <div class="val mono" style="font-size:2rem;font-weight:600;color:var(--buy);line-height:1.15;font-variant-numeric:tabular-nums">24</div>
+            <span class="segbar" style="width:100%;margin-top:4px"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i></span>
+          </div></div>
+          <div class="pnl"><div style="padding:11px 13px">
+            <div class="key">Sell · S1</div>
+            <div class="val mono" style="font-size:2rem;font-weight:600;color:var(--sell);line-height:1.15;font-variant-numeric:tabular-nums">11</div>
+            <span class="segbar" style="width:100%;margin-top:4px"><i class="f" style="background:var(--sell)"></i><i class="f" style="background:var(--sell)"></i><i class="f" style="background:var(--sell)"></i><i class="f" style="background:var(--sell)"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          </div></div>
+        </div>
+        <p class="ba-note">Twelve segments, filled to the nearest one. Countable at a glance, and honest about the fact that the underlying number is an integer.</p>
+      </div>
+    </div>
+
+    <div class="ba">
+      <div class="ba-col">
+        <div class="ba-tag now">Live · scanner card</div>
+        <div class="old">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <div style="font-weight:700;font-size:.98rem">BTCUSD</div>
+              <div style="font-size:.72rem;color:#6e6e79">Crypto · Layer 1</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:700;font-size:.9rem">112,480</div>
+              <div style="font-size:.78rem;color:var(--buy);font-weight:700">+2.14%</div>
+            </div>
+          </div>
+          <div class="sc-old-verdict">
+            <div style="color:var(--buy);font-weight:700;font-size:.82rem">STRONG BUY</div>
+            <div style="font-size:.68rem;color:#8b8c80">strong edge · sector behind it</div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:10px;font-size:.72rem;color:#8b8c80">
+            <span>MA500 +8.2%</span><span>ROC +3.1</span><span>14d</span>
+          </div>
+        </div>
+        <p class="ba-note">Three type sizes in one humanist face, and the metrics sit as a loose row of text.</p>
+      </div>
+      <div class="ba-col">
+        <div class="ba-tag next">Proposed · scanner card</div>
+        <div class="pnl"><div class="new-face">
+          <div class="new-hdr"><span><i class="led buy" style="display:inline-block;margin-right:7px"></i>B1 · ARMED</span><span class="lit">14D</span></div>
+          <div class="new-body">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div>
+                <div class="mono" style="font-weight:600;font-size:1.05rem;letter-spacing:.02em">BTCUSD</div>
+                <div class="key" style="margin-top:3px">Crypto · Layer 1</div>
+              </div>
+              <div style="text-align:right">
+                <div class="mono" style="font-weight:600;font-size:1rem;font-variant-numeric:tabular-nums">112,480</div>
+                <div class="mono" style="font-size:.8rem;color:var(--buy);font-variant-numeric:tabular-nums">+2.14%</div>
+              </div>
+            </div>
+            <div class="sc-new-verdict">
+              <span class="lab">STRONG BUY</span>
+              <span class="sub">strong edge · sector behind it</span>
+            </div>
+            <div class="meta-grid">
+              <div><div class="k">MA500</div><div class="v" style="color:var(--buy)">+8.2%</div></div>
+              <div><div class="k">ROC</div><div class="v" style="color:var(--buy)">+3.1</div></div>
+              <div><div class="k">Run</div><div class="v">14d</div></div>
+            </div>
+          </div>
+        </div></div>
+        <p class="ba-note">The state moves into a header strip with its LED. Metrics become a hairline-divided readout block — three cells, tabular figures, aligned across every card in the list.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="key">Dosage</span>
+      <div>
+        <h2>How far to take it</h2>
+        <p class="sec-sub">"A touch" is tier one. The tiers escalate, and each one is shippable on its own — tier two only makes sense once tier one is live and has stopped feeling new.</p>
+      </div>
+    </div>
+
+    <div class="tiers">
+      <div class="pnl hot"><div class="tier rec">
+        <div class="tier-n">01</div>
+        <div class="tier-body">
+          <h3>Touch <span class="rec-flag">Recommended</span></h3>
+          <ul>
+            <li>Mono for all numerals, tickers, timestamps and micro-labels; prose untouched</li>
+            <li>Chamfer on panels and status chips; radius stays on buttons and nav</li>
+            <li>The system rail under the topbar, absorbing the stale-data banner</li>
+            <li>LED + status word replacing the coloured glow on signal state</li>
+            <li><code>steps()</code> on counters and stat bars</li>
+          </ul>
+          <div class="cost">Cost · style.css tokens + ~6 component rules · no data, no signal logic, no JS behaviour</div>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="tier">
+        <div class="tier-n">02</div>
+        <div class="tier-body">
+          <h3>Instrument</h3>
+          <ul>
+            <li>Heartbeat → scan cycle on Market Pulse, keeping the exact bullish/bearish/mixed mapping</li>
+            <li>Segmented bars everywhere a count is shown; sector strips become 12-cell readouts</li>
+            <li>Grid substrate and tick rails on panel edges</li>
+            <li>Loader becomes a boot sequence that names what it's loading — the honest version of a spinner</li>
+          </ul>
+          <div class="cost">Cost · one animation rewrite + the bar component · a day of tuning on a real phone</div>
+        </div>
+      </div></div>
+
+      <div class="pnl"><div class="tier">
+        <div class="tier-n">03</div>
+        <div class="tier-body">
+          <h3>Full HUD — not in the app</h3>
+          <ul>
+            <li>Scanlines, corner brackets on everything, terminal typewriter reveals, machine microcopy</li>
+            <li>On a tool you open before the market does, this becomes a costume you have to see through to read a number</li>
+            <li>Spend it on the share card instead, where the whole job is to look like something worth screenshotting</li>
+          </ul>
+          <div class="cost">Cost · cheap to build, expensive to live with</div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="key">Guardrails</span>
+      <div>
+        <h2>What the direction must not touch</h2>
+        <p class="sec-sub">Robotic goes wrong in four predictable ways, and three of them would damage things this app already got right.</p>
+      </div>
+    </div>
+
+    <div class="guards">
+      <div class="pnl"><div class="guard">
+        <span class="key">Hold</span>
+        <h3>Semantic colour</h3>
+        <p>Green is buy, red is sell, violet is volume, amber is the system's own voice. A cyan-everything HUD palette would flatten a distinction the app is built on. The direction adds no new hue.</p>
+      </div></div>
+
+      <div class="pnl"><div class="guard">
+        <span class="key">Hold</span>
+        <h3>The human sentences</h3>
+        <p>"Sectors are moving on their own, not all together — a normal day to pick setups." That line is the reason the dashboard is trustworthy. Mono-caps it into <code>SECTOR DISPERSION NOMINAL</code> and you've traded comprehension for atmosphere.</p>
+      </div></div>
+
+      <div class="pnl"><div class="guard">
+        <span class="key">Hold</span>
+        <h3>Legibility on glass</h3>
+        <p>No scanlines or grid over anything numeric. On an OLED phone in the morning they alias into the digits. The substrate stays behind panels, never across them.</p>
+      </div></div>
+
+      <div class="pnl"><div class="guard">
+        <span class="key">Hold</span>
+        <h3>Meaning in motion</h3>
+        <p>Today's heartbeat is bound to market state. A scan cycle must keep that binding, and a stepped counter must land visibly still — a number that looks like it's settling is a number you don't trust.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <footer>SwingPulse · visual direction · rev A · six rules, zero new colours</footer>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var targets = document.querySelectorAll('[data-count]');
+  function tick(el) {
+    var end = parseInt(el.getAttribute('data-count'), 10);
+    if (reduce) { el.textContent = end.toLocaleString(); return; }
+    var frames = 12, i = 0;
+    var id = setInterval(function () {
+      i++;
+      el.textContent = Math.round(end * i / frames).toLocaleString();
+      if (i >= frames) clearInterval(id);
+    }, 55);
+  }
+  if (!('IntersectionObserver' in window)) { targets.forEach(tick); return; }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { tick(e.target); io.unobserve(e.target); }
+    });
+  }, { threshold: .5 });
+  targets.forEach(function (t) { io.observe(t); });
+})();
+</script>

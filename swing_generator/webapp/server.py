@@ -222,6 +222,11 @@ _TV_BY_NAME: dict[str, str] = {
     # went dead 2026-07-17 and Yahoo serves it a single bar. Without this
     # override the generic rule-4 fall-through would send it to NASDAQ.
     'FERG':  'NYSE:FERG',
+    # Flutter did the same, on 2026-07-31. Its display name moves to FLUT
+    # too: on Yahoo and TradingView the bare FLTR is now the VanEck IG
+    # Floating Rate ETF, so the old name would point a gambling row at a
+    # bond fund.
+    'FLUT':  'NYSE:FLUT',
 
     # ── Spanish stocks (BME) ──
     'SAN':   'BME:SAN',
