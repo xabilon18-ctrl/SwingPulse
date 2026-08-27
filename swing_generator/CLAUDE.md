@@ -28,7 +28,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Utility helpers | *(none — `utils.js` was deleted in cfe4013; its helpers live in `app.js`)* |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
 | CI pipeline | GitHub Actions (`publish.yml`) — cron **3×/day weekdays** (01:35, 09:35, 14:35 UTC — land ~05:00/13:00/18:00 SAST after GitHub's 1.5–3h queue) + 1×/day weekends (08 UTC, crypto) + manual. Restored to three runs 2026-07-31. |
-| Repo | https://github.com/xabilon18/SwingPulse |
+| Repo | https://github.com/xabilon18-ctrl/SwingPulse — **the only one.** `xabilon18/SwingPulse` was the original prod repo until 2026-06-01 and is now retired: its publish workflow is disabled, it holds no commits this one lacks, and the local `prod` remote was removed 2026-08-27. Manual run: `gh workflow run publish.yml --repo xabilon18-ctrl/SwingPulse --ref main` |
 
 ---
 
