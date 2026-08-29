@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=224">
+  <link rel="stylesheet" href="/static/css/style.css?v=225">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -66,11 +66,21 @@
   <!-- ===== NOTIFICATIONS POPUP ===== -->
   <div class="notif-popup" id="notifPopup" style="display:none">
     <div class="notif-popup-header">
-      <span class="notif-popup-title">Today's Notifications</span>
+      <span class="notif-popup-title">Notifications</span>
       <span class="notif-ui-build" id="notifUiBuild"></span>
       <button class="notif-push-toggle" id="notifPushToggle" onclick="window.SP && window.SP.togglePush()">Push: off</button>
     </div>
+    <!-- Two questions, two segments: what fired today, and what is coming.
+         Merging them would put "GOOGL fired B2" and "NVDA reports on the 17th"
+         in one scroll, and those are read differently. -->
+    <div class="notif-seg" role="tablist" aria-label="Notifications view">
+      <button class="notif-seg-btn active" id="notifSegToday" role="tab" aria-selected="true"
+              data-notif-tab="today">Today</button>
+      <button class="notif-seg-btn" id="notifSegCal" role="tab" aria-selected="false"
+              data-notif-tab="calendar">Calendar</button>
+    </div>
     <div class="notif-popup-list" id="notifPopupList"></div>
+    <div class="notif-popup-list" id="notifCalendarBody" style="display:none"></div>
   </div>
 
   <!-- ===== MAIN CONTENT ===== -->
@@ -87,6 +97,11 @@
       </div>
 
       <!-- ── Sector-mood market-state banner (provisional conviction layer) ── -->
+      <!-- Caveat stack, top down: is the data fresh -> what is coming ->
+           what are conditions. Stale stays first: whether to trust the numbers
+           at all outranks what happens tomorrow. -->
+      <div id="eventBanner"></div>
+
       <div id="marketStateBanner"></div>
 
       <!-- ── Market Pulse Card (gauge + breakdown) ── -->
@@ -835,6 +850,6 @@
 
 
 
-  <script src="/static/js/app.js?v=251"></script>
+  <script src="/static/js/app.js?v=252"></script>
 </body>
 </html>

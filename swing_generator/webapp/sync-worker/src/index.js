@@ -284,16 +284,64 @@ export default {
         return json(raw ? JSON.parse(raw) : {});
       }
       if (request.method === 'PUT') {
+        // This used to be a blind `put(user, body)`: one KV key, last writer
+        // wins, no history. So any device that came up with an empty starred
+        // list — an evicted iOS PWA, a fresh install, a pull that had not
+        // landed yet — destroyed the real list for every other device the
+        // moment the user starred one thing, and there was nothing to roll
+        // back to. Three changes below: merge instead of replace, refuse a
+        // destructive clear, and keep one previous version.
+        let incoming;
         let body;
         try {
           body = await request.text();
-          JSON.parse(body);
+          incoming = JSON.parse(body);
         } catch {
           return json({ error: 'Invalid JSON' }, 400);
         }
-        await env.USER_DATA.put(user, body);
-        return json({ ok: true });
+        if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+          return json({ error: 'Expected a JSON object' }, 400);
+        }
+
+        const prevRaw = await env.USER_DATA.get(user);
+        let prev = {};
+        if (prevRaw) { try { prev = JSON.parse(prevRaw) || {}; } catch { prev = {}; } }
+
+        const prevStars = Array.isArray(prev.starred) ? prev.starred : [];
+        const nextStars = Array.isArray(incoming.starred) ? incoming.starred : null;
+
+        // An absent key means "I am not speaking about stars" — a note edit
+        // must never carry the starred list as collateral.
+        const merged = { ...prev, ...incoming };
+        if (nextStars === null) {
+          merged.starred = prevStars;
+        } else if (nextStars.length === 0 && prevStars.length > 0
+                   && url.searchParams.get('allowEmpty') !== '1') {
+          // Deliberately unstarring the last item sends allowEmpty=1. Anything
+          // else asking to clear a populated list is the bug, not the user.
+          return json({
+            error: 'Refusing to clear a non-empty starred list',
+            kept:  prevStars.length,
+          }, 409);
+        }
+
+        // One generation of history. Enough to undo the accident that is
+        // actually plausible here (a single bad write); not a version store.
+        if (prevRaw) await env.USER_DATA.put(`${user}:prev`, prevRaw);
+        await env.USER_DATA.put(user, JSON.stringify(merged));
+        return json({ ok: true, starred: (merged.starred || []).length });
       }
+    }
+
+    // Read the one retained previous version, so a bad write can be inspected
+    // and restored by hand without touching the KV dashboard.
+    if (path === '/sync/backup') {
+      const user = (url.searchParams.get('user') || '').toLowerCase().trim();
+      if (!ALLOWED_USERS.includes(user)) return json({ error: 'Unknown user' }, 403);
+      const deny = await authorize(request, env, user);
+      if (deny) return deny;
+      const raw = await env.USER_DATA.get(`${user}:prev`);
+      return json(raw ? JSON.parse(raw) : {});
     }
 
     return json({ error: 'Not found' }, 404);

@@ -110,6 +110,10 @@
   let charts = {};
   let timeframe = '4H';
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
+  let eventsData = { events: [], sources: {} };  // scheduled events (events.json)
+  let notifTab   = 'today';  // 'today' | 'calendar' — which dropdown segment is open
+  let calMonth   = null;     // Date pinned to the 1st of the month on screen
+  let calSelected = null;    // 'YYYY-MM-DD' of the open day sheet, or null
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   localStorage.removeItem('sp-signal-history');   // retired per-device tracker (2026-07-15)
@@ -118,8 +122,14 @@
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
 
   function syncApplyRemote(remote) {
-    // Apply remote data, then re-render affected sections
-    if (Array.isArray(remote.starred)) {
+    // Apply remote data, then re-render affected sections.
+    // An EMPTY remote list never replaces a populated local one. remote.starred
+    // used to be applied on the strength of its timestamp alone, so one device
+    // pushing [] wiped every other device on its next pull. If the remote is
+    // genuinely empty the local list is the better copy, and the next push
+    // restores it; the cost of being wrong here is a stale star, against losing
+    // the whole list the other way.
+    if (Array.isArray(remote.starred) && (remote.starred.length || !userStarred.size)) {
       userStarred = new Set(remote.starred);
       localStorage.setItem(sk('swingpulse-starred'), JSON.stringify(remote.starred));
     }
@@ -152,29 +162,38 @@
     }
   }
 
-  function syncPushNow() {
+  // `intentional` means the user just changed their stars by tapping a star.
+  // Only such a push is allowed to send an empty list; anything else (a note
+  // edit, a background flush) OMITS the key entirely and the Worker keeps what
+  // it already has. Without this, editing a note on a device whose list had not
+  // loaded yet uploaded [] over the real list — and the Worker had no history.
+  function syncPushNow(intentional) {
     if (!syncUser) return;
-    const payload = JSON.stringify({
-      starred:      [...userStarred],
-      notes:        instrumentNotes,
-      lastModified: Date.now(),
-    });
+    const stars = [...userStarred];
+    const payload = { notes: instrumentNotes, lastModified: Date.now() };
+    if (stars.length || intentional) payload.starred = stars;
+
     // Always record locally — a device with no sync password still works, it
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
     if (!syncToken()) return;
-    fetch(`${SYNC_WORKER}/sync?user=${syncUser}`, {
+    const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
+    fetch(`${SYNC_WORKER}/sync?user=${syncUser}${clearing}`, {
       method:  'PUT',
       headers: syncHeaders({ 'Content-Type': 'application/json' }),
-      body:    payload,
-    }).then(res => { if (res.status === 401) syncPasswordRejected(); })
-      .catch(() => { /* offline — silent */ });
+      body:    JSON.stringify(payload),
+    }).then(res => {
+      if (res.status === 401) syncPasswordRejected();
+      // 409 = the Worker refused a destructive write. Not an error the user
+      // caused and not one they can fix, so it is logged, not surfaced.
+      else if (res.status === 409) console.warn('[sync] refused an empty starred list — server copy kept');
+    }).catch(() => { /* offline — silent */ });
   }
 
   // Debounce pushes so rapid changes (e.g. starring several instruments) send one request
-  function syncPush() {
+  function syncPush(intentional) {
     clearTimeout(syncPushTimer);
-    syncPushTimer = setTimeout(syncPushNow, 800);
+    syncPushTimer = setTimeout(() => syncPushNow(intentional), 800);
   }
 
   // ── Sync password step (shown after picking a user on a new device) ──────
@@ -438,10 +457,10 @@
     if (!btn) return;
     const on = isPushEnabled();
     btn.classList.toggle('push-on', on);
-    btn.title = 'Notifications';
-    // Always the solid bell — the green live dot (.push-on::after) is the
-    // on/off indicator; a dashed bell reads as a broken icon at 16px.
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+    btn.title = 'Notifications and calendar';
+    // A calendar, not a bell: most of what lives behind this button is now in
+    // the future. The green live dot (.push-on::after) still means push is on.
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></svg>';
     const pt = document.getElementById('notifPushToggle');
     if (pt) {
       pt.textContent = on ? 'Push: on' : 'Push: off';
@@ -1041,7 +1060,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1054,6 +1073,7 @@
         fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
         fetchJson('/api/instrument-flavours', null),
+        fetchJson('/api/events', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1068,6 +1088,7 @@
       sectorRadarData = srRes && Array.isArray(srRes.sectors) && srRes.sectors.length ? srRes : null;
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
+      eventsData = (evRes && Array.isArray(evRes.events)) ? evRes : { events: [], sources: {} };
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -1618,6 +1639,7 @@
   }
 
   function renderDashboard() {
+    renderEventBanner();
     renderMarketState();
     const s = computeSummary();
     const total = s.total || 1;
@@ -4729,8 +4751,10 @@
       if (svg) svg.setAttribute('fill', nowStarred ? 'currentColor' : 'none');
     });
     localStorage.setItem(sk('swingpulse-starred'), JSON.stringify([...userStarred]));
-    syncPush();
+    syncPush(true);   // the user just changed stars — an empty result is meant
     renderWlMyList();
+    renderEventBanner();   // banner is starred-scoped; keep it in step
+    updateNotifBell();
   }
 
   function openTvPicker(btn, name) {
@@ -4868,6 +4892,257 @@
     }
   }
 
+  // ── Event calendar ───────────────────────────────────────────────────
+  // events.json carries scheduled dates the price engine cannot know: earnings
+  // and ex-dividend, from the same yfinance feed the bars come from. Macro
+  // dates (FOMC/CPI/ECB/SARB) are NOT in the feed — see events.py; the calendar
+  // says so rather than quietly showing an equities-only month as complete.
+
+  const EVENTS_ICS_URL = '/events.ics';   // rewritten to the R2 URL by publish.py
+  const DOW_LABELS  = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const MONTH_NAMES = ['January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+  const EVENT_KINDS = { earnings: 'earnings', exdiv: 'ex-dividend', macro: 'macro' };
+  // How far ahead the dashboard banner looks. Two sessions: far enough to act
+  // before the gap, near enough that it is not permanently on screen.
+  const EVENT_BANNER_DAYS = 3;
+
+  // 'YYYY-MM-DD' for a Date, in LOCAL time. Deliberately not toISOString(),
+  // which converts to UTC first and lands on the previous day for anyone east
+  // of Greenwich — SAST is UTC+2, so every date would have been off by one
+  // before 02:00. Same class of bug as the v224 signal-age fix.
+  function ymd(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  function parseYmd(str) {
+    const [y, m, d] = String(str).split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  // Whole days from today to a date string, local midnight to local midnight.
+  function daysUntil(dateStr) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.round((parseYmd(dateStr) - today) / 86400000);
+  }
+
+  function eventsByDate() {
+    const map = {};
+    (eventsData.events || []).forEach(e => {
+      (map[e.date] || (map[e.date] = [])).push(e);
+    });
+    return map;
+  }
+
+  // Starred first, then earnings before ex-dividend, then alphabetical — the
+  // rows you care about are at the top of the sheet without a second control.
+  function sortEvents(list) {
+    const rank = { macro: 0, earnings: 1, exdiv: 2 };
+    return list.slice().sort((a, b) =>
+      (userStarred.has(b.instrument) - userStarred.has(a.instrument))
+      || ((rank[a.type] ?? 9) - (rank[b.type] ?? 9))
+      || String(a.instrument).localeCompare(String(b.instrument)));
+  }
+
+  // Upcoming events within `days`, nearest first. Starred-only when the user
+  // has a list; everything otherwise, so an empty star list still shows news
+  // rather than an empty calendar.
+  function upcomingEvents(days) {
+    const mine = userStarred.size > 0;
+    return (eventsData.events || [])
+      .filter(e => {
+        const n = daysUntil(e.date);
+        if (n < 0 || n > days) return false;
+        if (e.type === 'exdiv') return false;   // not a gap risk; calendar only
+        return mine ? userStarred.has(e.instrument) : true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function renderEventBanner() {
+    const el = document.getElementById('eventBanner');
+    if (!el) return;
+    const soon = upcomingEvents(EVENT_BANNER_DAYS);
+    if (!soon.length) { el.innerHTML = ''; return; }
+
+    const names = [...new Set(soon.map(e => e.instrument))];
+    const first = soon[0];
+    const n     = daysUntil(first.date);
+    const when  = n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`;
+    const shown = names.slice(0, 4).map(x => `<b>${x}</b>`).join(', ');
+    const extra = names.length > 4 ? ` and ${names.length - 4} more` : '';
+    const scope = userStarred.size > 0 ? ' from your starred list' : '';
+    const lead  = names.length === 1
+      ? `${names[0]} reports ${when}`
+      : `${names.length} companies report in the next ${EVENT_BANNER_DAYS} days`;
+
+    el.innerHTML =
+      `<div class="event-banner" role="button" tabindex="0" data-act="openCalendar"
+            data-arg="${first.date}" aria-label="Open calendar on ${first.date}">
+        <div class="eb-ic">📅</div>
+        <div>
+          <div class="eb-t">${lead}</div>
+          <div class="eb-s">${shown}${extra}${scope}. An earnings date is the one
+          scheduled gap you can see coming — check size before the close.</div>
+        </div>
+      </div>`;
+  }
+
+  function calGridHtml(monthDate, byDate) {
+    const year  = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    // Monday-first: JS getDay() is Sunday=0, so Sunday must become column 7.
+    const lead  = (first.getDay() + 6) % 7;
+    const days  = new Date(year, month + 1, 0).getDate();
+    const today = ymd(new Date());
+
+    let cells = '';
+    for (let i = 0; i < lead; i++) cells += '<div class="cal-cell pad"></div>';
+    for (let d = 1; d <= days; d++) {
+      const date = ymd(new Date(year, month, d));
+      const evs  = byDate[date] || [];
+      const dow  = (new Date(year, month, d).getDay() + 6) % 7;
+      const cls  = ['cal-cell'];
+      if (dow >= 5) cls.push('wknd');
+      if (evs.length) cls.push('has-events');
+      if (date === today) cls.push('today');
+      if (date === calSelected) cls.push('sel');
+      // At most three dots: the cell is ~41px at 320px and a fourth clips.
+      const kinds = [...new Set(evs.map(e => e.type))].slice(0, 3);
+      const dots  = kinds.map(k => `<i class="cal-dot ${k}"></i>`).join('');
+      cells += evs.length
+        ? `<button type="button" class="${cls.join(' ')}" data-act="calDay" data-arg="${date}"
+             aria-label="${d} ${MONTH_NAMES[month]}, ${evs.length} event${evs.length > 1 ? 's' : ''}">
+             ${d}<span class="cal-dots">${dots}</span></button>`
+        : `<div class="${cls.join(' ')}">${d}<span class="cal-dots"></span></div>`;
+    }
+    return cells;
+  }
+
+  function daySheetHtml(date, byDate) {
+    const evs = sortEvents(byDate[date] || []);
+    if (!evs.length) return '';
+    const d = parseYmd(date);
+    const label = `${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][(d.getDay()+6)%7]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+    const rows = evs.map(e => {
+      const star = userStarred.has(e.instrument);
+      const grp  = (allData.find(x => x.instrument_name === e.instrument) || {}).group || '';
+      return `<div class="cal-ev ${e.type}">
+        <div class="cal-ev-top">
+          <span class="cal-ev-name">${e.instrument}${star ? ' <span class="cal-ev-star">★</span>' : ''}</span>
+          <span class="cal-ev-kind">${EVENT_KINDS[e.type] || e.type}</span>
+        </div>
+        ${grp ? `<div class="cal-ev-meta">${grp}</div>` : ''}
+      </div>`;
+    }).join('');
+    const starred = evs.filter(e => userStarred.has(e.instrument)).length;
+    return `<div class="cal-sheet">
+      <div class="cal-sheet-head">
+        <span class="cal-sheet-date">${label}</span>
+        <button type="button" class="cal-sheet-close" data-act="calClose">Close</button>
+      </div>
+      ${starred ? `<div class="cal-ev-meta" style="margin-bottom:8px">${starred} on your starred list</div>` : ''}
+      ${rows}
+      <div class="cal-sheet-acts">
+        <button type="button" class="cal-act" data-act="calIcs" data-arg="${date}">Add this day to calendar</button>
+      </div>
+    </div>`;
+  }
+
+  function renderCalendar() {
+    const body = document.getElementById('notifCalendarBody');
+    if (!body) return;
+    if (!calMonth) { const n = new Date(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+
+    const byDate = eventsByDate();
+    const total  = (eventsData.events || []).length;
+    if (!total) {
+      body.innerHTML = '<div class="notif-empty">No event feed yet — it lands with the next data run.</div>';
+      return;
+    }
+
+    const prev = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
+    const next = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
+    const short = d => MONTH_NAMES[d.getMonth()].slice(0, 3);
+
+    body.innerHTML =
+      `<div class="cal-head">
+        <span class="cal-month">${MONTH_NAMES[calMonth.getMonth()]} ${calMonth.getFullYear()}</span>
+        <span class="cal-nav">
+          <button type="button" class="cal-nav-btn" data-act="calPrev" aria-label="Previous month">‹</button>
+          <button type="button" class="cal-nav-btn" data-act="calNext" aria-label="Next month">›</button>
+        </span>
+      </div>
+      <div class="cal-quarter">${short(prev)} · <b>${short(calMonth)}</b> · ${short(next)}</div>
+      <div class="cal-dow">${DOW_LABELS.map(d => `<div>${d}</div>`).join('')}</div>
+      <div class="cal-grid" id="calGrid">${calGridHtml(calMonth, byDate)}</div>
+      ${calSelected ? daySheetHtml(calSelected, byDate) : ''}
+      <div class="cal-legend">
+        <span><i class="cal-dot earnings" style="background:var(--volume)"></i>Earnings</span>
+        <span><i class="cal-dot exdiv" style="background:var(--text-muted)"></i>Ex-dividend</span>
+      </div>
+      <div class="cal-gap"><b>Earnings and dividends only.</b> Rate and inflation dates
+        (FOMC, CPI, ECB, SARB) are not in this feed yet — there is no source here worth
+        trusting, and a hand-typed list of central-bank dates would go stale without
+        saying so.</div>
+      <button type="button" class="cal-sub-btn" data-act="calSubscribe">Subscribe in Calendar</button>`;
+  }
+
+  // One-off .ics for a single day, built in the browser. The standing
+  // subscription is the published feed (calSubscribe) — this is for taking one
+  // date with you without subscribing to all of them.
+  function icsForDay(date) {
+    const evs = sortEvents(eventsByDate()[date] || []);
+    if (!evs.length) return null;
+    const pad = n => String(n).padStart(2, '0');
+    const compact = str => str.replace(/-/g, '');
+    const d1 = new Date(parseYmd(date).getTime() + 86400000);
+    const dtEnd = `${d1.getFullYear()}${pad(d1.getMonth() + 1)}${pad(d1.getDate())}`;
+    const now = new Date();
+    const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}`
+                + `T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+    const esc = t => String(t).replace(/\\/g, '\\\\').replace(/;/g, '\;')
+                              .replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SwingPulse//Events//EN',
+                   'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    evs.forEach(e => {
+      const kind = EVENT_KINDS[e.type] || e.type;
+      lines.push('BEGIN:VEVENT',
+        `UID:${esc(`${e.date}-${e.type}-${e.instrument}`)}@swingpulse`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${compact(date)}`,
+        `DTEND;VALUE=DATE:${dtEnd}`,
+        `SUMMARY:${esc(`${e.instrument} — ${kind}`)}`,
+        `DESCRIPTION:${esc(`SwingPulse · ${e.instrument} ${kind}`)}`,
+        'TRANSP:TRANSPARENT', 'END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  function downloadIcs(date) {
+    const text = icsForDay(date);
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `swingpulse-${date}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  // webcal:// is the scheme iOS Calendar and macOS listen for; the feed itself
+  // is plain https. Anything else (desktop Chrome) still resolves the https URL.
+  function subscribeToEvents() {
+    const abs = new URL(EVENTS_ICS_URL, window.location.href).href;
+    window.location.href = abs.replace(/^https?:/, 'webcal:');
+  }
+
   // ── Notifications popup (bell) ───────────────────────────────────────
   // Today's notifications = every instrument with an active daily signal.
   function notifItems() {
@@ -4879,7 +5154,10 @@
   function updateNotifBell() {
     const btn = document.getElementById('pushToggleBtn');
     if (!btn) return;
-    const n = notifItems().length;
+    // Today's fires PLUS anything scheduled inside the banner window. The whole
+    // point of the calendar is that the count goes up BEFORE the event, not
+    // after it, so a quiet signal day with earnings tomorrow still badges.
+    const n = notifItems().length + upcomingEvents(EVENT_BANNER_DAYS).length;
     btn.classList.toggle('has-signals', n > 0);
     if (n > 0) btn.dataset.count = n; else delete btn.dataset.count;
   }
@@ -4908,12 +5186,28 @@
     }).join('');
   }
 
+  // Show whichever segment is active and render only that one.
+  function renderNotifBody() {
+    const list = document.getElementById('notifPopupList');
+    const cal  = document.getElementById('notifCalendarBody');
+    if (!list || !cal) return;
+    const onCal = notifTab === 'calendar';
+    list.style.display = onCal ? 'none' : '';
+    cal.style.display  = onCal ? '' : 'none';
+    document.querySelectorAll('.notif-seg-btn').forEach(b => {
+      const on = b.dataset.notifTab === notifTab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (onCal) renderCalendar(); else renderNotifPanel();
+  }
+
   function toggleNotifPanel() {
     const popup = document.getElementById('notifPopup');
     if (!popup) return;
     const open = popup.style.display !== 'none';
     if (open) { popup.style.display = 'none'; return; }
-    renderNotifPanel();
+    renderNotifBody();
     // Refresh the push row only — rewriting the bell's innerHTML here would
     // detach the clicked SVG and break the outside-click guard below.
     const pt = document.getElementById('notifPushToggle');
@@ -4925,10 +5219,18 @@
     popup.style.display = '';
   }
 
+  document.addEventListener('click', e => {
+    const seg = e.target.closest('.notif-seg-btn');
+    if (!seg) return;
+    notifTab = seg.dataset.notifTab === 'calendar' ? 'calendar' : 'today';
+    renderNotifBody();
+  });
+
   // Close popup on outside click or when a notification opens its modal
   document.addEventListener('click', e => {
     const popup = document.getElementById('notifPopup');
     if (!popup || popup.style.display === 'none') return;
+    if (e.target.closest('.notif-seg-btn')) return;   // switching view, not leaving
     if (e.target.closest('.notif-item')) { popup.style.display = 'none'; return; }
     if (!e.target.closest('#notifPopup') && !e.target.closest('#pushToggleBtn')) {
       popup.style.display = 'none';
@@ -4938,7 +5240,35 @@
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel };
+  // Calendar actions, wired through the same data-act dispatcher as everything
+  // else so the grid can be re-rendered wholesale without rebinding handlers.
+  function calShiftMonth(delta) {
+    calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
+    calSelected = null;
+    renderCalendar();
+  }
+  const calPrev = () => calShiftMonth(-1);
+  const calNext = () => calShiftMonth(1);
+  const calDay  = (date) => { calSelected = (calSelected === date) ? null : date; renderCalendar(); };
+  const calClose = () => { calSelected = null; renderCalendar(); };
+  const calIcs  = (date) => downloadIcs(date);
+  const calSubscribe = () => subscribeToEvents();
+  // From the dashboard banner: open the dropdown straight onto that date.
+  function openCalendar(date) {
+    const popup = document.getElementById('notifPopup');
+    if (!popup) return;
+    notifTab = 'calendar';
+    if (date) {
+      const d = parseYmd(date);
+      calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+      calSelected = date;
+    }
+    popup.style.display = '';
+    renderNotifBody();
+  }
+
+  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
+                calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)

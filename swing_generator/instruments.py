@@ -89,6 +89,13 @@ def asset_class_of(group: str) -> str:
         return 'Currency'
     if g == 'Commodity':
         return 'Commodity'
+    # Rates (^TNX/^VIX/^IRX/^FVX/^TYX, added 2026-08-29) are their own GROUP so
+    # they get their own Class chip, but they are an Index asset CLASS: the
+    # confidence map and backtest buckets are keyed by class, and a brand-new
+    # class would look up nothing and silently drop every rate signal to the
+    # untiered fallback.
+    if g == 'Rates':
+        return 'Index'
     if g.endswith('Index'):
         return 'Index'
     return 'Equity'

@@ -12,7 +12,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 |------|-------|
 | Live URL | https://swingpulse200.pages.dev |
 | R2 data prefix | `ma500/` |
-| Instruments | **793** (parsed from `../Instruments.txt`) — 736 + 57 currency pairs restored 2026-08-25 |
+| Instruments | **798** (parsed from `../Instruments.txt`) — 736 + 57 currency pairs (2026-08-25) + 5 Rates (2026-08-29) |
 | MA ribbon | MA25–MA500 (step 25, 20 MAs) |
 | History years | 13 (`HISTORY_YEARS` in config.py — daily MA500 warmup + the backtest window since 2016; the 45 that used to be here only served the removed monthly timeframe) |
 
@@ -40,6 +40,7 @@ swing_generator/
 ├── config.py                  # MA500 profile: MA25–500, thresholds, OUTPUT_COLUMNS
 ├── _active_config.py          # Thin re-export shim from config.py; ACTIVE_PROFILE='ma500'
 ├── instruments.py             # Parses ../Instruments.txt → list of {num,ticker,name,group,sector,industry}
+├── events.py                  # Scheduled events (earnings/ex-div from yfinance) → events.json
 ├── output_ma500/              # CSV output files (gitignored)
 ├── cache_ma500/               # Parquet price cache (gitignored)
 ├── webapp/
@@ -177,9 +178,67 @@ set (`main.py _extract_row`); daily bars are unique by date.
 | `/api/names` | `{ display_name: full company name }` — keyed by display name since 2026-07-19 (was yf ticker, which never matched `instName()` lookups) |
 | `/api/ai-instruments` | List of AI-sector instrument names |
 | `/api/explanations` | Signal explanation text map |
+| `/api/events` | `{generated_at, window, sources, events:[{date,type,instrument}]}` — earnings/ex-dividend dates. `sources.macro` is `null`: there is no rate/inflation feed, by design (see events.py) |
 | `/api/flow` | Capital flow data for a group/region/period |
 | `/api/backtest` | Latest backtest results (overall, by_signal, by_tf, by_class, by_instrument, equity_curve, params) |
 | `/api/refresh` | POST — triggers a fresh data reload on the server |
+
+---
+
+## Event Calendar (2026-08-29)
+
+`events.py` fetches earnings + ex-dividend dates for the **equity** rows only
+(an index/currency/commodity/coin has none) via `yfinance Ticker.calendar`, one
+metadata call per ticker at 8 workers (~0.1s each). Written to `events.json`,
+windowed −7/+120 days, and turned into a subscribable `events.ics` by
+`publish.build_ics()`. Both upload to R2; `_content_type_for()` serves the .ics
+as `text/calendar` — as `application/json` iOS silently ignores a `webcal://`
+subscription.
+
+**No time-of-day on an earnings row, deliberately.** `Ticker.calendar` returns a
+bare date for every ticker (measured: 0 of 542 carried a time). The endpoint that
+does — `get_earnings_dates` — costs 0.42s/ticker vs 0.10s and populates it for US
+listings only, so the field would render on some rows and not others.
+
+**`MACRO_EVENTS` is empty on purpose.** No FOMC/CPI/ECB/SARB dates ship. There is
+no free feed worth trusting, and a hand-typed table of central-bank dates goes
+stale silently while looking authoritative. The calendar states the gap in the UI
+(`.cal-gap`) rather than presenting an equities-only month as complete. If this is
+ever filled, fill it from a re-fetchable source, never by hand.
+
+Front end: the bell became a **calendar glyph** with two segments — `Today`
+(the existing signal list, untouched) and `Calendar` (month grid, ‹ › to the
+neighbouring months, tap a day for its sheet). The badge counts today's fires
+PLUS events inside `EVENT_BANNER_DAYS`, so it rises *before* an event. A
+`#eventBanner` sits between `#staleBanner` and `#marketStateBanner`: the caveat
+stack reads "can I trust this data" → "what is coming" → "what are conditions".
+Dates are formatted with `ymd()`, **not** `toISOString()` — the latter converts to
+UTC first and lands a day early for SAST before 02:00.
+
+---
+
+## Sync: the starred list can no longer be wiped (2026-08-29)
+
+`syncPushNow()` used to send `starred: [...userStarred]` with no empty-guard and
+the Worker did a blind `USER_DATA.put(user, body)` — one KV key, no history. Any
+device that came up with an empty list (evicted iOS PWA, fresh install, a pull
+that had not landed) destroyed the list for every device the moment the user
+starred one thing or edited one note. Three guards now:
+
+1. **Client omits the key.** `syncPushNow(intentional)` includes `starred` only
+   when the list is non-empty OR the user just tapped a star. A note edit never
+   carries the starred list as collateral.
+2. **Worker merges, not replaces.** An absent `starred` key keeps what is stored.
+   An empty one over a populated list returns **409** unless `?allowEmpty=1`,
+   which only a deliberate unstar sends.
+3. **One generation of history.** The previous blob is copied to `<user>:prev`
+   before every write; `GET /sync/backup?user=` reads it back.
+
+`syncApplyRemote()` also refuses to replace a populated local list with an empty
+remote one.
+
+> The Worker must be deployed for guards 2 and 3 to exist:
+> `cd swing_generator/webapp/sync-worker && npx wrangler deploy`
 
 ---
 

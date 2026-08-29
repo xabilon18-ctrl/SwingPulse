@@ -1183,6 +1183,17 @@ def api_explanations():
         return jsonify(_json.load(f))
 
 
+@app.route('/api/events')
+def api_events():
+    """Scheduled events (earnings / ex-dividend) for the calendar tab."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, 'events.json')
+    if not os.path.exists(path):
+        return jsonify({'events': [], 'sources': {}})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
 @app.route('/api/flow')
 def api_flow():
     """Aggregate index volume by region for the Flow tab."""

@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -288,6 +288,61 @@ def _explain_one(row: pd.Series) -> str:
     return f'{sentence1} {sentence2}'
 
 
+EVENT_TITLES = {
+    'earnings': 'earnings',
+    'exdiv':    'ex-dividend',
+}
+
+
+def _ics_escape(text: str) -> str:
+    """RFC 5545 §3.3.11 — backslash, semicolon, comma and newline are special."""
+    return (str(text).replace('\\', '\\\\').replace(';', '\\;')
+                     .replace(',', '\\,').replace('\n', '\\n'))
+
+
+def build_ics(events: list) -> str:
+    """One all-day VEVENT per row, as a subscribable calendar.
+
+    DTEND is the day AFTER DTSTART: an all-day VALUE=DATE event is a half-open
+    range, so an equal DTEND renders as a zero-length event that several
+    calendar apps drop silently.
+    """
+    stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    lines = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0',
+        'PRODID:-//SwingPulse//Events//EN',
+        'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+        'X-WR-CALNAME:SwingPulse Events',
+        'X-WR-TIMEZONE:UTC',
+        # Tell subscribers how often to re-poll; the pipeline runs 3x a weekday.
+        'REFRESH-INTERVAL;VALUE=DURATION:PT6H',
+        'X-PUBLISHED-TTL:PT6H',
+    ]
+    for e in events:
+        try:
+            d0 = datetime.strptime(e['date'], '%Y-%m-%d').date()
+        except (KeyError, ValueError):
+            continue
+        d1   = d0 + timedelta(days=1)
+        kind = EVENT_TITLES.get(e.get('type'), e.get('type', 'event'))
+        inst = e.get('instrument', '')
+        uid  = f"{e['date']}-{e.get('type','')}-{inst}@swingpulse"
+        lines += [
+            'BEGIN:VEVENT',
+            f'UID:{_ics_escape(uid)}',
+            f'DTSTAMP:{stamp}',
+            f'DTSTART;VALUE=DATE:{d0.strftime("%Y%m%d")}',
+            f'DTEND;VALUE=DATE:{d1.strftime("%Y%m%d")}',
+            f'SUMMARY:{_ics_escape(f"{inst} — {kind}")}',
+            f'DESCRIPTION:{_ics_escape(f"SwingPulse · {inst} {kind}")}',
+            'TRANSP:TRANSPARENT',
+            'END:VEVENT',
+        ]
+    lines.append('END:VCALENDAR')
+    # RFC 5545 requires CRLF line endings
+    return '\r\n'.join(lines) + '\r\n'
+
+
 def generate_explanations(df: pd.DataFrame) -> dict:
     """Generate rule-based signal explanations for all signaled instruments.
     No API key required — runs entirely from signal data fields.
@@ -528,13 +583,26 @@ def build_data(output_dir, src_signals_dir=None):
     # Live signal ledger + sector activity series — copy verbatim if present
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
-                  'instrument_flavours.json'):
+                  'instrument_flavours.json', 'events.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
             with open(src) as f:
                 payload = json.load(f)
             with open(os.path.join(output_dir, fname), 'w') as f:
                 json.dump(payload, f, separators=(',', ':'))
+
+    # Calendar subscription feed. The per-event "Add to calendar" button in the
+    # app builds its own one-off .ics client-side; THIS file is the standing
+    # subscription — point iOS Calendar at webcal://<r2>/ma500/events.ics once
+    # and every future earnings date arrives on its own. All-day VEVENTs, since
+    # events.py deliberately carries no time of day.
+    ev_src = os.path.join(OUTPUT_DIR, 'events.json')
+    if os.path.exists(ev_src):
+        with open(ev_src) as f:
+            ev_payload = json.load(f)
+        with open(os.path.join(output_dir, 'events.ics'), 'w') as f:
+            f.write(build_ics(ev_payload.get('events', [])))
+        print(f'  Calendar feed: events.ics ({len(ev_payload.get("events", []))} events)')
 
     # Backtest results — copy if a recent backtest JSON exists
     bt_files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'backtest_*.json')))
@@ -640,6 +708,17 @@ def _cache_control_for(r2_key):
     return 'no-cache, max-age=0'
 
 
+def _content_type_for(r2_key):
+    """Content-Type for an R2 object.
+
+    Everything this pipeline publishes is JSON except the calendar feed, and an
+    .ics served as application/json will not subscribe — iOS Calendar dispatches
+    on the MIME type, not the extension, so a webcal:// link to a JSON-typed
+    file silently does nothing.
+    """
+    return 'text/calendar; charset=utf-8' if r2_key.endswith('.ics') else 'application/json'
+
+
 def _is_gzipped(path):
     """True if the file on disk is gzip data (magic bytes 1f 8b).
 
@@ -674,7 +753,7 @@ def _r2_put_api(local_path, r2_key, api_token, account_id, timeout=120, max_429_
         data = fh.read()
     headers = {
         'Authorization': f'Bearer {api_token}',
-        'Content-Type':  'application/json',
+        'Content-Type':  _content_type_for(r2_key),
         'Cache-Control': _cache_control_for(r2_key),
     }
     if _is_gzipped(local_path):
@@ -720,7 +799,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
             cmd + ['r2', 'object', 'put',
                    f'{R2_BUCKET}/{r2_key}',
                    '--file', local_path,
-                   '--content-type', 'application/json',
+                   '--content-type', _content_type_for(r2_key),
                    '--cache-control', cc,
                    *enc, '--remote'],
             capture_output=True, text=True, env=env, timeout=timeout,
@@ -733,7 +812,7 @@ def _r2_put_wrangler(local_path, r2_key, timeout=120):
                     cmd + ['r2', 'object', 'put',
                            f'{R2_BUCKET}/{r2_key}',
                            '--file', local_path,
-                           '--content-type', 'application/json',
+                           '--content-type', _content_type_for(r2_key),
                            '--cache-control', cc,
                            *enc],
                     capture_output=True, text=True, env=env, timeout=timeout,
@@ -782,7 +861,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'backtest.json', 'flow_volumes.json',
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
-                  'instrument_flavours.json', 'status.json']:
+                  'instrument_flavours.json', 'status.json',
+                  'events.json', 'events.ics']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -908,6 +988,11 @@ def build_ui():
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")
+    js = js.replace("'/api/events'",       f"'{base}/events.json'")
+    # The calendar SUBSCRIPTION feed. Must be an absolute R2 URL: the app is on
+    # pages.dev and the .ics lives in the bucket, and webcal:// is resolved by
+    # the OS calendar app, which has no page context to resolve a relative path.
+    js = js.replace("'/events.ics'",       f"'{base}/events.ics'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     js = js.replace("'/api/chart-index'",  f"'{base}/chart/index.json'")
     js = js.replace(

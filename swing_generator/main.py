@@ -796,6 +796,11 @@ def main():
     from sector_activity import update_sector_activity
     update_sector_activity(output_df)
 
+    # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
+    #     Never fatal: a Yahoo metadata outage must not cost a day of signals.
+    from events import write_events
+    write_events(instruments)
+
     # 6. Summary to console
     print('\n  Signal summary:')
     _print_summary(output_df)

@@ -1056,6 +1056,22 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 798  | USDHKD=X      | USDHKD        | Currency      | Currency                  | USD/HKD Exotic
 
 ═══════════════════════════════════════════════════════════════════════════════
+  RATES  (added 2026-08-29)
+  Interest rates and volatility as first-class instruments. Until now the app
+  could see the DAMAGE — equities falling — but never the CAUSE. These five ride
+  the same MA-ribbon engine as everything else, so a B1 on VIX is a market-wide
+  warning the engine produces on its own. yfinance returns them as real
+  percentages (^TNX 4.67 = 4.67%), so there is no conversion anywhere.
+  Group 'Rates' keeps them behind their own Class chip; asset_class_of() maps
+  the group to 'Index' so the backtest confidence lookups keep working.
+═══════════════════════════════════════════════════════════════════════════════
+799  | ^TNX          | US10Y         | Rates         | Index                     | Treasury Yield 10Y
+800  | ^VIX          | VIX           | Rates         | Index                     | Volatility Index
+801  | ^IRX          | US03M         | Rates         | Index                     | Treasury Yield 3M
+802  | ^FVX          | US05Y         | Rates         | Index                     | Treasury Yield 5Y
+803  | ^TYX          | US30Y         | Rates         | Index                     | Treasury Yield 30Y
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)
