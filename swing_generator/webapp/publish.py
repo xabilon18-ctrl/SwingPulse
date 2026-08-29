@@ -324,17 +324,25 @@ def build_ics(events: list) -> str:
         except (KeyError, ValueError):
             continue
         d1   = d0 + timedelta(days=1)
-        kind = EVENT_TITLES.get(e.get('type'), e.get('type', 'event'))
         inst = e.get('instrument', '')
         uid  = f"{e['date']}-{e.get('type','')}-{inst}@swingpulse"
+        # A macro row's instrument IS the event name ("FOMC decision"), so
+        # appending a kind would read "FOMC decision — macro".
+        if e.get('type') == 'macro':
+            summary = inst
+            detail  = f"SwingPulse · {inst}" + (f" · {e['time']}" if e.get('time') else '')
+        else:
+            kind    = EVENT_TITLES.get(e.get('type'), e.get('type', 'event'))
+            summary = f"{inst} — {kind}"
+            detail  = f"SwingPulse · {inst} {kind}"
         lines += [
             'BEGIN:VEVENT',
             f'UID:{_ics_escape(uid)}',
             f'DTSTAMP:{stamp}',
             f'DTSTART;VALUE=DATE:{d0.strftime("%Y%m%d")}',
             f'DTEND;VALUE=DATE:{d1.strftime("%Y%m%d")}',
-            f'SUMMARY:{_ics_escape(f"{inst} — {kind}")}',
-            f'DESCRIPTION:{_ics_escape(f"SwingPulse · {inst} {kind}")}',
+            f'SUMMARY:{_ics_escape(summary)}',
+            f'DESCRIPTION:{_ics_escape(detail)}',
             'TRANSP:TRANSPARENT',
             'END:VEVENT',
         ]

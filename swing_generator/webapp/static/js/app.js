@@ -4955,6 +4955,9 @@
         const n = daysUntil(e.date);
         if (n < 0 || n > days) return false;
         if (e.type === 'exdiv') return false;   // not a gap risk; calendar only
+        // A macro event has no instrument to star — it hits everything, so it
+        // is never filtered out by the starred-list scope.
+        if (e.type === 'macro') return true;
         return mine ? userStarred.has(e.instrument) : true;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -4966,25 +4969,40 @@
     const soon = upcomingEvents(EVENT_BANNER_DAYS);
     if (!soon.length) { el.innerHTML = ''; return; }
 
-    const names = [...new Set(soon.map(e => e.instrument))];
     const first = soon[0];
     const n     = daysUntil(first.date);
     const when  = n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`;
-    const shown = names.slice(0, 4).map(x => `<b>${x}</b>`).join(', ');
-    const extra = names.length > 4 ? ` and ${names.length - 4} more` : '';
-    const scope = userStarred.size > 0 ? ' from your starred list' : '';
-    const lead  = names.length === 1
-      ? `${names[0]} reports ${when}`
-      : `${names.length} companies report in the next ${EVENT_BANNER_DAYS} days`;
+
+    // A rate decision outranks earnings and is worded differently — it hits
+    // everything you hold, so it is never "a company reporting".
+    const macro = soon.filter(e => e.type === 'macro');
+    let lead, body;
+    if (macro.length) {
+      const m  = macro[0];
+      const mn = daysUntil(m.date);
+      const mw = mn === 0 ? 'today' : mn === 1 ? 'tomorrow' : `in ${mn} days`;
+      lead = `${m.instrument} ${mw}`;
+      body = `${m.time ? `<b>${m.time}</b>. ` : ''}Moves everything at once, not one
+              position — rate-sensitive instruments first.`;
+    } else {
+      const names = [...new Set(soon.map(e => e.instrument))];
+      const shown = names.slice(0, 4).map(x => `<b>${x}</b>`).join(', ');
+      const extra = names.length > 4 ? ` and ${names.length - 4} more` : '';
+      const scope = userStarred.size > 0 ? ' from your starred list' : '';
+      lead = names.length === 1
+        ? `${names[0]} reports ${when}`
+        : `${names.length} companies report in the next ${EVENT_BANNER_DAYS} days`;
+      body = `${shown}${extra}${scope}. An earnings date is the one scheduled gap
+              you can see coming — check size before the close.`;
+    }
 
     el.innerHTML =
       `<div class="event-banner" role="button" tabindex="0" data-act="openCalendar"
-            data-arg="${first.date}" aria-label="Open calendar on ${first.date}">
+            data-arg="${(macro[0] || first).date}" aria-label="Open calendar">
         <div class="eb-ic">📅</div>
         <div>
           <div class="eb-t">${lead}</div>
-          <div class="eb-s">${shown}${extra}${scope}. An earnings date is the one
-          scheduled gap you can see coming — check size before the close.</div>
+          <div class="eb-s">${body}</div>
         </div>
       </div>`;
   }
@@ -5029,10 +5047,12 @@
     const rows = evs.map(e => {
       const star = userStarred.has(e.instrument);
       const grp  = (allData.find(x => x.instrument_name === e.instrument) || {}).group || '';
+      // Only macro rows carry a time — an earnings row never does, by design.
+      const kind = e.time ? e.time : (EVENT_KINDS[e.type] || e.type);
       return `<div class="cal-ev ${e.type}">
         <div class="cal-ev-top">
           <span class="cal-ev-name">${e.instrument}${star ? ' <span class="cal-ev-star">★</span>' : ''}</span>
-          <span class="cal-ev-kind">${EVENT_KINDS[e.type] || e.type}</span>
+          <span class="cal-ev-kind">${kind}</span>
         </div>
         ${grp ? `<div class="cal-ev-meta">${grp}</div>` : ''}
       </div>`;
@@ -5085,13 +5105,24 @@
       <div class="cal-grid" id="calGrid">${calGridHtml(calMonth, byDate)}</div>
       ${calSelected ? daySheetHtml(calSelected, byDate) : ''}
       <div class="cal-legend">
+        <span><i class="cal-dot macro" style="background:var(--accent)"></i>Rates</span>
         <span><i class="cal-dot earnings" style="background:var(--volume)"></i>Earnings</span>
         <span><i class="cal-dot exdiv" style="background:var(--text-muted)"></i>Ex-dividend</span>
       </div>
-      <div class="cal-gap"><b>Earnings and dividends only.</b> Rate and inflation dates
-        (FOMC, CPI, ECB, SARB) are not in this feed yet — there is no source here worth
-        trusting, and a hand-typed list of central-bank dates would go stale without
-        saying so.</div>`;
+      <div class="cal-gap">${calGapNote()}</div>`;
+  }
+
+  // The calendar states its own gaps rather than presenting a partial month as
+  // complete. Driven by events.json's `sources`, so it can never claim a feed
+  // that did not actually load.
+  function calGapNote() {
+    const src = eventsData.sources || {};
+    const bits = [];
+    if (src.macro) bits.push('<b>FOMC decision dates</b> are included, from the Fed\u2019s own calendar.');
+    else           bits.push('<b>No rate decisions yet.</b>');
+    if (!src.fred) bits.push('CPI, PCE and the jobs report are not in yet \u2014 they need a free FRED API key.');
+    if (!src.speeches) bits.push('<b>Speeches are not here and may never be:</b> the Fed publishes a speech when it is delivered, not before.');
+    return bits.join(' ');
   }
 
   // One-off .ics for a single day, built in the browser. The standing

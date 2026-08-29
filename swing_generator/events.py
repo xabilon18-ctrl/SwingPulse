@@ -10,11 +10,12 @@ Sources, and their honesty:
     confirmed-or-estimated next report date for most listed equities, and it is
     the same feed the price history already comes from, so there is no new
     dependency and no new failure mode.
-  - macro (FOMC, CPI, ECB, SARB …) — NOT IMPLEMENTED. There is no free feed
-    here worth trusting, and a hard-coded table of central-bank dates is worse
-    than nothing: it looks authoritative, drifts silently the moment a meeting
-    is moved, and would be read as fact off a phone. `MACRO_EVENTS` is
-    deliberately empty and the front end renders the gap rather than hiding it.
+  - macro (FOMC decisions, and US CPI/PCE/payrolls when a FRED key is set) —
+    REAL, via macro_events.py. Both sources are official and re-fetchable, which
+    was the condition for filling this at all; a hand-typed table of meeting
+    dates was and remains off the table. Speeches are still absent: the Fed's
+    speech feed publishes at DELIVERY, not in advance, so it could not have
+    warned about the 2026-08-28 Warsh speech that prompted this work.
 
 Only equities are queried — an index, a currency pair, a commodity future and a
 coin have no earnings date, so asking for one is 240-odd wasted requests.
@@ -63,9 +64,21 @@ FUTURE_DAYS = 120
 # universe costs well under two minutes on top of a ~20-minute pipeline run.
 WORKERS = int(os.environ.get('FETCH_WORKERS', 8))
 
-# Central-bank and inflation dates. EMPTY BY DESIGN — see the module docstring.
-# Populate this only from a feed that can be re-fetched, never by hand.
-MACRO_EVENTS: list[dict] = []
+def macro_events() -> list[dict]:
+    """Central-bank and inflation dates, from macro_events.py.
+
+    Was an empty list until 2026-08-29, held that way because a hand-typed table
+    of meeting dates goes stale silently. It is populated now only because both
+    sources can be RE-FETCHED: the Fed's own calendar page (no key) and the FRED
+    release API (free key in FRED_API_KEY). Without the key the FOMC half still
+    ships on its own.
+    """
+    try:
+        from macro_events import build_macro_events
+        return build_macro_events()
+    except Exception as e:
+        print(f'  Events: macro sources unavailable — {type(e).__name__}: {e}')
+        return []
 
 
 def _iso(d) -> str | None:
@@ -139,7 +152,8 @@ def build_events(instruments: list[dict] | None = None) -> dict:
             else:
                 misses += 1
 
-    rows.extend(MACRO_EVENTS)
+    macro = macro_events()
+    rows.extend(macro)
 
     # Window, then sort by date so the front end can slice without re-sorting
     rows = [r for r in rows if lo <= r['date'] <= hi]
@@ -156,7 +170,16 @@ def build_events(instruments: list[dict] | None = None) -> dict:
         'generated_at': dt.datetime.now(dt.timezone.utc)
                           .replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
         'window':  {'from': lo, 'to': hi},
-        'sources': {'earnings': 'yfinance', 'macro': None},
+        # The UI states the gap out loud, so it has to know what actually
+        # loaded — not what was intended. `fred` flips on only when the key is
+        # present AND the call returned rows.
+        'sources': {
+            'earnings': 'yfinance',
+            'macro':    'federalreserve.gov' if macro else None,
+            'fred':     bool(os.environ.get('FRED_API_KEY', '').strip())
+                        and any('FOMC' not in r['instrument'] for r in macro),
+            'speeches': False,
+        },
         'events':  rows,
     }
 
