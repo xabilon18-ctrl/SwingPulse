@@ -5273,6 +5273,16 @@
     const popup = document.getElementById('notifPopup');
     if (!popup || popup.style.display === 'none') return;
     if (e.target.closest('.notif-seg-btn')) return;   // switching view, not leaving
+    // A handler that ran before this one may have re-rendered the thing that was
+    // clicked — the calendar's month arrows and month chips both rebuild
+    // #notifCalendarBody's innerHTML, which DETACHES the clicked button. On a
+    // detached node closest('#notifPopup') is null, so the test below read a
+    // click on the arrow as a click outside the popup and closed it: the month
+    // advanced and the calendar vanished in the same frame. Swipe was unaffected
+    // because a touch gesture never fires click, which is exactly why it worked
+    // while the arrows appeared dead. If the target is gone from the document,
+    // the click was ours.
+    if (!e.target.isConnected) return;
     if (e.target.closest('.notif-item')) { popup.style.display = 'none'; return; }
     if (!e.target.closest('#notifPopup') && !e.target.closest('#pushToggleBtn')) {
       popup.style.display = 'none';
