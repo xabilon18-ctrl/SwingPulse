@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=225">
+  <link rel="stylesheet" href="/static/css/style.css?v=226">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -81,6 +81,12 @@
     </div>
     <div class="notif-popup-list" id="notifPopupList"></div>
     <div class="notif-popup-list" id="notifCalendarBody" style="display:none"></div>
+    <!-- Subscribe lives OUTSIDE the scroll area. Inside it, it sat below a
+         day sheet that can run 20 rows — reachable only after scrolling past
+         everything, which is not where a primary action belongs. -->
+    <div class="notif-cal-footer" id="notifCalFooter" style="display:none">
+      <a class="cal-sub-btn" id="calSubscribeLink" href="#">Subscribe in Calendar</a>
+    </div>
   </div>
 
   <!-- ===== MAIN CONTENT ===== -->
@@ -850,6 +856,6 @@
 
 
 
-  <script src="/static/js/app.js?v=252"></script>
+  <script src="/static/js/app.js?v=253"></script>
 </body>
 </html>

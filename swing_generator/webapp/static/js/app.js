@@ -5075,7 +5075,12 @@
           <button type="button" class="cal-nav-btn" data-act="calNext" aria-label="Next month">›</button>
         </span>
       </div>
-      <div class="cal-quarter">${short(prev)} · <b>${short(calMonth)}</b> · ${short(next)}</div>
+      <div class="cal-quarter">
+        <button type="button" class="cal-q" data-act="calPrev">${short(prev)}</button>
+        <b>${short(calMonth)}</b>
+        <button type="button" class="cal-q" data-act="calNext">${short(next)}</button>
+        <span class="cal-q-hint">swipe</span>
+      </div>
       <div class="cal-dow">${DOW_LABELS.map(d => `<div>${d}</div>`).join('')}</div>
       <div class="cal-grid" id="calGrid">${calGridHtml(calMonth, byDate)}</div>
       ${calSelected ? daySheetHtml(calSelected, byDate) : ''}
@@ -5086,8 +5091,7 @@
       <div class="cal-gap"><b>Earnings and dividends only.</b> Rate and inflation dates
         (FOMC, CPI, ECB, SARB) are not in this feed yet — there is no source here worth
         trusting, and a hand-typed list of central-bank dates would go stale without
-        saying so.</div>
-      <button type="button" class="cal-sub-btn" data-act="calSubscribe">Subscribe in Calendar</button>`;
+        saying so.</div>`;
   }
 
   // One-off .ics for a single day, built in the browser. The standing
@@ -5137,11 +5141,45 @@
   }
 
   // webcal:// is the scheme iOS Calendar and macOS listen for; the feed itself
-  // is plain https. Anything else (desktop Chrome) still resolves the https URL.
-  function subscribeToEvents() {
-    const abs = new URL(EVENTS_ICS_URL, window.location.href).href;
-    window.location.href = abs.replace(/^https?:/, 'webcal:');
+  // is plain https. A real <a href> rather than a scripted navigation: iOS
+  // handles the scheme far more reliably from a link, and it makes the URL
+  // long-pressable so it can be copied into any other calendar app.
+  function webcalUrl() {
+    return new URL(EVENTS_ICS_URL, window.location.href).href.replace(/^https?:/, 'webcal:');
   }
+  function subscribeToEvents() { window.location.href = webcalUrl(); }
+
+  // Horizontal swipe across the grid moves a month — the arrows are small and
+  // a calendar is a thing people swipe. Bound once to the container, which
+  // survives renderCalendar()'s innerHTML rewrite; the grid inside does not.
+  (function wireCalendarSwipe() {
+    const body = document.getElementById('notifCalendarBody');
+    if (!body) return;
+    let x0 = null, y0 = null;
+    body.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) { x0 = null; return; }
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    }, { passive: true });
+    body.addEventListener('touchend', e => {
+      if (x0 === null) return;
+      const t  = e.changedTouches[0];
+      const dx = t.clientX - x0, dy = t.clientY - y0;
+      x0 = null;
+      // Horizontal-dominant and past a real threshold, so scrolling the day
+      // sheet vertically never flips the month by accident.
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      calShiftMonth(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    // Trackpad / mouse-wheel horizontal scroll, for the desktop view.
+    let wheelLock = 0;
+    body.addEventListener('wheel', e => {
+      if (Math.abs(e.deltaX) < 30 || Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
+      const now = Date.now();
+      if (now - wheelLock < 400) return;
+      wheelLock = now;
+      calShiftMonth(e.deltaX > 0 ? 1 : -1);
+    }, { passive: true });
+  })();
 
   // ── Notifications popup (bell) ───────────────────────────────────────
   // Today's notifications = every instrument with an active daily signal.
@@ -5194,6 +5232,10 @@
     const onCal = notifTab === 'calendar';
     list.style.display = onCal ? 'none' : '';
     cal.style.display  = onCal ? '' : 'none';
+    const footer = document.getElementById('notifCalFooter');
+    const subLink = document.getElementById('calSubscribeLink');
+    if (footer) footer.style.display = onCal && (eventsData.events || []).length ? '' : 'none';
+    if (subLink) subLink.href = webcalUrl();
     document.querySelectorAll('.notif-seg-btn').forEach(b => {
       const on = b.dataset.notifTab === notifTab;
       b.classList.toggle('active', on);

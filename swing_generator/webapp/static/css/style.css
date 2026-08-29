@@ -7822,13 +7822,13 @@ body {
 }
 .cal-nav { display: flex; gap: 6px; }
 .cal-nav-btn {
-  width: 24px; height: 24px;
+  width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-card);
   color: var(--text-secondary);
-  font-size: .8rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -7844,6 +7844,30 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .cal-quarter b { color: var(--accent); font-weight: 700; }
+/* The neighbouring months are the swipe target made visible — tapping them is
+   the same action, for anyone who does not think to swipe a popup. */
+.cal-q {
+  font: inherit;
+  font-size: .62rem;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.cal-q:hover { color: var(--text-primary); }
+.cal-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-q-hint {
+  margin-left: auto;
+  font-size: .56rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: .65;
+}
+.cal-quarter { align-items: center; }
 
 /* ── Grid ───────────────────────────────────────────────────────────────── */
 .cal-dow, .cal-grid {
@@ -7860,7 +7884,7 @@ body {
   color: var(--text-muted);
   padding-bottom: 5px;
 }
-.cal-grid { padding-bottom: 10px; }
+.cal-grid { padding-bottom: 10px; touch-action: pan-y; }
 .cal-cell {
   aspect-ratio: 1 / 1.05;
   display: flex;
@@ -7924,11 +7948,19 @@ body {
 }
 .cal-gap b { color: var(--text-secondary); font-weight: 600; }
 
+/* Pinned footer — outside the scrolling calendar body, so the primary action
+   is always on screen no matter how long the open day sheet runs. */
+.notif-cal-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 10px 12px;
+}
 .cal-sub-btn {
   display: block;
-  width: calc(100% - 24px);
-  margin: 0 12px 12px;
-  padding: 9px 0;
+  width: 100%;
+  text-decoration: none;
+  padding: 10px 0;
   text-align: center;
   font: inherit;
   font-size: .72rem;
