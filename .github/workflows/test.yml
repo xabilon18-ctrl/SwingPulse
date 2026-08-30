@@ -39,6 +39,11 @@ jobs:
         run: |
           cd swing_generator
           python3 tests/golden_test.py
+          # The FOMC calendar parser is regexes over someone else's HTML — the
+          # most breakable thing in the pipeline, and it fails SILENTLY: zero
+          # rows just reads as "no meetings scheduled". Offline, against a
+          # trimmed copy of the real page in tests/fixtures/.
+          python3 tests/macro_events_test.py
 
       # Does the FRONT END still agree with the payload's vocabulary? Catches
       # the class of bug where app.js tests a field for a word that field never
