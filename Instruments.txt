@@ -1064,6 +1064,10 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   percentages (^TNX 4.67 = 4.67%), so there is no conversion anywhere.
   Group 'Rates' keeps them behind their own Class chip; asset_class_of() maps
   the group to 'Index' so the backtest confidence lookups keep working.
+  NB that Class chip did not actually exist until 2026-08-30 — scannerClassFilter
+  was a hardcoded list of five and these five filtered as 'Index', findable only
+  under Group. app.js browseClassOf() now splits the two rules: 'Rates' to
+  BROWSE by, 'Index' to SCORE by. Two rules are fine as long as each says so.
 ═══════════════════════════════════════════════════════════════════════════════
 799  | ^TNX          | US10Y         | Rates         | Index                     | Treasury Yield 10Y
 800  | ^VIX          | VIX           | Rates         | Index                     | Volatility Index
