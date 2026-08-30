@@ -1194,6 +1194,31 @@ def api_events():
         return jsonify(_json.load(f))
 
 
+@app.route('/events.ics')
+def events_ics():
+    """The subscribable calendar feed, same path the published app serves.
+
+    Added 2026-08-30. Without it `Subscribe in Calendar` and the one-day
+    download were dead in local dev — webcal://localhost:5050/events.ics is a
+    404 — so the only way to test either was to publish. Built by
+    publish.build_ics(), which is the ONE place an event gets a calendar title;
+    serving a second implementation here is how the two .ics files drifted in
+    the first place.
+    """
+    import json as _json
+    from flask import Response
+    path = os.path.join(OUTPUT_DIR, 'events.json')
+    events = []
+    if os.path.exists(path):
+        with open(path) as f:
+            events = _json.load(f).get('events', [])
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from publish import build_ics
+    # text/calendar, not application/json: iOS silently ignores a webcal://
+    # subscription served as JSON (same reason publish._content_type_for exists).
+    return Response(build_ics(events), mimetype='text/calendar')
+
+
 @app.route('/api/flow')
 def api_flow():
     """Aggregate index volume by region for the Flow tab."""

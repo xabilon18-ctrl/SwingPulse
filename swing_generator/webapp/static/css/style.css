@@ -5209,6 +5209,23 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 .push-toggle-btn.has-signals svg {
   animation: bell-ring .5s ease-in-out 2;
 }
+.push-toggle-btn[data-events]::after {
+  content: attr(data-events);
+  position: absolute;
+  bottom: -4px; right: -4px;
+  min-width: 16px; height: 16px;
+  border-radius: 8px;
+  background: var(--volume);
+  color: #0a0a0f;
+  font-size: .54rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+  border: 2px solid var(--bg-base);
+}
 @keyframes bell-ring {
   0%,100% { transform: rotate(0); }
   20%     { transform: rotate(12deg); }
@@ -5216,7 +5233,11 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   60%     { transform: rotate(8deg); }
   80%     { transform: rotate(-6deg); }
 }
-.push-toggle-btn.has-signals::before {
+/* Gold badge = fired today. Violet pip = scheduled soon. They used to be one
+   number added together, which on a busy day read "137" and belonged to
+   neither of the two segments underneath it. Attribute-driven so each mark
+   appears only when its own count is non-zero. */
+.push-toggle-btn[data-count]::before {
   content: attr(data-count);
   position: absolute;
   top: -4px; right: -4px;
@@ -8056,3 +8077,120 @@ body {
 }
 .eb-s { font-size: .68rem; color: var(--text-secondary); line-height: 1.45; }
 .eb-s b { color: var(--text-primary); font-weight: 600; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EVENT AWARENESS (v227)
+   The calendar shipped as an island: 700-odd scheduled dates that only the
+   dropdown and one banner could see. These are the joins — one chip
+   definition on every card surface, a fuller read in the modal, and the
+   states the calendar itself was missing.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Card chip: rendered by cardIdentityHtml, so scanner / Analyzed /
+      Trends all get the identical element ── */
+.card-event {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px 2px;
+  border-radius: 4px;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  vertical-align: 1px;
+  color: var(--volume);
+  background: var(--volume-soft);
+  border: 1px solid var(--volume-glow);
+}
+/* Two sessions or fewer, and not an ex-dividend: this is the one you act on. */
+.card-event-near {
+  color: #fbbf24;
+  background: rgba(251,191,36,.16);
+  border-color: rgba(251,191,36,.5);
+}
+
+/* ── Modal: sentences, not a chip — this is the screen the decision
+      happens on, so it has room to say what the date means ── */
+.mh-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 9px;
+}
+.mh-ev-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--volume);
+}
+.mh-ev-row:hover { background: var(--bg-hover); }
+.mh-ev-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mh-ev-row.mh-ev-near { border-left-color: #fbbf24; }
+.mh-ev-head {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.mh-ev-near .mh-ev-head { color: #fbbf24; }
+.mh-ev-sub {
+  font-size: .7rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ── Dashboard banner: the secondary action that gives
+      "rate-sensitive instruments first" somewhere to go ── */
+.eb-act {
+  margin-top: 8px;
+  padding: 4px 10px 5px;
+  border-radius: 6px;
+  font-size: .7rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+}
+.eb-act:hover { background: var(--accent); color: #0a0a0b; }
+.eb-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Scanner chip ── */
+.sig-chip-event { color: #34d399; border-color: rgba(52,211,153,.45); }
+.sig-chip-event:hover { color: #34d399; border-color: #34d399; }
+.sig-chip-event.on  { background: rgba(52,211,153,.18); color: #34d399; border-color: #34d399; }
+.sig-chip-event.off { background: rgba(148,163,184,.18); color: var(--text-muted); border-color: var(--text-muted); }
+
+/* ── Day-sheet rows now open the instrument, like every other place a name
+      appears. Only rows that point at something you can hold get the
+      affordance — a rate decision has no card to open. ── */
+.cal-ev-open { cursor: pointer; }
+.cal-ev-open:hover { background: var(--bg-hover); }
+.cal-ev-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Past the end of the feed. A blank month used to be indistinguishable
+      from "nothing scheduled", which is a different statement. ── */
+.cal-grid-out { opacity: .38; }
+.cal-out-note {
+  padding: 8px 14px 12px;
+  font-size: .68rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ── The Today segment is daily whichever timeframe the app is on; it now
+      says so instead of being the one count that silently does not move. ── */
+.notif-tf-note {
+  padding: 7px 14px;
+  font-size: .66rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}

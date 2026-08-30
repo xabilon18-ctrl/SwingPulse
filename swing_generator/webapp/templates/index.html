@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=226">
+  <link rel="stylesheet" href="/static/css/style.css?v=227">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -66,7 +66,7 @@
   <!-- ===== NOTIFICATIONS POPUP ===== -->
   <div class="notif-popup" id="notifPopup" style="display:none">
     <div class="notif-popup-header">
-      <span class="notif-popup-title">Notifications</span>
+      <span class="notif-popup-title">Alerts &amp; calendar</span>
       <span class="notif-ui-build" id="notifUiBuild"></span>
       <button class="notif-push-toggle" id="notifPushToggle" onclick="window.SP && window.SP.togglePush()">Push: off</button>
     </div>
@@ -74,6 +74,9 @@
          Merging them would put "GOOGL fired B2" and "NVDA reports on the 17th"
          in one scroll, and those are read differently. -->
     <div class="notif-seg" role="tablist" aria-label="Notifications view">
+      <!-- Labels carry their own counts (updateNotifBell). The bell used to
+           show ONE number that summed today's fires and upcoming events, which
+           told you neither which segment it belonged to nor what it meant. -->
       <button class="notif-seg-btn active" id="notifSegToday" role="tab" aria-selected="true"
               data-notif-tab="today">Today</button>
       <button class="notif-seg-btn" id="notifSegCal" role="tab" aria-selected="false"
@@ -422,6 +425,7 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           Key Lvl
         </button>
+        <button class="sig-ctx-chip sig-chip-event" id="eventChip" title="Scheduled events — tap to cycle: off → Event within 7 sessions → No event">📅 <span class="event-label">Event</span></button>
         <button class="sig-ctx-chip sig-chip-vol" data-filter="vol">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Vol Spike
@@ -485,6 +489,10 @@
               <option value="Index">Index</option>
               <option value="Commodity">Commodity</option>
               <option value="Currency">Currency</option>
+              <!-- Rates is an Index for SCORING (asset_class_of, so the
+                   confidence map resolves) and its own class for BROWSING.
+                   See browseClassOf in app.js. -->
+              <option value="Rates">Rates</option>
             </select>
           </label>
           <label class="sig-adv-label">Group
@@ -856,6 +864,6 @@
 
 
 
-  <script src="/static/js/app.js?v=255"></script>
+  <script src="/static/js/app.js?v=256"></script>
 </body>
 </html>

@@ -25,7 +25,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import date as _date, datetime, timedelta
 
 import pandas as pd
 
@@ -116,6 +116,86 @@ def save_ledger(records: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scheduled events inside the holding window
+# ---------------------------------------------------------------------------
+# Tagged at FIRE time, not at grading time, and that is the whole design.
+# events.json only carries 7 days of history (events.PAST_DAYS), so asking at
+# grading time "did an earnings date fall between entry and exit" can only be
+# answered for a trade that closed this week — every older one would silently
+# come back False and the column would read as "events never happen".
+# Asked when the fire is recorded, the +120-day half of the same window always
+# covers the trade's own time stop, so the answer is real from day one.
+#
+# Recorded, NOT yet reported. There is no split by this field in the stats
+# below and there should not be until a cohort has matured, for the same reason
+# the live Track Record counts only matured fires: a column that averages the
+# trades that resolved fastest is not measuring what it claims to. Once there
+# is a sample, the question this exists to answer is whether a signal that
+# holds through a scheduled report does measurably worse than one that does not.
+_EVENTS_CACHE = None
+
+
+def _events_by_instrument() -> dict:
+    """{instrument name: sorted [(date, type)]} from events.json, or {}."""
+    global _EVENTS_CACHE
+    if _EVENTS_CACHE is not None:
+        return _EVENTS_CACHE
+    _EVENTS_CACHE = {}
+    path = os.path.join(OUTPUT_DIR, 'events.json')
+    try:
+        with open(path) as f:
+            payload = json.load(f)
+        for e in payload.get('events', []):
+            # A macro row carries `title` and no instrument — it hits every
+            # position, so it is not a per-instrument tag. Left out here on
+            # purpose: "was there an FOMC in the window" is answerable for
+            # every trade at once from the dates alone, and mixing it in would
+            # make the flag mean two different things.
+            inst = e.get('instrument')
+            if not inst or e.get('title'):
+                continue
+            _EVENTS_CACHE.setdefault(inst, []).append((e.get('date', ''), e.get('type', '')))
+        for v in _EVENTS_CACHE.values():
+            v.sort()
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        print(f'  Ledger: event tags unavailable ({exc})')
+    return _EVENTS_CACHE
+
+
+def _event_in_window(name: str, fire_date: str, tf: str) -> dict | None:
+    """The first scheduled event inside this fire's intended holding window.
+
+    The window is the signal's own time stop (backtest.TIME_STOP_BARS) read as
+    calendar days — bars are not days, but the point is only to bracket the
+    trade, and a bar-accurate window would need the price frame this function
+    deliberately does not load.
+    """
+    rows = _events_by_instrument().get(name)
+    if not rows:
+        return None
+    try:
+        from backtest import TIME_STOP_BARS
+        bars = TIME_STOP_BARS.get(tf, 30)
+    except Exception:
+        bars = 30
+    # 30 daily bars is ~6 calendar weeks; a 4H window of 60 bars is ~2 weeks.
+    span = int(bars * (1.45 if tf == 'D' else 0.35)) or 1
+    try:
+        start = _date.fromisoformat(fire_date)
+    except ValueError:
+        return None
+    end = (start + timedelta(days=span)).isoformat()
+    for date, kind in rows:
+        if kind == 'exdiv':
+            continue          # does not gap you; not the risk being measured
+        if fire_date <= date <= end:
+            return {'date': date, 'type': kind}
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Recording fires
 # ---------------------------------------------------------------------------
 def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time=''):
@@ -134,6 +214,10 @@ def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time=''):
         'fire_date':   fire_date,      # bar date the signal fired on
         'fire_time':   fire_time,      # exact bar timestamp (intraday TFs only)
         'recorded_at': _now(),
+        # The scheduled event, if any, inside this fire's holding window — see
+        # the note above _events_by_instrument. None when nothing is scheduled
+        # or the feed is unavailable.
+        'event':       _event_in_window(name, fire_date, tf),
         'trade':       None,           # filled by grading (ATR-stop simulation)
     }
 

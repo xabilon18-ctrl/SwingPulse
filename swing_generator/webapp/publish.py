@@ -306,6 +306,13 @@ def build_ics(events: list) -> str:
     DTEND is the day AFTER DTSTART: an all-day VALUE=DATE event is a half-open
     range, so an equal DTEND renders as a zero-length event that several
     calendar apps drop silently.
+
+    THIS IS THE ONLY PLACE AN EVENT IS GIVEN A CALENDAR TITLE. app.js used to
+    build its own one-day .ics with its own naming, and the two drifted the
+    moment macro rows arrived: this builder special-cases them, that one did
+    not, so subscribing gave you "FOMC decision" while the day download gave
+    you "FOMC decision - macro". The browser now slices THIS output instead of
+    rebuilding it (app.js downloadIcs), so there is one name per event.
     """
     stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     lines = [
@@ -324,13 +331,14 @@ def build_ics(events: list) -> str:
         except (KeyError, ValueError):
             continue
         d1   = d0 + timedelta(days=1)
-        inst = e.get('instrument', '')
-        uid  = f"{e['date']}-{e.get('type','')}-{inst}@swingpulse"
-        # A macro row's instrument IS the event name ("FOMC decision"), so
-        # appending a kind would read "FOMC decision — macro".
-        if e.get('type') == 'macro':
-            summary = inst
-            detail  = f"SwingPulse · {inst}" + (f" · {e['time']}" if e.get('time') else '')
+        # An event either points at an instrument you can hold, or it is a
+        # named event that hits everything. `title` marks the second kind.
+        inst  = e.get('instrument') or ''
+        title = e.get('title') or ''
+        uid   = f"{e['date']}-{e.get('type','')}-{title or inst}@swingpulse"
+        if title:
+            summary = title
+            detail  = f"SwingPulse · {title}" + (f" · {e['time']}" if e.get('time') else '')
         else:
             kind    = EVENT_TITLES.get(e.get('type'), e.get('type', 'event'))
             summary = f"{inst} — {kind}"

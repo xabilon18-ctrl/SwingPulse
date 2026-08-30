@@ -24,11 +24,18 @@ Output: OUTPUT_DIR/events.json
     {
       "generated_at": "2026-08-29T18:04:11Z",
       "window": {"from": "2026-08-22", "to": "2026-12-27"},
-      "sources": {"earnings": "yfinance", "macro": null},
+      "sources": {"earnings": "yfinance", "fomc": "https://...", "fred": null,
+                  "speeches": null},
       "events": [
         {"date":"2026-11-17","type":"earnings","instrument":"NVDA"},
-        {"date":"2026-09-10","type":"exdiv","instrument":"NVDA"}
+        {"date":"2026-09-10","type":"exdiv","instrument":"NVDA"},
+        {"date":"2026-09-16","type":"macro","title":"FOMC decision",
+         "time":"14:00 ET"}
       ]
+
+    An equity row carries `instrument` (a name that resolves in signals.json).
+    A macro row carries `title` and NO instrument — it is an event, not a
+    thing you can hold. Consumers test for `instrument`, never for `type`.
     }
 
 Run standalone:
@@ -64,7 +71,7 @@ FUTURE_DAYS = 120
 # universe costs well under two minutes on top of a ~20-minute pipeline run.
 WORKERS = int(os.environ.get('FETCH_WORKERS', 8))
 
-def macro_events() -> list[dict]:
+def macro_events() -> tuple[list[dict], dict]:
     """Central-bank and inflation dates, from macro_events.py.
 
     Was an empty list until 2026-08-29, held that way because a hand-typed table
@@ -72,13 +79,16 @@ def macro_events() -> list[dict]:
     sources can be RE-FETCHED: the Fed's own calendar page (no key) and the FRED
     release API (free key in FRED_API_KEY). Without the key the FOMC half still
     ships on its own.
+
+    Returns `(rows, sources)` — see build_macro_events for why each feed has to
+    report on itself rather than sharing one flag.
     """
     try:
         from macro_events import build_macro_events
         return build_macro_events()
     except Exception as e:
         print(f'  Events: macro sources unavailable — {type(e).__name__}: {e}')
-        return []
+        return [], {'fomc': None, 'fred': None}
 
 
 def _iso(d) -> str | None:
@@ -152,12 +162,15 @@ def build_events(instruments: list[dict] | None = None) -> dict:
             else:
                 misses += 1
 
-    macro = macro_events()
+    macro, macro_sources = macro_events()
     rows.extend(macro)
 
     # Window, then sort by date so the front end can slice without re-sorting
     rows = [r for r in rows if lo <= r['date'] <= hi]
-    rows.sort(key=lambda r: (r['date'], r['type'], r['instrument']))
+    # A macro row has no `instrument` — it carries `title` instead (see the
+    # module docstring). Sorting on a key that only most rows have is exactly
+    # how the first version of this crashed into the never-fatal guard.
+    rows.sort(key=lambda r: (r['date'], r['type'], r.get('instrument') or r.get('title') or ''))
 
     by_type: dict[str, int] = {}
     for r in rows:
@@ -171,14 +184,15 @@ def build_events(instruments: list[dict] | None = None) -> dict:
                           .replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
         'window':  {'from': lo, 'to': hi},
         # The UI states the gap out loud, so it has to know what actually
-        # loaded — not what was intended. `fred` flips on only when the key is
-        # present AND the call returned rows.
+        # loaded — not what was intended, and not what a NEIGHBOURING feed did.
+        # Each flag is set by the fetcher it names (see build_macro_events).
+        # `speeches` is permanently null and documented as such: the Fed's
+        # speech feed publishes at delivery, so there is nothing to load.
         'sources': {
-            'earnings': 'yfinance',
-            'macro':    'federalreserve.gov' if macro else None,
-            'fred':     bool(os.environ.get('FRED_API_KEY', '').strip())
-                        and any('FOMC' not in r['instrument'] for r in macro),
-            'speeches': False,
+            'earnings': 'yfinance' if any(r['type'] != 'macro' for r in rows) else None,
+            'fomc':     macro_sources.get('fomc'),
+            'fred':     macro_sources.get('fred'),
+            'speeches': None,
         },
         'events':  rows,
     }
@@ -208,6 +222,7 @@ if __name__ == '__main__':
     data = write_events()
     if '--report' in sys.argv and data:
         for row in data['events'][:40]:
-            print(f"  {row['date']}  {row['type']:<9} {row['instrument']}")
+            label = row.get('instrument') or row.get('title') or ''
+            print(f"  {row['date']}  {row['type']:<9} {label}")
         if len(data['events']) > 40:
             print(f"  … {len(data['events']) - 40} more")

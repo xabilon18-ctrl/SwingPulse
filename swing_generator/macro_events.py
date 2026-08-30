@@ -141,10 +141,16 @@ def _parse_meeting(year: int, mon_raw: str, date_raw: str) -> dict | None:
         label += ' + press conference'
 
     return {
-        'date':       date.isoformat(),
-        'type':       'macro',
-        'instrument': label,
-        'time':       FOMC_TIME,
+        'date':  date.isoformat(),
+        'type':  'macro',
+        # `title` and NOT `instrument`: everywhere else in the payload
+        # `instrument` holds a name that resolves in signals.json and opens a
+        # card. A rate decision is an event NAME with no instrument behind it,
+        # and putting it in that field forced every consumer to branch on type
+        # before it could trust the value. A row is now clickable exactly when
+        # `instrument` is set. See CLAUDE.md > Event Calendar.
+        'title': label,
+        'time':  FOMC_TIME,
     }
 
 
@@ -184,31 +190,52 @@ def fetch_fred(today: dt.date | None = None, ahead_days: int = 120) -> list[dict
             d = row.get('date')
             if not d or not (today.isoformat() <= d <= hi.isoformat()):
                 continue
-            out.append({'date': d, 'type': 'macro', 'instrument': label})
+            out.append({'date': d, 'type': 'macro', 'title': label})
     return out
 
 
-def build_macro_events(today: dt.date | None = None) -> list[dict]:
-    """Everything macro, deduped and sorted. Never raises into the pipeline."""
+def build_macro_events(today: dt.date | None = None) -> tuple[list[dict], dict]:
+    """Everything macro, deduped and sorted, PLUS what actually loaded.
+
+    Returns `(rows, sources)`. The UI prints a gap note driven by `sources`, so
+    each feed must report on ITSELF: the old code set one `macro` flag from the
+    combined list, which meant a FRED-only result (Fed page down, key present)
+    made the app announce "FOMC dates are included" over a calendar holding
+    none. A flag derived from a different source than the one it names is worse
+    than no flag. Never raises into the pipeline.
+    """
+    sources = {'fomc': None, 'fred': None}
     try:
-        rows = fetch_fomc(today) + fetch_fred(today)
+        fomc = fetch_fomc(today)
+        fred = fetch_fred(today)
     except Exception as e:
         print(f'  Macro: SKIPPED — {type(e).__name__}: {e}')
-        return []
+        return [], sources
+
+    # A feed counts as loaded only when it produced rows. The Fed publishes
+    # meetings ~2 years ahead and FRED's window is the same 120 days the
+    # calendar shows, so an empty list here means the fetch or the parse
+    # failed — exactly the case the note must not paper over.
+    if fomc:
+        sources['fomc'] = FOMC_URL
+    if fred:
+        sources['fred'] = 'fred.stlouisfed.org'
+
     seen, uniq = set(), []
-    for r in rows:
-        k = (r['date'], r['instrument'])
+    for r in fomc + fred:
+        k = (r['date'], r['title'])
         if k in seen:
             continue
         seen.add(k)
         uniq.append(r)
-    uniq.sort(key=lambda r: (r['date'], r['instrument']))
-    print(f'  Macro: {len(uniq)} events '
-          f'({sum(1 for r in uniq if "FOMC" in r["instrument"])} FOMC)')
-    return uniq
+    uniq.sort(key=lambda r: (r['date'], r['title']))
+    print(f'  Macro: {len(uniq)} events ({len(fomc)} FOMC, {len(fred)} releases)')
+    return uniq, sources
 
 
 if __name__ == '__main__':
-    for e in build_macro_events():
-        print(f"  {e['date']}  {e['instrument']}"
+    rows, src = build_macro_events()
+    for e in rows:
+        print(f"  {e['date']}  {e['title']}"
               + (f"  [{e['time']}]" if e.get('time') else ''))
+    print(f'  sources: {src}')
