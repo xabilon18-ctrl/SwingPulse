@@ -8,6 +8,8 @@
  * POST /push/subscribe?user=zabs      → store push subscription    (Bearer)
  * DEL  /push/subscribe?user=zabs      → remove all subs for user   (Bearer)
  * POST /push/notify                   → fan-out empty push to all subs (X-Sync-Secret)
+ * POST /run?user=zabs                 → trigger the CI data pipeline   (Bearer)
+ * GET  /run/status?user=zabs          → state of the latest CI run     (Bearer)
  *
  * AUTH (2026-07-31). The browser used to send a single shared literal,
  * `X-Sync-Secret: swingpulse2026`, that was hard-coded in the PUBLIC app.js
@@ -31,6 +33,54 @@
  */
 
 const ALLOWED_USERS = ['zabs', 'hemi'];
+
+// ─── CI trigger ───────────────────────────────────────────────────────────────
+// The workflow the app's "Run now" button dispatches. `xabilon18/SwingPulse`
+// was retired 2026-06-01; this is the only repo.
+const GH_REPO     = 'xabilon18-ctrl/SwingPulse';
+const GH_WORKFLOW = 'publish.yml';
+const GH_REF      = 'main';
+// Slightly longer than a run takes (last measured 8m50s). Long enough that
+// double-tapping cannot queue two, short enough to retry after a failure.
+const RUN_COOLDOWN_MS = 10 * 60 * 1000;
+
+function ghHeaders(env) {
+  return {
+    'Authorization': `Bearer ${env.GH_TOKEN}`,
+    'Accept':        'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    // GitHub rejects an API request with no User-Agent.
+    'User-Agent':    'swingpulse-sync-worker',
+    'Content-Type':  'application/json',
+  };
+}
+
+// The newest run of publish.yml, or {ok:false}. Never throws into a handler:
+// a GitHub outage must not make the button look broken in a way that reads as
+// "your password is wrong".
+async function latestRun(env) {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_WORKFLOW}` +
+      `/runs?per_page=1`,
+      { headers: ghHeaders(env) });
+    if (!res.ok) return { ok: false, error: `github_${res.status}` };
+    const data = await res.json();
+    const run  = (data.workflow_runs || [])[0];
+    if (!run) return { ok: true, status: 'none' };
+    return {
+      ok: true,
+      id:         run.id,
+      status:     run.status,          // queued | in_progress | completed
+      conclusion: run.conclusion,      // success | failure | cancelled | null
+      started:    run.run_started_at,
+      url:        run.html_url,
+      event:      run.event,           // schedule | workflow_dispatch
+    };
+  } catch (e) {
+    return { ok: false, error: String(e).slice(0, 120) };
+  }
+}
 
 // Public half of the VAPID pair is public by definition (it ships to the push
 // service in every request and to the browser in applicationServerKey).
@@ -342,6 +392,71 @@ export default {
       if (deny) return deny;
       const raw = await env.USER_DATA.get(`${user}:prev`);
       return json(raw ? JSON.parse(raw) : {});
+    }
+
+    // ─── Trigger a CI data run ──────────────────────────────────────────────
+    // The app is a PUBLIC bundle on Pages, so it cannot hold a GitHub token —
+    // that is the same mistake the old hard-coded SYNC_SECRET was. The token
+    // lives here as a Worker secret and the browser only ever proves WHO it is,
+    // with the same per-user bearer everything else uses.
+    if (path === '/run' && request.method === 'POST') {
+      const user = (url.searchParams.get('user') || '').toLowerCase().trim();
+      if (!ALLOWED_USERS.includes(user)) return json({ error: 'Unknown user' }, 403);
+      const deny = await authorize(request, env, user);
+      if (deny) return deny;
+
+      if (!env.GH_TOKEN) {
+        return json({ error: 'not_configured',
+                      detail: 'GH_TOKEN is not set on this Worker' }, 501);
+      }
+
+      // A run costs ~9 minutes of Actions time and the pipeline is not
+      // re-entrant — two concurrent runs would race on the same R2 keys and on
+      // the accumulating files (ledger, sector activity). The cooldown is the
+      // cheap half of that guard; the "already running" check below is the
+      // half that actually matters.
+      const cdKey = 'run:cooldown';
+      const last  = await env.USER_DATA.get(cdKey);
+      if (last) {
+        const waited = Date.now() - Number(last);
+        if (waited < RUN_COOLDOWN_MS) {
+          return json({ error: 'cooldown',
+                        retry_in_s: Math.ceil((RUN_COOLDOWN_MS - waited) / 1000) }, 429);
+        }
+      }
+
+      const live = await latestRun(env);
+      if (live.ok && (live.status === 'queued' || live.status === 'in_progress')) {
+        return json({ error: 'already_running', run: live }, 409);
+      }
+
+      const res = await fetch(
+        `https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,
+        { method: 'POST', headers: ghHeaders(env),
+          body: JSON.stringify({ ref: GH_REF }) });
+
+      if (res.status !== 204) {
+        // Surface GitHub's own reason rather than a generic failure — a bad or
+        // expired token and a disabled workflow look identical otherwise.
+        const detail = (await res.text()).slice(0, 300);
+        return json({ error: 'dispatch_failed', status: res.status, detail }, 502);
+      }
+
+      await env.USER_DATA.put(cdKey, String(Date.now()), { expirationTtl: 3600 });
+      return json({ ok: true, by: user, at: new Date().toISOString() });
+    }
+
+    // ─── State of the most recent run ───────────────────────────────────────
+    // Polled by the button so it can show queued → running → done rather than
+    // firing and leaving you to guess. GitHub's dispatch endpoint returns 204
+    // with no run id, so the id has to be discovered by listing.
+    if (path === '/run/status') {
+      const user = (url.searchParams.get('user') || '').toLowerCase().trim();
+      if (!ALLOWED_USERS.includes(user)) return json({ error: 'Unknown user' }, 403);
+      const deny = await authorize(request, env, user);
+      if (deny) return deny;
+      if (!env.GH_TOKEN) return json({ error: 'not_configured' }, 501);
+      return json(await latestRun(env));
     }
 
     return json({ error: 'Not found' }, 404);

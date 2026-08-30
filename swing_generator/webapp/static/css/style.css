@@ -8194,3 +8194,65 @@ body {
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
+
+
+/* ── Manual CI run (v257) ────────────────────────────────────────────────
+   Two homes for one action: on the stale banner, where the complaint is, and
+   in the Alerts panel, for a run when the banner is not up. Both carry
+   [data-run-btn] and share one handler and one state. */
+.stale-run {
+  margin-left: auto;
+  padding: 3px 10px 4px;
+  border-radius: 6px;
+  font-size: .68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+}
+.stale-run:hover:not(:disabled) { background: var(--accent); color: #0a0a0b; }
+.stale-run:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.notif-run-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--border);
+}
+.nrr-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nrr-title { font-size: .78rem; font-weight: 700; color: var(--text-primary); }
+.nrr-sub   { font-size: .66rem; color: var(--text-muted); line-height: 1.4; }
+.notif-run-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 5px 12px 6px;
+  border-radius: 7px;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+}
+.notif-run-btn:hover:not(:disabled) { background: var(--accent); color: #0a0a0b; }
+.notif-run-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Busy and error states are shared, so a run started from one button reads
+   the same on the other. */
+[data-run-btn].is-busy {
+  cursor: default;
+  opacity: .75;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border-color: var(--border-active);
+}
+[data-run-btn].is-error {
+  color: var(--sell);
+  background: var(--sell-soft);
+  border-color: var(--sell);
+}
+[data-run-btn]:disabled { cursor: default; }

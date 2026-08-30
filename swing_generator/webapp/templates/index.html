@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=227">
+  <link rel="stylesheet" href="/static/css/style.css?v=228">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -90,6 +90,16 @@
     <div class="notif-cal-footer" id="notifCalFooter" style="display:none">
       <a class="cal-sub-btn" id="calSubscribeLink" href="#">Subscribe in Calendar</a>
     </div>
+    <!-- Always reachable, for a run when the stale banner is not up (after a
+         code change, or a failed run you want to retry). ~9 minutes; the
+         button reports queued -> running -> done rather than firing blind. -->
+    <div class="notif-run-row">
+      <div class="nrr-text">
+        <span class="nrr-title">Data run</span>
+        <span class="nrr-sub">Starts the pipeline on GitHub · ~9 min</span>
+      </div>
+      <button class="notif-run-btn" id="notifRunBtn" data-run-btn>Run now</button>
+    </div>
   </div>
 
   <!-- ===== MAIN CONTENT ===== -->
@@ -102,6 +112,11 @@
       <div class="stale-banner" id="staleBanner" style="display:none">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span id="staleBannerText">Data may be from a previous session</span>
+        <!-- The fix, next to the complaint. The refresh icon in the header
+             re-downloads what CI last published, which when this banner is up
+             fetches the same stale file again; this starts a real pipeline
+             run. Shown only when signed in — signed out it could only 401. -->
+        <button class="stale-run" id="staleRunBtn" data-run-btn style="display:none">Run now</button>
         <button class="stale-dismiss" onclick="document.getElementById('staleBanner').style.display='none'">✕</button>
       </div>
 
@@ -864,6 +879,6 @@
 
 
 
-  <script src="/static/js/app.js?v=256"></script>
+  <script src="/static/js/app.js?v=257"></script>
 </body>
 </html>

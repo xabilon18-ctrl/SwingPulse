@@ -1091,6 +1091,166 @@
     document.addEventListener('click', () => { if (tooltip) tooltip.style.display = 'none'; });
   })();
 
+  // ── Manual CI run ────────────────────────────────────────────────────
+  // The refresh button below re-downloads what CI last PUBLISHED. When the
+  // stale banner is up that is precisely the wrong thing: it fetches the same
+  // stale file again and looks like it worked. This starts an actual pipeline
+  // run — the same workflow_dispatch as the Actions tab's "Run workflow".
+  //
+  // No GitHub token is in this file and none can be: the bundle is public, and
+  // a credential in it is readable by anyone who opens the site (the mistake
+  // the old hard-coded SYNC_SECRET made). The browser proves only WHO it is,
+  // with the same per-user bearer sync uses; the token lives on the Worker.
+  //
+  // WORTH KNOWING, and the UI says so: data_fetcher's 20-hour freshness gate
+  // means a run started within 20h of the last download does NOT re-fetch
+  // prices — it recomputes from cache and completes with identical signals.
+  // Useful after a failed run or a code change; not a "get fresh prices now"
+  // button. That gate is load-bearing for the finished-sessions rule, so this
+  // works around it by being honest rather than by forcing a download.
+  let _runPoll = null;
+  let _runState = { phase: 'idle', text: '' };   // idle|working|watching|done|error
+
+  function setRunState(phase, text) {
+    _runState = { phase, text };
+    document.querySelectorAll('[data-run-btn]').forEach(btn => {
+      btn.textContent = text || 'Run now';
+      btn.classList.toggle('is-busy', phase === 'working' || phase === 'watching');
+      btn.classList.toggle('is-error', phase === 'error');
+      btn.disabled = (phase === 'working' || phase === 'watching');
+    });
+  }
+
+  function stopRunPoll() {
+    if (_runPoll) { clearInterval(_runPoll); _runPoll = null; }
+  }
+
+  // Poll until the run leaves queued/in_progress. Capped: a hung poll on a
+  // phone left open all day is a battery cost for no information, and the run
+  // is on GitHub whether or not this tab is watching it.
+  // `since` is the moment we asked for a run. GitHub's dispatch returns 204
+  // with no run id and the run does not appear in the list immediately, so the
+  // first poll after a dispatch usually returns the PREVIOUS run — which is
+  // completed/success. Without this guard the button flashed "Done — loading",
+  // reloaded, and reported the last cron's result as if it were yours: a
+  // success message for work that had not started. Any run that began before
+  // we asked is somebody else's, so keep waiting for one that did not.
+  // Called with no argument from checkRunOnLoad, where the run in flight IS
+  // the one to watch however long ago it started.
+  function watchRun(since) {
+    stopRunPoll();
+    const startedWatching = Date.now();
+    const MAX_WATCH_MS = 20 * 60 * 1000;      // a run is ~9 min; this is slack
+    // GitHub's run_started_at and the phone's clock are different clocks.
+    const SKEW_MS = 90 * 1000;
+    const tick = async () => {
+      if (Date.now() - startedWatching > MAX_WATCH_MS) {
+        stopRunPoll();
+        setRunState('idle', 'Run now');
+        return;
+      }
+      try {
+        const res = await fetch(`${SYNC_WORKER}/run/status?user=${syncUser}`,
+                                { headers: syncHeaders() });
+        if (!res.ok) return;                   // transient; the next tick retries
+        const r = await res.json();
+        if (!r.ok) return;
+
+        if (since) {
+          const began = r.started ? Date.parse(r.started) : 0;
+          // Ours has not shown up yet — this is the run before it.
+          if (!began || began < since - SKEW_MS) {
+            setRunState('watching', 'Queued…');
+            return;
+          }
+        }
+
+        if (r.status === 'queued')      { setRunState('watching', 'Queued…'); return; }
+        if (r.status === 'in_progress') { setRunState('watching', 'Running…'); return; }
+        stopRunPoll();
+        if (r.conclusion === 'success') {
+          setRunState('done', 'Done — loading');
+          await loadAll();                     // the whole point: pick the new data up
+          setRunState('idle', 'Run now');
+        } else {
+          setRunState('error', `Run ${r.conclusion || 'ended'}`);
+        }
+      } catch { /* offline — the next tick retries */ }
+    };
+    _runPoll = setInterval(tick, 15000);
+    tick();
+  }
+
+  async function triggerRun() {
+    // Signed out, there is no identity to authorise with — say that rather
+    // than firing a request that can only 401.
+    if (!syncUser || !syncToken()) {
+      setRunState('error', 'Sign in first');
+      setTimeout(() => setRunState('idle', 'Run now'), 3000);
+      return;
+    }
+    setRunState('working', 'Starting…');
+    // Captured BEFORE the dispatch: everything older than this is another run.
+    const askedAt = Date.now();
+    let res, body = {};
+    try {
+      res  = await fetch(`${SYNC_WORKER}/run?user=${syncUser}`,
+                         { method: 'POST', headers: syncHeaders() });
+      body = await res.json().catch(() => ({}));
+    } catch {
+      setRunState('error', 'Offline');
+      setTimeout(() => setRunState('idle', 'Run now'), 4000);
+      return;
+    }
+
+    if (res.status === 401) { syncPasswordRejected(); setRunState('error', 'Sign in again'); return; }
+    // Already running — that one IS the run, whenever it started, so no
+    // since-guard: waiting for a newer one would wait for ever.
+    if (res.status === 409) { watchRun(); return; }
+    if (res.status === 429) {
+      const mins = Math.ceil((body.retry_in_s || 0) / 60);
+      setRunState('error', mins > 0 ? `Wait ${mins} min` : 'Too soon');
+      setTimeout(() => setRunState('idle', 'Run now'), 5000);
+      return;
+    }
+    if (res.status === 501) {
+      // The Worker has no GitHub token. A generic failure here would send you
+      // looking at your password, so name the actual missing thing.
+      setRunState('error', 'Not set up');
+      alert('The Worker has no GitHub token yet.\n\n'
+          + 'Add one with:\n'
+          + '  cd swing_generator/webapp/sync-worker\n'
+          + '  npx wrangler secret put GH_TOKEN\n\n'
+          + 'Use a fine-grained token scoped to xabilon18-ctrl/SwingPulse with '
+          + 'Actions: read and write.');
+      setTimeout(() => setRunState('idle', 'Run now'), 1000);
+      return;
+    }
+    if (!res.ok) {
+      setRunState('error', 'Failed');
+      console.warn('[run] dispatch failed', res.status, body);
+      setTimeout(() => setRunState('idle', 'Run now'), 5000);
+      return;
+    }
+    watchRun(askedAt);
+  }
+
+  // If a run is already going when the app opens, show it rather than offering
+  // a button that would only 409.
+  function checkRunOnLoad() {
+    if (!syncUser || !syncToken()) return;
+    fetch(`${SYNC_WORKER}/run/status?user=${syncUser}`, { headers: syncHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r && r.ok && (r.status === 'queued' || r.status === 'in_progress')) watchRun();
+      })
+      .catch(() => {});
+  }
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-run-btn]')) { e.stopPropagation(); triggerRun(); }
+  });
+
   // ── Refresh ──────────────────────────────────────────────────────────
   const _refreshBtn = document.getElementById('refreshBtn');
   if (_refreshBtn) _refreshBtn.addEventListener('click', async () => {
@@ -1248,6 +1408,11 @@
 
         staleText.textContent = msg;
         staleBanner.style.display = msg ? '' : 'none';
+        // The run button belongs HERE, on the banner that says the data is old,
+        // rather than in a settings screen you would have to go looking for.
+        // Hidden when signed out, where it could only ever fail.
+        const _sRun = document.getElementById('staleRunBtn');
+        if (_sRun) _sRun.style.display = (msg && syncUser && syncToken()) ? '' : 'none';
         // The banner must not sit there once the data arrives. loadAll only
         // re-runs every 4h (or on visibilitychange), so a tab left open would
         // keep showing a warning long after the pipeline recovered. While it is
@@ -5676,6 +5841,10 @@
 
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
+  // A run may already be going (a cron, or one started from another device) —
+  // show it rather than offering a button that could only 409. Delayed so the
+  // sync token is restored from localStorage first.
+  setTimeout(checkRunOnLoad, 1500);
 
   // Calendar actions, wired through the same data-act dispatcher as everything
   // else so the grid can be re-rendered wholesale without rebinding handlers.
