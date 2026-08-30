@@ -1125,6 +1125,68 @@
     if (_runPoll) { clearInterval(_runPoll); _runPoll = null; }
   }
 
+  // Did the last run WORK? The button alone could not answer that: it flashed
+  // "Done — loading" for a moment and went back to idle, so ten minutes later
+  // the screen looked identical whether the run had succeeded, failed, or never
+  // started. A run is the one thing here you kick off and walk away from, so
+  // the outcome has to persist rather than being a state the button passes
+  // through. Same source as everything else — the /run/status payload.
+  function ago(iso) {
+    const t = Date.parse(iso || '');
+    if (isNaN(t)) return '';
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.round(h / 24)}d ago`;
+  }
+
+  function renderRunStatus(r) {
+    const el = document.getElementById('runStatusLine');
+    if (!el) return;
+    if (!r || !r.ok) {
+      // Signed out, or GitHub unreachable. Say which — "no status" reads as
+      // "nothing has run", which is a different and more alarming claim.
+      el.className = 'nrr-status';
+      el.textContent = (!syncUser || !syncToken())
+        ? 'Sign in to see run status'
+        : 'Run status unavailable';
+      return;
+    }
+    if (r.status === 'queued' || r.status === 'in_progress') {
+      el.className = 'nrr-status is-running';
+      el.textContent = `${r.status === 'queued' ? 'Queued' : 'Running'}`
+                     + `${r.started ? ' · started ' + ago(r.started) : ''}`;
+      return;
+    }
+    if (r.status === 'none') {
+      el.className = 'nrr-status';
+      el.textContent = 'No runs yet';
+      return;
+    }
+    // Completed. `event` distinguishes a run you started from the schedule,
+    // which matters when you are asking "did MY run work".
+    const who = r.event === 'workflow_dispatch' ? 'Manual run' : 'Scheduled run';
+    if (r.conclusion === 'success') {
+      el.className = 'nrr-status is-ok';
+      el.textContent = `✓ ${who} succeeded · ${ago(r.started)}`;
+    } else {
+      el.className = 'nrr-status is-bad';
+      el.textContent = `✕ ${who} ${r.conclusion || 'ended'} · ${ago(r.started)}`;
+    }
+  }
+
+  // Read the latest run and paint the line. Safe to call when signed out.
+  async function refreshRunStatus() {
+    if (!syncUser || !syncToken()) { renderRunStatus(null); return; }
+    try {
+      const res = await fetch(`${SYNC_WORKER}/run/status?user=${syncUser}`,
+                              { headers: syncHeaders() });
+      renderRunStatus(res.ok ? await res.json() : null);
+    } catch { renderRunStatus(null); }
+  }
+
   // Poll until the run leaves queued/in_progress. Capped: a hung poll on a
   // phone left open all day is a battery cost for no information, and the run
   // is on GitHub whether or not this tab is watching it.
@@ -1165,6 +1227,7 @@
           }
         }
 
+        renderRunStatus(r);
         if (r.status === 'queued')      { setRunState('watching', 'Queued…'); return; }
         if (r.status === 'in_progress') { setRunState('watching', 'Running…'); return; }
         stopRunPoll();
@@ -1173,7 +1236,10 @@
           await loadAll();                     // the whole point: pick the new data up
           setRunState('idle', 'Run now');
         } else {
-          setRunState('error', `Run ${r.conclusion || 'ended'}`);
+          // The button returns to idle so it can be retried; the outcome stays
+          // on the status line rather than vanishing with the button state.
+          setRunState('error', 'Run failed');
+          setTimeout(() => setRunState('idle', 'Run now'), 6000);
         }
       } catch { /* offline — the next tick retries */ }
     };
@@ -1182,11 +1248,19 @@
   }
 
   async function triggerRun() {
-    // Signed out, there is no identity to authorise with — say that rather
-    // than firing a request that can only 401.
+    // Signed out there is no identity to authorise with, so this cannot fire a
+    // request — but it must not be a dead end either. It said "Sign in first"
+    // and then sat there, naming the problem and offering no way to act on it,
+    // which is the same complaint as an affordance nobody can find. Open the
+    // thing it is asking for: straight to the password step if the user is
+    // already chosen, the picker if not.
     if (!syncUser || !syncToken()) {
-      setRunState('error', 'Sign in first');
-      setTimeout(() => setRunState('idle', 'Run now'), 3000);
+      // The panel would otherwise sit on top of the picker it just opened.
+      const _p = document.getElementById('notifPopup');
+      if (_p) _p.style.display = 'none';
+      showUserPicker();
+      if (syncUser) upShowStep('pass', 'Sign in to start a data run.');
+      setRunState('idle', 'Run now');
       return;
     }
     setRunState('working', 'Starting…');
@@ -1238,13 +1312,14 @@
   // If a run is already going when the app opens, show it rather than offering
   // a button that would only 409.
   function checkRunOnLoad() {
-    if (!syncUser || !syncToken()) return;
+    if (!syncUser || !syncToken()) { renderRunStatus(null); return; }
     fetch(`${SYNC_WORKER}/run/status?user=${syncUser}`, { headers: syncHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(r => {
+        renderRunStatus(r);
         if (r && r.ok && (r.status === 'queued' || r.status === 'in_progress')) watchRun();
       })
-      .catch(() => {});
+      .catch(() => renderRunStatus(null));
   }
 
   document.addEventListener('click', e => {
@@ -5791,6 +5866,10 @@
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     if (onCal) renderCalendar(); else renderNotifPanel();
+    // The run row lives below both segments, so its status is refreshed
+    // whenever the panel opens rather than only on page load — a run started
+    // an hour ago on another device should not read as "no runs yet".
+    refreshRunStatus();
   }
 
   function toggleNotifPanel() {

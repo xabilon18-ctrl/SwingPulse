@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=228">
+  <link rel="stylesheet" href="/static/css/style.css?v=229">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -97,6 +97,11 @@
       <div class="nrr-text">
         <span class="nrr-title">Data run</span>
         <span class="nrr-sub">Starts the pipeline on GitHub · ~9 min</span>
+        <!-- Did the last run work? The button could not answer that — it
+             flashed a state and returned to idle, so afterwards the screen
+             looked identical whether the run succeeded, failed, or never
+             started. A run is the thing you kick off and walk away from. -->
+        <span class="nrr-status" id="runStatusLine"></span>
       </div>
       <button class="notif-run-btn" id="notifRunBtn" data-run-btn>Run now</button>
     </div>
@@ -879,6 +884,6 @@
 
 
 
-  <script src="/static/js/app.js?v=257"></script>
+  <script src="/static/js/app.js?v=259"></script>
 </body>
 </html>

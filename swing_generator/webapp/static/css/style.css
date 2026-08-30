@@ -8256,3 +8256,15 @@ body {
   border-color: var(--sell);
 }
 [data-run-btn]:disabled { cursor: default; }
+
+/* Outcome of the last run. Semantic colour, not the accent: this says
+   good/bad, which is a different axis from "selected". */
+.nrr-status {
+  font-size: .66rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.nrr-status.is-ok      { color: var(--buy); }
+.nrr-status.is-bad     { color: var(--sell); }
+.nrr-status.is-running { color: var(--accent); }
