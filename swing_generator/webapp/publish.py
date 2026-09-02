@@ -599,6 +599,7 @@ def build_data(output_dir, src_signals_dir=None):
     # Live signal ledger + sector activity series — copy verbatim if present
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
+                  'sector_activity_w.json', 'sector_radar_w.json',
                   'instrument_flavours.json', 'events.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
@@ -882,6 +883,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'backtest.json', 'flow_volumes.json',
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
+                  'sector_activity_w.json', 'sector_radar_w.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics']:
         p = os.path.join(data_dir, fname)
@@ -1006,6 +1008,16 @@ def build_ui():
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
     js = js.replace("'/api/backtest'",     f"'{base}/backtest.json'")
+    # NB the -w variants MUST be replaced before their unsuffixed siblings would
+    # be reached, and they are distinct PATHS rather than '?tf=W' query strings
+    # for exactly this reason: these rewrites are literal string matches
+    # including the closing quote, so '/api/sector-radar?tf=W' matched nothing,
+    # shipped to production unrewritten, and fetched a path that does not exist
+    # on a static host. It failed soft — null radar, silent fall back to daily —
+    # which is the worst way for it to fail. A published API path has to be a
+    # path, because that is the only thing this rewrite can see.
+    js = js.replace("'/api/sector-radar-w'", f"'{base}/sector_radar_w.json'")
+    js = js.replace("'/api/sector-activity-w'", f"'{base}/sector_activity_w.json'")
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")

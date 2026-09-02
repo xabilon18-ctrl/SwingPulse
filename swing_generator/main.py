@@ -875,8 +875,11 @@ def main():
     update_ledger(output_df)
 
     # 5d. Sector activity series — upsert today's per-sector rows + radar json
-    from sector_activity import update_sector_activity
-    update_sector_activity(output_df)
+    from sector_activity import update_all_timeframes
+    # Every radar timeframe (D + W), each isolated so one failing cannot stop
+    # the other or the run. instrument_flavours.json stays DAILY-only — the
+    # guard is in sector_activity.write_radar(), not here.
+    update_all_timeframes(output_df)
 
     # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
     #     Never fatal: a Yahoo metadata outage must not cost a day of signals.

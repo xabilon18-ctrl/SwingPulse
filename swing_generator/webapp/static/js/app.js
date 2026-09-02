@@ -10,7 +10,14 @@
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
-  let sectorRadarData = null; // { sectors, baseline_days, alert_z } from sector_activity.py
+  // Radar payloads keyed by timeframe. sector_radar.json is 3.4 KB, so both
+  // are fetched at boot and the switch is a re-point, not a round trip.
+  // 4H has NO radar of its own — there is only ~2 years of hourly cache, too
+  // little to build a baseline from — so it reads the daily one and the card
+  // says so rather than letting a daily reading pass for a 4H one.
+  let sectorRadarByTf = { D: null, W: null };
+  let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
+  const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : 'D');
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -993,6 +1000,35 @@
   // segments (trends.json), so the switch sat there doing nothing — it now says
   // what timeframe you're actually looking at instead of offering a dead choice.
   const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only' };
+  // Point sectorRadarData at the active timeframe's payload, and say on the
+  // card which period it covers.
+  //
+  // This label is not decoration. The radar is the ONE dashboard component that
+  // does not follow the timeframe switch — 4H has no radar at all, and before
+  // the weekly one existed the daily radar rendered unchanged on every tab. So
+  // on the Weekly tab every number around it showed last Friday while the radar
+  // showed today, with nothing on screen saying so. Now the radar either
+  // matches the tab (D, W) or admits that it doesn't (4H).
+  function syncRadarTf() {
+    const want = RADAR_TF_FOR(timeframe);
+    sectorRadarData = sectorRadarByTf[want] || sectorRadarByTf.D || null;
+    const el = document.getElementById('sectorRadarPeriod');
+    if (!el) return;
+    const actual = sectorRadarByTf[want] ? want : (sectorRadarByTf.D ? 'D' : null);
+    if (!actual) { el.textContent = ''; el.title = ''; return; }
+    const matches = actual === RADAR_TF_FOR(timeframe) && timeframe !== '4H';
+    el.textContent = actual === 'W' ? 'This week' : 'Today';
+    el.classList.toggle('is-mismatch', !matches);
+    el.title = actual === 'W'
+      ? 'Weekly sector activity for the week ending ' +
+        ((sectorRadarByTf.W && sectorRadarByTf.W.sectors[0] || {}).date || '') +
+        ' — fixed until the next week closes.'
+      : (matches
+          ? 'Daily sector activity, updated every run.'
+          : 'Daily sector activity. There is no 4H radar — too little hourly '
+            + 'history for a baseline — so this is today\u2019s daily reading.');
+  }
+
   function syncTfLock() {
     const note = TF_LOCKED_TABS[currentTab] || '';
     document.body.classList.toggle('tf-locked', !!note);
@@ -1011,6 +1047,7 @@
     timeframe = tf;
     try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
     syncTfButtons();
+    syncRadarTf();   // radar payload is per-timeframe; re-point before renderAll
     renderAll();  // re-renders dashboard (recomputes summary), scanner, watchlist
     // The reel is per-timeframe all the way down — different bundles, different
     // ribbon periods, different signal row. Redraw it on the same instrument
@@ -1390,7 +1427,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, flRes, evRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1402,6 +1439,7 @@
         fetchJson('/api/backtest', null),
         fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
+        fetchJson('/api/sector-radar-w', null),
         fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/events', null),
       ]);
@@ -1415,7 +1453,9 @@
       namesData = namesRes || {};
       backtestData = btRes;
       ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
-      sectorRadarData = srRes && Array.isArray(srRes.sectors) && srRes.sectors.length ? srRes : null;
+      const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
+      sectorRadarByTf = { D: _okRadar(srRes), W: _okRadar(srwRes) };
+      syncRadarTf();
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
       eventsData = (evRes && Array.isArray(evRes.events)) ? evRes : { events: [], sources: {} };
@@ -3103,12 +3143,21 @@
     sectorOverlay.addEventListener('click', e => { if (e.target === sectorOverlay) closeSectorInfo(); });
   }
 
-  // 572K file — fetched ONCE, on first info tap, never during boot.
+  // 572K file — fetched ONCE PER TIMEFRAME, on first info tap, never during boot.
+  // Cached per tf rather than in one slot: the sparkline in this modal has to
+  // match the radar above it, and flipping timeframe with a single cached blob
+  // would have drawn daily bars under a weekly z-score.
+  const sectorActivityByTf = {};
   async function ensureSectorActivity() {
-    if (sectorActivity || sectorActivityTried) return sectorActivity;
-    sectorActivityTried = true;
-    const r = await fetchJson('/api/sector-activity', null);
-    sectorActivity = (r && Array.isArray(r.rows)) ? r : null;
+    const tf = RADAR_TF_FOR(timeframe);
+    if (tf in sectorActivityByTf) {
+      sectorActivity = sectorActivityByTf[tf];
+      return sectorActivity;
+    }
+    const r = await fetchJson(tf === 'W' ? '/api/sector-activity-w'
+                                         : '/api/sector-activity', null);
+    sectorActivityByTf[tf] = (r && Array.isArray(r.rows)) ? r : null;
+    sectorActivity = sectorActivityByTf[tf];
     return sectorActivity;
   }
 
