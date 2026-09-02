@@ -57,7 +57,8 @@ PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
 from data_fetcher import h4_ticker                      # noqa: E402
-from main import _resample_4h, _h4_ma_periods           # noqa: E402
+from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
+                  _resample_weekly)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # How many bars a card shows. Sized to the way these charts are actually read:
@@ -165,6 +166,26 @@ def build_4h(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(h4, periods, '%Y-%m-%d %H:%M')
 
 
+def build_weekly(cache_dir: str, ticker: str) -> dict | None:
+    """Weekly chart from the same daily cache the daily chart reads.
+
+    BARS=520 weekly bars is ~10 years, which is what the MA500 anchor needs to
+    be drawn at all — so a weekly chart deliberately shows far more calendar
+    time than a daily one. Volume is included, as on daily.
+    """
+    path = os.path.join(cache_dir, _cache_name(ticker))
+    if not os.path.exists(path):
+        return None
+    df = pd.read_parquet(path)
+    if df.empty:
+        return None
+    weekly = _resample_weekly(df)
+    periods = [p for p in MA_PERIODS if p <= len(weekly)]
+    if len(periods) < 3:
+        return None
+    return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True)
+
+
 def _cache_name(ticker: str, suffix: str = '') -> str:
     safe = (ticker
             .replace('=', '_EQ_')
@@ -202,7 +223,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
     stats = {'D': 0, '4H': 0, 'chunks': 0}
 
-    for tf, builder in (('D', build_daily), ('4H', build_4h)):
+    for tf, builder in (('D', build_daily), ('4H', build_4h),
+                        ('W', build_weekly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 

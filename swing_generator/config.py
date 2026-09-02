@@ -66,8 +66,11 @@ MAX_PENETRATION_4H    = 0.025  # 2.5%  (was 2.0%)
 MAX_PENETRATION_DAILY = 0.020  # 2.0%  (was 1.5%)
 
 # Signal lookback — same cadence as original
-SIGNAL_LOOKBACK_4H    = 60
-SIGNAL_LOOKBACK_DAILY = 20
+SIGNAL_LOOKBACK_4H     = 60
+SIGNAL_LOOKBACK_DAILY  = 20
+# Weekly bars are slow: 12 bars is a quarter, which is how long a weekly setup
+# stays the thing you are watching. 4H/Daily both report ~1-1.5 months back.
+SIGNAL_LOOKBACK_WEEKLY = 12
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -148,23 +151,68 @@ H4_SESSION_NORMALIZE = {
 }
 
 # ---------------------------------------------------------------------------
+# Weekly bar geometry  (added 2026-09-02)
+# ---------------------------------------------------------------------------
+# The weekly timeframe runs the SAME MA25-MA500 ribbon on weekly bars, exactly
+# as Daily and 4H each run it on theirs. No scaling: unlike the 4H case there is
+# no session ambiguity — a week is a week on every venue in the book, and one
+# weekly bar is one weekly bar whether the instrument trades 6.5h or 24h.
+#
+# What that ribbon spans, and why it is worth having:
+#   4H    MA500 ~ 12 months (2 bars/session on an equity)
+#   Daily MA500 ~ 24 months
+#   Weekly MA500 ~ 9.6 years,  MA25 ~ 6 months
+# So Weekly is a genuinely different scale, where 4H is a half-length Daily
+# (measured 2026-09-01: D/4H trend labels agree on 71.7% of instruments and
+# oppose on 8 of 717). Adding a SLOWER timeframe is the direction the evidence
+# supports; adding a faster one is not.
+#
+# History: 82.1% of the 808 cached instruments carry >= 500 weekly bars
+# (median 1052, ~20 years). The rest clip the ribbon through the same
+# `p <= len(df)` rule the daily side already uses for short-history names.
+WEEKLY_RESAMPLE_RULE = 'W-FRI'      # weeks END Friday; label is the week-ending date
+
+# UNTUNED starting values — chosen by scaling Daily by sqrt(5) (a weekly bar
+# holds 5 daily bars, so its moves are ~2.2x). Sweep these with backtest.py
+# before treating either as measured.
+REFIRE_PCT_WEEKLY    = 0.08
+NEW_TREND_PCT_WEEKLY = 0.05
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 
+# Prefixes whose bars are NOT unique by date, and therefore carry an extra
+# `{p}datetime` column naming the exact bar. A 4H date holds 2-6 bars, so the
+# date alone cannot identify which one fired (see main.py _extract_row). Daily
+# and Weekly are both unique by date — a weekly bar IS its week-ending date —
+# so neither gets one. This used to be `if prefix`, which was the same thing
+# while 4H was the only prefixed timeframe and stopped being true the moment
+# Weekly arrived.
+INTRADAY_PREFIXES = {'h4_'}
+
+# The timeframe table — ONE definition, ordered fast to slow. Every consumer
+# that loops over timeframes (column emission, tf_alignment, context modifiers,
+# the ledger, the backtest) reads this rather than restating ('', 'h4_') in its
+# own words; the pair was hand-copied in four places before Weekly, which is
+# how a new timeframe reaches production wired into three of them.
+TIMEFRAMES = (
+    ('4H', 'h4_'),
+    ('D',  ''),
+    ('W',  'w_'),
+)
+TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
+TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
+
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
-    """Return signal-related column names for a timeframe prefix.
-
-    Intraday prefixes also carry `{p}datetime` — the exact bar timestamp. A 4H
-    date holds 2-6 bars, so the date alone can't identify which bar fired
-    (see main.py _extract_row). Daily needs no such column.
-    """
+    """Return signal-related column names for a timeframe prefix."""
     if ma_periods is None:
         ma_periods = MA_PERIODS
     p = prefix
     return [
-        f'{p}date', *([f'{p}datetime'] if p else []),
+        f'{p}date', *([f'{p}datetime'] if p in INTRADAY_PREFIXES else []),
         f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',
         f'{p}volume_average', f'{p}volume_spike_flag', f'{p}pvo', f'{p}pvo_signal',
         *[f'{p}ma_{per}' for per in ma_periods],
@@ -221,4 +269,6 @@ OUTPUT_COLUMNS = [
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
     # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
+    # ── Weekly (signals + indicators) ──
+    *_tf_signal_columns('w_'),
 ]

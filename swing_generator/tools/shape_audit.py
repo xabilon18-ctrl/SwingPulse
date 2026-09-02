@@ -253,7 +253,7 @@ def phantom_candidates(js, columns):
     def emit(base, lit, ci):
         if not lit or len(lit) < 2:
             return
-        for cand in (base, 'h4_' + base):
+        for cand in (base, *(pre + base for pre in TF_PREFIXES_NB)):
             if cand in columns:
                 out.append((cand, lit, ci))
 
@@ -362,6 +362,35 @@ def other_consumers():
     return out
 
 
+# ---------------------------------------------------------------------------
+# Timeframe prefixes — READ FROM CONFIG, never restated here.
+#
+# Every prefixed column is reached through f('base'), never as the literal
+# 'h4_close' / 'w_close', so each of these checks has to strip the prefix before
+# it can decide whether the front end reads a column. That rule was written with
+# 'h4_' hard-coded in five places; when Weekly shipped (2026-09-02) the auditor
+# reported all 53 w_ columns as orphans while every one of them was live. An
+# auditor that has to be edited for each new timeframe is one more place the
+# timeframe list can go stale.
+# ---------------------------------------------------------------------------
+def _tf_prefixes():
+    try:
+        from _active_config import TF_PREFIXES
+        return tuple(p for p in TF_PREFIXES if p)      # '' is the daily base
+    except Exception:
+        return ('h4_', 'w_')                            # last resort, not a default
+
+TF_PREFIXES_NB = _tf_prefixes()
+
+
+def _strip_tf(col: str) -> str:
+    """Column name with its timeframe prefix removed, or unchanged."""
+    for pre in TF_PREFIXES_NB:
+        if col.startswith(pre):
+            return col[len(pre):]
+    return col
+
+
 def check_orphans(rows, js):
     """Columns published but never mentioned anywhere in the front end.
 
@@ -369,20 +398,22 @@ def check_orphans(rows, js):
     as "referenced", so this UNDER-reports — and under-reporting is the safe
     direction: it will never tell you a live column is dead.
 
-    A 4H column is reached as f('close'), never as the literal 'h4_close', so
-    an h4_ column counts as read when its DAILY base is read. A first cut
-    without this rule reported 13 live 4H columns as orphans.
+    A prefixed column is reached as f('close'), never as the literal
+    'h4_close' / 'w_close', so it counts as read when its DAILY base is read.
+    A first cut without this rule reported 13 live 4H columns as orphans, and
+    the same omission for w_ reported all 53 weekly columns as orphans.
     """
     if not rows:
         return []
     findings = []
     others = other_consumers()
     for col in rows[0].keys():
-        if col in ORPHAN_EXEMPT or col.startswith('ma_') or col.startswith('h4_ma_'):
+        stripped = _strip_tf(col)
+        if col in ORPHAN_EXEMPT or stripped.startswith('ma_'):
             continue
         if col in js:
             continue
-        if col.startswith('h4_') and col[3:] in js:
+        if stripped != col and stripped in js:
             continue
         elsewhere = sorted(f for f, src in others.items() if col in src)
         note = (f' Read by {", ".join(elsewhere)} though, so it is payload '
@@ -427,7 +458,7 @@ def check_ghost_reads(rows, js):
         if name in seen:
             continue
         seen.add(name)
-        if name in cols or 'h4_' + name in cols:
+        if name in cols or any(pre + name in cols for pre in TF_PREFIXES_NB):
             continue
         findings.append(('FAIL', 'ghost read',
                          f"app.js reads f({name!r}), which is not a column on "
@@ -462,7 +493,7 @@ def check_phantoms(rows, js):
     cols = set(rows[0].keys())
     seen, findings = set(), []
     for col, lit, ci in phantom_candidates(js, cols):
-        base = col[3:] if col.startswith('h4_') else col
+        base = _strip_tf(col)
         if (base, lit) in seen:
             continue
         seen.add((base, lit))

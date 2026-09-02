@@ -33,6 +33,42 @@ in `config.py`. Only non-NaN MAs are counted, so short-history instruments score
 > `trend_direction` is **not** the signal-firing gate — `signals.py` keeps its own strict
 > `above_all`/`below_all` test — so this changed no fires (golden identical, 1454 fires).
 
+**Weekly bar geometry** — `config.py` §"Weekly bar geometry", `main._resample_weekly()`
+
+Weekly runs the SAME MA25–MA500 ribbon on weekly bars, unscaled. There is no session
+ambiguity to correct for: a week is a week on every venue, so the 4H problem below has no
+weekly analogue. What the three ribbons actually span:
+
+| TF | MA25 spans | MA500 spans |
+|---|---|---|
+| 4H (equity, 2 bars/session) | ~2 weeks | ~12 months |
+| Daily | ~5 weeks | ~24 months |
+| Weekly | ~6 months | **~9.6 years** |
+
+Two consequences, both measured:
+
+- **Warmup eats half the history.** MA500 needs 500 weekly bars before it exists at all.
+  The median instrument holds 1052 weekly bars, so only ~552 (≈11 years) can ever carry a
+  weekly signal; 82.1% of the 808 cached instruments reach 500 weekly bars, the rest clip
+  the ribbon through the same `p <= len(df)` rule the daily side uses. An instrument like
+  BTC-USD (621 weekly bars) has just ~122 usable bars, ~2 years.
+- **Fires are rare, by design.** 6–31 fires per instrument across ~11 usable years
+  (AAPL 6, ^GSPC 7, GC=F 31) — roughly one a year on a trending equity, against ~120 on
+  Daily. 13,146 weekly trades in the full backtest against 92,879 Daily.
+
+**The in-progress week is dropped.** A week is not a bar until it has ended — the same rule
+`drop_unfinished_daily` / `drop_unfinished_4h` apply to their own timeframes (CLAUDE.md
+Important Rule 10). Without it, every run Monday–Thursday would compute the ribbon, the
+trend and the signals on a part-formed bar, and a weekly B2 that fired on Tuesday could be
+gone by Friday: the signal would repaint four days in five. So mid-week the weekly
+timeframe shows the LAST CLOSED week and does not move. That is correct, not stale, and
+`w_date` names the week it is showing. Weeks end Friday (`WEEKLY_RESAMPLE_RULE = 'W-FRI'`)
+and are labelled by that Friday.
+
+**Per-timeframe thresholds** — `REFIRE_PCT_WEEKLY = 0.08`, `NEW_TREND_PCT_WEEKLY = 0.05`.
+**UNTUNED**: 0.08 is Daily's 0.05 scaled by sqrt(5) (a weekly bar holds five daily bars, so
+its moves are ~2.2x). Sweep both with `backtest.py` before treating either as measured.
+
 **4H bar geometry** — `config.py` §"4H bar geometry", `data_fetcher.h4_ticker()`, `main._h4_ma_periods()`
 
 A 4H bar is only as fast as the session behind it. yfinance 1h returns **regular session only**
@@ -99,6 +135,7 @@ that proves this is 4H-only. Four tier flips, two of them (`4H|S2|Index` high→
 |---|---|---|
 | 4H | 0.02 | 0.05 |
 | Daily | 0.05 | 0.05 |
+| Weekly | 0.08 | 0.05 | *(untuned — see §1)* |
 
 ---
 
@@ -222,14 +259,22 @@ high-minus-low separation +0.286→+0.299 (labels discriminate better).
 
 ## 10. Timeframe alignment
 
-`main.py _compute_tf_alignment()` — uses **established_trend** of Daily + 4H:
+`main.py _compute_tf_alignment()` — uses **trend_direction** (not the latch) of
+4H + Daily + Weekly:
 | Agreement | Label |
 |---|---|
-| both up / both down | Aligned Bull / Aligned Bear |
-| one each way | Counter-trend |
-| otherwise | Mixed |
+| every timeframe with a ribbon agrees | Aligned Bull / Aligned Bear |
+| some up and some down | Counter-trend |
+| otherwise (any NEUTRAL, no conflict) | Mixed |
 
-Score = sum(+1 up / −1 down) → −2 … +2. Display-only (radar score is single-TF by design).
+Score = sum(+1 up / −1 down) → **−3 … +3** (was −2 … +2 before Weekly, 2026-09-02 —
+anything drawing a bar from this must rescale, not clamp).
+
+A timeframe that produced no ribbon at all — too little history for even a clipped MA set —
+is **absent**, and absent does not vote. NEUTRAL is different: it is an opinion (price is
+inside the ribbon) and it still blocks alignment, exactly as before. The test counts
+timeframes that are present rather than hard-coding 2, which quietly stopped meaning
+"all of them" the moment a third timeframe existed.
 
 ---
 

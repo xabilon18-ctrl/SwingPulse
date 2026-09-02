@@ -35,7 +35,8 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _GEN_DIR = os.path.dirname(_TESTS_DIR)
 sys.path.insert(0, _GEN_DIR)
 
-from _active_config import MA_PERIODS                       # noqa: E402
+from _active_config import (MA_PERIODS,                     # noqa: E402
+                            REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY)
 from indicators import add_all_indicators                    # noqa: E402
 from signals import add_signals, _signal_confidence          # noqa: E402
 import signals as _signals_mod                               # noqa: E402
@@ -53,9 +54,12 @@ FIXTURE_TICKERS = ['AAPL', 'NVDA', 'BTC-USD', 'ETH-USD', 'EURUSD=X',
 TF_PARAMS = {
     'D':  {'refire_pct': 0.05, 'new_trend_pct': 0.05},
     '4H': {'refire_pct': 0.02, 'new_trend_pct': 0.05},
+    'W':  {'refire_pct': REFIRE_PCT_WEEKLY, 'new_trend_pct': NEW_TREND_PCT_WEEKLY},
 }
 
 _DAILY_BARS  = 2600   # fixture size: enough for MA500 + years of signals
+                      # — and, at 5 sessions a week, ~520 weekly bars, which is
+                      #   just past the 500 a full weekly ribbon needs
 _HOURLY_BARS = 6500   # → ~1080 4H bars
 
 
@@ -89,10 +93,28 @@ def make_fixtures() -> None:
 # ---------------------------------------------------------------------------
 def _signal_frame(ticker: str, tf: str):
     """Signal columns for one fixture, computed the way main.py does."""
+    # Explicitly three-way rather than `if D / else 4H`: that shape was correct
+    # while 4H was the only other timeframe and would have quietly graded the
+    # weekly snapshot against 4H bars.
     if tf == 'D':
         df = pd.read_parquet(_fixture_path(ticker, 'D'))
         df = add_all_indicators(df)
         ma_p = [p for p in MA_PERIODS if p <= len(df)]
+    elif tf == 'W':
+        # Weekly comes off the SAME frozen daily fixture production resamples
+        # from. _resample_weekly's in-progress-week drop is judged against the
+        # frame's own last bar, not the wall clock, so this stays deterministic.
+        #
+        # COVERAGE NOTE: 2600 daily bars is only ~540 weekly bars, and MA500
+        # needs 500 of them as warmup — so the weekly golden pins roughly the
+        # LAST 40 BARS of each fixture, not a decade like the daily one. It
+        # will catch a rule change that moves a recent fire and will not catch
+        # one that only bites deeper in history. Widening it means refreezing
+        # every fixture, which also rewrites the D and 4H goldens.
+        from main import _resample_weekly
+        df = _resample_weekly(pd.read_parquet(_fixture_path(ticker, 'D')))
+        ma_p = [p for p in MA_PERIODS if p <= len(df)]
+        df = add_all_indicators(df, ma_periods=ma_p)
     else:
         from main import _resample_4h
         hourly = pd.read_parquet(_fixture_path(ticker, '1h'))
@@ -132,7 +154,7 @@ def _snapshot_one(df: pd.DataFrame) -> dict:
 def build_snapshot() -> dict:
     snap = {}
     for t in FIXTURE_TICKERS:
-        for tf in ('D', '4H'):
+        for tf in ('D', '4H', 'W'):
             df = _signal_frame(t, tf)
             if df is not None:
                 snap[f'{t}|{tf}'] = _snapshot_one(df)

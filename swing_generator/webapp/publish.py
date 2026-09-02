@@ -665,7 +665,12 @@ def build_data(output_dir, src_signals_dir=None):
     try:
         t_chart = time.time()
         cstats  = build_chart_feed(output_dir, CACHE_DIR, get_ticker_map())
-        print(f'  Chart feed: {cstats["D"]} daily / {cstats["4H"]} 4H '
+        # Report every timeframe the builder actually produced. Hard-coding D
+        # and 4H here meant the 2026-09-02 run printed "798 daily / 798 4H"
+        # while it had in fact written 160 weekly chunks too — a summary line
+        # that under-reports is how a broken feed looks healthy.
+        _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k != 'chunks')
+        print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
     except Exception as e:
         # A missing chart feed costs you the Charts tab, not the publish.

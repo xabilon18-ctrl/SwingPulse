@@ -533,6 +533,27 @@
    }
   ]
  },
+ "AAPL|W": {
+  "bars": 540,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2025-10-03",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "f64f7ac11e140502",
+  "trend_transitions": [
+   {
+    "date": "2016-03-11",
+    "trend": ""
+   },
+   {
+    "date": "2025-10-10",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "BTC-USD|4H": {
   "bars": 1629,
   "fires": [
@@ -1226,6 +1247,17 @@
    {
     "date": "2025-11-18",
     "trend": "DOWNTREND"
+   }
+  ]
+ },
+ "BTC-USD|W": {
+  "bars": 372,
+  "fires": [],
+  "hash": "ecb3b768cdc959f5",
+  "trend_transitions": [
+   {
+    "date": "2019-05-31",
+    "trend": ""
    }
   ]
  },
@@ -2186,6 +2218,41 @@
    }
   ]
  },
+ "CL=F|W": {
+  "bars": 540,
+  "fires": [
+   {
+    "code": "S1",
+    "date": "2025-10-03",
+    "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "S4",
+    "date": "2026-02-06",
+    "status": "Rally rejection \u2014 S4: wick touched MA500, close confirmed below"
+   },
+   {
+    "code": "B1",
+    "date": "2026-03-06",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "3349eebe90b9a5c5",
+  "trend_transitions": [
+   {
+    "date": "2016-03-11",
+    "trend": ""
+   },
+   {
+    "date": "2025-10-10",
+    "trend": "DOWNTREND"
+   },
+   {
+    "date": "2026-03-13",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "CRWV|4H": {
   "bars": 725,
   "fires": [
@@ -3051,6 +3118,27 @@
    },
    {
     "date": "2025-11-21",
+    "trend": "DOWNTREND"
+   }
+  ]
+ },
+ "ETH-USD|W": {
+  "bars": 372,
+  "fires": [
+   {
+    "code": "S1",
+    "date": "2026-02-20",
+    "status": "Trend breakdown \u2014 S1: price crossed below all MAs (MA25\u2013MA350)"
+   }
+  ],
+  "hash": "b8380cfc53f2409d",
+  "trend_transitions": [
+   {
+    "date": "2019-05-31",
+    "trend": ""
+   },
+   {
+    "date": "2026-02-27",
     "trend": "DOWNTREND"
    }
   ]
@@ -3993,6 +4081,27 @@
    }
   ]
  },
+ "EURUSD=X|W": {
+  "bars": 522,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2026-02-06",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "8b141554077c3c8f",
+  "trend_transitions": [
+   {
+    "date": "2016-07-15",
+    "trend": ""
+   },
+   {
+    "date": "2026-02-13",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "GC=F|4H": {
   "bars": 1759,
   "fires": [
@@ -4677,6 +4786,27 @@
    }
   ]
  },
+ "GC=F|W": {
+  "bars": 540,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2025-10-03",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "f64f7ac11e140502",
+  "trend_transitions": [
+   {
+    "date": "2016-03-11",
+    "trend": ""
+   },
+   {
+    "date": "2025-10-10",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "NVDA|4H": {
   "bars": 1193,
   "fires": [
@@ -5238,6 +5368,27 @@
    },
    {
     "date": "2023-01-30",
+    "trend": "UPTREND"
+   }
+  ]
+ },
+ "NVDA|W": {
+  "bars": 540,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2025-10-03",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "f64f7ac11e140502",
+  "trend_transitions": [
+   {
+    "date": "2016-03-11",
+    "trend": ""
+   },
+   {
+    "date": "2025-10-10",
     "trend": "UPTREND"
    }
   ]
@@ -6218,6 +6369,32 @@
    }
   ]
  },
+ "TEF.MC|W": {
+  "bars": 531,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2026-05-15",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   },
+   {
+    "code": "B4",
+    "date": "2026-06-19",
+    "status": "Anchor bounce \u2014 B4: wick touched MA500, close confirmed above"
+   }
+  ],
+  "hash": "70ceba69d6bea2c4",
+  "trend_transitions": [
+   {
+    "date": "2016-05-13",
+    "trend": ""
+   },
+   {
+    "date": "2026-05-22",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "USDJPY=X|4H": {
   "bars": 1685,
   "fires": [
@@ -7015,6 +7192,27 @@
    }
   ]
  },
+ "USDJPY=X|W": {
+  "bars": 522,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2026-02-06",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "8b141554077c3c8f",
+  "trend_transitions": [
+   {
+    "date": "2016-07-15",
+    "trend": ""
+   },
+   {
+    "date": "2026-02-13",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "^GDAXI|4H": {
   "bars": 1564,
   "fires": [
@@ -7804,6 +8002,27 @@
    }
   ]
  },
+ "^GDAXI|W": {
+  "bars": 535,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2025-12-05",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "631e34eeaf7fd952",
+  "trend_transitions": [
+   {
+    "date": "2016-04-15",
+    "trend": ""
+   },
+   {
+    "date": "2025-12-12",
+    "trend": "UPTREND"
+   }
+  ]
+ },
  "^GSPC|4H": {
   "bars": 1193,
   "fires": [
@@ -8317,6 +8536,27 @@
    },
    {
     "date": "2025-05-13",
+    "trend": "UPTREND"
+   }
+  ]
+ },
+ "^GSPC|W": {
+  "bars": 540,
+  "fires": [
+   {
+    "code": "B1",
+    "date": "2025-10-03",
+    "status": "Trend breakout \u2014 B1: price crossed above all MAs (MA25\u2013MA500)"
+   }
+  ],
+  "hash": "f64f7ac11e140502",
+  "trend_transitions": [
+   {
+    "date": "2016-03-11",
+    "trend": ""
+   },
+   {
+    "date": "2025-10-10",
     "trend": "UPTREND"
    }
   ]

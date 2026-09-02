@@ -180,8 +180,10 @@ def _event_in_window(name: str, fire_date: str, tf: str) -> dict | None:
         bars = TIME_STOP_BARS.get(tf, 30)
     except Exception:
         bars = 30
-    # 30 daily bars is ~6 calendar weeks; a 4H window of 60 bars is ~2 weeks.
-    span = int(bars * (1.45 if tf == 'D' else 0.35)) or 1
+    # Bars -> calendar days, per timeframe: 30 daily bars is ~6 calendar weeks,
+    # a 4H window of 60 bars is ~2 weeks, and 13 weekly bars is a quarter.
+    _DAYS_PER_BAR = {'D': 1.45, '4H': 0.35, 'W': 7.0}
+    span = int(bars * _DAYS_PER_BAR.get(tf, 1.45)) or 1
     try:
         start = _date.fromisoformat(fire_date)
     except ValueError:
@@ -223,11 +225,14 @@ def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time=''):
 
 
 def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
-    """Append this instrument's fired signals (both TFs) to the ledger. Returns #new."""
+    """Append this instrument's fired signals (all TFs) to the ledger. Returns #new."""
     added = 0
     for tf, sig_col, conf_col, date_col, ts_col in (
         ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
         ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date', 'h4_datetime'),
+        # Weekly bars are unique by date, so no ts_col — the same reason Daily
+        # has none. See config.INTRADAY_PREFIXES.
+        ('W',  'w_primary_signal',  'w_signal_confidence',  'w_date',  ''),
     ):
         code = str(row.get(sig_col) or '').strip()
         fire_date = str(row.get(date_col) or '').strip()
@@ -276,17 +281,28 @@ def _load_tf_frame(ticker: str, tf: str):
     from backtest import _add_atr
     from data_fetcher import _cache_path
 
+    # Explicitly three-way. This used to be `if D / else 4H`, which was right
+    # while those were the only timeframes and would have silently graded every
+    # weekly fire against 4H bars the moment a third one existed.
     if tf == 'D':
         path = _cache_path(ticker)
         if not os.path.exists(path):
             return None
         df = pd.read_parquet(path)
-    else:
+    elif tf == 'W':
+        path = _cache_path(ticker)
+        if not os.path.exists(path):
+            return None
+        from main import _resample_weekly
+        df = _resample_weekly(pd.read_parquet(path))
+    elif tf == '4H':
         path = _cache_path(ticker, suffix='1h')
         if not os.path.exists(path):
             return None
         from main import _resample_4h
         df = _resample_4h(pd.read_parquet(path))
+    else:
+        return None
     if len(df) < 10:
         return None
     return _add_atr(df)
@@ -320,7 +336,10 @@ def _fire_index(df: pd.DataFrame, rec: dict):
     bar_date = df.index[end].date() if hasattr(df.index[end], 'date') else None
     if bar_date != ts.date():
         return None, False
-    return int(end), (rec['tf'] == 'D')
+    # Exact when one bar owns the date. Daily and Weekly both do (a weekly bar
+    # IS its week-ending date); only 4H packs 2-6 bars into one date and has to
+    # fall back to the last of them. Mirrors config.INTRADAY_PREFIXES.
+    return int(end), (rec['tf'] in ('D', 'W'))
 
 
 def _grade_record(rec: dict, df: pd.DataFrame) -> bool:

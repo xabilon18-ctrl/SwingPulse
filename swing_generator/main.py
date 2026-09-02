@@ -32,10 +32,12 @@ import _active_config as config
 
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
-    SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
+    SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY, SIGNAL_LOOKBACK_WEEKLY,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
+    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES,
+    WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -90,8 +92,12 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     # to the LAST bar of that date, which (runs land midday) is typically 1-5
     # bars after the bar that actually fired, so every graded 4H trade was
     # entered up to a session late. Daily bars are uniquely identified by their
-    # date already, so no column is emitted there.
-    intraday_ts = {f'{prefix}datetime': str(row_ts)} if prefix else {}
+    # date already, so no column is emitted there — and so is a weekly bar,
+    # which IS its week-ending date. Keyed off INTRADAY_PREFIXES rather than
+    # `if prefix`, which meant the same thing only while 4H was the sole
+    # prefixed timeframe.
+    intraday_ts = ({f'{prefix}datetime': str(row_ts)}
+                   if prefix in INTRADAY_PREFIXES else {})
 
     result = {
         f'{prefix}date':                          str(row_date),
@@ -179,7 +185,7 @@ def apply_context_confidence(row: dict) -> None:
     """Nudge signal_confidence per config.CONTEXT_RULES (edge-audit phase 3a).
     Mutates row in place: adjusts {prefix}signal_confidence and writes a
     human-readable {prefix}confidence_context. Only fired signals are touched."""
-    for tf, prefix in (('D', ''), ('4H', 'h4_')):
+    for tf, prefix in TIMEFRAMES:
         sig = row.get(f'{prefix}primary_signal', '')
         base = row.get(f'{prefix}signal_confidence', '')
         if not sig or base not in CONF_TIER_ORDER:
@@ -371,6 +377,51 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     return drop_unfinished_4h(resampled)
 
 
+def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
+    """Resample finished daily bars to weekly, dropping the week in progress.
+
+    Two rules, both load-bearing:
+
+    1. Weeks are labelled by their END (`W-FRI`), so a bar dated 2026-09-04 is
+       the week that closed that Friday. This is what a weekly chart shows and
+       what `w_date` means on the front end.
+
+    2. **The current week is dropped.** A week is not a bar until it has ended,
+       the same rule `drop_unfinished_daily` / `drop_unfinished_4h` apply to
+       their own timeframes (Important Rule 10). Without it every run Monday
+       through Thursday would compute the ribbon, the trend and the signals on a
+       part-formed bar, and a weekly B2 fired on Tuesday could be gone by
+       Friday — the signal would repaint for four days out of five. So during
+       the week the weekly timeframe shows the LAST CLOSED week and does not
+       move; that is correct, not stale, and the UI says which week it is.
+
+    The daily frame arriving here has already been through drop_unfinished_daily
+    in _process_worker, so the final week is judged on finished sessions only.
+    """
+    ohlcv = ['Open', 'High', 'Low', 'Close', 'Volume']
+    cols  = [c for c in ohlcv if c in df_daily.columns]
+    if not cols or df_daily.empty:
+        return df_daily.iloc[0:0]
+
+    d = df_daily[cols].copy()
+    if getattr(d.index, 'tz', None) is not None:
+        d.index = d.index.tz_localize(None)
+
+    weekly = d.resample(WEEKLY_RESAMPLE_RULE).agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum',
+    }).dropna(subset=['Close'])
+
+    if weekly.empty:
+        return weekly
+
+    # Drop the in-progress week: its label (the coming Friday) is still ahead of
+    # the newest daily bar we hold. Compared on dates, so a Friday-dated bar
+    # built from a finished Friday session is admitted.
+    last_daily = pd.Timestamp(d.index.max()).normalize()
+    return weekly[pd.DatetimeIndex(weekly.index).normalize() <= last_daily]
+
+
 def _h4_bars_per_session(h4: pd.DataFrame) -> float:
     """Median 4H bars per trading session. 6 = a ~23h contract, 2 = a US cash
     session, 3 = a European one."""
@@ -408,11 +459,13 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
 
 def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     """
-    Score how many timeframes agree on direction (Daily + 4H).
+    Score how many timeframes agree on direction (4H + Daily + Weekly).
 
     Returns (label, score):
-        score: -2 to +2  (positive = bullish alignment, negative = bearish)
-        label: 'Aligned Bull/Bear' — both TFs agree
+        score: -3 to +3  (positive = bullish alignment, negative = bearish)
+               Widened from -2..+2 when Weekly was added 2026-09-02; consumers
+               that drew a bar from this must rescale, not clamp.
+        label: 'Aligned Bull/Bear' — every timeframe with a ribbon agrees
                'Counter-trend'     — TFs in opposite directions
                'Mixed'             — no clear direction
 
@@ -427,23 +480,29 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     positional read; established_trend stays untouched for the Trends tab
     segments and the signal gates that legitimately want the latch.
     """
-    trends = []
-    for prefix in ('', 'h4_'):
+    # A timeframe that produced no ribbon at all (too little history for even a
+    # clipped MA set) is ABSENT, and absent is not the same as NEUTRAL. NEUTRAL
+    # is an opinion — price is inside the ribbon — and it has always blocked
+    # alignment; that must not change. Absent should simply not vote, otherwise
+    # the ~7 instruments with under 75 weekly bars could never read Aligned
+    # again. Hence `present`, not a hard-coded count of 2 (which quietly
+    # stopped meaning "all of them" the moment a third timeframe existed).
+    trends  = []
+    present = 0
+    for prefix in TF_PREFIXES:
         t = row.get(f'{prefix}trend_direction', '')
-        if t == 'UPTREND':
-            trends.append(1)
-        elif t == 'DOWNTREND':
-            trends.append(-1)
-        else:
-            trends.append(0)
+        if not t:
+            continue
+        present += 1
+        trends.append(1 if t == 'UPTREND' else -1 if t == 'DOWNTREND' else 0)
 
-    score = sum(trends)
-    up_count = trends.count(1)
+    score      = sum(trends)
+    up_count   = trends.count(1)
     down_count = trends.count(-1)
 
-    if up_count == 2:
+    if present and up_count == present:
         label = 'Aligned Bull'
-    elif down_count == 2:
+    elif present and down_count == present:
         label = 'Aligned Bear'
     elif up_count > 0 and down_count > 0:
         label = 'Counter-trend'
@@ -518,6 +577,28 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 if h4_data is None:
                     h4_data = {}
 
+        # ── WEEKLY (resampled from the same finished daily bars) ──
+        # Runs the identical engine and the identical MA25-MA500 ribbon on
+        # weekly bars. No session scaling: a week is a week on every venue, so
+        # the 4H geometry problem has no weekly analogue. Short-history names
+        # clip the ribbon exactly as the daily side does.
+        w_data = {}
+        weekly = _resample_weekly(df)
+        w_ma_periods = [p for p in MA_PERIODS if p <= len(weekly)]
+        if len(w_ma_periods) >= 3:
+            weekly = add_all_indicators(weekly, ma_periods=w_ma_periods)
+            weekly = add_signals(weekly, ma_periods=w_ma_periods,
+                                 refire_pct=REFIRE_PCT_WEEKLY,
+                                 new_trend_pct=NEW_TREND_PCT_WEEKLY,
+                                 tf='W', asset_class=_asset_cls)
+            w_data, _ = _extract_row(
+                weekly, run_date, prefix='w_',
+                ma_periods=w_ma_periods,
+                signal_lookback=SIGNAL_LOOKBACK_WEEKLY,
+            )
+            if w_data is None:
+                w_data = {}
+
         row = {
             'instrument_name':  inst_meta['name'],
             'group':            inst_meta.get('group', ''),
@@ -530,6 +611,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             'asset_class':      _asset_cls,
             **(daily_data or {}),
             **(h4_data or {}),
+            **(w_data or {}),
         }
 
         # ── Multi-timeframe alignment (computed after all TFs are assembled) ──

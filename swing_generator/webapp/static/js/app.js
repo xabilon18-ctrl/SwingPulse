@@ -108,6 +108,21 @@
 
   let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
   let charts = {};
+  // ── The timeframe table — ONE definition, ordered fast to slow ────────
+  // Mirrors config.TIMEFRAMES on the Python side. Every per-timeframe fact
+  // lives on the row: the column prefix f() applies, the button label, the
+  // TradingView interval, and the word for one bar. Before Weekly these were
+  // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
+  // a shape that silently answers "Daily" for any third timeframe.
+  const TIMEFRAMES = [
+    { code: '4H', prefix: 'h4_', label: '4H',     tv: '240', bar: '4H bars', barShort: '25-bar'  },
+    { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
+    { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
+  ];
+  const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
+  const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
+  const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
+
   let timeframe = '4H';
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
   let eventsData = { events: [], sources: {} };  // scheduled events (events.json)
@@ -503,8 +518,7 @@
   // ── Timeframe field accessor ────────────────────────────────────────
   // Returns the correct field name for the active timeframe.
   function f(field) {
-    if (timeframe === '4H') return 'h4_' + field;
-    return field;
+    return tfMeta().prefix + field;
   }
 
   // Relative volume (RVOL): today's volume ÷ rolling-average volume, for the
@@ -653,9 +667,21 @@
   function effectiveTrend(item) {
     // Neutral oscillation (MA25 chopping + MA100 flattening = potential top/bottom)
     // takes priority: these are classified NEUTRAL regardless of the raw timeframe
-    // trend, so they never double-count as Uptrend/Downtrend/Triple Bull.
-    // Daily-only field — referenced as an absolute name (not via f()).
-    if (item.neutral_oscillation === 'yes') return 'NEUTRAL';
+    // trend, so they never double-count as Uptrend/Downtrend/Aligned Bull.
+    //
+    // GATED TO DAILY (2026-09-02). The flag is computed from DAILY bars only —
+    // `ma25_cross_count >= 3` over the last 30 daily bars with a flat daily MA100
+    // slope (indicators.add_neutral_oscillation) — and there is no h4_ or w_
+    // counterpart. It was nonetheless applied on every timeframe, so a fortnight
+    // of day-to-day chop could overrule a 4H or Weekly ribbon read. On Weekly
+    // that is exactly backwards: a decade-scale ribbon exists to ignore daily
+    // noise, and 22 instruments were reading NEUTRAL on Weekly purely because
+    // their DAILY bars were choppy (508 UPTREND in the payload, 486 on screen).
+    // Measured on the 2026-09-02 run — 36 instruments carry the flag, and it was
+    // overriding 25 4H rows and 23 Weekly rows on top of its 16 legitimate Daily
+    // ones. Same discipline as moodApplies(): a read only applies on the
+    // timeframe it was measured on.
+    if (timeframe === 'D' && item.neutral_oscillation === 'yes') return 'NEUTRAL';
     const td = item[f('trend_direction')] || '';
     return (td === 'UPTREND' || td === 'DOWNTREND') ? td : 'NEUTRAL';
     // NB there used to be a confirmation_status keyword fallback here, for
@@ -936,8 +962,7 @@
   // ── TradingView Helpers ──────────────────────────────────────────────
   function tvUrl(name) {
     const sym = tvMap[name] || name;
-    const ivlMap = { 'D': '&interval=D', '4H': '&interval=240' };
-    const interval = ivlMap[timeframe] || '&interval=D';
+    const interval = '&interval=' + tfMeta().tv;
     const layout = userTvLayout();
     return `https://www.tradingview.com/chart/${layout ? layout + '/' : ''}?symbol=${encodeURIComponent(sym)}${interval}`;
   }
@@ -976,7 +1001,7 @@
   }
 
   function setTimeframe(tf) {
-    if (tf !== 'D' && tf !== '4H') return;
+    if (!isTf(tf)) return;
     if (tf === timeframe) return;
     // Which chart the reader is on, captured BEFORE anything re-renders:
     // renderAll() rebuilds the reel and resets its scroll, so asking afterwards
@@ -1001,7 +1026,7 @@
   // Restore the persisted timeframe before the first render
   try {
     const _savedTf = localStorage.getItem('swingpulse-tf');
-    if (_savedTf === 'D' || _savedTf === '4H') timeframe = _savedTf;
+    if (isTf(_savedTf)) timeframe = _savedTf;
   } catch (e) {}
 
   // Wire the global header timeframe toggle (4H / Daily)
@@ -1915,7 +1940,7 @@
             <span class="tr-row-pf tr-live-bt" title="Backtested expectancy for this code (10y) — is live matching it?">${btStr}</span>
           </div>`;
         }).join('') : ''}
-        ${pending.length ? `<div class="tr-live-empty">${ready.length ? 'Still maturing: ' : 'Nothing has matured yet — '}${pending.map(([c, s]) => `${c} ${s.counted || 0}/${MIN_COUNTED}`).join(' · ')}. A signal only counts once its full window (${t.window ? `${t.window.D || 30} daily bars, ${t.window['4H'] || 60} 4H bars` : '30 daily bars'}) has passed, so winners aren't left out.</div>` : ''}
+        ${pending.length ? `<div class="tr-live-empty">${ready.length ? 'Still maturing: ' : 'Nothing has matured yet — '}${pending.map(([c, s]) => `${c} ${s.counted || 0}/${MIN_COUNTED}`).join(' · ')}. A signal only counts once its full window (${t.window ? `${t.window.D || 30} daily bars, ${t.window['4H'] || 60} 4H bars, ${t.window.W || 13} weekly bars` : '30 daily bars'}) has passed, so winners aren't left out.</div>` : ''}
       `;
     }
     rows.innerHTML = btRows + liveHtml;
@@ -2429,7 +2454,7 @@
     });
   }
 
-  function VP_LOOKBACK_LABEL() { return timeframe === '4H' ? '25-bar' : '25-day'; }
+  function VP_LOOKBACK_LABEL() { return tfMeta().barShort; }
 
   // ── Sector Activity Radar — anomaly monitor, quiet on normal days ──
   // Axis value = z of today's activity rate vs the sector's OWN trailing
@@ -2851,10 +2876,9 @@
     // 4-TF buy/sell/neutral grid — see all timeframes at a glance
     const tfGrid = document.getElementById('mpTfGrid');
     if (tfGrid && allData.length) {
-      const tfs = [
-        { code: 'D',  field: 'trend_direction',    label: 'Daily' },
-        { code: '4H', field: 'h4_trend_direction', label: '4H' },
-      ];
+      const tfs = TIMEFRAMES.map(t => ({
+        code: t.code, field: t.prefix + 'trend_direction', label: t.label,
+      }));
       tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
         let up = 0, dn = 0, nu = 0;
         allData.forEach(d => {
@@ -3578,7 +3602,7 @@
       const rv = rvol(item);
       const volTile = rv === null
         ? '<div class="sc-stat"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-na">—</div></div>'
-        : `<div class="sc-stat" title="Today's volume vs its ${timeframe === '4H' ? '4H' : 'daily'} rolling average — ${fmtRvol(rv)} of normal"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-vol">${fmtRvol(rv)}</div></div>`;
+        : `<div class="sc-stat" title="Today's volume vs its ${tfMeta().label.toLowerCase()} rolling average — ${fmtRvol(rv)} of normal"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-vol">${fmtRvol(rv)}</div></div>`;
 
       return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="scanner-top">
@@ -4432,7 +4456,7 @@
     const confCtx = item[f('confidence_context')] || '';   // edge-audit context modifiers
     const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const close = parseFloat(item[f('close')]);
-    const maPrefix = timeframe === '4H' ? 'h4_ma_' : 'ma_';
+    const maPrefix = tfMeta().prefix + 'ma_';
     const periods = activeMaPeriods();
     const maPills = periods.map(p => {
       const val = parseFloat(item[maPrefix + p]);
@@ -4621,7 +4645,7 @@
           <div class="mh-section-title">Volume${item[f('volume_spike_flag')]==='yes' ? ' <span class="vol-plus-chip">SPIKE</span>' : ''}</div>
           <div class="mh-vol-grid">
             <div class="mg-tile"><div class="mg-label">Today</div><div class="mg-val" title="${isFinite(v) ? Math.round(v).toLocaleString() : ''}">${fmtVol(v)}</div></div>
-            <div class="mg-tile" title="Average over the last 25 ${timeframe === '4H' ? '4H bars' : 'days'}"><div class="mg-label">Avg (25)</div><div class="mg-val" title="${av ? Math.round(av).toLocaleString() : ''}">${fmtVol(av)}</div></div>
+            <div class="mg-tile" title="Average over the last 25 ${tfMeta().bar}"><div class="mg-label">Avg (25)</div><div class="mg-val" title="${av ? Math.round(av).toLocaleString() : ''}">${fmtVol(av)}</div></div>
             <div class="mg-tile"><div class="mg-label">RVOL</div><div class="mg-val${rvCls}">${rv !== null ? fmtRvol(rv) : '—'}</div></div>
             <div class="mg-tile"><div class="mg-label">PVO</div><div class="mg-val ${pv ? (pv.v >= 0 ? 'buy' : 'sell') : ''}">${pv ? fmtPvo(pv.v) : '—'}</div></div>
           </div>
@@ -5138,8 +5162,7 @@
     const webUrl = tvUrl(name);
     // Build tradingview:// deep link with exchange and symbol as separate params
     const tvSym  = tvMap[name] || name;
-    const ivlMap = { 'D': 'D', '4H': '240' };
-    const ivl    = ivlMap[timeframe] || 'D';
+    const ivl    = tfMeta().tv;
     const layoutId = userTvLayout();
     let appUrl;
     if (tvSym.includes(':')) {
@@ -5825,9 +5848,9 @@
     // It said so nowhere, though: flipping to 4H changed every count on screen
     // except this one, silently. The Trends tab already handles the same
     // situation by naming it, so this does too.
-    const tfNote = timeframe === '4H'
-      ? '<div class="notif-tf-note">Daily · signal alerts are daily-only</div>'
-      : '';
+    const tfNote = timeframe === 'D'
+      ? ''
+      : '<div class="notif-tf-note">Daily · signal alerts are daily-only</div>';
     if (!items.length) {
       list.innerHTML = tfNote + '<div class="notif-empty">No signals fired today</div>';
       return;
@@ -6279,7 +6302,7 @@
     }
 
     // 8. Volume (max 6) — spike on the active TF
-    const _volSpike = timeframe === '4H' ? item.h4_volume_spike_flag : item.volume_spike_flag;
+    const _volSpike = item[f('volume_spike_flag')];
     if (_volSpike === 'yes') lines.push({ label: `Volume spike (${timeframe})`, points: 6 });
 
     return { isBullish, lines };
@@ -6709,7 +6732,7 @@
 
       <footer class="reel-foot">
         <span class="reel-trend ${trCls}">${trend}</span>
-        <span class="reel-tf-tag">${timeframe === '4H' ? '4H' : 'Daily'}</span>
+        <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>

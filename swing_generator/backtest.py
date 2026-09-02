@@ -13,7 +13,7 @@ Usage:
     python3 backtest.py --quick             # first 30 instruments, no JSON
     python3 backtest.py --signal B1         # only this code (B1/S1/B2/S2/B3/S3/B4/S4)
     python3 backtest.py --since 2016-01-01  # only trades entered on/after this date
-    python3 backtest.py --tf D              # one timeframe only (D or 4H)
+    python3 backtest.py --tf D              # one timeframe only (D, 4H or W)
 
 Outputs:
     output_ma500/backtest_<date>.json   — stats (publish.py ships it as backtest.json)
@@ -33,11 +33,12 @@ from typing import Optional
 
 import pandas as pd
 
-from _active_config import MA_PERIODS, OUTPUT_DIR
+from _active_config import (MA_PERIODS, OUTPUT_DIR,
+                            REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY)
 from data_fetcher import _cache_path, _drop_priceless, h4_ticker
 from indicators import add_all_indicators
 from instruments import load_instruments, asset_class_of
-from main import _resample_4h, _h4_ma_periods
+from main import _resample_4h, _h4_ma_periods, _resample_weekly
 from signals import add_signals
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +50,9 @@ CONFIDENCE_MAP_PATH = os.path.join(BASE_DIR, 'confidence_map.json')
 ATR_PERIOD     = 14
 ATR_STOP_MULT  = 2.0    # stop distance = 2 x ATR(14) at the signal bar
 TARGET_R       = 2.0    # 2:1 reward:risk
-TIME_STOP_BARS = {'D': 30, '4H': 60}   # exit after N bars regardless
+# Exit after N bars regardless. Weekly gets 13 — one quarter, the same ~6-week
+# holding intent the Daily 30 encodes, scaled to a bar that holds five days.
+TIME_STOP_BARS = {'D': 30, '4H': 60, 'W': 13}
 SLIPPAGE_PCT   = 0.0005 # 0.05% slippage per side
 MIN_BARS_AHEAD = 5      # need at least 5 bars after signal to evaluate
 
@@ -57,6 +60,7 @@ MIN_BARS_AHEAD = 5      # need at least 5 bars after signal to evaluate
 TF_SIGNAL_PARAMS = {
     'D':  {'refire_pct': 0.05, 'new_trend_pct': 0.05},
     '4H': {'refire_pct': 0.02, 'new_trend_pct': 0.05},
+    'W':  {'refire_pct': REFIRE_PCT_WEEKLY, 'new_trend_pct': NEW_TREND_PCT_WEEKLY},
 }
 
 # Confidence-map tiering
@@ -343,6 +347,23 @@ def backtest_instrument(ticker: str, name: str, group: str,
                                      **TF_SIGNAL_PARAMS['4H'])
                     frames['4H'] = (h4, h4_ma_periods)
 
+    # ── WEEKLY — mirror main.py: resample the same finished daily bars ──
+    # Built from `frames['D']`'s source rather than re-read, so the replay and
+    # production resample identically. The unfinished-week drop lives in
+    # _resample_weekly, so a backtest never grades a part-formed bar either.
+    if tf_filter in (None, 'W'):
+        path = _cache_path(ticker)
+        if os.path.exists(path):
+            wsrc = _drop_priceless(pd.read_parquet(path))
+            weekly = _resample_weekly(wsrc)
+            w_ma_periods = [p for p in MA_PERIODS if p <= len(weekly)]
+            if len(w_ma_periods) >= 3:
+                weekly = add_all_indicators(weekly, ma_periods=w_ma_periods)
+                weekly = _add_atr(weekly)
+                weekly = add_signals(weekly, ma_periods=w_ma_periods,
+                                     **TF_SIGNAL_PARAMS['W'])
+                frames['W'] = (weekly, w_ma_periods)
+
     def _trend_series(tf: str) -> Optional[pd.Series]:
         if tf not in frames:
             return None
@@ -354,11 +375,14 @@ def backtest_instrument(ticker: str, name: str, group: str,
         return s
 
     trades = []
-    for tf in ('D', '4H'):
+    for tf in ('D', '4H', 'W'):
         if tf not in frames:
             continue
         df, periods = frames[tf]
-        other_trend = _trend_series('4H' if tf == 'D' else 'D')
+        # `other_tf_trend` stays a DAILY-vs-4H question: it exists to record
+        # whether an intraday fire ran counter to the daily trend. Weekly has no
+        # counterpart rule and gets None rather than an invented pairing.
+        other_trend = _trend_series('4H' if tf == 'D' else 'D') if tf in ('D', '4H') else None
         trades += _collect_trades(df, tf, name, asset_class,
                                   signal_filter, since, periods, other_trend)
     return trades
@@ -541,7 +565,7 @@ def main():
     parser.add_argument('--quick',  action='store_true', help='Test 30 instruments only')
     parser.add_argument('--signal', help='Only test this signal code (B1/S1/B2/S2/B3/S3/B4/S4)')
     parser.add_argument('--since',  help='Only trades entered on/after this date (YYYY-MM-DD)')
-    parser.add_argument('--tf',     choices=['D', '4H'], help='Only this timeframe')
+    parser.add_argument('--tf',     choices=['D', '4H', 'W'], help='Only this timeframe')
     parser.add_argument('--workers', type=int, default=min(os.cpu_count() or 4, 8))
     parser.add_argument('--no-save', action='store_true')
     args = parser.parse_args()

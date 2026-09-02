@@ -132,7 +132,16 @@ def unread_returns():
     the new one.
     """
     rows = _snap('2026-08-04')
-    old = sa.run(rows, _git_show('HEAD~5', APP_JS_PATH))
+    # PINNED SHA, not HEAD~5. This was written as a relative ref and silently
+    # stopped testing anything as soon as five more commits landed: by
+    # 2026-09-02 HEAD~5 was 3f0bfaf, whose app.js already reads pct_1w, so the
+    # "before" side of the case had no bug in it and the replay reported
+    # caught=NO against a working auditor. A regression test anchored to a
+    # moving ref is the exact failure this harness exists to catch, committed
+    # by the harness itself. a4f2988 is the parent of f38385a (app.js v234,
+    # the commit that started reading pct_1w) and is verified to contain zero
+    # occurrences of the name.
+    old = sa.run(rows, _git_show('a4f2988', APP_JS_PATH))
     with open(sa.DEFAULT_APP_JS, encoding='utf-8') as fh:
         new = sa.run(rows, fh.read())
     return ('pct_1w / pct_1m unread',

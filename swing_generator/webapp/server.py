@@ -1067,7 +1067,7 @@ def api_chart_index():
 
 @app.route('/api/chart/<tf>/<int:cid>')
 def api_chart_chunk(tf: str, cid: int):
-    if tf not in ('D', '4H'):
+    if tf not in ('D', '4H', 'W'):
         return jsonify({'error': 'bad timeframe'}), 400
 
     key = (tf, cid)
@@ -1076,7 +1076,9 @@ def api_chart_chunk(tf: str, cid: int):
 
     tm      = get_ticker_map()
     members = [n for n, c in _chart_chunk_map().items() if c == cid]
-    builder = chart_feed.build_daily if tf == 'D' else chart_feed.build_4h
+    builder = {'D': chart_feed.build_daily,
+               '4H': chart_feed.build_4h,
+               'W': chart_feed.build_weekly}[tf]
 
     data = {}
     for name in members:
