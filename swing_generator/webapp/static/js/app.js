@@ -1971,7 +1971,7 @@
   const CONC_MIN_MEMBERS = 3;
   const CONC_MIN_SHARE   = 0.20;
 
-  function concentrationNoteHtml(items, what) {
+  function concentrationNoteHtml(items) {
     const groups = shapeClusters(items);
     if (!groups.length || !items.length) return '';
     const top = groups[0];
@@ -1980,7 +1980,7 @@
     const shown = top.names.slice(0, 4).join(', ');
     const more = top.names.length > 4 ? ` +${top.names.length - 4} more` : '';
     return `<div class="shape-conc" title="Measured over ${shapeSim.window_bars || 520} daily bars, market drift removed">`
-      + `<b>${top.names.length} of these ${what} move together</b>`
+      + `<b>${top.names.length} of these ${items.length} move together</b>`
       + `<span class="shape-conc-names">${shown}${more} · ${top.fam.label}</span>`
       + `<span class="shape-conc-note">Sized as separate positions, this is one bet ${top.names.length} times.</span>`
       + `</div>`;
@@ -3931,7 +3931,7 @@
       // looking at are the same shape, they are one bet. Computed over the
       // FILTERED set, not the whole book, so it answers "is this screen
       // concentrated" rather than "is the market".
-      grid.innerHTML = concentrationNoteHtml(filtered, 'match') + cardsHtml + loadMoreHtml;
+      grid.innerHTML = concentrationNoteHtml(filtered) + cardsHtml + loadMoreHtml;
     }
 
     // Wire up load-more button

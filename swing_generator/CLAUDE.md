@@ -429,7 +429,7 @@ this works around it by being honest rather than by forcing a download.
 > context at the start of every session, so a stale line here is a wrong premise
 > for everything that follows.
 
-- `app.js` — **v266** (v266 — **chart lookalikes + a concentration warning.**
+- `app.js` — **v267** (v267 — concentration note reads "21 of these 64 move together"; it was "21 of these match move together", a template arg used as a noun. v266 — **chart lookalikes + a concentration warning.**
   `shape_similarity.py` measures which charts have MOVED ALIKE over 520 daily bars once
   the market's common drift is removed; the app reads it for two things. A **Looks like**
   block in the instrument modal lists the 6 closest charts (tap to open), and a
