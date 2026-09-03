@@ -7102,6 +7102,9 @@
                        sell: 'sells', watch: 'watch', starred: 'starred' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
+    const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
+                       near: 'near cross', fresh: 'just flipped' };
+    set('reelPillStack', stackLbl[reel.stack] || '');
     const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
     set('reelPillSort', sortLbl[reel.sort] || '');
     set('reelPillRange', reel.range ? reel.range + ' bars' : '');
@@ -7109,6 +7112,7 @@
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
+                  reel.stack !== 'all' ||
                   reel.sort !== 'signal' || reel.search || reel.range;
     const rst = document.getElementById('reelReset');
     if (rst) rst.style.display = dirty ? '' : 'none';

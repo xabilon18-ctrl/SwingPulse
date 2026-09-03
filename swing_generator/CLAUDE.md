@@ -428,7 +428,7 @@ this works around it by being honest rather than by forcing a download.
 > context at the start of every session, so a stale line here is a wrong premise
 > for everything that follows.
 
-- `app.js` — **v264** (v264 — **1H timeframe + the MA stack strip.** Fourth
+- `app.js` — **v265** (v265 — the Charts Stack pill shows its selected value in `.fp-val` and counts toward the reel reset button, like every other pill. v264 — **1H timeframe + the MA stack strip.** Fourth
   timeframe `1H`/`h1_`, run on the hourly parquet cache 4H is resampled from — no new
   download, and it inherits both 4H geometry fixes (`H4_SOURCE` redirects the same file;
   `_h1_ma_periods` scales the ribbon for `H1_SESSION_NORMALIZE` against a 24-bar target).
