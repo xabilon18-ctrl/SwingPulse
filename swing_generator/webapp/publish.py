@@ -604,10 +604,14 @@ def build_data(output_dir, src_signals_dir=None):
                   'instrument_flavours.json', 'events.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
-            with open(src) as f:
-                payload = json.load(f)
-            with open(os.path.join(output_dir, fname), 'w') as f:
-                json.dump(payload, f, separators=(',', ':'))
+            # Byte-for-byte, as the comment above always claimed. It used to
+            # json.load then json.dump, which re-minified files that were
+            # already minified — no gain, and it CANNOT read a gzipped
+            # artifact: shape_similarity.json is written gzipped under a plain
+            # .json name (the trick chart_feed uses so R2 serves it compressed)
+            # and the round-trip died on it with UnicodeDecodeError, taking the
+            # whole publish down after the signals had been computed.
+            shutil.copyfile(src, os.path.join(output_dir, fname))
 
     # Calendar subscription feed. The per-event "Add to calendar" button in the
     # app builds its own one-off .ics client-side; THIS file is the standing
