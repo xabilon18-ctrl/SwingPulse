@@ -137,6 +137,21 @@ def drop_unfinished_daily(df: pd.DataFrame) -> pd.DataFrame:
     return df[pd.DatetimeIndex(idx).normalize() + pd.Timedelta(days=1) <= _utc_now()]
 
 
+def drop_unfinished_1h(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop trailing hourly bars whose hour has not elapsed yet.
+
+    Same rule as drop_unfinished_4h with a one-hour window (Important Rule 10:
+    the pipeline never computes on a bar whose period is still open). Hourly
+    caches are stored in UTC, so no per-exchange timetable is needed.
+    """
+    if df.empty:
+        return df
+    idx = df.index
+    if getattr(idx, 'tz', None) is not None:
+        idx = idx.tz_convert('UTC').tz_localize(None)
+    return df[pd.DatetimeIndex(idx) + pd.Timedelta(hours=1) <= _utc_now()]
+
+
 def drop_unfinished_4h(df: pd.DataFrame) -> pd.DataFrame:
     """Drop trailing 4H bars whose 4-hour window has not elapsed yet.
 

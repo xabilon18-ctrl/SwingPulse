@@ -66,6 +66,13 @@ MAX_PENETRATION_4H    = 0.025  # 2.5%  (was 2.0%)
 MAX_PENETRATION_DAILY = 0.020  # 2.0%  (was 1.5%)
 
 # Signal lookback — same cadence as original
+# 1H reports a SHORTER calendar window than 4H, deliberately. 4H's 60 bars is
+# ~30 sessions on an equity; carrying that calendar across would need ~210 bars
+# at 7 hourly bars a session, and an hourly signal from a month ago is not a
+# thing anyone acts on. 120 bars is ~17 sessions on an equity and ~5 on a 24h
+# contract — the same "recent enough to still matter" intent, read on the
+# faster bar.
+SIGNAL_LOOKBACK_1H     = 120
 SIGNAL_LOOKBACK_4H     = 60
 SIGNAL_LOOKBACK_DAILY  = 20
 # Weekly bars are slow: 12 bars is a quarter, which is how long a weekly setup
@@ -151,6 +158,28 @@ H4_SESSION_NORMALIZE = {
 }
 
 # ---------------------------------------------------------------------------
+# 1H bar geometry  (added 2026-09-03)
+# ---------------------------------------------------------------------------
+# The 1H timeframe reads the SAME hourly parquet cache the 4H timeframe is
+# resampled from — no new download, no new feed. It therefore inherits both 4H
+# geometry fixes unchanged: H4_SOURCE already redirects the hourly cache of a
+# cash index to its 24h contract (data_fetcher.h4_ticker), and the instruments
+# with no usable future still need their ribbon scaled.
+#
+# The scale problem is SHARPER at 1H than at 4H, because the divisor is bigger:
+# measured over the cache on 2026-09-03, an equity returns 7 hourly bars a
+# session and a 24h contract returns 23-24. So an unscaled MA500 spans
+#   equity        500 / 7  = 71 sessions  (~3.4 months)
+#   24h contract  500 / 24 = 21 sessions  (~1 month)
+# — the same label reaching 3.4x further back on one instrument than another,
+# which is exactly the bug the 4H timeframe shipped with for four months.
+H1_BARS_PER_SESSION_TARGET = 24     # what a 24h-session 1H chart delivers
+
+# Same set as the 4H case, and for the same reason: charted as a 24h contract,
+# no usable yfinance future, so scale the ribbon instead of switching the feed.
+H1_SESSION_NORMALIZE = H4_SESSION_NORMALIZE
+
+# ---------------------------------------------------------------------------
 # Weekly bar geometry  (added 2026-09-02)
 # ---------------------------------------------------------------------------
 # The weekly timeframe runs the SAME MA25-MA500 ribbon on weekly bars, exactly
@@ -190,7 +219,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # so neither gets one. This used to be `if prefix`, which was the same thing
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
-INTRADAY_PREFIXES = {'h4_'}
+INTRADAY_PREFIXES = {'h4_', 'h1_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, tf_alignment, context modifiers,
@@ -198,12 +227,28 @@ INTRADAY_PREFIXES = {'h4_'}
 # own words; the pair was hand-copied in four places before Weekly, which is
 # how a new timeframe reaches production wired into three of them.
 TIMEFRAMES = (
+    ('1H', 'h1_'),
     ('4H', 'h4_'),
     ('D',  ''),
     ('W',  'w_'),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
 TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
+
+# Which timeframes VOTE in tf_alignment. Not the same question as "which
+# timeframes exist", which is why this is its own tuple rather than TF_PREFIXES.
+#
+# 1H is deliberately excluded (2026-09-03). Two reasons, both measured:
+#   1. It would double-count the intraday read. Daily and 4H already agree on
+#      71.7% of instruments (2026-09-01), and 1H — resampled from the same
+#      hourly bars 4H is built from — agrees with 4H by more than that. Letting
+#      both vote makes "every timeframe agrees" mostly a statement about one
+#      feed sampled twice.
+#   2. It would silently widen the score from -3..+3 to -4..+4. Every consumer
+#      that draws a bar from tf_alignment_score would then under-fill it, and
+#      the failure is invisible — the bar just never reaches the end.
+# Add 'h1_' here only alongside a rescale of every consumer.
+ALIGNMENT_PREFIXES = tuple(p for _, p in TIMEFRAMES if p != 'h1_')
 
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
@@ -225,6 +270,13 @@ def _tf_signal_columns(prefix, ma_periods=None):
         f'{p}watch_flag', f'{p}potential_turning_point_flag',
         f'{p}ribbon_spread', f'{p}ribbon_compression', f'{p}ribbon_slope_pct', f'{p}ma_order_score', f'{p}roc', f'{p}rsi',
         f'{p}rollover_score', f'{p}rollover_max', f'{p}rollover_dir', f'{p}rollover_stage',
+        # MA stack — where the 50, 250 and 500 sit relative to each other.
+        # DISPLAY ONLY: measured 2026-09-03 over 40,476 cross events, the
+        # 50x250 cross has no edge as an entry (47-53% win, below buy-and-hold
+        # on every timeframe) and none as an exit either (a control that simply
+        # held longer with no cross matched it). These four fields feed a card
+        # strip and a filter; nothing in signals.py reads them.
+        f'{p}stack_state', f'{p}stack_pair', f'{p}stack_gap_pct', f'{p}stack_flip_bars',
     ]
 
 # ---------------------------------------------------------------------------
@@ -267,6 +319,8 @@ OUTPUT_COLUMNS = [
     'neutral_oscillation', 'ma25_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
+    # ── 1-Hour (signals + indicators) ──
+    *_tf_signal_columns('h1_'),
     # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
     # ── Weekly (signals + indicators) ──

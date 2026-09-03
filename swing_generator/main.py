@@ -32,17 +32,20 @@ import _active_config as config
 
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
-    SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY, SIGNAL_LOOKBACK_WEEKLY,
+    SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
+    SIGNAL_LOOKBACK_WEEKLY,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
-    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES,
+    H1_SESSION_NORMALIZE, H1_BARS_PER_SESSION_TARGET,
+    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES, ALIGNMENT_PREFIXES,
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
 )
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import fetch_all, fetch_all_hourly, h4_ticker, drop_unfinished_4h
+from data_fetcher  import (fetch_all, fetch_all_hourly, h4_ticker,
+                           drop_unfinished_1h, drop_unfinished_4h)
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -138,6 +141,14 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}pct_1w':                        _fmt(row.get('pct_1w'), decimals=2),
         f'{prefix}pct_1m':                        _fmt(row.get('pct_1m'), decimals=2),
         f'{prefix}pct_1y':                        _fmt(row.get('pct_1y'), decimals=2),
+        # MA stack (display only — see indicators.add_ma_stack). The pair label
+        # carries the instrument's OWN period numbers, so a session-normalised
+        # ribbon reads "8x167" rather than claiming a 250 and a 500 it does not
+        # have.
+        f'{prefix}stack_state':                   row.get('stack_state', '') or '',
+        f'{prefix}stack_pair':                    row.get('stack_pair', '') or '',
+        f'{prefix}stack_gap_pct':                 _fmt(row.get('stack_gap_pct'), decimals=2),
+        f'{prefix}stack_flip_bars':               _fmt(row.get('stack_flip_bars'), decimals=0),
     }
 
     if not prefix:
@@ -430,6 +441,50 @@ def _h4_bars_per_session(h4: pd.DataFrame) -> float:
     return float(h4.groupby(h4.index.date).size().median() or 0.0)
 
 
+def _h1_frame(hourly: pd.DataFrame) -> pd.DataFrame:
+    """The 1H timeframe: the hourly cache itself, minus the bar still forming.
+
+    No resampling — this IS the native feed 4H is built from, which is why the
+    timeframe costs no extra download. Timezone is stripped to match every other
+    frame in the pipeline.
+    """
+    cols = [c for c in ('Open', 'High', 'Low', 'Close', 'Volume') if c in hourly.columns]
+    h1 = hourly[cols].copy()
+    if h1.index.tz is not None:
+        h1.index = h1.index.tz_localize(None)
+    return drop_unfinished_1h(h1)
+
+
+def _h1_bars_per_session(h1: pd.DataFrame) -> float:
+    """Median hourly bars per trading session. ~24 = a 24h contract, ~7 = a US
+    cash session, ~9 = a European one."""
+    if h1.empty:
+        return 0.0
+    return float(h1.groupby(h1.index.date).size().median() or 0.0)
+
+
+def _h1_ma_periods(h1: pd.DataFrame, ticker: str) -> list[int]:
+    """Ribbon periods for the 1H timeframe — the 4H rule, one interval faster.
+
+    The mismatch is bigger here than at 4H because the divisor is: measured over
+    the cache 2026-09-03, an equity gives 7 hourly bars a session and a 24h
+    contract gives 23-24, so an unscaled MA500 spans 71 sessions on one and 21
+    on the other. Instruments already redirected to a 24h contract by H4_SOURCE
+    arrive with ~24 bars/session and fall through unchanged, exactly as they do
+    at 4H — they share this cache.
+
+    A US equity is deliberately left alone: it really does trade 6.5h, so 7
+    bars/session is what its 1H chart shows on TradingView too.
+    """
+    periods = MA_PERIODS
+    if ticker in H1_SESSION_NORMALIZE:
+        bps = _h1_bars_per_session(h1)
+        if 0 < bps < H1_BARS_PER_SESSION_TARGET:
+            scale   = bps / H1_BARS_PER_SESSION_TARGET
+            periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
+    return [p for p in periods if p <= len(h1)]
+
+
 def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     """Ribbon periods for the 4H timeframe.
 
@@ -460,6 +515,7 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
 def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     """
     Score how many timeframes agree on direction (4H + Daily + Weekly).
+    1H does NOT vote — see config.ALIGNMENT_PREFIXES for why.
 
     Returns (label, score):
         score: -3 to +3  (positive = bullish alignment, negative = bearish)
@@ -489,7 +545,7 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     # stopped meaning "all of them" the moment a third timeframe existed).
     trends  = []
     present = 0
-    for prefix in TF_PREFIXES:
+    for prefix in ALIGNMENT_PREFIXES:
         t = row.get(f'{prefix}trend_direction', '')
         if not t:
             continue
@@ -559,6 +615,27 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         except Exception:
             pass
 
+        # ── 1-HOUR (the hourly cache itself — same feed 4H resamples) ──
+        # Runs the identical engine and the identical ribbon on hourly bars.
+        # Session-scaled by _h1_ma_periods for the cash indices charted as 24h
+        # contracts, for the same reason the 4H side is.
+        h1_data = {}
+        if hourly_df is not None and len(hourly_df) >= 200:
+            h1 = _h1_frame(hourly_df)
+            h1_ma_periods = _h1_ma_periods(h1, ticker)
+            if len(h1_ma_periods) >= 3:
+                h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
+                h1 = add_signals(h1, ma_periods=h1_ma_periods,
+                                 refire_pct=0.02, new_trend_pct=0.05,
+                                 tf='1H', asset_class=_asset_cls)
+                h1_data, _ = _extract_row(
+                    h1, run_date, prefix='h1_',
+                    ma_periods=h1_ma_periods,
+                    signal_lookback=SIGNAL_LOOKBACK_1H,
+                )
+                if h1_data is None:
+                    h1_data = {}
+
         # ── 4-HOUR (from hourly data) ──
         h4_data = {}
         if hourly_df is not None and len(hourly_df) >= 200:
@@ -610,6 +687,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
+            **(h1_data or {}),
             **(h4_data or {}),
             **(w_data or {}),
         }

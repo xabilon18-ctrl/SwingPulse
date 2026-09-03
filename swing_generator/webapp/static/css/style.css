@@ -8297,3 +8297,61 @@ body {
 .nrr-status.is-ok      { color: var(--buy); }
 .nrr-status.is-bad     { color: var(--sell); }
 .nrr-status.is-running { color: var(--accent); }
+
+/* ── MA stack strip (v232) ───────────────────────────────────────────────────
+   Where the fast / mid / anchor ribbon lines sit relative to each other, on the
+   active timeframe. Deliberately in the CONTEXT palette — border, muted greys,
+   --accent only on the fast rung and on a tight gap. It never uses --buy/--sell
+   as a background or a border: on this card those two colours mean "a signal
+   fired, act on it", and the cross measurably is not that (40,476 events tested
+   2026-09-03: 47-53% win as an entry, below buy-and-hold on every timeframe).
+   Only the one-word state takes a direction colour, at text weight. */
+.sc-stack {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 6px;
+  padding: 6px 9px 6px 7px;
+  background: rgba(255,255,255,.028);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.sc-stack-glyph { flex: none; display: block; }
+.sc-stack-state {
+  font-size: .66rem;
+  font-weight: 650;
+  letter-spacing: .07em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sc-stack-state.is-bull  { color: var(--buy); }
+.sc-stack-state.is-bear  { color: var(--sell); }
+.sc-stack-state.is-mixed { color: var(--text-muted); }
+.sc-stack-gap {
+  margin-left: auto;
+  font-size: .66rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sc-stack-gap em { font-style: normal; color: var(--text-muted); }
+/* Two lines inside half a percent — the one number here worth a colour. */
+.sc-stack-gap.is-tight     { color: var(--watch); }
+.sc-stack-gap.is-tight em  { color: var(--watch); }
+.sc-stack-age {
+  font-size: .63rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Flipped inside the last 10 bars. */
+.sc-stack.is-fresh { border-color: var(--watch-glow); }
+
+/* At the narrowest card the gap label is the first thing to give: the glyph and
+   the state word carry the reading on their own. Container query, not a media
+   query — tile width tracks the CARD, and a 4-column desktop grid gives each
+   card LESS room than a 375px phone gives one (see the v214 .sc-stats note). */
+@container (max-width: 250px) {
+  .sc-stack-gap em { display: none; }
+  .sc-stack-age    { display: none; }
+}

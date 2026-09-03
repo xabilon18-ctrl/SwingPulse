@@ -52,6 +52,15 @@ import re
 import sys
 import urllib.request
 
+# Run as `python3 tools/shape_audit.py`, sys.path[0] is tools/ and the package
+# root is NOT on the path — so every `from _active_config import ...` below
+# was quietly taking its except-branch and the tool ran on its hard-coded
+# fallbacks. That was invisible while the fallback happened to be right;
+# it stopped being right when a third timeframe prefix was added, at which
+# point _strip_tf() no longer recognised h1_ columns and the ghost-read
+# check could not see OUTPUT_COLUMNS at all.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 R2_BASE = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500'
 
 # r2.dev 403s the default 'Python-urllib/3.x' — the same trap health_check.py
@@ -383,6 +392,25 @@ def _tf_prefixes():
 TF_PREFIXES_NB = _tf_prefixes()
 
 
+def _configured_columns():
+    """Every column the PIPELINE is configured to emit, prefixes stripped.
+
+    The payload this tool audits is the one already LIVE on R2, so a column
+    added in the same commit as the front end that reads it is absent there
+    until the next publish lands. That is a deploy-ordering fact, not a ghost
+    read, and failing on it would mean every new column had to ship its
+    front end in a second commit after a data run — or, more likely, that the
+    check gets ignored the first time it cries wolf. A name in OUTPUT_COLUMNS
+    is one the engine emits by construction; the constant/dead-column checks
+    still catch it if it lands empty.
+    """
+    try:
+        from _active_config import OUTPUT_COLUMNS
+        return {_strip_tf(c) for c in OUTPUT_COLUMNS}
+    except Exception:
+        return set()
+
+
 def _strip_tf(col: str) -> str:
     """Column name with its timeframe prefix removed, or unchanged."""
     for pre in TF_PREFIXES_NB:
@@ -452,6 +480,7 @@ def check_ghost_reads(rows, js):
     if not rows:
         return []
     cols = set(rows[0].keys())
+    configured = _configured_columns()
     findings, seen = [], set()
     for m in re.finditer(r"""(?<![\w$])f\(\s*['"]([a-z0-9_]+)['"]\s*\)""", js, re.I):
         name = m.group(1)
@@ -459,6 +488,9 @@ def check_ghost_reads(rows, js):
             continue
         seen.add(name)
         if name in cols or any(pre + name in cols for pre in TF_PREFIXES_NB):
+            continue
+        # Configured but not yet published — see _configured_columns().
+        if name in configured:
             continue
         findings.append(('FAIL', 'ghost read',
                          f"app.js reads f({name!r}), which is not a column on "

@@ -410,4 +410,98 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     df = add_rsi(df)
     df = add_performance_pct(df)
     df = add_neutral_oscillation(df, ma_periods=ma_periods)
+    df = add_ma_stack(df, ma_periods=ma_periods)
+    return df
+
+
+# ---------------------------------------------------------------------------
+# MA stack — where the fast / mid / anchor lines sit relative to each other
+# ---------------------------------------------------------------------------
+def stack_periods(ma_periods=None) -> 'tuple | None':
+    """The three ribbon lines the stack reads, chosen BY POSITION not by value.
+
+    Unscaled this is (50, 250, 500). It must not be hard-coded to those numbers:
+    a session-normalised instrument (config.H1_SESSION_NORMALIZE /
+    H4_SESSION_NORMALIZE) carries a ribbon scaled by its bars-per-session — an
+    EU index at 2 bars/session runs MA8-MA167 — so `ma_500` is simply not a
+    column on that frame, and a literal lookup would silently produce an empty
+    stack on exactly the instruments the scaling exists to fix.
+
+    Positions 1, 9 and last of the 20-MA ribbon are 50, 250 and 500. A
+    short-history instrument whose ribbon was clipped by `p <= len(df)` falls
+    back to the middle of whatever it has. Returns None when there are not three
+    distinct lines to compare.
+    """
+    p = sorted({int(x) for x in (ma_periods if ma_periods is not None else MA_PERIODS)})
+    if len(p) < 3:
+        return None
+    fast   = p[1]
+    mid    = p[9] if len(p) > 9 else p[len(p) // 2]
+    anchor = p[-1]
+    if not (fast < mid < anchor):
+        return None
+    return fast, mid, anchor
+
+
+def add_ma_stack(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
+    """Stack state, the closest pair, its gap, and bars since that pair flipped.
+
+    DISPLAY ONLY. Measured 2026-09-03 over 40,476 cross events and 29,479
+    matched signal trades: the 50x250 cross has no edge as an entry (47-53% win,
+    below buy-and-hold on every timeframe) and none as an exit (a control that
+    merely held longer, with no cross involved, matched it). Nothing in
+    signals.py reads these columns and nothing should start.
+    """
+    df['stack_state']      = ''
+    df['stack_pair']       = ''
+    df['stack_gap_pct']    = np.nan
+    df['stack_flip_bars']  = np.nan
+
+    sel = stack_periods(ma_periods)
+    if sel is None or df.empty:
+        return df
+    fast, mid, anchor = sel
+    cols = {n: f'ma_{n}' for n in sel}
+    if any(c not in df.columns for c in cols.values()):
+        return df
+
+    a, b, c = (df[cols[fast]], df[cols[mid]], df[cols[anchor]])
+    close   = df['Close'].where(df['Close'] > 0)
+
+    # State — the two clean orderings; everything else is honestly "mixed",
+    # which is four of the six possible orders and the common case.
+    df['stack_state'] = np.select(
+        [(a > b) & (b > c), (a < b) & (b < c)],
+        ['BULL', 'BEAR'],
+        default='MIXED',
+    )
+    df.loc[a.isna() | b.isna() | c.isna(), 'stack_state'] = ''
+
+    # Closest pair and its gap. Min over all three pairs equals min over the two
+    # value-adjacent ones — the third pair spans the whole range by definition.
+    pairs = ((fast, mid), (fast, anchor), (mid, anchor))
+    gaps  = pd.DataFrame(
+        {f'{x}x{y}': (df[cols[x]] - df[cols[y]]).abs() / close * 100 for x, y in pairs},
+        index=df.index,
+    )
+    ok = gaps.notna().all(axis=1)
+    df.loc[ok, 'stack_pair']    = gaps[ok].idxmin(axis=1)
+    df.loc[ok, 'stack_gap_pct'] = gaps[ok].min(axis=1).round(3)
+
+    # Bars since each pair last swapped places, then pick the chosen pair's.
+    pos   = np.arange(len(df))
+    since = {}
+    for x, y in pairs:
+        s = np.sign(df[cols[x]] - df[cols[y]]).replace(0, np.nan).ffill()
+        changed = s.ne(s.shift(1)) & s.shift(1).notna() & s.notna()
+        last = pd.Series(np.where(changed.to_numpy(), pos, np.nan),
+                         index=df.index).ffill()
+        since[f'{x}x{y}'] = pos - last
+    flip = pd.DataFrame(since, index=df.index)
+    picked = pd.Series(np.nan, index=df.index)
+    for name in flip.columns:
+        m = ok & (df['stack_pair'] == name)
+        picked.loc[m] = flip.loc[m, name]
+    df['stack_flip_bars'] = picked
+
     return df

@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=231">
+  <link rel="stylesheet" href="/static/css/style.css?v=232">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -52,6 +52,7 @@
     <!-- ===== GLOBAL TIMEFRAME TOGGLE (4H / Daily) ===== -->
     <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
       <div class="tf-switch">
+        <button class="tf-switch-btn" id="tfBtn1H" data-tf="1H" role="tab" aria-selected="false">1H</button>
         <button class="tf-switch-btn" id="tfBtn4H" data-tf="4H" role="tab" aria-selected="false">4H</button>
         <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
         <button class="tf-switch-btn" id="tfBtnW"  data-tf="W"  role="tab" aria-selected="false">Weekly</button>
@@ -544,6 +545,16 @@
               <option value="mixed">Mixed</option>
             </select>
           </label>
+          <label class="sig-adv-label">MA Stack
+            <select class="sig-adv-select" id="scannerStackFilter">
+              <option value="all">Any stack</option>
+              <option value="bull">Bull — 50 › 250 › 500</option>
+              <option value="bear">Bear — 500 › 250 › 50</option>
+              <option value="mixed">Mixed</option>
+              <option value="near">Near cross — gap under 0.5%</option>
+              <option value="fresh">Just flipped — inside 10 bars</option>
+            </select>
+          </label>
           <label class="sig-adv-label">RSI Zone
             <select class="sig-adv-select" id="scannerRsiFilter">
               <option value="all">All RSI Zones</option>
@@ -785,6 +796,20 @@
             </div>
           </details>
 
+          <details class="filter-pill" id="reelPillStack">
+            <summary>Stack<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="reel-opts" id="reelStackOpts">
+                <button class="reel-opt active" data-stack="all">Any stack</button>
+                <button class="reel-opt" data-stack="bull">Bull — 50 › 250 › 500</button>
+                <button class="reel-opt" data-stack="bear">Bear — 500 › 250 › 50</button>
+                <button class="reel-opt" data-stack="mixed">Mixed</button>
+                <button class="reel-opt" data-stack="near">Near cross — under 0.5%</button>
+                <button class="reel-opt" data-stack="fresh">Just flipped — inside 10 bars</button>
+              </div>
+            </div>
+          </details>
+
           <details class="filter-pill" id="reelPillRange">
             <summary>Range<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
             <div class="filter-pop">
@@ -886,6 +911,6 @@
 
 
 
-  <script src="/static/js/app.js?v=263"></script>
+  <script src="/static/js/app.js?v=264"></script>
 </body>
 </html>

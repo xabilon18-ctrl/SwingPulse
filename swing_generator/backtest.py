@@ -13,7 +13,7 @@ Usage:
     python3 backtest.py --quick             # first 30 instruments, no JSON
     python3 backtest.py --signal B1         # only this code (B1/S1/B2/S2/B3/S3/B4/S4)
     python3 backtest.py --since 2016-01-01  # only trades entered on/after this date
-    python3 backtest.py --tf D              # one timeframe only (D, 4H or W)
+    python3 backtest.py --tf D              # one timeframe only (D, 1H, 4H or W)
 
 Outputs:
     output_ma500/backtest_<date>.json   — stats (publish.py ships it as backtest.json)
@@ -38,7 +38,8 @@ from _active_config import (MA_PERIODS, OUTPUT_DIR,
 from data_fetcher import _cache_path, _drop_priceless, h4_ticker
 from indicators import add_all_indicators
 from instruments import load_instruments, asset_class_of
-from main import _resample_4h, _h4_ma_periods, _resample_weekly
+from main import (_resample_4h, _h4_ma_periods, _h1_frame, _h1_ma_periods,
+                  _resample_weekly)
 from signals import add_signals
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,13 +53,20 @@ ATR_STOP_MULT  = 2.0    # stop distance = 2 x ATR(14) at the signal bar
 TARGET_R       = 2.0    # 2:1 reward:risk
 # Exit after N bars regardless. Weekly gets 13 — one quarter, the same ~6-week
 # holding intent the Daily 30 encodes, scaled to a bar that holds five days.
-TIME_STOP_BARS = {'D': 30, '4H': 60, 'W': 13}
+# 1H gets 240 bars, not a flat copy of 4H's 60. The intent behind every entry
+# here is the same holding window (~6 weeks of trading), and bars-per-session
+# is what converts it: an equity runs 7 hourly bars a session, so 240 bars is
+# ~34 sessions, the same reach 4H's 60 bars has at 2 bars/session. Copying 60
+# across would have exited after 8 sessions on a share and 2 on gold, and
+# every 1H trade would have been graded on a window the signal never intended.
+TIME_STOP_BARS = {'D': 30, '1H': 240, '4H': 60, 'W': 13}
 SLIPPAGE_PCT   = 0.0005 # 0.05% slippage per side
 MIN_BARS_AHEAD = 5      # need at least 5 bars after signal to evaluate
 
 # Production signal parameters — MUST mirror main.py process_instrument()
 TF_SIGNAL_PARAMS = {
     'D':  {'refire_pct': 0.05, 'new_trend_pct': 0.05},
+    '1H': {'refire_pct': 0.02, 'new_trend_pct': 0.05},   # mirrors main.py
     '4H': {'refire_pct': 0.02, 'new_trend_pct': 0.05},
     'W':  {'refire_pct': REFIRE_PCT_WEEKLY, 'new_trend_pct': NEW_TREND_PCT_WEEKLY},
 }
@@ -347,6 +355,21 @@ def backtest_instrument(ticker: str, name: str, group: str,
                                      **TF_SIGNAL_PARAMS['4H'])
                     frames['4H'] = (h4, h4_ma_periods)
 
+    # ── 1H — mirror main.py: the hourly cache itself, ribbon session-scaled ──
+    if tf_filter in (None, '1H'):
+        h_path = _cache_path(h4_ticker(ticker), suffix='1h')
+        if os.path.exists(h_path):
+            hourly = _drop_priceless(pd.read_parquet(h_path))
+            if len(hourly) >= 200:
+                h1 = _h1_frame(hourly)
+                h1_ma_periods = _h1_ma_periods(h1, ticker)
+                if len(h1_ma_periods) >= 3:
+                    h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
+                    h1 = _add_atr(h1)
+                    h1 = add_signals(h1, ma_periods=h1_ma_periods,
+                                     **TF_SIGNAL_PARAMS['1H'])
+                    frames['1H'] = (h1, h1_ma_periods)
+
     # ── WEEKLY — mirror main.py: resample the same finished daily bars ──
     # Built from `frames['D']`'s source rather than re-read, so the replay and
     # production resample identically. The unfinished-week drop lives in
@@ -375,7 +398,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
         return s
 
     trades = []
-    for tf in ('D', '4H', 'W'):
+    for tf in ('D', '1H', '4H', 'W'):
         if tf not in frames:
             continue
         df, periods = frames[tf]
@@ -565,7 +588,7 @@ def main():
     parser.add_argument('--quick',  action='store_true', help='Test 30 instruments only')
     parser.add_argument('--signal', help='Only test this signal code (B1/S1/B2/S2/B3/S3/B4/S4)')
     parser.add_argument('--since',  help='Only trades entered on/after this date (YYYY-MM-DD)')
-    parser.add_argument('--tf',     choices=['D', '4H', 'W'], help='Only this timeframe')
+    parser.add_argument('--tf',     choices=['D', '1H', '4H', 'W'], help='Only this timeframe')
     parser.add_argument('--workers', type=int, default=min(os.cpu_count() or 4, 8))
     parser.add_argument('--no-save', action='store_true')
     args = parser.parse_args()

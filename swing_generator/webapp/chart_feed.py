@@ -58,6 +58,7 @@ sys.path.insert(0, PROJECT_DIR)
 
 from data_fetcher import h4_ticker                      # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
+                  _h1_frame, _h1_ma_periods,
                   _resample_weekly)
 from _active_config import MA_PERIODS                   # noqa: E402
 
@@ -166,6 +167,27 @@ def build_4h(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(h4, periods, '%Y-%m-%d %H:%M')
 
 
+def build_1h(cache_dir: str, ticker: str) -> dict | None:
+    """1H chart from the same hourly cache the 4H chart is resampled from.
+
+    Reads through h4_ticker for the same reason build_4h does: a cash index
+    redirected by H4_SOURCE stores its hourly bars under the CONTRACT's name,
+    and both intraday timeframes come out of that one file.
+    """
+    src  = h4_ticker(ticker)
+    path = os.path.join(cache_dir, _cache_name(src, suffix='1h'))
+    if not os.path.exists(path):
+        return None
+    hourly = pd.read_parquet(path)
+    if hourly.empty:
+        return None
+    h1 = _h1_frame(hourly)
+    periods = _h1_ma_periods(h1, ticker)
+    if len(periods) < 3:
+        return None
+    return _bundle(h1, periods, '%Y-%m-%d %H:%M')
+
+
 def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     """Weekly chart from the same daily cache the daily chart reads.
 
@@ -211,7 +233,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'D': n_instruments, '4H': n_instruments, 'chunks': n_files}.
+    Returns {'D': n, '1H': n, '4H': n, 'W': n, 'chunks': n_files}.
     """
     chart_dir = os.path.join(output_dir, 'chart')
     os.makedirs(chart_dir, exist_ok=True)
@@ -221,9 +243,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'D': 0, '4H': 0, 'chunks': 0}
+    stats = {'D': 0, '1H': 0, '4H': 0, 'chunks': 0}
 
-    for tf, builder in (('D', build_daily), ('4H', build_4h),
+    for tf, builder in (('D', build_daily), ('1H', build_1h), ('4H', build_4h),
                         ('W', build_weekly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)

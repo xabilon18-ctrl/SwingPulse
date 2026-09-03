@@ -18,6 +18,8 @@
   let sectorRadarByTf = { D: null, W: null };
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : 'D');
+  // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
+  const INTRADAY_TFS = new Set(['1H', '4H']);
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -122,6 +124,7 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
+    { code: '1H', prefix: 'h1_', label: '1H',     tv: '60',  bar: '1H bars', barShort: '25-bar'  },
     { code: '4H', prefix: 'h4_', label: '4H',     tv: '240', bar: '4H bars', barShort: '25-bar'  },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
@@ -1016,7 +1019,11 @@
     if (!el) return;
     const actual = sectorRadarByTf[want] ? want : (sectorRadarByTf.D ? 'D' : null);
     if (!actual) { el.textContent = ''; el.title = ''; return; }
-    const matches = actual === RADAR_TF_FOR(timeframe) && timeframe !== '4H';
+    // An intraday tab has no radar of its own, so the daily one showing there
+    // is a MISMATCH however well the key lines up. Tested against the set,
+    // not against '4H' by name — that literal silently answered "matches"
+    // for 1H the moment a second intraday timeframe existed.
+    const matches = actual === RADAR_TF_FOR(timeframe) && !INTRADAY_TFS.has(timeframe);
     el.textContent = actual === 'W' ? 'This week' : 'Today';
     el.classList.toggle('is-mismatch', !matches);
     el.title = actual === 'W'
@@ -1025,8 +1032,8 @@
         ' — fixed until the next week closes.'
       : (matches
           ? 'Daily sector activity, updated every run.'
-          : 'Daily sector activity. There is no 4H radar — too little hourly '
-            + 'history for a baseline — so this is today\u2019s daily reading.');
+          : `Daily sector activity. There is no ${timeframe} radar — too little hourly `
+            + `history for a baseline — so this is today\u2019s daily reading.`);
   }
 
   function syncTfLock() {
@@ -1803,7 +1810,101 @@
     return `<div class="sc-setup ${t === 'UPTREND' ? 'sc-setup-up' : t === 'DOWNTREND' ? 'sc-setup-dn' : 'sc-setup-neu'}">
       ${stateLine}
       <div class="sc-setup-event">${sigChip}${sinceHtml}</div>
-    </div>`;
+    </div>${maStackHtml(item)}`;
+  }
+
+  // ── MA stack strip ────────────────────────────────────────────────────────
+  // Where the fast / mid / anchor ribbon lines sit relative to each other, on
+  // the active timeframe. CONTEXT, NOT A CALL: measured 2026-09-03 over 40,476
+  // cross events, the 50x250 cross wins 47-53% of the time and trails
+  // buy-and-hold on every timeframe as an entry; as an exit a control that
+  // simply held longer, with no cross in it, matched it. So this renders in the
+  // muted greys the card uses for facts, never in --buy/--sell, which mean "act".
+  const STACK_GAP_TIGHT  = 0.5;   // % — below this the pair is about to cross
+  const STACK_FRESH_BARS = 10;    // bars — below this the flip is still news
+
+  function stackRead(item) {
+    const state = item[f('stack_state')] || '';
+    if (!state) return null;
+    const gapRaw  = item[f('stack_gap_pct')];
+    const flipRaw = item[f('stack_flip_bars')];
+    const gap  = (gapRaw  === '' || gapRaw  == null) ? null : parseFloat(gapRaw);
+    const flip = (flipRaw === '' || flipRaw == null) ? null : parseInt(flipRaw, 10);
+    return {
+      state,
+      pair:  item[f('stack_pair')] || '',
+      gap:   Number.isFinite(gap)  ? gap  : null,
+      flip:  Number.isFinite(flip) ? flip : null,
+      tight: Number.isFinite(gap)  && gap  <= STACK_GAP_TIGHT,
+      fresh: Number.isFinite(flip) && flip <= STACK_FRESH_BARS,
+    };
+  }
+
+  // The three rungs, placed at the real heights of the three lines so the glyph
+  // shows ORDER and TIGHTNESS at once — rungs that bunch are about to cross.
+  // Heights come from the ma_* values already on the row; the pair label names
+  // the instrument's own periods, which on a session-normalised ribbon are not
+  // 50/250/500 (SOX reads 15x73 on 1H), so the periods are parsed from it.
+  function stackGlyph(item, read) {
+    const per = (read.pair || '').split('x').map(n => parseInt(n, 10));
+    let lines = [];
+    if (per.length === 2 && per.every(Number.isFinite)) {
+      // pair names two of the three; the third is whichever ribbon line is the
+      // fast/mid/anchor position not already named. Fall back to the ordered
+      // ma_* keys present on the row.
+      // NB the ribbon prefix is taken from tfMeta(), not from f(): f() maps a
+      // payload COLUMN name onto the active timeframe, and 'ma_' is a name
+      // fragment rather than a column. Passing one through f() reads as a
+      // ghost column to tools/shape_audit.py, correctly.
+      const maPre = tfMeta().prefix + 'ma_';
+      const keys = Object.keys(item)
+        .filter(k => k.startsWith(maPre) && item[k] !== '' && item[k] != null)
+        .map(k => [parseInt(k.slice(maPre.length), 10), parseFloat(item[k])])
+        .filter(([p, v]) => Number.isFinite(p) && Number.isFinite(v))
+        .sort((a, b) => a[0] - b[0]);
+      if (keys.length >= 3) {
+        const fast = keys[1], mid = keys.length > 9 ? keys[9] : keys[Math.floor(keys.length / 2)], anch = keys[keys.length - 1];
+        lines = [['fast', fast[1]], ['mid', mid[1]], ['anchor', anch[1]]];
+      }
+    }
+    if (lines.length !== 3) return '';
+    const vals = lines.map(l => l[1]);
+    const hi = Math.max(...vals), lo = Math.min(...vals);
+    const span = hi - lo;
+    const y = v => span > 0 ? (3 + 14 * (hi - v) / span) : 10;
+    const COLOR = { fast: 'var(--accent)', mid: 'var(--text-secondary)', anchor: 'var(--neutral)' };
+    const rungs = lines.map(([role, v]) =>
+      `<rect x="4" y="${y(v).toFixed(1)}" width="14" height="2" rx="1" fill="${COLOR[role]}"></rect>`
+    ).join('');
+    return `<svg class="sc-stack-glyph" width="22" height="20" viewBox="0 0 22 20" aria-hidden="true">${rungs}</svg>`;
+  }
+
+  function maStackHtml(item) {
+    const read = stackRead(item);
+    if (!read) return '';
+    const cls = read.state === 'BULL' ? 'is-bull' : read.state === 'BEAR' ? 'is-bear' : 'is-mixed';
+    const gapHtml = read.gap == null ? '' :
+      `<span class="sc-stack-gap${read.tight ? ' is-tight' : ''}">${read.pair} <em>${read.gap.toFixed(2)}%</em></span>`;
+    const ageHtml = read.flip == null ? '' :
+      `<span class="sc-stack-age">${read.flip}b</span>`;
+    const title = `MA stack on ${tfMeta().label}: ${read.state}`
+      + (read.gap != null ? ` · closest pair ${read.pair} ${read.gap.toFixed(2)}% apart` : '')
+      + (read.flip != null ? ` · last swapped ${read.flip} bars ago` : '');
+    return `<div class="sc-stack${read.fresh ? ' is-fresh' : ''}" title="${title}">`
+      + stackGlyph(item, read)
+      + `<span class="sc-stack-state ${cls}">${read.state}</span>${gapHtml}${ageHtml}</div>`;
+  }
+
+  // Filter predicate, shared by the Signals sheet and the Charts tab so the two
+  // cannot drift into different definitions of "near cross".
+  function matchesStackFilter(item, mode) {
+    if (!mode || mode === 'all') return true;
+    const read = stackRead(item);
+    if (!read) return false;
+    if (mode === 'bull' || mode === 'bear' || mode === 'mixed') return read.state === mode.toUpperCase();
+    if (mode === 'near')  return read.tight;
+    if (mode === 'fresh') return read.fresh;
+    return true;
   }
 
   function animateCount(el, target) {
@@ -3480,6 +3581,11 @@
     }
     if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
     if (trend !== 'all')   filtered = filtered.filter(d => effectiveTrend(d) === trend);
+    // MA stack — reads the ACTIVE timeframe through f(), like every other
+    // per-timeframe filter here.
+    const stackSel = document.getElementById('scannerStackFilter');
+    const stackVal = stackSel ? stackSel.value : 'all';
+    if (stackVal !== 'all') filtered = filtered.filter(d => matchesStackFilter(d, stackVal));
 
     // ── Alignment filter ── (neutral-oscillation instruments are excluded from
     // directional Bull/Bear alignment so they stay solely in the Neutral bucket)
@@ -4122,7 +4228,7 @@
 
   // Update filter badge count
   function updateFilterBadge() {
-    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerRsiFilter'];
+    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerRsiFilter','scannerStackFilter'];
     let count = selects.filter(id => {
       const el = document.getElementById(id);
       return el && el.value !== 'all';
@@ -6396,6 +6502,7 @@
     scope:  'all',
     cat:    '',
     trend:  'all',
+    stack:  'all',
     sort:   'signal',
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
@@ -6799,6 +6906,9 @@
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
     if (reel.trend !== 'all') rows = rows.filter(d => effectiveTrend(d) === reel.trend);
+    // Same predicate the Signals sheet uses, so "near cross" cannot come to
+    // mean two different things on two tabs.
+    if (reel.stack !== 'all') rows = rows.filter(d => matchesStackFilter(d, reel.stack));
 
     switch (reel.scope) {
       case 'today':   rows = rows.filter(firedOnLatestBar); break;
@@ -7051,6 +7161,7 @@
     };
     optGroup('reelScopeOpts', 'scope', 'scope');
     optGroup('reelTrendOpts', 'trend', 'trend');
+    optGroup('reelStackOpts', 'stack', 'stack');
     optGroup('reelSortOpts',  'sort',  'sort');
 
     // Range is the only filter that changes nothing about WHICH instruments
@@ -7113,11 +7224,11 @@
         if (search) search.value = '';
         if (clear) clear.style.display = 'none';
         document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
-        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
+        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelStackOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
           const box = document.getElementById(id);
           if (!box) return;
           box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-sort="${def}"]`);
+          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-stack="${def}"],[data-sort="${def}"]`);
           if (d) d.classList.add('active');
         });
         buildReel();
