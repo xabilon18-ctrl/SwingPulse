@@ -159,7 +159,15 @@ def _agglomerate(C, min_corr, min_size):
 
 
 def _shape_name(path):
-    """Fallback name, from the family's own average shape."""
+    """Fallback name, from the family's own average shape.
+
+    Fed the RAW z-scored path, never the de-drifted residual. Naming off the
+    residual describes performance RELATIVE to the market, which produced
+    'Steady slide' for the gold complex on 2026-09-03 — a family whose charts
+    have plainly been rising. Similarity is a relative question and grouping
+    correctly needs the residual; the NAME is about what the chart looks like,
+    and the chart shows the actual path.
+    """
     n = len(path)
     net = path[-1] - path[0]
     x = np.linspace(0, 1, n)
@@ -179,7 +187,7 @@ def _shape_name(path):
     return 'Grinding up' if net > 0 else 'Drifting lower'
 
 
-def _family_name(idx, names, meta, R, used):
+def _family_name(idx, names, meta, X, used):
     """Name a family from what its members ARE, falling back to their shape.
 
     Composition wins when it is consistent, because "Energy" tells you more
@@ -191,7 +199,7 @@ def _family_name(idx, names, meta, R, used):
     """
     sectors = Counter(meta[names[i]]['sector'] for i in idx if meta[names[i]]['sector'])
     groups = Counter(meta[names[i]]['group'] for i in idx if meta[names[i]]['group'])
-    shape = _shape_name(R[idx].mean(axis=0))
+    shape = _shape_name(X[idx].mean(axis=0))
 
     base = ''
     if sectors:
@@ -231,7 +239,7 @@ def build(instruments=None):
     used = set()
     for idx in sorted(_agglomerate(C, MIN_FAMILY_CORR, MIN_FAMILY_SIZE),
                       key=len, reverse=True):
-        label = _family_name(idx, names, meta, R, used)
+        label = _family_name(idx, names, meta, X, used)
         used.add(label)
         sub = C[np.ix_(idx, idx)]
         cohesion = float((sub.sum() - len(idx)) / (len(idx) * (len(idx) - 1)))
