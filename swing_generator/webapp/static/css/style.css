@@ -8355,3 +8355,90 @@ body {
   .sc-stack-gap em { display: none; }
   .sc-stack-age    { display: none; }
 }
+
+/* ── Chart shape: lookalikes + concentration (v233) ──────────────────────────
+   shape_similarity.py measures which charts have MOVED ALIKE once the market's
+   common drift is removed. Presented as information, never as a call: no
+   --buy/--sell anywhere here, because "these two look the same" says nothing
+   about direction and must not borrow the colours that do. */
+
+/* Concentration note — sits above the cards it is describing. */
+.shape-conc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  background: var(--watch-soft);
+  border: 1px solid var(--watch-glow);
+  border-radius: var(--radius-sm);
+}
+.shape-conc b {
+  font-size: .78rem;
+  font-weight: 650;
+  color: var(--watch);
+  letter-spacing: -.01em;
+}
+.shape-conc-names {
+  font-size: .72rem;
+  color: var(--text-secondary);
+}
+.shape-conc-note {
+  font-size: .68rem;
+  color: var(--text-muted);
+}
+
+/* "Looks like" block in the instrument modal. */
+.mh-shape {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mh-shape-head {
+  font-size: .7rem;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+.mh-shape-head .ms-fam {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ms-rows { display: flex; flex-direction: column; gap: 3px; }
+.ms-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.ms-row:hover, .ms-row:focus-visible { background: var(--bg-hover); border-color: var(--border-active); }
+.ms-name { font-size: .78rem; font-weight: 600; }
+.ms-grp  { font-size: .68rem; color: var(--text-muted); }
+/* Similarity reads as a percentage and lines up down the column. */
+.ms-corr {
+  margin-left: auto;
+  font-size: .72rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ms-foot {
+  margin-top: 7px;
+  font-size: .66rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}

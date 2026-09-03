@@ -11,6 +11,8 @@ Then open http://localhost:5050
 from __future__ import annotations
 
 import glob
+import gzip
+import json
 import os
 import sys
 from datetime import datetime
@@ -1158,6 +1160,24 @@ def api_sector_activity_w():
         return jsonify(None)
     with open(path) as f:
         return jsonify(_json.load(f))
+
+
+@app.route('/api/shape-similarity')
+def api_shape_similarity():
+    """Chart lookalikes + families, written by shape_similarity.py.
+
+    Served gzipped from R2 in production; here the file on disk is gzip too, so
+    read it back through gzip rather than json.load on a text handle.
+    """
+    path = os.path.join(OUTPUT_DIR, 'shape_similarity.json')
+    if not os.path.exists(path):
+        return jsonify({'neighbours': {}, 'families': [], 'family_of': {}})
+    try:
+        with gzip.open(path, 'rt') as fh:
+            return jsonify(json.load(fh))
+    except OSError:
+        with open(path) as fh:          # tolerate an un-gzipped local build
+            return jsonify(json.load(fh))
 
 
 @app.route('/api/sector-radar')

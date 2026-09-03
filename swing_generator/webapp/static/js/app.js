@@ -16,6 +16,10 @@
   // little to build a baseline from — so it reads the daily one and the card
   // says so rather than letting a daily reading pass for a 4H one.
   let sectorRadarByTf = { D: null, W: null };
+  // Chart-shape lookalikes + families (shape_similarity.py). DESCRIPTIVE, not
+  // predictive: it says which charts have moved alike, which is how the app can
+  // warn that five "separate" buys are one bet. Never feeds confidence.
+  let shapeSim = { neighbours: {}, families: [], family_of: {} };
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : 'D');
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
@@ -852,6 +856,26 @@
   // This screen used to show the ribbon, the MA pills, the confidence tier and
   // the radar breakdown, and never once mention that the company reports on
   // Thursday — the single fact most likely to change the size of the trade.
+  // "Looks like" — the charts that have moved most like this one. Tapping one
+  // opens it, because the whole point is to go and compare them.
+  function modalShapeHtml(item) {
+    const name = item.instrument_name;
+    const nb = shapeNeighbours(name);
+    if (!nb.length) return '';
+    const fam = shapeFamily(name);
+    const rows = nb.slice(0, 6).map(n =>
+      `<button class="ms-row" data-act="openModal" data-arg="${n.name}" data-stop="1">`
+      + `<span class="ms-name">${n.name}</span>`
+      + `<span class="ms-grp">${(allData.find(d => d.instrument_name === n.name) || {}).group || ''}</span>`
+      + `<span class="ms-corr">${(n.corr * 100).toFixed(0)}%</span></button>`
+    ).join('');
+    return `<div class="mh-shape">
+      <div class="mh-shape-head">Looks like${fam ? ` <span class="ms-fam">${fam.label}</span>` : ''}</div>
+      <div class="ms-rows">${rows}</div>
+      <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} daily bars, with the market's common drift removed. Describes what has already happened — not a forecast.</div>
+    </div>`;
+  }
+
   function modalEventHtml(item) {
     const own = nextEventFor(item.instrument_name, EVENT_CHIP_DAYS);
     const mkt = nextMarketEvent(EVENT_CHIP_DAYS);
@@ -1434,7 +1458,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, flRes, evRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, flRes, evRes, shRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1449,6 +1473,7 @@
         fetchJson('/api/sector-radar-w', null),
         fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/events', null),
+        fetchJson('/api/shape-similarity', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1466,6 +1491,8 @@
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
       eventsData = (evRes && Array.isArray(evRes.events)) ? evRes : { events: [], sources: {} };
+      shapeSim = (shRes && shRes.neighbours) ? shRes
+                 : { neighbours: {}, families: [], family_of: {} };
       resetEventIndexes();   // both indexes are derived from the two lines above
 
       const dateStr = sumRes.date || '--';
@@ -1893,6 +1920,70 @@
     return `<div class="sc-stack${read.fresh ? ' is-fresh' : ''}" title="${title}">`
       + stackGlyph(item, read)
       + `<span class="sc-stack-state ${cls}">${read.state}</span>${gapHtml}${ageHtml}</div>`;
+  }
+
+  // ── Chart shape: lookalikes and concentration ─────────────────────────────
+  // shape_similarity.py measures which charts have MOVED ALIKE over the last
+  // 520 daily bars, after the market's common drift is removed. Two uses, and
+  // the second is the one that matters:
+  //
+  //   1. "Looks like" — the charts most similar to this one.
+  //   2. Concentration — when several names on screen are the same shape, they
+  //      are one bet wearing different tickers. Measured example: SA40 and GOLD
+  //      run at +0.94 after de-drifting, because the JSE Top 40 is mining-heavy.
+  //
+  // It is descriptive only. It says nothing about what happens next and must
+  // never be read as an edge.
+  function shapeNeighbours(name) {
+    return (shapeSim.neighbours && shapeSim.neighbours[name]) || [];
+  }
+
+  function shapeFamily(name) {
+    const id = shapeSim.family_of ? shapeSim.family_of[name] : undefined;
+    return (id === undefined || !shapeSim.families) ? null : shapeSim.families[id] || null;
+  }
+
+  // Group a set of instruments by shape family. Returns only families with more
+  // than one member PRESENT — a family of one on screen is not a concentration.
+  function shapeClusters(items) {
+    const by = new Map();
+    items.forEach(d => {
+      const fam = shapeFamily(d.instrument_name);
+      if (!fam) return;
+      if (!by.has(fam.id)) by.set(fam.id, { fam, names: [] });
+      by.get(fam.id).names.push(d.instrument_name);
+    });
+    return [...by.values()].filter(g => g.names.length > 1)
+                           .sort((a, b) => b.names.length - a.names.length);
+  }
+
+  // One line, only when it would change what you do: several of the things in
+  // front of you are the same trade. Silent otherwise — a warning that fires on
+  // every screen is one nobody reads.
+  // Threshold is a SHARE of what is on screen, not a headcount. Tested against
+  // real screens on 2026-09-03: a headcount rule (>=6) fired on the full
+  // 798-instrument list, where the biggest family is 26 names — 3.3%, which is
+  // not a concentrated screen by any reading. Share-only gets it right:
+  //   everything (798)      top family 3.3%  -> silent
+  //   today's daily fires   3 of 42,  7.1%   -> silent
+  //   Crypto only           21 of 64, 32.8%  -> fires
+  //   Commodity only        4 of 18,  22.2%  -> fires
+  const CONC_MIN_MEMBERS = 3;
+  const CONC_MIN_SHARE   = 0.20;
+
+  function concentrationNoteHtml(items, what) {
+    const groups = shapeClusters(items);
+    if (!groups.length || !items.length) return '';
+    const top = groups[0];
+    if (top.names.length < CONC_MIN_MEMBERS) return '';
+    if (top.names.length / items.length < CONC_MIN_SHARE) return '';
+    const shown = top.names.slice(0, 4).join(', ');
+    const more = top.names.length > 4 ? ` +${top.names.length - 4} more` : '';
+    return `<div class="shape-conc" title="Measured over ${shapeSim.window_bars || 520} daily bars, market drift removed">`
+      + `<b>${top.names.length} of these ${what} move together</b>`
+      + `<span class="shape-conc-names">${shown}${more} · ${top.fam.label}</span>`
+      + `<span class="shape-conc-note">Sized as separate positions, this is one bet ${top.names.length} times.</span>`
+      + `</div>`;
   }
 
   // Filter predicate, shared by the Signals sheet and the Charts tab so the two
@@ -3836,7 +3927,11 @@
       if (old) old.remove();
       grid.insertAdjacentHTML('beforeend', cardsHtml + loadMoreHtml);
     } else {
-      grid.innerHTML = cardsHtml + loadMoreHtml;
+      // Concentration note above the cards: when several of the things you are
+      // looking at are the same shape, they are one bet. Computed over the
+      // FILTERED set, not the whole book, so it answers "is this screen
+      // concentrated" rather than "is the market".
+      grid.innerHTML = concentrationNoteHtml(filtered, 'match') + cardsHtml + loadMoreHtml;
     }
 
     // Wire up load-more button
@@ -4675,6 +4770,7 @@
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
             ${modalEventHtml(item)}
+            ${modalShapeHtml(item)}
           </div>
           <div class="mh-sig-wrap">
             ${item[f('volume_spike_flag')] === 'yes' && sig ? '<span class="vol-plus-chip">VOL+</span>' : ''}

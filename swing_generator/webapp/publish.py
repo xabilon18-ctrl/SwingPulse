@@ -600,6 +600,7 @@ def build_data(output_dir, src_signals_dir=None):
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
                   'sector_activity_w.json', 'sector_radar_w.json',
+                  'shape_similarity.json',
                   'instrument_flavours.json', 'events.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
@@ -884,6 +885,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
                   'sector_activity_w.json', 'sector_radar_w.json',
+                  'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics']:
         p = os.path.join(data_dir, fname)
@@ -1016,6 +1018,7 @@ def build_ui():
     # on a static host. It failed soft — null radar, silent fall back to daily —
     # which is the worst way for it to fail. A published API path has to be a
     # path, because that is the only thing this rewrite can see.
+    js = js.replace("'/api/shape-similarity'", f"'{base}/shape_similarity.json'")
     js = js.replace("'/api/sector-radar-w'", f"'{base}/sector_radar_w.json'")
     js = js.replace("'/api/sector-activity-w'", f"'{base}/sector_activity_w.json'")
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")

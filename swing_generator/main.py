@@ -959,6 +959,12 @@ def main():
     # guard is in sector_activity.write_radar(), not here.
     update_all_timeframes(output_df)
 
+    # 5d-bis. Chart shape similarity — which charts look like each other, and
+    #         therefore which 'separate' positions are really one bet.
+    #         Cross-instrument, so it runs here rather than per-instrument.
+    from shape_similarity import write as write_shape_similarity
+    write_shape_similarity(instruments)
+
     # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
     #     Never fatal: a Yahoo metadata outage must not cost a day of signals.
     from events import write_events
