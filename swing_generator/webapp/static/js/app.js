@@ -7128,6 +7128,7 @@
     if (!reel.list.length) {
       host.innerHTML = '';
       if (empty) empty.style.display = '';
+      reelSyncNav();
       return;
     }
     if (empty) empty.style.display = 'none';
@@ -7141,6 +7142,7 @@
     // observer still handles everything the reader scrolls to.
     reelPaintVisible();
     reelSyncPills();
+    reelSyncNav();
   }
 
   // Drop every drawn chart and redraw what is on screen — for changes that
@@ -7176,6 +7178,7 @@
     // scroll the page around the fixed pane instead of the reel itself.
     host.scrollTop = el.offsetTop - host.offsetTop;
     reelPaintVisible();
+    reelSyncNav();
   }
 
   function reelVisibleName() {
@@ -7188,6 +7191,93 @@
   }
 
   // ── Filter wiring ────────────────────────────────────────────────────
+
+  // ── Reel navigation: one chart at a time ──────────────────────────────────
+  // The reel is a snap container (scroll-snap-type: y mandatory) whose cards are
+  // each 100% of its height, so "next chart" is exactly one clientHeight. Done
+  // by scrolling rather than by index because the scroll position is the single
+  // source of truth — a flick, a wheel, a key and a tap all move the same thing,
+  // and nothing can drift out of sync with a separately tracked index.
+  function reelStepBy(dir) {
+    const el = document.getElementById('chartReel');
+    if (!el || !el.clientHeight) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollBy({ top: dir * el.clientHeight, behavior: reduce ? 'auto' : 'smooth' });
+    // Refresh the buttons and the counter once the scroll has settled rather
+    // than leaving it to the scroll event. Relying on that alone left `prev`
+    // stuck disabled after stepping down — one step forward and no way back —
+    // wherever those events are throttled or suppressed.
+    clearTimeout(reel._navSettle);
+    reel._navSettle = setTimeout(reelSyncNav, reduce ? 0 : 420);
+  }
+
+  function reelSyncNav() {
+    const el   = document.getElementById('chartReel');
+    const nav  = document.getElementById('reelNav');
+    const prev = document.getElementById('reelPrev');
+    const next = document.getElementById('reelNext');
+    const pos  = document.getElementById('reelNavPos');
+    if (!el || !nav || !prev || !next) return;
+
+    const total = reel.list ? reel.list.length : 0;
+    // One chart cannot be stepped through, and no charts must not show a "0/0".
+    nav.hidden = total < 2;
+    if (nav.hidden) return;
+
+    const h = el.clientHeight || 1;
+    // 2px of slack: snap positions land on sub-pixel offsets, and an exact
+    // comparison leaves the end button live with nowhere to go.
+    const atTop = el.scrollTop <= 2;
+    const atEnd = el.scrollTop + h >= el.scrollHeight - 2;
+    prev.disabled = atTop;
+    next.disabled = atEnd;
+    if (pos) {
+      const idx = Math.min(total, Math.max(1, Math.round(el.scrollTop / h) + 1));
+      pos.textContent = `${idx}/${total}`;
+    }
+  }
+
+  function wireReelNav() {
+    const el = document.getElementById('chartReel');
+    const prev = document.getElementById('reelPrev');
+    const next = document.getElementById('reelNext');
+    if (!el || !prev || !next) return;
+
+    prev.addEventListener('click', () => reelStepBy(-1));
+    next.addEventListener('click', () => reelStepBy(1));
+
+    // rAF-coalesced: a smooth scroll fires this continuously and the handler
+    // reads layout.
+    let ticking = false;
+    el.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { ticking = false; reelSyncNav(); });
+    }, { passive: true });
+
+    window.addEventListener('resize', reelSyncNav);
+
+    document.addEventListener('keydown', e => {
+      if (currentTab !== 'charts') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Never steal a key from something the user is typing into — the reel's
+      // own search box lives on this tab.
+      // e.target is not necessarily an Element — a key delivered with nothing
+      // focused targets `document`, which has no .matches, and the raw call
+      // threw TypeError and killed the handler silently.
+      const t = e.target;
+      if (t && typeof t.matches === 'function' &&
+          (t.matches('input, textarea, select') || t.isContentEditable)) return;
+      if (t && t.isContentEditable) return;
+      // A sheet or modal over the reel owns the arrows while it is open.
+      if (document.querySelector('.sheet.open, .modal.open, .filter-pill[open]')) return;
+      const down = e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j';
+      const up   = e.key === 'ArrowUp'   || e.key === 'PageUp'   || e.key === 'k';
+      if (!down && !up) return;
+      e.preventDefault();
+      reelStepBy(down ? 1 : -1);
+    });
+  }
 
   function reelSyncPills() {
     const set = (id, txt) => {
@@ -7394,6 +7484,7 @@
   // Wired here, not with the other boot wiring: `reel` is declared in this
   // block, so an earlier call would hit its temporal dead zone.
   wireReel();
+  wireReelNav();
   wireFilterPopClamp();
 
 })();

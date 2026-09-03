@@ -8442,3 +8442,72 @@ body {
   line-height: 1.45;
   color: var(--text-muted);
 }
+
+/* ── Reel navigation (v234) ──────────────────────────────────────────────────
+   The reel has always snapped one chart per flick on touch. It had nothing to
+   drive it with anywhere else: no buttons, no keyboard, so on a desktop the
+   only way through 223 charts was a mouse wheel fighting scroll-snap. These sit
+   against the right edge, vertically centred on the pane (which is position:
+   fixed, so it is already the containing block). */
+.reel-nav {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  /* The chart underneath is the point; these are controls, not furniture. */
+  opacity: .42;
+  transition: opacity var(--transition);
+}
+.reel-nav:hover, .reel-nav:focus-within { opacity: 1; }
+.reel-nav[hidden] { display: none; }
+
+.reel-nav-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition),
+              border-color var(--transition);
+}
+.reel-nav-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+.reel-nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* At either end the button stays PRESENT but visibly spent — removing it would
+   shift the other one and move the target you are aiming at. */
+.reel-nav-btn:disabled { opacity: .3; cursor: default; }
+
+.reel-nav-pos {
+  font-size: .6rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  letter-spacing: .02em;
+  text-align: center;
+  line-height: 1.15;
+  min-width: 34px;
+}
+
+/* Touch already has the flick, so the controls tuck in tighter and sit lower
+   than the thumb's natural resting arc rather than over the chart body. */
+@media (max-width: 520px) {
+  .reel-nav { right: 5px; gap: 5px; opacity: .34; }
+  .reel-nav-btn { width: 30px; height: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reel-nav, .reel-nav-btn { transition: none; }
+}
