@@ -429,7 +429,19 @@ this works around it by being honest rather than by forcing a download.
 > context at the start of every session, so a stale line here is a wrong premise
 > for everything that follows.
 
-- `app.js` — **v269** (v269 — **step through the reel one chart at a time.** The Charts
+- `app.js` — **v271** (v271 — **the lookalikes are charts now, not a list.** The modal's
+  Looks-like block could only NAME the similar instruments, which is the wrong half of
+  the idea: knowing SA40 looks like GOLD is worth nothing until the two charts are in
+  front of you. `showSimilarCharts(name)` opens the Charts tab holding that instrument
+  plus its lookalikes in similarity order, so the reel's up/down controls flick straight
+  through the comparison; each card carries `95% alike` and the anchor says `this one`.
+  `reel.similarTo` REPLACES the list rather than narrowing it — it is an explicit set in
+  a deliberate order — so it gets its own `.reel-simbar` instead of a pill, and search,
+  pills and sort are bypassed while it is on. Two fixes alongside: stepping now repaints
+  on settle (`reelPaintVisible`) instead of trusting the IntersectionObserver alone, an
+  unpainted chart being the one failure a reader cannot work around; and **Reset was
+  clearing neither `reel.stack` nor the compare mode**, so pressing it left the list
+  filtered. v269 — **step through the reel one chart at a time.** The Charts
   tab has always snap-scrolled on a flick (`scroll-snap-type: y mandatory`, cards at 100%
   height) and had nothing else to drive it: no buttons, no keyboard, so on a desktop the
   only way through 798 charts was a wheel fighting the snap. `.reel-nav` adds up/down

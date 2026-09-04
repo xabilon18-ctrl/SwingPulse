@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=234">
+  <link rel="stylesheet" href="/static/css/style.css?v=235">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -749,6 +749,14 @@
           <span class="reel-count" id="reelCount">—</span>
         </div>
 
+        <!-- Active "similar to X" set. Its own row, not a pill: it REPLACES the
+             normal list rather than narrowing it, so it must not look like one
+             more filter among the others. -->
+        <div class="reel-simbar" id="reelSimBar" hidden>
+          <span class="reel-simbar-txt">Charts like <b id="reelSimName"></b></span>
+          <button class="reel-simbar-clear" id="reelSimClear">Clear</button>
+        </div>
+
         <div class="reel-filter-pills" id="reelFilterPills">
           <details class="filter-pill" id="reelPillScope">
             <summary>Show<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
@@ -924,6 +932,6 @@
 
 
 
-  <script src="/static/js/app.js?v=269"></script>
+  <script src="/static/js/app.js?v=271"></script>
 </body>
 </html>

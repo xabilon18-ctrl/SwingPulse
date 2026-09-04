@@ -872,6 +872,7 @@
     return `<div class="mh-shape">
       <div class="mh-shape-head">Looks like${fam ? ` <span class="ms-fam">${fam.label}</span>` : ''}</div>
       <div class="ms-rows">${rows}</div>
+      <button class="ms-compare" data-act="showSimilarCharts" data-arg="${name}">See these as charts →</button>
       <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} daily bars, with the market's common drift removed. Describes what has already happened — not a forecast.</div>
     </div>`;
   }
@@ -6270,6 +6271,7 @@
 
   window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
                 calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar,
+                showSimilarCharts, clearSimilarCharts,
                 openRatesBoard };
 
   // ── Init ─────────────────────────────────────────────────────────────
@@ -6599,6 +6601,7 @@
     cat:    '',
     trend:  'all',
     stack:  'all',
+    similarTo: '',          // instrument whose lookalikes the reel is showing
     sort:   'signal',
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
@@ -6954,6 +6957,15 @@
 
   // ── Card shell ───────────────────────────────────────────────────────
 
+  // While comparing, each card carries how close it is to the anchor — the
+  // anchor itself is the one you came from, so it says so rather than "100%".
+  function simPct(name) {
+    if (!reel.similarTo) return '';
+    if (name === reel.similarTo) return '<span class="reel-simpct">this one</span>';
+    const hit = shapeNeighbours(reel.similarTo).find(n => n.name === name);
+    return hit ? `<span class="reel-simpct">${(hit.corr * 100).toFixed(0)}% alike</span>` : '';
+  }
+
   function reelCardHtml(item, i) {
     const name  = item.instrument_name;
     const sig   = item[f('primary_signal')] || '';
@@ -6973,6 +6985,7 @@
           <span class="reel-group">${item.group || ''}</span>
         </div>
         <div class="reel-head-meta">
+          ${simPct(name)}
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
         </div>
@@ -6997,7 +7010,23 @@
   // ── Filtering ────────────────────────────────────────────────────────
 
   function reelFiltered() {
-    let rows = getActiveData();
+    const rowsAll = getActiveData();
+    // "Charts like X" REPLACES the list rather than narrowing it: it is an
+    // explicit set in similarity order, so the pills, the search and the sort
+    // are deliberately bypassed. Anchor first, then descending similarity —
+    // that is the order you want to flick through when comparing.
+    if (reel.similarTo) {
+      const by = new Map(rowsAll.map(d => [d.instrument_name, d]));
+      const out = [];
+      const anchor = by.get(reel.similarTo);
+      if (anchor) out.push(anchor);
+      shapeNeighbours(reel.similarTo).forEach(n => {
+        const d = by.get(n.name);
+        if (d) out.push(d);
+      });
+      return out;
+    }
+    let rows = rowsAll;
 
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
@@ -7208,7 +7237,15 @@
     // stuck disabled after stepping down — one step forward and no way back —
     // wherever those events are throttled or suppressed.
     clearTimeout(reel._navSettle);
-    reel._navSettle = setTimeout(reelSyncNav, reduce ? 0 : 420);
+    reel._navSettle = setTimeout(() => {
+      reelSyncNav();
+      // Paint whatever we landed on rather than waiting on the
+      // IntersectionObserver. Stepping is a scroll, so the observer
+      // normally handles it — but this is the same insurance the nav
+      // state needed, and an unpainted chart is the one failure a reader
+      // cannot work around. reelPaint no-ops on anything already drawn.
+      reelPaintVisible();
+    }, reduce ? 0 : 420);
   }
 
   function reelSyncNav() {
@@ -7242,6 +7279,9 @@
     const prev = document.getElementById('reelPrev');
     const next = document.getElementById('reelNext');
     if (!el || !prev || !next) return;
+
+    const simClear = document.getElementById('reelSimClear');
+    if (simClear) simClear.addEventListener('click', clearSimilarCharts);
 
     prev.addEventListener('click', () => reelStepBy(-1));
     next.addEventListener('click', () => reelStepBy(1));
@@ -7279,7 +7319,42 @@
     });
   }
 
+  // Open the Charts tab showing this instrument and the charts most like it,
+  // in similarity order. The modal could only ever LIST the lookalikes; the
+  // whole reason to know GOLD looks like SA40 is to put the two charts in
+  // front of your eyes, which is what the reel is for.
+  function showSimilarCharts(name) {
+    if (!name || !shapeNeighbours(name).length) return;
+    reel.similarTo = name;
+    closeModal();
+    navigateToTab('charts');
+    buildReel();
+    const el = document.getElementById('chartReel');
+    if (el) el.scrollTop = 0;          // start on the instrument you came from
+    reelSyncSimBar();
+    reelSyncNav();
+  }
+
+  function clearSimilarCharts() {
+    if (!reel.similarTo) return;
+    reel.similarTo = '';
+    buildReel();
+    const el = document.getElementById('chartReel');
+    if (el) el.scrollTop = 0;
+    reelSyncSimBar();
+    reelSyncNav();
+  }
+
+  function reelSyncSimBar() {
+    const bar = document.getElementById('reelSimBar');
+    const nm  = document.getElementById('reelSimName');
+    if (!bar || !nm) return;
+    bar.hidden = !reel.similarTo;
+    if (reel.similarTo) nm.textContent = reel.similarTo;
+  }
+
   function reelSyncPills() {
+    reelSyncSimBar();
     const set = (id, txt) => {
       const el = document.querySelector('#' + id + ' .fp-val');
       if (el) el.textContent = txt ? ' · ' + txt : '';
@@ -7298,7 +7373,7 @@
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.stack !== 'all' ||
+                  reel.stack !== 'all' || reel.similarTo ||
                   reel.sort !== 'signal' || reel.search || reel.range;
     const rst = document.getElementById('reelReset');
     if (rst) rst.style.display = dirty ? '' : 'none';
@@ -7404,6 +7479,11 @@
       rst.addEventListener('click', () => {
         reel.scope = 'all'; reel.cat = ''; reel.trend = 'all'; reel.sort = 'signal';
         reel.search = ''; reel.range = 0;
+        // Reset was missing both of these: the Stack pill (added with the MA
+        // stack filter) and the compare mode. "Reset" that leaves a filter
+        // applied is worse than no reset — you press it and still cannot see
+        // the instrument you are looking for.
+        reel.stack = 'all'; reel.similarTo = '';
         try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
         if (rbox) {

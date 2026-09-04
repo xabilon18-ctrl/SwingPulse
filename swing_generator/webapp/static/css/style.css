@@ -8511,3 +8511,69 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .reel-nav, .reel-nav-btn { transition: none; }
 }
+
+/* ── "Charts like X" mode (v235) ─────────────────────────────────────────────
+   The modal's Looks-like list names the similar instruments; this is how you
+   actually SEE them. It replaces the reel's contents rather than narrowing
+   them, so it gets its own bar instead of sitting among the filter pills —
+   a control that swaps the whole list should not look like one that trims it. */
+.reel-simbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+.reel-simbar[hidden] { display: none; }
+.reel-simbar-txt {
+  font-size: .72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reel-simbar-txt b { color: var(--accent); font-weight: 700; }
+.reel-simbar-clear {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-active);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: .68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.reel-simbar-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* The similarity score, carried onto the chart card itself so you know how
+   close the thing you are looking at actually is to the one you came from. */
+.reel-simpct {
+  font-size: .64rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+/* The button that gets you there, in the modal's Looks-like block. */
+.ms-compare {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--accent);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: .74rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.ms-compare:hover { background: var(--bg-hover); }
