@@ -1014,7 +1014,7 @@
       <div class="mh-shape-head">Looks like${fam ? ` <span class="ms-fam">${fam.label}</span>` : ''}</div>
       <div class="ms-rows">${rows}</div>
       <button class="ms-compare" data-act="showSimilarCharts" data-arg="${name}">See these as charts →</button>
-      <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} daily bars, with the market's common drift removed. Describes what has already happened — not a forecast.</div>
+      <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} ${tfMeta().label} bars — the same bars this chart draws — with the market's common drift removed. Describes what has already happened, not a forecast.</div>
     </div>`;
   }
 
@@ -1644,7 +1644,7 @@
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
       eventsData = (evRes && Array.isArray(evRes.events)) ? evRes : { events: [], sources: {} };
-      shapeSim = (shRes && shRes.neighbours) ? shRes
+      shapeSim = (shRes && (shRes.by_tf || shRes.neighbours)) ? shRes
                  : { neighbours: {}, families: [], family_of: {} };
       resetEventIndexes();   // both indexes are derived from the two lines above
 
@@ -2087,13 +2087,28 @@
   //
   // It is descriptive only. It says nothing about what happens next and must
   // never be read as an edge.
+  // The grouping for the CHART CURRENTLY SHOWN. Lookalikes are computed per
+  // timeframe because 520 bars is a different amount of calendar on each: two
+  // years of Daily, ten of Weekly. Serving the daily grouping on every tab was
+  // the original fault — measured 2026-09-08, families correlating 0.91 on
+  // Daily fell to 0.68 on 3D and 0.69 on Weekly, worst pairs -0.71 and -0.69,
+  // i.e. charts moving OPPOSITE ways while labelled lookalikes.
+  //
+  // Falls back to the top-level (daily) block, which the file still carries, so
+  // an older payload keeps working rather than emptying the feature out.
+  function shapeSet() {
+    return (shapeSim.by_tf && shapeSim.by_tf[timeframe]) || shapeSim;
+  }
+
   function shapeNeighbours(name) {
-    return (shapeSim.neighbours && shapeSim.neighbours[name]) || [];
+    const set = shapeSet();
+    return (set.neighbours && set.neighbours[name]) || [];
   }
 
   function shapeFamily(name) {
-    const id = shapeSim.family_of ? shapeSim.family_of[name] : undefined;
-    return (id === undefined || !shapeSim.families) ? null : shapeSim.families[id] || null;
+    const set = shapeSet();
+    const id = set.family_of ? set.family_of[name] : undefined;
+    return (id === undefined || !set.families) ? null : set.families[id] || null;
   }
 
   // Group a set of instruments by shape family. Returns only families with more
@@ -2132,7 +2147,7 @@
     if (top.names.length / items.length < CONC_MIN_SHARE) return '';
     const shown = top.names.slice(0, 4).join(', ');
     const more = top.names.length > 4 ? ` +${top.names.length - 4} more` : '';
-    return `<div class="shape-conc" title="Measured over ${shapeSim.window_bars || 520} daily bars, market drift removed">`
+    return `<div class="shape-conc" title="Measured over ${shapeSim.window_bars || 520} ${tfMeta().label} bars, market drift removed">`
       + `<b>${top.names.length} of these ${items.length} move together</b>`
       + `<span class="shape-conc-names">${shown}${more} · ${top.fam.label}</span>`
       + `<span class="shape-conc-note">Sized as separate positions, this is one bet ${top.names.length} times.</span>`

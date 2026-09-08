@@ -77,8 +77,46 @@ MIN_FAMILY_SIZE = 3
 # ---------------------------------------------------------------------------
 # Load
 # ---------------------------------------------------------------------------
-def load_matrix(instruments=None):
-    """Z-scored close paths for every instrument with a full window.
+# Which bars each timeframe compares. Same 520 as the Charts reel draws, on
+# every timeframe — "these look alike" has to mean alike on the chart actually
+# on screen, and the reel draws 520 bars whichever tab you are on.
+#
+# 520 bars is a different amount of CALENDAR on each: ~3 months of 1H, a year
+# of 4H, two years of Daily, six of 3-day, ten of Weekly. That is the point.
+# Grouping on daily shape and then showing the result on the Weekly tab was the
+# original fault — measured 2026-09-08, families that correlate 0.91 on Daily
+# fall to 0.68 on 3D and 0.69 on Weekly, with the worst pairs at -0.71 and
+# -0.69: moving in OPPOSITE directions while labelled lookalikes.
+#
+# Instruments without 520 bars on a timeframe are left out of that timeframe's
+# grouping rather than compared over a shorter span — a 300-bar weekly chart
+# and a 520-bar one do not look alike even when the numbers correlate, because
+# the reel draws both across the same width. Coverage at 520: D/4H/1H ~100%,
+# 3D 95%, Weekly 84%.
+SHAPE_TIMEFRAMES = ('1H', '4H', 'D', '3D', 'W')
+
+
+def _frame_for(path, tf):
+    """The bars one timeframe compares, from the cache the pipeline already has."""
+    from main import _resample_3d, _resample_weekly, _resample_4h, _h1_frame
+    if tf in ('1H', '4H'):
+        hourly = path.replace('.parquet', '_1h.parquet')
+        if not os.path.exists(hourly):
+            return None
+        df = pd.read_parquet(hourly)
+        return _h1_frame(df) if tf == '1H' else _resample_4h(df)
+    if not os.path.exists(path):
+        return None
+    df = _drop_priceless(pd.read_parquet(path))
+    if tf == '3D':
+        return _resample_3d(df)
+    if tf == 'W':
+        return _resample_weekly(df)
+    return df
+
+
+def load_matrix(instruments=None, tf='D'):
+    """Z-scored close paths for every instrument with a full window ON `tf`.
 
     Returns (names, X, meta) where X[i] is one z-scored path.
     """
@@ -86,10 +124,11 @@ def load_matrix(instruments=None):
     names, rows, meta = [], [], {}
     for inst in instruments:
         path = _cache_path(inst['ticker'])
-        if not os.path.exists(path):
-            continue
         try:
-            close = _drop_priceless(pd.read_parquet(path))['Close'].dropna()
+            frame = _frame_for(path, tf)
+            if frame is None or 'Close' not in frame:
+                continue
+            close = frame['Close'].dropna()
         except Exception:
             continue
         if len(close) < WINDOW_BARS:
@@ -215,8 +254,8 @@ def _family_name(idx, names, meta, X, used):
     return f'{base} — {shape.lower()}' if base in used else base
 
 
-def build(instruments=None):
-    names, X, meta = load_matrix(instruments)
+def build(instruments=None, tf='D'):
+    names, X, meta = load_matrix(instruments, tf)
     if len(names) < 10:
         return None
 
@@ -257,7 +296,7 @@ def build(instruments=None):
     return {
         'generated': str(date.today()),
         'window_bars': WINDOW_BARS,
-        'timeframe': 'D',
+        'timeframe': tf,
         'instruments': len(names),
         'min_neighbour_corr': MIN_NEIGHBOUR_CORR,
         'min_family_corr': MIN_FAMILY_CORR,
@@ -268,16 +307,36 @@ def build(instruments=None):
 
 
 def write(instruments=None):
-    """Build and write shape_similarity.json. Never fatal — a failure here must
-    not cost a run of market data."""
-    try:
-        payload = build(instruments)
-    except Exception as exc:
-        print(f'  ! shape similarity failed: {type(exc).__name__}: {exc}')
-        return None
+    """Build one grouping PER TIMEFRAME and write them as one file.
+
+    Never fatal — a failure here must not cost a run of market data, and one
+    timeframe failing must not cost the others.
+
+    The Daily grouping stays at the top level as well as inside `by_tf`, so a
+    browser running an older app.js keeps working exactly as before instead of
+    losing the feature to a shape it does not understand.
+    """
+    instruments = instruments or load_instruments()
+    by_tf, counts = {}, []
+    for tf in SHAPE_TIMEFRAMES:
+        try:
+            p = build(instruments, tf)
+        except Exception as exc:
+            print(f'  ! shape similarity [{tf}] failed: {type(exc).__name__}: {exc}')
+            continue
+        if not p:
+            print(f'  ! shape similarity [{tf}]: too few instruments with a full window')
+            continue
+        by_tf[tf] = p
+        counts.append(f"{tf} {len(p['families'])}f/{p['instruments']}")
+
+    payload = by_tf.get('D')
     if not payload:
-        print('  ! shape similarity: too few instruments with a full window')
+        print('  ! shape similarity: no daily grouping — nothing written')
         return None
+    payload = dict(payload)
+    payload['by_tf'] = by_tf
+    payload['timeframes'] = list(by_tf)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     # Written GZIPPED under the plain .json name, the same trick chart_feed
     # uses: publish.upload_to_r2 detects the magic bytes and sets
@@ -287,8 +346,7 @@ def write(instruments=None):
     with gzip.GzipFile(OUT_PATH, 'wb', compresslevel=6, mtime=0) as fh:
         fh.write(raw)
     kb = os.path.getsize(OUT_PATH) / 1024
-    print(f'  Shape similarity: {payload["instruments"]} instruments, '
-          f'{len(payload["families"])} families, {kb:.0f} KB gzipped')
+    print(f'  Shape similarity: {" · ".join(counts)}  ({kb:.0f} KB gzipped)')
     return payload
 
 
