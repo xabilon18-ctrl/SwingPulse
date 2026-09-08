@@ -6754,8 +6754,7 @@
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
-    lockY:  new Map(),       // name → {lo,hi} price bounds: held during a pan, SET by a price pinch
-    win:    new Map(),       // name → bars shown, set by a time pinch (overrides the Range pill)
+    lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
     editing: null,           // instrument whose channels are being edited, or null
     activeCh: new Map(),     // "name|tf" → index of the channel Lock/Clear act on
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
@@ -6961,16 +6960,9 @@
   // override set by the pan gesture wins over the Range pill — see below.
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
-    // A pinch on this card wins over the Range pill. A DRAG still never changes
-    // the window — that distinction is the point: Range and pinch set the zoom,
-    // dragging only moves it.
-    const w = (name && reel.win.get(name)) || reel.range;
-    return (!w || w >= n) ? n : Math.max(REEL_MIN_BARS, Math.round(w));
+    const w = reel.range;
+    return (!w || w >= n) ? n : w;
   }
-
-  // Floor on a time pinch: fewer bars than this and the ribbon has nothing left
-  // to be a ribbon with.
-  const REEL_MIN_BARS = 20;
 
   function reelPanOf(name) { return reel.pan.get(name) || 0; }
 
@@ -6992,7 +6984,7 @@
 
   // A range change or a timeframe switch invalidates every pan offset — the
   // window is a different width, so "12 bars back" means something else.
-  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); reel.win.clear(); }
+  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); }
 
   // A drag MOVES THE WINDOW. It never resizes it: the amount of chart on screen
   // is the Range pill's business, and a drag that silently re-zoomed made
@@ -7858,17 +7850,10 @@
     if (host.dataset.gestureWired) return;
     host.dataset.gestureWired = '1';
 
-    let mode = null;         // null | 'pan' | 'handle' | 'scroll' | 'pinch' | 'pricescale'
+    let mode = null;         // null | 'pan' | 'handle' | 'scroll'
     let handle = null;       // 'a' | 'b' | 'u' | 'd'
     let chIdx = -1;          // which channel the grabbed handle belongs to
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
-
-    // Two-finger state. A pinch is measured on each axis SEPARATELY and the
-    // dominant one wins for the whole gesture: spreading sideways stretches
-    // time, spreading up and down stretches price. Reading both at once makes a
-    // slightly skewed pinch change two things you did not both mean to change.
-    const pts = new Map();   // pointerId → {x, y}
-    let pinch = null;        // {dx0, dy0, bars0, lo0, hi0, axis}
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
     // page is visible, but a backgrounded or hidden tab never runs it — and a
@@ -7881,30 +7866,9 @@
       setTimeout(run, 60);
     };
 
-    const startPinch = ctx => {
-      const [p1, p2] = [...pts.values()];
-      pinch = {
-        dx0:   Math.max(12, Math.abs(p1.x - p2.x)),
-        dy0:   Math.max(12, Math.abs(p1.y - p2.y)),
-        bars0: reelWindowBars(ctx.bundle, ctx.name),
-        lo0:   ctx.sc.lo, hi0: ctx.sc.hi,
-        axis:  null,
-      };
-      mode = 'pinch';
-      // A pinch that began as a one-finger drag must not leave a pan running,
-      // nor the provisional price lock that first finger took out — a TIME
-      // pinch would otherwise silently freeze the price scale as a side effect.
-      handle = null; chIdx = -1;
-      const lk = reel.lockY.get(ctx.name);
-      if (lk && lk._provisional) reel.lockY.delete(ctx.name);
-    };
-
     host.addEventListener('pointerdown', ev => {
       const ctx = host._reelCtx;
-      if (!ctx) return;
-      pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-      if (pts.size === 2) { startPinch(ctx); ev.preventDefault(); return; }
-      if (pid !== null) return;
+      if (!ctx || pid !== null) return;
       pid = ev.pointerId;
       sx = ev.clientX; sy = ev.clientY;
       startPan = reelPanOf(ctx.name);
@@ -7914,17 +7878,6 @@
       // drag, it is dropped again on pointerup.
       if (!reel.lockY.has(ctx.name)) {
         reel.lockY.set(ctx.name, { lo: ctx.sc.lo, hi: ctx.sc.hi, _provisional: true });
-      }
-
-      // A drag that STARTS on the price axis stretches the price scale, the way
-      // every charting app does it — the one-handed version of a price pinch.
-      const _pt = reelSvgPoint(host, ev);
-      if (_pt && _pt.x > ctx.L.x1) {
-        mode = 'pricescale';
-        pinch = { lo0: ctx.sc.lo, hi0: ctx.sc.hi };
-        host.setPointerCapture(pid);
-        ev.preventDefault();
-        return;
       }
 
       // A handle grab wins immediately — no axis lock, because dragging a
@@ -7943,38 +7896,9 @@
     });
 
     host.addEventListener('pointermove', ev => {
+      if (ev.pointerId !== pid) return;
       const ctx = host._reelCtx;
       if (!ctx) return;
-      if (pts.has(ev.pointerId)) pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-
-      if (mode === 'pinch' && pts.size >= 2 && pinch) {
-        ev.preventDefault();
-        const [p1, p2] = [...pts.values()];
-        const rx = Math.max(12, Math.abs(p1.x - p2.x)) / pinch.dx0;
-        const ry = Math.max(12, Math.abs(p1.y - p2.y)) / pinch.dy0;
-        // Decide the axis once, at the point the pinch is unambiguous, then
-        // keep it for the rest of the gesture.
-        if (!pinch.axis) {
-          const mx = Math.abs(Math.log(rx)), my = Math.abs(Math.log(ry));
-          if (Math.max(mx, my) < 0.06) return;      // still ambiguous
-          pinch.axis = mx >= my ? 'time' : 'price';
-        }
-        if (pinch.axis === 'time') {
-          // Fingers apart = fewer bars on screen = zoomed in.
-          reel.win.set(ctx.name, Math.max(REEL_MIN_BARS,
-            Math.min(ctx.bundle.c.length, Math.round(pinch.bars0 / rx))));
-        } else {
-          // Stretch the price scale about its own centre, so the bar under
-          // your fingers stays where it is.
-          const mid  = (pinch.lo0 + pinch.hi0) / 2;
-          const span = Math.max(1e-9, (pinch.hi0 - pinch.lo0) / ry);
-          reel.lockY.set(ctx.name, { lo: mid - span / 2, hi: mid + span / 2 });
-        }
-        schedule();
-        return;
-      }
-
-      if (ev.pointerId !== pid) return;
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
 
       if (mode === null) {
@@ -7984,18 +7908,6 @@
       }
       if (mode === 'scroll') return;         // the feed keeps it
       ev.preventDefault();
-
-      if (mode === 'pricescale') {
-        // Drag DOWN to squeeze the scale (more price on screen), UP to stretch
-        // it — the TradingView direction, which is the chart the reader has in
-        // the other hand. Exponential so the far end of the drag is as
-        // controllable as the near end.
-        const mid  = (pinch.lo0 + pinch.hi0) / 2;
-        const span = Math.max(1e-9, (pinch.hi0 - pinch.lo0) * Math.exp(dy / 260));
-        reel.lockY.set(ctx.name, { lo: mid - span / 2, hi: mid + span / 2 });
-        schedule();
-        return;
-      }
 
       if (mode === 'pan') {
         // Drag RIGHT walks back through history, the way every chart behaves.
@@ -8051,11 +7963,6 @@
     });
 
     const finish = ev => {
-      pts.delete(ev.pointerId);
-      if (mode === 'pinch') {
-        if (pts.size < 2) { pinch = null; mode = null; pid = null; reel.lastGestureAt = Date.now(); }
-        return;
-      }
       if (ev.pointerId !== pid) return;
       // A gesture that never became a pan leaves the axis free to fit again.
       const c = host._reelCtx;
@@ -8076,10 +7983,9 @@
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {
       const ctx = host._reelCtx;
-      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name) && !reel.win.has(ctx.name))) return;
+      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name))) return;
       reel.pan.delete(ctx.name);
       reel.lockY.delete(ctx.name);
-      reel.win.delete(ctx.name);
       reelRepaint(host);
     });
   }
