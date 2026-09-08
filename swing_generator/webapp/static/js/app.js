@@ -6852,11 +6852,17 @@
 
   function reelPanOf(name) { return reel.pan.get(name) || 0; }
 
+  // How far PAST the newest bar you may scroll, as a share of the window. The
+  // empty space is the point: a channel is a projection, and you cannot read a
+  // projection that stops at today's bar.
+  const REEL_FUTURE_FRAC = 0.5;
+
   function reelSetPan(name, v, bundle) {
     const n    = bundle.c.length;
     const want = reelWindowBars(bundle, name);
-    const max  = Math.max(0, n - want);
-    const next = Math.min(Math.max(0, Math.round(v)), max);
+    const max  = Math.max(0, n - want);                    // back through history
+    const min  = -Math.round(want * REEL_FUTURE_FRAC);     // forward into blank space
+    const next = Math.min(Math.max(min, Math.round(v)), max);
     if (next === reelPanOf(name)) return false;
     if (next) reel.pan.set(name, next); else reel.pan.delete(name);
     return true;
@@ -7007,7 +7013,9 @@
     const ch = instChannels[name];
     if (ch && ch.locked)        return 'Unlock';
     if (reel.editing === name)  return 'Done';
-    return ch ? 'Edit channel' : 'Channel';
+    // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
+    // Details and TradingView, which moved the chart every time one appeared.
+    return ch ? 'Edit' : 'Channel';
   }
 
   function reelSyncChannelButtons() {
@@ -7107,10 +7115,44 @@
       + handles + badge;
   }
 
+  // Vertical time lines. Calendar boundaries, not evenly-spaced ticks: a line
+  // every N bars tells you nothing, whereas "this is where 2025 started" is a
+  // fact you navigate by. Which boundary depends on how much calendar the
+  // timeframe shows — a year line on a 1H chart covering six weeks would never
+  // appear, and quarter lines on a Weekly chart covering ten years would be a
+  // picket fence. So: years on D / 3D / W, quarters on 1H / 4H.
+  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter',
+                           'D': 'year', '3D': 'year', 'W': 'year' };
+
+  function reelTimeGrid(b, tf) {
+    const mode = REEL_TIME_GRID[tf] || 'year';
+    const out  = [];
+    let prev = null;
+    for (let i = 0; i < b.t.length; i++) {
+      const str = String(b.t[i]);
+      const y = +str.slice(0, 4), m = +str.slice(5, 7);
+      if (!y || !m) continue;
+      const q   = Math.floor((m - 1) / 3);
+      const key = mode === 'quarter' ? y + ':' + q : String(y);
+      // The FIRST bar of the new period is the boundary. i===0 is skipped: the
+      // left edge is not a crossing, it is just where the window happens to start.
+      if (prev !== null && key !== prev.key) {
+        out.push({ i, label: mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y : String(y) });
+      }
+      prev = { key };
+    }
+    return out;
+  }
+
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
-    const b  = reelSlice(bundle, reelWindowBars(bundle, item.instrument_name),
-                         reelPanOf(item.instrument_name));
+    // The window is a fixed number of SLOTS. Panning forward past the newest bar
+    // fills the tail of it with nothing rather than making the bars wider, so
+    // bar width — the thing that makes a chart look zoomed — never changes.
+    const _winBars = reelWindowBars(bundle, item.instrument_name);
+    const _pan     = reelPanOf(item.instrument_name);
+    const _future  = Math.max(0, -_pan);
+    const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
     const L  = reelLayout(host);
     // Price scale. It fits the visible slice, EXCEPT while this card is being
     // panned: then it is pinned to the bounds captured when the drag began, so
@@ -7124,7 +7166,7 @@
     // Leave a margin of empty bars between the last bar and the price axis,
     // the way a real chart does — price pinned to the scale is hard to read,
     // and the ribbon needs somewhere to run to.
-    const bw = (L.x1 - L.x0) / (n + REEL_RIGHT_PAD_BARS);
+    const bw = (L.x1 - L.x0) / (_winBars + REEL_RIGHT_PAD_BARS);
     const xOf = i => L.x0 + i * bw + bw / 2;
 
     // ── Price axis ──
@@ -7271,14 +7313,31 @@
       clipTag = `<text x="${L.x1 - 6}" y="${above ? L.py0 + 16 : L.py1 - 6}" class="reel-clip-tag" text-anchor="end">ribbon ${above ? '↑' : '↓'} ${Math.abs(dist * 100).toFixed(0)}%</text>`;
     }
 
-    // ── Date labels ──
-    const dticks = [0, Math.floor(n / 3), Math.floor(2 * n / 3), n - 1]
-      .filter((v, i, a) => a.indexOf(v) === i);
-    const dates = dticks.map(i => {
-      const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
-      const x = i === 0 ? L.x0 : i === n - 1 ? L.x1 : xOf(i);
-      return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${String(b.t[i]).slice(0, 10)}</text>`;
+    // ── Time lines + date labels ──
+    // The boundary lines carry their own labels; the window's own first and
+    // last dates stay as end-stops so the axis is never blank on a range that
+    // happens to cross no boundary at all.
+    const tg = reelTimeGrid(b, timeframe);
+    const timeGrid = tg.map(t => {
+      const x = xOf(t.i);
+      if (x < L.x0 || x > L.x1) return '';
+      const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
+      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="reel-tgrid"/>` +
+             (near ? '' : `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${t.label}</text>`);
     }).join('');
+
+    // Once the calendar lines are labelled they ARE the axis, so the window's
+    // own first/last dates are dropped — they sat on top of the year labels the
+    // moment you panned, because the last bar is no longer at the right edge.
+    // They come back only on a range that crosses no boundary at all, so the
+    // axis is never left blank.
+    const hasGridLabels = /reel-tgrid-lbl/.test(timeGrid);
+    const dates = hasGridLabels ? '' :
+      [0, n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
+        const anchor = i === 0 ? 'start' : 'end';
+        const x = i === 0 ? L.x0 : xOf(i);
+        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${String(b.t[i]).slice(0, 10)}</text>`;
+      }).join('');
 
     // ── Trend channel, if one is saved for this instrument ──
     const name    = item.instrument_name;
@@ -7290,7 +7349,7 @@
     host._reelCtx = { L, sc, bw, b, name, bundle };
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      ${grid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
+      ${grid}${timeGrid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
     </svg>`;
   }
 
@@ -7559,7 +7618,7 @@
         // left, so a rightward drag INCREASES the offset into history. Window
         // WIDTH never changes here — only which slice of time it covers.
         if (reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle)) schedule();
-        else if (reelWindowBars(ctx.bundle, ctx.name) >= ctx.bundle.c.length) {
+        else if (dx > 0 && reelWindowBars(ctx.bundle, ctx.name) >= ctx.bundle.c.length) {
           // Nothing off-screen to scroll to. Say which control makes room,
           // rather than letting the drag read as broken.
           reelHint(host, 'Whole chart is already shown — pick a Range to scroll back');
