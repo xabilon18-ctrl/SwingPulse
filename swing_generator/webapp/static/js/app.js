@@ -7539,6 +7539,7 @@
   // same shape means the controls behave identically without a second copy.
 
   let chartFullName = null;
+  let chartFullPrevLock = undefined;   // the reader's own price scale, put back on close
 
   function chartFullEl() { return document.getElementById('chartFull'); }
 
@@ -7568,13 +7569,57 @@
     const bundle = data && data[name];
     if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
     host._reelItem = item;
+
+    // Keep the BARS' SHAPE. The panel is taller but no wider, so letting the
+    // price scale auto-fit again spreads the same price range over more pixels
+    // and every bar comes out tall and thin — the chart is distorted, not
+    // enlarged. Instead the price range is grown in proportion to the extra
+    // height, which holds price-per-pixel exactly where it was and spends the
+    // new room on showing MORE chart above and below.
+    chartFullPrevLock = reel.lockY.has(name) ? reel.lockY.get(name) : undefined;
+    const src = chartFullSourceCtx(name);
+    if (src) {
+      const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
+      const fullPlot = plotPixelHeight(host, reelLayout(host));
+      if (srcPlot > 0 && fullPlot > 0) {
+        const mid  = (src.ctx.sc.lo + src.ctx.sc.hi) / 2;
+        const span = (src.ctx.sc.hi - src.ctx.sc.lo) * (fullPlot / srcPlot);
+        reel.lockY.set(name, { lo: mid - span / 2, hi: mid + span / 2 });
+      }
+    }
+
     host.innerHTML = reelChartSvg(bundle, item, host);
     reelWireChart(host);
     chartFullSyncButtons();
   }
 
+  // The card this was opened from, if it is still painted — the reference for
+  // how big a bar was before the chart got a bigger box.
+  function chartFullSourceCtx(name) {
+    const card = [...document.querySelectorAll('#chartReel .reel-card')]
+      .find(c => c.dataset.name === name);
+    const h = card && card.querySelector('.reel-chart');
+    return (h && h._reelCtx) ? { ctx: h._reelCtx, host: h } : null;
+  }
+
+  // Plot height in SCREEN pixels. The viewBox is 1000 wide on both hosts but
+  // they are not the same number of CSS pixels wide (the full-screen one is
+  // inset), so viewBox units do not convert to pixels at the same rate and
+  // comparing them directly got the scaling wrong by 14%.
+  function plotPixelHeight(host, L) {
+    const px = host.getBoundingClientRect().height;
+    return px > 0 && L.H > 0 ? px * (L.py1 - L.py0) / L.H : 0;
+  }
+
   function chartFullClose() {
     const el = chartFullEl();
+    // Put the reader's own price scale back — the one full screen imposed was
+    // ours, not theirs, and leaving it would zoom the card out on return.
+    if (chartFullName) {
+      if (chartFullPrevLock === undefined) reel.lockY.delete(chartFullName);
+      else reel.lockY.set(chartFullName, chartFullPrevLock);
+      chartFullPrevLock = undefined;
+    }
     if (el) { el.classList.remove('open'); el.innerHTML = ''; }
     document.body.classList.remove('chart-full-open');
     chartFullName = null;
