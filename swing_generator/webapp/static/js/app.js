@@ -7387,6 +7387,7 @@
           ${simPct(name)}
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+          <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
       </header>
 
@@ -7510,6 +7511,125 @@
     const ctx = host && host._reelCtx;
     if (!ctx || !host._reelItem) return;
     host.innerHTML = reelChartSvg(ctx.bundle, host._reelItem, host);
+  }
+
+  // ── Share the chart as a picture ─────────────────────────────────────
+  //
+  // The chart is an inline SVG that gets ALL of its colour from stylesheet
+  // classes and CSS custom properties. Serialise it as-is and every one of
+  // those resolves to nothing — you get a black rectangle. So the clone is
+  // walked against the live element and each painted property is copied across
+  // as an explicit attribute. That is why this reads the computed style of the
+  // original rather than trying to ship the stylesheet with the image.
+  const SHARE_STYLE_PROPS = [
+    'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity',
+    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
+    'opacity', 'font-size', 'font-family', 'font-weight', 'text-anchor',
+  ];
+
+  function inlineSvgStyles(liveEl, cloneEl) {
+    const cs = getComputedStyle(liveEl);
+    for (const prop of SHARE_STYLE_PROPS) {
+      const v = cs.getPropertyValue(prop);
+      if (v && v !== 'none' && v !== 'normal') cloneEl.setAttribute(prop, v.trim());
+    }
+    const lk = liveEl.children, ck = cloneEl.children;
+    for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
+  }
+
+  function cssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  // Render one card's chart to a PNG blob, with a caption strip so the picture
+  // still says what it is once it has left the app.
+  async function chartToPngBlob(name, host) {
+    const svg = host && host.querySelector('svg.reel-svg');
+    if (!svg) return null;
+
+    const vb = (svg.getAttribute('viewBox') || '0 0 1000 800').split(/\s+/).map(Number);
+    const W = vb[2] || 1000, H = vb[3] || 800;
+    const HEAD = 96, FOOT = 46, SCALE = 2;
+
+    const clone = svg.cloneNode(true);
+    inlineSvgStyles(svg, clone);
+    clone.setAttribute('width', W);
+    clone.setAttribute('height', H);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    const url = 'data:image/svg+xml;charset=utf-8,' +
+                encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+
+    const cv = document.createElement('canvas');
+    cv.width = W * SCALE; cv.height = (H + HEAD + FOOT) * SCALE;
+    const ctx = cv.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+
+    ctx.fillStyle = cssVar('--bg-card', '#121211');
+    ctx.fillRect(0, 0, W, H + HEAD + FOOT);
+
+    const item  = allData.find(d => d.instrument_name === name) || {};
+    const sig   = item[f('primary_signal')] || '';
+    const trend = effectiveTrend(item);
+    const full  = instName(name);
+
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = cssVar('--text-primary', '#f4f4f5');
+    ctx.font = '700 40px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText(name, 24, 52);
+
+    const nameW = ctx.measureText(name).width;
+    ctx.fillStyle = cssVar('--text-muted', '#6e6e79');
+    ctx.font = '400 26px system-ui, -apple-system, "Segoe UI", sans-serif';
+    if (full && full !== name) ctx.fillText(full, 24 + nameW + 14, 52);
+
+    ctx.fillStyle = cssVar('--text-secondary', '#a1a1aa');
+    ctx.font = '500 26px system-ui, -apple-system, "Segoe UI", sans-serif';
+    const sub = [tfMeta().label, trend, sig].filter(Boolean).join('  ·  ');
+    ctx.fillText(sub, 24, 84);
+
+    ctx.drawImage(img, 0, HEAD, W, H);
+
+    ctx.fillStyle = cssVar('--text-muted', '#6e6e79');
+    ctx.font = '400 22px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.fillText('SwingPulse · ' + new Date().toISOString().slice(0, 10), 24, H + HEAD + 30);
+
+    return await new Promise(res => cv.toBlob(res, 'image/png'));
+  }
+
+  async function shareChartImage(name, host) {
+    let blob;
+    try { blob = await chartToPngBlob(name, host); }
+    catch (_) { blob = null; }
+    if (!blob) { if (host) reelHint(host, 'Could not render this chart'); return; }
+
+    const file = new File([blob], `${name.replace(/[^\w.-]+/g, '_')}-${tfMeta().code}.png`,
+                          { type: 'image/png' });
+
+    // Share sheet where the device has one (iOS/Android), download everywhere
+    // else. canShare({files}) is the only honest test — navigator.share alone
+    // exists on browsers that refuse file payloads.
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `${name} · ${tfMeta().label}` });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;   // user closed the sheet
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    if (host) reelHint(host, 'Chart saved as ' + file.name);
   }
 
   // ── Chart gestures: pan sideways, and drag the channel handles ───────
@@ -8097,7 +8217,9 @@
     const host = document.getElementById('chartReel');
     if (host) {
       host.addEventListener('click', e => {
-        const btn = e.target.closest('.reel-act');
+        // .reel-share-btn lives in the card HEADER, so it is matched here too —
+        // it is not a .reel-act and closest('.reel-act') silently skipped it.
+        const btn = e.target.closest('.reel-act, .reel-share-btn');
         if (btn) {
           const name = btn.dataset.name;
           if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return; }
@@ -8109,6 +8231,7 @@
           }
           const cardEl = btn.closest('.reel-card');
           const chHost = cardEl && cardEl.querySelector('.reel-chart');
+          if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return; }
           if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return; }
           if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return; }
           if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return; }

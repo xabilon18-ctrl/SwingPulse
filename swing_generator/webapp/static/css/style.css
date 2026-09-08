@@ -7672,8 +7672,12 @@ body {
 
 /* Vertical calendar lines — dotted, and deliberately fainter than the price
    gridlines: they are for orientation, not for reading a level off. */
-.reel-tgrid { stroke: var(--border); stroke-width: 1.4; stroke-dasharray: 2 8; stroke-opacity: .75; }
-.reel-tgrid-lbl { opacity: .9; }
+/* --border (#2a2a28) on a #121211 panel is a 3-point luminance difference:
+   the lines were technically drawn and effectively invisible, on the phone and
+   in a shared PNG alike. Mid-grey at 60% reads as a guide without competing
+   with price. */
+.reel-tgrid { stroke: var(--text-muted); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .6; }
+.reel-tgrid-lbl { opacity: 1; }
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
 .reel-ch-h {
@@ -7739,6 +7743,15 @@ body {
 .reel-act:hover { border-color: var(--border-active); color: var(--text-primary); }
 .reel-act.on { color: var(--accent); border-color: var(--accent); }
 .reel-act-clr { color: var(--sell); }
+/* Share lives in the card HEADER, not the footer: five buttons overflow a
+   375px footer (measured), and the header had 149px spare. */
+.reel-share-btn {
+  appearance: none; border: 0; background: transparent; padding: 2px 0 2px 8px;
+  color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center;
+  transition: color .15s ease;
+}
+.reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
+.reel-share-btn svg { display: block; }
 .reel-act-lock { color: var(--accent); }
 .reel-act-lock[hidden] { display: none; }
 /* While a channel is being drawn the card shows ★ / Done / Lock / Clear and
