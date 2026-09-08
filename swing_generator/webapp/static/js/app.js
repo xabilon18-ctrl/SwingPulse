@@ -162,7 +162,9 @@
   // mean the same thing on 1H as on Weekly, so the same channel is a trend
   // read on every tab. Draw it once on the timeframe where the structure is
   // clearest and it shows up on the rest.
-  //   { [instrument]: { [timeframe]: { t1, p1, t2, p2, up, dn, locked } } }
+  //   { [instrument]: { [timeframe]: [ { t1, p1, t2, p2, up, dn, locked }, ... ] } }
+  // A LIST per chart, so more than one channel can sit on the same instrument
+  // and timeframe.
   // Keyed by timeframe as well as instrument: a channel belongs to the chart it
   // was drawn on. Sharing one across every timeframe was the first design and
   // it was wrong in use — the same lines turned up on 1H where they meant
@@ -219,12 +221,14 @@
         const m = migrateChannel(v);
         if (!m) continue;
         out[name] = {};
-        for (const tf of CHANNEL_TFS) out[name][tf] = { ...m };
+        for (const tf of CHANNEL_TFS) out[name][tf] = [{ ...m }];
       } else {
         const per = {};
         for (const tf of Object.keys(v)) {
-          const m = migrateChannel(v[tf]);
-          if (m) per[tf] = m;
+          // A single object is the pre-list shape; a list is current.
+          const list = (Array.isArray(v[tf]) ? v[tf] : [v[tf]])
+            .map(migrateChannel).filter(Boolean);
+          if (list.length) per[tf] = list;
         }
         if (Object.keys(per).length) out[name] = per;
       }
@@ -237,21 +241,48 @@
     catch (_) { return {}; }
   })();
 
-  // The channel for one instrument on the CHART CURRENTLY SHOWN.
-  function channelFor(name) {
+  // Every channel on one instrument on the CHART CURRENTLY SHOWN.
+  function channelsFor(name) {
     const per = instChannels[name];
-    return (per && per[timeframe]) || null;
+    return (per && per[timeframe]) || [];
   }
 
-  function setChannelFor(name, ch) {
+  // Which one Lock and Clear act on, and which one draws its handles solid:
+  // the last one added or dragged. Kept per (instrument, timeframe) so moving
+  // between charts does not carry a selection that means nothing there.
+  function activeIdx(name) {
+    const list = channelsFor(name);
+    if (!list.length) return -1;
+    const k = name + '|' + timeframe;
+    const i = reel.activeCh.get(k);
+    return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
+  }
+
+  function setActiveIdx(name, i) { reel.activeCh.set(name + '|' + timeframe, i); }
+
+  function activeChannel(name) {
+    const i = activeIdx(name);
+    return i < 0 ? null : channelsFor(name)[i];
+  }
+
+  function addChannelFor(name, ch) {
     if (!instChannels[name]) instChannels[name] = {};
-    instChannels[name][timeframe] = ch;
+    if (!Array.isArray(instChannels[name][timeframe])) instChannels[name][timeframe] = [];
+    instChannels[name][timeframe].push(ch);
+    setActiveIdx(name, instChannels[name][timeframe].length - 1);
   }
 
+  // Remove only the ACTIVE channel — clearing the whole chart because you meant
+  // to delete one of two would be the expensive mistake here.
   function clearChannelFor(name) {
-    if (!instChannels[name]) return;
-    delete instChannels[name][timeframe];
-    if (!Object.keys(instChannels[name]).length) delete instChannels[name];
+    const per = instChannels[name];
+    if (!per || !Array.isArray(per[timeframe])) return;
+    const i = activeIdx(name);
+    if (i < 0) return;
+    per[timeframe].splice(i, 1);
+    reel.activeCh.delete(name + '|' + timeframe);
+    if (!per[timeframe].length) delete per[timeframe];
+    if (!Object.keys(per).length) delete instChannels[name];
   }
 
   function syncApplyRemote(remote) {
@@ -6724,7 +6755,8 @@
     range:  0,               // trailing bars to draw; 0 = the whole window
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
     lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
-    editing: null,           // instrument whose channel is being dragged, or null
+    editing: null,           // instrument whose channels are being edited, or null
+    activeCh: new Map(),     // "name|tf" → index of the channel Lock/Clear act on
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
     chunks: new Map(),       // "D:3" → { name: bundle }
     inflight: new Map(),     // "D:3" → Promise
@@ -7054,7 +7086,7 @@
     // Locked is a real gate, not a label. Unlocking goes STRAIGHT into editing:
     // you only unlock in order to change something, and making that two taps
     // read as "I cannot adjust the channel any more".
-    const _cur = channelFor(name);
+    const _cur = activeChannel(name);
     if (_cur && _cur.locked) {
       _cur.locked = false;
       reel.editing = name;
@@ -7065,10 +7097,10 @@
     }
     if (reel.editing === name) { reel.editing = null; channelSave(); }
     else {
-      if (!channelFor(name) && ctx) {
+      if (!channelsFor(name).length && ctx) {
         const def = reelDefaultChannel(ctx.b);
         if (!def) return;
-        setChannelFor(name, def);
+        addChannelFor(name, def);
         channelSave();
       }
       reel.editing = name;
@@ -7080,8 +7112,28 @@
   // Lock finishes the channel: it stays drawn and stays put, and no touch can
   // move it until it is unlocked. This is the "I am happy with it" step, which
   // is a different statement from "I have stopped editing for now".
+  // Add a SECOND (or third) channel to the same chart. Offset from the default
+  // so it does not land exactly on top of the one already there — two channels
+  // drawn on the same pixels look like one and cannot be told apart to drag.
+  function channelAdd(name, host) {
+    const ctx = host && host._reelCtx;
+    if (!ctx) return;
+    const def = reelDefaultChannel(ctx.b);
+    if (!def) return;
+    const n = channelsFor(name).length;
+    if (n) {
+      const shift = (def.up - def.dn) * 0.6 * n;
+      def.p1 -= shift; def.p2 -= shift;
+    }
+    addChannelFor(name, def);
+    reel.editing = name;
+    channelSave();
+    if (host) reelRepaint(host);
+    reelSyncChannelButtons();
+  }
+
   function channelSetLocked(name, locked, host) {
-    const ch = channelFor(name);
+    const ch = activeChannel(name);
     if (!ch) return;
     ch.locked = !!locked;
     if (locked) reel.editing = null;
@@ -7102,7 +7154,7 @@
   // live update both read it, so the two cannot drift apart. Every label is what
   // the button will DO, not what state it is in.
   function channelBtnLabel(name) {
-    const ch = channelFor(name);
+    const ch = activeChannel(name);
     if (ch && ch.locked)        return 'Unlock';
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
@@ -7113,7 +7165,10 @@
   function reelSyncChannelButtons() {
     document.querySelectorAll('#chartReel .reel-card').forEach(card => {
       const name = card.dataset.name;
-      const ch   = channelFor(name);
+      const ch   = activeChannel(name);
+      const nCh  = channelsFor(name).length;
+      const add  = card.querySelector('[data-act="channel-add"]');
+      if (add) add.hidden = reel.editing !== name;
       const btn  = card.querySelector('[data-act="channel"]');
       const clr  = card.querySelector('[data-act="channel-clear"]');
       const lk   = card.querySelector('[data-act="channel-lock"]');
@@ -7136,7 +7191,13 @@
   // line and cannot be grabbed apart again.
   const CH_MIN_SPAN = 20;
 
-  function reelChannelSvg(ch, b, L, sc, bw, editing) {
+  function reelChannelsSvg(list, b, L, sc, bw, editing, activeI) {
+    if (!list || !list.length) return '';
+    return list.map((ch, i) =>
+      reelChannelSvg(ch, b, L, sc, bw, editing, i, i === activeI)).join('');
+  }
+
+  function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
     if (!ch) return '';
     const i1 = reelBarIndexForDate(b, ch.t1);
     const i2 = reelBarIndexForDate(b, ch.t2);
@@ -7182,9 +7243,12 @@
       // a 9px target, which is half a fingertip. The invisible r=42 circle over
       // it is ~30px — an actual thumb — and carries the same data-h, so the hit
       // test does not care which one you land on.
+      // data-ci carries WHICH channel the handle belongs to, so one pointer
+      // handler serves any number of them.
+      const hcls = isActive ? 'reel-ch-h' : 'reel-ch-h is-idle';
       const hx = (x, y, id) => (x >= L.x0 - 2 && x <= L.x1 + 2)
-        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>` +
-          `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}"/>`
+        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="${hcls}" data-h="${id}" data-ci="${idx}"/>` +
+          `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`
         : '';
       // Four: both ENDS of the midline, and both EDGES. Each edge moves on its
       // own. The end handles sit ON the midline — the spine is not drawn, and a
@@ -7450,8 +7514,8 @@
 
     // ── Trend channel, if one is saved for this instrument ──
     const name    = item.instrument_name;
-    const channel = reelChannelSvg(channelFor(name), b, L, sc, bw,
-                                   reel.editing === name);
+    const channel = reelChannelsSvg(channelsFor(name), b, L, sc, bw,
+                                    reel.editing === name, activeIdx(name));
 
     // The pointer handlers need the exact geometry that was DRAWN, not a
     // recomputation that might drift from it, so it is stashed on the host.
@@ -7485,7 +7549,7 @@
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
     const starred = userStarred.has(name);
 
-    const _chNow = channelFor(name);
+    const _chNow = activeChannel(name);
     const _chEditing = reel.editing === name && !(_chNow && _chNow.locked);
     return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
@@ -7511,6 +7575,7 @@
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
+          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${reel.editing === name ? '' : ' hidden'} aria-label="Add another channel">+</button>
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && _chNow && !_chNow.locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && _chNow ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
@@ -7786,7 +7851,8 @@
     host.dataset.gestureWired = '1';
 
     let mode = null;         // null | 'pan' | 'handle' | 'scroll'
-    let handle = null;       // 'a' | 'b' | 'w'
+    let handle = null;       // 'a' | 'b' | 'u' | 'd'
+    let chIdx = -1;          // which channel the grabbed handle belongs to
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
@@ -7819,6 +7885,11 @@
       if (reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h) {
         mode = 'handle';
         handle = ev.target.dataset.h;
+        // Grabbing any handle makes that channel the active one, so Lock and
+        // Clear act on the channel you were just touching rather than on
+        // whichever happened to be added last.
+        chIdx = +ev.target.dataset.ci;
+        if (!isNaN(chIdx)) setActiveIdx(ctx.name, chIdx);
         host.setPointerCapture(pid);
         ev.preventDefault();
       }
@@ -7859,7 +7930,8 @@
       // mode === 'handle'
       const pt = reelSvgPoint(host, ev);
       if (!pt) return;
-      const ch = channelFor(ctx.name);
+      const list = channelsFor(ctx.name);
+      const ch = list[chIdx] || activeChannel(ctx.name);
       if (!ch) return;
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
@@ -7903,7 +7975,7 @@
       // otherwise open the instrument modal every time you panned.
       if (mode === 'pan' || mode === 'handle') reel.lastGestureAt = Date.now();
       try { host.releasePointerCapture(pid); } catch (_) {}
-      pid = null; mode = null; handle = null;
+      pid = null; mode = null; handle = null; chIdx = -1;
     };
     host.addEventListener('pointerup', finish);
     host.addEventListener('pointercancel', finish);
@@ -8345,6 +8417,7 @@
           const chHost = cardEl && cardEl.querySelector('.reel-chart');
           if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return; }
           if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return; }
+          if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost); return; }
           if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return; }
           if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return; }
         }

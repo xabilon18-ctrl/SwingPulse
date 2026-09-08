@@ -7686,6 +7686,9 @@ body {
   cursor: grab;
 }
 .reel-ch-h:active { cursor: grabbing; fill-opacity: .5; }
+/* Handles of a channel that is NOT the one Lock/Clear will act on — still
+   draggable, just quieter, so it is clear which channel those buttons mean. */
+.reel-ch-h.is-idle { fill-opacity: .06; stroke-opacity: .55; }
 /* The real hit area — invisible, and it must not swallow its own pointer
    events, hence pointer-events:all on a transparent fill. */
 .reel-ch-grab { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
@@ -7752,6 +7755,8 @@ body {
 }
 .reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
 .reel-share-btn svg { display: block; }
+.reel-act-add { color: var(--accent); font-size: 16px; line-height: 1; padding: 0 11px; }
+.reel-act-add[hidden] { display: none; }
 .reel-act-lock { color: var(--accent); }
 .reel-act-lock[hidden] { display: none; }
 /* While a channel is being drawn the card shows ★ / Done / Lock / Clear and
