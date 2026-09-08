@@ -5604,6 +5604,8 @@
 
 
   // ── Share card ────────────────────────────────────────────────────────
+  const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 
   function shareBtn(name) {
@@ -7163,6 +7165,7 @@
   }
 
   function reelSyncChannelButtons() {
+    chartFullSyncButtons();
     document.querySelectorAll('#chartReel .reel-card').forEach(card => {
       const name = card.dataset.name;
       const ch   = activeChannel(name);
@@ -7526,6 +7529,110 @@
     </svg>`;
   }
 
+  // ── Full-screen chart ────────────────────────────────────────────────
+  //
+  // The same renderer, the same gesture wiring and the same buttons — only the
+  // box is bigger. reelLayout() derives its geometry from the host's real size,
+  // so a taller host simply draws a taller chart; nothing here re-implements
+  // the chart. The overlay carries class `reel-card` on purpose: the delegated
+  // dispatch finds its chart host with closest('.reel-card'), and giving it the
+  // same shape means the controls behave identically without a second copy.
+
+  let chartFullName = null;
+
+  function chartFullEl() { return document.getElementById('chartFull'); }
+
+  async function chartFullOpen(name) {
+    const item = (reel.list || []).find(d => d.instrument_name === name)
+              || allData.find(d => d.instrument_name === name);
+    if (!item) return;
+    chartFullName = name;
+
+    let el = chartFullEl();
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'chartFull';
+      document.body.appendChild(el);
+      el.addEventListener('click', e => {
+        if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
+        window.__reelBtnAct(e);
+      });
+    }
+    el.className = 'reel-card chart-full open';
+    el.dataset.name = name;
+    el.innerHTML = chartFullHtml(item);
+    document.body.classList.add('chart-full-open');
+
+    const host = el.querySelector('.reel-chart');
+    const data = await reelLoadChunk(name);
+    const bundle = data && data[name];
+    if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
+    host._reelItem = item;
+    host.innerHTML = reelChartSvg(bundle, item, host);
+    reelWireChart(host);
+    chartFullSyncButtons();
+  }
+
+  function chartFullClose() {
+    const el = chartFullEl();
+    if (el) { el.classList.remove('open'); el.innerHTML = ''; }
+    document.body.classList.remove('chart-full-open');
+    chartFullName = null;
+    // The reel behind it shares the channel and pan state, so anything drawn
+    // full-screen has to be redrawn on the card.
+    reelRepaintVisible();
+  }
+
+  function chartFullHtml(item) {
+    const name  = item.instrument_name;
+    const ch    = activeChannel(name);
+    const edit  = reel.editing === name && !(ch && ch.locked);
+    return `
+      <header class="cf-head">
+        <div class="cf-title">
+          <span class="reel-name">${name}</span>
+          <span class="reel-group">${item.group || ''} · ${tfMeta().label}</span>
+        </div>
+        <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
+        <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
+      </header>
+      <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
+      <footer class="reel-foot">
+        <span class="reel-tf-tag">${tfMeta().label}</span>
+        <div class="reel-foot-actions">
+          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
+          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${edit ? '' : ' hidden'} aria-label="Add another channel">Add</button>
+          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${edit && ch && !ch.locked ? '' : ' hidden'}>Lock</button>
+          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${edit && ch ? '' : ' hidden'}>Clear</button>
+        </div>
+      </footer>`;
+  }
+
+  // Mirrors reelSyncChannelButtons for the one full-screen card.
+  function chartFullSyncButtons() {
+    const el = chartFullEl();
+    if (!el || !el.classList.contains('open')) return;
+    const name = el.dataset.name;
+    const ch   = activeChannel(name);
+    const edit = reel.editing === name;
+    const q = a => el.querySelector(`[data-act="${a}"]`);
+    const b = q('channel'), add = q('channel-add'), lk = q('channel-lock'), clr = q('channel-clear');
+    if (b) { b.textContent = channelBtnLabel(name); b.classList.toggle('on', edit || !!(ch && ch.locked)); }
+    if (add) add.hidden = !edit;
+    if (lk)  lk.hidden  = !(edit && ch && !ch.locked);
+    if (clr) clr.hidden = !(edit && ch);
+    el.classList.toggle('ch-editing', edit && !(ch && ch.locked));
+  }
+
+  // Repaint whatever cards are currently drawn — used when returning from full
+  // screen, where the shared channel/pan state may have changed underneath.
+  function reelRepaintVisible() {
+    document.querySelectorAll('#chartReel .reel-chart').forEach(h => {
+      if (h._reelCtx && h._reelItem) reelRepaint(h);
+    });
+    reelSyncChannelButtons();
+  }
+
   // ── Card shell ───────────────────────────────────────────────────────
 
   // While comparing, each card carries how close it is to the anchor — the
@@ -7561,6 +7668,7 @@
           ${simPct(name)}
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+          <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
       </header>
@@ -8397,30 +8505,38 @@
       });
     }
 
+    // ONE dispatch for the card buttons, used by the reel AND by the full-screen
+    // view — the two must never drift into doing different things.
+    // Returns true when it handled the click.
+    window.__reelBtnAct = function (e) {
+      // .reel-share-btn lives in the card HEADER, so it is matched here too —
+      // it is not a .reel-act and closest('.reel-act') silently skipped it.
+      const btn = e.target.closest('.reel-act, .reel-share-btn');
+      if (!btn) return false;
+      const name = btn.dataset.name;
+      if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
+      if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
+      if (btn.dataset.act === 'star')   {
+        window.SP.toggleStar(name);
+        btn.classList.toggle('on', userStarred.has(name));
+        return true;
+      }
+      const cardEl = btn.closest('.reel-card');
+      const chHost = cardEl && cardEl.querySelector('.reel-chart');
+      if (btn.dataset.act === 'chart-expand')  { chartFullOpen(name); return true; }
+      if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
+      if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
+      if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost); return true; }
+      if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return true; }
+      if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return true; }
+      return false;
+    };
+
     // Card actions — delegated, so re-rendering the reel never orphans them.
     const host = document.getElementById('chartReel');
     if (host) {
       host.addEventListener('click', e => {
-        // .reel-share-btn lives in the card HEADER, so it is matched here too —
-        // it is not a .reel-act and closest('.reel-act') silently skipped it.
-        const btn = e.target.closest('.reel-act, .reel-share-btn');
-        if (btn) {
-          const name = btn.dataset.name;
-          if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return; }
-          if (btn.dataset.act === 'detail') { window.SP.openModal(name); return; }
-          if (btn.dataset.act === 'star')   {
-            window.SP.toggleStar(name);
-            btn.classList.toggle('on', userStarred.has(name));
-            return;
-          }
-          const cardEl = btn.closest('.reel-card');
-          const chHost = cardEl && cardEl.querySelector('.reel-chart');
-          if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return; }
-          if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return; }
-          if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost); return; }
-          if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return; }
-          if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return; }
-        }
+        if (window.__reelBtnAct(e)) return;
         // Tapping the chart itself opens the full instrument view — but a pan
         // or a handle drag ends in a click too, and while a channel is being
         // edited every tap on the chart is aimed at the channel, not the modal.
