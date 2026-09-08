@@ -110,7 +110,7 @@
   // Migrate legacy (non-namespaced) data into the user's own bucket on first run
   function migrateUserData() {
     if (!syncUser) return;
-    ['swingpulse-starred','sp-notes','sp-open-trades','sp-closed-trades','sp-last-modified'].forEach(base => {
+    ['swingpulse-starred','sp-notes','sp-channels','sp-open-trades','sp-closed-trades','sp-last-modified'].forEach(base => {
       const legacy = localStorage.getItem(base);
       if (legacy !== null && localStorage.getItem(sk(base)) === null) {
         localStorage.setItem(sk(base), legacy);
@@ -157,6 +157,18 @@
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
+  // Hand-drawn trend channels, ONE PER INSTRUMENT — deliberately not per
+  // timeframe. A channel is anchored in (date, price), and a date and a price
+  // mean the same thing on 1H as on Weekly, so the same channel is a trend
+  // read on every tab. Draw it once on the timeframe where the structure is
+  // clearest and it shows up on the rest.
+  //   { [instrument]: { t1, p1, t2, p2, w } }
+  // t* are 'YYYY-MM-DD' bar dates, p* prices on the base line, w the signed
+  // price offset to the parallel line. The midline sits at w/2.
+  let instChannels = (() => {
+    try { return JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
+    catch (_) { return {}; }
+  })();
 
   function syncApplyRemote(remote) {
     // Apply remote data, then re-render affected sections.
@@ -173,6 +185,12 @@
     if (remote.notes && typeof remote.notes === 'object') {
       instrumentNotes = remote.notes;
       localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
+    }
+    // Channels ride the same blob. The Worker shallow-merges unknown keys
+    // ({...prev, ...incoming}), so this needed no Worker change.
+    if (remote.channels && typeof remote.channels === 'object') {
+      instChannels = remote.channels;
+      localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
     }
     localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
   }
@@ -207,7 +225,7 @@
   function syncPushNow(intentional) {
     if (!syncUser) return;
     const stars = [...userStarred];
-    const payload = { notes: instrumentNotes, lastModified: Date.now() };
+    const payload = { notes: instrumentNotes, channels: instChannels, lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
 
     // Always record locally — a device with no sync password still works, it
@@ -318,6 +336,8 @@
     // Reload user-specific data from their own storage bucket
     userStarred    = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
     instrumentNotes = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}');
+    try { instChannels = JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
+    catch (_) { instChannels = {}; }
     updateSyncBadge();
     // A device that has never synced this user needs the password once; after
     // that the token is stored and this step never shows again.
@@ -1083,6 +1103,11 @@
     const reelAnchor = (currentTab === 'charts') ? reelVisibleName() : null;
 
     timeframe = tf;
+    // Bar offsets do not carry across timeframes — "40 bars back" is a fortnight
+    // on 1H and most of a year on Weekly. The CHANNEL does carry across, which
+    // is the whole point of anchoring it to dates rather than to bars.
+    reelResetPan();
+    reel.editing = null;
     try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
     syncTfButtons();
     syncRadarTf();   // radar payload is per-timeframe; re-point before renderAll
@@ -6613,6 +6638,9 @@
     sort:   'signal',
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
+    pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
+    win:    new Map(),       // name → bars shown, when a pan gesture zoomed this card in
+    editing: null,           // instrument whose channel is being dragged, or null
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
     chunks: new Map(),       // "D:3" → { name: bundle }
     inflight: new Map(),     // "D:3" → Promise
@@ -6746,7 +6774,9 @@
       lo, hi, span,
       clipped: hasMa && (mLo < lo || mHi > hi),
       maLo: mLo, maHi: mHi,
-      y: v => L.py1 - ((v - lo) / span) * (L.py1 - L.py0),
+      y:   v => L.py1 - ((v - lo) / span) * (L.py1 - L.py0),
+      // Inverse of y — a drag hands us a pixel and needs the price back.
+      inv: y => lo + ((L.py1 - y) / (L.py1 - L.py0)) * span,
     };
   }
 
@@ -6775,25 +6805,250 @@
   // its own bar indices (b.mi), so those are filtered and rebased rather than
   // sliced by the same count — slicing them naively would slide the ribbon
   // sideways against the price.
-  function reelSlice(b, bars) {
-    const n = b.c.length;
-    if (!bars || bars >= n) return b;
-    const from = n - bars;
+  function reelSlice(b, bars, offset) {
+    const n    = b.c.length;
+    const want = (!bars || bars >= n) ? n : bars;
+    // `offset` scrolls the window BACK through history. It is clamped here
+    // rather than at the drag site so every caller gets the same window and
+    // the drag cannot walk the chart off the end of the data.
+    const off  = Math.min(Math.max(0, Math.round(offset || 0)), Math.max(0, n - want));
+    if (want >= n && !off) return b;
+    const to   = n - off;
+    const from = Math.max(0, to - want);
     const keep = [];
     const mi   = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
-    for (let j = 0; j < mi.length; j++) if (mi[j] >= from) keep.push(j);
+    for (let j = 0; j < mi.length; j++) if (mi[j] >= from && mi[j] < to) keep.push(j);
     return {
-      t: b.t.slice(from), o: b.o.slice(from), h: b.h.slice(from),
-      l: b.l.slice(from), c: b.c.slice(from),
+      t: b.t.slice(from, to), o: b.o.slice(from, to), h: b.h.slice(from, to),
+      l: b.l.slice(from, to), c: b.c.slice(from, to),
       p: b.p, ms: b.ms,
       mi: keep.map(j => mi[j] - from),
       m:  b.m.map(series => keep.map(j => series[j])),
+      _from: from, _n: n,
     };
+  }
+
+  // How many bars the visible window holds, for a given bundle. A per-card
+  // override set by the pan gesture wins over the Range pill — see below.
+  function reelWindowBars(bundle, name) {
+    const n = bundle.c.length;
+    const w = (name && reel.win.get(name)) || reel.range;
+    return (!w || w >= n) ? n : w;
+  }
+
+  function reelPanOf(name) { return reel.pan.get(name) || 0; }
+
+  function reelSetPan(name, v, bundle) {
+    const n    = bundle.c.length;
+    const want = reelWindowBars(bundle, name);
+    const max  = Math.max(0, n - want);
+    const next = Math.min(Math.max(0, Math.round(v)), max);
+    if (next === reelPanOf(name)) return false;
+    if (next) reel.pan.set(name, next); else reel.pan.delete(name);
+    return true;
+  }
+
+  // A range change or a timeframe switch invalidates every pan offset — the
+  // window is a different width, so "12 bars back" means something else.
+  function reelResetPan() { reel.pan.clear(); reel.win.clear(); }
+
+  // At "Full window" the entire bundle is already on screen, so there is
+  // genuinely nothing to scroll to — and a drag that does nothing reads as
+  // broken. So the first sideways drag on a full-window card zooms it to half
+  // and pans from there. Double-tap puts it back.
+  function reelEnsurePannable(name, bundle) {
+    const n = bundle.c.length;
+    if (reelWindowBars(bundle, name) < n) return false;
+    reel.win.set(name, Math.max(30, Math.round(n / 2)));
+    return true;
+  }
+
+  // ── Trend channel ────────────────────────────────────────────────────
+  // Anchored in (date, price), never in pixels or bar indices: that is what
+  // lets ONE channel be a trend read on every timeframe. A bar index means
+  // something different on 1H than on Weekly; a date does not.
+
+  // Bar labels are '2026-09-08' on D/3D/W and '2026-09-08 14:00' on 1H/4H
+  // (chart_feed's date_fmt). Parsing only the date collapsed every intraday bar
+  // on a day to one timestamp, which flattened the whole x mapping on 1H and
+  // 4H — a channel drawn on Daily landed in the wrong place there, or nowhere.
+  function reelParseTs(v) {
+    const m = String(v).trim().match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
+    return m ? Date.parse(m[1] + 'T' + (m[2] || '00:00') + ':00Z') : NaN;
+  }
+
+  function reelBarTimes(b) {
+    if (b._bt) return b._bt;
+    b._bt = b.t.map(reelParseTs);
+    return b._bt;
+  }
+
+  // Fractional bar index for a date, EXTRAPOLATING outside the window so a
+  // channel drawn on Weekly still has a slope when you look at it on 1H, where
+  // both its anchors may sit years off the left edge.
+  function reelBarIndexForDate(b, dateStr) {
+    const bt = reelBarTimes(b);
+    const n  = bt.length;
+    const t  = reelParseTs(dateStr);
+    if (!isFinite(t) || !n) return null;
+    if (n === 1) return 0;
+    if (t <= bt[0]) {
+      const k = Math.min(n - 1, 10);
+      const per = (bt[k] - bt[0]) / k;
+      return per > 0 ? (t - bt[0]) / per : 0;
+    }
+    if (t >= bt[n - 1]) {
+      const k = Math.max(0, n - 1 - 10);
+      const per = (bt[n - 1] - bt[k]) / Math.max(1, n - 1 - k);
+      return per > 0 ? (n - 1) + (t - bt[n - 1]) / per : n - 1;
+    }
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= t) lo = mid; else hi = mid; }
+    const span = bt[hi] - bt[lo];
+    return span > 0 ? lo + (t - bt[lo]) / span : lo;
+  }
+
+  function reelDateForBarIndex(b, fi) {
+    const n = b.t.length;
+    if (!n) return null;
+    const i = Math.round(Math.min(Math.max(0, fi), n - 1));
+    return String(b.t[i]);          // full label — hour-precise when drawn on 1H/4H
+  }
+
+  // A starting channel that already sits on the chart, so the first drag is an
+  // adjustment rather than a construction. Anchored a fifth in from each edge
+  // of the visible window, on the closes there, and opened to the deepest
+  // excursion between them — which is the channel you were going to draw.
+  function reelDefaultChannel(b) {
+    const n = b.c.length;
+    if (n < 8) return null;
+    const i1 = Math.floor(n * 0.2), i2 = Math.floor(n * 0.8);
+    const p1 = b.c[i1], p2 = b.c[i2];
+    if (p1 == null || p2 == null) return null;
+    const m = (p2 - p1) / (i2 - i1);
+    let worst = 0;
+    for (let i = 0; i < n; i++) {
+      const lo = b.l[i], hi = b.h[i];
+      if (lo == null || hi == null) continue;
+      const base = p1 + m * (i - i1);
+      if (hi - base >  worst) worst = hi - base;
+      if (lo - base < -worst) worst = -(lo - base);
+    }
+    return {
+      t1: String(b.t[i1]), p1,
+      t2: String(b.t[i2]), p2,
+      w:  worst || Math.abs(p1) * 0.04,
+    };
+  }
+
+  function channelSave() {
+    try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
+    syncPush();
+  }
+
+  // Add (or start editing) the channel on one card. A first tap drops a
+  // channel already fitted to what you are looking at, so the first drag is an
+  // adjustment rather than a construction.
+  function channelToggleEdit(name, host) {
+    const ctx = host && host._reelCtx;
+    if (reel.editing === name) { reel.editing = null; channelSave(); }
+    else {
+      if (!instChannels[name] && ctx) {
+        const def = reelDefaultChannel(ctx.b);
+        if (!def) return;
+        instChannels[name] = def;
+        channelSave();
+      }
+      reel.editing = name;
+    }
+    if (host) reelRepaint(host);
+    reelSyncChannelButtons();
+  }
+
+  function channelClear(name, host) {
+    delete instChannels[name];
+    if (reel.editing === name) reel.editing = null;
+    channelSave();
+    if (host) reelRepaint(host);
+    reelSyncChannelButtons();
+  }
+
+  // Keep every visible card's channel button in step with the state — the
+  // button says what it will DO, and only the card being edited shows Clear.
+  function reelSyncChannelButtons() {
+    document.querySelectorAll('#chartReel .reel-card').forEach(card => {
+      const name = card.dataset.name;
+      const btn  = card.querySelector('[data-act="channel"]');
+      const clr  = card.querySelector('[data-act="channel-clear"]');
+      if (btn) {
+        const editing = reel.editing === name;
+        btn.textContent = editing ? 'Done' : (instChannels[name] ? 'Edit channel' : 'Channel');
+        btn.classList.toggle('on', editing);
+      }
+      if (clr) clr.hidden = !(reel.editing === name && instChannels[name]);
+      // Edit mode is modal, so the card shows only the controls that belong to
+      // it. Five buttons do not fit a phone footer — TradingView was clipped —
+      // and Details/TradingView are the wrong thing to hit mid-drag anyway.
+      card.classList.toggle('ch-editing', reel.editing === name);
+    });
+  }
+
+  function reelChannelSvg(ch, b, L, sc, bw, editing) {
+    if (!ch) return '';
+    const i1 = reelBarIndexForDate(b, ch.t1);
+    const i2 = reelBarIndexForDate(b, ch.t2);
+    if (i1 == null || i2 == null) return '';
+    const xAt = fi => L.x0 + fi * bw + bw / 2;
+    let x1 = xAt(i1), x2 = xAt(i2);
+    const y1 = sc.y(ch.p1), y2 = sc.y(ch.p2);
+    if (Math.abs(x2 - x1) < 0.5) x2 = x1 + 0.5;    // guard a vertical base
+    const slope = (y2 - y1) / (x2 - x1);
+    const yAtX  = x => y1 + slope * (x - x1);
+    // The price scale is linear, so a price offset is a CONSTANT pixel offset —
+    // the parallel line stays parallel without recomputing per x.
+    const dy = sc.y(ch.p1 + ch.w) - sc.y(ch.p1);
+
+    const XA = L.x0, XB = L.x1;
+    const yA = yAtX(XA), yB = yAtX(XB);
+
+    // Off-scale guard. A channel drawn on Weekly, seen on 1H, is being
+    // PROJECTED forward months past its anchors — legitimately, that is what a
+    // trend channel is for — but if price has since left the projection the
+    // lines land far outside the panel and there is nothing to see. Rather
+    // than draw invisible geometry, say where it went, the way the clipped
+    // ribbon already does.
+    const panelH = L.py1 - L.py0;
+    const lo = Math.min(yA, yA + dy, yB, yB + dy);
+    const hi = Math.max(yA, yA + dy, yB, yB + dy);
+    if (lo > L.py1 + panelH * 0.15 || hi < L.py0 - panelH * 0.15) {
+      const above = hi < L.py0;
+      return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">channel ${above ? '↑' : '↓'} off-scale</text>`;
+    }
+    const seg = (off, cls) =>
+      `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
+
+    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${yA.toFixed(1)} ${XB.toFixed(1)},${yB.toFixed(1)} ${XB.toFixed(1)},${(yB + dy).toFixed(1)} ${XA.toFixed(1)},${(yA + dy).toFixed(1)}"/>`;
+
+    let handles = '';
+    if (editing) {
+      const hx = (x, y, id) => (x >= L.x0 - 2 && x <= L.x1 + 2)
+        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>`
+        : '';
+      handles = hx(x1, y1, 'a') + hx(x2, y2, 'b')
+              + hx((x1 + x2) / 2, (y1 + y2) / 2 + dy, 'w');
+    }
+
+    return band
+      + seg(0,      'reel-ch reel-ch-edge')
+      + seg(dy,     'reel-ch reel-ch-edge')
+      + seg(dy / 2, 'reel-ch reel-ch-mid')
+      + handles;
   }
 
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
-    const b  = reelSlice(bundle, reel.range);
+    const b  = reelSlice(bundle, reelWindowBars(bundle, item.instrument_name),
+                         reelPanOf(item.instrument_name));
     const L  = reelLayout(host);
     const sc = reelScale(b, L);
     if (!sc) return '<div class="reel-nodata">No price data</div>';
@@ -6958,8 +7213,17 @@
       return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${String(b.t[i]).slice(0, 10)}</text>`;
     }).join('');
 
+    // ── Trend channel, if one is saved for this instrument ──
+    const name    = item.instrument_name;
+    const channel = reelChannelSvg(instChannels[name], b, L, sc, bw,
+                                   reel.editing === name);
+
+    // The pointer handlers need the exact geometry that was DRAWN, not a
+    // recomputation that might drift from it, so it is stashed on the host.
+    host._reelCtx = { L, sc, bw, b, name, bundle };
+
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      ${grid}${ribbon}${bars}${marker}${lastTag}${clipTag}${dates}
+      ${grid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
     </svg>`;
   }
 
@@ -6986,7 +7250,7 @@
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
     const starred = userStarred.has(name);
 
-    return `<article class="reel-card" data-name="${name}" data-idx="${i}">
+    return `<article class="reel-card${reel.editing === name ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-main">
           <span class="reel-name">${name}</span>
@@ -7008,6 +7272,8 @@
         <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
+          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${reel.editing === name ? 'Done' : (instChannels[name] ? 'Edit channel' : 'Channel')}</button>
+          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && instChannels[name] ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
         </div>
@@ -7104,7 +7370,151 @@
     }
     stillThere.innerHTML = reelChartSvg(bundle, item, stillThere);
     stillThere.dataset.painted = timeframe;
+    stillThere._reelItem = item;
+    reelWireChart(stillThere);
     reel.drawn.add(idx);
+  }
+
+  // Redraw ONE chart in place — used by the pan drag and the channel drag,
+  // which must not go through reelPaint (it early-exits on anything already
+  // painted, and re-fetching a chunk mid-gesture would stutter).
+  function reelRepaint(host) {
+    const ctx = host && host._reelCtx;
+    if (!ctx || !host._reelItem) return;
+    host.innerHTML = reelChartSvg(ctx.bundle, host._reelItem, host);
+  }
+
+  // ── Chart gestures: pan sideways, and drag the channel handles ───────
+  //
+  // ONE pointer handler does both. Which one you get is decided at the first
+  // few pixels of movement and then LOCKED for the gesture:
+  //   * started on a channel handle (edit mode only) → drag that handle
+  //   * mostly horizontal                            → pan through history
+  //   * mostly vertical                              → let the reel scroll
+  // The axis lock is what makes this usable on a phone. Without it a slightly
+  // diagonal flick either scrolls the feed when you meant to pan, or eats the
+  // scroll when you meant to leave.
+  const REEL_AXIS_LOCK_PX = 7;
+
+  function reelSvgPoint(host, ev) {
+    const svg = host.querySelector('svg.reel-svg');
+    const ctx = host._reelCtx;
+    if (!svg || !ctx) return null;
+    const r = svg.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return {
+      x: (ev.clientX - r.left) / r.width  * ctx.L.W,
+      y: (ev.clientY - r.top)  / r.height * ctx.L.H,
+      pxPerUnit: r.width / ctx.L.W,
+    };
+  }
+
+  function reelWireChart(host) {
+    if (host.dataset.gestureWired) return;
+    host.dataset.gestureWired = '1';
+
+    let mode = null;         // null | 'pan' | 'handle' | 'scroll'
+    let handle = null;       // 'a' | 'b' | 'w'
+    let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
+
+    // Coalesce redraws to one per frame. rAF is the right scheduler while the
+    // page is visible, but a backgrounded or hidden tab never runs it — and a
+    // drag that silently stops following the finger is worse than a slightly
+    // coarser one, so a timeout takes over if the frame never arrives.
+    const schedule = () => {
+      if (raf) return;
+      const run = () => { if (!raf) return; cancelAnimationFrame(raf); raf = 0; reelRepaint(host); };
+      raf = requestAnimationFrame(run);
+      setTimeout(run, 60);
+    };
+
+    host.addEventListener('pointerdown', ev => {
+      const ctx = host._reelCtx;
+      if (!ctx || pid !== null) return;
+      pid = ev.pointerId;
+      sx = ev.clientX; sy = ev.clientY;
+      startPan = reelPanOf(ctx.name);
+      mode = null; handle = null;
+
+      // A handle grab wins immediately — no axis lock, because dragging a
+      // handle straight up is a legitimate gesture and must not scroll away.
+      if (reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h) {
+        mode = 'handle';
+        handle = ev.target.dataset.h;
+        host.setPointerCapture(pid);
+        ev.preventDefault();
+      }
+    });
+
+    host.addEventListener('pointermove', ev => {
+      if (ev.pointerId !== pid) return;
+      const ctx = host._reelCtx;
+      if (!ctx) return;
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+
+      if (mode === null) {
+        if (Math.abs(dx) < REEL_AXIS_LOCK_PX && Math.abs(dy) < REEL_AXIS_LOCK_PX) return;
+        mode = Math.abs(dx) > Math.abs(dy) ? 'pan' : 'scroll';
+        if (mode === 'pan') host.setPointerCapture(pid);
+      }
+      if (mode === 'scroll') return;         // the feed keeps it
+      ev.preventDefault();
+
+      if (mode === 'pan') {
+        // Drag RIGHT walks back through history, the way every chart behaves.
+        if (reelEnsurePannable(ctx.name, ctx.bundle)) schedule();
+        const pt = reelSvgPoint(host, ev);
+        const perBar = (pt ? pt.pxPerUnit : 1) * ctx.bw;
+        // Grab the paper and pull it RIGHT and older bars come in from the
+        // left, so a rightward drag INCREASES the offset into history.
+        if (reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle)) schedule();
+        return;
+      }
+
+      // mode === 'handle'
+      const pt = reelSvgPoint(host, ev);
+      if (!pt) return;
+      const ch = instChannels[ctx.name];
+      if (!ch) return;
+      const price = ctx.sc.inv(pt.y);
+      const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
+
+      if (handle === 'a' || handle === 'b') {
+        const d = reelDateForBarIndex(ctx.b, fi);
+        if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = price; } else { ch.t2 = d; ch.p2 = price; } }
+      } else {
+        // Width handle: the gap between the pointer and the BASE line at this
+        // x, so the channel opens and closes about its own baseline.
+        const i1 = reelBarIndexForDate(ctx.b, ch.t1);
+        const i2 = reelBarIndexForDate(ctx.b, ch.t2);
+        if (i1 != null && i2 != null && Math.abs(i2 - i1) > 1e-6) {
+          const basePrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
+          ch.w = price - basePrice;
+        }
+      }
+      schedule();
+    });
+
+    const finish = ev => {
+      if (ev.pointerId !== pid) return;
+      if (mode === 'handle') channelSave();
+      // Suppresses the click that a drag inevitably ends with, which would
+      // otherwise open the instrument modal every time you panned.
+      if (mode === 'pan' || mode === 'handle') reel.lastGestureAt = Date.now();
+      try { host.releasePointerCapture(pid); } catch (_) {}
+      pid = null; mode = null; handle = null;
+    };
+    host.addEventListener('pointerup', finish);
+    host.addEventListener('pointercancel', finish);
+
+    // Double-tap / double-click snaps back to the newest bar.
+    host.addEventListener('dblclick', () => {
+      const ctx = host._reelCtx;
+      if (!ctx || (!reelPanOf(ctx.name) && !reel.win.has(ctx.name))) return;
+      reel.pan.delete(ctx.name);
+      reel.win.delete(ctx.name);
+      reelRepaint(host);
+    });
   }
 
   function reelObserve() {
@@ -7448,6 +7858,7 @@
         rangeBox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         reel.range = +btn.dataset.range || 0;
+        reelResetPan();       // a different window width makes old offsets meaningless
         try { localStorage.setItem('swingpulse-reel-range', String(reel.range)); } catch (_) {}
         const pill = btn.closest('.filter-pill');
         if (pill) pill.open = false;
@@ -7486,7 +7897,7 @@
     if (rst) {
       rst.addEventListener('click', () => {
         reel.scope = 'all'; reel.cat = ''; reel.trend = 'all'; reel.sort = 'signal';
-        reel.search = ''; reel.range = 0;
+        reel.search = ''; reel.range = 0; reelResetPan();
         // Reset was missing both of these: the Stack pill (added with the MA
         // stack filter) and the compare mode. "Reset" that leaves a filter
         // applied is worse than no reset — you press it and still cannot see
@@ -7527,10 +7938,19 @@
             btn.classList.toggle('on', userStarred.has(name));
             return;
           }
+          const cardEl = btn.closest('.reel-card');
+          const chHost = cardEl && cardEl.querySelector('.reel-chart');
+          if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return; }
+          if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return; }
         }
-        // Tapping the chart itself opens the full instrument view.
+        // Tapping the chart itself opens the full instrument view — but a pan
+        // or a handle drag ends in a click too, and while a channel is being
+        // edited every tap on the chart is aimed at the channel, not the modal.
         const card = e.target.closest('.reel-card');
-        if (card && e.target.closest('.reel-chart')) window.SP.openModal(card.dataset.name);
+        if (!card || !e.target.closest('.reel-chart')) return;
+        if (reel.editing === card.dataset.name) return;
+        if (Date.now() - (reel.lastGestureAt || 0) < 350) return;
+        window.SP.openModal(card.dataset.name);
       });
     }
   }

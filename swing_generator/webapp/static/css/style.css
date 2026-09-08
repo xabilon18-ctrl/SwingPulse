@@ -7650,8 +7650,31 @@ body {
 .reel-move.up   { color: var(--buy); }
 .reel-move.down { color: var(--sell); }
 
-.reel-chart { flex: 1 1 auto; min-height: 0; margin: 6px 0; position: relative; }
+.reel-chart {
+  flex: 1 1 auto; min-height: 0; margin: 6px 0; position: relative;
+  /* The browser keeps VERTICAL panning (the reel scrolls); horizontal drags
+     come to our pointer handler, which is what pans through history. Without
+     this the browser claims the gesture and the chart never moves. */
+  touch-action: pan-y;
+}
 .reel-svg { width: 100%; height: 100%; display: block; }
+
+/* ── Trend channel ──────────────────────────────────────────────────────
+   Dotted on purpose: it matches the MA ribbon's dotted language, so a
+   hand-drawn line never reads as one the pipeline computed. The midline is
+   thinner and dimmer than the edges — it is a reference, not a boundary. */
+.reel-ch { fill: none; stroke: var(--accent); stroke-linecap: round; }
+.reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
+.reel-ch-mid  { stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .6; }
+.reel-ch-band { fill: var(--accent); fill-opacity: .05; stroke: none; }
+/* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
+   a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
+.reel-ch-h {
+  fill: var(--accent); fill-opacity: .28;
+  stroke: var(--accent); stroke-width: 2.4;
+  cursor: grab;
+}
+.reel-ch-h:active { cursor: grabbing; fill-opacity: .5; }
 .reel-axis {
   font-size: 19px; fill: var(--text-secondary);
   font-family: inherit; font-variant-numeric: tabular-nums;
@@ -7688,6 +7711,12 @@ body {
 }
 .reel-act:hover { border-color: var(--border-active); color: var(--text-primary); }
 .reel-act.on { color: var(--accent); border-color: var(--accent); }
+.reel-act-clr { color: var(--sell); }
+/* While a channel is being drawn the card shows ★ / Done / Clear and nothing
+   else — five buttons overflow a 375px footer and clip TradingView. */
+.reel-card.ch-editing .reel-act[data-act="detail"],
+.reel-card.ch-editing .reel-act[data-act="tv"] { display: none; }
+.reel-act-clr[hidden] { display: none; }
 .reel-act.tv { color: var(--accent); }
 
 .reel-empty {
