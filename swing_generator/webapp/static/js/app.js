@@ -162,14 +162,38 @@
   // mean the same thing on 1H as on Weekly, so the same channel is a trend
   // read on every tab. Draw it once on the timeframe where the structure is
   // clearest and it shows up on the rest.
-  //   { [instrument]: { t1, p1, t2, p2, w, locked } }
-  // t* are bar labels, p* prices on the base line, w the signed price offset to
-  // the parallel line. The midline sits at w/2. `locked` means the channel is
-  // finished: it still draws, but it grows no handles and cannot be entered for
-  // editing until it is unlocked, so it cannot be nudged by a stray touch.
+  //   { [instrument]: { t1, p1, t2, p2, half, locked } }
+  // t*/p* anchor the MIDLINE — the halfway line — and `half` is the distance in
+  // price to each edge, so the two edges sit at mid +/- half and the midline is
+  // always exactly halfway between them by construction rather than by
+  // arithmetic that can drift. Either edge can be dragged and the other mirrors
+  // it. `locked` means finished: it still draws, but grows no handles and
+  // cannot be entered for editing until unlocked, so no stray touch moves it.
+  // Channels written before the midline model carried {p1,p2,w}: p* on the
+  // LOWER line with w the signed offset to the other one. Converting on read
+  // keeps every channel already drawn — the geometry is identical, the anchor
+  // simply moves to the middle of it.
+  function migrateChannel(ch) {
+    if (!ch || typeof ch !== 'object') return null;
+    if (typeof ch.half === 'number') return ch;
+    if (typeof ch.w === 'number') {
+      const h = Math.abs(ch.w) / 2;
+      return { t1: ch.t1, p1: ch.p1 + ch.w / 2, t2: ch.t2, p2: ch.p2 + ch.w / 2,
+               half: h, locked: !!ch.locked };
+    }
+    return null;
+  }
+
   let instChannels = (() => {
-    try { return JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
+    let raw = {};
+    try { raw = JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
     catch (_) { return {}; }
+    const out = {};
+    for (const k of Object.keys(raw || {})) {
+      const m = migrateChannel(raw[k]);
+      if (m) out[k] = m;
+    }
+    return out;
   })();
 
   function syncApplyRemote(remote) {
@@ -191,7 +215,11 @@
     // Channels ride the same blob. The Worker shallow-merges unknown keys
     // ({...prev, ...incoming}), so this needed no Worker change.
     if (remote.channels && typeof remote.channels === 'object') {
-      instChannels = remote.channels;
+      instChannels = {};
+      for (const k of Object.keys(remote.channels)) {
+        const m = migrateChannel(remote.channels[k]);
+        if (m) instChannels[k] = m;
+      }
       localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
     }
     localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
@@ -6949,10 +6977,13 @@
       if (hi - base >  worst) worst = hi - base;
       if (lo - base < -worst) worst = -(lo - base);
     }
+    const half = (worst || Math.abs(p1) * 0.04) / 2;
+    // Anchored on the MIDLINE, so the starting channel is centred on the run
+    // between the two closes rather than hanging off one side of it.
     return {
-      t1: String(b.t[i1]), p1,
-      t2: String(b.t[i2]), p2,
-      w:  worst || Math.abs(p1) * 0.04,
+      t1: String(b.t[i1]), p1: p1 + half,
+      t2: String(b.t[i2]), p2: p2 + half,
+      half,
     };
   }
 
@@ -6966,9 +6997,15 @@
   // adjustment rather than a construction.
   function channelToggleEdit(name, host) {
     const ctx = host && host._reelCtx;
-    // Locked is a real gate, not a label: the button unlocks rather than edits.
+    // Locked is a real gate, not a label. Unlocking goes STRAIGHT into editing:
+    // you only unlock in order to change something, and making that two taps
+    // read as "I cannot adjust the channel any more".
     if (instChannels[name] && instChannels[name].locked) {
-      channelSetLocked(name, false, host);
+      instChannels[name].locked = false;
+      reel.editing = name;
+      channelSave();
+      if (host) reelRepaint(host);
+      reelSyncChannelButtons();
       return;
     }
     if (reel.editing === name) { reel.editing = null; channelSave(); }
@@ -7052,12 +7089,12 @@
     const xAt = fi => L.x0 + fi * bw + bw / 2;
     let x1 = xAt(i1), x2 = xAt(i2);
     const y1 = sc.y(ch.p1), y2 = sc.y(ch.p2);
-    if (Math.abs(x2 - x1) < 0.5) x2 = x1 + 0.5;    // guard a vertical base
+    if (Math.abs(x2 - x1) < 0.5) x2 = x1 + 0.5;    // guard a vertical midline
     const slope = (y2 - y1) / (x2 - x1);
     const yAtX  = x => y1 + slope * (x - x1);
     // The price scale is linear, so a price offset is a CONSTANT pixel offset —
-    // the parallel line stays parallel without recomputing per x.
-    const dy = sc.y(ch.p1 + ch.w) - sc.y(ch.p1);
+    // the edges stay parallel without recomputing per x.
+    const dy = sc.y(ch.p1 + ch.half) - sc.y(ch.p1);   // negative: up the screen
 
     const XA = L.x0, XB = L.x1;
     const yA = yAtX(XA), yB = yAtX(XB);
@@ -7069,8 +7106,8 @@
     // than draw invisible geometry, say where it went, the way the clipped
     // ribbon already does.
     const panelH = L.py1 - L.py0;
-    const lo = Math.min(yA, yA + dy, yB, yB + dy);
-    const hi = Math.max(yA, yA + dy, yB, yB + dy);
+    const lo = Math.min(yA - Math.abs(dy), yB - Math.abs(dy));
+    const hi = Math.max(yA + Math.abs(dy), yB + Math.abs(dy));
     if (lo > L.py1 + panelH * 0.15 || hi < L.py0 - panelH * 0.15) {
       const above = hi < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">channel ${above ? '↑' : '↓'} off-scale</text>`;
@@ -7078,7 +7115,8 @@
     const seg = (off, cls) =>
       `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
 
-    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${yA.toFixed(1)} ${XB.toFixed(1)},${yB.toFixed(1)} ${XB.toFixed(1)},${(yB + dy).toFixed(1)} ${XA.toFixed(1)},${(yA + dy).toFixed(1)}"/>`;
+    const D = Math.abs(dy);
+    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA - D).toFixed(1)} ${XB.toFixed(1)},${(yB - D).toFixed(1)} ${XB.toFixed(1)},${(yB + D).toFixed(1)} ${XA.toFixed(1)},${(yA + D).toFixed(1)}"/>`;
 
     let handles = '';
     if (editing && !ch.locked) {
@@ -7091,8 +7129,11 @@
         ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>` +
           `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}"/>`
         : '';
+      // Four: both ENDS of the midline, and both EDGES. Either edge widens the
+      // channel and the other mirrors it, so the midline stays halfway.
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
       handles = hx(x1, y1, 'a') + hx(x2, y2, 'b')
-              + hx((x1 + x2) / 2, (y1 + y2) / 2 + dy, 'w');
+              + hx(mx, my - D, 'u') + hx(mx, my + D, 'd');
       // Zoom in past both anchors and there is nothing left on screen to grab —
       // the channel still draws in the right place (it is anchored to dates and
       // prices, not to the window), it just cannot be adjusted from here. Say
@@ -7109,9 +7150,9 @@
       : '';
 
     return band
-      + seg(0,      'reel-ch reel-ch-edge')
-      + seg(dy,     'reel-ch reel-ch-edge')
-      + seg(dy / 2, 'reel-ch reel-ch-mid')
+      + seg(-D, 'reel-ch reel-ch-edge')
+      + seg(D,  'reel-ch reel-ch-edge')
+      + seg(0,  'reel-ch reel-ch-mid')      // the midline IS the anchor line
       + handles + badge;
   }
 
@@ -7758,21 +7799,20 @@
         const d = reelDateForBarIndex(ctx.b, fi);
         if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = price; } else { ch.t2 = d; ch.p2 = price; } }
       } else {
-        // Width handle: the gap between the pointer and the BASE line at this
-        // x, so the channel opens and closes about its own baseline.
+        // An EDGE handle ('u' upper, 'd' lower). Either one sets the half-width
+        // from its distance to the midline at this x, and the opposite edge
+        // mirrors it — which is what keeps the middle line exactly halfway
+        // however the channel is resized, and means it can be opened out from
+        // whichever side you happen to be looking at.
         const i1 = reelBarIndexForDate(ctx.b, ch.t1);
         const i2 = reelBarIndexForDate(ctx.b, ch.t2);
         if (i1 != null && i2 != null && Math.abs(i2 - i1) > 1e-6) {
-          const basePrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
-          let w = price - basePrice;
-          // Keep the edges CH_MIN_SPAN apart on screen. Without this the width
-          // handle can be dragged onto the base line, collapsing both edges and
-          // the midline onto the same pixels — after which there is nothing
-          // left to grab and the channel looks like a single stray line.
-          const unitPx = Math.abs(ctx.sc.y(basePrice + 1) - ctx.sc.y(basePrice)) || 1;
-          const minW   = CH_MIN_SPAN / unitPx;
-          if (Math.abs(w) < minW) w = (w < 0 ? -1 : 1) * minW;
-          ch.w = w;
+          const midPrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
+          // Keep the two edges CH_MIN_SPAN apart on screen. Without this an
+          // edge can be dragged onto the midline, collapsing all three lines
+          // onto the same pixels with nothing left to grab them apart.
+          const unitPx = Math.abs(ctx.sc.y(midPrice + 1) - ctx.sc.y(midPrice)) || 1;
+          ch.half = Math.max(Math.abs(price - midPrice), (CH_MIN_SPAN / 2) / unitPx);
         }
       }
       schedule();
