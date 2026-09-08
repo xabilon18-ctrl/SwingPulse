@@ -100,6 +100,16 @@ TF_SPECS = {
         'writes_flavours': True,
         'zero_fill':      False,        # see the note under 'zero_fill' below
     },
+    '3D': {
+        'label':          '3-day period',
+        'prefix':         'd3_',
+        'activity_file':  'sector_activity_3d.json',
+        'radar_file':     'sector_radar_3d.json',
+        'baseline':       20,           # 20 THREE-DAY PERIODS (~3 months)
+        'retain':         260,          # ~3 years of 3-day bars
+        'writes_flavours': False,       # same rule as Weekly — validated on D only
+        'zero_fill':      True,
+    },
     'W': {
         'label':          'week',
         'prefix':         'w_',
@@ -506,6 +516,9 @@ def _backfill_instrument(inst: dict, cutoff: str, tf: str = 'D') -> list:
     if tf == 'W':
         from main import _resample_weekly
         df = _resample_weekly(df)
+    elif tf == '3D':
+        from main import _resample_3d
+        df = _resample_3d(df)
 
     ma_periods = [p for p in MA_PERIODS if p <= len(df)]
     if len(ma_periods) < 3:
@@ -544,7 +557,9 @@ def backfill(tf: str = 'D') -> None:
     # using it as a date cutoff: 400 daily bars is ~1.6 years, 200 weekly bars
     # is ~4. Reusing the daily arithmetic for weeks would have backfilled about
     # seven weeks of history and left the 20-week baseline permanently cold.
-    span_days = int(spec['retain'] * (1.6 if tf == 'D' else 7.2))
+    # 400 daily bars is ~1.6 years, 200 weekly bars ~4, 260 3-day bars ~3.
+    _days_per_bar = {'D': 1.6, '3D': 4.35, 'W': 7.2}
+    span_days = int(spec['retain'] * _days_per_bar.get(tf, 1.6))
     cutoff = str((pd.Timestamp.utcnow().tz_localize(None)
                   - pd.Timedelta(days=span_days)).date())
     print(f'Backfilling sector activity [{tf}] since {cutoff} '
@@ -600,7 +615,7 @@ if __name__ == '__main__':
     p.add_argument('--backfill', action='store_true')
     p.add_argument('--report', action='store_true')
     p.add_argument('--tf', choices=sorted(TF_SPECS), default='D',
-                   help="radar timeframe: D (daily) or W (weekly)")
+                   help="radar timeframe: D (daily), 3D (3-day) or W (weekly)")
     p.add_argument('--all-tfs', action='store_true',
                    help='run the chosen action for every timeframe')
     args = p.parse_args()

@@ -21,6 +21,7 @@ import traceback
 from datetime import date, datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
@@ -33,13 +34,14 @@ import _active_config as config
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY,
+    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
     H1_SESSION_NORMALIZE, H1_BARS_PER_SESSION_TARGET,
     INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES, ALIGNMENT_PREFIXES,
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
+    THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -433,6 +435,59 @@ def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
     return weekly[pd.DatetimeIndex(weekly.index).normalize() <= last_daily]
 
 
+def _resample_3d(df_daily: pd.DataFrame) -> pd.DataFrame:
+    """Resample finished daily bars to 3-day bars, dropping the one in progress.
+
+    Bars are groups of THREE BUSINESS DAYS counted from a FIXED EPOCH
+    (config.THREE_DAY_EPOCH), not `resample('3D')` and not "every 3 rows of the
+    frame". That choice is the whole point of this function:
+
+      * `resample('3D')` bins on calendar days, so the window rotates through
+        the week and a bar holds 1-3 sessions depending on the weekend.
+      * grouping every 3 rows from the start of the frame re-phases EVERY
+        historical bar the moment the cache start moves — and it does move
+        (data_fetcher truncates). Every 3D bar in the app would silently change
+        from one run to the next, which is repainting.
+
+    Counting business days from a fixed epoch is independent of how much history
+    is loaded, so a given calendar date always lands in the same bar.
+
+    The bar is labelled by its group's CLOSING business day, exactly as a weekly
+    bar is labelled by its Friday, and the in-progress group is dropped by the
+    same rule (Important Rule 10): a bar is not a bar until it has ended. A
+    holiday closing day makes a bar wait one extra day for admission, which is
+    the behaviour _resample_weekly already has when a Friday is a holiday.
+    """
+    ohlcv = ['Open', 'High', 'Low', 'Close', 'Volume']
+    cols  = [c for c in ohlcv if c in df_daily.columns]
+    if not cols or df_daily.empty:
+        return df_daily.iloc[0:0]
+
+    d = df_daily[cols].copy()
+    if getattr(d.index, 'tz', None) is not None:
+        d.index = d.index.tz_localize(None)
+
+    days  = pd.DatetimeIndex(d.index).normalize().values.astype('datetime64[D]')
+    epoch = np.datetime64(THREE_DAY_EPOCH, 'D')
+    group = np.busday_count(epoch, days) // THREE_DAY_SIZE
+
+    out = d.groupby(group).agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum',
+    }).dropna(subset=['Close'])
+    if out.empty:
+        return out
+
+    # Label each bar with the last business day of its group.
+    closing = np.busday_offset(epoch,
+                               out.index.to_numpy() * THREE_DAY_SIZE + (THREE_DAY_SIZE - 1),
+                               roll='forward')
+    out.index = pd.DatetimeIndex(closing)
+
+    last_daily = pd.Timestamp(d.index.max()).normalize()
+    return out[pd.DatetimeIndex(out.index).normalize() <= last_daily]
+
+
 def _h4_bars_per_session(h4: pd.DataFrame) -> float:
     """Median 4H bars per trading session. 6 = a ~23h contract, 2 = a US cash
     session, 3 = a European one."""
@@ -654,6 +709,28 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 if h4_data is None:
                     h4_data = {}
 
+        # ── 3-DAY (grouped from the same finished daily bars) ──
+        # Same engine, same MA25-MA500 ribbon, on 3-day bars. No session
+        # scaling: three business days are three business days on every venue,
+        # so the 4H geometry problem has no analogue here. Short-history names
+        # clip the ribbon exactly as the daily side does.
+        d3_data = {}
+        three_day = _resample_3d(df)
+        d3_ma_periods = [p for p in MA_PERIODS if p <= len(three_day)]
+        if len(d3_ma_periods) >= 3:
+            three_day = add_all_indicators(three_day, ma_periods=d3_ma_periods)
+            three_day = add_signals(three_day, ma_periods=d3_ma_periods,
+                                    refire_pct=REFIRE_PCT_3D,
+                                    new_trend_pct=NEW_TREND_PCT_3D,
+                                    tf='3D', asset_class=_asset_cls)
+            d3_data, _ = _extract_row(
+                three_day, run_date, prefix='d3_',
+                ma_periods=d3_ma_periods,
+                signal_lookback=SIGNAL_LOOKBACK_3D,
+            )
+            if d3_data is None:
+                d3_data = {}
+
         # ── WEEKLY (resampled from the same finished daily bars) ──
         # Runs the identical engine and the identical MA25-MA500 ribbon on
         # weekly bars. No session scaling: a week is a week on every venue, so
@@ -689,6 +766,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             **(daily_data or {}),
             **(h1_data or {}),
             **(h4_data or {}),
+            **(d3_data or {}),
             **(w_data or {}),
         }
 

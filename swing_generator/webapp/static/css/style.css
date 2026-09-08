@@ -163,7 +163,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   appearance: none;
   border: 0;
   background: transparent;
-  flex: 1 1 0;                                      /* 4H / Daily / Weekly split evenly */
+  flex: 1 1 0;                                      /* 1H / 4H / Daily / 3D / Weekly split evenly */
   min-width: 0;                                     /* 'Weekly' must not push the row wider than the bar */
   border-radius: 7px;
   color: var(--text-dim, #9aa3b2);
@@ -175,6 +175,12 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   padding: 12px 0;
   cursor: pointer;
   transition: background .15s ease, color .15s ease, transform .1s ease;
+}
+/* Five timeframes since 3D was added 2026-09-08. At phone widths five even
+   columns leave ~66px each, and 'Weekly' at 14px/.06em needs more than that —
+   so trim the tracking and the size rather than let the label wrap or clip. */
+@media (max-width: 420px) {
+  .tf-switch-btn { font-size: 12.5px; letter-spacing: .01em; }
 }
 .tf-switch-btn:hover { color: var(--text, #e6e9ef); background: rgba(255,255,255,.05); }
 .tf-switch-btn:active { transform: scale(.96); filter: brightness(.9); }

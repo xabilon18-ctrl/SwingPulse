@@ -600,6 +600,7 @@ def build_data(output_dir, src_signals_dir=None):
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
                   'sector_activity_w.json', 'sector_radar_w.json',
+                  'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'events.json'):
         src = os.path.join(OUTPUT_DIR, fname)
@@ -889,6 +890,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
                   'sector_activity_w.json', 'sector_radar_w.json',
+                  'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics']:
@@ -1025,6 +1027,8 @@ def build_ui():
     js = js.replace("'/api/shape-similarity'", f"'{base}/shape_similarity.json'")
     js = js.replace("'/api/sector-radar-w'", f"'{base}/sector_radar_w.json'")
     js = js.replace("'/api/sector-activity-w'", f"'{base}/sector_activity_w.json'")
+    js = js.replace("'/api/sector-radar-3d'", f"'{base}/sector_radar_3d.json'")
+    js = js.replace("'/api/sector-activity-3d'", f"'{base}/sector_activity_3d.json'")
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")

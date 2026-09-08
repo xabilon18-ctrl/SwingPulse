@@ -1051,6 +1051,15 @@ def api_ai_instruments():
 
 _chart_chunk_cache: dict = {}
 
+# ONE table — the route's timeframe whitelist reads this, it does not restate it.
+_CHART_BUILDERS = {
+    'D':  chart_feed.build_daily,
+    '1H': chart_feed.build_1h,
+    '4H': chart_feed.build_4h,
+    '3D': chart_feed.build_3d,
+    'W':  chart_feed.build_weekly,
+}
+
 
 def _chart_chunk_map() -> dict:
     """name -> chunk id, using the same sorted-name rule as the published feed."""
@@ -1069,7 +1078,10 @@ def api_chart_index():
 
 @app.route('/api/chart/<tf>/<int:cid>')
 def api_chart_chunk(tf: str, cid: int):
-    if tf not in ('D', '1H', '4H', 'W'):
+    # Keyed off the builder table below rather than a hand-copied tuple — the
+    # two used to be separate lists and 3D was added to one of them, which is
+    # how the reel got a 400 and drew "No chart data" for every instrument.
+    if tf not in _CHART_BUILDERS:
         return jsonify({'error': 'bad timeframe'}), 400
 
     key = (tf, cid)
@@ -1078,10 +1090,7 @@ def api_chart_chunk(tf: str, cid: int):
 
     tm      = get_ticker_map()
     members = [n for n, c in _chart_chunk_map().items() if c == cid]
-    builder = {'D': chart_feed.build_daily,
-               '1H': chart_feed.build_1h,
-               '4H': chart_feed.build_4h,
-               'W': chart_feed.build_weekly}[tf]
+    builder = _CHART_BUILDERS[tf]
 
     data = {}
     for name in members:
@@ -1134,8 +1143,10 @@ def api_names():
 
 # Radar files per timeframe — mirrors sector_activity.TF_SPECS. 4H has no radar
 # (too little hourly history to build a baseline), so it falls back to daily.
-_RADAR_FILES    = {'D': 'sector_radar.json',    'W': 'sector_radar_w.json'}
-_ACTIVITY_FILES = {'D': 'sector_activity.json', 'W': 'sector_activity_w.json'}
+_RADAR_FILES    = {'D': 'sector_radar.json',    '3D': 'sector_radar_3d.json',
+                   'W': 'sector_radar_w.json'}
+_ACTIVITY_FILES = {'D': 'sector_activity.json', '3D': 'sector_activity_3d.json',
+                   'W': 'sector_activity_w.json'}
 
 
 @app.route('/api/sector-radar-w')
@@ -1156,6 +1167,30 @@ def api_sector_activity_w():
     """Weekly activity series — the radar info modal's sparkline source."""
     import json as _json
     path = os.path.join(OUTPUT_DIR, _ACTIVITY_FILES['W'])
+    if not os.path.exists(path):
+        return jsonify(None)
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
+@app.route('/api/sector-radar-3d')
+def api_sector_radar_3d():
+    """3-day radar under its own PATH, for the same reason the weekly one has
+    its own: the published site is static JSON and publish.py rewrites paths,
+    not query strings."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, _RADAR_FILES['3D'])
+    if not os.path.exists(path):
+        return jsonify({})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
+@app.route('/api/sector-activity-3d')
+def api_sector_activity_3d():
+    """3-day activity series — the radar info modal's sparkline source."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, _ACTIVITY_FILES['3D'])
     if not os.path.exists(path):
         return jsonify(None)
     with open(path) as f:

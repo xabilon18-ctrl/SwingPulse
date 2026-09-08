@@ -15,13 +15,13 @@
   // 4H has NO radar of its own — there is only ~2 years of hourly cache, too
   // little to build a baseline from — so it reads the daily one and the card
   // says so rather than letting a daily reading pass for a 4H one.
-  let sectorRadarByTf = { D: null, W: null };
+  let sectorRadarByTf = { D: null, '3D': null, W: null };
   // Chart-shape lookalikes + families (shape_similarity.py). DESCRIPTIVE, not
   // predictive: it says which charts have moved alike, which is how the app can
   // warn that five "separate" buys are one bet. Never feeds confidence.
   let shapeSim = { neighbours: {}, families: [], family_of: {} };
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
-  const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : 'D');
+  const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : tf === '3D' ? '3D' : 'D');
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
   const INTRADAY_TFS = new Set(['1H', '4H']);
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
@@ -131,6 +131,7 @@
     { code: '1H', prefix: 'h1_', label: '1H',     tv: '60',  bar: '1H bars', barShort: '25-bar'  },
     { code: '4H', prefix: 'h4_', label: '4H',     tv: '240', bar: '4H bars', barShort: '25-bar'  },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
+    { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
@@ -1049,12 +1050,17 @@
     // not against '4H' by name — that literal silently answered "matches"
     // for 1H the moment a second intraday timeframe existed.
     const matches = actual === RADAR_TF_FOR(timeframe) && !INTRADAY_TFS.has(timeframe);
-    el.textContent = actual === 'W' ? 'This week' : 'Today';
+    el.textContent = actual === 'W' ? 'This week'
+                   : actual === '3D' ? 'This 3-day bar'
+                   : 'Today';
     el.classList.toggle('is-mismatch', !matches);
+    const _periodEnd = tf => ((sectorRadarByTf[tf] && sectorRadarByTf[tf].sectors[0] || {}).date || '');
     el.title = actual === 'W'
-      ? 'Weekly sector activity for the week ending ' +
-        ((sectorRadarByTf.W && sectorRadarByTf.W.sectors[0] || {}).date || '') +
+      ? 'Weekly sector activity for the week ending ' + _periodEnd('W') +
         ' — fixed until the next week closes.'
+      : actual === '3D'
+      ? 'Sector activity for the 3-day bar ending ' + _periodEnd('3D') +
+        ' — fixed until the next 3-day bar closes.'
       : (matches
           ? 'Daily sector activity, updated every run.'
           : `Daily sector activity. There is no ${timeframe} radar — too little hourly `
@@ -1459,7 +1465,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, flRes, evRes, shRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1472,6 +1478,7 @@
         fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
         fetchJson('/api/sector-radar-w', null),
+        fetchJson('/api/sector-radar-3d', null),
         fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/events', null),
         fetchJson('/api/shape-similarity', null),
@@ -1487,7 +1494,7 @@
       backtestData = btRes;
       ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
       const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
-      sectorRadarByTf = { D: _okRadar(srRes), W: _okRadar(srwRes) };
+      sectorRadarByTf = { D: _okRadar(srRes), '3D': _okRadar(sr3Res), W: _okRadar(srwRes) };
       syncRadarTf();
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
@@ -3347,8 +3354,9 @@
       sectorActivity = sectorActivityByTf[tf];
       return sectorActivity;
     }
-    const r = await fetchJson(tf === 'W' ? '/api/sector-activity-w'
-                                         : '/api/sector-activity', null);
+    const r = await fetchJson(tf === 'W'  ? '/api/sector-activity-w'
+                            : tf === '3D' ? '/api/sector-activity-3d'
+                                          : '/api/sector-activity', null);
     sectorActivityByTf[tf] = (r && Array.isArray(r.rows)) ? r : null;
     sectorActivity = sectorActivityByTf[tf];
     return sectorActivity;

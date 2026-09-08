@@ -84,7 +84,7 @@ RIBBON_COMPRESSION_THRESHOLD = 5.0                 # wider than MA200 (step 25 v
 ## Signal System
 
 ### Timeframes
-`1H` (1-Hour) · `4H` (4-Hour) · `D` (Daily) · `W` (Weekly)
+`1H` (1-Hour) · `4H` (4-Hour) · `D` (Daily) · `3D` (3-Day) · `W` (Weekly)
 
 The table lives in ONE place — `config.TIMEFRAMES` (Python) and `TIMEFRAMES` at the top of
 `app.js` (browser). Both are ordered fast to slow and carry every per-timeframe fact:
@@ -92,6 +92,33 @@ prefix, label, TradingView interval, the word for one bar. Before Weekly landed
 (2026-09-02) the pair `('', 'h4_')` was hand-copied in four Python places and ~12 JS
 ternaries of the shape `timeframe === '4H' ? a : b` — a shape that silently answers
 "Daily" for any third timeframe. Loop the table; never restate the pair.
+
+**3-Day bar geometry (2026-09-08).** Same MA25-MA500 ribbon on 3-day bars, unscaled —
+three business days are three business days on every venue. It exists to fill the gap
+between Daily and Weekly:
+- **MA500 spans ~6.0 years** (Daily ~2.0, Weekly ~9.6). The app used to jump from a
+  2-year view straight to a 9.6-year one with nothing in between. A 520-bar chart card
+  shows ~6 years.
+- **It is NOT an independent read, and must not be sold as one.** Measured over 183
+  instruments / 270,371 bars: the 3D trend label agrees with Daily **66.5%** of the time
+  and opposes it on 0.9% (Weekly 54.3% / 2.3%; 4H 71.7%). More distinct than 4H — which
+  was demoted to confirmation for exactly this reason — and markedly less distinct than
+  Weekly. Ship it for the 6-year middle view, not for disagreement.
+- **A calmer feed**: 42 fires per instrument against Daily's 187 (Weekly 17).
+- **Bars are 3 BUSINESS DAYS FROM A FIXED EPOCH** (`config.THREE_DAY_EPOCH`), not
+  `resample('3D')` and not "every 3 rows". Calendar binning rotates the window through the
+  week; row-grouping re-phases every historical bar the moment the cache start moves, and
+  it does move. Epoch-anchored counting is stable under any refetch — verified: shifting
+  the frame start left 1,710 shared bars byte-identical. **Never change the epoch.**
+- **The in-progress bar is dropped** (`main._resample_3d`), Important Rule 10 again. Bars
+  are labelled by their group's closing business day, as a weekly bar is by its Friday.
+- **3D does NOT vote in `tf_alignment`** — same two reasons as 1H: it is the daily frame
+  sampled twice (66.5% agreement), and adding it would silently widen the score from
+  -3..+3 to -4..+4 under every consumer that draws a bar from it.
+- `REFIRE_PCT_3D = 0.065` / `SIGNAL_LOOKBACK_3D = 10` are **UNTUNED** — interpolated
+  between Daily and Weekly. Sweep them.
+- Radar: 3D has its own (`sector_radar_3d.json`, 20-period baseline). Like Weekly it does
+  **not** write `instrument_flavours.json` — that layer was validated on Daily only.
 
 **Weekly bar geometry (2026-09-02).** Same MA25-MA500 ribbon, run on weekly bars, unscaled
 — a week is a week on every venue, so the 4H session problem has no weekly analogue. What
@@ -136,6 +163,7 @@ really does trade 6.5h, so its 4H is ~2 bars/session everywhere. See SIGNAL_RULE
 | Daily     | *(none)* — e.g. `primary_signal` |
 | 1-Hour    | `h1_`  — e.g. `h1_primary_signal` |
 | 4-Hour    | `h4_`  — e.g. `h4_primary_signal` |
+| 3-Day     | `d3_`  — e.g. `d3_primary_signal` |
 | Weekly    | `w_`   — e.g. `w_primary_signal` |
 
 In `app.js` the `f(field)` helper applies the active prefix.  

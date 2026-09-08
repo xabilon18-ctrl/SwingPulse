@@ -78,6 +78,10 @@ SIGNAL_LOOKBACK_DAILY  = 20
 # Weekly bars are slow: 12 bars is a quarter, which is how long a weekly setup
 # stays the thing you are watching. 4H/Daily both report ~1-1.5 months back.
 SIGNAL_LOOKBACK_WEEKLY = 12
+# 3-day sits between Daily and Weekly and its lookback does too: 10 bars is 30
+# trading days (~6 weeks), against Daily's 20 bars (~1 month) and Weekly's 12
+# (~3 months). Carrying Daily's 20 across would report a 3-month-old fire.
+SIGNAL_LOOKBACK_3D     = 10
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -208,6 +212,42 @@ REFIRE_PCT_WEEKLY    = 0.08
 NEW_TREND_PCT_WEEKLY = 0.05
 
 # ---------------------------------------------------------------------------
+# 3-Day bar geometry  (added 2026-09-08)
+# ---------------------------------------------------------------------------
+# The 3-day timeframe runs the SAME MA25-MA500 ribbon on 3-day bars. It exists
+# to fill the gap between Daily and Weekly:
+#   Daily  MA500 ~ 2.0 years
+#   3-Day  MA500 ~ 6.0 years      <- measured over the cache 2026-09-08
+#   Weekly MA500 ~ 9.6 years
+# Right now the app jumps from a 2-year view straight to a 9.6-year one with
+# nothing in between.
+#
+# What it is NOT: an independent read. Measured over 183 instruments and 270,371
+# bars, the 3D trend label agrees with Daily 66.5% of the time and opposes it on
+# 0.9% (Weekly: 54.3% / 2.3%; 4H: 71.7%). So it is more distinct than 4H, which
+# was demoted to confirmation for exactly this reason, and markedly less distinct
+# than Weekly. Ship it for the 6-year middle view, not for disagreement. It is
+# a calmer feed either way: 42 fires per instrument against Daily's 187.
+#
+# GROUPING — 3 BUSINESS DAYS FROM A FIXED EPOCH, not `resample('3D')` and not
+# "every 3 rows". Both of those alternatives repaint:
+#   * resample('3D') bins on CALENDAR days, so the 3-day window rotates through
+#     the week and a bar holds 1, 2 or 3 sessions depending on where the weekend
+#     falls.
+#   * "every 3 rows from the start of the frame" re-phases every historical bar
+#     the moment the cache start moves — and it does move (see the truncation
+#     rule in data_fetcher). Every 3D bar in the app would silently change.
+# Counting business days from a fixed epoch is independent of what history is
+# loaded, so bar N is the same bar on every run and after any refetch.
+THREE_DAY_EPOCH = '1970-01-05'   # a Monday; never change it (it re-phases every bar)
+THREE_DAY_SIZE  = 3              # business days per bar
+
+# UNTUNED starting values, interpolated between Daily (0.05 / 0.05) and Weekly
+# (0.08 / 0.05). Sweep with backtest.py before treating either as measured.
+REFIRE_PCT_3D    = 0.065
+NEW_TREND_PCT_3D = 0.05
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
@@ -230,6 +270,7 @@ TIMEFRAMES = (
     ('1H', 'h1_'),
     ('4H', 'h4_'),
     ('D',  ''),
+    ('3D', 'd3_'),
     ('W',  'w_'),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -248,7 +289,15 @@ TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
 #      that draws a bar from tf_alignment_score would then under-fill it, and
 #      the failure is invisible — the bar just never reaches the end.
 # Add 'h1_' here only alongside a rescale of every consumer.
-ALIGNMENT_PREFIXES = tuple(p for _, p in TIMEFRAMES if p != 'h1_')
+#
+# 3D is excluded for the SAME TWO REASONS, measured 2026-09-08:
+#   1. It would double-count the daily read. 3D agrees with Daily on 66.5% of
+#      bars and is built by aggregating the very same daily bars, so letting
+#      both vote makes "every timeframe agrees" largely a statement about the
+#      daily frame sampled twice.
+#   2. It would widen the score from -3..+3 to -4..+4 with nothing to catch it,
+#      which is precisely the trap documented for 1H above.
+ALIGNMENT_PREFIXES = tuple(p for _, p in TIMEFRAMES if p not in ('h1_', 'd3_'))
 
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
@@ -323,6 +372,8 @@ OUTPUT_COLUMNS = [
     *_tf_signal_columns('h1_'),
     # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
+    # ── 3-Day (signals + indicators) ──
+    *_tf_signal_columns('d3_'),
     # ── Weekly (signals + indicators) ──
     *_tf_signal_columns('w_'),
 ]

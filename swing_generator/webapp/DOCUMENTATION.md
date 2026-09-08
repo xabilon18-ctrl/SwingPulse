@@ -123,7 +123,11 @@ The `f(field)` function maps field names to the correct column prefix:
 | 4H | `h4_` | `h4_close`, `h4_trend_direction`, `h4_primary_signal` |
 | D (Daily) | *(none)* | `close`, `trend_direction`, `primary_signal` |
 | W (Weekly) | `w_` | `w_close`, `w_trend_direction`, `w_primary_signal` |
-| M (Monthly) | `m_` | `m_close`, `m_trend_direction`, `m_primary_signal` |
+| 3D (3-Day) | `d3_` | `d3_close`, `d3_trend_direction`, `d3_primary_signal` |
+
+> NOTE (2026-09-08): the rest of this file still describes a **Monthly** timeframe that was
+> removed long ago, and predates 1H, Weekly and 3D. `../CLAUDE.md` is the accurate
+> reference for timeframes; treat this file's timeframe sections as stale.
 
 When the timeframe changes, `renderAll()` re-renders every tab using the new prefix. The Daily summary comes from the server; for other timeframes, `computeSummary()` recomputes stats client-side from the prefixed fields in `allData`.
 

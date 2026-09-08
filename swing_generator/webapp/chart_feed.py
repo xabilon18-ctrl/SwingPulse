@@ -59,7 +59,7 @@ sys.path.insert(0, PROJECT_DIR)
 from data_fetcher import h4_ticker                      # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
-                  _resample_weekly)
+                  _resample_weekly, _resample_3d)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # How many bars a card shows. Sized to the way these charts are actually read:
@@ -208,6 +208,27 @@ def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True)
 
 
+def build_3d(cache_dir: str, ticker: str) -> dict | None:
+    """3-day chart from the same daily cache the daily chart reads.
+
+    BARS=520 three-day bars is ~6 years, which is what the MA500 anchor needs to
+    be drawn at all — so a 3-day chart shows about three times the calendar span
+    of a daily one and about two thirds of a weekly one, which is the gap this
+    timeframe exists to fill. Volume is included, as on daily and weekly.
+    """
+    path = os.path.join(cache_dir, _cache_name(ticker))
+    if not os.path.exists(path):
+        return None
+    df = pd.read_parquet(path)
+    if df.empty:
+        return None
+    three_day = _resample_3d(df)
+    periods = [p for p in MA_PERIODS if p <= len(three_day)]
+    if len(periods) < 3:
+        return None
+    return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True)
+
+
 def _cache_name(ticker: str, suffix: str = '') -> str:
     safe = (ticker
             .replace('=', '_EQ_')
@@ -233,7 +254,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'D': n, '1H': n, '4H': n, 'W': n, 'chunks': n_files}.
+    Returns {'D': n, '1H': n, '4H': n, '3D': n, 'W': n, 'chunks': n_files}.
     """
     chart_dir = os.path.join(output_dir, 'chart')
     os.makedirs(chart_dir, exist_ok=True)
@@ -243,10 +264,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'D': 0, '1H': 0, '4H': 0, 'chunks': 0}
+    stats = {'D': 0, '1H': 0, '4H': 0, '3D': 0, 'W': 0, 'chunks': 0}
 
     for tf, builder in (('D', build_daily), ('1H', build_1h), ('4H', build_4h),
-                        ('W', build_weekly)):
+                        ('3D', build_3d), ('W', build_weekly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 
