@@ -7428,11 +7428,17 @@
   // timeframe shows — a year line on a 1H chart covering six weeks would never
   // appear, and quarter lines on a Weekly chart covering ten years would be a
   // picket fence. So: years on D / 3D / W, quarters on 1H / 4H.
-  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter',
-                           'D': 'year', '3D': 'year', 'W': 'year' };
+  //
+  // 3D and Weekly are OFF at the user's request (2026-09-08). Those charts span
+  // six and ten years, so a year line lands every few centimetres and the grid
+  // stops being a reference and starts being a fence across the price. A
+  // timeframe absent from this table draws no lines at all, and its window's
+  // first and last dates come back as the axis instead.
+  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter', 'D': 'year' };
 
   function reelTimeGrid(b, tf) {
-    const mode = REEL_TIME_GRID[tf] || 'year';
+    const mode = REEL_TIME_GRID[tf];
+    if (!mode) return [];
     const out  = [];
     let prev = null;
     for (let i = 0; i < b.t.length; i++) {
