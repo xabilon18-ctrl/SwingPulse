@@ -190,7 +190,12 @@
   //   {p1,p2,up,dn} — current: p* a spine, edges offset independently
   function migrateChannel(ch) {
     if (!ch || typeof ch !== 'object') return null;
-    if (typeof ch.up === 'number' && typeof ch.dn === 'number') return ch;
+    // Drawings other than channels carry their own kind and need no conversion.
+    if (ch.kind && ch.kind !== 'channel') return ch;
+    if (typeof ch.up === 'number' && typeof ch.dn === 'number') {
+      if (!ch.kind) ch.kind = 'channel';
+      return ch;
+    }
     if (typeof ch.half === 'number') {
       return { t1: ch.t1, p1: ch.p1, t2: ch.t2, p2: ch.p2,
                up: Math.abs(ch.half), dn: -Math.abs(ch.half), locked: !!ch.locked };
@@ -5604,6 +5609,11 @@
 
 
   // ── Share card ────────────────────────────────────────────────────────
+  // Tool glyphs — drawn rather than lettered so three of them fit a phone row.
+  const TOOL_CHANNEL = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="16" x2="21" y2="6"/><line x1="3" y1="21" x2="21" y2="11"/><line x1="3" y1="18.5" x2="21" y2="8.5" stroke-dasharray="2 3" opacity=".65"/></svg>`;
+  const TOOL_TREND   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="19" x2="21" y2="5"/><circle cx="4.5" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="19.5" cy="6" r="1.8" fill="currentColor" stroke="none"/></svg>`;
+  const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
+
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
@@ -7069,10 +7079,36 @@
     // The spine sits on the run between the two closes, with the edges opened
     // out either side of it, so a new channel starts centred on the move.
     return {
+      kind: 'channel',
       t1: String(b.t[i1]), p1: p1 + half,
       t2: String(b.t[i2]), p2: p2 + half,
       up: half, dn: -half,
     };
+  }
+
+  // ── The other two tools ──────────────────────────────────────────────
+  // Both start fitted to what is on screen, for the same reason the channel
+  // does: the first drag should be an adjustment, not a construction.
+
+  function reelDefaultTrend(b) {
+    const n = b.c.length;
+    if (n < 8) return null;
+    const i1 = Math.floor(n * 0.2), i2 = Math.floor(n * 0.8);
+    if (b.c[i1] == null || b.c[i2] == null) return null;
+    return { kind: 'trend', t1: String(b.t[i1]), p1: b.c[i1],
+                            t2: String(b.t[i2]), p2: b.c[i2] };
+  }
+
+  function reelDefaultHLine(b) {
+    const n = b.c.length;
+    for (let i = n - 1; i >= 0; i--) if (b.c[i] != null) return { kind: 'hline', p: b.c[i] };
+    return null;
+  }
+
+  function reelDefaultDrawing(kind, b) {
+    if (kind === 'trend') return reelDefaultTrend(b);
+    if (kind === 'hline') return reelDefaultHLine(b);
+    return reelDefaultChannel(b);
   }
 
   function channelSave() {
@@ -7117,15 +7153,18 @@
   // Add a SECOND (or third) channel to the same chart. Offset from the default
   // so it does not land exactly on top of the one already there — two channels
   // drawn on the same pixels look like one and cannot be told apart to drag.
-  function channelAdd(name, host) {
+  function channelAdd(name, host, kind) {
     const ctx = host && host._reelCtx;
     if (!ctx) return;
-    const def = reelDefaultChannel(ctx.b);
+    const def = reelDefaultDrawing(kind || 'channel', ctx.b);
     if (!def) return;
     const n = channelsFor(name).length;
     if (n) {
-      const shift = (def.up - def.dn) * 0.6 * n;
-      def.p1 -= shift; def.p2 -= shift;
+      // Offset from whatever is already there — two drawings on the same pixels
+      // look like one and cannot be told apart to drag.
+      const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
+      if (def.kind === 'hline') def.p -= shift;
+      else { def.p1 -= shift; def.p2 -= shift; }
     }
     addChannelFor(name, def);
     reel.editing = name;
@@ -7170,8 +7209,8 @@
       const name = card.dataset.name;
       const ch   = activeChannel(name);
       const nCh  = channelsFor(name).length;
-      const add  = card.querySelector('[data-act="channel-add"]');
-      if (add) add.hidden = reel.editing !== name;
+      const tools = card.querySelector('[data-tools]');
+      if (tools) tools.hidden = reel.editing !== name;
       const btn  = card.querySelector('[data-act="channel"]');
       const clr  = card.querySelector('[data-act="channel-clear"]');
       const lk   = card.querySelector('[data-act="channel-lock"]');
@@ -7196,8 +7235,72 @@
 
   function reelChannelsSvg(list, b, L, sc, bw, editing, activeI) {
     if (!list || !list.length) return '';
-    return list.map((ch, i) =>
-      reelChannelSvg(ch, b, L, sc, bw, editing, i, i === activeI)).join('');
+    return list.map((d, i) =>
+      reelDrawingSvg(d, b, L, sc, bw, editing, i, i === activeI)).join('');
+  }
+
+  // One entry point for every tool. Each kind renders its own geometry but they
+  // share the handle shape, the active/idle styling and the min-size rules, so
+  // a new tool is a case here rather than a parallel implementation.
+  function reelDrawingSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    if (!d) return '';
+    if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
+    return reelChannelSvg(d, b, L, sc, bw, editing, idx, isActive);
+  }
+
+  // Shared handle markup: a visible dot plus an invisible ~30px grab target.
+  function reelHandle(L, x, y, id, idx, isActive) {
+    if (!(x >= L.x0 - 2 && x <= L.x1 + 2)) return '';
+    const cls = isActive ? 'reel-ch-h' : 'reel-ch-h is-idle';
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="${cls}" data-h="${id}" data-ci="${idx}"/>` +
+           `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`;
+  }
+
+  // Trend line — two anchors, extended across the panel the way the channel's
+  // edges are, so it reads as a line you can project rather than a segment.
+  function reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const i1 = reelBarIndexForDate(b, d.t1), i2 = reelBarIndexForDate(b, d.t2);
+    if (i1 == null || i2 == null) return '';
+    const xAt = fi => L.x0 + fi * bw + bw / 2;
+    let x1 = xAt(i1), x2 = xAt(i2);
+    const y1 = sc.y(d.p1), y2 = sc.y(d.p2);
+    if (Math.abs(x2 - x1) < 0.5) x2 = x1 + 0.5;
+    const slope = (y2 - y1) / (x2 - x1);
+    const yAtX = x => y1 + slope * (x - x1);
+    const yA = yAtX(L.x0), yB = yAtX(L.x1);
+    const panelH = L.py1 - L.py0;
+    if (Math.min(yA, yB) > L.py1 + panelH * 0.15 || Math.max(yA, yB) < L.py0 - panelH * 0.15) {
+      const above = Math.max(yA, yB) < L.py0;
+      return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">line ${above ? '↑' : '↓'} off-scale</text>`;
+    }
+    const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`;
+    const badge = d.locked
+      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    let handles = '';
+    if (editing && !d.locked) {
+      handles = reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive);
+      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
+    }
+    return line + handles + badge;
+  }
+
+  // Horizontal price line — one price, spanning the panel. The label sits in
+  // the gutter with the axis ticks, because that is where a level is read.
+  function reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const y = sc.y(d.p);
+    const panelH = L.py1 - L.py0;
+    if (y > L.py1 + panelH * 0.15 || y < L.py0 - panelH * 0.15) {
+      const above = y < L.py0;
+      return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">level ${above ? '↑' : '↓'} off-scale</text>`;
+    }
+    const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`;
+    const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
+    const badge = d.locked
+      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    const handles = (editing && !d.locked)
+      ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
+    return line + tag + handles + badge;
   }
 
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
@@ -7642,11 +7745,15 @@
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
+      <div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
+        <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+      </div>
       <footer class="reel-foot">
         <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${edit ? '' : ' hidden'} aria-label="Add another channel">Add</button>
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${edit && ch && !ch.locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${edit && ch ? '' : ' hidden'}>Clear</button>
         </div>
@@ -7661,7 +7768,8 @@
     const ch   = activeChannel(name);
     const edit = reel.editing === name;
     const q = a => el.querySelector(`[data-act="${a}"]`);
-    const b = q('channel'), add = q('channel-add'), lk = q('channel-lock'), clr = q('channel-clear');
+    const b = q('channel'), lk = q('channel-lock'), clr = q('channel-clear');
+    const add = el.querySelector('[data-tools]');
     if (b) { b.textContent = channelBtnLabel(name); b.classList.toggle('on', edit || !!(ch && ch.locked)); }
     if (add) add.hidden = !edit;
     if (lk)  lk.hidden  = !(edit && ch && !ch.locked);
@@ -7721,6 +7829,11 @@
       <div class="reel-chart" id="reelChart-${i}">
         <div class="reel-skel"><span></span></div>
       </div>
+      <div class="reel-toolbar" data-tools${_chEditing ? '' : ' hidden'}>
+        <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+      </div>
 
       <footer class="reel-foot">
         <span class="reel-trend ${trCls}">${trend}</span>
@@ -7728,7 +7841,6 @@
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${reel.editing === name ? '' : ' hidden'} aria-label="Add another channel">Add</button>
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && _chNow && !_chNow.locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && _chNow ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
@@ -8088,6 +8200,23 @@
       if (!ch) return;
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
+
+      // A horizontal level is one number and one handle.
+      if (ch.kind === 'hline') { ch.p = price; schedule(); return; }
+
+      // A trend line is two anchors and nothing else — there is no offset to
+      // solve back through, so the pointer's price IS the anchor price. Running
+      // it through the channel branch read ch.up/ch.dn, which a trend does not
+      // have, and wrote NaN into the anchor.
+      if (ch.kind === 'trend') {
+        const dt = reelDateForBarIndex(ctx.b, fi);
+        if (dt) {
+          if (handle === 'a') { ch.t1 = dt; ch.p1 = price; }
+          else                { ch.t2 = dt; ch.p2 = price; }
+        }
+        schedule();
+        return;
+      }
 
       if (handle === 'a' || handle === 'b') {
         // The end handles ride the MIDLINE, so the pointer's price is where the
@@ -8556,7 +8685,7 @@
     window.__reelBtnAct = function (e) {
       // .reel-share-btn lives in the card HEADER, so it is matched here too —
       // it is not a .reel-act and closest('.reel-act') silently skipped it.
-      const btn = e.target.closest('.reel-act, .reel-share-btn');
+      const btn = e.target.closest('.reel-act, .reel-share-btn, .reel-tool');
       if (!btn) return false;
       const name = btn.dataset.name;
       if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
@@ -8571,7 +8700,7 @@
       if (btn.dataset.act === 'chart-expand')  { chartFullOpen(name); return true; }
       if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
-      if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost); return true; }
+      if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return true; }
       if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return true; }
       return false;

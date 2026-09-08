@@ -7699,6 +7699,9 @@ body {
    to move a handle up or down, so handles could not be adjusted at all on a
    phone. Edit mode is modal, so this only applies while a channel is open. */
 .reel-card.ch-editing .reel-chart { touch-action: none; }
+/* The tool strip is absolutely positioned over the chart, so its nearest
+   positioned ancestor has to be the card. */
+.reel-card { position: relative; }
 
 .reel-hint {
   position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
@@ -7758,7 +7761,26 @@ body {
 /* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was
    reported as not being there at all. "+ Add" wrapped to two lines and grew the
    footer, so the word alone. */
-.reel-act-add { color: var(--accent); white-space: nowrap; }
+/* Drawing tools — a vertical strip ON the chart, where a charting app puts
+   them, rather than in the footer: five controls plus three tools overflow a
+   375px row, and the tools belong next to the thing they draw on. */
+.reel-toolbar {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+  z-index: 3; display: flex; flex-direction: column; gap: 2px;
+  padding: 3px; border-radius: 9px;
+  background: rgba(0,0,0,.62); border: 1px solid var(--border);
+  backdrop-filter: blur(3px);
+}
+.reel-toolbar[hidden] { display: none; }
+.reel-tool {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--accent); padding: 7px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.reel-tool:active { background: rgba(255,255,255,.10); }
+.reel-tool svg { display: block; }
+/* A drawn level's price, in the gutter with the axis ticks where levels are read. */
+.reel-ch-lvl { fill: var(--accent); font-weight: 700; }
 .reel-act-add[hidden] { display: none; }
 .reel-act-lock { color: var(--accent); }
 .reel-act-lock[hidden] { display: none; }
