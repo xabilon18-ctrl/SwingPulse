@@ -975,9 +975,18 @@
       + `${eventChipHtml(item.instrument_name)}</${c}>`;
   }
 
+  // Jump to this instrument on the Charts tab. Every list — Signals, Analyzed,
+  // Trends, the watchlist — is a list of instruments you eventually want to LOOK
+  // at, and until now the only way through was the modal, which shows numbers
+  // rather than the chart.
+  function chartBtn(name) {
+    return `<button class="chart-jump-btn" title="See ${name} on the chart"`
+      + ` data-act="openChartFor" data-arg="${name}" data-stop="1">${EXPAND_ICON}</button>`;
+  }
+
   function cardActionsHtml(name, opts = {}) {
     const { starred = false } = opts;
-    return `<div class="scanner-actions">${tvBtn(name, '')}${shareBtn(name)}`
+    return `<div class="scanner-actions">${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}`
       + `<button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${name}"`
       + ` title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}"`
       + ` data-act="toggleStar" data-stop="1">★</button></div>`;
@@ -4949,6 +4958,10 @@
           <div class="mh-price">${formatPrice(item[f('close')])}</div>
           <div class="mh-price-meta">
             ${changeStr ? `<span class="mh-change ${changeClass}">${priceChange >= 0 ? '▲' : '▼'} ${changeStr}</span>` : ''}
+            <button class="mh-tv-link mh-chart-link" data-act="openChartFor" data-arg="${item.instrument_name}" data-stop="1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              Chart
+            </button>
             <a href="${tvChartUrl}" target="_blank" rel="noopener" class="mh-tv-link" onclick="event.stopPropagation()">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               TradingView
@@ -6446,7 +6459,7 @@
 
   window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
                 calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar,
-                showSimilarCharts, clearSimilarCharts,
+                showSimilarCharts, clearSimilarCharts, openChartFor,
                 openRatesBoard };
 
   // ── Init ─────────────────────────────────────────────────────────────
@@ -8511,6 +8524,27 @@
   // in similarity order. The modal could only ever LIST the lookalikes; the
   // whole reason to know GOLD looks like SA40 is to put the two charts in
   // front of your eyes, which is what the reel is for.
+  // Open the Charts tab ON this instrument. Clears any "lookalikes" filter
+  // first — landing inside a comparison set you did not ask for is disorienting
+  // — then rebuilds and scrolls the reel to the card.
+  function openChartFor(name) {
+    if (!name) return;
+    reel.similarTo = '';
+    closeModal();
+    navigateToTab('charts');
+    buildReel();
+    reelSyncSimBar();
+    const host = document.getElementById('chartReel');
+    const el = host && host.querySelector(`.reel-card[data-name="${CSS.escape(name)}"]`);
+    if (host && el) {
+      // Position the container itself; scrollIntoView can scroll the page
+      // around the fixed pane instead of the reel.
+      host.scrollTop = el.offsetTop - host.offsetTop;
+    }
+    reelPaintVisible();
+    reelSyncNav();
+  }
+
   function showSimilarCharts(name) {
     if (!name || !shapeNeighbours(name).length) return;
     reel.similarTo = name;
