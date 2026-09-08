@@ -7675,6 +7675,26 @@ body {
   cursor: grab;
 }
 .reel-ch-h:active { cursor: grabbing; fill-opacity: .5; }
+/* The real hit area — invisible, and it must not swallow its own pointer
+   events, hence pointer-events:all on a transparent fill. */
+.reel-ch-grab { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
+
+/* While a channel is being edited the chart takes EVERY gesture. With the
+   normal `pan-y` the browser claimed any vertical drag for scrolling the reel
+   and cancelled the pointer stream mid-drag — which is exactly the gesture used
+   to move a handle up or down, so handles could not be adjusted at all on a
+   phone. Edit mode is modal, so this only applies while a channel is open. */
+.reel-card.ch-editing .reel-chart { touch-action: none; }
+
+.reel-hint {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  max-width: 92%; padding: 7px 12px; border-radius: 8px;
+  background: rgba(0,0,0,.82); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 11.5px; line-height: 1.3;
+  text-align: center; pointer-events: none; z-index: 3;
+  animation: reelHintIn .16s ease-out;
+}
+@keyframes reelHintIn { from { opacity: 0; transform: translate(-50%, 4px); } }
 .reel-axis {
   font-size: 19px; fill: var(--text-secondary);
   font-family: inherit; font-variant-numeric: tabular-nums;

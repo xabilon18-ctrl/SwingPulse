@@ -6639,7 +6639,7 @@
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
-    win:    new Map(),       // name → bars shown, when a pan gesture zoomed this card in
+    lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
     editing: null,           // instrument whose channel is being dragged, or null
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
     chunks: new Map(),       // "D:3" → { name: bundle }
@@ -6737,7 +6737,19 @@
   // price scale.
   const REEL_RIGHT_PAD_BARS = 10;
 
-  function reelScale(b, L) {
+  function reelScale(b, L, locked) {
+    // A locked scale is the price window the reader was already looking at when
+    // they grabbed the chart. Panning must not re-fit the axis underneath them —
+    // that is a vertical zoom, and it is what "the view should remain" rules out.
+    if (locked) {
+      const span = (locked.hi - locked.lo) || 1;
+      return {
+        lo: locked.lo, hi: locked.hi, span,
+        clipped: false, maLo: NaN, maHi: NaN,
+        y:   v => L.py1 - ((v - locked.lo) / span) * (L.py1 - L.py0),
+        inv: y => locked.lo + ((L.py1 - y) / (L.py1 - L.py0)) * span,
+      };
+    }
     const lows  = b.l.filter(v => v != null);
     const highs = b.h.filter(v => v != null);
     if (!lows.length || !highs.length) return null;
@@ -6832,7 +6844,7 @@
   // override set by the pan gesture wins over the Range pill — see below.
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
-    const w = (name && reel.win.get(name)) || reel.range;
+    const w = reel.range;
     return (!w || w >= n) ? n : w;
   }
 
@@ -6850,18 +6862,13 @@
 
   // A range change or a timeframe switch invalidates every pan offset — the
   // window is a different width, so "12 bars back" means something else.
-  function reelResetPan() { reel.pan.clear(); reel.win.clear(); }
+  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); }
 
-  // At "Full window" the entire bundle is already on screen, so there is
-  // genuinely nothing to scroll to — and a drag that does nothing reads as
-  // broken. So the first sideways drag on a full-window card zooms it to half
-  // and pans from there. Double-tap puts it back.
-  function reelEnsurePannable(name, bundle) {
-    const n = bundle.c.length;
-    if (reelWindowBars(bundle, name) < n) return false;
-    reel.win.set(name, Math.max(30, Math.round(n / 2)));
-    return true;
-  }
+  // A drag MOVES THE WINDOW. It never resizes it: the amount of chart on screen
+  // is the Range pill's business, and a drag that silently re-zoomed made
+  // panning feel like the chart was jumping around under the finger. At "Full
+  // window" the whole bundle is already drawn, so there is nothing to pan to
+  // and a drag correctly does nothing — pick a Range to make room.
 
   // ── Trend channel ────────────────────────────────────────────────────
   // Anchored in (date, price), never in pixels or bar indices: that is what
@@ -7031,8 +7038,14 @@
 
     let handles = '';
     if (editing) {
+      // TWO circles per handle. The viewBox is 1000 wide against a ~370px card,
+      // so a unit is about a third of a pixel: the r=13 dot that looks right is
+      // a 9px target, which is half a fingertip. The invisible r=42 circle over
+      // it is ~30px — an actual thumb — and carries the same data-h, so the hit
+      // test does not care which one you land on.
       const hx = (x, y, id) => (x >= L.x0 - 2 && x <= L.x1 + 2)
-        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>`
+        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>` +
+          `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}"/>`
         : '';
       handles = hx(x1, y1, 'a') + hx(x2, y2, 'b')
               + hx((x1 + x2) / 2, (y1 + y2) / 2 + dy, 'w');
@@ -7050,7 +7063,12 @@
     const b  = reelSlice(bundle, reelWindowBars(bundle, item.instrument_name),
                          reelPanOf(item.instrument_name));
     const L  = reelLayout(host);
-    const sc = reelScale(b, L);
+    // Price scale. It fits the visible slice, EXCEPT while this card is being
+    // panned: then it is pinned to the bounds captured when the drag began, so
+    // scrolling back through history does not re-fit the axis under the reader.
+    // Re-fitting is what made a sideways drag look like a zoom — the bars kept
+    // their x and changed their y. Double-tap restores the fit.
+    const sc = reelScale(b, L, reel.lockY.get(item.instrument_name));
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -7396,6 +7414,20 @@
   // scroll when you meant to leave.
   const REEL_AXIS_LOCK_PX = 7;
 
+  // A one-line note over the chart, for the case where a gesture correctly does
+  // nothing and the reason is not on screen. Auto-clears; never stacks.
+  function reelHint(host, text) {
+    let el = host.querySelector('.reel-hint');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'reel-hint';
+      host.appendChild(el);
+    }
+    el.textContent = text;
+    clearTimeout(host._hintTimer);
+    host._hintTimer = setTimeout(() => { if (el.parentNode) el.remove(); }, 2200);
+  }
+
   function reelSvgPoint(host, ev) {
     const svg = host.querySelector('svg.reel-svg');
     const ctx = host._reelCtx;
@@ -7435,6 +7467,12 @@
       sx = ev.clientX; sy = ev.clientY;
       startPan = reelPanOf(ctx.name);
       mode = null; handle = null;
+      // Capture the price window as it stands right now. If this becomes a pan
+      // that is the view we hold; if it turns out to be a scroll or a handle
+      // drag, it is dropped again on pointerup.
+      if (!reel.lockY.has(ctx.name)) {
+        reel.lockY.set(ctx.name, { lo: ctx.sc.lo, hi: ctx.sc.hi, _provisional: true });
+      }
 
       // A handle grab wins immediately — no axis lock, because dragging a
       // handle straight up is a legitimate gesture and must not scroll away.
@@ -7462,12 +7500,19 @@
 
       if (mode === 'pan') {
         // Drag RIGHT walks back through history, the way every chart behaves.
-        if (reelEnsurePannable(ctx.name, ctx.bundle)) schedule();
+        const lk = reel.lockY.get(ctx.name);
+        if (lk) delete lk._provisional;      // committed: this really is a pan
         const pt = reelSvgPoint(host, ev);
         const perBar = (pt ? pt.pxPerUnit : 1) * ctx.bw;
         // Grab the paper and pull it RIGHT and older bars come in from the
-        // left, so a rightward drag INCREASES the offset into history.
+        // left, so a rightward drag INCREASES the offset into history. Window
+        // WIDTH never changes here — only which slice of time it covers.
         if (reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle)) schedule();
+        else if (reelWindowBars(ctx.bundle, ctx.name) >= ctx.bundle.c.length) {
+          // Nothing off-screen to scroll to. Say which control makes room,
+          // rather than letting the drag read as broken.
+          reelHint(host, 'Whole chart is already shown — pick a Range to scroll back');
+        }
         return;
       }
 
@@ -7497,6 +7542,12 @@
 
     const finish = ev => {
       if (ev.pointerId !== pid) return;
+      // A gesture that never became a pan leaves the axis free to fit again.
+      const c = host._reelCtx;
+      if (c) {
+        const lk = reel.lockY.get(c.name);
+        if (lk && lk._provisional) { reel.lockY.delete(c.name); reelRepaint(host); }
+      }
       if (mode === 'handle') channelSave();
       // Suppresses the click that a drag inevitably ends with, which would
       // otherwise open the instrument modal every time you panned.
@@ -7510,9 +7561,9 @@
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {
       const ctx = host._reelCtx;
-      if (!ctx || (!reelPanOf(ctx.name) && !reel.win.has(ctx.name))) return;
+      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name))) return;
       reel.pan.delete(ctx.name);
-      reel.win.delete(ctx.name);
+      reel.lockY.delete(ctx.name);
       reelRepaint(host);
     });
   }
