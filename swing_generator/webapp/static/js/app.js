@@ -162,24 +162,36 @@
   // mean the same thing on 1H as on Weekly, so the same channel is a trend
   // read on every tab. Draw it once on the timeframe where the structure is
   // clearest and it shows up on the rest.
-  //   { [instrument]: { t1, p1, t2, p2, half, locked } }
-  // t*/p* anchor the MIDLINE — the halfway line — and `half` is the distance in
-  // price to each edge, so the two edges sit at mid +/- half and the midline is
-  // always exactly halfway between them by construction rather than by
-  // arithmetic that can drift. Either edge can be dragged and the other mirrors
-  // it. `locked` means finished: it still draws, but grows no handles and
-  // cannot be entered for editing until unlocked, so no stray touch moves it.
+  //   { [instrument]: { t1, p1, t2, p2, up, dn, locked } }
+  // t*/p* anchor a SPINE that is never drawn and never moves when an edge does.
+  // `up` and `dn` are independent price offsets from it to the upper and lower
+  // edge, which is what lets one side be dragged without disturbing the other.
+  // Both edges share the spine's slope, so they stay parallel — that is what
+  // makes it a channel rather than two loose lines. The midline is computed as
+  // (up+dn)/2 from the spine, so it is exactly halfway between the edges
+  // wherever they are, rather than assumed to be. `locked` means finished: it
+  // still draws, but grows no handles and cannot be entered for editing until
+  // unlocked, so no stray touch moves it.
   // Channels written before the midline model carried {p1,p2,w}: p* on the
   // LOWER line with w the signed offset to the other one. Converting on read
   // keeps every channel already drawn — the geometry is identical, the anchor
   // simply moves to the middle of it.
+  // Three shapes have existed. Each converts to the current one with identical
+  // geometry, so no drawn channel is ever lost or moved:
+  //   {p1,p2,w}    — p* on the lower line, w the offset to the other
+  //   {p1,p2,half} — p* on the midline, edges mirrored at +/- half
+  //   {p1,p2,up,dn} — current: p* a spine, edges offset independently
   function migrateChannel(ch) {
     if (!ch || typeof ch !== 'object') return null;
-    if (typeof ch.half === 'number') return ch;
+    if (typeof ch.up === 'number' && typeof ch.dn === 'number') return ch;
+    if (typeof ch.half === 'number') {
+      return { t1: ch.t1, p1: ch.p1, t2: ch.t2, p2: ch.p2,
+               up: Math.abs(ch.half), dn: -Math.abs(ch.half), locked: !!ch.locked };
+    }
     if (typeof ch.w === 'number') {
       const h = Math.abs(ch.w) / 2;
       return { t1: ch.t1, p1: ch.p1 + ch.w / 2, t2: ch.t2, p2: ch.p2 + ch.w / 2,
-               half: h, locked: !!ch.locked };
+               up: h, dn: -h, locked: !!ch.locked };
     }
     return null;
   }
@@ -6978,12 +6990,12 @@
       if (lo - base < -worst) worst = -(lo - base);
     }
     const half = (worst || Math.abs(p1) * 0.04) / 2;
-    // Anchored on the MIDLINE, so the starting channel is centred on the run
-    // between the two closes rather than hanging off one side of it.
+    // The spine sits on the run between the two closes, with the edges opened
+    // out either side of it, so a new channel starts centred on the move.
     return {
       t1: String(b.t[i1]), p1: p1 + half,
       t2: String(b.t[i2]), p2: p2 + half,
-      half,
+      up: half, dn: -half,
     };
   }
 
@@ -7093,8 +7105,11 @@
     const slope = (y2 - y1) / (x2 - x1);
     const yAtX  = x => y1 + slope * (x - x1);
     // The price scale is linear, so a price offset is a CONSTANT pixel offset —
-    // the edges stay parallel without recomputing per x.
-    const dy = sc.y(ch.p1 + ch.half) - sc.y(ch.p1);   // negative: up the screen
+    // the edges stay parallel without recomputing per x. Each edge gets its own
+    // because each moves on its own.
+    const dUp  = sc.y(ch.p1 + ch.up) - sc.y(ch.p1);   // negative: up the screen
+    const dDn  = sc.y(ch.p1 + ch.dn) - sc.y(ch.p1);   // positive: down
+    const dMid = (dUp + dDn) / 2;                     // halfway, by measurement
 
     const XA = L.x0, XB = L.x1;
     const yA = yAtX(XA), yB = yAtX(XB);
@@ -7106,8 +7121,8 @@
     // than draw invisible geometry, say where it went, the way the clipped
     // ribbon already does.
     const panelH = L.py1 - L.py0;
-    const lo = Math.min(yA - Math.abs(dy), yB - Math.abs(dy));
-    const hi = Math.max(yA + Math.abs(dy), yB + Math.abs(dy));
+    const lo = Math.min(yA + dUp, yB + dUp, yA + dDn, yB + dDn);
+    const hi = Math.max(yA + dUp, yB + dUp, yA + dDn, yB + dDn);
     if (lo > L.py1 + panelH * 0.15 || hi < L.py0 - panelH * 0.15) {
       const above = hi < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">channel ${above ? '↑' : '↓'} off-scale</text>`;
@@ -7115,8 +7130,7 @@
     const seg = (off, cls) =>
       `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
 
-    const D = Math.abs(dy);
-    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA - D).toFixed(1)} ${XB.toFixed(1)},${(yB - D).toFixed(1)} ${XB.toFixed(1)},${(yB + D).toFixed(1)} ${XA.toFixed(1)},${(yA + D).toFixed(1)}"/>`;
+    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`;
 
     let handles = '';
     if (editing && !ch.locked) {
@@ -7129,11 +7143,12 @@
         ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h" data-h="${id}"/>` +
           `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}"/>`
         : '';
-      // Four: both ENDS of the midline, and both EDGES. Either edge widens the
-      // channel and the other mirrors it, so the midline stays halfway.
+      // Four: both ENDS of the midline, and both EDGES. Each edge moves on its
+      // own. The end handles sit ON the midline — the spine is not drawn, and a
+      // handle floating on an invisible line is not a thing you can aim at.
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      handles = hx(x1, y1, 'a') + hx(x2, y2, 'b')
-              + hx(mx, my - D, 'u') + hx(mx, my + D, 'd');
+      handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
+              + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
       // Zoom in past both anchors and there is nothing left on screen to grab —
       // the channel still draws in the right place (it is anchored to dates and
       // prices, not to the window), it just cannot be adjusted from here. Say
@@ -7150,9 +7165,9 @@
       : '';
 
     return band
-      + seg(-D, 'reel-ch reel-ch-edge')
-      + seg(D,  'reel-ch reel-ch-edge')
-      + seg(0,  'reel-ch reel-ch-mid')      // the midline IS the anchor line
+      + seg(dUp,  'reel-ch reel-ch-edge')
+      + seg(dDn,  'reel-ch reel-ch-edge')
+      + seg(dMid, 'reel-ch reel-ch-mid')
       + handles + badge;
   }
 
@@ -7796,23 +7811,26 @@
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
 
       if (handle === 'a' || handle === 'b') {
+        // The end handles ride the MIDLINE, so the pointer's price is where the
+        // midline should land — the spine sits (up+dn)/2 away from it.
         const d = reelDateForBarIndex(ctx.b, fi);
-        if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = price; } else { ch.t2 = d; ch.p2 = price; } }
+        const spine = price - (ch.up + ch.dn) / 2;
+        if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = spine; } else { ch.t2 = d; ch.p2 = spine; } }
       } else {
-        // An EDGE handle ('u' upper, 'd' lower). Either one sets the half-width
-        // from its distance to the midline at this x, and the opposite edge
-        // mirrors it — which is what keeps the middle line exactly halfway
-        // however the channel is resized, and means it can be opened out from
-        // whichever side you happen to be looking at.
+        // An EDGE handle. ONLY its own offset changes — the opposite edge does
+        // not move, which is the whole point of storing two of them.
         const i1 = reelBarIndexForDate(ctx.b, ch.t1);
         const i2 = reelBarIndexForDate(ctx.b, ch.t2);
         if (i1 != null && i2 != null && Math.abs(i2 - i1) > 1e-6) {
-          const midPrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
-          // Keep the two edges CH_MIN_SPAN apart on screen. Without this an
-          // edge can be dragged onto the midline, collapsing all three lines
-          // onto the same pixels with nothing left to grab them apart.
-          const unitPx = Math.abs(ctx.sc.y(midPrice + 1) - ctx.sc.y(midPrice)) || 1;
-          ch.half = Math.max(Math.abs(price - midPrice), (CH_MIN_SPAN / 2) / unitPx);
+          const spinePrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
+          const unitPx = Math.abs(ctx.sc.y(spinePrice + 1) - ctx.sc.y(spinePrice)) || 1;
+          const minGap = CH_MIN_SPAN / unitPx;   // in price
+          const want   = price - spinePrice;
+          // The edges may not be dragged through one another, or onto the same
+          // pixels: past the stop, the edge being dragged parks minGap clear of
+          // the other one — which still leaves the OTHER one where it was.
+          if (handle === 'u') ch.up = Math.max(want, ch.dn + minGap);
+          else                ch.dn = Math.min(want, ch.up - minGap);
         }
       }
       schedule();
