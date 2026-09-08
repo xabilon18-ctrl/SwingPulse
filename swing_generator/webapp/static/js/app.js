@@ -162,9 +162,11 @@
   // mean the same thing on 1H as on Weekly, so the same channel is a trend
   // read on every tab. Draw it once on the timeframe where the structure is
   // clearest and it shows up on the rest.
-  //   { [instrument]: { t1, p1, t2, p2, w } }
-  // t* are 'YYYY-MM-DD' bar dates, p* prices on the base line, w the signed
-  // price offset to the parallel line. The midline sits at w/2.
+  //   { [instrument]: { t1, p1, t2, p2, w, locked } }
+  // t* are bar labels, p* prices on the base line, w the signed price offset to
+  // the parallel line. The midline sits at w/2. `locked` means the channel is
+  // finished: it still draws, but it grows no handles and cannot be entered for
+  // editing until it is unlocked, so it cannot be nudged by a stray touch.
   let instChannels = (() => {
     try { return JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
     catch (_) { return {}; }
@@ -6958,6 +6960,11 @@
   // adjustment rather than a construction.
   function channelToggleEdit(name, host) {
     const ctx = host && host._reelCtx;
+    // Locked is a real gate, not a label: the button unlocks rather than edits.
+    if (instChannels[name] && instChannels[name].locked) {
+      channelSetLocked(name, false, host);
+      return;
+    }
     if (reel.editing === name) { reel.editing = null; channelSave(); }
     else {
       if (!instChannels[name] && ctx) {
@@ -6972,6 +6979,19 @@
     reelSyncChannelButtons();
   }
 
+  // Lock finishes the channel: it stays drawn and stays put, and no touch can
+  // move it until it is unlocked. This is the "I am happy with it" step, which
+  // is a different statement from "I have stopped editing for now".
+  function channelSetLocked(name, locked, host) {
+    const ch = instChannels[name];
+    if (!ch) return;
+    ch.locked = !!locked;
+    if (locked) reel.editing = null;
+    channelSave();
+    if (host) reelRepaint(host);
+    reelSyncChannelButtons();
+  }
+
   function channelClear(name, host) {
     delete instChannels[name];
     if (reel.editing === name) reel.editing = null;
@@ -6980,25 +7000,41 @@
     reelSyncChannelButtons();
   }
 
-  // Keep every visible card's channel button in step with the state — the
-  // button says what it will DO, and only the card being edited shows Clear.
+  // ONE place decides what the channel controls say — the card HTML and the
+  // live update both read it, so the two cannot drift apart. Every label is what
+  // the button will DO, not what state it is in.
+  function channelBtnLabel(name) {
+    const ch = instChannels[name];
+    if (ch && ch.locked)        return 'Unlock';
+    if (reel.editing === name)  return 'Done';
+    return ch ? 'Edit channel' : 'Channel';
+  }
+
   function reelSyncChannelButtons() {
     document.querySelectorAll('#chartReel .reel-card').forEach(card => {
       const name = card.dataset.name;
+      const ch   = instChannels[name];
       const btn  = card.querySelector('[data-act="channel"]');
       const clr  = card.querySelector('[data-act="channel-clear"]');
+      const lk   = card.querySelector('[data-act="channel-lock"]');
       if (btn) {
-        const editing = reel.editing === name;
-        btn.textContent = editing ? 'Done' : (instChannels[name] ? 'Edit channel' : 'Channel');
-        btn.classList.toggle('on', editing);
+        btn.textContent = channelBtnLabel(name);
+        btn.classList.toggle('on', reel.editing === name || !!(ch && ch.locked));
       }
-      if (clr) clr.hidden = !(reel.editing === name && instChannels[name]);
+      if (lk)  lk.hidden  = !(reel.editing === name && ch && !ch.locked);
+      if (clr) clr.hidden = !(reel.editing === name && ch);
       // Edit mode is modal, so the card shows only the controls that belong to
       // it. Five buttons do not fit a phone footer — TradingView was clipped —
       // and Details/TradingView are the wrong thing to hit mid-drag anyway.
-      card.classList.toggle('ch-editing', reel.editing === name);
+      card.classList.toggle('ch-editing', reel.editing === name && !(ch && ch.locked));
     });
   }
+
+  // The narrowest a channel may be, in viewBox units. Dragging the width handle
+  // onto the base line would otherwise put both edges AND the midline on the
+  // same pixels — three lines drawn on top of each other, which reads as one
+  // line and cannot be grabbed apart again.
+  const CH_MIN_SPAN = 20;
 
   function reelChannelSvg(ch, b, L, sc, bw, editing) {
     if (!ch) return '';
@@ -7037,7 +7073,7 @@
     const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${yA.toFixed(1)} ${XB.toFixed(1)},${yB.toFixed(1)} ${XB.toFixed(1)},${(yB + dy).toFixed(1)} ${XA.toFixed(1)},${(yA + dy).toFixed(1)}"/>`;
 
     let handles = '';
-    if (editing) {
+    if (editing && !ch.locked) {
       // TWO circles per handle. The viewBox is 1000 wide against a ~370px card,
       // so a unit is about a third of a pixel: the r=13 dot that looks right is
       // a 9px target, which is half a fingertip. The invisible r=42 circle over
@@ -7049,13 +7085,26 @@
         : '';
       handles = hx(x1, y1, 'a') + hx(x2, y2, 'b')
               + hx((x1 + x2) / 2, (y1 + y2) / 2 + dy, 'w');
+      // Zoom in past both anchors and there is nothing left on screen to grab —
+      // the channel still draws in the right place (it is anchored to dates and
+      // prices, not to the window), it just cannot be adjusted from here. Say
+      // which control brings the handles back rather than leaving it a puzzle.
+      if (!handles) {
+        handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
+      }
     }
+
+    // A locked channel says so on the chart, so "why will this not move" has an
+    // answer without hunting through the footer.
+    const badge = ch.locked
+      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>`
+      : '';
 
     return band
       + seg(0,      'reel-ch reel-ch-edge')
       + seg(dy,     'reel-ch reel-ch-edge')
       + seg(dy / 2, 'reel-ch reel-ch-mid')
-      + handles;
+      + handles + badge;
   }
 
   // Build the whole chart as one SVG string.
@@ -7268,7 +7317,8 @@
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
     const starred = userStarred.has(name);
 
-    return `<article class="reel-card${reel.editing === name ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
+    const _chEditing = reel.editing === name && !(instChannels[name] && instChannels[name].locked);
+    return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-main">
           <span class="reel-name">${name}</span>
@@ -7290,7 +7340,8 @@
         <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
-          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${reel.editing === name ? 'Done' : (instChannels[name] ? 'Edit channel' : 'Channel')}</button>
+          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
+          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && instChannels[name] && !instChannels[name].locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && instChannels[name] ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
@@ -7534,7 +7585,15 @@
         const i2 = reelBarIndexForDate(ctx.b, ch.t2);
         if (i1 != null && i2 != null && Math.abs(i2 - i1) > 1e-6) {
           const basePrice = ch.p1 + (ch.p2 - ch.p1) * (fi - i1) / (i2 - i1);
-          ch.w = price - basePrice;
+          let w = price - basePrice;
+          // Keep the edges CH_MIN_SPAN apart on screen. Without this the width
+          // handle can be dragged onto the base line, collapsing both edges and
+          // the midline onto the same pixels — after which there is nothing
+          // left to grab and the channel looks like a single stray line.
+          const unitPx = Math.abs(ctx.sc.y(basePrice + 1) - ctx.sc.y(basePrice)) || 1;
+          const minW   = CH_MIN_SPAN / unitPx;
+          if (Math.abs(w) < minW) w = (w < 0 ? -1 : 1) * minW;
+          ch.w = w;
         }
       }
       schedule();
@@ -7992,6 +8051,7 @@
           const cardEl = btn.closest('.reel-card');
           const chHost = cardEl && cardEl.querySelector('.reel-chart');
           if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return; }
+          if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return; }
           if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return; }
         }
         // Tapping the chart itself opens the full instrument view — but a pan
