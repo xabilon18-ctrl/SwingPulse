@@ -7755,7 +7755,10 @@ body {
 }
 .reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
 .reel-share-btn svg { display: block; }
-.reel-act-add { color: var(--accent); font-size: 16px; line-height: 1; padding: 0 11px; }
+/* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was
+   reported as not being there at all. "+ Add" wrapped to two lines and grew the
+   footer, so the word alone. */
+.reel-act-add { color: var(--accent); white-space: nowrap; }
 .reel-act-add[hidden] { display: none; }
 .reel-act-lock { color: var(--accent); }
 .reel-act-lock[hidden] { display: none; }

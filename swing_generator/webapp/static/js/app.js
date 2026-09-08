@@ -7575,7 +7575,7 @@
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${reel.editing === name ? '' : ' hidden'} aria-label="Add another channel">+</button>
+          <button class="reel-act reel-act-add" data-act="channel-add" data-name="${name}"${reel.editing === name ? '' : ' hidden'} aria-label="Add another channel">Add</button>
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && _chNow && !_chNow.locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && _chNow ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
