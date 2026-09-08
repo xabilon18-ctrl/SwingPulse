@@ -162,7 +162,12 @@
   // mean the same thing on 1H as on Weekly, so the same channel is a trend
   // read on every tab. Draw it once on the timeframe where the structure is
   // clearest and it shows up on the rest.
-  //   { [instrument]: { t1, p1, t2, p2, up, dn, locked } }
+  //   { [instrument]: { [timeframe]: { t1, p1, t2, p2, up, dn, locked } } }
+  // Keyed by timeframe as well as instrument: a channel belongs to the chart it
+  // was drawn on. Sharing one across every timeframe was the first design and
+  // it was wrong in use — the same lines turned up on 1H where they meant
+  // nothing, and there was no way to keep a Weekly channel without also
+  // carrying it everywhere else.
   // t*/p* anchor a SPINE that is never drawn and never moves when an edge does.
   // `up` and `dn` are independent price offsets from it to the upper and lower
   // edge, which is what lets one side be dragged without disturbing the other.
@@ -196,17 +201,58 @@
     return null;
   }
 
-  let instChannels = (() => {
-    let raw = {};
-    try { raw = JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
-    catch (_) { return {}; }
+  // Legacy stores were flat — one channel per instrument, shown on everything.
+  // There is no record of which chart it was drawn on, so it is copied to every
+  // timeframe: nothing a reader has drawn disappears, nothing moves, and from
+  // the first edit onward each timeframe goes its own way. Clearing the ones
+  // you do not want is a tap per chart.
+  // Read from the timeframe table rather than restated — a hand-copied list is
+  // exactly how 3D got added to one place and not another last week.
+  const CHANNEL_TFS = TIMEFRAMES.map(t => t.code);
+
+  function expandChannelStore(raw) {
     const out = {};
-    for (const k of Object.keys(raw || {})) {
-      const m = migrateChannel(raw[k]);
-      if (m) out[k] = m;
+    for (const name of Object.keys(raw || {})) {
+      const v = raw[name];
+      if (!v || typeof v !== 'object') continue;
+      if (v.t1 || typeof v.p1 === 'number') {          // flat = pre-timeframe
+        const m = migrateChannel(v);
+        if (!m) continue;
+        out[name] = {};
+        for (const tf of CHANNEL_TFS) out[name][tf] = { ...m };
+      } else {
+        const per = {};
+        for (const tf of Object.keys(v)) {
+          const m = migrateChannel(v[tf]);
+          if (m) per[tf] = m;
+        }
+        if (Object.keys(per).length) out[name] = per;
+      }
     }
     return out;
+  }
+
+  let instChannels = (() => {
+    try { return expandChannelStore(JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}')); }
+    catch (_) { return {}; }
   })();
+
+  // The channel for one instrument on the CHART CURRENTLY SHOWN.
+  function channelFor(name) {
+    const per = instChannels[name];
+    return (per && per[timeframe]) || null;
+  }
+
+  function setChannelFor(name, ch) {
+    if (!instChannels[name]) instChannels[name] = {};
+    instChannels[name][timeframe] = ch;
+  }
+
+  function clearChannelFor(name) {
+    if (!instChannels[name]) return;
+    delete instChannels[name][timeframe];
+    if (!Object.keys(instChannels[name]).length) delete instChannels[name];
+  }
 
   function syncApplyRemote(remote) {
     // Apply remote data, then re-render affected sections.
@@ -227,11 +273,7 @@
     // Channels ride the same blob. The Worker shallow-merges unknown keys
     // ({...prev, ...incoming}), so this needed no Worker change.
     if (remote.channels && typeof remote.channels === 'object') {
-      instChannels = {};
-      for (const k of Object.keys(remote.channels)) {
-        const m = migrateChannel(remote.channels[k]);
-        if (m) instChannels[k] = m;
-      }
+      instChannels = expandChannelStore(remote.channels);
       localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
     }
     localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
@@ -7012,8 +7054,9 @@
     // Locked is a real gate, not a label. Unlocking goes STRAIGHT into editing:
     // you only unlock in order to change something, and making that two taps
     // read as "I cannot adjust the channel any more".
-    if (instChannels[name] && instChannels[name].locked) {
-      instChannels[name].locked = false;
+    const _cur = channelFor(name);
+    if (_cur && _cur.locked) {
+      _cur.locked = false;
       reel.editing = name;
       channelSave();
       if (host) reelRepaint(host);
@@ -7022,10 +7065,10 @@
     }
     if (reel.editing === name) { reel.editing = null; channelSave(); }
     else {
-      if (!instChannels[name] && ctx) {
+      if (!channelFor(name) && ctx) {
         const def = reelDefaultChannel(ctx.b);
         if (!def) return;
-        instChannels[name] = def;
+        setChannelFor(name, def);
         channelSave();
       }
       reel.editing = name;
@@ -7038,7 +7081,7 @@
   // move it until it is unlocked. This is the "I am happy with it" step, which
   // is a different statement from "I have stopped editing for now".
   function channelSetLocked(name, locked, host) {
-    const ch = instChannels[name];
+    const ch = channelFor(name);
     if (!ch) return;
     ch.locked = !!locked;
     if (locked) reel.editing = null;
@@ -7048,7 +7091,7 @@
   }
 
   function channelClear(name, host) {
-    delete instChannels[name];
+    clearChannelFor(name);
     if (reel.editing === name) reel.editing = null;
     channelSave();
     if (host) reelRepaint(host);
@@ -7059,7 +7102,7 @@
   // live update both read it, so the two cannot drift apart. Every label is what
   // the button will DO, not what state it is in.
   function channelBtnLabel(name) {
-    const ch = instChannels[name];
+    const ch = channelFor(name);
     if (ch && ch.locked)        return 'Unlock';
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
@@ -7070,7 +7113,7 @@
   function reelSyncChannelButtons() {
     document.querySelectorAll('#chartReel .reel-card').forEach(card => {
       const name = card.dataset.name;
-      const ch   = instChannels[name];
+      const ch   = channelFor(name);
       const btn  = card.querySelector('[data-act="channel"]');
       const clr  = card.querySelector('[data-act="channel-clear"]');
       const lk   = card.querySelector('[data-act="channel-lock"]');
@@ -7146,7 +7189,17 @@
       // Four: both ENDS of the midline, and both EDGES. Each edge moves on its
       // own. The end handles sit ON the midline — the spine is not drawn, and a
       // handle floating on an invisible line is not a thing you can aim at.
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      //
+      // The END handles are pinned to their dates, so they legitimately go
+      // off-screen and you pan to reach them. The EDGE handles are not: their x
+      // is arbitrary, and putting them at the midpoint of the two anchors left
+      // them unreachable whenever that midpoint fell outside the window — a
+      // channel plainly visible on Daily with no way to widen it. They are
+      // clamped into the panel instead, so whenever the channel can be seen it
+      // can be adjusted.
+      const pad = 60;
+      const mx = Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad);
+      const my = yAtX(mx);
       handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
       // Zoom in past both anchors and there is nothing left on screen to grab —
@@ -7397,7 +7450,7 @@
 
     // ── Trend channel, if one is saved for this instrument ──
     const name    = item.instrument_name;
-    const channel = reelChannelSvg(instChannels[name], b, L, sc, bw,
+    const channel = reelChannelSvg(channelFor(name), b, L, sc, bw,
                                    reel.editing === name);
 
     // The pointer handlers need the exact geometry that was DRAWN, not a
@@ -7432,7 +7485,8 @@
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
     const starred = userStarred.has(name);
 
-    const _chEditing = reel.editing === name && !(instChannels[name] && instChannels[name].locked);
+    const _chNow = channelFor(name);
+    const _chEditing = reel.editing === name && !(_chNow && _chNow.locked);
     return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-main">
@@ -7457,8 +7511,8 @@
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && instChannels[name] && !instChannels[name].locked ? '' : ' hidden'}>Lock</button>
-          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && instChannels[name] ? '' : ' hidden'}>Clear</button>
+          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && _chNow && !_chNow.locked ? '' : ' hidden'}>Lock</button>
+          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && _chNow ? '' : ' hidden'}>Clear</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
         </div>
@@ -7805,7 +7859,7 @@
       // mode === 'handle'
       const pt = reelSvgPoint(host, ev);
       if (!pt) return;
-      const ch = instChannels[ctx.name];
+      const ch = channelFor(ctx.name);
       if (!ch) return;
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
