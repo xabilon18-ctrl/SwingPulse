@@ -7720,7 +7720,10 @@ body {
 .reel-ch { fill: none; stroke: var(--reel-ch-color, #f2f2ee); stroke-linecap: round; }
 .reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
 .reel-ch-mid  { stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .6; }
-.reel-ch-band { fill: var(--reel-ch-color, #f2f2ee); fill-opacity: .05; stroke: none; }
+/* No fill between the edges. At 5% it was barely there on a dark panel, and
+   what it did do was wash out the bars inside the channel — the very ones you
+   drew it to look at. The two dotted edges and the midline carry it. */
+.reel-ch-band { fill: none; stroke: none; }
 .reel-ch-lock { fill: var(--reel-ch-color, #f2f2ee); font-size: 26px; opacity: .75; font-weight: 600; }
 .reel-ch-note { fill: var(--text-muted); font-size: 25px; opacity: .9; }
 

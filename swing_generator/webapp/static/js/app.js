@@ -6898,6 +6898,15 @@
   // price scale.
   const REEL_RIGHT_PAD_BARS = 10;
 
+  // ...but as a SHARE of the window once the window gets small. The pad is
+  // counted in bars, so a flat 10 is a tenth of a 100-bar view and HALF of a
+  // 20-bar one — zoom the time scale in and the chart would hand more and more
+  // of the panel to blank space, which is the opposite of zooming in. Windows
+  // of 100 bars and up are unaffected.
+  function reelRightPadBars(winBars) {
+    return Math.min(REEL_RIGHT_PAD_BARS, Math.max(2, Math.round(winBars * 0.1)));
+  }
+
   function reelScale(b, L, locked) {
     // A locked scale is the price window the reader was already looking at when
     // they grabbed the chart. Panning must not re-fit the axis underneath them —
@@ -7004,9 +7013,11 @@
   // How many bars the visible window holds, for a given bundle. A per-card
   // override set by the time-scale drag wins over the Range pill.
 
-  // Floor on the time window. Below roughly this the bars are wider than they
-  // are tall and the ribbon has too few points left to read a slope from.
-  const REEL_MIN_WINDOW_BARS = 20;
+  // Floor on the time window. Lowered 20 -> 10 on 2026-09-09: 20 bars still
+  // stopped short of the "what did the last fortnight actually do" read the
+  // zoom is for. Ten is where a daily chart is two trading weeks and the bars
+  // are about as wide as they are tall.
+  const REEL_MIN_WINDOW_BARS = 10;
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
@@ -7494,7 +7505,7 @@
     // Leave a margin of empty bars between the last bar and the price axis,
     // the way a real chart does — price pinned to the scale is hard to read,
     // and the ribbon needs somewhere to run to.
-    const bw = (L.x1 - L.x0) / (_winBars + REEL_RIGHT_PAD_BARS);
+    const bw = (L.x1 - L.x0) / (_winBars + reelRightPadBars(_winBars));
     const xOf = i => L.x0 + i * bw + bw / 2;
 
     // ── Price axis ──
@@ -8247,9 +8258,13 @@
   }
 
   // Apply a drag of `dx` CSS pixels to the time window captured at grab time.
-  // Mirrors the price zoom: exponential, so the same travel is the same ratio
-  // wherever you start, and scaled by the host's WIDTH so a card and a
-  // full-screen panel feel the same. Drag right -> fewer, wider bars.
+  // Exponential, so the same travel is the same ratio wherever you start, and
+  // scaled by the host's WIDTH so a card and a full-screen panel feel the same.
+  //
+  // Drag LEFT to zoom in (fewer, wider bars), RIGHT to zoom out. That is the
+  // opposite of the price scale, where up zooms in, and it is the right way
+  // round: you are dragging the timeline itself, and pulling it left drags
+  // later dates toward you, which is what zooming in on the recent end does.
   //
   // The right edge of the window does not move: `pan` counts bars back from the
   // newest, so holding it fixed while the width changes adds and removes bars
@@ -8260,7 +8275,7 @@
     const wPx = host.getBoundingClientRect().width || 0;
     const K   = Math.max(140, wPx * 0.9);
     const n   = ctx.bundle.c.length;
-    let bars  = grab.bars * Math.exp(-dx / K);
+    let bars  = grab.bars * Math.exp(dx / K);
     bars = Math.min(Math.max(Math.round(bars), REEL_MIN_WINDOW_BARS), n);
     if (bars === reelWindowBars(ctx.bundle, ctx.name)) return false;
     if (bars >= n) reel.tzoom.delete(ctx.name);      // back to the whole bundle
