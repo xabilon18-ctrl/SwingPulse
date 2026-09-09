@@ -1,7 +1,7 @@
 """
 SwingPulse — MA500 Profile Configuration
 =========================================
-MA ribbon: 25, 50, 75 ... 500 (step 25, 20 MAs).
+MA ribbon: 50, 250, 500 (3 MAs).
 
 Data requirements:
     Daily   : 500 bars min → 45 yr history covers ~11,340 bars ✓
@@ -15,13 +15,21 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 
 # ---------------------------------------------------------------------------
-# MA Ribbon  — 25, 50, 75 ... 500  (20 MAs)
+# MA Ribbon  — 50, 250, 500  (3 MAs)
 # ---------------------------------------------------------------------------
-MA_PERIODS  = list(range(25, 501, 25))
-# [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500]
+# Cut from the 20-line ribbon (25, 50, 75 ... 500) to the three lines the
+# signal rules actually name, 2026-09-09:
+#     MA50   fast edge   — B2/S2 fire here   (was MA25)
+#     MA250  mid-ribbon  — B3/S3 fire here
+#     MA500  anchor      — B4/S4 fire here, and the B1/S1 gate
+# The other seventeen lines were drawn and scored but never triggered anything;
+# they only made the chart unreadable and let ribbon-fraction metrics claim a
+# precision the rules did not have. The fast edge moves 25 -> 50: every B2/S2
+# that used to fire on the MA25 cross now fires on the MA50 cross.
+MA_PERIODS  = [50, 250, 500]
 
-SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 250]   # BP2/SP2: fast MAs [25..250]
-MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA275 — midpoint of 20-MA ribbon
+SMALL_MA_RANGE = [p for p in MA_PERIODS if p <= 250]   # BP2/SP2: fast MAs [50, 250]
+MA_MIDPOINT    = MA_PERIODS[len(MA_PERIODS) // 2]       # MA250 — mid-ribbon line
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
@@ -113,10 +121,20 @@ NEUTRAL_SLOPE_THRESHOLD = 0.5
 #
 # Now: UPTREND needs price above TREND_UP_FRAC of the ribbon AND above the
 # anchor; DOWNTREND needs price below all but TREND_DOWN_FRAC of it AND below
-# MA25. Anything in between is NEUTRAL — price is inside the ribbon, which is
+# MA50. Anything in between is NEUTRAL — price is inside the ribbon, which is
 # the honest read for a pullback or a chop zone.
-TREND_UP_FRAC   = 0.75   # ≥15 of 20 MAs held → UPTREND
-TREND_DOWN_FRAC = 0.25   # ≤5  of 20 MAs held → DOWNTREND
+#
+# RESCALED 2026-09-09 for the 3-line ribbon. On 20 MAs the fraction could take
+# 21 values and 0.75/0.25 meant "15 of 20" / "5 of 20". On 3 MAs it can only be
+# 0, 1/3, 2/3 or 1, so 0.75 would have silently hardened to "above ALL THREE"
+# and 0.25 to "below all three" — which contradicts the rule this block exists
+# to state: a shallow pullback below the FAST line must still read UPTREND, and
+# it is the slow ribbon that has to break. 2/3 and 1/3 keep that meaning:
+#   UPTREND   = above MA500 and at least 2 of the 3 lines (so a dip under MA50
+#               while MA250 and MA500 still hold is still an uptrend)
+#   DOWNTREND = below MA50 and at most 1 of the 3 lines held
+TREND_UP_FRAC   = 0.65   # ≥2 of 3 MAs held → UPTREND
+TREND_DOWN_FRAC = 0.35   # ≤1 of 3 MAs held → DOWNTREND
 
 # ---------------------------------------------------------------------------
 # 4H bar geometry  (fixed 2026-07-30)
@@ -186,7 +204,7 @@ H1_SESSION_NORMALIZE = H4_SESSION_NORMALIZE
 # ---------------------------------------------------------------------------
 # Weekly bar geometry  (added 2026-09-02)
 # ---------------------------------------------------------------------------
-# The weekly timeframe runs the SAME MA25-MA500 ribbon on weekly bars, exactly
+# The weekly timeframe runs the SAME MA50-MA500 ribbon on weekly bars, exactly
 # as Daily and 4H each run it on theirs. No scaling: unlike the 4H case there is
 # no session ambiguity — a week is a week on every venue in the book, and one
 # weekly bar is one weekly bar whether the instrument trades 6.5h or 24h.
@@ -194,7 +212,7 @@ H1_SESSION_NORMALIZE = H4_SESSION_NORMALIZE
 # What that ribbon spans, and why it is worth having:
 #   4H    MA500 ~ 12 months (2 bars/session on an equity)
 #   Daily MA500 ~ 24 months
-#   Weekly MA500 ~ 9.6 years,  MA25 ~ 6 months
+#   Weekly MA500 ~ 9.6 years,  MA50 ~ 1 year
 # So Weekly is a genuinely different scale, where 4H is a half-length Daily
 # (measured 2026-09-01: D/4H trend labels agree on 71.7% of instruments and
 # oppose on 8 of 717). Adding a SLOWER timeframe is the direction the evidence
@@ -214,7 +232,7 @@ NEW_TREND_PCT_WEEKLY = 0.05
 # ---------------------------------------------------------------------------
 # 3-Day bar geometry  (added 2026-09-08)
 # ---------------------------------------------------------------------------
-# The 3-day timeframe runs the SAME MA25-MA500 ribbon on 3-day bars. It exists
+# The 3-day timeframe runs the SAME MA50-MA500 ribbon on 3-day bars. It exists
 # to fill the gap between Daily and Weekly:
 #   Daily  MA500 ~ 2.0 years
 #   3-Day  MA500 ~ 6.0 years      <- measured over the cache 2026-09-08
@@ -365,7 +383,7 @@ OUTPUT_COLUMNS = [
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
-    'neutral_oscillation', 'ma25_cross_count', 'new_trend_flag',
+    'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
     # ── 1-Hour (signals + indicators) ──

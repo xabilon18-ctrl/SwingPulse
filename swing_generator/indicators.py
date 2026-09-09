@@ -102,11 +102,11 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     Classify each row as UPTREND, DOWNTREND, or NEUTRAL from the position of
     price within the WHOLE ribbon.
 
-    UPTREND   : price holds ≥ TREND_UP_FRAC of the ribbon (15 of 20) AND is above
-                the MA500 anchor. A shallow pullback below MA25 still reads
+    UPTREND   : price holds ≥ TREND_UP_FRAC of the ribbon (2 of 3) AND is above
+                the MA500 anchor. A shallow pullback below MA50 still reads
                 UPTREND — the slow ribbon is what has to break.
-    DOWNTREND : price holds ≤ TREND_DOWN_FRAC of the ribbon (5 of 20) AND is
-                below MA25.
+    DOWNTREND : price holds ≤ TREND_DOWN_FRAC of the ribbon (1 of 3) AND is
+                below MA50.
     NEUTRAL   : anything else — price is inside the ribbon. This is the honest
                 label for a deep pullback and for a chop zone.
 
@@ -114,12 +114,12 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 
     HISTORY (fixed 2026-07-30). The rule used to be `UPTREND ⇔ Close > MA500`,
     with DOWNTREND checked second — so:
-      • 19 of the 20 ribbon MAs had no vote. COHR read UPTREND on 4H with price
-        below 19 of 20 of its own MAs and RSI 32; PLTR read UPTREND on Daily
-        below 19 of 20 with a negative ribbon slope.
+      • Every ribbon MA but the anchor had no vote. COHR read UPTREND on 4H
+        with price below 19 of its 20 then-MAs and RSI 32; PLTR read UPTREND on
+        Daily below 19 of 20 with a negative ribbon slope.
       • DOWNTREND was UNREACHABLE while price was above the anchor, because
-        np.select takes the first true condition. Whatever happened to the other
-        19 lines, the label stayed UPTREND until price lost MA500 outright.
+        np.select takes the first true condition. Whatever happened to the
+        faster lines, the label stayed UPTREND until price lost MA500 outright.
       • The 4H suffered worst. Equities/indices resample to ~2 four-hour bars a
         session, so 4H MA500 spans ~305 calendar days (US100: verified). The
         "4-hour trend" was a 10-month trend and could not report a 4H breakdown
@@ -134,7 +134,7 @@ def add_trend(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     """
     periods  = ma_periods or MA_PERIODS
     ma_cols  = [f'ma_{p}' for p in periods if f'ma_{p}' in df.columns]
-    fast_col = f'ma_{min(periods)}'   # MA25
+    fast_col = f'ma_{min(periods)}'   # MA50
     slow_col = f'ma_{max(periods)}'   # MA500
 
     if not ma_cols or fast_col not in df.columns or slow_col not in df.columns:
@@ -178,9 +178,9 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
         ribbon_compression – True when |ribbon_spread| < RIBBON_COMPRESSION_THRESHOLD
                              Indicates MAs converging → big move imminent
         ma_order_score     – Count of MA pairs in correct ascending/descending order
-                             16/16 = perfect uptrend (all short > all long)
-                             0/16 = perfect downtrend
-                             8/16 = tangled (chop zone)
+                             2/2 = perfect uptrend (50 > 250 > 500)
+                             0/2 = perfect downtrend
+                             1/2 = tangled (chop zone)
     """
     periods = ma_periods or MA_PERIODS
     shortest = min(periods)
@@ -201,7 +201,7 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 
     # MA order score: count adjacent pairs where shorter MA > longer MA
     sorted_periods = sorted(periods)
-    pair_count = len(sorted_periods) - 1  # 16 pairs for 17 MAs
+    pair_count = len(sorted_periods) - 1  # 2 pairs for the 3-MA ribbon
     scores = pd.Series(0, index=df.index, dtype=int)
     valid = pd.Series(True, index=df.index)
 
@@ -231,22 +231,33 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     slope_df = pd.concat(slope_cols, axis=1)
     df['ribbon_slope_pct'] = slope_df.median(axis=1)
 
-    # ── Ribbon rollover: fast/medium MAs crossing the deep anchor MAs ──────────
-    # Movers (25, 100, 200) progressively cross the anchors (300, 400, 500).
-    # MA200 LAGS — MA25 & MA100 are the DRIVERS that lead the reversal, so they
-    # carry more weight (2 each) than the lagging MA200 (1). A full driver cross
-    # therefore reaches near-max BEFORE the slow MA200 catches up.
+    # ── Ribbon rollover: faster MAs crossing the slower ones ──────────────────
     # Bearish rollover (mover < anchor) confirms a downward reversal → S1.
     # Bullish rollover (mover > anchor) confirms an upward reversal   → B1.
-    mover_weight = {25: 2, 100: 2, 200: 1}   # drivers lead, MA200 lags
-    movers  = [p for p in (25, 100, 200) if p in periods]
-    anchors = [p for p in (300, 400, 500) if p in periods]
+    #
+    # REWRITTEN 2026-09-09 for the 3-line ribbon. This used to name periods
+    # literally — movers (25, 100, 200) against anchors (300, 400, 500) — and
+    # on a [50, 250, 500] ribbon NONE of those six periods exists, so every
+    # instrument would have scored 0 / 'none' forever: rollover is the single
+    # heaviest factor in the confluence score (35 of 100) and context rule R4
+    # reads rollover_stage, so the failure would have been silent and total.
+    #
+    # Now it is positional: every (faster, slower) pair in whatever ribbon it is
+    # handed. The FAST line is the driver that leads a reversal, so its pairs
+    # carry double weight; the slower movers lag and carry 1. On [50, 250, 500]
+    # the pairs are 50>250, 50>500, 250>500 for a max weight of 5.
+    _p_sorted = sorted(periods)
+    movers  = _p_sorted[:-1]                     # everything but the slowest
+    anchors = _p_sorted[1:]                      # everything but the fastest
+    mover_weight = {mp: (2 if i == 0 else 1) for i, mp in enumerate(movers)}
     bull_w   = pd.Series(0, index=df.index, dtype=int)
     bear_w   = pd.Series(0, index=df.index, dtype=int)
     max_w    = pd.Series(0, index=df.index, dtype=int)
     for mp in movers:
         w = mover_weight[mp]
         for ap in anchors:
+            if ap <= mp:
+                continue                          # a line never crosses itself
             mc, ac = f'ma_{mp}', f'ma_{ap}'
             if mc not in df.columns or ac not in df.columns:
                 continue
@@ -258,30 +269,45 @@ def add_ribbon_analytics(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
     # Dominant direction by weighted score
     dom = np.where(bull_w > bear_w, bull_w,
                    np.where(bear_w > bull_w, bear_w, 0))
-    df['rollover_score'] = dom.astype(int)            # weighted 0–15 (drivers emphasised)
-    df['rollover_max']   = max_w.astype(int)          # achievable max (15 when all present)
+    df['rollover_score'] = dom.astype(int)            # weighted (fast line emphasised)
+    df['rollover_max']   = max_w.astype(int)          # achievable max (5 on a 3-line ribbon)
     df['rollover_dir'] = np.where(bull_w > bear_w, 'bull',
                           np.where(bear_w > bull_w, 'bear', 'none'))
 
-    # Stage is set by how deep the DRIVERS (MA25 & MA100) have cut — not the
-    # lagging MA200. Stage 3 = both drivers through MA500, Stage 2 = +MA400,
-    # Stage 1 = +MA300.
-    drv = [p for p in (25, 100) if p in periods]
-    def _both_drivers_past(anchor_p, bullish):
-        if anchor_p not in anchors or not drv:
+    # Stage = how DEEP the rollover has cut, 0-3. Also rewritten positionally
+    # 2026-09-09: it used to ask whether the MA25/MA100 drivers had passed
+    # MA300 / MA400 / MA500, and on a [50, 250, 500] ribbon none of those five
+    # periods exists, so the stage would have been pinned at 0 and context rule
+    # R4 (S3/S4 at rollover_stage 2, a measured +0.11/+0.14 R nudge) could
+    # never have fired again.
+    #
+    # On the 3-line ribbon the depth ladder is the only one there is to climb:
+    #   Stage 1 — the fast line (MA50) has crossed the mid line (MA250)
+    #   Stage 2 — the fast line has also crossed the anchor (MA500)
+    #   Stage 3 — the mid line has crossed the anchor too: a full flip, the
+    #             whole ribbon re-stacked in the new direction
+    # A longer ribbon walks the same ladder over its own (fast, mid, anchor)
+    # positions, so this stays meaningful if the ribbon is ever widened again.
+    _fast   = _p_sorted[0]
+    _anchor = _p_sorted[-1]
+    _mid    = _p_sorted[len(_p_sorted) // 2]
+    if _mid in (_fast, _anchor) and len(_p_sorted) >= 3:
+        _mid = _p_sorted[1]
+
+    def _crossed(mover_p, anchor_p, bullish):
+        # True where ma_mover sits on the `bullish` side of ma_anchor.
+        mc, ac = f'ma_{mover_p}', f'ma_{anchor_p}'
+        if mover_p == anchor_p or mc not in df.columns or ac not in df.columns:
             return pd.Series(False, index=df.index)
-        ac = f'ma_{anchor_p}'
-        cond = pd.Series(True, index=df.index)
-        for dp in drv:
-            mc = f'ma_{dp}'
-            both = df[mc].notna() & df[ac].notna()
-            side = (df[mc] > df[ac]) if bullish else (df[mc] < df[ac])
-            cond = cond & both & side
-        return cond
+        both = df[mc].notna() & df[ac].notna()
+        side = (df[mc] > df[ac]) if bullish else (df[mc] < df[ac])
+        return both & side
+
     is_bull = df['rollover_dir'] == 'bull'
     stage = pd.Series(0, index=df.index, dtype=int)
-    for anc, st in ((300, 1), (400, 2), (500, 3)):
-        past = (_both_drivers_past(anc, True) & is_bull) | (_both_drivers_past(anc, False) & ~is_bull)
+    ladder = ((_fast, _mid, 1), (_fast, _anchor, 2), (_mid, _anchor, 3))
+    for mv, an, st in ladder:
+        past = (_crossed(mv, an, True) & is_bull) | (_crossed(mv, an, False) & ~is_bull)
         stage = np.where(past, st, stage)
     df['rollover_stage'] = pd.Series(stage, index=df.index).astype(int)
 
@@ -352,50 +378,63 @@ def add_neutral_oscillation(df: pd.DataFrame, ma_periods=None,
                             cross_threshold: int = 3,
                             slope_threshold: float = 0.15) -> pd.DataFrame:
     """
-    Detect neutral/topping-bottoming conditions via MA25 oscillation.
+    Detect neutral/topping-bottoming conditions via fast-MA oscillation.
 
     Logic:
-      - Count how many times price crossed MA25 in the last `lookback` bars.
-        A cross = close went from one side of MA25 to the other.
-      - Check if MA100 slope is flattening (|slope| < slope_threshold %).
-      - If crosses >= cross_threshold AND MA100 is flat → neutral_oscillation = True.
+      - Count how many times price crossed the FAST line (MA50) in the last
+        `lookback` bars. A cross = close went from one side of it to the other.
+      - Check if the MID line (MA250) slope is flattening (|slope| < threshold).
+      - If crosses >= cross_threshold AND the mid line is flat
+        → neutral_oscillation = True.
+
+    Both lines are picked BY POSITION, not by number. Until 2026-09-09 the
+    reference was a literal MA100 with a fallback to `sorted(periods)[3]`; on
+    the [50, 250, 500] ribbon MA100 does not exist and index 3 is out of range,
+    so the fallback would have landed on the MA500 ANCHOR — an anchor is flat
+    almost by construction, which would have made this flag fire far too often
+    instead of failing loudly.
 
     Adds columns:
-      ma25_cross_count   – rolling count of MA25 crosses in last `lookback` bars
-      neutral_oscillation – bool: MA25 oscillation + MA100 slowing = potential top/bottom
+      ma_fast_cross_count  – rolling count of MA50 crosses in last `lookback` bars
+                             (renamed from ma25_cross_count when the fast edge
+                             moved 25 -> 50)
+      neutral_oscillation  – bool: fast-MA oscillation + mid-MA slowing =
+                             potential top/bottom
     """
-    _ma_p = ma_periods or MA_PERIODS
-    ma25  = min(_ma_p)   # fastest MA (25)
-    ma100 = 100 if 100 in _ma_p else sorted(_ma_p)[min(3, len(_ma_p)-1)]
+    _ma_p    = sorted(ma_periods or MA_PERIODS)
+    fast_p   = _ma_p[0]                                  # fast edge  (MA50)
+    mid_p    = _ma_p[len(_ma_p) // 2] if len(_ma_p) >= 3 else _ma_p[-1]
+    if mid_p == fast_p and len(_ma_p) > 1:
+        mid_p = _ma_p[1]
 
-    ma25_col  = f'ma_{ma25}'
-    ma100_col = f'ma_{ma100}'
+    fast_col = f'ma_{fast_p}'
+    mid_col  = f'ma_{mid_p}'
 
-    if ma25_col not in df.columns or ma100_col not in df.columns:
-        df['ma25_cross_count']    = 0
+    if fast_col not in df.columns or mid_col not in df.columns:
+        df['ma_fast_cross_count'] = 0
         df['neutral_oscillation'] = False
         return df
 
-    # 1. Detect crossings: price flips side relative to MA25
-    above = (df['Close'] >= df[ma25_col]).astype(int)
+    # 1. Detect crossings: price flips side relative to the fast line
+    above = (df['Close'] >= df[fast_col]).astype(int)
     cross = above.diff().abs()   # 1 where a cross happened, 0 otherwise
 
     # Rolling count of crosses over the lookback window
-    df['ma25_cross_count'] = cross.rolling(lookback, min_periods=lookback // 2).sum().fillna(0).astype(int)
+    df['ma_fast_cross_count'] = cross.rolling(lookback, min_periods=lookback // 2).sum().fillna(0).astype(int)
 
-    # 2. MA100 slope (% change over SLOPE_LOOKBACK bars)
-    ma100_prev = df[ma100_col].shift(SLOPE_LOOKBACK)
-    ma100_slope = np.where(
-        df[ma100_col].notna() & ma100_prev.notna() & (ma100_prev != 0),
-        (df[ma100_col] - ma100_prev) / ma100_prev * 100,
+    # 2. Mid-line slope (% change over SLOPE_LOOKBACK bars)
+    mid_prev = df[mid_col].shift(SLOPE_LOOKBACK)
+    mid_slope = np.where(
+        df[mid_col].notna() & mid_prev.notna() & (mid_prev != 0),
+        (df[mid_col] - mid_prev) / mid_prev * 100,
         np.nan,
     )
-    ma100_slope_series = pd.Series(ma100_slope, index=df.index)
+    mid_slope_series = pd.Series(mid_slope, index=df.index)
 
     # 3. Neutral oscillation flag
     df['neutral_oscillation'] = (
-        (df['ma25_cross_count'] >= cross_threshold) &
-        (ma100_slope_series.abs() < slope_threshold)
+        (df['ma_fast_cross_count'] >= cross_threshold) &
+        (mid_slope_series.abs() < slope_threshold)
     )
 
     return df
@@ -420,24 +459,34 @@ def add_all_indicators(df: pd.DataFrame, ma_periods=None) -> pd.DataFrame:
 def stack_periods(ma_periods=None) -> 'tuple | None':
     """The three ribbon lines the stack reads, chosen BY POSITION not by value.
 
-    Unscaled this is (50, 250, 500). It must not be hard-coded to those numbers:
-    a session-normalised instrument (config.H1_SESSION_NORMALIZE /
-    H4_SESSION_NORMALIZE) carries a ribbon scaled by its bars-per-session — an
-    EU index at 2 bars/session runs MA8-MA167 — so `ma_500` is simply not a
-    column on that frame, and a literal lookup would silently produce an empty
-    stack on exactly the instruments the scaling exists to fix.
+    Unscaled this is (50, 250, 500) — the whole ribbon. It must not be
+    hard-coded to those numbers: a session-normalised instrument
+    (config.H1_SESSION_NORMALIZE / H4_SESSION_NORMALIZE) carries a ribbon
+    scaled by its bars-per-session — an EU index at 2 bars/session runs
+    MA17-MA167 — so the 500 column is simply not on that frame, and a literal
+    lookup would silently produce an empty stack on exactly the instruments the
+    scaling exists to fix.
 
-    Positions 1, 9 and last of the 20-MA ribbon are 50, 250 and 500. A
-    short-history instrument whose ribbon was clipped by `p <= len(df)` falls
-    back to the middle of whatever it has. Returns None when there are not three
-    distinct lines to compare.
+    On the 3-line ribbon these are simply its three lines. A short-history
+    instrument whose ribbon was clipped by `p <= len(df)` has fewer than three
+    and returns None.
+
+    FIXED 2026-09-09. The old code took positions 1, 9 and last, which were 50,
+    250 and 500 only because the ribbon then had twenty lines. Handed
+    [50, 250, 500] it read p[1]=250 as the fast line and p[len//2]=250 as the
+    mid, failed its own `fast < mid < anchor` sanity check, and returned None —
+    so the whole MA-stack strip and its filter would have gone blank on every
+    instrument without a single error. Pick fast/mid/anchor from the ENDS and
+    the middle instead, which is right for any ribbon width.
     """
     p = sorted({int(x) for x in (ma_periods if ma_periods is not None else MA_PERIODS)})
     if len(p) < 3:
         return None
-    fast   = p[1]
-    mid    = p[9] if len(p) > 9 else p[len(p) // 2]
+    fast   = p[0]
+    mid    = p[len(p) // 2]
     anchor = p[-1]
+    if mid in (fast, anchor):
+        mid = p[1]
     if not (fast < mid < anchor):
         return None
     return fast, mid, anchor

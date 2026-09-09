@@ -34,7 +34,10 @@ PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
 OUTPUT_DIR  = os.path.join(PROJECT_DIR, 'output_ma500')
 CACHE_DIR   = os.path.join(PROJECT_DIR, 'cache_ma500')
-MA_PERIODS  = list(range(25, 501, 25))   # MA25–MA500
+# Kept in step with config.MA_PERIODS by hand — publish.py is deliberately
+# standalone (it runs without importing the generator package). Cut to the
+# three signal-bearing lines 2026-09-09.
+MA_PERIODS  = [50, 250, 500]              # MA50 (B2/S2) · MA250 (B3/S3) · MA500 (B4/S4)
 
 PUBLISH_DIR = os.path.join(SCRIPT_DIR, 'publish')
 
@@ -992,6 +995,7 @@ def build_ui():
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
+    html = html.replace('__SIG_MID__', str(sorted(MA_PERIODS)[len(MA_PERIODS) // 2]))
     with open(os.path.join(ui_dir, 'index.html'), 'w') as f:
         f.write(html)
 

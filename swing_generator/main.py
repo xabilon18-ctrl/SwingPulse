@@ -156,7 +156,7 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
     if not prefix:
         # Daily-only choppiness/trend flags — computed in indicators/signals but
         # previously never extracted into the output row (always blank).
-        result['ma25_cross_count']    = int(row.get('ma25_cross_count', 0) or 0)
+        result['ma_fast_cross_count'] = int(row.get('ma_fast_cross_count', 0) or 0)
         result['neutral_oscillation'] = 'yes' if row.get('neutral_oscillation') else 'no'
         result['new_trend_flag']      = 'yes' if row.get('new_trend_flag') else 'no'
 
@@ -585,7 +585,7 @@ def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     but established_trend is a latch: signals.py sets in_uptrend on B1 (close
     above all 20 MAs) and clears it only on S1 (close below all 20), so it
     survives any decline that stops short of the anchor. US100 on 2026-07-28
-    was labelled 'Aligned Bull' while its 4H close sat below MA25–MA175 with
+    was labelled 'Aligned Bull' while its 4H close sat below most of its ribbon with
     RSI 31, because a 4H B2 on 07-14 had latched in_uptrend and nothing since
     could un-latch it. Alignment is a question about now, so it takes the
     positional read; established_trend stays untouched for the Trends tab
@@ -638,7 +638,17 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # short-history instruments (which would suppress every signal).
         d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
         _asset_cls = asset_class_of(inst_meta.get('group', ''))
-        if len(d_ma_periods) >= 3:
+        # RIBBON GATE, lowered 3 -> 2 on 2026-09-09 with the ribbon cut to three
+        # lines. `p <= len(df)` clips the ribbon to available bars, so a
+        # short-history frame keeps only the fast lines. Under the 20-MA ribbon
+        # a frame with 300 bars still kept twelve periods and sailed past a
+        # `>= 3` gate; under [50, 250, 500] it keeps exactly two and the gate
+        # would have silently produced NO SIGNALS AT ALL. Measured over the
+        # 812-instrument cache: 141 instruments (17%) would have lost every
+        # Weekly signal and 53 every 3-Day signal. Two lines is a real, if
+        # shallow, ribbon — max() still gives an anchor and min() a fast edge —
+        # so it fires, exactly as a clipped 20-MA ribbon used to.
+        if len(d_ma_periods) >= 2:
             df = add_signals(df, ma_periods=d_ma_periods,
                              refire_pct=0.05, new_trend_pct=0.05,
                              tf='D', asset_class=_asset_cls)
@@ -678,7 +688,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         if hourly_df is not None and len(hourly_df) >= 200:
             h1 = _h1_frame(hourly_df)
             h1_ma_periods = _h1_ma_periods(h1, ticker)
-            if len(h1_ma_periods) >= 3:
+            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+            if len(h1_ma_periods) >= 2:
                 h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
                 h1 = add_signals(h1, ma_periods=h1_ma_periods,
                                  refire_pct=0.02, new_trend_pct=0.05,
@@ -696,7 +707,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         if hourly_df is not None and len(hourly_df) >= 200:
             h4 = _resample_4h(hourly_df)
             h4_ma_periods = _h4_ma_periods(h4, ticker)
-            if len(h4_ma_periods) >= 3:
+            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+            if len(h4_ma_periods) >= 2:
                 h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                 h4 = add_signals(h4, ma_periods=h4_ma_periods,
                                  refire_pct=0.02, new_trend_pct=0.05,
@@ -710,14 +722,15 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                     h4_data = {}
 
         # ── 3-DAY (grouped from the same finished daily bars) ──
-        # Same engine, same MA25-MA500 ribbon, on 3-day bars. No session
+        # Same engine, same MA50-MA500 ribbon, on 3-day bars. No session
         # scaling: three business days are three business days on every venue,
         # so the 4H geometry problem has no analogue here. Short-history names
         # clip the ribbon exactly as the daily side does.
         d3_data = {}
         three_day = _resample_3d(df)
         d3_ma_periods = [p for p in MA_PERIODS if p <= len(three_day)]
-        if len(d3_ma_periods) >= 3:
+        # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+        if len(d3_ma_periods) >= 2:
             three_day = add_all_indicators(three_day, ma_periods=d3_ma_periods)
             three_day = add_signals(three_day, ma_periods=d3_ma_periods,
                                     refire_pct=REFIRE_PCT_3D,
@@ -732,14 +745,15 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                 d3_data = {}
 
         # ── WEEKLY (resampled from the same finished daily bars) ──
-        # Runs the identical engine and the identical MA25-MA500 ribbon on
+        # Runs the identical engine and the identical MA50-MA500 ribbon on
         # weekly bars. No session scaling: a week is a week on every venue, so
         # the 4H geometry problem has no weekly analogue. Short-history names
         # clip the ribbon exactly as the daily side does.
         w_data = {}
         weekly = _resample_weekly(df)
         w_ma_periods = [p for p in MA_PERIODS if p <= len(weekly)]
-        if len(w_ma_periods) >= 3:
+        # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+        if len(w_ma_periods) >= 2:
             weekly = add_all_indicators(weekly, ma_periods=w_ma_periods)
             weekly = add_signals(weekly, ma_periods=w_ma_periods,
                                  refire_pct=REFIRE_PCT_WEEKLY,
@@ -1215,7 +1229,7 @@ def _print_summary(df: pd.DataFrame) -> None:
             for _, r in compressed.head(15).iterrows():
                 print(f'    {r.get("instrument_name",""):<15}  '
                       f'spread: {r.get("ribbon_spread","")}%  '
-                      f'order: {r.get("ma_order_score","")}/16')
+                      f'order: {r.get("ma_order_score","")}/{len(MA_PERIODS) - 1}')
 
 
 if __name__ == '__main__':

@@ -7659,6 +7659,37 @@ body {
 }
 .reel-svg { width: 100%; height: 100%; display: block; }
 
+/* ── Price-scale grab strip ─────────────────────────────────────────────
+   Sits over the price gutter. Drag it UP and the price window narrows, so the
+   bars stretch; drag it DOWN and it widens, so they pinch. Width is set inline
+   from reelLayout(), so it always covers exactly the drawn axis.
+
+   touch-action:none is the whole reason this is a div and not an SVG rect —
+   the chart's own `pan-y` hands every vertical drag to the reel's scrolling,
+   which is right for the chart body and wrong here.
+
+   z-index sits UNDER .reel-nav (4) on purpose: the prev/next arrows overlap
+   the gutter, and they must stay tappable. */
+.reel-ygrip {
+  position: absolute; top: 0; bottom: 0; right: 0;
+  z-index: 2;
+  touch-action: none;
+  cursor: ns-resize;
+  background: transparent;
+  /* The drag no longer calls preventDefault on pointerdown (that killed the
+     tap and double-tap), so the mouse would otherwise select the price
+     labels underneath mid-drag. */
+  -webkit-user-select: none; user-select: none;
+}
+/* Only ever a hint, and only on devices with a pointer to hover with — the
+   price numbers underneath must stay readable. */
+@media (hover: hover) {
+  .reel-ygrip:hover { background: linear-gradient(to left, rgba(255,255,255,.045), transparent); }
+}
+.reel-chart.is-yzooming .reel-ygrip { background: linear-gradient(to left, rgba(255,255,255,.07), transparent); }
+/* The whole chart stops fighting the finger for the duration of the drag. */
+.reel-chart.is-yzooming { touch-action: none; }
+
 /* ── Trend channel ──────────────────────────────────────────────────────
    Dotted on purpose: it matches the MA ribbon's dotted language, so a
    hand-drawn line never reads as one the pipeline computed. The midline is
@@ -7701,7 +7732,13 @@ body {
 .reel-card.ch-editing .reel-chart { touch-action: none; }
 /* The tool strip is absolutely positioned over the chart, so its nearest
    positioned ancestor has to be the card. */
-.reel-card { position: relative; }
+.reel-card {
+  position: relative;
+  /* Width of the price gutter, as drawn by reelLayout(): 118 of a 1000-wide
+     viewBox. Kept here so the nav buttons can be positioned clear of the
+     price-scale drag strip without hard-coding the same number twice. */
+  --reel-gutter: 11.8%;
+}
 
 .reel-hint {
   position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
@@ -8556,9 +8593,16 @@ body {
    only way through 223 charts was a mouse wheel fighting scroll-snap. These sit
    against the right edge, vertically centred on the pane (which is position:
    fixed, so it is already the containing block). */
+/* Clear of the price scale. The scale is a drag target now (.reel-ygrip), and
+   these buttons sit ABOVE it in the stack — so parked over it they stole the
+   most natural place to grab, and a drag meant to stretch the chart jumped to
+   the next instrument instead. --reel-gutter mirrors the price gutter in
+   reelLayout() (118 of a 1000-wide viewBox); the chart reserves ten empty bars
+   to the left of that scale (REEL_RIGHT_PAD_BARS), so this lands on blank
+   chart rather than on top of price. */
 .reel-nav {
   position: absolute;
-  right: 8px;
+  right: calc(var(--reel-gutter, 11.8%) + 6px);
   top: 50%;
   transform: translateY(-50%);
   z-index: 4;
@@ -8611,7 +8655,7 @@ body {
 /* Touch already has the flick, so the controls tuck in tighter and sit lower
    than the thumb's natural resting arc rather than over the chart body. */
 @media (max-width: 520px) {
-  .reel-nav { right: 5px; gap: 5px; opacity: .34; }
+  .reel-nav { right: calc(var(--reel-gutter, 11.8%) + 3px); gap: 5px; opacity: .34; }
   .reel-nav-btn { width: 30px; height: 30px; }
 }
 

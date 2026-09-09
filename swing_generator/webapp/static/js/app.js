@@ -654,7 +654,7 @@
 
   // Default MA periods. Will be overwritten by auto-detection once data loads —
   // this makes the app work correctly across MA scheme changes without code edits.
-  let detectedMaPeriods = [25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,500];
+  let detectedMaPeriods = [50, 250, 500];
   function activeMaPeriods() {
     return detectedMaPeriods;
   }
@@ -666,7 +666,7 @@
       .map(k => parseInt(k.slice(3), 10))
       .sort((a, b) => a - b);
     if (found.length) {
-      detectedMaPeriods = found.filter(p => p <= 500);   // ribbon MAs (MA25–MA500)
+      detectedMaPeriods = found.filter(p => p <= 500);   // ribbon MAs (MA50–MA500)
     }
   }
 
@@ -820,12 +820,12 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   function effectiveTrend(item) {
-    // Neutral oscillation (MA25 chopping + MA100 flattening = potential top/bottom)
+    // Neutral oscillation (MA50 chopping + MA250 flattening = potential top/bottom)
     // takes priority: these are classified NEUTRAL regardless of the raw timeframe
     // trend, so they never double-count as Uptrend/Downtrend/Aligned Bull.
     //
     // GATED TO DAILY (2026-09-02). The flag is computed from DAILY bars only —
-    // `ma25_cross_count >= 3` over the last 30 daily bars with a flat daily MA100
+    // `ma_fast_cross_count >= 3` over the last 30 daily bars with a flat daily MA250
     // slope (indicators.add_neutral_oscillation) — and there is no h4_ or w_
     // counterpart. It was nonetheless applied on every timeframe, so a fortnight
     // of day-to-day chop could overrule a 4H or Weekly ribbon read. On Weekly
@@ -1960,7 +1960,7 @@
   // line 1 = market state (trend + ribbon phase), line 2 = signal event +
   // since-fire performance. Trend and signal never share an element, so
   // counter-trend signals stay visible.
-  const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA25', S2: 'lost MA25', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
+  const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA50', S2: 'lost MA50', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
   // opts.showConf — append the confidence tier to the signal chip. Off on the
   // scanner card, where the verdict bar directly above already states the edge
   // ("SELL SETUP · standard edge" then "S2 SELL · Today · standard" said it
@@ -3353,7 +3353,7 @@
 
       // MA order gauge
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 19;
+      const maMaxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
       const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const maOrderColor = maOrderPct !== null ? (maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)') : 'var(--border)';
 
@@ -3483,7 +3483,7 @@
     feed.innerHTML = compressed.map(item => {
       const spread = parseFloat(item[f('ribbon_spread')]);
       const order = parseInt(item[f('ma_order_score')]);
-      const maxPairs = summaryData.ma_max_pairs || 19;
+      const maxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
       const mid = maxPairs / 2;
       const dir = order > mid ? 'Bullish lean' : order < mid ? 'Bearish lean' : 'Neutral';
       return `<div class="signal-feed-item" data-act="openModal" data-arg="${item.instrument_name}" style="border-left:3px solid var(--volume)">
@@ -3740,7 +3740,7 @@
     const compression = item[f('ribbon_compression')] === 'yes';
     const trendRun = parseInt(item[f('trend_run_days')]);
     const maLongest  = (summaryData && summaryData.ma_longest)   || 500;
-    const maShortest = (summaryData && summaryData.ma_shortest)  || 25;
+    const maShortest = (summaryData && summaryData.ma_shortest)  || 50;
     const sigDesc = {
       B1: `trend reversal — price crossed above all MAs (MA${maShortest}–MA${maLongest})`,
       S1: `trend reversal — price crossed below all MAs (MA${maShortest}–MA${maLongest})`,
@@ -4001,7 +4001,7 @@
       const ribbonSpread = parseFloat(item[f('ribbon_spread')]);
       const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 19;
+      const maMaxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
       const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
@@ -6645,7 +6645,7 @@
     // cross-TF blending, so the 4H view is a pure 4H read and vice versa.
 
     // Direction: ribbon majority on the active TF (same metric as the gauge) so
-    // bias label and gauge never contradict. close < MA25 alone marks DOWNTREND
+    // bias label and gauge never contradict. close < MA50 alone marks DOWNTREND
     // even when 85% of MAs are below price (pullback in uptrend) — ribbon
     // majority is the honest read.
     const _close = parseFloat(item[f('close')]);
@@ -6662,12 +6662,16 @@
 
     const lines = [];
 
-    // 0. Ribbon rollover (max 35) — TOP structural factor. Drivers (MA25/100,
-    //     weighted) + lagging MA200 cutting through anchors (MA300/400/500)
-    //     confirms a trend change, backing B1 (bull flip) / S1 (bear flip).
+    // 0. Ribbon rollover (max 35) — TOP structural factor. The fast line
+    //     (MA50, double-weighted because it leads) and the mid line (MA250)
+    //     cutting through the lines above them confirms a trend change,
+    //     backing B1 (bull flip) / S1 (bear flip). Scored in
+    //     indicators.add_ribbon_analytics; rollover_max is 5 on the 3-MA
+    //     ribbon, and the points below are a FRACTION of it, so the 35-point
+    //     weight is unchanged by the ribbon being narrower.
     const rollDir   = item[f('rollover_dir')] || 'none';
     const rollScore = parseInt(item[f('rollover_score')]) || 0;
-    const rollMax   = parseInt(item[f('rollover_max')]) || 15;
+    const rollMax   = parseInt(item[f('rollover_max')]) || 5;   // 3-MA ribbon max weight
     const rollStage = parseInt(item[f('rollover_stage')]) || 0;
     const rollAligned = (isBullish && rollDir === 'bull') || (!isBullish && rollDir === 'bear');
     if (rollAligned && rollScore > 0 && rollMax > 0) {
@@ -6714,7 +6718,7 @@
 
     // 5. MA-order quality (max 8) — clean, textbook ribbon stacking in the trade direction
     const maOrder = parseInt(item[f('ma_order_score')]);
-    const maMax   = summaryData.ma_max_pairs || 19;
+    const maMax   = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
     if (!isNaN(maOrder) && maMax > 0) {
       const stackPct = maOrder / maMax;                       // 1 = perfectly bullish-stacked
       const aligned  = isBullish ? stackPct : (1 - stackPct); // direction-aware
@@ -7497,15 +7501,16 @@
     // over goes red from the fast edge inward, and you see it without reading
     // a single label. Split into runs of constant direction so each run is one
     // polyline; the MAs are smooth, so there are only a handful of runs each.
+    // Three lines since 2026-09-09: MA50, MA250, MA500.
     //
     // Points are sampled every b.ms bars (chart_feed decimates the ribbon);
     // b.mi carries the bar index of each sample so the x mapping stays exact.
     const nMa  = b.p.length;
     const mIdx = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
 
-    // The three MAs the signal rules actually name — the fast edge (MA25, where
-    // B2/S2 fire), mid-ribbon (MA250, B3/S3) and the anchor (MA500, B4/S4) —
-    // are drawn heavier so they stay findable inside twenty lines.
+    // The three MAs the signal rules actually name — the fast edge (MA50, where
+    // B2/S2 fire), mid-ribbon (MA250, B3/S3) and the anchor (MA500, B4/S4).
+    // Since 2026-09-09 those three ARE the ribbon, so all three draw heavy.
     //
     // Picked by POSITION, not by the number: a 4H ribbon on a session-
     // normalised instrument has its periods scaled (see _h4_ma_periods), and a
@@ -7524,8 +7529,23 @@
       const series = b.m[k];
       const isAnchor = k === nMa - 1;
       const isKey    = isAnchor || k === 0 || k === midIdx;
-      const wid  = isKey ? 3.4 : 1.9;
-      const dash = isKey ? `${wid * 0.55} ${wid * 2.1}` : `${wid * 0.6} ${wid * 2.4}`;
+      // Weights raised 2026-09-09 with the cut to three lines. 3.4 / 1.9 was
+      // sized to keep three named lines findable inside twenty; with nothing
+      // else on the panel the dots can carry real weight, and the slope colour
+      // — the actual trend read — is only legible once they do.
+      // Sized against the PHONE render, which is where these are actually
+      // read: the reel card is ~370pt wide, so a weight that looks ample in a
+      // desktop viewport still comes out hairline on the device.
+      //
+      // All three lines carry the SAME weight, deliberately. An earlier pass
+      // tapered them (anchor heaviest, fast edge lightest) to keep a sense of
+      // depth, but with only three lines the taper just made the fast edge —
+      // the one B2/S2 actually fire on — the hardest of the three to see. The
+      // period labels and the slope colour carry the distinction instead.
+      // The 2.4 branch is dead on a 3-MA ribbon (all three are 'key'); it
+      // survives for a wider ribbon, should one ever come back.
+      const wid  = isKey ? 7.0 : 2.4;
+      const dash = isKey ? `${wid * 0.46} ${wid * 1.7}` : `${wid * 0.6} ${wid * 2.4}`;
 
       let run = [], runDown = null;
       const flush = () => {
@@ -7558,7 +7578,7 @@
 
     // ── OHLC bars ──
     // One neutral colour. Direction is the ribbon's job here, not the bars'.
-    // Price has to stay findable inside a 20-line ribbon, so the bars keep a
+    // Price has to stay findable against the ribbon, so the bars keep a
     // minimum weight even when 520 of them share the width.
     const tick = Math.max(1.1, Math.min(bw * 0.4, 4));
     const bwid = Math.max(0.9, Math.min(bw * 0.24, 1.8));
@@ -7661,9 +7681,21 @@
     // recomputation that might drift from it, so it is stashed on the host.
     host._reelCtx = { L, sc, bw, b, name, bundle };
 
+    // Grab strip over the price scale. Drag it up and the price window narrows,
+    // so the same bars are drawn over the same height with less price in
+    // between — the candles stretch. Drag down and it widens, and they pinch.
+    //
+    // It is a real DOM element rather than a <rect> in the SVG for one reason:
+    // `touch-action` is what stops a vertical drag here from being claimed by
+    // the reel's own scrolling, and applying it to an SVG child is not reliably
+    // honoured on iOS Safari — which is the one browser this has to work in.
+    // Width is derived from the layout that DREW the axis, so the strip cannot
+    // drift away from the numbers it is sitting on.
+    const gripPct = (((L.W - L.x1) / L.W) * 100).toFixed(2);
+
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       ${grid}${timeGrid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
-    </svg>`;
+    </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>`;
   }
 
   // ── Full-screen chart ────────────────────────────────────────────────
@@ -7677,6 +7709,10 @@
 
   let chartFullName = null;
   let chartFullPrevLock = undefined;   // the reader's own price scale, put back on close
+  // Price span the full-screen view opened with. The baseline a zoom done
+  // while expanded is measured against, so the ratio can be carried back to
+  // the card on close.
+  let chartFullOpenSpan = 0;
 
   function chartFullEl() { return document.getElementById('chartFull'); }
 
@@ -7726,6 +7762,10 @@
     }
 
     host.innerHTML = reelChartSvg(bundle, item, host);
+    // Read the span off the scale that was actually PAINTED rather than the one
+    // computed above: they differ whenever the source card was gone and no lock
+    // could be imposed, and the baseline has to match what the reader sees.
+    chartFullOpenSpan = host._reelCtx ? (host._reelCtx.sc.hi - host._reelCtx.sc.lo) : 0;
     reelWireChart(host);
     chartFullSyncButtons();
   }
@@ -7753,9 +7793,36 @@
     // Put the reader's own price scale back — the one full screen imposed was
     // ours, not theirs, and leaving it would zoom the card out on return.
     if (chartFullName) {
+      // ...UNLESS the reader stretched or pinched the scale themselves while
+      // it was open (_userY). That IS theirs and has to survive the close —
+      // but not as an absolute price window: the card's plot is shorter, so
+      // handing it the full-screen span would zoom the card out, which is the
+      // very distortion the restore above exists to prevent. Carry the RATIO
+      // they applied and re-apply it to the card's own scale.
+      const cur = reel.lockY.get(chartFullName);
+      const ratio = (cur && cur._userY && chartFullOpenSpan > 0)
+        ? (cur.hi - cur.lo) / chartFullOpenSpan
+        : 1;
+
       if (chartFullPrevLock === undefined) reel.lockY.delete(chartFullName);
       else reel.lockY.set(chartFullName, chartFullPrevLock);
+
+      if (Math.abs(ratio - 1) > 0.005) {
+        // Base = whatever the card would show on its own: the reader's earlier
+        // window if they had one, else the card's live fitted scale.
+        const src  = chartFullSourceCtx(chartFullName);
+        const base = chartFullPrevLock
+          || (src ? { lo: src.ctx.sc.lo, hi: src.ctx.sc.hi } : null);
+        if (base) {
+          const mid  = (base.lo + base.hi) / 2;
+          const span = (base.hi - base.lo) * ratio;
+          if (isFinite(span) && span > 0) {
+            reel.lockY.set(chartFullName, { lo: mid - span / 2, hi: mid + span / 2, _userY: true });
+          }
+        }
+      }
       chartFullPrevLock = undefined;
+      chartFullOpenSpan = 0;
     }
     if (el) { el.classList.remove('open'); el.innerHTML = ''; }
     document.body.classList.remove('chart-full-open');
@@ -8118,6 +8185,60 @@
   // scroll when you meant to leave.
   const REEL_AXIS_LOCK_PX = 7;
 
+  // How far the price scale may be stretched or pinched, as a multiple of the
+  // visible slice's own high-to-low range. Past roughly this the chart has
+  // stopped being readable in either direction — expanded, one bar fills the
+  // panel and there is no context; pinched, every bar is a flat line on the
+  // mid. Stops rather than limits: they are only reached by deliberately
+  // dragging into them, and a double-tap resets.
+  const REEL_Y_ZOOM_MAX = 24;
+
+  // High-to-low of the bars actually on screen. This is the ABSOLUTE reference
+  // the zoom stops are measured against — measuring against the current window
+  // instead would let repeated drags compound past any bound.
+  function reelPriceExtent(b) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of b.l) if (v != null && v < lo) lo = v;
+    for (const v of b.h) if (v != null && v > hi) hi = v;
+    if (!isFinite(lo) || !isFinite(hi)) return null;
+    const span = hi - lo;
+    return span > 0 ? { lo, hi, span } : null;
+  }
+
+  // Apply a drag of `dy` CSS pixels to the price window captured at grab time.
+  // Returns true if the window changed.
+  //
+  // Exponential, not linear: the same finger travel gives the same RATIO of
+  // zoom wherever you start from, so a chart that is already stretched does not
+  // suddenly become twice as touchy. `K` is tied to the host's own height so
+  // the gesture feels identical on a reel card and full screen — the same
+  // fraction of the panel travelled is the same amount of zoom, which is what
+  // "it should work expanded and not expanded" has to mean in practice.
+  function reelApplyYZoom(host, ctx, grab, dy) {
+    const hPx = host.getBoundingClientRect().height || 0;
+    const K   = Math.max(120, hPx * 0.8);
+    // Drag UP (dy negative) -> factor < 1 -> a NARROWER price window over the
+    // same pixels -> taller bars. Drag down pinches. Matches the price scale on
+    // every other chart the reader uses.
+    const factor = Math.exp(dy / K);
+    const mid    = (grab.hi + grab.lo) / 2;
+    let   span   = (grab.hi - grab.lo) * factor;
+
+    if (grab.ext) {
+      span = Math.min(Math.max(span, grab.ext.span / REEL_Y_ZOOM_MAX),
+                      grab.ext.span * REEL_Y_ZOOM_MAX);
+    }
+    if (!isFinite(span) || span <= 0) return false;
+
+    const cur = reel.lockY.get(ctx.name);
+    if (cur && Math.abs((cur.hi - cur.lo) - span) < span * 1e-6) return false;
+    // _userY marks a window the READER chose, as against the provisional one a
+    // pan takes or the one full screen imposes to keep bar shape. chartFullClose
+    // reads it to decide whether to carry the zoom back to the card.
+    reel.lockY.set(ctx.name, { lo: mid - span / 2, hi: mid + span / 2, _userY: true });
+    return true;
+  }
+
   // A one-line note over the chart, for the case where a gesture correctly does
   // nothing and the reason is not on screen. Auto-clears; never stacks.
   function reelHint(host, text) {
@@ -8149,10 +8270,11 @@
     if (host.dataset.gestureWired) return;
     host.dataset.gestureWired = '1';
 
-    let mode = null;         // null | 'pan' | 'handle' | 'scroll'
+    let mode = null;         // null | 'pan' | 'handle' | 'scroll' | 'yzoom'
     let handle = null;       // 'a' | 'b' | 'u' | 'd'
     let chIdx = -1;          // which channel the grabbed handle belongs to
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
+    let grab = null;         // price window captured when the scale was grabbed
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
     // page is visible, but a backgrounded or hidden tab never runs it — and a
@@ -8179,6 +8301,32 @@
         reel.lockY.set(ctx.name, { lo: ctx.sc.lo, hi: ctx.sc.hi, _provisional: true });
       }
 
+      // A grab on the price scale wins immediately and is settled here, not on
+      // the first move: the whole gesture is vertical, so the usual
+      // horizontal-or-vertical decision would read it as a scroll and hand it
+      // to the reel. Nothing is written to lockY yet — a TAP on the scale must
+      // still fall through to opening the instrument, so the window is only
+      // committed once the finger actually travels.
+      if (ev.target && ev.target.dataset && ev.target.dataset.ygrip) {
+        mode = 'yzoom';
+        grab = { lo: ctx.sc.lo, hi: ctx.sc.hi, ext: reelPriceExtent(ctx.b), moved: false };
+        // Capture keeps the drag alive after the first repaint, which rebuilds
+        // the strip the pointer went down on. Guarded because it throws for a
+        // pointer the browser no longer considers active — and an exception
+        // here would abandon the gesture half-armed, leaving the chart
+        // unresponsive until the next reload.
+        try { host.setPointerCapture(pid); } catch (_) {}
+        // Deliberately NO preventDefault here. It is what the handle branch
+        // below does, and on the scale it broke both of the gestures that are
+        // supposed to keep working: preventDefault on pointerdown suppresses
+        // the synthesized click and dblclick, so a double-tap on the scale
+        // stopped resetting the view and a single tap stopped opening the
+        // instrument. Scrolling is already held off by `touch-action: none` on
+        // the strip, and the drag itself calls preventDefault on the first
+        // move — by which point we know it is a drag and not a tap.
+        return;
+      }
+
       // A handle grab wins immediately — no axis lock, because dragging a
       // handle straight up is a legitimate gesture and must not scroll away.
       if (reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h) {
@@ -8199,6 +8347,20 @@
       const ctx = host._reelCtx;
       if (!ctx) return;
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
+
+      if (mode === 'yzoom') {
+        ev.preventDefault();
+        if (!grab.moved) {
+          if (Math.abs(dy) < 2) return;    // a tap with a shiver is still a tap
+          grab.moved = true;
+          // The class goes on the HOST, not the grip: every repaint of this
+          // drag rebuilds the grip from scratch, so a class set on it would
+          // survive exactly one frame.
+          host.classList.add('is-yzooming');
+        }
+        if (reelApplyYZoom(host, ctx, grab, dy)) schedule();
+        return;
+      }
 
       if (mode === null) {
         if (Math.abs(dx) < REEL_AXIS_LOCK_PX && Math.abs(dy) < REEL_AXIS_LOCK_PX) return;
@@ -8288,13 +8450,24 @@
       }
       if (mode === 'handle') channelSave();
       // Suppresses the click that a drag inevitably ends with, which would
-      // otherwise open the instrument modal every time you panned.
-      if (mode === 'pan' || mode === 'handle') reel.lastGestureAt = Date.now();
+      // otherwise open the instrument modal every time you panned. A grab on
+      // the price scale that never moved is NOT suppressed — it was a tap, and
+      // taps on the chart open the instrument.
+      if (mode === 'pan' || mode === 'handle' || (mode === 'yzoom' && grab && grab.moved)) {
+        reel.lastGestureAt = Date.now();
+      }
+      if (mode === 'yzoom') host.classList.remove('is-yzooming');
       try { host.releasePointerCapture(pid); } catch (_) {}
-      pid = null; mode = null; handle = null; chIdx = -1;
+      pid = null; mode = null; handle = null; chIdx = -1; grab = null;
     };
     host.addEventListener('pointerup', finish);
     host.addEventListener('pointercancel', finish);
+
+    // The price-scale drag deliberately does NOT preventDefault on pointerdown
+    // (it would kill the tap and double-tap). Native drag-and-drop is the one
+    // default that has to be stopped anyway: starting it mid-gesture fires
+    // pointercancel and the stretch dies halfway through the drag.
+    host.addEventListener('dragstart', ev => ev.preventDefault());
 
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {

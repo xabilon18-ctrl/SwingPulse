@@ -1,840 +1,1376 @@
 {
- "generated_at": "2026-09-02 03:28 UTC",
+ "generated_at": "2026-09-09 17:25 UTC",
  "params": {
   "stop_model": "2xATR14",
   "target_r": 2.0,
   "time_stop_bars": {
    "D": 30,
+   "1H": 240,
    "4H": 60,
+   "3D": 15,
    "W": 13
   },
   "slippage_pct": 0.0005,
-  "since": "2016-01-01",
+  "since": "full history",
   "engine": "production-parity add_signals"
  },
  "min_trades": 30,
  "high_r": 0.05,
  "tiers": {
-  "D|B1|Crypto": {
-   "n": 369,
-   "win_rate": 44.7,
-   "avg_r": 0.276,
-   "tier": "high"
+  "D|B1|Commodity": {
+   "n": 488,
+   "win_rate": 34.6,
+   "avg_r": -0.099,
+   "tier": "low"
   },
   "D|B1": {
-   "n": 6836,
-   "win_rate": 43.1,
-   "avg_r": 0.095,
+   "n": 12437,
+   "win_rate": 42.4,
+   "avg_r": 0.063,
    "tier": "high"
-  },
-  "D|B2|Crypto": {
-   "n": 1027,
-   "win_rate": 38.5,
-   "avg_r": 0.098,
-   "tier": "high"
-  },
-  "D|B2": {
-   "n": 22528,
-   "win_rate": 42.8,
-   "avg_r": 0.13,
-   "tier": "high"
-  },
-  "D|B3|Crypto": {
-   "n": 826,
-   "win_rate": 36.3,
-   "avg_r": 0.006,
-   "tier": "standard"
-  },
-  "D|B3": {
-   "n": 16653,
-   "win_rate": 41.7,
-   "avg_r": 0.072,
-   "tier": "high"
-  },
-  "D|S1|Crypto": {
-   "n": 365,
-   "win_rate": 47.7,
-   "avg_r": 0.129,
-   "tier": "high"
-  },
-  "D|S1": {
-   "n": 6316,
-   "win_rate": 33.0,
-   "avg_r": -0.166,
-   "tier": "low"
-  },
-  "D|S3|Crypto": {
-   "n": 810,
-   "win_rate": 40.9,
-   "avg_r": -0.023,
-   "tier": "low"
-  },
-  "D|S3": {
-   "n": 10924,
-   "win_rate": 33.3,
-   "avg_r": -0.171,
-   "tier": "low"
-  },
-  "D|S2|Crypto": {
-   "n": 1394,
-   "win_rate": 47.1,
-   "avg_r": 0.13,
-   "tier": "high"
-  },
-  "D|S2": {
-   "n": 14833,
-   "win_rate": 34.7,
-   "avg_r": -0.124,
-   "tier": "low"
-  },
-  "D|S4|Crypto": {
-   "n": 407,
-   "win_rate": 37.8,
-   "avg_r": 0.033,
-   "tier": "standard"
-  },
-  "D|S4": {
-   "n": 7419,
-   "win_rate": 32.5,
-   "avg_r": -0.171,
-   "tier": "low"
-  },
-  "D|B4|Crypto": {
-   "n": 469,
-   "win_rate": 34.1,
-   "avg_r": -0.09,
-   "tier": "low"
-  },
-  "D|B4": {
-   "n": 7370,
-   "win_rate": 43.5,
-   "avg_r": 0.125,
-   "tier": "high"
-  },
-  "4H|S1|Crypto": {
-   "n": 1564,
-   "win_rate": 35.7,
-   "avg_r": 0.003,
-   "tier": "standard"
-  },
-  "4H|S1": {
-   "n": 5297,
-   "win_rate": 31.1,
-   "avg_r": -0.155,
-   "tier": "low"
-  },
-  "4H|S2|Crypto": {
-   "n": 3057,
-   "win_rate": 37.7,
-   "avg_r": 0.059,
-   "tier": "high"
-  },
-  "4H|S2": {
-   "n": 9528,
-   "win_rate": 33.1,
-   "avg_r": -0.093,
-   "tier": "low"
-  },
-  "4H|S3|Crypto": {
-   "n": 1779,
-   "win_rate": 36.2,
-   "avg_r": 0.017,
-   "tier": "standard"
-  },
-  "4H|S3": {
-   "n": 7438,
-   "win_rate": 33.8,
-   "avg_r": -0.102,
-   "tier": "low"
-  },
-  "4H|B1|Crypto": {
-   "n": 1446,
-   "win_rate": 28.9,
-   "avg_r": -0.148,
-   "tier": "low"
-  },
-  "4H|B1": {
-   "n": 5513,
-   "win_rate": 34.8,
-   "avg_r": -0.047,
-   "tier": "low"
-  },
-  "4H|B3|Crypto": {
-   "n": 1137,
-   "win_rate": 30.3,
-   "avg_r": -0.146,
-   "tier": "low"
-  },
-  "4H|B3": {
-   "n": 7883,
-   "win_rate": 37.4,
-   "avg_r": 0.016,
-   "tier": "standard"
-  },
-  "4H|B2|Crypto": {
-   "n": 1610,
-   "win_rate": 29.9,
-   "avg_r": -0.132,
-   "tier": "low"
-  },
-  "4H|B2": {
-   "n": 9830,
-   "win_rate": 37.1,
-   "avg_r": 0.035,
-   "tier": "standard"
-  },
-  "4H|B4|Crypto": {
-   "n": 447,
-   "win_rate": 27.3,
-   "avg_r": -0.204,
-   "tier": "low"
-  },
-  "4H|B4": {
-   "n": 3372,
-   "win_rate": 36.1,
-   "avg_r": -0.018,
-   "tier": "low"
-  },
-  "4H|S4|Crypto": {
-   "n": 450,
-   "win_rate": 42.9,
-   "avg_r": 0.202,
-   "tier": "high"
-  },
-  "4H|S4": {
-   "n": 3023,
-   "win_rate": 33.9,
-   "avg_r": -0.1,
-   "tier": "low"
-  },
-  "W|S1|Crypto": {
-   "n": 38,
-   "win_rate": 71.1,
-   "avg_r": 0.38,
-   "tier": "high"
-  },
-  "W|S1": {
-   "n": 901,
-   "win_rate": 29.0,
-   "avg_r": -0.361,
-   "tier": "low"
-  },
-  "D|S3|Commodity": {
-   "n": 365,
-   "win_rate": 33.7,
-   "avg_r": -0.158,
-   "tier": "low"
-  },
-  "D|B1|Commodity": {
-   "n": 236,
-   "win_rate": 35.6,
-   "avg_r": -0.034,
-   "tier": "low"
-  },
-  "D|B2|Commodity": {
-   "n": 462,
-   "win_rate": 38.7,
-   "avg_r": 0.038,
-   "tier": "standard"
-  },
-  "D|B4|Commodity": {
-   "n": 166,
-   "win_rate": 36.7,
-   "avg_r": -0.017,
-   "tier": "low"
   },
   "D|S1|Commodity": {
-   "n": 216,
-   "win_rate": 38.9,
-   "avg_r": -0.019,
-   "tier": "low"
-  },
-  "D|S4|Commodity": {
-   "n": 219,
-   "win_rate": 34.7,
-   "avg_r": -0.092,
-   "tier": "low"
-  },
-  "D|S2|Commodity": {
-   "n": 507,
-   "win_rate": 40.2,
-   "avg_r": -0.0,
-   "tier": "standard"
-  },
-  "D|B3|Commodity": {
-   "n": 299,
-   "win_rate": 37.8,
-   "avg_r": -0.003,
-   "tier": "low"
-  },
-  "4H|B1|Commodity": {
-   "n": 294,
-   "win_rate": 34.0,
-   "avg_r": -0.076,
-   "tier": "low"
-  },
-  "4H|B3|Commodity": {
-   "n": 335,
-   "win_rate": 38.2,
-   "avg_r": 0.02,
-   "tier": "standard"
-  },
-  "4H|B4|Commodity": {
-   "n": 166,
-   "win_rate": 36.7,
-   "avg_r": -0.003,
-   "tier": "low"
-  },
-  "4H|S1|Commodity": {
-   "n": 312,
-   "win_rate": 29.8,
-   "avg_r": -0.264,
-   "tier": "low"
-  },
-  "4H|S3|Commodity": {
-   "n": 404,
-   "win_rate": 38.1,
-   "avg_r": -0.018,
-   "tier": "low"
-  },
-  "4H|S2|Commodity": {
-   "n": 436,
-   "win_rate": 28.9,
-   "avg_r": -0.23,
-   "tier": "low"
-  },
-  "4H|S4|Commodity": {
-   "n": 189,
-   "win_rate": 30.7,
-   "avg_r": -0.217,
-   "tier": "low"
-  },
-  "4H|B2|Commodity": {
-   "n": 379,
-   "win_rate": 36.1,
-   "avg_r": 0.042,
-   "tier": "standard"
-  },
-  "W|S1|Commodity": {
-   "n": 54,
-   "win_rate": 24.1,
-   "avg_r": -0.529,
-   "tier": "low"
-  },
-  "W|S4|Commodity": {
-   "n": 76,
-   "win_rate": 40.8,
-   "avg_r": -0.121,
-   "tier": "low"
-  },
-  "W|S4": {
-   "n": 863,
-   "win_rate": 39.0,
-   "avg_r": -0.118,
-   "tier": "low"
-  },
-  "W|S2|Commodity": {
-   "n": 162,
-   "win_rate": 37.7,
-   "avg_r": -0.165,
-   "tier": "low"
-  },
-  "W|S2": {
-   "n": 1468,
-   "win_rate": 37.7,
-   "avg_r": -0.166,
-   "tier": "low"
-  },
-  "W|S3|Commodity": {
-   "n": 114,
-   "win_rate": 33.3,
-   "avg_r": -0.26,
-   "tier": "low"
-  },
-  "W|S3": {
-   "n": 1345,
-   "win_rate": 37.8,
-   "avg_r": -0.173,
-   "tier": "low"
-  },
-  "W|B1|Commodity": {
-   "n": 48,
-   "win_rate": 35.4,
-   "avg_r": -0.129,
-   "tier": "low"
-  },
-  "W|B1": {
-   "n": 1222,
-   "win_rate": 51.8,
-   "avg_r": 0.152,
-   "tier": "high"
-  },
-  "W|B2|Commodity": {
-   "n": 87,
-   "win_rate": 41.4,
+   "n": 449,
+   "win_rate": 37.2,
    "avg_r": -0.068,
    "tier": "low"
   },
-  "W|B2": {
-   "n": 3665,
-   "win_rate": 51.9,
-   "avg_r": 0.154,
-   "tier": "high"
-  },
-  "W|B4|Commodity": {
-   "n": 38,
-   "win_rate": 34.2,
-   "avg_r": -0.111,
+  "D|S1": {
+   "n": 11820,
+   "win_rate": 34.4,
+   "avg_r": -0.135,
    "tier": "low"
   },
-  "W|B4": {
-   "n": 841,
-   "win_rate": 56.1,
-   "avg_r": 0.219,
-   "tier": "high"
-  },
-  "W|B3|Commodity": {
-   "n": 72,
-   "win_rate": 43.1,
-   "avg_r": 0.13,
-   "tier": "high"
-  },
-  "W|B3": {
-   "n": 2841,
-   "win_rate": 54.9,
-   "avg_r": 0.235,
-   "tier": "high"
-  },
-  "D|B4|Index": {
-   "n": 286,
-   "win_rate": 35.0,
-   "avg_r": -0.052,
+  "D|S4|Commodity": {
+   "n": 221,
+   "win_rate": 31.2,
+   "avg_r": -0.203,
    "tier": "low"
   },
-  "D|S1|Index": {
-   "n": 255,
-   "win_rate": 28.2,
-   "avg_r": -0.255,
+  "D|S4": {
+   "n": 7523,
+   "win_rate": 33.4,
+   "avg_r": -0.175,
    "tier": "low"
   },
-  "D|S4|Index": {
-   "n": 269,
-   "win_rate": 34.6,
-   "avg_r": -0.116,
-   "tier": "low"
-  },
-  "D|B1|Index": {
-   "n": 280,
-   "win_rate": 43.6,
-   "avg_r": 0.131,
-   "tier": "high"
-  },
-  "D|B3|Index": {
-   "n": 565,
-   "win_rate": 37.9,
-   "avg_r": -0.015,
-   "tier": "low"
-  },
-  "D|B2|Index": {
-   "n": 758,
-   "win_rate": 38.3,
-   "avg_r": -0.041,
-   "tier": "low"
-  },
-  "D|S2|Index": {
-   "n": 485,
-   "win_rate": 33.8,
-   "avg_r": -0.125,
-   "tier": "low"
-  },
-  "D|S3|Index": {
-   "n": 366,
-   "win_rate": 27.9,
-   "avg_r": -0.281,
-   "tier": "low"
-  },
-  "4H|B1|Index": {
-   "n": 271,
-   "win_rate": 42.4,
-   "avg_r": 0.133,
-   "tier": "high"
-  },
-  "4H|B2|Index": {
-   "n": 650,
-   "win_rate": 45.4,
-   "avg_r": 0.261,
-   "tier": "high"
-  },
-  "4H|B3|Index": {
-   "n": 310,
-   "win_rate": 41.6,
-   "avg_r": 0.147,
-   "tier": "high"
-  },
-  "4H|B4|Index": {
-   "n": 130,
-   "win_rate": 46.2,
-   "avg_r": 0.282,
-   "tier": "high"
-  },
-  "4H|S1|Index": {
-   "n": 234,
-   "win_rate": 29.1,
-   "avg_r": -0.176,
-   "tier": "low"
-  },
-  "4H|S3|Index": {
-   "n": 123,
-   "win_rate": 37.4,
-   "avg_r": 0.014,
-   "tier": "standard"
-  },
-  "4H|S2|Index": {
-   "n": 220,
-   "win_rate": 28.2,
-   "avg_r": -0.252,
-   "tier": "low"
-  },
-  "4H|S4|Index": {
-   "n": 124,
-   "win_rate": 28.2,
-   "avg_r": -0.224,
-   "tier": "low"
-  },
-  "W|B1|Index": {
-   "n": 68,
-   "win_rate": 50.0,
-   "avg_r": 0.049,
-   "tier": "standard"
-  },
-  "W|B3|Index": {
-   "n": 120,
-   "win_rate": 64.2,
-   "avg_r": 0.448,
-   "tier": "high"
-  },
-  "W|B2|Index": {
-   "n": 137,
-   "win_rate": 59.9,
-   "avg_r": 0.263,
-   "tier": "high"
-  },
-  "W|S1|Index": {
-   "n": 37,
-   "win_rate": 21.6,
-   "avg_r": -0.448,
-   "tier": "low"
-  },
-  "W|S3|Index": {
-   "n": 54,
-   "win_rate": 35.2,
-   "avg_r": -0.316,
-   "tier": "low"
-  },
-  "W|B4|Index": {
-   "n": 48,
-   "win_rate": 50.0,
-   "avg_r": 0.127,
-   "tier": "high"
-  },
-  "W|S4|Index": {
-   "n": 35,
-   "win_rate": 37.1,
-   "avg_r": -0.173,
-   "tier": "low"
-  },
-  "W|S2|Index": {
-   "n": 40,
-   "win_rate": 40.0,
-   "avg_r": -0.294,
-   "tier": "low"
-  },
-  "D|S4|Equity": {
-   "n": 5576,
-   "win_rate": 31.4,
-   "avg_r": -0.19,
-   "tier": "low"
-  },
-  "D|S3|Equity": {
-   "n": 7870,
-   "win_rate": 31.7,
+  "D|B2|Commodity": {
+   "n": 166,
+   "win_rate": 30.7,
    "avg_r": -0.193,
    "tier": "low"
   },
-  "D|B1|Equity": {
-   "n": 5392,
-   "win_rate": 43.9,
-   "avg_r": 0.112,
+  "D|B2": {
+   "n": 5720,
+   "win_rate": 42.2,
+   "avg_r": 0.11,
    "tier": "high"
   },
-  "D|B4|Equity": {
-   "n": 5474,
-   "win_rate": 45.4,
-   "avg_r": 0.186,
+  "D|B3|Commodity": {
+   "n": 358,
+   "win_rate": 35.5,
+   "avg_r": -0.096,
+   "tier": "low"
+  },
+  "D|B3": {
+   "n": 18738,
+   "win_rate": 41.8,
+   "avg_r": 0.062,
    "tier": "high"
   },
-  "D|B3|Equity": {
-   "n": 13297,
-   "win_rate": 42.6,
-   "avg_r": 0.104,
-   "tier": "high"
-  },
-  "D|B2|Equity": {
-   "n": 18594,
-   "win_rate": 43.5,
-   "avg_r": 0.155,
-   "tier": "high"
-  },
-  "D|S1|Equity": {
-   "n": 4950,
-   "win_rate": 31.1,
+  "D|S2|Commodity": {
+   "n": 196,
+   "win_rate": 29.1,
    "avg_r": -0.2,
    "tier": "low"
   },
-  "D|S2|Equity": {
-   "n": 10869,
-   "win_rate": 31.9,
-   "avg_r": -0.173,
+  "D|S2": {
+   "n": 5390,
+   "win_rate": 32.5,
+   "avg_r": -0.174,
    "tier": "low"
   },
-  "4H|S1|Equity": {
-   "n": 2396,
-   "win_rate": 29.3,
-   "avg_r": -0.189,
-   "tier": "low"
-  },
-  "4H|S3|Equity": {
-   "n": 3358,
-   "win_rate": 29.5,
-   "avg_r": -0.186,
-   "tier": "low"
-  },
-  "4H|B1|Equity": {
-   "n": 2688,
-   "win_rate": 39.6,
-   "avg_r": 0.084,
-   "tier": "high"
-  },
-  "4H|B4|Equity": {
-   "n": 1762,
-   "win_rate": 42.0,
-   "avg_r": 0.202,
-   "tier": "high"
-  },
-  "4H|S4|Equity": {
-   "n": 1628,
-   "win_rate": 32.4,
-   "avg_r": -0.119,
-   "tier": "low"
-  },
-  "4H|B2|Equity": {
-   "n": 5858,
-   "win_rate": 39.1,
-   "avg_r": 0.104,
-   "tier": "high"
-  },
-  "4H|B3|Equity": {
-   "n": 4282,
-   "win_rate": 40.7,
-   "avg_r": 0.155,
-   "tier": "high"
-  },
-  "W|B1|Equity": {
-   "n": 971,
-   "win_rate": 55.6,
-   "avg_r": 0.237,
-   "tier": "high"
-  },
-  "W|B2|Equity": {
-   "n": 3073,
-   "win_rate": 52.6,
-   "avg_r": 0.176,
-   "tier": "high"
-  },
-  "W|B3|Equity": {
-   "n": 2315,
-   "win_rate": 56.6,
-   "avg_r": 0.264,
-   "tier": "high"
-  },
-  "4H|S2|Equity": {
-   "n": 4425,
-   "win_rate": 30.9,
-   "avg_r": -0.139,
-   "tier": "low"
-  },
-  "W|S1|Equity": {
-   "n": 659,
-   "win_rate": 26.7,
-   "avg_r": -0.396,
-   "tier": "low"
-  },
-  "W|S4|Equity": {
-   "n": 596,
-   "win_rate": 38.6,
-   "avg_r": -0.12,
-   "tier": "low"
-  },
-  "W|S3|Equity": {
-   "n": 912,
-   "win_rate": 34.5,
-   "avg_r": -0.236,
-   "tier": "low"
-  },
-  "W|B4|Equity": {
-   "n": 586,
-   "win_rate": 61.1,
-   "avg_r": 0.314,
-   "tier": "high"
-  },
-  "W|S2|Equity": {
-   "n": 979,
+  "D|S3|Commodity": {
+   "n": 415,
    "win_rate": 34.2,
-   "avg_r": -0.22,
+   "avg_r": -0.155,
    "tier": "low"
   },
-  "D|S2|Currency": {
-   "n": 1578,
-   "win_rate": 41.6,
-   "avg_r": -0.057,
-   "tier": "low"
-  },
-  "D|S3|Currency": {
-   "n": 1513,
-   "win_rate": 38.6,
-   "avg_r": -0.111,
-   "tier": "low"
-  },
-  "D|S4|Currency": {
-   "n": 948,
-   "win_rate": 35.9,
+  "D|S3": {
+   "n": 12111,
+   "win_rate": 33.5,
    "avg_r": -0.177,
    "tier": "low"
   },
-  "D|B1|Currency": {
-   "n": 559,
-   "win_rate": 37.4,
-   "avg_r": -0.15,
+  "D|B4|Commodity": {
+   "n": 190,
+   "win_rate": 33.7,
+   "avg_r": -0.071,
    "tier": "low"
   },
-  "D|B2|Currency": {
-   "n": 1687,
-   "win_rate": 41.1,
+  "D|B4": {
+   "n": 8176,
+   "win_rate": 43.7,
+   "avg_r": 0.124,
+   "tier": "high"
+  },
+  "1H|S1|Commodity": {
+   "n": 1682,
+   "win_rate": 33.8,
+   "avg_r": -0.157,
+   "tier": "low"
+  },
+  "1H|S1": {
+   "n": 28947,
+   "win_rate": 32.5,
+   "avg_r": -0.106,
+   "tier": "low"
+  },
+  "1H|S3|Commodity": {
+   "n": 945,
+   "win_rate": 32.7,
+   "avg_r": -0.127,
+   "tier": "low"
+  },
+  "1H|S3": {
+   "n": 23375,
+   "win_rate": 30.0,
+   "avg_r": -0.217,
+   "tier": "low"
+  },
+  "1H|S2|Commodity": {
+   "n": 384,
+   "win_rate": 31.2,
+   "avg_r": -0.121,
+   "tier": "low"
+  },
+  "1H|S2": {
+   "n": 8758,
+   "win_rate": 31.6,
+   "avg_r": -0.134,
+   "tier": "low"
+  },
+  "1H|S4|Commodity": {
+   "n": 214,
+   "win_rate": 33.2,
+   "avg_r": -0.222,
+   "tier": "low"
+  },
+  "1H|S4": {
+   "n": 6626,
+   "win_rate": 29.9,
+   "avg_r": -0.266,
+   "tier": "low"
+  },
+  "1H|B1|Commodity": {
+   "n": 1634,
+   "win_rate": 34.5,
+   "avg_r": -0.069,
+   "tier": "low"
+  },
+  "1H|B1": {
+   "n": 28797,
+   "win_rate": 32.4,
+   "avg_r": -0.107,
+   "tier": "low"
+  },
+  "1H|B3|Commodity": {
+   "n": 1038,
+   "win_rate": 32.3,
+   "avg_r": -0.097,
+   "tier": "low"
+  },
+  "1H|B3": {
+   "n": 26363,
+   "win_rate": 30.8,
+   "avg_r": -0.18,
+   "tier": "low"
+  },
+  "1H|B4|Commodity": {
+   "n": 232,
+   "win_rate": 32.8,
+   "avg_r": -0.088,
+   "tier": "low"
+  },
+  "1H|B4": {
+   "n": 6909,
+   "win_rate": 32.4,
+   "avg_r": -0.171,
+   "tier": "low"
+  },
+  "1H|B2|Commodity": {
+   "n": 332,
+   "win_rate": 28.0,
+   "avg_r": -0.232,
+   "tier": "low"
+  },
+  "1H|B2": {
+   "n": 7989,
+   "win_rate": 33.8,
+   "avg_r": -0.083,
+   "tier": "low"
+  },
+  "4H|B1|Commodity": {
+   "n": 295,
+   "win_rate": 32.5,
+   "avg_r": -0.125,
+   "tier": "low"
+  },
+  "4H|B1": {
+   "n": 5965,
+   "win_rate": 35.3,
    "avg_r": -0.023,
    "tier": "low"
   },
-  "D|B3|Currency": {
-   "n": 1666,
-   "win_rate": 39.6,
-   "avg_r": -0.104,
+  "4H|B3|Commodity": {
+   "n": 271,
+   "win_rate": 39.1,
+   "avg_r": 0.07,
+   "tier": "high"
+  },
+  "4H|B3": {
+   "n": 6310,
+   "win_rate": 37.5,
+   "avg_r": 0.015,
+   "tier": "standard"
+  },
+  "4H|B4|Commodity": {
+   "n": 148,
+   "win_rate": 37.8,
+   "avg_r": 0.007,
+   "tier": "standard"
+  },
+  "4H|B4": {
+   "n": 2704,
+   "win_rate": 35.3,
+   "avg_r": -0.051,
    "tier": "low"
   },
-  "D|S1|Currency": {
-   "n": 530,
-   "win_rate": 40.4,
-   "avg_r": -0.064,
+  "4H|S1|Commodity": {
+   "n": 303,
+   "win_rate": 33.3,
+   "avg_r": -0.181,
    "tier": "low"
   },
-  "D|B4|Currency": {
-   "n": 975,
-   "win_rate": 40.8,
-   "avg_r": -0.04,
+  "4H|S1": {
+   "n": 5763,
+   "win_rate": 30.4,
+   "avg_r": -0.193,
    "tier": "low"
   },
-  "4H|S1|Currency": {
-   "n": 791,
-   "win_rate": 28.4,
-   "avg_r": -0.315,
-   "tier": "low"
+  "4H|S2|Commodity": {
+   "n": 95,
+   "win_rate": 40.0,
+   "avg_r": 0.109,
+   "tier": "high"
   },
-  "4H|S2|Currency": {
-   "n": 1390,
-   "win_rate": 32.4,
-   "avg_r": -0.213,
-   "tier": "low"
-  },
-  "4H|S3|Currency": {
-   "n": 1774,
-   "win_rate": 38.4,
+  "4H|S2": {
+   "n": 1938,
+   "win_rate": 33.3,
    "avg_r": -0.09,
    "tier": "low"
   },
-  "4H|B1|Currency": {
-   "n": 814,
-   "win_rate": 27.4,
-   "avg_r": -0.353,
+  "4H|S4|Commodity": {
+   "n": 144,
+   "win_rate": 31.9,
+   "avg_r": -0.184,
    "tier": "low"
   },
-  "4H|B2|Currency": {
-   "n": 1333,
-   "win_rate": 33.4,
-   "avg_r": -0.179,
+  "4H|S4": {
+   "n": 2490,
+   "win_rate": 32.8,
+   "avg_r": -0.127,
    "tier": "low"
   },
-  "4H|B4|Currency": {
-   "n": 867,
-   "win_rate": 27.0,
-   "avg_r": -0.419,
+  "4H|S3|Commodity": {
+   "n": 287,
+   "win_rate": 39.7,
+   "avg_r": -0.003,
    "tier": "low"
   },
-  "4H|B3|Currency": {
-   "n": 1819,
-   "win_rate": 33.2,
-   "avg_r": -0.231,
+  "4H|S3": {
+   "n": 5802,
+   "win_rate": 34.2,
+   "avg_r": -0.097,
    "tier": "low"
   },
-  "4H|S4|Currency": {
-   "n": 632,
-   "win_rate": 33.4,
-   "avg_r": -0.205,
-   "tier": "low"
-  },
-  "W|S1|Currency": {
-   "n": 113,
-   "win_rate": 32.7,
-   "avg_r": -0.298,
-   "tier": "low"
-  },
-  "W|S2|Currency": {
-   "n": 275,
-   "win_rate": 49.8,
-   "avg_r": 0.044,
-   "tier": "standard"
-  },
-  "W|S3|Currency": {
-   "n": 252,
-   "win_rate": 52.4,
-   "avg_r": 0.132,
+  "4H|B2|Commodity": {
+   "n": 56,
+   "win_rate": 46.4,
+   "avg_r": 0.429,
    "tier": "high"
   },
-  "W|B1|Currency": {
-   "n": 114,
-   "win_rate": 31.6,
-   "avg_r": -0.328,
+  "4H|B2": {
+   "n": 1807,
+   "win_rate": 38.1,
+   "avg_r": 0.074,
+   "tier": "high"
+  },
+  "3D|B1|Commodity": {
+   "n": 140,
+   "win_rate": 36.4,
+   "avg_r": -0.117,
    "tier": "low"
   },
-  "W|B4|Currency": {
-   "n": 153,
-   "win_rate": 46.4,
-   "avg_r": 0.002,
+  "3D|B1": {
+   "n": 3094,
+   "win_rate": 45.4,
+   "avg_r": 0.038,
    "tier": "standard"
   },
-  "W|B3|Currency": {
-   "n": 321,
-   "win_rate": 41.4,
+  "3D|B3|Commodity": {
+   "n": 119,
+   "win_rate": 46.2,
+   "avg_r": 0.02,
+   "tier": "standard"
+  },
+  "3D|B3": {
+   "n": 5320,
+   "win_rate": 52.5,
+   "avg_r": 0.179,
+   "tier": "high"
+  },
+  "3D|B4|Commodity": {
+   "n": 70,
+   "win_rate": 42.9,
+   "avg_r": -0.104,
+   "tier": "low"
+  },
+  "3D|B4": {
+   "n": 1952,
+   "win_rate": 52.3,
+   "avg_r": 0.178,
+   "tier": "high"
+  },
+  "3D|S1|Commodity": {
+   "n": 130,
+   "win_rate": 36.9,
+   "avg_r": -0.135,
+   "tier": "low"
+  },
+  "3D|S1": {
+   "n": 2699,
+   "win_rate": 35.1,
+   "avg_r": -0.208,
+   "tier": "low"
+  },
+  "3D|S2|Commodity": {
+   "n": 72,
+   "win_rate": 37.5,
+   "avg_r": -0.187,
+   "tier": "low"
+  },
+  "3D|S2": {
+   "n": 991,
+   "win_rate": 38.3,
+   "avg_r": -0.155,
+   "tier": "low"
+  },
+  "3D|S3|Commodity": {
+   "n": 110,
+   "win_rate": 36.4,
+   "avg_r": -0.207,
+   "tier": "low"
+  },
+  "3D|S3": {
+   "n": 2400,
+   "win_rate": 37.4,
+   "avg_r": -0.168,
+   "tier": "low"
+  },
+  "3D|B2|Commodity": {
+   "n": 55,
+   "win_rate": 49.1,
+   "avg_r": 0.274,
+   "tier": "high"
+  },
+  "3D|B2": {
+   "n": 1337,
+   "win_rate": 51.6,
+   "avg_r": 0.193,
+   "tier": "high"
+  },
+  "W|S1|Commodity": {
+   "n": 70,
+   "win_rate": 31.4,
+   "avg_r": -0.381,
+   "tier": "low"
+  },
+  "W|S1": {
+   "n": 1154,
+   "win_rate": 31.9,
+   "avg_r": -0.322,
+   "tier": "low"
+  },
+  "W|S4|Commodity": {
+   "n": 54,
+   "win_rate": 40.7,
+   "avg_r": -0.183,
+   "tier": "low"
+  },
+  "W|S4": {
+   "n": 645,
+   "win_rate": 39.5,
+   "avg_r": -0.11,
+   "tier": "low"
+  },
+  "W|S3|Commodity": {
+   "n": 78,
+   "win_rate": 29.5,
+   "avg_r": -0.319,
+   "tier": "low"
+  },
+  "W|S3": {
+   "n": 967,
+   "win_rate": 38.1,
+   "avg_r": -0.165,
+   "tier": "low"
+  },
+  "W|S2|Commodity": {
+   "n": 47,
+   "win_rate": 44.7,
+   "avg_r": 0.231,
+   "tier": "high"
+  },
+  "W|S2": {
+   "n": 364,
+   "win_rate": 37.1,
+   "avg_r": -0.158,
+   "tier": "low"
+  },
+  "W|B1|Commodity": {
+   "n": 67,
+   "win_rate": 35.8,
+   "avg_r": -0.16,
+   "tier": "low"
+  },
+  "W|B1": {
+   "n": 1548,
+   "win_rate": 50.7,
+   "avg_r": 0.142,
+   "tier": "high"
+  },
+  "W|B3|Commodity": {
+   "n": 59,
+   "win_rate": 47.5,
+   "avg_r": 0.218,
+   "tier": "high"
+  },
+  "W|B3": {
+   "n": 2215,
+   "win_rate": 56.7,
+   "avg_r": 0.272,
+   "tier": "high"
+  },
+  "3D|S4|Commodity": {
+   "n": 91,
+   "win_rate": 33.0,
+   "avg_r": -0.242,
+   "tier": "low"
+  },
+  "3D|S4": {
+   "n": 1652,
+   "win_rate": 36.4,
+   "avg_r": -0.204,
+   "tier": "low"
+  },
+  "W|B4": {
+   "n": 722,
+   "win_rate": 59.3,
+   "avg_r": 0.29,
+   "tier": "high"
+  },
+  "D|S1|Crypto": {
+   "n": 470,
+   "win_rate": 46.4,
+   "avg_r": 0.009,
+   "tier": "standard"
+  },
+  "D|S4|Crypto": {
+   "n": 279,
+   "win_rate": 33.3,
+   "avg_r": -0.088,
+   "tier": "low"
+  },
+  "D|B1|Crypto": {
+   "n": 466,
+   "win_rate": 44.6,
+   "avg_r": 0.261,
+   "tier": "high"
+  },
+  "D|B3|Crypto": {
+   "n": 593,
+   "win_rate": 34.1,
+   "avg_r": -0.077,
+   "tier": "low"
+  },
+  "D|B2|Crypto": {
+   "n": 207,
+   "win_rate": 45.4,
+   "avg_r": 0.273,
+   "tier": "high"
+  },
+  "D|S3|Crypto": {
+   "n": 584,
+   "win_rate": 36.3,
+   "avg_r": -0.114,
+   "tier": "low"
+  },
+  "D|B4|Crypto": {
+   "n": 341,
+   "win_rate": 35.8,
    "avg_r": -0.044,
    "tier": "low"
   },
+  "1H|B1|Crypto": {
+   "n": 8534,
+   "win_rate": 32.5,
+   "avg_r": -0.063,
+   "tier": "low"
+  },
+  "1H|B3|Crypto": {
+   "n": 3737,
+   "win_rate": 27.1,
+   "avg_r": -0.221,
+   "tier": "low"
+  },
+  "1H|S1|Crypto": {
+   "n": 8759,
+   "win_rate": 36.4,
+   "avg_r": 0.059,
+   "tier": "high"
+  },
+  "1H|S3|Crypto": {
+   "n": 4961,
+   "win_rate": 34.4,
+   "avg_r": 0.0,
+   "tier": "standard"
+  },
+  "1H|S2|Crypto": {
+   "n": 2853,
+   "win_rate": 36.3,
+   "avg_r": 0.059,
+   "tier": "high"
+  },
+  "1H|S4|Crypto": {
+   "n": 649,
+   "win_rate": 35.3,
+   "avg_r": 0.009,
+   "tier": "standard"
+  },
+  "1H|B2|Crypto": {
+   "n": 1868,
+   "win_rate": 33.1,
+   "avg_r": -0.045,
+   "tier": "low"
+  },
+  "1H|B4|Crypto": {
+   "n": 384,
+   "win_rate": 30.2,
+   "avg_r": -0.138,
+   "tier": "low"
+  },
+  "4H|B1|Crypto": {
+   "n": 1532,
+   "win_rate": 32.4,
+   "avg_r": -0.053,
+   "tier": "low"
+  },
+  "4H|B3|Crypto": {
+   "n": 812,
+   "win_rate": 32.5,
+   "avg_r": -0.094,
+   "tier": "low"
+  },
+  "4H|S1|Crypto": {
+   "n": 1466,
+   "win_rate": 32.8,
+   "avg_r": -0.098,
+   "tier": "low"
+  },
+  "4H|S4|Crypto": {
+   "n": 355,
+   "win_rate": 38.6,
+   "avg_r": 0.077,
+   "tier": "high"
+  },
+  "4H|S3|Crypto": {
+   "n": 1234,
+   "win_rate": 36.5,
+   "avg_r": 0.03,
+   "tier": "standard"
+  },
+  "4H|B2|Crypto": {
+   "n": 331,
+   "win_rate": 36.3,
+   "avg_r": 0.059,
+   "tier": "high"
+  },
+  "4H|B4|Crypto": {
+   "n": 358,
+   "win_rate": 27.4,
+   "avg_r": -0.227,
+   "tier": "low"
+  },
+  "4H|S2|Crypto": {
+   "n": 647,
+   "win_rate": 37.7,
+   "avg_r": 0.078,
+   "tier": "high"
+  },
+  "W|B1|Crypto": {
+   "n": 77,
+   "win_rate": 42.9,
+   "avg_r": 0.161,
+   "tier": "high"
+  },
+  "D|S2|Crypto": {
+   "n": 245,
+   "win_rate": 55.9,
+   "avg_r": 0.378,
+   "tier": "high"
+  },
+  "3D|B1|Crypto": {
+   "n": 73,
+   "win_rate": 39.7,
+   "avg_r": 0.169,
+   "tier": "high"
+  },
+  "3D|B3|Crypto": {
+   "n": 58,
+   "win_rate": 48.3,
+   "avg_r": 0.127,
+   "tier": "high"
+  },
+  "3D|B4|Crypto": {
+   "n": 47,
+   "win_rate": 53.2,
+   "avg_r": 0.288,
+   "tier": "high"
+  },
+  "3D|S1|Crypto": {
+   "n": 84,
+   "win_rate": 52.4,
+   "avg_r": 0.021,
+   "tier": "standard"
+  },
+  "W|S1|Crypto": {
+   "n": 61,
+   "win_rate": 52.5,
+   "avg_r": -0.11,
+   "tier": "low"
+  },
+  "3D|S3|Crypto": {
+   "n": 39,
+   "win_rate": 51.3,
+   "avg_r": 0.137,
+   "tier": "high"
+  },
+  "3D|S4|Crypto": {
+   "n": 47,
+   "win_rate": 48.9,
+   "avg_r": 0.119,
+   "tier": "high"
+  },
+  "D|S1|Index": {
+   "n": 607,
+   "win_rate": 31.8,
+   "avg_r": -0.211,
+   "tier": "low"
+  },
+  "D|S2|Index": {
+   "n": 248,
+   "win_rate": 31.5,
+   "avg_r": -0.15,
+   "tier": "low"
+  },
+  "D|S4|Index": {
+   "n": 346,
+   "win_rate": 32.7,
+   "avg_r": -0.158,
+   "tier": "low"
+  },
+  "D|B1|Index": {
+   "n": 621,
+   "win_rate": 39.5,
+   "avg_r": 0.026,
+   "tier": "standard"
+  },
+  "D|B4|Index": {
+   "n": 339,
+   "win_rate": 41.6,
+   "avg_r": 0.105,
+   "tier": "high"
+  },
+  "D|B3|Index": {
+   "n": 763,
+   "win_rate": 39.2,
+   "avg_r": 0.006,
+   "tier": "standard"
+  },
+  "D|B2|Index": {
+   "n": 203,
+   "win_rate": 42.4,
+   "avg_r": 0.101,
+   "tier": "high"
+  },
+  "D|S3|Index": {
+   "n": 478,
+   "win_rate": 27.8,
+   "avg_r": -0.318,
+   "tier": "low"
+  },
+  "1H|B1|Index": {
+   "n": 1379,
+   "win_rate": 35.5,
+   "avg_r": -0.028,
+   "tier": "low"
+  },
+  "1H|B3|Index": {
+   "n": 1352,
+   "win_rate": 32.7,
+   "avg_r": -0.136,
+   "tier": "low"
+  },
+  "1H|S1|Index": {
+   "n": 1413,
+   "win_rate": 30.4,
+   "avg_r": -0.168,
+   "tier": "low"
+  },
+  "1H|B2|Index": {
+   "n": 420,
+   "win_rate": 36.2,
+   "avg_r": -0.091,
+   "tier": "low"
+  },
+  "1H|S3|Index": {
+   "n": 907,
+   "win_rate": 29.4,
+   "avg_r": -0.25,
+   "tier": "low"
+  },
+  "1H|S2|Index": {
+   "n": 295,
+   "win_rate": 25.1,
+   "avg_r": -0.371,
+   "tier": "low"
+  },
+  "1H|S4|Index": {
+   "n": 238,
+   "win_rate": 20.2,
+   "avg_r": -0.609,
+   "tier": "low"
+  },
+  "1H|B4|Index": {
+   "n": 355,
+   "win_rate": 33.8,
+   "avg_r": -0.113,
+   "tier": "low"
+  },
+  "4H|B1|Index": {
+   "n": 289,
+   "win_rate": 43.9,
+   "avg_r": 0.189,
+   "tier": "high"
+  },
+  "4H|B3|Index": {
+   "n": 268,
+   "win_rate": 38.8,
+   "avg_r": 0.037,
+   "tier": "standard"
+  },
+  "4H|B4|Index": {
+   "n": 129,
+   "win_rate": 42.6,
+   "avg_r": 0.172,
+   "tier": "high"
+  },
+  "4H|S1|Index": {
+   "n": 258,
+   "win_rate": 27.9,
+   "avg_r": -0.235,
+   "tier": "low"
+  },
+  "4H|S3|Index": {
+   "n": 126,
+   "win_rate": 29.4,
+   "avg_r": -0.21,
+   "tier": "low"
+  },
+  "4H|S4|Index": {
+   "n": 116,
+   "win_rate": 30.2,
+   "avg_r": -0.193,
+   "tier": "low"
+  },
+  "4H|S2|Index": {
+   "n": 39,
+   "win_rate": 35.9,
+   "avg_r": -0.007,
+   "tier": "low"
+  },
+  "3D|B1|Index": {
+   "n": 182,
+   "win_rate": 46.2,
+   "avg_r": 0.084,
+   "tier": "high"
+  },
+  "3D|B3|Index": {
+   "n": 272,
+   "win_rate": 55.5,
+   "avg_r": 0.243,
+   "tier": "high"
+  },
+  "3D|S1|Index": {
+   "n": 142,
+   "win_rate": 33.8,
+   "avg_r": -0.248,
+   "tier": "low"
+  },
+  "3D|S3|Index": {
+   "n": 103,
+   "win_rate": 31.1,
+   "avg_r": -0.331,
+   "tier": "low"
+  },
+  "3D|B2|Index": {
+   "n": 69,
+   "win_rate": 55.1,
+   "avg_r": 0.179,
+   "tier": "high"
+  },
+  "W|B1|Index": {
+   "n": 101,
+   "win_rate": 48.5,
+   "avg_r": 0.13,
+   "tier": "high"
+  },
+  "W|B3|Index": {
+   "n": 113,
+   "win_rate": 61.9,
+   "avg_r": 0.387,
+   "tier": "high"
+  },
+  "4H|B2|Index": {
+   "n": 96,
+   "win_rate": 43.8,
+   "avg_r": 0.256,
+   "tier": "high"
+  },
+  "3D|B4|Index": {
+   "n": 110,
+   "win_rate": 61.8,
+   "avg_r": 0.368,
+   "tier": "high"
+  },
+  "3D|S4|Index": {
+   "n": 73,
+   "win_rate": 39.7,
+   "avg_r": -0.161,
+   "tier": "low"
+  },
+  "W|S1|Index": {
+   "n": 54,
+   "win_rate": 27.8,
+   "avg_r": -0.388,
+   "tier": "low"
+  },
+  "W|S3|Index": {
+   "n": 59,
+   "win_rate": 32.2,
+   "avg_r": -0.399,
+   "tier": "low"
+  },
+  "W|B4|Index": {
+   "n": 46,
+   "win_rate": 56.5,
+   "avg_r": 0.297,
+   "tier": "high"
+  },
+  "W|B2": {
+   "n": 494,
+   "win_rate": 54.5,
+   "avg_r": 0.197,
+   "tier": "high"
+  },
+  "D|S1|Equity": {
+   "n": 9109,
+   "win_rate": 33.4,
+   "avg_r": -0.142,
+   "tier": "low"
+  },
+  "D|S3|Equity": {
+   "n": 8691,
+   "win_rate": 32.3,
+   "avg_r": -0.186,
+   "tier": "low"
+  },
+  "D|S2|Equity": {
+   "n": 3962,
+   "win_rate": 30.6,
+   "avg_r": -0.212,
+   "tier": "low"
+  },
+  "D|S4|Equity": {
+   "n": 5473,
+   "win_rate": 33.0,
+   "avg_r": -0.168,
+   "tier": "low"
+  },
+  "D|B1|Equity": {
+   "n": 9694,
+   "win_rate": 43.4,
+   "avg_r": 0.083,
+   "tier": "high"
+  },
+  "D|B3|Equity": {
+   "n": 15035,
+   "win_rate": 43.1,
+   "avg_r": 0.102,
+   "tier": "high"
+  },
+  "D|B2|Equity": {
+   "n": 4523,
+   "win_rate": 42.5,
+   "avg_r": 0.131,
+   "tier": "high"
+  },
+  "D|B4|Equity": {
+   "n": 6087,
+   "win_rate": 45.1,
+   "avg_r": 0.172,
+   "tier": "high"
+  },
+  "1H|S1|Equity": {
+   "n": 12643,
+   "win_rate": 31.3,
+   "avg_r": -0.108,
+   "tier": "low"
+  },
+  "1H|S3|Equity": {
+   "n": 10467,
+   "win_rate": 29.8,
+   "avg_r": -0.19,
+   "tier": "low"
+  },
+  "1H|S2|Equity": {
+   "n": 3883,
+   "win_rate": 30.6,
+   "avg_r": -0.168,
+   "tier": "low"
+  },
+  "1H|S4|Equity": {
+   "n": 3911,
+   "win_rate": 31.0,
+   "avg_r": -0.163,
+   "tier": "low"
+  },
+  "1H|B1|Equity": {
+   "n": 12875,
+   "win_rate": 34.9,
+   "avg_r": -0.004,
+   "tier": "low"
+  },
+  "1H|B3|Equity": {
+   "n": 13080,
+   "win_rate": 34.5,
+   "avg_r": -0.017,
+   "tier": "low"
+  },
+  "1H|B2|Equity": {
+   "n": 4283,
+   "win_rate": 36.5,
+   "avg_r": 0.005,
+   "tier": "standard"
+  },
+  "1H|B4|Equity": {
+   "n": 4101,
+   "win_rate": 36.0,
+   "avg_r": 0.03,
+   "tier": "standard"
+  },
+  "4H|S1|Equity": {
+   "n": 2880,
+   "win_rate": 29.2,
+   "avg_r": -0.214,
+   "tier": "low"
+  },
+  "4H|S3|Equity": {
+   "n": 2613,
+   "win_rate": 30.2,
+   "avg_r": -0.168,
+   "tier": "low"
+  },
+  "4H|B1|Equity": {
+   "n": 2987,
+   "win_rate": 38.4,
+   "avg_r": 0.071,
+   "tier": "high"
+  },
+  "4H|B4|Equity": {
+   "n": 1316,
+   "win_rate": 40.7,
+   "avg_r": 0.157,
+   "tier": "high"
+  },
+  "4H|B3|Equity": {
+   "n": 3359,
+   "win_rate": 40.5,
+   "avg_r": 0.151,
+   "tier": "high"
+  },
+  "3D|B1|Equity": {
+   "n": 2363,
+   "win_rate": 46.9,
+   "avg_r": 0.063,
+   "tier": "high"
+  },
+  "3D|B3|Equity": {
+   "n": 4361,
+   "win_rate": 53.6,
+   "avg_r": 0.205,
+   "tier": "high"
+  },
+  "3D|B2|Equity": {
+   "n": 1074,
+   "win_rate": 52.4,
+   "avg_r": 0.21,
+   "tier": "high"
+  },
+  "3D|B4|Equity": {
+   "n": 1436,
+   "win_rate": 54.0,
+   "avg_r": 0.226,
+   "tier": "high"
+  },
+  "W|B1|Equity": {
+   "n": 1158,
+   "win_rate": 55.1,
+   "avg_r": 0.225,
+   "tier": "high"
+  },
+  "W|B3|Equity": {
+   "n": 1802,
+   "win_rate": 58.3,
+   "avg_r": 0.301,
+   "tier": "high"
+  },
+  "4H|S4|Equity": {
+   "n": 1309,
+   "win_rate": 31.8,
+   "avg_r": -0.123,
+   "tier": "low"
+  },
+  "3D|S1|Equity": {
+   "n": 2002,
+   "win_rate": 34.6,
+   "avg_r": -0.213,
+   "tier": "low"
+  },
+  "3D|S3|Equity": {
+   "n": 1660,
+   "win_rate": 35.6,
+   "avg_r": -0.184,
+   "tier": "low"
+  },
+  "3D|S4|Equity": {
+   "n": 1144,
+   "win_rate": 35.2,
+   "avg_r": -0.218,
+   "tier": "low"
+  },
+  "4H|B2|Equity": {
+   "n": 1012,
+   "win_rate": 38.7,
+   "avg_r": 0.102,
+   "tier": "high"
+  },
+  "3D|S2|Equity": {
+   "n": 708,
+   "win_rate": 34.3,
+   "avg_r": -0.243,
+   "tier": "low"
+  },
+  "W|S1|Equity": {
+   "n": 829,
+   "win_rate": 29.2,
+   "avg_r": -0.346,
+   "tier": "low"
+  },
+  "W|S3|Equity": {
+   "n": 639,
+   "win_rate": 35.1,
+   "avg_r": -0.227,
+   "tier": "low"
+  },
+  "4H|S2|Equity": {
+   "n": 915,
+   "win_rate": 29.3,
+   "avg_r": -0.204,
+   "tier": "low"
+  },
+  "W|B4|Equity": {
+   "n": 508,
+   "win_rate": 64.8,
+   "avg_r": 0.39,
+   "tier": "high"
+  },
+  "W|B2|Equity": {
+   "n": 398,
+   "win_rate": 55.0,
+   "avg_r": 0.217,
+   "tier": "high"
+  },
+  "W|S4|Equity": {
+   "n": 437,
+   "win_rate": 38.7,
+   "avg_r": -0.102,
+   "tier": "low"
+  },
+  "W|S2|Equity": {
+   "n": 259,
+   "win_rate": 32.4,
+   "avg_r": -0.28,
+   "tier": "low"
+  },
+  "D|B1|Currency": {
+   "n": 1168,
+   "win_rate": 38.4,
+   "avg_r": -0.097,
+   "tier": "low"
+  },
+  "D|B4|Currency": {
+   "n": 1219,
+   "win_rate": 41.1,
+   "avg_r": -0.036,
+   "tier": "low"
+  },
+  "D|S1|Currency": {
+   "n": 1185,
+   "win_rate": 38.1,
+   "avg_r": -0.121,
+   "tier": "low"
+  },
+  "D|S3|Currency": {
+   "n": 1943,
+   "win_rate": 39.3,
+   "avg_r": -0.124,
+   "tier": "low"
+  },
+  "D|S4|Currency": {
+   "n": 1204,
+   "win_rate": 36.0,
+   "avg_r": -0.224,
+   "tier": "low"
+  },
+  "D|B3|Currency": {
+   "n": 1989,
+   "win_rate": 37.1,
+   "avg_r": -0.147,
+   "tier": "low"
+  },
+  "D|B2|Currency": {
+   "n": 621,
+   "win_rate": 41.5,
+   "avg_r": -0.016,
+   "tier": "low"
+  },
+  "D|S2|Currency": {
+   "n": 739,
+   "win_rate": 36.5,
+   "avg_r": -0.153,
+   "tier": "low"
+  },
+  "1H|B1|Currency": {
+   "n": 4375,
+   "win_rate": 23.1,
+   "avg_r": -0.539,
+   "tier": "low"
+  },
+  "1H|S1|Currency": {
+   "n": 4450,
+   "win_rate": 28.4,
+   "avg_r": -0.382,
+   "tier": "low"
+  },
+  "1H|B3|Currency": {
+   "n": 7156,
+   "win_rate": 25.2,
+   "avg_r": -0.477,
+   "tier": "low"
+  },
+  "1H|B2|Currency": {
+   "n": 1086,
+   "win_rate": 25.1,
+   "avg_r": -0.446,
+   "tier": "low"
+  },
+  "1H|B4|Currency": {
+   "n": 1837,
+   "win_rate": 24.4,
+   "avg_r": -0.648,
+   "tier": "low"
+  },
+  "1H|S2|Currency": {
+   "n": 1343,
+   "win_rate": 26.2,
+   "avg_r": -0.395,
+   "tier": "low"
+  },
+  "1H|S3|Currency": {
+   "n": 6095,
+   "win_rate": 26.3,
+   "avg_r": -0.449,
+   "tier": "low"
+  },
+  "1H|S4|Currency": {
+   "n": 1614,
+   "win_rate": 26.1,
+   "avg_r": -0.582,
+   "tier": "low"
+  },
+  "4H|S1|Currency": {
+   "n": 856,
+   "win_rate": 30.0,
+   "avg_r": -0.278,
+   "tier": "low"
+  },
+  "4H|S3|Currency": {
+   "n": 1542,
+   "win_rate": 38.5,
+   "avg_r": -0.085,
+   "tier": "low"
+  },
+  "4H|S2|Currency": {
+   "n": 242,
+   "win_rate": 33.9,
+   "avg_r": -0.196,
+   "tier": "low"
+  },
+  "4H|B1|Currency": {
+   "n": 862,
+   "win_rate": 28.1,
+   "avg_r": -0.332,
+   "tier": "low"
+  },
+  "4H|B3|Currency": {
+   "n": 1600,
+   "win_rate": 33.3,
+   "avg_r": -0.227,
+   "tier": "low"
+  },
+  "4H|B4|Currency": {
+   "n": 753,
+   "win_rate": 27.8,
+   "avg_r": -0.38,
+   "tier": "low"
+  },
+  "4H|S4|Currency": {
+   "n": 566,
+   "win_rate": 32.3,
+   "avg_r": -0.237,
+   "tier": "low"
+  },
+  "4H|B2|Currency": {
+   "n": 312,
+   "win_rate": 34.9,
+   "avg_r": -0.124,
+   "tier": "low"
+  },
+  "3D|S1|Currency": {
+   "n": 341,
+   "win_rate": 33.1,
+   "avg_r": -0.246,
+   "tier": "low"
+  },
+  "3D|S3|Currency": {
+   "n": 488,
+   "win_rate": 44.1,
+   "avg_r": -0.094,
+   "tier": "low"
+  },
+  "3D|S4|Currency": {
+   "n": 297,
+   "win_rate": 39.4,
+   "avg_r": -0.201,
+   "tier": "low"
+  },
+  "3D|B1|Currency": {
+   "n": 336,
+   "win_rate": 39.3,
+   "avg_r": -0.124,
+   "tier": "low"
+  },
+  "3D|B3|Currency": {
+   "n": 510,
+   "win_rate": 43.1,
+   "avg_r": -0.038,
+   "tier": "low"
+  },
+  "3D|B4|Currency": {
+   "n": 289,
+   "win_rate": 42.6,
+   "avg_r": -0.077,
+   "tier": "low"
+  },
+  "3D|S2|Currency": {
+   "n": 162,
+   "win_rate": 57.4,
+   "avg_r": 0.247,
+   "tier": "high"
+  },
+  "W|S1|Currency": {
+   "n": 140,
+   "win_rate": 40.7,
+   "avg_r": -0.216,
+   "tier": "low"
+  },
+  "W|S3|Currency": {
+   "n": 180,
+   "win_rate": 53.9,
+   "avg_r": 0.184,
+   "tier": "high"
+  },
+  "W|S2|Currency": {
+   "n": 53,
+   "win_rate": 52.8,
+   "avg_r": 0.098,
+   "tier": "high"
+  },
+  "W|B1|Currency": {
+   "n": 145,
+   "win_rate": 28.3,
+   "avg_r": -0.39,
+   "tier": "low"
+  },
+  "W|B3|Currency": {
+   "n": 234,
+   "win_rate": 44.0,
+   "avg_r": 0.008,
+   "tier": "standard"
+  },
   "W|S4|Currency": {
-   "n": 146,
-   "win_rate": 41.8,
-   "avg_r": -0.058,
+   "n": 102,
+   "win_rate": 41.2,
+   "avg_r": -0.107,
+   "tier": "low"
+  },
+  "3D|B2|Currency": {
+   "n": 132,
+   "win_rate": 42.4,
+   "avg_r": -0.017,
    "tier": "low"
   },
   "W|B2|Currency": {
-   "n": 355,
-   "win_rate": 46.2,
-   "avg_r": -0.013,
+   "n": 78,
+   "win_rate": 52.6,
+   "avg_r": 0.129,
+   "tier": "high"
+  },
+  "W|B4|Currency": {
+   "n": 117,
+   "win_rate": 45.3,
+   "avg_r": -0.02,
    "tier": "low"
   }
  }

@@ -15,8 +15,8 @@ in `config.py`. Only non-NaN MAs are counted, so short-history instruments score
 
 | Condition | Trend |
 |---|---|
-| holds ≥ 75% of the ribbon (15 of 20) AND close > MA500 | UPTREND (a shallow pullback below MA25 still counts) |
-| holds ≤ 25% of the ribbon (5 of 20) AND close < MA25 | DOWNTREND |
+| holds ≥ 65% of the ribbon (2 of 3) AND close > MA500 | UPTREND (a shallow pullback below MA50 still counts) |
+| holds ≤ 35% of the ribbon (1 of 3) AND close < MA50 | DOWNTREND |
 | otherwise — price inside the ribbon | NEUTRAL (deep pullback or chop) |
 
 > **Fixed 2026-07-30.** The rule was `UPTREND ⇔ close > MA500`, DOWNTREND checked second.
@@ -35,11 +35,11 @@ in `config.py`. Only non-NaN MAs are counted, so short-history instruments score
 
 **Weekly bar geometry** — `config.py` §"Weekly bar geometry", `main._resample_weekly()`
 
-Weekly runs the SAME MA25–MA500 ribbon on weekly bars, unscaled. There is no session
+Weekly runs the SAME MA50–MA500 ribbon on weekly bars, unscaled. There is no session
 ambiguity to correct for: a week is a week on every venue, so the 4H problem below has no
 weekly analogue. What the three ribbons actually span:
 
-| TF | MA25 spans | MA500 spans |
+| TF | MA50 spans | MA500 spans |
 |---|---|---|
 | 4H (equity, 2 bars/session) | ~2 weeks | ~12 months |
 | Daily | ~5 weeks | ~24 months |
@@ -88,7 +88,7 @@ a true-4H read, and **5 produced no fire while a true 4H fired** — US100 S1 (0
   `RTY=F`/`NKD=F`**. Exact fix: real 24h bars, so wick-touch setups (B3/B4) are right too. The
   cache is keyed by the SOURCE ticker; `main.py` and `backtest.py` both resolve the mapping.
 - `H4_SESSION_NORMALIZE` — the other 15 indices have no usable yfinance future, so the ribbon is
-  scaled by bars/session instead: MA12–MA250 (EU, 3/session), MA8–MA167 (2/session). Approximate
+  scaled by bars/session instead: MA25–MA250 (EU, 3/session), MA17–MA167 (2/session). Approximate
   — the bars are still session bars — but far closer than reaching 3x too far back.
 - **Daily is untouched.** It stays on the cash index; the timeframes are independent.
 - **Not a universal problem.** A US equity really does trade 6.5h, so its 4H chart is ~2
@@ -106,10 +106,10 @@ that proves this is 4H-only. Four tier flips, two of them (`4H|S2|Index` high→
 - Persists through NEUTRAL bars. This is the trend that "comes first" in all conflict arbitration.
 - With `B1S1_ANCHOR_GATE = True` (live), the state flips only on a genuine full-ribbon cross
   from a non-trending state — fast-MA noise cannot flip it.
-- **It is a latch, and nothing else clears it.** `in_uptrend` is set by B1 (close above all 20 MAs)
+- **It is a latch, and nothing else clears it.** `in_uptrend` is set by B1 (close above all 3 MAs)
   and cleared only by S1 (close below all 20), so it survives any decline that stops short of the
   anchor. US100 on 2026-07-28 still carried `h4_established_trend = UPTREND` from a 4H B2 on
-  07-14 while its 4H close sat below MA25–MA175 at RSI 31. **Consumers that mean "right now" must
+  07-14 while its 4H close sat below its whole ribbon at RSI 31. **Consumers that mean "right now" must
   read `trend_direction`, not this** — `tf_alignment` (main.py) and `effectiveTrend()` (app.js)
   were both switched off the latch on 2026-07-30 for exactly this reason. Un-latching it early
   would change which B2/B3/B4 setups fire and therefore invalidate `confidence_map.json`; still
@@ -148,7 +148,7 @@ B1/S1 primary > active B1/S1 re-fire > 4 > 3 > 2 (deepest wins).
 
 | Code | Depth | Rule |
 |---|---|---|
-| B2/S2 | shallow | price pulled below MA25 (any depth) then closed back above it (mirror for S2) |
+| B2/S2 | shallow | price pulled below MA50 (any depth) then closed back above it (mirror for S2) |
 | B3/S3 | mid-ribbon | wick (Low/High) touches MA250 within `MA_TOUCH_TOLERANCE`, close confirms beyond MA250 |
 | B4/S4 | anchor | wick touches MA500 within tolerance, close confirms beyond MA500 |
 
@@ -211,11 +211,11 @@ high-minus-low separation +0.286→+0.299 (labels discriminate better).
 ## 6. Rollover — the MA-cross engine
 
 `indicators.py add_ribbon_analytics()`
-- **Movers** (weights): MA25 ×2, MA100 ×2 (drivers), MA200 ×1 (lagging)
+- **Movers** (weights, positional): the fast line MA50 ×2 (it leads), the mid line MA250 ×1
 - **Anchors:** MA300, MA400, MA500
 - Each mover-above-anchor pair adds its weight to bull; below adds to bear → `rollover_score` 0–15,
   `rollover_dir` = dominant side.
-- **Stage** (both drivers MA25+MA100 through): MA300 → 1, MA400 → 2, MA500 → 3 (full flip).
+- **Stage** (depth of the cut): MA50 through MA250 → 1, MA50 through MA500 → 2, MA250 through MA500 → 3 (full flip).
 - Early-warning gauge — may deliberately oppose the established trend. Display-only
   (it no longer affects confidence).
 
@@ -224,9 +224,9 @@ high-minus-low separation +0.286→+0.299 (labels discriminate better).
 ## 7. Ribbon analytics
 
 `indicators.py` / `config.py`:
-- `ribbon_spread` = (MA25 − MA500) / MA500 × 100 (+ = bullish fan)
+- `ribbon_spread` = (MA50 − MA500) / MA500 × 100 (+ = bullish fan)
 - **Squeeze:** |spread| < `RIBBON_COMPRESSION_THRESHOLD = 5.0`
-- `ribbon_slope_pct` = median %change of all 20 MAs over `SLOPE_LOOKBACK = 10` bars
+- `ribbon_slope_pct` = median %change of all 3 MAs over `SLOPE_LOOKBACK = 10` bars
 - `ma_order_score` = correctly-ordered adjacent MA pairs, 0–19 (19 = perfect bull stack)
 
 ---
@@ -251,7 +251,7 @@ high-minus-low separation +0.286→+0.299 (labels discriminate better).
 ## 9. Choppiness (daily)
 
 `indicators.py add_neutral_oscillation()`:
-- `ma25_cross_count` = closes crossing MA25 in last 30 bars
+- `ma_fast_cross_count` = closes crossing MA50 in last 30 bars
 - `neutral_oscillation` = yes when count ≥ 3 AND |MA100 slope over 10 bars| < 0.15%
 - Frontend treats `neutral_oscillation = yes` as NEUTRAL regardless of trend fields.
 

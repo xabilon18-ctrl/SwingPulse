@@ -62,6 +62,13 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _resample_weekly, _resample_3d)
 from _active_config import MA_PERIODS                   # noqa: E402
 
+# A chart needs at least two ribbon lines to be worth drawing. This was 3 until
+# 2026-09-09; with the ribbon cut to [50, 250, 500] a short-history instrument
+# clipped by `p <= len(df)` keeps exactly two, and a `< 3` guard would have
+# returned None — no chart at all — for 141 instruments on Weekly and 53 on
+# 3-Day. Under the old 20-MA ribbon those same frames kept a dozen lines.
+MIN_RIBBON_LINES = 2
+
 # How many bars a card shows. Sized to the way these charts are actually read:
 # roughly two years of daily bars, so the ribbon's full fan and any rollover in
 # it are on screen. See the chart-presentation-style note.
@@ -162,7 +169,7 @@ def build_4h(cache_dir: str, ticker: str) -> dict | None:
         return None
     h4 = _resample_4h(hourly)
     periods = _h4_ma_periods(h4, ticker)
-    if len(periods) < 3:
+    if len(periods) < MIN_RIBBON_LINES:
         return None
     return _bundle(h4, periods, '%Y-%m-%d %H:%M')
 
@@ -183,7 +190,7 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
         return None
     h1 = _h1_frame(hourly)
     periods = _h1_ma_periods(h1, ticker)
-    if len(periods) < 3:
+    if len(periods) < MIN_RIBBON_LINES:
         return None
     return _bundle(h1, periods, '%Y-%m-%d %H:%M')
 
@@ -203,7 +210,7 @@ def build_weekly(cache_dir: str, ticker: str) -> dict | None:
         return None
     weekly = _resample_weekly(df)
     periods = [p for p in MA_PERIODS if p <= len(weekly)]
-    if len(periods) < 3:
+    if len(periods) < MIN_RIBBON_LINES:
         return None
     return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True)
 
@@ -224,7 +231,7 @@ def build_3d(cache_dir: str, ticker: str) -> dict | None:
         return None
     three_day = _resample_3d(df)
     periods = [p for p in MA_PERIODS if p <= len(three_day)]
-    if len(periods) < 3:
+    if len(periods) < MIN_RIBBON_LINES:
         return None
     return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True)
 

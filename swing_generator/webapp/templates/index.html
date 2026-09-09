@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=249">
+  <link rel="stylesheet" href="/static/css/style.css?v=252">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -485,14 +485,14 @@
           <div class="sig-sheet-col">
             <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Signals</div>
             <button class="sig-sheet-btn sig-sheet-buy" data-filter="B1">B1 <span>Breakout</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>Recovery</span></button>
+            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>MA__SIG_SHORTEST__</span></button>
             <button class="sig-sheet-btn sig-sheet-buy" data-filter="B3">B3 <span>MA250</span></button>
             <button class="sig-sheet-btn sig-sheet-buy" data-filter="B4">B4 <span>MA500</span></button>
           </div>
           <div class="sig-sheet-col">
             <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Signals</div>
             <button class="sig-sheet-btn sig-sheet-sell" data-filter="S1">S1 <span>Breakdown</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>Recovery</span></button>
+            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>MA__SIG_SHORTEST__</span></button>
             <button class="sig-sheet-btn sig-sheet-sell" data-filter="S3">S3 <span>MA250</span></button>
             <button class="sig-sheet-btn sig-sheet-sell" data-filter="S4">S4 <span>MA500</span></button>
           </div>
@@ -597,6 +597,8 @@
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
           <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Price crossed all MAs (MA__SIG_SHORTEST__–MA__SIG_LONGEST__)</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">B2/S2</span> <strong>Fast MA</strong> — Pullback recovery / rally rejection at MA__SIG_SHORTEST__</div>
+          <div class="sig-def"><span class="feed-badge badge-p2">B3/S3</span> <strong>Mid-ribbon</strong> — Bounce/rejection off MA__SIG_MID__</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
         </div>
         <div class="sig-legend-group">
@@ -933,6 +935,6 @@
 
 
 
-  <script src="/static/js/app.js?v=292"></script>
+  <script src="/static/js/app.js?v=295"></script>
 </body>
 </html>

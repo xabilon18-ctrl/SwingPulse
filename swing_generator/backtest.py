@@ -334,7 +334,17 @@ def backtest_instrument(ticker: str, name: str, group: str,
                 df = add_all_indicators(df)
                 df = _add_atr(df)
                 d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
-                if len(d_ma_periods) >= 3:
+                # RIBBON GATE, lowered 3 -> 2 on 2026-09-09 with the ribbon cut to three
+                # lines. `p <= len(df)` clips the ribbon to available bars, so a
+                # short-history frame keeps only the fast lines. Under the 20-MA ribbon
+                # a frame with 300 bars still kept twelve periods and sailed past a
+                # `>= 3` gate; under [50, 250, 500] it keeps exactly two and the gate
+                # would have silently produced NO SIGNALS AT ALL. Measured over the
+                # 812-instrument cache: 141 instruments (17%) would have lost every
+                # Weekly signal and 53 every 3-Day signal. Two lines is a real, if
+                # shallow, ribbon — max() still gives an anchor and min() a fast edge —
+                # so it fires, exactly as a clipped 20-MA ribbon used to.
+                if len(d_ma_periods) >= 2:
                     df = add_signals(df, ma_periods=d_ma_periods,
                                      **TF_SIGNAL_PARAMS['D'])
                     frames['D'] = (df, d_ma_periods)
@@ -352,7 +362,8 @@ def backtest_instrument(ticker: str, name: str, group: str,
             if len(hourly) >= 200:
                 h4 = _resample_4h(hourly)
                 h4_ma_periods = _h4_ma_periods(h4, ticker)
-                if len(h4_ma_periods) >= 3:
+                # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+                if len(h4_ma_periods) >= 2:
                     h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
                     h4 = _add_atr(h4)
                     h4 = add_signals(h4, ma_periods=h4_ma_periods,
@@ -367,7 +378,8 @@ def backtest_instrument(ticker: str, name: str, group: str,
             if len(hourly) >= 200:
                 h1 = _h1_frame(hourly)
                 h1_ma_periods = _h1_ma_periods(h1, ticker)
-                if len(h1_ma_periods) >= 3:
+                # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+                if len(h1_ma_periods) >= 2:
                     h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
                     h1 = _add_atr(h1)
                     h1 = add_signals(h1, ma_periods=h1_ma_periods,
@@ -384,7 +396,8 @@ def backtest_instrument(ticker: str, name: str, group: str,
             d3src = _drop_priceless(pd.read_parquet(path))
             three_day = _resample_3d(d3src)
             d3_ma_periods = [p for p in MA_PERIODS if p <= len(three_day)]
-            if len(d3_ma_periods) >= 3:
+            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+            if len(d3_ma_periods) >= 2:
                 three_day = add_all_indicators(three_day, ma_periods=d3_ma_periods)
                 three_day = _add_atr(three_day)
                 three_day = add_signals(three_day, ma_periods=d3_ma_periods,
@@ -401,7 +414,8 @@ def backtest_instrument(ticker: str, name: str, group: str,
             wsrc = _drop_priceless(pd.read_parquet(path))
             weekly = _resample_weekly(wsrc)
             w_ma_periods = [p for p in MA_PERIODS if p <= len(weekly)]
-            if len(w_ma_periods) >= 3:
+            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
+            if len(w_ma_periods) >= 2:
                 weekly = add_all_indicators(weekly, ma_periods=w_ma_periods)
                 weekly = _add_atr(weekly)
                 weekly = add_signals(weekly, ma_periods=w_ma_periods,

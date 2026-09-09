@@ -31,7 +31,7 @@ CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma500')
 # Allow importing config from parent package
 sys.path.insert(0, PARENT_DIR)
 
-from _active_config import MA_PERIODS  # MA25–MA500 (active profile ribbon)
+from _active_config import MA_PERIODS  # MA50–MA500 (active profile ribbon: 50, 250, 500)
 
 sys.path.insert(0, BASE_DIR)
 import chart_feed          # compact OHLC + ribbon bundles for the Charts reel
@@ -947,6 +947,7 @@ def index():
     html = html.replace('__APP_PROFILE__', 'ma500')
     html = html.replace('__SIG_SHORTEST__', str(min(MA_PERIODS)))
     html = html.replace('__SIG_LONGEST__', str(max(MA_PERIODS)))
+    html = html.replace('__SIG_MID__', str(sorted(MA_PERIODS)[len(MA_PERIODS) // 2]))
     return html
 
 

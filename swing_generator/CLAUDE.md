@@ -6,14 +6,14 @@
 ## What is SwingPulse?
 A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, currencies, US/global equities — the currency pairs were removed 2026-07-11 for worst-class backtest expectancy and RESTORED 2026-08-25 at the user's request, 57 pairs, #742-798). **Vocabulary: the asset class is called `Currency` everywhere** — group, sector, asset_class, Class chip and radar spoke all use that one word (renamed 2026-08-26; it had been a mix of Forex/FX/Currency/Currencies). The only `FX` left is TradingView's `FX:`/`FX_IDC:` exchange prefixes, which are their identifiers, not ours. using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
 
-**Single active profile: MA500** (25, 50, 75 … 500 — step 25, 20 MAs)
+**Single active profile: MA500** (50, 250, 500 — 3 MAs)
 
 | Item | Value |
 |------|-------|
 | Live URL | https://swingpulse200.pages.dev |
 | R2 data prefix | `ma500/` |
 | Instruments | **798** (parsed from `../Instruments.txt`) — 736 + 57 currency pairs (2026-08-25) + 5 Rates (2026-08-29) |
-| MA ribbon | MA25–MA500 (step 25, 20 MAs) |
+| MA ribbon | MA50 · MA250 · MA500 (3 MAs) |
 | History years | 13 (`HISTORY_YEARS` in config.py — daily MA500 warmup + the backtest window since 2016; the 45 that used to be here only served the removed monthly timeframe) |
 
 ---
@@ -37,7 +37,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 ```
 swing_generator/
 ├── main.py                    # Signal generator (always runs --profile ma500)
-├── config.py                  # MA500 profile: MA25–500, thresholds, OUTPUT_COLUMNS
+├── config.py                  # MA500 profile: MA50/250/500, thresholds, OUTPUT_COLUMNS
 ├── _active_config.py          # Thin re-export shim from config.py; ACTIVE_PROFILE='ma500'
 ├── instruments.py             # Parses ../Instruments.txt → list of {num,ticker,name,group,sector,industry}
 ├── events.py                  # Scheduled events (earnings/ex-div from yfinance) → events.json
@@ -45,7 +45,7 @@ swing_generator/
 ├── cache_ma500/               # Parquet price cache (gitignored)
 ├── webapp/
 │   ├── server.py              # Local Flask dev server → http://localhost:5050
-│   │                          # MA_PERIODS imported from _active_config (MA25–500)
+│   │                          # MA_PERIODS imported from _active_config (MA50/250/500)
 │   ├── publish.py             # Build + deploy to R2/Pages (PROFILE='ma500', PAGES_PROJECT='swingpulse200')
 │   ├── templates/index.html   # SPA shell — bump BOTH ?v= strings on any UI change
 │   └── static/
@@ -70,7 +70,7 @@ There is now **one profile** — `ma500`. The multi-profile system is gone.
 
 Key constants (from `config.py`):
 ```python
-MA_PERIODS           = list(range(25, 501, 25))   # [25,50,...,500] — 20 MAs
+MA_PERIODS           = [50, 250, 500]            # fast (B2/S2) · mid (B3/S3) · anchor (B4/S4)
 SMALL_MA_RANGE       = [p for p in MA_PERIODS if p <= 250]  # BP2/SP2 fast side
 MA_MIDPOINT          = MA_PERIODS[10]              # MA275
 HISTORY_YEARS        = 13
@@ -93,7 +93,7 @@ prefix, label, TradingView interval, the word for one bar. Before Weekly landed
 ternaries of the shape `timeframe === '4H' ? a : b` — a shape that silently answers
 "Daily" for any third timeframe. Loop the table; never restate the pair.
 
-**3-Day bar geometry (2026-09-08).** Same MA25-MA500 ribbon on 3-day bars, unscaled —
+**3-Day bar geometry (2026-09-08).** Same MA50-MA500 ribbon on 3-day bars, unscaled —
 three business days are three business days on every venue. It exists to fill the gap
 between Daily and Weekly:
 - **MA500 spans ~6.0 years** (Daily ~2.0, Weekly ~9.6). The app used to jump from a
@@ -120,7 +120,7 @@ between Daily and Weekly:
 - Radar: 3D has its own (`sector_radar_3d.json`, 20-period baseline). Like Weekly it does
   **not** write `instrument_flavours.json` — that layer was validated on Daily only.
 
-**Weekly bar geometry (2026-09-02).** Same MA25-MA500 ribbon, run on weekly bars, unscaled
+**Weekly bar geometry (2026-09-02).** Same MA50-MA500 ribbon, run on weekly bars, unscaled
 — a week is a week on every venue, so the 4H session problem has no weekly analogue. What
 that buys, and what it costs:
 - **MA500 spans ~9.6 years** (Daily's spans ~24 months, an equity's 4H ~12 months), so
@@ -153,7 +153,7 @@ trend label and 5 missed a fire (US100 S1 07-24, SOX S1 07-27, NI225 S1 07-28, N
   `NQ=F`/`ES=F`/`YM=F`/`RTY=F`/`NKD=F` (`data_fetcher.h4_ticker()`). Cache is keyed by the
   SOURCE ticker; `main.py` and `backtest.py` both resolve the mapping.
 - `H4_SESSION_NORMALIZE` — the other 15 indices scale the ribbon by bars/session instead
-  (`main._h4_ma_periods()`): MA12–MA250 for EU, MA8–MA167 for 2/session.
+  (`main._h4_ma_periods()`): MA25–MA250 for EU, MA17–MA167 for 2/session.
 **Daily is untouched** and individual equities are deliberately left alone — a US stock
 really does trade 6.5h, so its 4H is ~2 bars/session everywhere. See SIGNAL_RULES.md §1.
 
@@ -174,7 +174,7 @@ undefined. See Important Rule 1 for the measurement behind this.
 
 ### Signal Types (B = buy, S = sell — see signals.py, full rules in SIGNAL_RULES.md)
 - **B1/S1** — Trend reversal: price crosses above (B1) / below (S1) **all** MAs from a non-trending state (anchor-gated); re-fires near MA500 within `refire_pct` for 10 days
-- **B2/S2** — Pullback recovery: dipped below MA25 in-trend, closed back above (mirror for S2)
+- **B2/S2** — Pullback recovery: dipped below MA50 in-trend, closed back above (mirror for S2)
 - **B3/S3** — Mid-ribbon bounce/rejection: wick touched MA250, close confirmed
 - **B4/S4** — Anchor bounce/rejection: wick touched MA500, close confirmed
 
@@ -212,7 +212,7 @@ every graded 4H trade was entered up to a session late. Emitted only when a pref
 set (`main.py _extract_row`); daily bars are unique by date.
 
 ### Daily-only Fields
-`ma25_cross_count`, `neutral_oscillation`, `new_trend_flag`,  
+`ma_fast_cross_count`, `neutral_oscillation`, `new_trend_flag`,  
 `pct_1d`, `pct_1y`,  
 `key_level_price`, `key_level_type`, `key_level_date`, `key_level_touch_count`, `key_level_touched_today`, `key_levels_all` (live since 2026-07-09 — computed by key_levels.py on the last 1500 daily bars)
 
@@ -535,7 +535,7 @@ this works around it by being honest rather than by forcing a download.
   ternaries — a shape that silently answers "Daily" for any third timeframe, so every one
   of them was a latent wrong-answer the moment Weekly existed. Also in v261:
   `effectiveTrend()` **gates `neutral_oscillation` to Daily**, which is the only timeframe
-  it is computed on (`ma25_cross_count` over 30 DAILY bars + a flat daily MA100 slope —
+  it is computed on (`ma_fast_cross_count` over 30 DAILY bars + a flat daily MA250 slope —
   there is no `h4_`/`w_` counterpart). It was applied on every timeframe, so a fortnight of
   day-to-day chop overruled the ribbon read on the slower ones: measured on the 2026-09-02
   payload, 36 instruments carry the flag and it was forcing **23 Weekly rows and 25 4H

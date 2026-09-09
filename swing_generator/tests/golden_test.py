@@ -36,7 +36,8 @@ _GEN_DIR = os.path.dirname(_TESTS_DIR)
 sys.path.insert(0, _GEN_DIR)
 
 from _active_config import (MA_PERIODS,                     # noqa: E402
-                            REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY)
+                            REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
+                            TREND_UP_FRAC, TREND_DOWN_FRAC)
 from indicators import add_all_indicators                    # noqa: E402
 from signals import add_signals, _signal_confidence          # noqa: E402
 import signals as _signals_mod                               # noqa: E402
@@ -121,7 +122,13 @@ def _signal_frame(ticker: str, tf: str):
         df = _resample_4h(hourly)
         ma_p = [p for p in MA_PERIODS if p <= len(df)]
         df = add_all_indicators(df, ma_periods=ma_p)
-    if len(ma_p) < 3:
+    # Mirrors the ribbon gate in main.process_instrument, lowered 3 -> 2 on
+    # 2026-09-09 with the ribbon cut to [50, 250, 500]. Left at 3 it dropped
+    # BTC-USD|W, ETH-USD|W and CRWV|D from the snapshot — the three fixtures
+    # whose ribbon is CLIPPED by `p <= len(df)`, i.e. precisely the short-history
+    # case the lowered production gate exists to serve. The golden would have
+    # stopped covering it while still passing.
+    if len(ma_p) < 2:
         return None
     # asset_class fixed: signal_confidence is excluded from the golden anyway,
     # and a fixed value keeps output independent of Instruments.txt edits
@@ -247,6 +254,7 @@ def unit_checks() -> list:
     from indicators import add_ma_ribbon, add_trend
 
     _rise = list(100 * np.exp(np.linspace(0, 1.6, max(MA_PERIODS) + 400)))
+    _fall = list(100 * np.exp(np.linspace(1.6, 0, max(MA_PERIODS) + 400)))
 
     def _ribbon(closes):
         df = pd.DataFrame({'Close': closes})
@@ -261,10 +269,15 @@ def unit_checks() -> list:
     def _selloff(frac, bars=30):
         return _rise + list(np.linspace(_rise[-1], _rise[-1] * frac, bars))
 
-    # Selloff that cuts through all but 3 of the ribbon while price is STILL
-    # above MA500. Old rule: UPTREND. Correct: DOWNTREND.
+    def _rally(frac, bars=40):
+        return _fall + list(np.linspace(_fall[-1], _fall[-1] * frac, bars))
+
+    # Selloff that cuts through the ribbon while price is STILL above MA500 —
+    # it holds ONLY the anchor. Old rule: UPTREND. Correct: DOWNTREND. This is
+    # the 2026-07-30 bug itself, and the one check here that must never be
+    # relaxed.
     lbl, held, size, above_anchor = _ribbon(_selloff(0.72))
-    if not above_anchor or held > size * 0.25:
+    if not above_anchor or held > size * TREND_DOWN_FRAC:
         failures.append(f'trend fixture drifted (holds {held}/{size}, above anchor '
                         f'{above_anchor}) — the above-anchor DOWNTREND case is '
                         f'no longer being exercised')
@@ -272,13 +285,24 @@ def unit_checks() -> list:
         failures.append(f'price below {size - held} of {size} MAs is not DOWNTREND '
                         f'(got {lbl}) — MA500-only rule regressed')
 
-    # Shallower selloff, mid-ribbon: neither trend. Old rule: UPTREND.
-    lbl, held, size, above_anchor = _ribbon(_selloff(0.85))
-    if not above_anchor or not (size * 0.25 < held < size * 0.75):
+    # Price INSIDE the ribbon: neither trend. Reached from BELOW — a rally out
+    # of a compounding decline that has recovered the fast and mid lines but
+    # not the anchor.
+    #
+    # Rewritten 2026-09-09 with the ribbon cut to [50, 250, 500]. This used to
+    # be a shallow selloff holding ~half of twenty MAs, and on three lines
+    # "half the ribbon" no longer exists: a selloff that holds 2 of 3 while
+    # above the anchor is holding MA250 and MA500 and is below MA50 only, which
+    # is the SHALLOW PULLBACK the check below asserts must stay UPTREND — the
+    # two fixtures had collapsed onto the same shape. Coming from below
+    # separates them again: same "inside the ribbon" fraction, anchor not held.
+    lbl, held, size, above_anchor = _ribbon(_rally(1.20))
+    if above_anchor or not (size * TREND_DOWN_FRAC < held < size):
         failures.append(f'mid-ribbon fixture drifted (holds {held}/{size}, above '
                         f'anchor {above_anchor})')
     elif lbl != 'NEUTRAL':
-        failures.append(f'price mid-ribbon ({held}/{size} held) is not NEUTRAL (got {lbl})')
+        failures.append(f'price inside the ribbon ({held}/{size} held, below the '
+                        f'anchor) is not NEUTRAL (got {lbl})')
 
     # Mirror: an unbroken rise holds every MA and must be UPTREND.
     lbl, held, size, _ = _ribbon(_rise)
@@ -287,13 +311,17 @@ def unit_checks() -> list:
     elif lbl != 'UPTREND':
         failures.append(f'price above the whole ribbon is not UPTREND (got {lbl})')
 
-    # A shallow dip below MA25 stays UPTREND — the documented intent: normal
-    # retracements must not read as downtrends.
-    lbl, held, size, _ = _ribbon(_selloff(0.97, bars=4))
+    # A shallow dip below the FAST line stays UPTREND — the documented intent:
+    # normal retracements must not read as downtrends. Deepened from a 3% /
+    # 4-bar dip to 7% / 12 bars on 2026-09-09: the fast line moved 25 -> 50, and
+    # a 4-bar dip no longer breaks a 50-bar average at all, so the old fixture
+    # had stopped exercising anything (it held the whole ribbon).
+    lbl, held, size, _ = _ribbon(_selloff(0.93, bars=12))
     if held >= size:
-        failures.append('pullback fixture never dips below MA25')
+        failures.append('pullback fixture never dips below the fast MA')
     elif lbl != 'UPTREND':
-        failures.append(f'shallow pullback below MA25 no longer reads UPTREND (got {lbl})')
+        failures.append(f'shallow pullback below the fast MA no longer reads '
+                        f'UPTREND (got {lbl})')
 
     return failures
 
