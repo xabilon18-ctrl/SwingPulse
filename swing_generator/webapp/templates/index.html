@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=254">
+  <link rel="stylesheet" href="/static/css/style.css?v=257">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -853,17 +853,11 @@
 
       <div class="reel" id="chartReel"></div>
 
-      <!-- Step through the reel one chart at a time. Swiping already snaps on
-           touch; this is the same move for a mouse, a keyboard, and a thumb
-           that would rather tap than flick. Arrow keys / j / k do it too. -->
+      <!-- Where you are in the reel. The step buttons that used to flank this
+           are gone: they sat on top of the price scale, which is a drag target
+           now, and swipe / arrow keys / j / k all still step the reel. -->
       <div class="reel-nav" id="reelNav" hidden>
-        <button class="reel-nav-btn" id="reelPrev" aria-label="Previous chart" title="Previous (↑)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-        </button>
         <span class="reel-nav-pos" id="reelNavPos" aria-live="polite"></span>
-        <button class="reel-nav-btn" id="reelNext" aria-label="Next chart" title="Next (↓)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
       </div>
       <div class="reel-empty" id="reelEmpty" style="display:none">Nothing matches those filters.</div>
 
@@ -935,6 +929,6 @@
 
 
 
-  <script src="/static/js/app.js?v=298"></script>
+  <script src="/static/js/app.js?v=301"></script>
 </body>
 </html>

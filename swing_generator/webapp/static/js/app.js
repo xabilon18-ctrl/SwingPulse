@@ -8257,6 +8257,55 @@
     return span > 0 ? { lo, hi, span } : null;
   }
 
+  // Two-finger pinch. The axis strips are a drag, which works with a mouse and
+  // on a phone, but "pinch" on a touch screen means two fingers and that is
+  // what a reader reaches for first — so this is the same two zooms driven by
+  // how far apart the fingers are.
+  //
+  // The axes are independent: the HORIZONTAL spread drives the bar count and
+  // the VERTICAL spread drives the price window, each measured against the
+  // spread at the moment the second finger landed. Pinch sideways and only
+  // time changes; pinch up and down and only price does; pinch diagonally and
+  // both move, by their own amounts. An axis the fingers barely span is left
+  // alone — dividing by a few pixels of noise would send the chart flying.
+  function reelApplyPinch(host, ctx, base, pair) {
+    const [a, b] = pair;
+    const sx = Math.abs(a.x - b.x), sy = Math.abs(a.y - b.y);
+    const MIN_SPREAD = 24;
+    let changed = false;
+
+    // Fingers apart = zoom in = FEWER bars over the same width.
+    if (base.dx0 >= MIN_SPREAD && sx >= 1) {
+      const n = ctx.bundle.c.length;
+      let bars = Math.round(base.bars * (base.dx0 / sx));
+      bars = Math.min(Math.max(bars, REEL_MIN_WINDOW_BARS), n);
+      if (bars !== reelWindowBars(ctx.bundle, ctx.name)) {
+        if (bars >= n) reel.tzoom.delete(ctx.name);
+        else           reel.tzoom.set(ctx.name, bars);
+        reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);
+        changed = true;
+      }
+    }
+
+    // Fingers apart = zoom in = LESS price over the same height.
+    if (base.dy0 >= MIN_SPREAD && sy >= 1) {
+      const mid = (base.hi + base.lo) / 2;
+      let span  = (base.hi - base.lo) * (base.dy0 / sy);
+      if (base.ext) {
+        span = Math.min(Math.max(span, base.ext.span / REEL_Y_ZOOM_MAX),
+                        base.ext.span * REEL_Y_ZOOM_MAX);
+      }
+      if (isFinite(span) && span > 0) {
+        const cur = reel.lockY.get(ctx.name);
+        if (!cur || Math.abs((cur.hi - cur.lo) - span) > span * 1e-6) {
+          reel.lockY.set(ctx.name, { lo: mid - span / 2, hi: mid + span / 2, _userY: true });
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+
   // Apply a drag of `dx` CSS pixels to the time window captured at grab time.
   // Exponential, so the same travel is the same ratio wherever you start, and
   // scaled by the host's WIDTH so a card and a full-screen panel feel the same.
@@ -8384,6 +8433,10 @@
     let chIdx = -1;          // which channel the grabbed handle belongs to
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
     let grab = null;         // price window captured when the scale was grabbed
+    // Every finger currently down, so a second one can turn the gesture into a
+    // pinch. Keyed by pointerId; the values are updated in place on move.
+    const pts = new Map();
+    let pinch = null;        // spreads + windows captured when the 2nd finger landed
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
     // page is visible, but a backgrounded or hidden tab never runs it — and a
@@ -8398,7 +8451,28 @@
 
     host.addEventListener('pointerdown', ev => {
       const ctx = host._reelCtx;
-      if (!ctx || pid !== null) return;
+      if (!ctx) return;
+      pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+      // Second finger down: whatever this was becomes a pinch. A channel
+      // handle is the exception — that drag is a deliberate edit and a stray
+      // second touch must not turn it into a zoom.
+      if (pts.size === 2 && mode !== 'handle') {
+        const pair = [...pts.values()];
+        mode  = 'pinch';
+        pinch = {
+          dx0:  Math.abs(pair[0].x - pair[1].x),
+          dy0:  Math.abs(pair[0].y - pair[1].y),
+          bars: reelWindowBars(ctx.bundle, ctx.name),
+          lo:   ctx.sc.lo, hi: ctx.sc.hi,
+          ext:  reelPriceExtent(ctx.b),
+        };
+        host.classList.add('is-pinching');
+        try { host.setPointerCapture(ev.pointerId); } catch (_) {}
+        return;
+      }
+
+      if (pid !== null) return;
       pid = ev.pointerId;
       sx = ev.clientX; sy = ev.clientY;
       startPan = reelPanOf(ctx.name);
@@ -8465,9 +8539,21 @@
     });
 
     host.addEventListener('pointermove', ev => {
-      if (ev.pointerId !== pid) return;
       const ctx = host._reelCtx;
       if (!ctx) return;
+      const tracked = pts.get(ev.pointerId);
+      if (tracked) { tracked.x = ev.clientX; tracked.y = ev.clientY; }
+
+      // A pinch is driven by BOTH fingers, so it is handled before the
+      // primary-pointer filter below — the second finger's moves would
+      // otherwise be dropped and the gesture would follow one finger only.
+      if (mode === 'pinch') {
+        ev.preventDefault();
+        if (pts.size >= 2 && reelApplyPinch(host, ctx, pinch, [...pts.values()].slice(0, 2))) schedule();
+        return;
+      }
+
+      if (ev.pointerId !== pid) return;
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
 
       if (mode === 'yzoom') {
@@ -8587,6 +8673,17 @@
     });
 
     const finish = ev => {
+      pts.delete(ev.pointerId);
+
+      if (mode === 'pinch') {
+        if (pts.size >= 2) return;              // a third finger left; still pinching
+        reel.lastGestureAt = Date.now();        // never let a pinch open the instrument
+        host.classList.remove('is-pinching', 'is-yzooming', 'is-tzooming', 'is-panning');
+        try { host.releasePointerCapture(ev.pointerId); } catch (_) {}
+        mode = null; pinch = null; grab = null; handle = null; chIdx = -1; pid = null;
+        return;
+      }
+
       if (ev.pointerId !== pid) return;
       // A gesture that never became a pan leaves the axis free to fit again.
       const c = host._reelCtx;
@@ -8603,7 +8700,7 @@
           ((mode === 'yzoom' || mode === 'tzoom') && grab && grab.moved)) {
         reel.lastGestureAt = Date.now();
       }
-      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning');
+      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching');
       try { host.releasePointerCapture(pid); } catch (_) {}
       pid = null; mode = null; handle = null; chIdx = -1; grab = null;
     };
@@ -8780,23 +8877,36 @@
   function reelSyncNav() {
     const el   = document.getElementById('chartReel');
     const nav  = document.getElementById('reelNav');
-    const prev = document.getElementById('reelPrev');
-    const next = document.getElementById('reelNext');
     const pos  = document.getElementById('reelNavPos');
-    if (!el || !nav || !prev || !next) return;
+    // The step buttons are gone; nothing here may require them any more, or the
+    // counter and the scroll sync go with them.
+    if (!el || !nav) return;
 
     const total = reel.list ? reel.list.length : 0;
     // One chart cannot be stepped through, and no charts must not show a "0/0".
     nav.hidden = total < 2;
     if (nav.hidden) return;
 
+    // Park it on the top-left corner of the visible CHART, measured live.
+    // Two fixed positions were wrong before this: against the pane it landed on
+    // the search box (the filter bar between them changes height when its pills
+    // wrap), and against the reel it landed on the instrument name. The top-left
+    // of the plot itself is the one corner that is reliably empty. This already
+    // re-runs on scroll and on resize, so it tracks.
+    const anc = nav.offsetParent;
+    const host = [...el.querySelectorAll('.reel-chart')].find(c => {
+      const b = c.getBoundingClientRect();
+      return b.height > 0 && b.bottom > 0 && b.top < window.innerHeight;
+    });
+    if (anc && host) {
+      const hb = host.getBoundingClientRect(), ab = anc.getBoundingClientRect();
+      nav.style.top  = Math.round(hb.top  - ab.top  + 6) + 'px';
+      nav.style.left = Math.round(hb.left - ab.left + 8) + 'px';
+    }
+
     const h = el.clientHeight || 1;
     // 2px of slack: snap positions land on sub-pixel offsets, and an exact
     // comparison leaves the end button live with nowhere to go.
-    const atTop = el.scrollTop <= 2;
-    const atEnd = el.scrollTop + h >= el.scrollHeight - 2;
-    prev.disabled = atTop;
-    next.disabled = atEnd;
     if (pos) {
       const idx = Math.min(total, Math.max(1, Math.round(el.scrollTop / h) + 1));
       pos.textContent = `${idx}/${total}`;
@@ -8805,15 +8915,10 @@
 
   function wireReelNav() {
     const el = document.getElementById('chartReel');
-    const prev = document.getElementById('reelPrev');
-    const next = document.getElementById('reelNext');
-    if (!el || !prev || !next) return;
+    if (!el) return;
 
     const simClear = document.getElementById('reelSimClear');
     if (simClear) simClear.addEventListener('click', clearSimilarCharts);
-
-    prev.addEventListener('click', () => reelStepBy(-1));
-    next.addEventListener('click', () => reelStepBy(1));
 
     // rAF-coalesced: a smooth scroll fires this continuously and the handler
     // reads layout.

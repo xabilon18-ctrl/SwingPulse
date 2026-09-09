@@ -8630,16 +8630,17 @@ body {
    chart rather than on top of price. */
 .reel-nav {
   position: absolute;
-  right: calc(var(--reel-gutter, 11.8%) + 6px);
-  top: 50%;
-  transform: translateY(-50%);
+  left: 14px;
+  top: 8px;              /* replaced at runtime with the reel's own top edge */
   z-index: 4;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  /* The chart underneath is the point; these are controls, not furniture. */
-  opacity: .42;
+  /* A read-out, not a control — it sits out of the way at the top-left and
+     never takes a tap. The chart underneath is the point. */
+  pointer-events: none;
+  /* It sits over the chart now, so it has to survive being read against bars
+     and a ribbon — .42 over a solid panel was invisible over a chart. */
+  opacity: .85;
   transition: opacity var(--transition);
 }
 .reel-nav:hover, .reel-nav:focus-within { opacity: 1; }
@@ -8683,8 +8684,7 @@ body {
 /* Touch already has the flick, so the controls tuck in tighter and sit lower
    than the thumb's natural resting arc rather than over the chart body. */
 @media (max-width: 520px) {
-  .reel-nav { right: calc(var(--reel-gutter, 11.8%) + 3px); gap: 5px; opacity: .34; }
-  .reel-nav-btn { width: 30px; height: 30px; }
+  .reel-nav { opacity: .8; }
 }
 
 @media (prefers-reduced-motion: reduce) {
