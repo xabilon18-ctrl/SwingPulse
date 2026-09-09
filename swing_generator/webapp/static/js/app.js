@@ -1769,6 +1769,15 @@
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
+  /** Escape text bound for innerHTML. Instrument names come from the data
+   *  pipeline, not from us — "Procter & Gamble" and friends must not be able
+   *  to break the markup they are dropped into. */
+  function escText(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   /** Return full display name for a ticker (e.g. 'NVDA' → 'NVIDIA').
    *  Returns '' if no name is available or name equals the ticker itself. */
   function instName(ticker) {
@@ -7891,8 +7900,11 @@
     return `
       <header class="cf-head">
         <div class="cf-title">
-          <span class="reel-name">${name}</span>
-          <span class="reel-group">${item.group || ''} · ${tfMeta().label}</span>
+          <div class="reel-head-line">
+            <span class="reel-name">${name}</span>
+            <span class="reel-group">${item.group || ''} · ${tfMeta().label}</span>
+          </div>
+          ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
         </div>
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
@@ -7967,8 +7979,11 @@
     return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-main">
-          <span class="reel-name">${name}</span>
-          <span class="reel-group">${item.group || ''}</span>
+          <div class="reel-head-line">
+            <span class="reel-name">${name}</span>
+            <span class="reel-group">${item.group || ''}</span>
+          </div>
+          ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
         </div>
         <div class="reel-head-meta">
           ${simPct(name)}
