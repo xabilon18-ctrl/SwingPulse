@@ -6798,6 +6798,7 @@
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
+    tzoom:  new Map(),       // name → bars visible; the time-scale drag's override of the Range pill
     lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
     editing: null,           // instrument whose channels are being edited, or null
     activeCh: new Map(),     // "name|tf" → index of the channel Lock/Clear act on
@@ -7001,9 +7002,19 @@
   }
 
   // How many bars the visible window holds, for a given bundle. A per-card
-  // override set by the pan gesture wins over the Range pill — see below.
+  // override set by the time-scale drag wins over the Range pill.
+
+  // Floor on the time window. Below roughly this the bars are wider than they
+  // are tall and the ribbon has too few points left to read a slope from.
+  const REEL_MIN_WINDOW_BARS = 20;
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
+    // The time-scale drag is per-card and beats the Range pill, which is a
+    // filter-bar default for every card at once. Clamped here rather than only
+    // where it is set, so a stale entry from a wider bundle can never ask for
+    // more bars than this one has.
+    const z = reel.tzoom.get(name);
+    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
     const w = reel.range;
     return (!w || w >= n) ? n : w;
   }
@@ -7028,7 +7039,7 @@
 
   // A range change or a timeframe switch invalidates every pan offset — the
   // window is a different width, so "12 bars back" means something else.
-  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); }
+  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); reel.tzoom.clear(); }
 
   // A drag MOVES THE WINDOW. It never resizes it: the amount of chart on screen
   // is the Range pill's business, and a drag that silently re-zoomed made
@@ -7623,9 +7634,18 @@
         // is usually recent, so that line sat a few pixels from the right edge
         // and read as a border between the chart and the price scale rather
         // than as a mark on a bar. The arrow already says which bar it was.
+        //
+        // The CODE sits on the baseline, just above the date row, rather than
+        // tucked against its own bar. Against the bar it had to stay small to
+        // avoid covering price, and it still landed in the middle of the ribbon
+        // as often as not. Down here nothing is behind it, so it can be read at
+        // a glance — the arrow keeps the job of pointing at the bar.
+        // Clamped off both edges so a signal on the newest or oldest bar is not
+        // half-cut by the price scale or the panel edge.
+        const tagX = Math.min(Math.max(x, L.x0 + 26), L.x1 - 26);
         marker =
           `<polygon points="${tri}" fill="${col}"/>` +
-          `<text x="${x.toFixed(1)}" y="${(isB ? yv + 22 : yv - 16).toFixed(1)}" class="reel-sig-tag" fill="${col}" text-anchor="middle">${sigType}</text>`;
+          `<text x="${tagX.toFixed(1)}" y="${(L.py1 - 9).toFixed(1)}" class="reel-sig-tag" fill="${col}" text-anchor="middle">${sigType}</text>`;
       }
     }
 
@@ -7693,9 +7713,22 @@
     // drift away from the numbers it is sitting on.
     const gripPct = (((L.W - L.x1) / L.W) * 100).toFixed(2);
 
+    // And the matching strip over the DATE row. Drag it right and the window
+    // holds fewer bars, so each one gets wider; drag it left and more of
+    // history is squeezed in. Same rule as the price scale — pull in the
+    // direction the axis grows (up, right) and you zoom in.
+    //
+    // Height comes from the layout too (everything below py1 is the date row
+    // and its padding). That is only ~13 CSS px on a phone-sized card, far
+    // under a thumb, so the CSS floors it at a real touch target and lets it
+    // reach up into the bottom of the plot. It stops short of the price gutter
+    // so the two strips never fight over the corner.
+    const tgripPct = (((L.H - L.py1) / L.H) * 100).toFixed(2);
+
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       ${grid}${timeGrid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
-    </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>`;
+    </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
+      `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
 
   // ── Full-screen chart ────────────────────────────────────────────────
@@ -7713,6 +7746,7 @@
   // while expanded is measured against, so the ratio can be carried back to
   // the card on close.
   let chartFullOpenSpan = 0;
+  let chartFullOpenMid  = 0;
 
   function chartFullEl() { return document.getElementById('chartFull'); }
 
@@ -7766,6 +7800,7 @@
     // computed above: they differ whenever the source card was gone and no lock
     // could be imposed, and the baseline has to match what the reader sees.
     chartFullOpenSpan = host._reelCtx ? (host._reelCtx.sc.hi - host._reelCtx.sc.lo) : 0;
+    chartFullOpenMid  = host._reelCtx ? (host._reelCtx.sc.hi + host._reelCtx.sc.lo) / 2 : 0;
     reelWireChart(host);
     chartFullSyncButtons();
   }
@@ -7799,30 +7834,36 @@
       // handing it the full-screen span would zoom the card out, which is the
       // very distortion the restore above exists to prevent. Carry the RATIO
       // they applied and re-apply it to the card's own scale.
-      const cur = reel.lockY.get(chartFullName);
-      const ratio = (cur && cur._userY && chartFullOpenSpan > 0)
-        ? (cur.hi - cur.lo) / chartFullOpenSpan
-        : 1;
+      const cur   = reel.lockY.get(chartFullName);
+      const owned = !!(cur && cur._userY && chartFullOpenSpan > 0);
+      const ratio = owned ? (cur.hi - cur.lo) / chartFullOpenSpan : 1;
+      // How far they slid the window, in units of the span they slid it at —
+      // a fraction, for the same reason the zoom is a ratio. The card's span is
+      // different, so carrying the raw price offset would move it by the wrong
+      // amount and leave the chart somewhere they never put it.
+      const shift = owned ? ((cur.hi + cur.lo) / 2 - chartFullOpenMid) / chartFullOpenSpan : 0;
 
       if (chartFullPrevLock === undefined) reel.lockY.delete(chartFullName);
       else reel.lockY.set(chartFullName, chartFullPrevLock);
 
-      if (Math.abs(ratio - 1) > 0.005) {
+      if (Math.abs(ratio - 1) > 0.005 || Math.abs(shift) > 0.005) {
         // Base = whatever the card would show on its own: the reader's earlier
         // window if they had one, else the card's live fitted scale.
         const src  = chartFullSourceCtx(chartFullName);
         const base = chartFullPrevLock
           || (src ? { lo: src.ctx.sc.lo, hi: src.ctx.sc.hi } : null);
         if (base) {
-          const mid  = (base.lo + base.hi) / 2;
-          const span = (base.hi - base.lo) * ratio;
-          if (isFinite(span) && span > 0) {
+          const baseSpan = base.hi - base.lo;
+          const mid  = (base.lo + base.hi) / 2 + shift * baseSpan;
+          const span = baseSpan * ratio;
+          if (isFinite(span) && span > 0 && isFinite(mid)) {
             reel.lockY.set(chartFullName, { lo: mid - span / 2, hi: mid + span / 2, _userY: true });
           }
         }
       }
       chartFullPrevLock = undefined;
       chartFullOpenSpan = 0;
+      chartFullOpenMid  = 0;
     }
     if (el) { el.classList.remove('open'); el.innerHTML = ''; }
     document.body.classList.remove('chart-full-open');
@@ -8205,6 +8246,59 @@
     return span > 0 ? { lo, hi, span } : null;
   }
 
+  // Apply a drag of `dx` CSS pixels to the time window captured at grab time.
+  // Mirrors the price zoom: exponential, so the same travel is the same ratio
+  // wherever you start, and scaled by the host's WIDTH so a card and a
+  // full-screen panel feel the same. Drag right -> fewer, wider bars.
+  //
+  // The right edge of the window does not move: `pan` counts bars back from the
+  // newest, so holding it fixed while the width changes adds and removes bars
+  // on the LEFT. That is what makes the zoom feel anchored instead of sliding
+  // the chart sideways as it scales. The pan is re-clamped afterwards because
+  // a wider window has less history left to scroll back through.
+  function reelApplyTZoom(host, ctx, grab, dx) {
+    const wPx = host.getBoundingClientRect().width || 0;
+    const K   = Math.max(140, wPx * 0.9);
+    const n   = ctx.bundle.c.length;
+    let bars  = grab.bars * Math.exp(-dx / K);
+    bars = Math.min(Math.max(Math.round(bars), REEL_MIN_WINDOW_BARS), n);
+    if (bars === reelWindowBars(ctx.bundle, ctx.name)) return false;
+    if (bars >= n) reel.tzoom.delete(ctx.name);      // back to the whole bundle
+    else           reel.tzoom.set(ctx.name, bars);
+    reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);   // re-clamp, never widen
+    return true;
+  }
+
+  // Shift the price window by a drag of `dy` CSS pixels, so the chart can be
+  // moved up and down and not only sideways. Pixels are converted through the
+  // window's own price-per-pixel, which is what keeps the content stuck to the
+  // finger at any zoom.
+  //
+  // Clamped to keep the data reachable: the window's centre may wander up to
+  // three quarters of the visible bar range beyond the highest high or lowest
+  // low, which is enough to park price at the very top or bottom of the panel
+  // and no further. Without it a flick sends the chart somewhere with nothing
+  // in it and no obvious way back.
+  function reelApplyYPan(host, ctx, grab, dy) {
+    const plotPx = plotPixelHeight(host, ctx.L);
+    if (!plotPx) return false;
+    const span = grab.hi - grab.lo;
+    // Drag DOWN and the paper comes with you: higher prices arrive from above,
+    // so the window moves UP in price.
+    let mid = (grab.hi + grab.lo) / 2 + dy * (span / plotPx);
+
+    if (grab.ext) {
+      const pad = grab.ext.span * 0.75;
+      mid = Math.min(Math.max(mid, grab.ext.lo - pad), grab.ext.hi + pad);
+    }
+    if (!isFinite(mid)) return false;
+
+    const cur = reel.lockY.get(ctx.name);
+    if (cur && Math.abs((cur.hi + cur.lo) / 2 - mid) < span * 1e-6) return false;
+    reel.lockY.set(ctx.name, { lo: mid - span / 2, hi: mid + span / 2, _userY: true });
+    return true;
+  }
+
   // Apply a drag of `dy` CSS pixels to the price window captured at grab time.
   // Returns true if the window changed.
   //
@@ -8307,9 +8401,22 @@
       // to the reel. Nothing is written to lockY yet — a TAP on the scale must
       // still fall through to opening the instrument, so the window is only
       // committed once the finger actually travels.
+      // One grab serves every mode: the price window, the bar count and the
+      // data extent as they stood the moment the finger landed. Every gesture
+      // is measured from HERE rather than from the last frame, so nothing
+      // compounds and a drag back to where it started lands where it started.
+      grab = { lo: ctx.sc.lo, hi: ctx.sc.hi,
+               bars: reelWindowBars(ctx.bundle, ctx.name),
+               ext: reelPriceExtent(ctx.b), moved: false };
+
+      if (ev.target && ev.target.dataset && ev.target.dataset.tgrip) {
+        mode = 'tzoom';
+        try { host.setPointerCapture(pid); } catch (_) {}
+        return;
+      }
+
       if (ev.target && ev.target.dataset && ev.target.dataset.ygrip) {
         mode = 'yzoom';
-        grab = { lo: ctx.sc.lo, hi: ctx.sc.hi, ext: reelPriceExtent(ctx.b), moved: false };
         // Capture keeps the drag alive after the first repaint, which rebuilds
         // the strip the pointer went down on. Guarded because it throws for a
         // pointer the browser no longer considers active — and an exception
@@ -8362,10 +8469,31 @@
         return;
       }
 
+      if (mode === 'tzoom') {
+        ev.preventDefault();
+        if (!grab.moved) {
+          if (Math.abs(dx) < 2) return;
+          grab.moved = true;
+          host.classList.add('is-tzooming');
+        }
+        if (reelApplyTZoom(host, ctx, grab, dx)) schedule();
+        return;
+      }
+
       if (mode === null) {
         if (Math.abs(dx) < REEL_AXIS_LOCK_PX && Math.abs(dy) < REEL_AXIS_LOCK_PX) return;
-        mode = Math.abs(dx) > Math.abs(dy) ? 'pan' : 'scroll';
-        if (mode === 'pan') host.setPointerCapture(pid);
+        // Full screen has no feed behind it, so nothing else wants a vertical
+        // drag and every direction can pan. On a CARD a straight vertical drag
+        // still belongs to the reel's scrolling — but a drag that starts
+        // sideways is ours, and from that point it may go anywhere, which is
+        // what makes the chart draggable around the panel without taking the
+        // scroll gesture away.
+        const freeVertical = !!host.closest('#chartFull');
+        mode = (freeVertical || Math.abs(dx) > Math.abs(dy)) ? 'pan' : 'scroll';
+        if (mode === 'pan') {
+          host.setPointerCapture(pid);
+          host.classList.add('is-panning');
+        }
       }
       if (mode === 'scroll') return;         // the feed keeps it
       ev.preventDefault();
@@ -8378,8 +8506,11 @@
         const perBar = (pt ? pt.pxPerUnit : 1) * ctx.bw;
         // Grab the paper and pull it RIGHT and older bars come in from the
         // left, so a rightward drag INCREASES the offset into history. Window
-        // WIDTH never changes here — only which slice of time it covers.
-        if (reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle)) schedule();
+        // WIDTH never changes here — resizing is the time scale's job.
+        let moved = reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle);
+        // ...and the same drag carries the price window up and down with it.
+        if (reelApplyYPan(host, ctx, grab, dy)) moved = true;
+        if (moved) schedule();
         else if (dx > 0 && reelWindowBars(ctx.bundle, ctx.name) >= ctx.bundle.c.length) {
           // Nothing off-screen to scroll to. Say which control makes room,
           // rather than letting the drag read as broken.
@@ -8453,10 +8584,11 @@
       // otherwise open the instrument modal every time you panned. A grab on
       // the price scale that never moved is NOT suppressed — it was a tap, and
       // taps on the chart open the instrument.
-      if (mode === 'pan' || mode === 'handle' || (mode === 'yzoom' && grab && grab.moved)) {
+      if (mode === 'pan' || mode === 'handle' ||
+          ((mode === 'yzoom' || mode === 'tzoom') && grab && grab.moved)) {
         reel.lastGestureAt = Date.now();
       }
-      if (mode === 'yzoom') host.classList.remove('is-yzooming');
+      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning');
       try { host.releasePointerCapture(pid); } catch (_) {}
       pid = null; mode = null; handle = null; chIdx = -1; grab = null;
     };
@@ -8472,9 +8604,11 @@
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {
       const ctx = host._reelCtx;
-      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name))) return;
+      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name) &&
+                   !reel.tzoom.has(ctx.name))) return;
       reel.pan.delete(ctx.name);
       reel.lockY.delete(ctx.name);
+      reel.tzoom.delete(ctx.name);
       reelRepaint(host);
     });
   }

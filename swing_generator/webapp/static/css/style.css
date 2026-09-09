@@ -7686,19 +7686,42 @@ body {
 @media (hover: hover) {
   .reel-ygrip:hover { background: linear-gradient(to left, rgba(255,255,255,.045), transparent); }
 }
+/* ── Time-scale grab strip ──────────────────────────────────────────────
+   The horizontal twin of .reel-ygrip, over the date row. Drag right for fewer,
+   wider bars; left to squeeze more history in. Height and right inset come in
+   from reelChartSvg so it tracks the drawn axis; the min-height is what makes
+   it a thumb target, since the date row itself is only ~13 CSS px tall on a
+   phone-sized card. */
+.reel-tgrip {
+  position: absolute; left: 0; bottom: 0;
+  min-height: 34px;
+  z-index: 2;
+  touch-action: none;
+  cursor: ew-resize;
+  background: transparent;
+  -webkit-user-select: none; user-select: none;
+}
+@media (hover: hover) {
+  .reel-tgrip:hover { background: linear-gradient(to top, rgba(255,255,255,.045), transparent); }
+}
+.reel-chart.is-tzooming .reel-tgrip { background: linear-gradient(to top, rgba(255,255,255,.07), transparent); }
+
 .reel-chart.is-yzooming .reel-ygrip { background: linear-gradient(to left, rgba(255,255,255,.07), transparent); }
 /* The whole chart stops fighting the finger for the duration of the drag. */
-.reel-chart.is-yzooming { touch-action: none; }
+.reel-chart.is-yzooming, .reel-chart.is-tzooming, .reel-chart.is-panning { touch-action: none; }
 
 /* ── Trend channel ──────────────────────────────────────────────────────
    Dotted on purpose: it matches the MA ribbon's dotted language, so a
    hand-drawn line never reads as one the pipeline computed. The midline is
    thinner and dimmer than the edges — it is a reference, not a boundary. */
-.reel-ch { fill: none; stroke: var(--accent); stroke-linecap: round; }
+/* White, not the yellow accent: the accent is the app's "this is live data"
+   colour (last-price tag, signal chips), and a hand-drawn channel wearing it
+   read as something the pipeline had computed. */
+.reel-ch { fill: none; stroke: var(--reel-ch-color, #f2f2ee); stroke-linecap: round; }
 .reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
 .reel-ch-mid  { stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .6; }
-.reel-ch-band { fill: var(--accent); fill-opacity: .05; stroke: none; }
-.reel-ch-lock { fill: var(--accent); font-size: 26px; opacity: .75; font-weight: 600; }
+.reel-ch-band { fill: var(--reel-ch-color, #f2f2ee); fill-opacity: .05; stroke: none; }
+.reel-ch-lock { fill: var(--reel-ch-color, #f2f2ee); font-size: 26px; opacity: .75; font-weight: 600; }
 .reel-ch-note { fill: var(--text-muted); font-size: 25px; opacity: .9; }
 
 /* Vertical calendar lines — dotted, and deliberately fainter than the price
@@ -7712,8 +7735,8 @@ body {
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
 .reel-ch-h {
-  fill: var(--accent); fill-opacity: .28;
-  stroke: var(--accent); stroke-width: 2.4;
+  fill: var(--reel-ch-color, #f2f2ee); fill-opacity: .28;
+  stroke: var(--reel-ch-color, #f2f2ee); stroke-width: 2.4;
   cursor: grab;
 }
 .reel-ch-h:active { cursor: grabbing; fill-opacity: .5; }
@@ -7754,7 +7777,9 @@ body {
   font-family: inherit; font-variant-numeric: tabular-nums;
 }
 .reel-axis-last { fill: #1a1a19; font-weight: 700; text-anchor: end; }
-.reel-sig-tag  { font-size: 20px; font-weight: 700; }
+/* Sits just above the date row, not against its bar — so it can be bigger
+   without landing on top of price. */
+.reel-sig-tag  { font-size: 30px; font-weight: 700; }
 .reel-clip-tag { font-size: 19px; fill: var(--text-muted); font-weight: 600; }
 
 .reel-skel { width: 100%; height: 100%; display: grid; place-items: center; }
@@ -7817,7 +7842,7 @@ body {
 .reel-tool:active { background: rgba(255,255,255,.10); }
 .reel-tool svg { display: block; }
 /* A drawn level's price, in the gutter with the axis ticks where levels are read. */
-.reel-ch-lvl { fill: var(--accent); font-weight: 700; }
+.reel-ch-lvl { fill: var(--reel-ch-color, #f2f2ee); font-weight: 700; }
 .reel-act-add[hidden] { display: none; }
 .reel-act-lock { color: var(--accent); }
 .reel-act-lock[hidden] { display: none; }
@@ -7838,7 +7863,7 @@ body {
   .reel-card { padding: 14px 24px 16px; max-width: 1100px; margin: 0 auto; width: 100%; }
   .reel-name { font-size: 1.15rem; }
   .reel-axis, .reel-clip-tag { font-size: 15px; }
-  .reel-sig-tag { font-size: 16px; }
+  .reel-sig-tag { font-size: 24px; }
 }
 
 /* ── Sector Radar: z readout doubles as the info trigger ─────────────────
@@ -8744,7 +8769,14 @@ body {
 }
 #chartFull.open { display: flex; }
 /* The chart takes every pixel the header and footer do not. */
-#chartFull .reel-chart { flex: 1 1 auto; min-height: 0; margin: 2px 6px 0; }
+#chartFull .reel-chart {
+  flex: 1 1 auto; min-height: 0; margin: 2px 6px 0;
+  /* No feed behind the full-screen chart, so nothing else wants a vertical
+     drag and the chart can be moved freely in any direction. On a card this
+     stays `pan-y`, because there a straight vertical drag is how you scroll
+     the reel. */
+  touch-action: none;
+}
 #chartFull .reel-foot  { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); }
 
 .cf-head {
