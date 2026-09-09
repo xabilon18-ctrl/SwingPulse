@@ -7022,6 +7022,13 @@
   // How many bars the visible window holds, for a given bundle. A per-card
   // override set by the time-scale drag wins over the Range pill.
 
+  // What a card OPENS on, when nothing else says otherwise. The bundle now
+  // carries far more than this (chart_feed.BARS_BY_TF) so the time scale has
+  // somewhere to zoom out to and history to pan back through — but the first
+  // view has to stay the two-year read these charts are built around, or every
+  // card would open compressed to fit five years it was not asked for.
+  const REEL_DEFAULT_WINDOW_BARS = 520;
+
   // Floor on the time window. Lowered 20 -> 10 on 2026-09-09: 20 bars still
   // stopped short of the "what did the last fortnight actually do" read the
   // zoom is for. Ten is where a daily chart is two trading weeks and the bars
@@ -7036,7 +7043,8 @@
     const z = reel.tzoom.get(name);
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
     const w = reel.range;
-    return (!w || w >= n) ? n : w;
+    if (w && w < n) return w;
+    return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
   function reelPanOf(name) { return reel.pan.get(name) || 0; }
@@ -8324,8 +8332,8 @@
       if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
         if (bars >= n && sx < base.dx0) reelZoomLimitHint(host, n, 'out');
       } else {
-        if (bars >= n) reel.tzoom.delete(ctx.name);
-        else           reel.tzoom.set(ctx.name, bars);
+        if (bars === Math.min(n, REEL_DEFAULT_WINDOW_BARS)) reel.tzoom.delete(ctx.name);
+        else                                                reel.tzoom.set(ctx.name, bars);
         reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);
         changed = true;
       }
@@ -8394,8 +8402,12 @@
       if (bars <= REEL_MIN_WINDOW_BARS && dx < 0) reelZoomLimitHint(host, n, 'in');
       return false;
     }
-    if (bars >= n) reel.tzoom.delete(ctx.name);      // back to the whole bundle
-    else           reel.tzoom.set(ctx.name, bars);
+    // Clear the override only when it lands back on the DEFAULT window, not on
+    // the whole bundle. Those used to be the same number; since the bundle
+    // carries more than a card opens with, deleting at full width snapped the
+    // chart straight back to 520 bars — zooming all the way out undid itself.
+    if (bars === Math.min(n, REEL_DEFAULT_WINDOW_BARS)) reel.tzoom.delete(ctx.name);
+    else                                                reel.tzoom.set(ctx.name, bars);
     reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);   // re-clamp, never widen
     return true;
   }

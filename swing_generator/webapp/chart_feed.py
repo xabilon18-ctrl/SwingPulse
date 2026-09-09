@@ -69,10 +69,34 @@ from _active_config import MA_PERIODS                   # noqa: E402
 # 3-Day. Under the old 20-MA ribbon those same frames kept a dozen lines.
 MIN_RIBBON_LINES = 2
 
-# How many bars a card shows. Sized to the way these charts are actually read:
-# roughly two years of daily bars, so the ribbon's full fan and any rollover in
-# it are on screen. See the chart-presentation-style note.
+# How many bars a bundle CARRIES. This is not what a card shows: the reel opens
+# on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
+# depth behind it — how far the time-scale zoom can pull back and how far you
+# can pan into history before running out of chart.
+#
+# Raised past 520 on 2026-09-09. At 520 the default view WAS the whole bundle,
+# so zooming out did nothing at all and said so ("all 520 bars are already
+# shown") — a limit that looked like a broken gesture. There was never a data
+# reason for it: the cache holds a median of 5,088 daily bars, 1,696 three-day
+# and 1,056 weekly. It was a payload choice, and this is a more generous one.
+#
+# Cost: the ribbon is ~80% of the bytes and MA_STRIDE is deliberately NOT scaled
+# up to compensate — a wider stride would thin the ribbon to two or three points
+# once the time scale is zoomed in to ten bars, which is exactly where it has to
+# stay readable. So a daily chunk goes from ~52 KB gzipped to ~130 KB for five
+# instruments, and the reel still only fetches one chunk per five cards.
+#
+# 4H and 1H stay at 520: their cache is Yahoo's ~729 days of hourly, so there is
+# no more history to carry.
 BARS = 520
+
+BARS_BY_TF = {
+    'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
+    '3D': 1040,   # ~8.5 years
+    'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
+    '4H': 520,
+    '1H': 520,
+}
 
 # Ribbon points are emitted every Nth bar (the last bar is always included).
 # The MAs are smooth and drawn dotted, so this is invisible on screen and cuts
@@ -82,7 +106,13 @@ MA_STRIDE = 3
 # Instruments per bundle. Only the FIRST card waits on a bundle — the reel
 # prefetches the next one while you read — so this is sized for time-to-first-
 # chart, ~95 KB gzipped, rather than for the fewest files.
-CHUNK_SIZE = 5
+#
+# Cut 5 -> 3 on 2026-09-09 to hold that number. Carrying 1,300 daily bars
+# instead of 520 took a five-instrument daily chunk to 148 KB, which is a
+# slower first chart for every reader whether or not they ever zoom out. Three
+# instruments puts it back at ~90 KB. It costs more files and a longer publish,
+# which nobody waits on, rather than latency, which everybody does.
+CHUNK_SIZE = 3
 
 
 def _round(v, digits=6):
@@ -108,8 +138,8 @@ def _ma_frame(df: pd.DataFrame, periods: list[int]) -> dict[int, pd.Series]:
 
 
 def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
-            with_volume: bool = False) -> dict | None:
-    """Columnar OHLC + ribbon for the last BARS rows of an indicator-ready df.
+            with_volume: bool = False, bars: int = BARS) -> dict | None:
+    """Columnar OHLC + ribbon for the last `bars` rows of an indicator-ready df.
 
     The reel draws no volume — these charts are read as price against the
     ribbon, and a volume strip only takes height from the fan. Daily bundles
@@ -121,7 +151,7 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
         return None
 
     mas  = _ma_frame(df, periods)
-    tail = df.tail(BARS)
+    tail = df.tail(bars)
     n    = len(tail)
 
     # Bar indices the ribbon is sampled at. The final bar is always present so
@@ -139,7 +169,7 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
         'p':  periods,
         'ms': MA_STRIDE,
         'mi': keep,
-        'm':  [[_round(v) for v in mas[p].tail(BARS).iloc[keep]] for p in periods],
+        'm':  [[_round(v) for v in mas[p].tail(bars).iloc[keep]] for p in periods],
         **({'v': [int(v) if pd.notna(v) and math.isfinite(v) else 0
                   for v in tail['Volume']]}
            if with_volume and 'Volume' in tail.columns else {}),
@@ -154,7 +184,7 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
-    return _bundle(df, periods, '%Y-%m-%d', with_volume=True)
+    return _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'])
 
 
 def build_4h(cache_dir: str, ticker: str) -> dict | None:
@@ -171,7 +201,7 @@ def build_4h(cache_dir: str, ticker: str) -> dict | None:
     periods = _h4_ma_periods(h4, ticker)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(h4, periods, '%Y-%m-%d %H:%M')
+    return _bundle(h4, periods, '%Y-%m-%d %H:%M', bars=BARS_BY_TF['4H'])
 
 
 def build_1h(cache_dir: str, ticker: str) -> dict | None:
@@ -192,13 +222,13 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     periods = _h1_ma_periods(h1, ticker)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(h1, periods, '%Y-%m-%d %H:%M')
+    return _bundle(h1, periods, '%Y-%m-%d %H:%M', bars=BARS_BY_TF['1H'])
 
 
 def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     """Weekly chart from the same daily cache the daily chart reads.
 
-    BARS=520 weekly bars is ~10 years, which is what the MA500 anchor needs to
+    520 weekly bars is ~10 years, which is what the MA500 anchor needs to
     be drawn at all — so a weekly chart deliberately shows far more calendar
     time than a daily one. Volume is included, as on daily.
     """
@@ -212,13 +242,13 @@ def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(weekly)]
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True)
+    return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
 
 
 def build_3d(cache_dir: str, ticker: str) -> dict | None:
     """3-day chart from the same daily cache the daily chart reads.
 
-    BARS=520 three-day bars is ~6 years, which is what the MA500 anchor needs to
+    520 three-day bars is ~6 years, which is what the MA500 anchor needs to
     be drawn at all — so a 3-day chart shows about three times the calendar span
     of a daily one and about two thirds of a weekly one, which is the gap this
     timeframe exists to fill. Volume is included, as on daily and weekly.
@@ -233,7 +263,7 @@ def build_3d(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(three_day)]
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True)
+    return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['3D'])
 
 
 def _cache_name(ticker: str, suffix: str = '') -> str:
@@ -301,10 +331,11 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
         for cid, group in grouped.items():
             _write_gz(os.path.join(tf_dir, f'{cid}.json'),
-                      {'tf': tf, 'bars': BARS, 'data': group})
+                      {'tf': tf, 'bars': BARS_BY_TF.get(tf, BARS), 'data': group})
             stats['chunks'] += 1
 
     _write_gz(os.path.join(chart_dir, 'index.json'),
-              {'chunk_size': CHUNK_SIZE, 'bars': BARS, 'chunks': chunk_of})
+              {'chunk_size': CHUNK_SIZE, 'bars': BARS,
+               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of})
 
     return stats
