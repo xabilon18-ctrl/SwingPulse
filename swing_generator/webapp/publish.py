@@ -683,8 +683,25 @@ def build_data(output_dir, src_signals_dir=None):
         print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
     except Exception as e:
-        # A missing chart feed costs you the Charts tab, not the publish.
-        print(f'  Chart feed: FAILED ({e})')
+        # NOT swallowed any more. The old comment here said a missing chart feed
+        # "costs you the Charts tab, not the publish" — but that is not what it
+        # costs. The upload step below skips the chart directory when it does not
+        # exist, so R2 KEEPS THE PREVIOUS CHUNKS and the publish still reports
+        # success: the app goes on serving the last good chart feed as though it
+        # were current. That is exactly how the 2026-09-09 ribbon change reached
+        # the live app with every chart still drawing the old twenty MAs while
+        # every other surface had moved to three.
+        #
+        # A stale chart feed presented as a fresh one is worse than a red
+        # publish, so this now fails loudly and takes the exit code with it.
+        import traceback
+        print('\n  ' + '=' * 66)
+        print('  CHART FEED BUILD FAILED — R2 STILL HOLDS THE PREVIOUS CHUNKS.')
+        print('  The charts on the live app are STALE, not missing. Fix and')
+        print('  re-publish before trusting anything the Charts tab draws.')
+        print('  ' + '=' * 66)
+        traceback.print_exc()
+        raise
 
     return dt, fetched_at
 
@@ -909,6 +926,10 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
 
     # Chart reel feed — chart/index.json + chart/<tf>/<chunk>.json
     chart_dir = os.path.join(data_dir, 'chart')
+    if not os.path.exists(chart_dir):
+        # Silently skipping this is how a stale feed survives a green publish.
+        print(f'  WARNING: no chart feed at {chart_dir} — R2 keeps its existing '
+              f'chunks and the Charts tab will draw whatever was published last.')
     if os.path.exists(chart_dir):
         for root, _dirs, fnames in os.walk(chart_dir):
             for fname in fnames:
