@@ -8103,7 +8103,14 @@
   function reelRepaint(host) {
     const ctx = host && host._reelCtx;
     if (!ctx || !host._reelItem) return;
+    // Carry the hint across the rebuild. It is a child of the host, so
+    // replacing innerHTML deleted it — and every hint is raised BY a gesture,
+    // which is exactly what repaints. The pan hint had the same problem and
+    // was being destroyed within a frame or two of appearing; the zoom-limit
+    // hint made it obvious because that one fires when nothing else changes.
+    const hint = host.querySelector('.reel-hint');
     host.innerHTML = reelChartSvg(ctx.bundle, host._reelItem, host);
+    if (hint) host.appendChild(hint);
   }
 
   // ── Share the chart as a picture ─────────────────────────────────────
@@ -8279,7 +8286,9 @@
       const n = ctx.bundle.c.length;
       let bars = Math.round(base.bars * (base.dx0 / sx));
       bars = Math.min(Math.max(bars, REEL_MIN_WINDOW_BARS), n);
-      if (bars !== reelWindowBars(ctx.bundle, ctx.name)) {
+      if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
+        if (bars >= n && sx < base.dx0) reelZoomLimitHint(host, n, 'out');
+      } else {
         if (bars >= n) reel.tzoom.delete(ctx.name);
         else           reel.tzoom.set(ctx.name, bars);
         reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);
@@ -8306,6 +8315,21 @@
     return changed;
   }
 
+  // Why a time zoom just did nothing. The bundle is a fixed 520 bars, and the
+  // DEFAULT view is all of them — so "zoom out" has nowhere to go until you
+  // have zoomed in first, which reads as a broken gesture rather than a limit.
+  // Throttled: this is called from a pointermove, and reelHint re-arms its own
+  // timer on every call.
+  let _zoomHintAt = 0;
+  function reelZoomLimitHint(host, n, dir) {
+    const now = Date.now();
+    if (now - _zoomHintAt < 1200) return;
+    _zoomHintAt = now;
+    reelHint(host, dir === 'out'
+      ? `All ${n} bars are already shown — this is the whole chart`
+      : `${REEL_MIN_WINDOW_BARS} bars is as close as it goes`);
+  }
+
   // Apply a drag of `dx` CSS pixels to the time window captured at grab time.
   // Exponential, so the same travel is the same ratio wherever you start, and
   // scaled by the host's WIDTH so a card and a full-screen panel feel the same.
@@ -8326,7 +8350,15 @@
     const n   = ctx.bundle.c.length;
     let bars  = grab.bars * Math.exp(dx / K);
     bars = Math.min(Math.max(Math.round(bars), REEL_MIN_WINDOW_BARS), n);
-    if (bars === reelWindowBars(ctx.bundle, ctx.name)) return false;
+    if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
+      // Zooming OUT from the default does nothing, and it is not obvious why:
+      // the default view is ALREADY the whole bundle, so there is no more chart
+      // to reveal. Say so rather than letting the gesture read as broken —
+      // this is the same failure the pan hint covers for the same reason.
+      if (bars >= n && dx > 0)  reelZoomLimitHint(host, n, 'out');
+      if (bars <= REEL_MIN_WINDOW_BARS && dx < 0) reelZoomLimitHint(host, n, 'in');
+      return false;
+    }
     if (bars >= n) reel.tzoom.delete(ctx.name);      // back to the whole bundle
     else           reel.tzoom.set(ctx.name, bars);
     reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);   // re-clamp, never widen
