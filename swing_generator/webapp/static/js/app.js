@@ -7044,7 +7044,11 @@
   // How far PAST the newest bar you may scroll, as a share of the window. The
   // empty space is the point: a channel is a projection, and you cannot read a
   // projection that stops at today's bar.
-  const REEL_FUTURE_FRAC = 0.5;
+  // Raised 0.5 -> 0.9 on 2026-09-09 so the daily chart can actually be scrolled
+  // to the 2027 and 2028 year lines. Half a window is about a year of trading
+  // days, which stops short of 2028 — and a year line you cannot reach is not
+  // on the chart in any useful sense.
+  const REEL_FUTURE_FRAC = 0.9;
 
   function reelSetPan(name, v, bundle) {
     const n    = bundle.c.length;
@@ -7469,14 +7473,52 @@
   // stops being a reference and starts being a fence across the price. A
   // timeframe absent from this table draws no lines at all, and its window's
   // first and last dates come back as the axis instead.
-  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter', 'D': 'year' };
+  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter', 'D': 'year',
+                           '3D': 'admin', 'W': 'admin' };
+
+  // US administrations, by inauguration day. On the slow timeframes one screen
+  // is four years (3D) to ten (W), and on that scale the calendar year is a
+  // fence every few centimetres that marks nothing — which is why the year grid
+  // was taken off 3D and Weekly in the first place. A change of administration
+  // is a regime boundary a swing trader actually reads a chart against, so that
+  // is what those two get instead.
+  //
+  // The last entry is the END of the current term, not the start of a named
+  // one: who takes office in 2029 is not known, and a line that pretends to
+  // know would be worse than no line.
+  const REEL_ADMIN_TERMS = [
+    { date: '2017-01-20', label: 'Trump I' },
+    { date: '2021-01-20', label: 'Biden' },
+    { date: '2025-01-20', label: 'Trump II' },
+    { date: '2029-01-20', label: 'Trump II ends' },
+  ];
+
+  // How many years past the last bar to keep drawing year lines for. The window
+  // holds empty space to the right and pans further into it, and a channel
+  // projected into that space is unreadable without a date against it.
+  const REEL_FUTURE_YEARS = 4;
 
   function reelTimeGrid(b, tf) {
     const mode = REEL_TIME_GRID[tf];
-    if (!mode) return [];
+    const n = b.t ? b.t.length : 0;
+    if (!mode || !n) return [];
+
+    // Administration boundaries are DATES, not bars — most of them fall on a
+    // weekend or a holiday and so are not a bar at all. reelBarIndexForDate
+    // interpolates between the bars either side and extrapolates past the last
+    // one, which is what puts the 2029 line out in the empty space.
+    if (mode === 'admin') {
+      return REEL_ADMIN_TERMS
+        .map(t => {
+          const fi = reelBarIndexForDate(b, t.date);
+          return fi == null ? null : { fi, label: t.label, admin: true };
+        })
+        .filter(Boolean);
+    }
+
     const out  = [];
     let prev = null;
-    for (let i = 0; i < b.t.length; i++) {
+    for (let i = 0; i < n; i++) {
       const str = String(b.t[i]);
       const y = +str.slice(0, 4), m = +str.slice(5, 7);
       if (!y || !m) continue;
@@ -7485,9 +7527,20 @@
       // The FIRST bar of the new period is the boundary. i===0 is skipped: the
       // left edge is not a crossing, it is just where the window happens to start.
       if (prev !== null && key !== prev.key) {
-        out.push({ i, label: mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y : String(y) });
+        out.push({ fi: i, label: mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y : String(y) });
       }
       prev = { key };
+    }
+
+    // Years the chart has not reached yet — 2027, 2028 and so on. There are no
+    // bars there, so these are projected from the spacing of the last ten and
+    // dropped by the x-clamp when they fall off the panel.
+    if (mode === 'year') {
+      const lastY = +String(b.t[n - 1]).slice(0, 4);
+      for (let y = lastY + 1; y <= lastY + REEL_FUTURE_YEARS; y++) {
+        const fi = reelBarIndexForDate(b, y + '-01-01');
+        if (fi != null) out.push({ fi, label: String(y), future: true });
+      }
     }
     return out;
   }
@@ -7629,45 +7682,11 @@
       bars += `<line x1="${x.toFixed(1)}" y1="${yc}" x2="${(x + tick).toFixed(1)}" y2="${yc}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
     }
 
-    // ── Last-signal marker ──
-    // Taken from the signal row, not recomputed here: re-deriving fires in the
-    // browser is exactly how a chart ends up disagreeing with the card above
-    // it. Matched on the date prefix so a 4H timestamp lands on its bar.
-    let marker = '';
-    const sigDate = item[f('last_signal_date')] || '';
-    const sigType = item[f('last_signal_type')] || '';
-    if (sigDate && sigType) {
-      const day = String(sigDate).slice(0, 10);
-      let hit = -1;
-      for (let i = n - 1; i >= 0; i--) {
-        if (String(b.t[i]).slice(0, 10) === day) { hit = i; break; }
-      }
-      if (hit >= 0) {
-        const isB = sigType.toUpperCase().startsWith('B');
-        const col = isB ? 'var(--buy)' : 'var(--sell)';
-        const x = xOf(hit);
-        const yv = isB ? sc.y(b.l[hit] ?? b.c[hit]) + 18 : sc.y(b.h[hit] ?? b.c[hit]) - 18;
-        const tri = isB
-          ? `${x},${yv - 10} ${x - 7},${yv + 3} ${x + 7},${yv + 3}`
-          : `${x},${yv + 10} ${x - 7},${yv - 3} ${x + 7},${yv - 3}`;
-        // Arrow and tag only — no vertical rule down the panel. The last signal
-        // is usually recent, so that line sat a few pixels from the right edge
-        // and read as a border between the chart and the price scale rather
-        // than as a mark on a bar. The arrow already says which bar it was.
-        //
-        // The CODE sits on the baseline, just above the date row, rather than
-        // tucked against its own bar. Against the bar it had to stay small to
-        // avoid covering price, and it still landed in the middle of the ribbon
-        // as often as not. Down here nothing is behind it, so it can be read at
-        // a glance — the arrow keeps the job of pointing at the bar.
-        // Clamped off both edges so a signal on the newest or oldest bar is not
-        // half-cut by the price scale or the panel edge.
-        const tagX = Math.min(Math.max(x, L.x0 + 26), L.x1 - 26);
-        marker =
-          `<polygon points="${tri}" fill="${col}"/>` +
-          `<text x="${tagX.toFixed(1)}" y="${(L.py1 - 9).toFixed(1)}" class="reel-sig-tag" fill="${col}" text-anchor="middle">${sigType}</text>`;
-      }
-    }
+    // ── Last-signal marker ── REMOVED 2026-09-09.
+    // The arrow and its code used to sit on the bar the signal fired on. The
+    // card header already carries the signal chip, and on a chart zoomed in to
+    // ten bars the marker covered the very price action it was pointing at.
+    // Nothing here recomputes fires, so nothing is lost but the drawing.
 
     // ── Last price ──
     const last = b.c[n - 1];
@@ -7692,10 +7711,11 @@
     // happens to cross no boundary at all.
     const tg = reelTimeGrid(b, timeframe);
     const timeGrid = tg.map(t => {
-      const x = xOf(t.i);
+      const x = xOf(t.fi);
       if (x < L.x0 || x > L.x1) return '';
       const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
-      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="reel-tgrid"/>` +
+      const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin' : 'reel-tgrid';
+      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>` +
              (near ? '' : `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${t.label}</text>`);
     }).join('');
 
@@ -7746,7 +7766,7 @@
     const tgripPct = (((L.H - L.py1) / L.H) * 100).toFixed(2);
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      ${grid}${timeGrid}${ribbon}${bars}${channel}${marker}${lastTag}${clipTag}${dates}
+      ${grid}${timeGrid}${ribbon}${bars}${channel}${lastTag}${clipTag}${dates}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -8940,11 +8960,20 @@
     // wrap), and against the reel it landed on the instrument name. The top-left
     // of the plot itself is the one corner that is reliably empty. This already
     // re-runs on scroll and on resize, so it tracks.
+    // The chart with the MOST of itself inside the reel's viewport — not the
+    // first one that is partly visible. Scrolled even slightly, the first
+    // partly-visible card is the PREVIOUS one sliding off the top, and its top
+    // edge is negative, so the counter was being positioned above the visible
+    // area and vanished on every card but the first.
     const anc = nav.offsetParent;
-    const host = [...el.querySelectorAll('.reel-chart')].find(c => {
+    const rb  = el.getBoundingClientRect();
+    let host = null, bestOverlap = 0;
+    for (const c of el.querySelectorAll('.reel-chart')) {
       const b = c.getBoundingClientRect();
-      return b.height > 0 && b.bottom > 0 && b.top < window.innerHeight;
-    });
+      if (b.height <= 0) continue;
+      const overlap = Math.min(b.bottom, rb.bottom) - Math.max(b.top, rb.top);
+      if (overlap > bestOverlap) { bestOverlap = overlap; host = c; }
+    }
     if (anc && host) {
       const hb = host.getBoundingClientRect(), ab = anc.getBoundingClientRect();
       nav.style.top  = Math.round(hb.top  - ab.top  + 6) + 'px';
@@ -8967,13 +8996,19 @@
     const simClear = document.getElementById('reelSimClear');
     if (simClear) simClear.addEventListener('click', clearSimilarCharts);
 
-    // rAF-coalesced: a smooth scroll fires this continuously and the handler
-    // reads layout.
-    let ticking = false;
+    // Coalesced to one run per frame: a smooth scroll fires this continuously
+    // and the handler reads layout. rAF is the right scheduler while the page
+    // is being drawn — but it never fires in a tab that is hidden or
+    // backgrounded, and scrolling still happens there, so a timeout takes over
+    // if the frame does not arrive. Without it the counter silently freezes on
+    // whatever card it last saw. Same belt-and-braces as reelWireChart's
+    // schedule(), and for the same reason.
+    let ticking = 0;
     el.addEventListener('scroll', () => {
       if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => { ticking = false; reelSyncNav(); });
+      const run = () => { if (!ticking) return; cancelAnimationFrame(ticking); ticking = 0; reelSyncNav(); };
+      ticking = requestAnimationFrame(run);
+      setTimeout(run, 80);
     }, { passive: true });
 
     window.addEventListener('resize', reelSyncNav);

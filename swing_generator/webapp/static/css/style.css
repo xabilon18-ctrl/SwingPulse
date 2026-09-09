@@ -7743,6 +7743,10 @@ body {
    in a shared PNG alike. Mid-grey at 60% reads as a guide without competing
    with price. */
 .reel-tgrid { stroke: var(--text-muted); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .6; }
+/* A change of administration is a regime boundary, not a calendar fence, so it
+   carries more weight than a year line — it is the only one on the slow
+   timeframes and it is there to be read against. */
+.reel-tgrid-admin { stroke: var(--text-secondary); stroke-width: 2; stroke-dasharray: 7 6; stroke-opacity: .8; }
 .reel-tgrid-lbl { opacity: 1; }
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
@@ -7789,9 +7793,7 @@ body {
   font-family: inherit; font-variant-numeric: tabular-nums;
 }
 .reel-axis-last { fill: #1a1a19; font-weight: 700; text-anchor: end; }
-/* Sits just above the date row, not against its bar — so it can be bigger
-   without landing on top of price. */
-.reel-sig-tag  { font-size: 30px; font-weight: 700; }
+
 .reel-clip-tag { font-size: 19px; fill: var(--text-muted); font-weight: 600; }
 
 .reel-skel { width: 100%; height: 100%; display: grid; place-items: center; }
@@ -7875,7 +7877,6 @@ body {
   .reel-card { padding: 14px 24px 16px; max-width: 1100px; margin: 0 auto; width: 100%; }
   .reel-name { font-size: 1.15rem; }
   .reel-axis, .reel-clip-tag { font-size: 15px; }
-  .reel-sig-tag { font-size: 24px; }
 }
 
 /* ── Sector Radar: z readout doubles as the info trigger ─────────────────
