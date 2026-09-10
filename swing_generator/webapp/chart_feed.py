@@ -107,12 +107,16 @@ MA_STRIDE = 3
 # prefetches the next one while you read — so this is sized for time-to-first-
 # chart, ~95 KB gzipped, rather than for the fewest files.
 #
-# Cut 5 -> 3 on 2026-09-09 to hold that number. Carrying 1,300 daily bars
-# instead of 520 took a five-instrument daily chunk to 148 KB, which is a
-# slower first chart for every reader whether or not they ever zoom out. Three
-# instruments puts it back at ~90 KB. It costs more files and a longer publish,
-# which nobody waits on, rather than latency, which everybody does.
-CHUNK_SIZE = 3
+# Cut 5 -> 3 on 2026-09-09 to hold that number when the bundles got deeper, and
+# PUT BACK to 5 the same evening. Changing it re-groups which instruments share
+# a chunk, so the index (name -> chunk id) and the chunks must land together —
+# and the published index did not update, leaving a live index that described a
+# grouping the chunks no longer had. Every card read "No chart data".
+#
+# Until that publish path is understood, this stays where the live index
+# expects it. The cost is a ~148 KB daily chunk instead of ~92 KB, which is a
+# slower first chart; the alternative was no chart at all.
+CHUNK_SIZE = 5
 
 
 def _round(v, digits=6):

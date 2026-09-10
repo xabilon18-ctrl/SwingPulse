@@ -7672,23 +7672,36 @@
     // One neutral colour. Direction is the ribbon's job here, not the bars'.
     // Price has to stay findable against the ribbon, so the bars keep a
     // minimum weight even when 520 of them share the width.
+    // ONE path, not three <line> elements per bar. Every bar shares a colour
+    // and a stroke width, so there is nothing to gain from separate elements
+    // and a great deal to lose: at 520 bars that was ~1,560 DOM nodes and
+    // ~168 KB of markup, rebuilt from scratch on EVERY frame of a drag.
+    // Measured on the live app: 14 ms median just to re-parse it, 35 ms at the
+    // tail, against a 16.7 ms frame budget — so a drag could not hold 60fps on
+    // a desktop, let alone a phone. That is the whole of the "not smooth".
+    //
+    // V and H (vertical/horizontal lineto) keep the path data short: a bar is
+    // "M x yh V yl M x-t yo H x M x yc H x+t" and carries no attributes at all.
     const tick = Math.max(1.1, Math.min(bw * 0.4, 4));
     const bwid = Math.max(0.9, Math.min(bw * 0.24, 1.8));
-    let bars = '';
+    const seg = [];
     for (let i = 0; i < n; i++) {
       const o = b.o[i], h = b.h[i], l = b.l[i], c = b.c[i];
       if (c == null) continue;
-      const x = xOf(i);
+      const x = +xOf(i).toFixed(1);
       if (h != null && l != null && h !== l) {
-        bars += `<line x1="${x.toFixed(1)}" y1="${sc.y(h).toFixed(1)}" x2="${x.toFixed(1)}" y2="${sc.y(l).toFixed(1)}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+        seg.push('M', x, ' ', sc.y(h).toFixed(1), 'V', sc.y(l).toFixed(1));
       }
       if (o != null) {
         const yo = sc.y(o).toFixed(1);
-        bars += `<line x1="${(x - tick).toFixed(1)}" y1="${yo}" x2="${x.toFixed(1)}" y2="${yo}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+        seg.push('M', (x - tick).toFixed(1), ' ', yo, 'H', x);
       }
       const yc = sc.y(c).toFixed(1);
-      bars += `<line x1="${x.toFixed(1)}" y1="${yc}" x2="${(x + tick).toFixed(1)}" y2="${yc}" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`;
+      seg.push('M', x, ' ', yc, 'H', (x + tick).toFixed(1));
     }
+    const bars = seg.length
+      ? `<path d="${seg.join('')}" fill="none" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`
+      : '';
 
     // ── Last-signal marker ── REMOVED 2026-09-09.
     // The arrow and its code used to sit on the bar the signal fired on. The

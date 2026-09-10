@@ -751,7 +751,13 @@ def _cache_control_for(r2_key):
     re-downloaded from the origin, which costs the reader mobile data and the
     bucket a Class B op per card.
     """
-    if r2_key.split('/', 1)[-1].startswith('chart/'):
+    tail = r2_key.split('/', 1)[-1]
+    # The index is the map everything else is read through, and it is 3 KB.
+    # Caching it independently of the chunks it points at is what let a stale
+    # copy outlive the grouping it described. Chunks stay cached; this does not.
+    if tail == 'chart/index.json':
+        return 'no-cache, max-age=0'
+    if tail.startswith('chart/'):
         return 'public, max-age=900'
     return 'no-cache, max-age=0'
 
@@ -1063,10 +1069,23 @@ def build_ui():
     # the OS calendar app, which has no page context to resolve a relative path.
     js = js.replace("'/events.ics'",       f"'{base}/events.ics'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
-    js = js.replace("'/api/chart-index'",  f"'{base}/chart/index.json'")
+    # The chart index and its chunks are ONE dataset and must never be mixed
+    # across publishes. They are cached at the edge for 15 minutes, and the
+    # index is a map of instrument -> chunk id: change how instruments are
+    # grouped into chunks (CHUNK_SIZE) and a stale index sends every lookup to
+    # a chunk that no longer holds that instrument. That is not theoretical —
+    # on 2026-09-09 CHUNK_SIZE went 5 -> 3 and the live app served "No chart
+    # data" for EVERY card until the cached index expired.
+    #
+    # Stamping both URLs with the publish time makes them a matched pair: a new
+    # publish is a new URL, so the edge fetches index and chunks fresh and
+    # together, and between publishes the URL is stable so the 15-minute cache
+    # still does its job.
+    _cv = str(int(time.time()))
+    js = js.replace("'/api/chart-index'",  f"'{base}/chart/index.json?v={_cv}'")
     js = js.replace(
         "'/api/chart/' + tf + '/' + cid",
-        f"'{base}/chart/' + tf + '/' + cid + '.json'"
+        f"'{base}/chart/' + tf + '/' + cid + '.json?v={_cv}'"
     )
     js = js.replace(
         "await fetch('/api/refresh', { method: 'POST' })",
