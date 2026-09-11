@@ -596,11 +596,11 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
 
 def _compute_tf_alignment(row: dict) -> tuple[str, int]:
     """
-    Score how many timeframes agree on direction (4H + Daily + Weekly).
-    1H does NOT vote — see config.ALIGNMENT_PREFIXES for why.
+    Score how many timeframes agree on direction (Daily + Weekly). 4H and 1H
+    were removed 2026-09-11; 3D does not vote — see config.ALIGNMENT_PREFIXES.
 
     Returns (label, score):
-        score: -3 to +3  (positive = bullish alignment, negative = bearish)
+        score: -2 to +2  (positive = bullish alignment, negative = bearish)
                Widened from -2..+2 when Weekly was added 2026-09-02; consumers
                that drew a bar from this must rescale, not clamp.
         label: 'Aligned Bull/Bear' — every timeframe with a ribbon agrees
@@ -710,24 +710,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # ── 1-HOUR: no signals since 2026-09-11 (see config.TIMEFRAMES). The
         # 1H chart is built separately by webapp/chart_feed.py. ──
 
-        # ── 4-HOUR (from hourly data) ──
-        h4_data = {}
-        if hourly_df is not None and len(hourly_df) >= 200:
-            h4 = _resample_4h(hourly_df)
-            h4_ma_periods = _h4_ma_periods(h4, ticker)
-            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
-            if len(h4_ma_periods) >= 2:
-                h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
-                h4 = add_signals(h4, ma_periods=h4_ma_periods,
-                                 refire_pct=0.02, new_trend_pct=0.05,
-                                 tf='4H', asset_class=_asset_cls)
-                h4_data, _ = _extract_row(
-                    h4, run_date, prefix='h4_',
-                    ma_periods=h4_ma_periods,
-                    signal_lookback=SIGNAL_LOOKBACK_4H,
-                )
-                if h4_data is None:
-                    h4_data = {}
+        # ── 4-HOUR: removed 2026-09-11 (see config.TIMEFRAMES). ──
 
         # ── 3-DAY (grouped from the same finished daily bars) ──
         # Same engine, same MA50-MA500 ribbon, on 3-day bars. No session
@@ -786,7 +769,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
-            **(h4_data or {}),
             **(d3_data or {}),
             **(w_data or {}),
         }
@@ -880,8 +862,7 @@ def _process_worker(args: tuple) -> tuple:
         if _dir not in sys.path:
             sys.path.insert(0, _dir)
 
-        from data_fetcher import (_cache_path, drop_unfinished_daily,
-                                  heal_daily_gaps_from_hourly)
+        from data_fetcher import _cache_path, drop_unfinished_daily
 
         # Read daily data from cache
         path = _cache_path(ticker)
@@ -889,18 +870,9 @@ def _process_worker(args: tuple) -> tuple:
             return ticker, None, [], 'no cache'
         df = pd.read_parquet(path)
 
-        # Read hourly data if available. The 4H feed may be redirected to a 24h
-        # contract (H4_SOURCE) — that cache is keyed by the SOURCE ticker, so
-        # resolve the same mapping fetch_all_hourly used. Daily above is
-        # unaffected: it stays on `ticker`.
-        h_path = _cache_path(h4_ticker(ticker), suffix='1h')
-        h_df   = pd.read_parquet(h_path) if os.path.exists(h_path) else None
-
-        # A 24/7 instrument's daily bar is just its UTC day, so an omission in
-        # Yahoo's daily feed can be rebuilt exactly from the hourly one. Guarded
-        # to crypto — a session-based instrument cannot be reconstructed this way.
-        if inst_meta.get('sector') == 'Crypto' and h_df is not None:
-            df = heal_daily_gaps_from_hourly(df, h_df)
+        # No hourly data since 2026-09-11: 1H and 4H were removed and hourly prices
+        # are no longer downloaded. That also retired the crypto daily-gap fill from
+        # the hourly feed (data_fetcher.heal_daily_gaps_from_hourly).
 
         # Admit finished sessions only. Applied HERE rather than in fetch_all
         # because this is the read that feeds the indicators — fetch_all's
@@ -910,19 +882,17 @@ def _process_worker(args: tuple) -> tuple:
         df = drop_unfinished_daily(df)
 
         row, trend_segs = process_instrument(
-            ticker, df.copy(), inst_meta, run_date, hourly_df=h_df
+            ticker, df.copy(), inst_meta, run_date
         )
 
         if row:
-            primary  = row.get('h4_primary_signal', '')
             d_primary = row.get('primary_signal', '')
-            conf     = row.get('h4_signal_confidence', '')
-            tf_align = row.get('tf_alignment', '')
-            tag        = f' [{primary}]'  if primary  else ''
-            d_tag      = f' D[{d_primary}]' if d_primary else ''
-            conf_tag   = f' ({conf})'     if conf     else ''
-            align_tag  = f' <{tf_align}>' if tf_align else ''
-            status_str = f'4H{tag}{conf_tag}{d_tag}{align_tag}'.strip()
+            w_primary = row.get('w_primary_signal', '')
+            tf_align  = row.get('tf_alignment', '')
+            d_tag     = f' D[{d_primary}]' if d_primary else ''
+            w_tag     = f' W[{w_primary}]' if w_primary else ''
+            align_tag = f' <{tf_align}>' if tf_align else ''
+            status_str = f'OK{d_tag}{w_tag}{align_tag}'.strip()
         else:
             status_str = 'skipped'
 
@@ -975,28 +945,9 @@ def main():
     _e1 = _time.time() - _t1
     print(f'  Daily data: {int(_e1 // 60)}m {int(_e1 % 60):02d}s\n')
 
-    _t2 = _time.time()
-    print('  Fetching hourly market data (for 4H timeframe) ...\n')
-    # Populates the hourly parquet cache; workers re-read it per-ticker (no return used).
-    fetch_all_hourly(instruments, force_refresh=args.refresh)
-    _e2 = _time.time() - _t2
-    print(f'  Hourly data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
-
-    # 2b. Daily vs hourly close cross-check — a free second source that catches
-    #     a feed which is wrong outright. It does NOT catch unadjusted splits
-    #     (both caches carry them alike); data_fetcher._history_mismatch does.
-    #     Published as data_checks.json; the instrument sheet warns on a flag.
-    try:
-        import json as _json
-        from data_fetcher import cross_check_daily_hourly
-        _checks = cross_check_daily_hourly(instruments)
-        os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-        with open(os.path.join(config.OUTPUT_DIR, 'data_checks.json'), 'w') as _fh:
-            _json.dump(_checks, _fh, separators=(',', ':'))
-        print(f"  Daily vs hourly check: {_checks['checked']} compared, "
-              f"{len(_checks['flagged'])} disagree: {', '.join(sorted(_checks['flagged'])) or 'none'}\n")
-    except Exception as _exc:
-        print(f'  Daily vs hourly check failed: {_exc}\n')
+    # No hourly download since 2026-09-11 — 1H and 4H were removed and nothing
+    # else needs hourly prices (the daily-vs-hourly check went with them).
+    _e2 = 0.0
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()

@@ -1055,8 +1055,6 @@ _chart_chunk_cache: dict = {}
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
     'D':  chart_feed.build_daily,
-    '1H': chart_feed.build_1h,
-    '4H': chart_feed.build_4h,
     '3D': chart_feed.build_3d,
     'W':  chart_feed.build_weekly,
 }
@@ -1232,17 +1230,6 @@ def api_rotation_paper():
     """The market ranking's forward paper record, written by rotation.py."""
     import json as _json
     path = os.path.join(OUTPUT_DIR, 'rotation_paper.json')
-    if not os.path.exists(path):
-        return jsonify({})
-    with open(path) as f:
-        return jsonify(_json.load(f))
-
-
-@app.route('/api/data-checks')
-def api_data_checks():
-    """Daily vs hourly close disagreements, written by main.py step 2b."""
-    import json as _json
-    path = os.path.join(OUTPUT_DIR, 'data_checks.json')
     if not os.path.exists(path):
         return jsonify({})
     with open(path) as f:

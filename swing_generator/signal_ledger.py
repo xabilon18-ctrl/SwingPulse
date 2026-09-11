@@ -229,7 +229,7 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
     added = 0
     for tf, sig_col, conf_col, date_col, ts_col in (
         ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
-        ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date', 'h4_datetime'),
+        # 4H stopped recording 2026-09-11 (timeframe removed); older 4H records stay.
         # Weekly bars are unique by date, so no ts_col — the same reason Daily
         # has none. See config.INTRADAY_PREFIXES.
         ('W',  'w_primary_signal',  'w_signal_confidence',  'w_date',  ''),

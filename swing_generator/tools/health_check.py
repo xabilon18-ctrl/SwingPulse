@@ -89,7 +89,6 @@ TIMESTAMPED = [
     ('instrument_flavours.json', 'generated_at'),
     ('rotation.json',            'generated_at'),
     ('rotation_paper.json',      'updated_at'),
-    ('data_checks.json',         'generated_at'),
 ]
 
 # Files the app loads that must at least fetch and parse. They are rebuilt from

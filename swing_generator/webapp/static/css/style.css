@@ -8891,5 +8891,15 @@ body.chart-full-open { overflow: hidden; }
 .scanner-card.sc-cost-dim:hover, .scanner-card.sc-cost-dim:focus-within { opacity: 1; }
 .tc-now { margin: 2px 0 4px; font-size: .72rem; line-height: 1.35; color: var(--text-muted); }
 .tc-now-against { color: var(--watch); font-weight: 600; }
-.mh-data-warn { margin-top: 6px; padding: 7px 10px; border-radius: 8px; font-size: .72rem; line-height: 1.4;
-  color: var(--watch); background: var(--watch-soft); border: 1px solid rgba(245,158,11,.35); }
+
+/* Chart card trend sentence (2026-09-11) — replaces the footer trend word. */
+.reel-trendline { font-size: .74rem; font-weight: 700; line-height: 1.25; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.reel-trendline.up { color: var(--buy); }
+.reel-trendline.down { color: var(--sell); }
+.reel-trendline.flat { color: var(--text-muted); }
+.reel-trendline-now { font-weight: 600; }
+.reel-trendline-now.against { color: var(--watch); }
+
+/* Trend strip label under the chart (2026-09-11). SVG units: the card viewBox is 1000 wide. */
+.reel-strip-lbl { font-size: 17px; fill: var(--text-muted); font-family: inherit; }

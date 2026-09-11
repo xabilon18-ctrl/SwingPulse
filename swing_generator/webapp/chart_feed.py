@@ -295,7 +295,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'D': n, '1H': n, '4H': n, '3D': n, 'W': n, 'chunks': n_files}.
+    Returns {'D': n, '3D': n, 'W': n, 'chunks': n_files}. 1H and 4H removed 2026-09-11.
     """
     chart_dir = os.path.join(output_dir, 'chart')
     os.makedirs(chart_dir, exist_ok=True)
@@ -305,10 +305,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'D': 0, '1H': 0, '4H': 0, '3D': 0, 'W': 0, 'chunks': 0}
+    stats = {'D': 0, '3D': 0, 'W': 0, 'chunks': 0}
 
-    for tf, builder in (('D', build_daily), ('1H', build_1h), ('4H', build_4h),
-                        ('3D', build_3d), ('W', build_weekly)):
+    for tf, builder in (('D', build_daily), ('3D', build_3d), ('W', build_weekly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 

@@ -24,11 +24,10 @@
   let rotationData = null;
   let rotationPaper = null;
   let leadersShowAll = false;
-  let dataChecks = null;      // daily vs hourly price-feed disagreements (data_checks.json)
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : tf === '3D' ? '3D' : 'D');
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['1H', '4H']);
+  const INTRADAY_TFS = new Set();   // none since 1H and 4H were removed (2026-09-11)
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -133,8 +132,6 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
-    { code: '1H', prefix: 'h1_', label: '1H',     tv: '60',  bar: '1H bars', barShort: '25-bar'  },
-    { code: '4H', prefix: 'h4_', label: '4H',     tv: '240', bar: '4H bars', barShort: '25-bar'  },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
@@ -1659,7 +1656,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes, dcRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1678,7 +1675,6 @@
         fetchJson('/api/shape-similarity', null),
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
-        fetchJson('/api/data-checks', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1701,7 +1697,6 @@
       resetEventIndexes();   // both indexes are derived from the two lines above
       rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
       rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
-      dataChecks = (dcRes && dcRes.flagged) ? dcRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -2036,11 +2031,9 @@
         age = `${Number(seg.days).toLocaleString('en-US')} days`;
       }
     }
-    if (!dir) {
-      dir = item[pre + 'established_trend'] || '';
-      const run = parseInt(item[pre + 'trend_run_days']);
-      if ((dir === 'UPTREND' || dir === 'DOWNTREND') && run > 0) age = `${run.toLocaleString('en-US')} ${tfMeta().bar}`;
-    }
+    // No age off Daily: trend_run_days counts bars on the trend side of the
+    // ribbon, not the latch's age, so a years-old weekly uptrend read "1 week".
+    if (!dir) dir = item[pre + 'established_trend'] || '';
     const mas = Object.keys(item)
       .filter(k => k.startsWith(pre + 'ma_') && /^\d+$/.test(k.slice(pre.length + 3)))
       .map(k => ({ p: +k.slice(pre.length + 3), v: parseFloat(item[k]) }))
@@ -2093,13 +2086,6 @@
     return s < rule.pct
       ? `<div class="sc-cost sc-cost-tight" title="In testing (2013–26) stops this tight lost money after financing and spread, on random entries as much as on signals.">Stop 2×ATR ≈ ${stop}% of price · tight: after financing and spread, trades like this averaged ${rule.r}</div>`
       : `<div class="sc-cost">Stop 2×ATR ≈ ${stop}% of price · wide enough that costs stay a small share of the risk</div>`;
-  }
-
-  // Price-feed warning for the instrument sheet (data_checks.json, main.py 2b).
-  function dataWarnHtml(item) {
-    const fl = dataChecks && dataChecks.flagged && dataChecks.flagged[item.instrument_name];
-    if (!fl) return '';
-    return `<div class="mh-data-warn">⚠ Price feeds disagree: this market's daily close and its hourly feed differed by more than ${dataChecks.tolerance_pct || 3}% on ${fl.bad_days} of the last ${fl.days} days (worst ${fl.worst_pct}% on ${fl.worst_date}). Treat its levels and signals with caution.</div>`;
   }
 
   function setupPanelHtml(item, opts = {}) {
@@ -5215,7 +5201,6 @@
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
             ${modalEventHtml(item)}
-            ${dataWarnHtml(item)}
             ${modalShapeHtml(item)}
           </div>
           <div class="mh-sig-wrap">
@@ -7137,11 +7122,13 @@
     const H  = Math.max(200, Math.min(1800, Math.round(W * ch / Math.max(1, cw))));
     const gutW  = 118;                       // price labels live here
     const axisH = 30;                        // date row
+    const stripH = 34;                       // trend strip + its label (reelTrendStripSvg)
     return {
       W, H,
       x0: 4, x1: W - gutW,
-      py0: 14, py1: H - axisH - 14,
+      py0: 14, py1: H - axisH - 14 - stripH,
       gut: W - gutW + 10,
+      stripY: H - axisH - stripH + 4,
     };
   }
 
@@ -7802,6 +7789,81 @@
     return out;
   }
 
+  // ── Trend strip (2026-09-11, approved from the AVGO preview) ─────────────
+  // A thin bar under the price: green while the established trend is up, red
+  // while it is down, lighter on bars where price sat on the wrong side of the
+  // fast average — a pullback inside the trend. It says how long a trend has
+  // run, never which way the next move goes. DAILY ONLY: it reads the Trends
+  // tab's segment history, and no other timeframe carries a trend's start —
+  // trend_run_days counts bars on the trend side of the ribbon, not the age.
+  function reelTrendStripSvg(b, L, xOf, bw, item, bundle) {
+    const n = b.c.length;
+    if (!n || L.stripY == null || timeframe !== 'D') return '';
+    const pre = tfMeta().prefix;
+    const day = s => String(s).slice(0, 10);
+    const longDate = d => new Date(d + 'T00:00:00Z')
+      .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    let dirAt, curDir = '', since = '';
+    if (timeframe === 'D') {
+      const segs = trendsData[item.instrument_name] || [];          // newest first
+      if (!segs.length) return '';
+      dirAt = t => {
+        const d = day(t);
+        if (segs[0].end && d > segs[0].end) return segs[0].direction;
+        for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
+        return '';
+      };
+      curDir = segs[0].direction;
+      since = segs[0].start;
+    } else {
+      curDir = item[pre + 'established_trend'] || '';
+      const run = parseInt(item[pre + 'trend_run_days']);
+      const N = bundle.c.length;
+      if (!(run > 0) || !N) return '';
+      const startT = String(bundle.t[Math.max(0, N - run)]);
+      dirAt = t => (String(t) >= startT ? curDir : '');
+      since = run <= N ? day(startT) : '';
+    }
+    if (curDir !== 'UPTREND' && curDir !== 'DOWNTREND') return '';
+
+    // Fast average at every bar. The ribbon ships sampled every b.ms bars, so
+    // interpolate between samples — close enough to shade a pullback.
+    const mi = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
+    const fastSeries = b.m[0] || [];
+    const fast = new Array(n).fill(null);
+    for (let j = 0, i = 0; i < n; i++) {
+      while (j + 1 < mi.length && mi[j + 1] <= i) j++;
+      const a = fastSeries[j], c = fastSeries[j + 1];
+      if (a == null || mi[j] > i) continue;
+      fast[i] = (c != null && j + 1 < mi.length && mi[j + 1] > mi[j])
+        ? a + (c - a) * (i - mi[j]) / (mi[j + 1] - mi[j]) : a;
+    }
+    const keyAt = i => {
+      const d = dirAt(b.t[i]);
+      if (d !== 'UPTREND' && d !== 'DOWNTREND') return '';
+      const f = fast[i], c = b.c[i];
+      const pull = f != null && c != null && (d === 'UPTREND' ? c < f : c > f);
+      return d + (pull ? ':p' : ':s');
+    };
+    let out = '', key = '', start = 0;
+    const flush = end => {
+      if (!key) return;
+      const [d, s] = key.split(':');
+      out += `<rect x="${(xOf(start) - bw / 2).toFixed(1)}" y="${L.stripY}" width="${((end - start) * bw).toFixed(1)}" height="14" `
+           + `fill="${d === 'UPTREND' ? 'var(--buy)' : 'var(--sell)'}" fill-opacity="${s === 'p' ? .28 : .8}"/>`;
+    };
+    for (let i = 0; i < n; i++) {
+      const k = keyAt(i);
+      if (k !== key) { flush(i); key = k; start = i; }
+    }
+    flush(n);
+    if (!out) return '';
+    const word = curDir === 'UPTREND' ? 'Uptrend' : 'Downtrend';
+    const legend = `lighter = ${curDir === 'UPTREND' ? 'below' : 'above'} MA${b.p[0]}`;
+    const text = since ? `${word} since ${longDate(since)} · ${legend}` : legend;
+    return out + `<text x="${L.x0 + 4}" y="${L.stripY - 5}" class="reel-strip-lbl">${text}</text>`;
+  }
+
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
@@ -8035,8 +8097,10 @@
     // so the two strips never fight over the corner.
     const tgripPct = (((L.H - L.py1) / L.H) * 100).toFixed(2);
 
+    const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
+
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      ${grid}${timeGrid}${ribbon}${bars}${channel}${lastTag}${clipTag}${dates}
+      ${grid}${timeGrid}${ribbon}${bars}${channel}${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -8260,12 +8324,13 @@
     const sig   = withSignalTf(() => item[f('primary_signal')] || '');
     // 1H carries no signal-engine columns, so it has no trend word either.
     const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
-    const trend = hasTfRow ? effectiveTrend(item) : '';
+    // The same trend sentence the cards and the sheet use (approved from the
+    // AVGO preview, 2026-09-11): green/red regime, amber when price is against it.
+    const ts = hasTfRow ? trendSentence(item) : null;
     const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
     const mv    = parseFloat(item.pct_1d);
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
-    const trCls = trend === 'UPTREND' ? 'up' : trend === 'DOWNTREND' ? 'down' : 'flat';
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
     const starred = userStarred.has(name);
 
@@ -8279,6 +8344,7 @@
             <span class="reel-group">${item.group || ''}</span>
           </div>
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
+          ${ts ? `<span class="reel-trendline ${ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'down' : 'flat'}">${ts.glyph} ${ts.head}${ts.now ? ` <span class="reel-trendline-now${ts.against ? ' against' : ''}">· ${ts.now}</span>` : ''}</span>` : ''}
         </div>
         <div class="reel-head-meta">
           ${simPct(name)}
@@ -8299,7 +8365,6 @@
       </div>
 
       <footer class="reel-foot">
-        ${trend ? `<span class="reel-trend ${trCls}">${trend}</span>` : ''}
         <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>

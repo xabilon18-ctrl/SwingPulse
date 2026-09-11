@@ -277,7 +277,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # so neither gets one. This used to be `if prefix`, which was the same thing
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
-INTRADAY_PREFIXES = {'h4_'}
+INTRADAY_PREFIXES = set()   # none since 1H (and then 4H) were removed on 2026-09-11
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, tf_alignment, context modifiers,
@@ -292,8 +292,12 @@ INTRADAY_PREFIXES = {'h4_'}
 # tested across a full cycle. The 1H CHART is unaffected: webapp/chart_feed.py
 # builds it from the hourly cache on its own, and _h1_frame/_h1_ma_periods stay
 # in main.py for it and for backtest.py research runs.
+#
+# 4H is NOT in this table either (removed the same day, at the user's request):
+# it agreed with Daily 71.7% of the time, 82% of its fires were never confirmed
+# and worth ~0, and it had already been reduced to a chart view. With 1H and 4H
+# both gone nothing needs hourly prices, so main.py no longer downloads them.
 TIMEFRAMES = (
-    ('4H', 'h4_'),
     ('D',  ''),
     ('3D', 'd3_'),
     ('W',  'w_'),
@@ -395,8 +399,6 @@ OUTPUT_COLUMNS = [
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
-    # ── 4-Hour (signals + indicators) ──
-    *_tf_signal_columns('h4_'),
     # ── 3-Day (signals + indicators) ──
     *_tf_signal_columns('d3_'),
     # ── Weekly (signals + indicators) ──
