@@ -5887,6 +5887,7 @@
   const TOOL_CHANNEL = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="16" x2="21" y2="6"/><line x1="3" y1="21" x2="21" y2="11"/><line x1="3" y1="18.5" x2="21" y2="8.5" stroke-dasharray="2 3" opacity=".65"/></svg>`;
   const TOOL_TREND   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="19" x2="21" y2="5"/><circle cx="4.5" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="19.5" cy="6" r="1.8" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
+  const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
@@ -7410,6 +7411,20 @@
                             t2: String(b.t[i2]), p2: b.c[i2] };
   }
 
+  // Ten price lines, evenly spaced (user spec, 2026-09-11). Stored as two
+  // anchors — line 1 and line 4 — because those are the two the reader drags:
+  // every line sits at p1 + k × (p4 − p1) / 3, so the set stays even whichever
+  // handle moves. Starts spanning the visible range, lowest low to highest high.
+  const LADDER_LINES = 10;
+  function reelDefaultLadder(b) {
+    const lows = b.l.filter(v => v != null), highs = b.h.filter(v => v != null);
+    if (!lows.length || !highs.length) return null;
+    const lo = Math.min(...lows), hi = Math.max(...highs);
+    if (!(hi > lo)) return null;
+    const step = (hi - lo) / (LADDER_LINES - 1);
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step };
+  }
+
   function reelDefaultHLine(b) {
     const n = b.c.length;
     for (let i = n - 1; i >= 0; i--) if (b.c[i] != null) return { kind: 'hline', p: b.c[i] };
@@ -7419,6 +7434,7 @@
   function reelDefaultDrawing(kind, b) {
     if (kind === 'trend') return reelDefaultTrend(b);
     if (kind === 'hline') return reelDefaultHLine(b);
+    if (kind === 'ladder') return reelDefaultLadder(b);
     return reelDefaultChannel(b);
   }
 
@@ -7475,6 +7491,7 @@
       // look like one and cannot be told apart to drag.
       const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
       if (def.kind === 'hline') def.p -= shift;
+      else if (def.kind === 'ladder') { def.p1 -= shift; def.p4 -= shift; }
       else { def.p1 -= shift; def.p2 -= shift; }
     }
     addChannelFor(name, def);
@@ -7557,6 +7574,7 @@
     if (!d) return '';
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'ladder') return reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive);
     return reelChannelSvg(d, b, L, sc, bw, editing, idx, isActive);
   }
 
@@ -7612,6 +7630,38 @@
     const handles = (editing && !d.locked)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
     return line + tag + handles + badge;
+  }
+
+  // Ten price lines — dotted like the calendar lines, always evenly spaced,
+  // adjusted from line 1 and line 4. Each line is numbered and priced at the
+  // right-hand end of the plot, clear of the axis ticks in the gutter.
+  function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const step = (d.p4 - d.p1) / 3;
+    if (!isFinite(step) || step === 0) return '';
+    let out = '', drawn = 0;
+    for (let k = 0; k < LADDER_LINES; k++) {
+      const p = d.p1 + k * step, y = sc.y(p);
+      if (y < L.py0 || y > L.py1) continue;
+      const key = k === 0 || k === 3;
+      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
+           + `<text x="${(L.x1 - 6).toFixed(1)}" y="${(y - 6).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-key' : ''}" text-anchor="end">${k + 1} · ${reelFmtPrice(p)}</text>`;
+      drawn++;
+    }
+    if (!drawn) {
+      const above = Math.max(sc.y(d.p1), sc.y(d.p1 + 9 * step)) < L.py0;
+      return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">10 lines ${above ? '↑' : '↓'} off-scale</text>`;
+    }
+    const badge = d.locked
+      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    let handles = '';
+    if (editing && !d.locked) {
+      const hx = L.x0 + (L.x1 - L.x0) * 0.35;
+      const y1 = sc.y(d.p1), y4 = sc.y(d.p4);
+      if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
+      if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
+      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Lines 1 and 4 are outside this range — zoom out to adjust</text>`;
+    }
+    return out + handles + badge;
   }
 
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
@@ -8137,6 +8187,8 @@
       document.body.appendChild(el);
       el.addEventListener('click', e => {
         if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
+        const step = e.target.closest('[data-act="chart-full-step"]');
+        if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
         window.__reelBtnAct(e);
       });
     }
@@ -8197,6 +8249,19 @@
     return px > 0 && L.H > 0 ? px * (L.py1 - L.py0) / L.H : 0;
   }
 
+  // Step to the neighbouring chart WITHOUT leaving full screen (2026-09-11).
+  // The reel behind steps with it, so closing lands on the chart you were last
+  // looking at rather than the one you opened.
+  function chartFullStep(dir) {
+    const list = reel.list || [];
+    const i = list.findIndex(d => d.instrument_name === chartFullName);
+    const next = i < 0 ? null : list[i + dir];
+    if (!next) return;
+    chartFullClose();
+    reelStepBy(dir);
+    chartFullOpen(next.instrument_name);
+  }
+
   function chartFullClose() {
     const el = chartFullEl();
     // Put the reader's own price scale back — the one full screen imposed was
@@ -8251,6 +8316,12 @@
     const name  = item.instrument_name;
     const ch    = activeChannel(name);
     const edit  = reel.editing === name && !(ch && ch.locked);
+    const list  = reel.list || [];
+    const pos   = list.findIndex(d => d.instrument_name === name);
+    const steps = pos < 0 ? '' :
+      `<button class="cf-step" data-act="chart-full-step" data-dir="-1" aria-label="Previous chart"${pos <= 0 ? ' disabled' : ''}>‹</button>`
+      + `<span class="cf-pos">${pos + 1}/${list.length}</span>`
+      + `<button class="cf-step" data-act="chart-full-step" data-dir="1" aria-label="Next chart"${pos >= list.length - 1 ? ' disabled' : ''}>›</button>`;
     return `
       <header class="cf-head">
         <div class="cf-title">
@@ -8259,7 +8330,9 @@
             <span class="reel-group">${item.group || ''} · ${tfMeta().label}</span>
           </div>
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
+          ${reelTrendlineHtml(item)}
         </div>
+        ${steps}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -8268,6 +8341,7 @@
         <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
         <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
         <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
       </div>
       <footer class="reel-foot">
         <span class="reel-tf-tag">${tfMeta().label}</span>
@@ -8316,17 +8390,22 @@
     return hit ? `<span class="reel-simpct">${(hit.corr * 100).toFixed(0)}% alike</span>` : '';
   }
 
+  // The trend sentence for a chart header — the card and the full-screen view
+  // share it, so "extended" never loses the writing the card has.
+  function reelTrendlineHtml(item) {
+    const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
+    const ts = hasTfRow ? trendSentence(item) : null;
+    if (!ts) return '';
+    return `<span class="reel-trendline ${ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'down' : 'flat'}">${ts.glyph} ${ts.head}`
+      + `${ts.now ? ` <span class="reel-trendline-now${ts.against ? ' against' : ''}">· ${ts.now}</span>` : ''}</span>`;
+  }
+
   function reelCardHtml(item, i) {
     const name  = item.instrument_name;
     // On a chart view (1H/4H/3D) the signal shown is the signal timeframe's and
     // is labelled with it, so a Daily B3 is never read as a 4H one.
     const onSigTf = SIGNAL_TFS.has(timeframe);
     const sig   = withSignalTf(() => item[f('primary_signal')] || '');
-    // 1H carries no signal-engine columns, so it has no trend word either.
-    const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
-    // The same trend sentence the cards and the sheet use (approved from the
-    // AVGO preview, 2026-09-11): green/red regime, amber when price is against it.
-    const ts = hasTfRow ? trendSentence(item) : null;
     const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
     const mv    = parseFloat(item.pct_1d);
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
@@ -8344,7 +8423,7 @@
             <span class="reel-group">${item.group || ''}</span>
           </div>
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
-          ${ts ? `<span class="reel-trendline ${ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'down' : 'flat'}">${ts.glyph} ${ts.head}${ts.now ? ` <span class="reel-trendline-now${ts.against ? ' against' : ''}">· ${ts.now}</span>` : ''}</span>` : ''}
+          ${reelTrendlineHtml(item)}
         </div>
         <div class="reel-head-meta">
           ${simPct(name)}
@@ -8362,6 +8441,7 @@
         <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
         <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
         <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+        <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
       </div>
 
       <footer class="reel-foot">
@@ -9053,6 +9133,16 @@
       // A horizontal level is one number and one handle.
       if (ch.kind === 'hline') { ch.p = price; schedule(); return; }
 
+      // Ten price lines: line 1 and line 4 are the anchors, the rest follow.
+      // Refuse a drag that would collapse them onto one price (they vanish).
+      if (ch.kind === 'ladder') {
+        const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
+        if (handle === 'l1' && Math.abs(ch.p4 - price) >= minGap) ch.p1 = price;
+        else if (handle === 'l4' && Math.abs(price - ch.p1) >= minGap) ch.p4 = price;
+        schedule();
+        return;
+      }
+
       // A trend line is two anchors and nothing else — there is no offset to
       // solve back through, so the pointer's price IS the anchor price. Running
       // it through the channel branch read ch.up/ch.dn, which a trend does not
@@ -9385,6 +9475,8 @@
       const up   = e.key === 'ArrowUp'   || e.key === 'PageUp'   || e.key === 'k';
       if (!down && !up) return;
       e.preventDefault();
+      // Full screen steps to the next chart in place instead of scrolling the reel behind it.
+      if (chartFullName) { chartFullStep(down ? 1 : -1); return; }
       reelStepBy(down ? 1 : -1);
     });
   }
