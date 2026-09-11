@@ -225,6 +225,10 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 /* A tab that cannot show a timeframe hides its button. Signal tabs offer Daily
    and Weekly only (1H/4H/3D are chart views since 2026-09-11); Charts offers all. */
 .tf-switch-btn[hidden] { display: none; }
+/* Truth pass (2026-09-11): controls built on in-sample or backwards-pointing
+   scores are HIDDEN where JavaScript still reads their value, not deleted. */
+.filter-pill[hidden], .sig-adv-label[hidden], .card[hidden], .mp-bd-row[hidden] { display: none !important; }
+.sig-honesty-note { margin: 0 16px 10px; font-size: .72rem; line-height: 1.4; color: var(--text-muted); }
 body.tf-locked .tf-switch-btn  { display: none; }
 body.tf-locked .tf-switch-note { display: block; }
 /* Desktop: the toggle spanned the full window — the largest thing on screen. */
@@ -7254,6 +7258,8 @@ body {
 .sc-sig-chip { font-size: .76rem; font-weight: 700; padding: 4px 11px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sc-sig-buy  { background: var(--buy-soft); border: 1px solid rgba(16,185,129,.4); color: var(--buy); }
 .sc-sig-sell { background: var(--sell-soft); border: 1px solid rgba(239,68,68,.4); color: var(--sell); }
+/* A sell shows as a warning for longs, in the caution colour, not as a red short call. */
+.sc-sig-warn { background: var(--watch-soft); border: 1px solid rgba(245,158,11,.4); color: var(--watch); }
 .sc-sig-aged { background: var(--bg-card); border: 1px solid #2c2c2b; color: var(--text-secondary); font-weight: 600; }
 .sc-code-buy  { color: var(--buy); }
 .sc-code-sell { color: var(--sell); }

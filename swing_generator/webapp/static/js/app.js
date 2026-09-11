@@ -904,6 +904,10 @@
   // or the guards above rule the layer out). `pips` is kept 0/2/3 for the existing
   // conviction sort, card glow/dim and Mood filter. Returns null when no signal.
   function convictionOf(item) {
+    // Retired 2026-09-11: the sector-mood grade was measured on the same trades
+    // it graded. Kept as a null so the old callers (card glow/dim, Mood filter,
+    // conviction sort) all fall through to 'no opinion'.
+    return null;
     const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
     if (!code) return null;
     const buy = code.charAt(0) === 'B';
@@ -925,38 +929,27 @@
     return neutral;
   }
 
-  // Plain-language verdict at the top of a card. The backtest confidence tier sets
-  // the base; the sector mood ADJUSTS it. It does not override it — Phase 0 measured
-  // sector mood as a delta vs the same signal's baseline, so a strong setup in a bad
-  // sector must land above a weak setup in a bad sector, not equal to it.
-  // Note the ★ tier is reachable only via the sector-confirmed bump, which today
-  // exists for SELLs only: no buy-side promotion has cleared the evidence bar
-  // (buy_thrust t=+1.5; the big market-wide buy effect is held back as
-  // regime-suspect). That asymmetry is the evidence's, not an oversight.
-  const VERDICT_TIERS = [
-    { label: '★ HIGH-CONVICTION', sub: 'strong edge' },   // 4
-    { label: 'STRONG',            sub: 'above-average edge' },
-    { label: '',                  sub: 'standard edge' },  // 2 → "BUY SETUP"
-    { label: '⚠ LOW-EDGE',        sub: 'weak backtest edge' },
-    { label: '⚠ AVOID',           sub: 'weak edge · sector against it' },  // 0
-  ];
+  // What fired, in plain words (2026-09-11). This used to GRADE the signal —
+  // ★ HIGH-CONVICTION / STRONG / LOW-EDGE / AVOID, from the backtest confidence
+  // tier plus the sector mood. Neither survived a fair test: entries did no
+  // better than random ones taken the same day in other markets, and the tiers
+  // were fitted on the same trades they claimed to predict. A sell reads as a
+  // warning for longs, because shorts lost after costs under every exit tested.
+  const SIG_PLAIN = {
+    B1: 'closed above all three MAs',        S1: 'closed below all three MAs',
+    B2: 'dipped under MA50, closed back above', S2: 'rose over MA50, closed back below',
+    B3: 'touched MA250, closed above',       S3: 'touched MA250, closed below',
+    B4: 'touched MA500, closed above',       S4: 'touched MA500, closed below',
+  };
   function verdictOf(item) {
     const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
     if (!code) return null;
     const buy = code[0] === 'B';
-    const dir = buy ? 'BUY' : 'SELL';
-    const conf = (item[f('signal_confidence')] || '').toLowerCase();
-    const conv = convictionOf(item);
-    const base = conf === 'high' ? 3 : conf === 'low' ? 1 : 2;      // backtest tier
-    const delta = conv ? conv.delta : 0;                            // sector mood
-    const score = Math.max(0, Math.min(4, base + delta));
-    const t = VERDICT_TIERS[4 - score];
-    const tone = score <= 1 ? 'warn' : buy ? 'buy' : 'sell';
     return {
-      label: t.label ? `${t.label} ${dir}` : `${dir} SETUP`,
-      sub: t.sub,
-      note: conv && conv.note ? conv.note : '',   // only set when the sector has something to say
-      tone,
+      label: `${code} · ${SIG_PLAIN[code] || (buy ? 'buy event' : 'sell event')}`,
+      sub: buy ? '' : 'trend weakening · a warning for longs, not a short',
+      note: '',
+      tone: buy ? 'buy' : 'warn',
     };
   }
   function verdictBarHtml(item) {
@@ -2012,19 +2005,14 @@
   // since-fire performance. Trend and signal never share an element, so
   // counter-trend signals stay visible.
   const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA50', S2: 'lost MA50', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
-  // opts.showConf — append the confidence tier to the signal chip. Off on the
-  // scanner card, where the verdict bar directly above already states the edge
-  // ("SELL SETUP · standard edge" then "S2 SELL · Today · standard" said it
-  // twice). On in the modal, which has no verdict bar.
+  // No confidence tier on the chip since 2026-09-11 (see verdictOf); a sell is a WARNING.
   function setupPanelHtml(item, opts = {}) {
-    const showConf = opts.showConf !== false;
     const t = effectiveTrend(item);
     const sig = item[f('primary_signal')] || '';
     const buySig = isBuy(item);
     const lastSigType = item[f('last_signal_type')] || '';
     const lastIsBuy = lastSigType.startsWith('B');
     const lastSigAge = signalAge(item[f('last_signal_date')] || '', item[f('date')]).label;
-    const conf = (item[f('signal_confidence')] || '').toLowerCase();
     const pos = ribbonPos(item);
     const phase = ribbonPhase(item, t);
     let posNote = pos === 'inside' ? 'price in ribbon' : pos === 'above' ? 'price above ribbon' : pos === 'below' ? 'price below ribbon' : '';
@@ -2036,7 +2024,7 @@
 
     let sigChip;
     if (sig) {
-      sigChip = `<span class="sc-sig-chip ${buySig ? 'sc-sig-buy' : 'sc-sig-sell'}">${sig} ${buySig ? 'BUY' : 'SELL'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}${showConf && conf ? ' · ' + conf : ''}</span>`;
+      sigChip = `<span class="sc-sig-chip ${buySig ? 'sc-sig-buy' : 'sc-sig-warn'}">${sig} ${buySig ? 'BUY' : 'WARNING'}${lastSigAge ? ' · ' + lastSigAge.replace(' ago', '') : ''}</span>`;
     } else if (lastSigType) {
       sigChip = `<span class="sc-sig-chip sc-sig-aged"><b class="${lastIsBuy ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b>${lastSigAge ? ' · ' + lastSigAge : ''}${SIG_CTX[lastSigType] ? ` · <span class="sc-ctx">${SIG_CTX[lastSigType]}</span>` : ''}</span>`;
     } else {
@@ -2370,7 +2358,7 @@
           `<div class="tr-live-empty">Live grades are being recomputed on the next data run — they only count a fire once its full outcome window has passed.</div>`;
         if (subEl && backtestData.generated_at) {
           const p0 = backtestData.params || {};
-          subEl.textContent = `${p0.stop_model ? `${p0.stop_model} stop · ${p0.target_r || 2}:1 R:R` : '2% stop · 2:1 R:R'}`
+          subEl.textContent = `${p0.stop_model ? `${p0.stop_model} stop · ${p0.target_r || 2}:1 R:R` : '2×ATR14 stop · 2:1 R:R'}`
             + `${p0.since && p0.since !== 'full history' ? ` · since ${p0.since}` : ''}`
             + ` · updated ${formatGeneratedAt(backtestData.generated_at)}`;
         }
@@ -2407,7 +2395,7 @@
 
     if (subEl && backtestData.generated_at) {
       const p = backtestData.params || {};
-      const stopStr = p.stop_model ? `${p.stop_model} stop · ${p.target_r || 2}:1 R:R` : '2% stop · 2:1 R:R';
+      const stopStr = p.stop_model ? `${p.stop_model} stop · ${p.target_r || 2}:1 R:R` : '2×ATR14 stop · 2:1 R:R';
       const sinceStr = p.since && p.since !== 'full history' ? ` · since ${p.since}` : '';
       subEl.textContent = `${stopStr}${sinceStr} · updated ${formatGeneratedAt(backtestData.generated_at)}`;
     }
@@ -2418,20 +2406,9 @@
   function renderMarketState() {
     const el = document.getElementById('marketStateBanner');
     if (!el) return;
-    const fires = getActiveData().filter(it => it[f('primary_signal')]);
-    const confirmed = fires.filter(it => { const c = convictionOf(it); return c && c.pips === 3; }).length;
-    const fighting  = fires.filter(it => { const c = convictionOf(it); return c && c.pips === 0; }).length;
-    if (flavourMkt.market_wide) {
-      el.innerHTML = `<div class="market-state sit"><div class="ms-ic">🌐</div><div>`
-        + `<div class="ms-t">Sit-out day — market-wide churn</div>`
-        + `<div class="ms-s">Every sector is firing at once (options-expiry / rebalance). Signals are unreliable today and <b>sells often snap back up</b> (−0.23R vs normal). Best to hold, not chase. <span class="ms-prov">validated · 2024–26</span></div></div></div>`;
-    } else if (fires.length) {
-      el.innerHTML = `<div class="market-state ok"><div class="ms-ic">✓</div><div>`
-        + `<div class="ms-t">Stock-picking conditions</div>`
-        + `<div class="ms-s">Sectors are moving on their own, not all together — a normal day to pick setups.${confirmed ? ` <b>${confirmed} sector-confirmed</b> setup${confirmed > 1 ? 's' : ''} today.` : ''}${fighting ? ` ${fighting} fighting-sector fire${fighting > 1 ? 's' : ''} dimmed.` : ''} <span class="ms-prov" title="Sector-mood grades were backtested on 2024–26 real trades">grades validated · 2024–26</span></div></div></div>`;
-    } else {
-      el.innerHTML = '';
-    }
+    // Retired 2026-09-11: the sit-out and "grades validated" banners were the
+    // sector-mood layer, fitted on the trades it graded.
+    el.innerHTML = '';
   }
 
   function renderDashboard() {
@@ -3134,12 +3111,11 @@
       const sig = d[f('primary_signal')];
       return isReversal(sig) || isLongestMa(sig);
     }).sort((a, b) => {
-      // Reversals first, then longest-MA bounces; within a group, proven edge first
+      // Reversals first, then MA500 touches, then A–Z. It used to put "proven
+      // edge" first by confidence tier; the tiers are in-sample (2026-09-11).
       const p = sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
       if (p !== 0) return p;
-      const ord = { high: 0, standard: 1, '': 1, low: 2 };
-      return (ord[(a[f('signal_confidence')] || '').toLowerCase()] ?? 1)
-           - (ord[(b[f('signal_confidence')] || '').toLowerCase()] ?? 1);
+      return (a.instrument_name || '').localeCompare(b.instrument_name || '');
     });
 
     // Update signal sheet buttons with dot indicator
@@ -3163,11 +3139,9 @@
       const dir  = buy ? '▲' : '▼';
       const dCls = buy ? 'tci-buy' : 'tci-sell';
       const pCls = isReversal(sig) ? 'tci-p1' : 'tci-p2';
-      const conf = (item[f('signal_confidence')] || '').toLowerCase();
-      const lbl  = conf === 'low' ? 'Low Edge'
-                 : isReversal(sig) ? 'Trend Change' : 'Strong Signal';
-      const lowCls = conf === 'low' ? ' tci-lowconf' : '';
-      const lowTip = conf === 'low' ? ' title="This signal code has negative backtested expectancy on this timeframe/asset class"' : '';
+      const lbl  = isReversal(sig) ? 'Trend change' : 'MA500 touch';
+      const lowCls = '';
+      const lowTip = '';
       return `<div class="trend-alert-item ${dCls} ${pCls}${lowCls}" data-act="openModal" data-arg="${tick}"${lowTip}>
         <span class="tci-badge">${sig}</span>
         <span class="tci-dir">${dir}</span>
@@ -3402,12 +3376,6 @@
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
       const rocCls = !isNaN(roc) ? (roc >= 0 ? 'roc-pos' : 'roc-neg') : '';
 
-      // MA order gauge
-      const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
-      const maOrderColor = maOrderPct !== null ? (maOrderPct > 60 ? 'var(--buy)' : maOrderPct < 40 ? 'var(--sell)' : 'var(--watch)') : 'var(--border)';
-
       // Volume spike
       const volSpike = item[f('volume_spike_flag')] === 'yes';
 
@@ -3417,7 +3385,6 @@
           <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
           <div class="feed-meta-row">
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-            ${maOrderPct !== null ? `<span class="feed-ma-gauge"><span class="feed-ma-track"><span class="feed-ma-fill" style="width:${maOrderPct}%;background:${maOrderColor}"></span></span><span style="font-size:.58rem;color:var(--text-muted)">${maOrder}/${maMaxPairs}</span></span>` : ''}
           </div>
         </div>
         ${tvBtn(item.instrument_name, '')}
@@ -3541,7 +3508,7 @@
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
           <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
-          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}% | Order: ${isNaN(order) ? '--' : order}/${maxPairs} | ${dir}</div>
+          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}%</div>
         </div>
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
@@ -3749,7 +3716,7 @@
     if      (days <= 7)  { label = '🌱 Young';     cls = 'maturity-young'; }
     else if (days <= 21) { label = '📈 Developing'; cls = 'maturity-developing'; }
     else if (days <= 60) { label = '🏔 Mature';     cls = 'maturity-mature'; }
-    else                 { label = '⚠️ Extended';   cls = 'maturity-extended'; }
+    else                 { label = '🕰 Long-running'; cls = 'maturity-mature'; }   // not a warning: long trends end LEAST often
     return `<span class="sig-badge ${cls}" title="${days} days in trend">${label}</span>`;
   }
 
@@ -3786,7 +3753,6 @@
     const sig = item[f('primary_signal')] || '';
     if (!sig) return '';
     const trend = item[f('established_trend')] || item[f('trend_direction')] || '';
-    const conf = item[f('signal_confidence')] || '';
     const volSpike = item[f('volume_spike_flag')] === 'yes';
     const compression = item[f('ribbon_compression')] === 'yes';
     const trendRun = parseInt(item[f('trend_run_days')]);
@@ -3804,13 +3770,13 @@
     };
     // Direction from the signal code itself — established_trend lags one bar
     // on B1/S1 reversals, which used to label a fresh B1 "bearish".
-    const dirWord = sig.startsWith('B') ? 'bullish' : sig.startsWith('S') ? 'bearish' : '';
+    const dirWord = sig.startsWith('B') ? 'buy' : sig.startsWith('S') ? 'warning' : '';
     const parts = [`${sig}${dirWord ? ' ' + dirWord : ''}: ${sigDesc[sig] || 'signal'}`];
     if (!isNaN(trendRun) && trendRun > 0) parts.push(`${trendRun}d ${trend.toLowerCase()}`);
     if (volSpike) parts.push('volume spike');
-    if (compression) parts.push('ribbon compression — breakout watch');
-    if (conf === 'high') parts.push('high confidence — backtested edge');
-    else if (conf === 'low') parts.push('low confidence — historically weak edge');
+    // No "breakout watch" and no confidence tier (2026-09-11): a quiet market
+    // measured no lean up or down, and the tiers were fitted in-sample.
+    if (compression) parts.push('moving averages bunched together');
     return parts.join(' · ') + '.';
   }
 
@@ -3988,8 +3954,8 @@
         const aHas = !!(a[f('primary_signal')]);
         const bHas = !!(b[f('primary_signal')]);
         if (aHas !== bHas) return bHas - aHas;
-        const confOrder = { high: 0, standard: 1, low: 2, '': 3 };
-        return (confOrder[a[f('signal_confidence')]||'']||3) - (confOrder[b[f('signal_confidence')]||'']||3);
+        // Then newest fire first (was the confidence tier, retired 2026-09-11).
+        return (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || '');
       });
     } else if (scannerSort === 'date_desc') {
       filtered = [...filtered].sort((a, b) => {
@@ -4104,12 +4070,6 @@
             : '';
           return (visible || overflow) ? `<div class="scanner-meta">${visible}${overflow}</div>` : '';
         })()}
-        ${maOrderPct !== null ? `<div class="ma-order-gauge" title="${maOrder} of ${maMaxPairs} MA pairs in bullish order">
-          <span class="sc-ma-lbl">MA ORDER</span>
-          <div class="ma-order-segs">${Array.from({ length: maMaxPairs }, (_, si) =>
-            `<span class="ma-order-seg${si < maOrder ? ' on' : ''}"${si < maOrder ? ` style="background:${barColor}"` : ''}></span>`).join('')}</div>
-          <span style="font-size:.6rem">${maOrder}/${maMaxPairs}</span>
-        </div>` : ''}
       </div>`;
     };
 
@@ -4654,7 +4614,7 @@
       filtered = [...filtered].sort((a, b) => {
         const aHas = !!(a[f('primary_signal')]), bHas = !!(b[f('primary_signal')]);
         if (aHas !== bHas) return bHas - aHas;
-        return (confOrder[b[f('signal_confidence')] || ''] || 0) - (confOrder[a[f('signal_confidence')] || ''] || 0);
+        return (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || '');
       });
     } else if (wlSort === 'trend') {
       const tOrd = { UPTREND: 0, NEUTRAL: 1, DOWNTREND: 2 };
@@ -4795,7 +4755,7 @@
       <div class="trs-header">
         <div class="trs-title">Signal Track Record</div>
         <div class="trs-subtitle">${o.total_trades} trades · ${o.win_rate}% win rate · ${o.avg_r > 0 ? '+' : ''}${o.avg_r}R avg · PF ${o.profit_factor}</div>
-        <div class="trs-rules">Rules: 2% stop · 2:1 R:R · 30-bar time stop · 0.05% slippage</div>
+        <div class="trs-rules">Rules: 2×ATR14 stop · 2:1 R:R · 30-bar time stop · 0.05% slippage</div>
       </div>
 
       <div class="trs-section">
@@ -4972,28 +4932,6 @@
     const autoAnalysis = buildSignalDesc(item);
     const analysisText = explanation || autoAnalysis;
 
-    // Radar conviction breakdown — shows why a card scores what it does
-    const _rScore   = radarConfluenceScore(item);
-    const _rTier    = scoreTier(_rScore);
-    const _rTierLbl = _rTier === 'prime' ? 'Prime' : _rTier === 'strong' ? 'Strong' : 'Developing';
-    const _rBd      = radarScoreBreakdown(item);
-    const _rDirLbl  = _rBd.isBullish ? 'Long bias' : 'Short bias';
-    const _rLinesHtml = _rBd.lines.length
-      ? _rBd.lines.map(l => `<div class="mh-rs-line"><span class="mh-rs-lbl">${l.label}</span><span class="mh-rs-pts${l.points < 0 ? ' mh-rs-neg' : ''}">${l.points < 0 ? '' : '+'}${l.points}</span></div>`).join('')
-      : '<div class="mh-rs-line mh-rs-empty">No confluence factors active.</div>';
-    const radarBreakdownHtml = `
-      <div class="mh-radar-score">
-        <div class="mh-rs-header">
-          <div class="mh-rs-title">
-            <span class="mh-rs-num radar-tier-${_rTier}">${_rScore}</span>
-            <span class="mh-rs-tier radar-tier-${_rTier}">${_rTierLbl}</span>
-            <span class="mh-rs-dir">${_rDirLbl}</span>
-          </div>
-          <div class="mh-rs-bar"><div class="mh-rs-bar-fill tier-${_rTier}" style="width:${_rScore}%"></div></div>
-        </div>
-        <div class="mh-rs-lines">${_rLinesHtml}</div>
-      </div>`;
-
     modalBody.innerHTML = `
       <!-- ===== HERO ===== -->
       <div class="mh-hero${buy ? ' mh-hero-buy' : sell ? ' mh-hero-sell' : ''}">
@@ -5039,12 +4977,6 @@
       <div class="mh-panel" id="mhPanel-overview">
         ${setupPanelHtml(item)}
 
-        ${radarBreakdownHtml}
-
-        ${confCtx && conf ? `<div class="mh-conf-ctx">
-          <span class="badge-confidence conf-${conf}">${conf}</span>
-          <span class="mh-conf-ctx-why">adjusted for backtested edge — ${confCtx}</span>
-        </div>` : ''}
 
         ${renderInstrumentTrackRecord(item.instrument_name)}
 
@@ -5087,17 +5019,13 @@
             ${similar.map(s => {
               const sBuy  = isBuy(s);
               const sSig  = s[f('primary_signal')] || '';
-              const sAlign= s.tf_alignment || '';
-              const sConf = s[f('signal_confidence')] || '';
               const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '', s[f('date')]);
               const sPerf = signalPerf(s);
               return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
                 <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
                 <div class="sim-card-group">${s.group||''}</div>
                 <div class="sim-card-badges">
-                  ${sAlign?`<span class="badge-alignment ${alignCls(sAlign)}" style="font-size:.58rem;padding:1px 5px">${sAlign}</span>`:''}
-                  ${sConf?`<span class="badge-confidence conf-${sConf}" style="font-size:.58rem">${sConf}</span>`:''}
-                  ${badge3TF(s)}${sAge.label?`<span class="sig-age ${sAge.decayClass}" style="font-size:.58rem">${sAge.label}</span>`:''}
+                  ${sAge.label?`<span class="sig-age ${sAge.decayClass}" style="font-size:.58rem">${sAge.label}</span>`:''}
                 </div>
                 <div class="sim-card-bottom"><span class="sim-card-price">${formatPrice(s[f('close')])}</span>${(sPerf && sPerf.days > 0)?`<span class="wl-signal-perf ${parseFloat(sPerf.pct)>=0?'perf-pos':'perf-neg'}" style="font-size:.58rem">${parseFloat(sPerf.pct)>=0?'+':''}${sPerf.pct}%</span>`:''}</div>
               </div>`;
@@ -5304,7 +5232,7 @@
       const isDown     = established === 'DOWNTREND';
       const avgCurrent = isUp ? avgUp : isDown ? avgDown : 0;
       const pctOfAvg   = avgCurrent ? Math.round(runDays / avgCurrent * 100) : 0;
-      const maturity   = pctOfAvg >= 150 ? 'Extended' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
+      const maturity   = pctOfAvg >= 150 ? 'Long-running' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
       const move       = currentSeg?.pct_move ?? null;
       // `signal_type` and `signal` are NOT columns — never have been. The
       // payload carries `primary_signal` (today's fire) and `last_signal_type`
@@ -5367,10 +5295,12 @@
       const badgeCls    = isUp ? 'tc-badge-up' : isDown ? 'tc-badge-down' : 'tc-badge-neutral';
       const badgeTxt    = isUp ? '↑ Uptrend' : isDown ? '↓ Downtrend' : 'Neutral';
       const matColor    = d.pctOfAvg >= 150 ? 'var(--sell)' : d.pctOfAvg >= 80 ? 'var(--watch)' : 'var(--buy)';
-      const matIcon     = d.pctOfAvg >= 150 ? '⚠' : d.pctOfAvg >= 80 ? '◑' : '●';
+      const matIcon     = d.pctOfAvg >= 150 ? '◆' : d.pctOfAvg >= 80 ? '◑' : '●';
       const since       = d.currentSeg ? `since ${d.currentSeg.start}` : '';
       const moveStr     = d.move !== null ? `<span class="tc-move" style="color:${d.move>=0?'var(--buy)':'var(--sell)'}">${d.move>=0?'+':''}${d.move}%</span>` : '';
-      const extAttr     = d.maturity === 'Extended' ? ' data-extended' : '';
+      // No red pulse: trends this long ended within 60 bars 16-17.5% of the time,
+      // young ones 36-39% (measured 2026-09-11). Length is not exhaustion.
+      const extAttr     = '';
       const delay       = `animation-delay:${(idx * 0.022).toFixed(3)}s`;
       const matFill     = d.avgCurrent ? Math.min(d.pctOfAvg, 150) / 1.5 : 0; // 0–100% of bar
 
@@ -5512,9 +5442,9 @@
     const avgCurrent  = isCurrentUp ? avgUp : avgDown;
     const longestCurrent = isCurrentUp ? longestUp : longestDown;
     const pctOfAvg = avgCurrent ? Math.round(currentSeg.days / avgCurrent * 100) : 0;
-    const maturity = pctOfAvg >= 150 ? 'Extended' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
-    const maturityColor = pctOfAvg >= 150 ? 'var(--sell)' : pctOfAvg >= 80 ? 'var(--watch)' : 'var(--buy)';
-    const maturityIcon = pctOfAvg >= 150 ? '⚠' : pctOfAvg >= 80 ? '◑' : '●';
+    const maturity = pctOfAvg >= 150 ? 'Long-running' : pctOfAvg >= 80 ? 'Mature' : pctOfAvg >= 40 ? 'Developing' : 'Young';
+    const maturityColor = pctOfAvg >= 150 ? 'var(--text-secondary)' : pctOfAvg >= 80 ? 'var(--watch)' : 'var(--buy)';
+    const maturityIcon = pctOfAvg >= 150 ? '◆' : pctOfAvg >= 80 ? '◑' : '●';
     const currentPct = currentSeg.pct_move != null ? currentSeg.pct_move : null;
 
     main.innerHTML = `
@@ -5722,8 +5652,6 @@
     const trend   = effectiveTrend(item);
     const run     = parseInt(item[f('trend_run_days')]);
     const sig     = item[f('primary_signal')] || '';
-    const align   = item[f('tf_alignment')] || '';
-    const sigConf = item[f('signal_confidence')] || '';
     const volSpk  = item[f('volume_spike_flag')] === 'yes';
 
     const trendEmoji = trend === 'UPTREND' ? '📈' : trend === 'DOWNTREND' ? '📉' : '➡️';
@@ -5737,19 +5665,18 @@
     // trend)`). Same bug v225 fixed in computeSummary(); this was its second
     // call site and it was missed. Prefix test matches publish.py/server.py's
     // buy_mask = primary_signal.startswith('B') exactly — one definition.
-    const dirLabel   = sig.startsWith('B') ? '🟢 Buy' : sig.startsWith('S') ? '🔴 Sell' : '';
+    const dirLabel   = sig.startsWith('B') ? '🟢 Buy' : sig.startsWith('S') ? '🟠 Warning' : '';
 
     let lines = [];
     lines.push(`⚡ *${title}*`);
     lines.push('───────────────');
 
-    if (sig && dirLabel) lines.push(`${dirLabel} · ${sig}${align ? ' · ' + align : ''}`);
+    if (sig && dirLabel) lines.push(`${dirLabel} · ${sig}`);
     else if (trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${run}d run` : ''}`);
 
     lines.push(`💰 ${price}${rocStr ? '  ' + rocStr + ' (5d)' : ''}`);
 
     if (sig && trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${run}d run` : ''}`);
-    if (sigConf === 'high') lines.push(`🎯 High Confidence`);
     if (volSpk) lines.push(`📊 Volume Spike`);
 
     lines.push('───────────────');
@@ -6361,7 +6288,7 @@
       return `<div class="notif-item" data-act="openModal" data-arg="${item.instrument_name}">
         <span class="notif-sig ${buy ? 'notif-buy' : 'notif-sell'}">${sig}</span>
         <div class="notif-body">
-          <span class="notif-name">${item.instrument_name}${conf === 'high' ? ' ★' : ''}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
+          <span class="notif-name">${item.instrument_name}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
           <span class="notif-detail">${item.confirmation_status || ''}</span>
         </div>
         <span class="notif-group">${item.group || ''}</span>
@@ -8061,7 +7988,7 @@
     // 1H carries no signal-engine columns, so it has no trend word either.
     const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
     const trend = hasTfRow ? effectiveTrend(item) : '';
-    const conf  = onSigTf ? (item[f('signal_confidence')] || '') : TF_BY_CODE[tfPrefs.signals].label;
+    const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
     const mv    = parseFloat(item.pct_1d);
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';

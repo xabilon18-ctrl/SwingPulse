@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=260">
+  <link rel="stylesheet" href="/static/css/style.css?v=261">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -193,7 +193,7 @@
               <span class="mp-bd-lbl">Neutral</span>
               <span class="mp-bd-val" id="gbNeutral" style="color:var(--text-secondary)">--</span>
             </div>
-            <div class="mp-bd-row mp-filter-row mp-align-row" id="mpBdAlign">
+            <div class="mp-bd-row mp-filter-row mp-align-row" id="mpBdAlign" hidden>
               <span class="mp-bd-dot" id="mpAlignDot" style="background:var(--accent)"></span>
               <span class="mp-bd-lbl" id="mpAlignLbl" style="color:var(--accent)">--</span>
               <span class="mp-bd-val" id="mpAlignVal" style="color:var(--accent)">--</span>
@@ -217,7 +217,7 @@
       <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
         <div class="trend-alert-header">
           <span class="trend-alert-icon">⚡</span>
-          <span class="trend-alert-title">TREND CHANGE &amp; STRONG SIGNALS</span>
+          <span class="trend-alert-title">TREND CHANGES &amp; MA500 TOUCHES</span>
           <span class="trend-alert-count" id="trendAlertCount">0</span>
         </div>
         <div class="trend-alert-scroll" id="trendAlertScroll"></div>
@@ -233,8 +233,9 @@
         <div id="sectorRadarBody"></div>
       </div>
 
-      <!-- Timeframe Alignment Summary -->
-      <div class="card">
+      <!-- Timeframe Alignment Summary — hidden 2026-09-11: agreement between timeframes
+           measured BACKWARDS (counter-trend setups did better). JS still renders into it. -->
+      <div class="card" hidden>
         <div class="card-header"><h3>TF Alignment</h3></div>
         <div class="alignment-summary" id="alignmentSummary"></div>
       </div>
@@ -310,11 +311,8 @@
       <!-- Header: count + view toggle -->
       <div class="sig-tab-header">
         <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
-        <div class="sig-view-toggle">
-          <button class="sig-view-btn active" data-view="list">List</button>
-          <button class="sig-view-btn" data-view="ranked">Ranked</button>
-        </div>
       </div>
+      <p class="sig-honesty-note">These describe what price did. In testing they picked no better than random entries on the same day. The stop and the position size do the work.</p>
 
       <!-- Full-width search -->
       <div class="sig-search-row">
@@ -348,7 +346,7 @@
           </div>
         </details>
 
-        <details class="filter-pill" id="pillMood">
+        <details class="filter-pill" id="pillMood" hidden>
           <summary>Mood<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
           <div class="filter-pop">
             <div class="mood-opts" id="scannerMoodOpts">
@@ -416,8 +414,6 @@
               <button class="sort-opt" data-sort="pct_1m_asc">Month % — low → high</button>
               <button class="sort-opt" data-sort="pct_1y_desc">Year % — high → low</button>
               <button class="sort-opt" data-sort="pct_1y_asc">Year % — low → high</button>
-              <button class="sort-opt" data-sort="conviction">Conviction</button>
-              <button class="sort-opt" data-sort="radar_score">Radar score</button>
               <button class="sort-opt" data-sort="date_desc">Newest signal</button>
             </div>
           </div>
@@ -427,15 +423,10 @@
           <summary>Filters<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
           <div class="filter-pop">
             <div class="sig-ctx-row">
-        <button class="sig-ctx-chip sig-chip-radar" id="radarChip" title="Radar score — tap to cycle: off → Prime ≥75 → Strong ≥50">🎯 <span class="radar-label">Radar</span></button>
         <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Signal
           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <button class="sig-ctx-chip sig-chip-best" data-filter="best">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
-          Best
         </button>
         <button class="sig-ctx-chip sig-chip-today" data-filter="today">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -537,7 +528,7 @@
               <option value="NEUTRAL">Neutral</option>
             </select>
           </label>
-          <label class="sig-adv-label">Alignment
+          <label class="sig-adv-label" hidden>Alignment
             <select class="sig-adv-select" id="scannerAlignFilter">
               <option value="all">All Alignments</option>
               <option value="bull">Bull Aligned</option>
@@ -568,10 +559,7 @@
           <label class="sig-adv-label">Sort by
             <select class="sig-adv-select" id="scannerSort">
               <option value="signal">Signal First</option>
-              <option value="conviction">Conviction ↓ (sector mood)</option>
-              <option value="radar_score">Radar Score ↓</option>
               <option value="date_desc">Newest First</option>
-              <option value="conf_desc">Confidence ↓</option>
               <option value="pct_1d_desc">1D % ↓</option>
               <option value="pct_1d_asc">1D % ↑</option>
               <option value="pct_1w_desc">1W % ↓</option>
@@ -582,7 +570,6 @@
               <option value="pct_1y_asc">1Y % ↑</option>
               <option value="roc_desc">ROC ↓</option>
               <option value="roc_asc">ROC ↑</option>
-              <option value="order_desc">MA Order ↓</option>
               <option value="run_desc">Trend Run ↓</option>
             </select>
           </label>
@@ -600,12 +587,6 @@
           <div class="sig-def"><span class="feed-badge badge-p2">B2/S2</span> <strong>Fast MA</strong> — Pullback recovery / rally rejection at MA__SIG_SHORTEST__</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B3/S3</span> <strong>Mid-ribbon</strong> — Bounce/rejection off MA__SIG_MID__</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
-        </div>
-        <div class="sig-legend-group">
-          <div class="sig-legend-title">Confidence — backtested edge (10y, per signal/timeframe/asset class)</div>
-          <div class="sig-def"><span class="badge-confidence conf-high">high</span> Historically profitable (≥ +0.05R avg per trade)</div>
-          <div class="sig-def"><span class="badge-confidence conf-standard">standard</span> Marginal or unproven (small edge or thin sample)</div>
-          <div class="sig-def"><span class="badge-confidence conf-low">low</span> Historically losing — trade with extra caution</div>
         </div>
       </div>
     </section>
@@ -895,7 +876,7 @@
         <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
           <span style="font-size:1.1rem;font-weight:800">Who are you?</span>
         </div>
-        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and trades will sync across all your devices.</p>
+        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and notes sync across all your devices.</p>
         <div style="display:flex;gap:14px;justify-content:center">
           <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
           <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
@@ -929,6 +910,6 @@
 
 
 
-  <script src="/static/js/app.js?v=310"></script>
+  <script src="/static/js/app.js?v=311"></script>
 </body>
 </html>
