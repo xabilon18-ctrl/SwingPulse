@@ -294,6 +294,35 @@ def _unadjusted_split(df: pd.DataFrame) -> str | None:
     return None
 
 
+PROBE_DAYS = 21   # calendar days of already-cached bars re-requested to check history still matches Yahoo
+
+
+def _history_mismatch(existing: pd.DataFrame, probe: pd.DataFrame,
+                      skip_from: pd.Timestamp) -> str | None:
+    """Describe a cached history that no longer matches a fresh download, else None.
+
+    Yahoo re-adjusts every past bar after a split, so the bars before it come
+    back at a fraction of what the cache holds. _unadjusted_split needs Yahoo's
+    'Stock Splits' row to be in the cache, and CI's APH cache never received
+    one: after the 2026-09-11 run repaired MNST that way, APH's 2:1 split
+    stayed live there with its false S1. Comparing the overlap catches a split
+    whether or not the row arrived. Dividend adjustment moves a close by a
+    percent or two, so only a >25% disagreement counts; bars from `skip_from`
+    on are ignored because the last cached one may be a mid-session snapshot.
+    """
+    common = existing.index.intersection(probe.index)
+    common = common[common < skip_from]
+    if len(common) == 0:
+        return None
+    ratio = (existing.loc[common, 'Close'].astype(float)
+             / probe.loc[common, 'Close'].astype(float)).dropna()
+    bad = ratio[(ratio - 1).abs() > 0.25]
+    if bad.empty:
+        return None
+    return (f'cached closes disagree with a fresh download '
+            f'(x{bad.iloc[-1]:.2f} on {str(bad.index[-1])[:10]}), likely a split')
+
+
 def _append_new_bars(path: str, new_df: pd.DataFrame) -> pd.DataFrame:
     """Append new_df rows to the parquet file, deduplicate, and save."""
     existing = pd.read_parquet(path)
@@ -395,7 +424,18 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
             os.utime(path, None)
             return existing
 
-        new_df = _full_download(ticker, start, end)
+        # Ask for PROBE_DAYS of already-cached bars as well, to check the
+        # history still matches Yahoo's (_history_mismatch), then append only
+        # the bars from last_date on — rewriting older bars would step their
+        # dividend adjustment against the rest of the cache.
+        probe = _full_download(ticker, start - timedelta(days=PROBE_DAYS), end)
+        problem = _history_mismatch(existing, probe, last_date)
+        if problem:
+            print(f'    WARN [{ticker}] {problem} — re-downloading full history')
+            df = _full_download(ticker, end - timedelta(days=int(HISTORY_YEARS * 365.25)), end)
+            df.to_parquet(path)
+            return df
+        new_df = probe[probe.index >= last_date]
 
         # Every bar on offer was priceless (Yahoo serving NaN OHLC for a session
         # it has volume for). Not an error and not worth a warning — there is
