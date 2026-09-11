@@ -46,6 +46,7 @@ Usage:
 """
 import argparse
 import datetime
+import gzip
 import json
 import os
 import re
@@ -125,7 +126,12 @@ def _fetch_json(fname):
     req = urllib.request.Request(url, headers={
         'User-Agent': USER_AGENT, 'Cache-Control': 'no-cache, max-age=0'})
     with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode('utf-8'))
+        body = r.read()
+        # signals/trends/backtest are published gzipped (2026-09-11), and urllib
+        # does not undo Content-Encoding the way a browser does.
+        if body[:2] == b'\x1f\x8b':
+            body = gzip.decompress(body)
+        return json.loads(body.decode('utf-8'))
 
 
 def load_rows(snapshot=None):

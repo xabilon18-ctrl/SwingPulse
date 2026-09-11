@@ -98,6 +98,11 @@ jobs:
           # is wired up rather than left out: an unwired key means that note
           # can never come down.
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          # Download prices on EVERY run (2026-09-11). data_fetcher's local
+          # default is a 20h gate; here it meant only the first run of the day
+          # fetched, and the next morning's run finalised that mid-session
+          # snapshot as a closed bar. ~1 extra minute and ~90 Actions minutes a month.
+          FETCH_MAX_AGE_HOURS: '1'
         run: |
           cd swing_generator
           python3 main.py --profile ma500

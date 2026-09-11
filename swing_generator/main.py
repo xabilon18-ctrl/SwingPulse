@@ -680,27 +680,8 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         except Exception:
             pass
 
-        # ── 1-HOUR (the hourly cache itself — same feed 4H resamples) ──
-        # Runs the identical engine and the identical ribbon on hourly bars.
-        # Session-scaled by _h1_ma_periods for the cash indices charted as 24h
-        # contracts, for the same reason the 4H side is.
-        h1_data = {}
-        if hourly_df is not None and len(hourly_df) >= 200:
-            h1 = _h1_frame(hourly_df)
-            h1_ma_periods = _h1_ma_periods(h1, ticker)
-            # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
-            if len(h1_ma_periods) >= 2:
-                h1 = add_all_indicators(h1, ma_periods=h1_ma_periods)
-                h1 = add_signals(h1, ma_periods=h1_ma_periods,
-                                 refire_pct=0.02, new_trend_pct=0.05,
-                                 tf='1H', asset_class=_asset_cls)
-                h1_data, _ = _extract_row(
-                    h1, run_date, prefix='h1_',
-                    ma_periods=h1_ma_periods,
-                    signal_lookback=SIGNAL_LOOKBACK_1H,
-                )
-                if h1_data is None:
-                    h1_data = {}
+        # ── 1-HOUR: no signals since 2026-09-11 (see config.TIMEFRAMES). The
+        # 1H chart is built separately by webapp/chart_feed.py. ──
 
         # ── 4-HOUR (from hourly data) ──
         h4_data = {}
@@ -778,7 +759,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
-            **(h1_data or {}),
             **(h4_data or {}),
             **(d3_data or {}),
             **(w_data or {}),

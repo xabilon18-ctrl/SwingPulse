@@ -222,6 +222,9 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   border-color: var(--accent);
 }
 
+/* A tab that cannot show a timeframe hides its button. Signal tabs offer Daily
+   and Weekly only (1H/4H/3D are chart views since 2026-09-11); Charts offers all. */
+.tf-switch-btn[hidden] { display: none; }
 body.tf-locked .tf-switch-btn  { display: none; }
 body.tf-locked .tf-switch-note { display: block; }
 /* Desktop: the toggle spanned the full window — the largest thing on screen. */

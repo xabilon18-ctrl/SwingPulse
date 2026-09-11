@@ -57,6 +57,7 @@ Usage:
   python3 tools/health_check.py --warn-only        # report, always exit 0
 """
 import argparse
+import gzip
 import json
 import re
 import sys
@@ -150,7 +151,12 @@ def _fetch(fname):
         'Pragma': 'no-cache',
     })
     with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode('utf-8'))
+        body = r.read()
+        # signals/trends/backtest are published gzipped (2026-09-11), and urllib
+        # does not undo Content-Encoding the way a browser does.
+        if body[:2] == b'\x1f\x8b':
+            body = gzip.decompress(body)
+        return json.loads(body.decode('utf-8'))
 
 
 def _parse_ts(raw):

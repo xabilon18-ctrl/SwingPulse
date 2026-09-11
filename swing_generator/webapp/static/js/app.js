@@ -138,7 +138,25 @@
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
   const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
 
-  let timeframe = '4H';
+  let timeframe = 'D';
+  // Which timeframes each tab may show (2026-09-11). Buy/sell signals exist on
+  // Daily and Weekly only: 1H/4H/3D signals never beat a random entry taken the
+  // same day, and 4H/3D mostly repeat Daily, so those three are CHART VIEWS.
+  // Charts offers all five, the signal tabs offer D/W, Trends is Daily data.
+  // Charts and the signal tabs remember their timeframe separately, so zooming
+  // a chart to 4H never turns the Signals tab into 4H.
+  const SIGNAL_TFS = new Set(['D', 'W']);
+  const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'] };
+  const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
+  const tfPrefs = { signals: 'D', charts: 'D' };
+  // Run fn with the signal timeframe active when the current one is a chart
+  // view. fn MUST be synchronous: the swap is undone before anything else can
+  // render, so no other code ever sees the borrowed timeframe.
+  function withSignalTf(fn) {
+    const saved = timeframe;
+    if (!SIGNAL_TFS.has(timeframe)) timeframe = tfPrefs.signals;
+    try { return fn(); } finally { timeframe = saved; }
+  }
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
   let eventsData = { events: [], sources: {} };  // scheduled events (events.json)
   // Which dropdown segment is open. Persisted like stars, notes and the
@@ -1167,7 +1185,9 @@
   // The f() accessor maps to unprefixed (Daily) or h4_ (4-Hour) columns.
   // Keep the header toggle buttons (and any other tf controls) in sync.
   function syncTfButtons() {
+    const allowed = new Set(tabTfs(currentTab));
     document.querySelectorAll('.tf-switch-btn').forEach(b => {
+      b.hidden = !allowed.has(b.dataset.tf);
       const on = b.dataset.tf === timeframe;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -1223,7 +1243,19 @@
     if (el) el.textContent = note;
   }
 
+  // A reader's choice: only timeframes this tab can show, remembered per side.
   function setTimeframe(tf) {
+    if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
+    if (currentTab === 'charts') tfPrefs.charts = tf;
+    else if (currentTab !== 'trends') tfPrefs.signals = tf;
+    try {
+      localStorage.setItem('swingpulse-tf', tfPrefs.signals);
+      localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
+    } catch (e) {}
+    applyTimeframe(tf);
+  }
+
+  function applyTimeframe(tf) {
     if (!isTf(tf)) return;
     if (tf === timeframe) return;
     // Which chart the reader is on, captured BEFORE anything re-renders:
@@ -1237,7 +1269,6 @@
     // is the whole point of anchoring it to dates rather than to bars.
     reelResetPan();
     reel.editing = null;
-    try { localStorage.setItem('swingpulse-tf', tf); } catch (e) {}
     syncTfButtons();
     syncRadarTf();   // radar payload is per-timeframe; re-point before renderAll
     renderAll();  // re-renders dashboard (recomputes summary), scanner, watchlist
@@ -1255,8 +1286,13 @@
   // Restore the persisted timeframe before the first render
   try {
     const _savedTf = localStorage.getItem('swingpulse-tf');
-    if (isTf(_savedTf)) timeframe = _savedTf;
+    const _savedChartTf = localStorage.getItem('swingpulse-chart-tf');
+    // A saved 1H/4H/3D (from before those became chart views) opens on Daily;
+    // Charts keeps it, since that is where it still means something.
+    if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
+    tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
   } catch (e) {}
+  timeframe = tfPrefs.signals;   // the app opens on the Dashboard
 
   // Wire the global header timeframe toggle (4H / Daily)
   document.querySelectorAll('.tf-switch-btn').forEach(b => {
@@ -1312,6 +1348,12 @@
     paneEl.classList.add('active');
     currentTab = tab;
     syncTfLock();
+    // Each tab shows its own timeframe (TAB_TFS): Charts restores the one last
+    // used there, the signal tabs theirs, and Trends is always Daily — it used
+    // to only relabel itself "Daily" while every badge and price on it stayed 4H.
+    const _wantTf = tab === 'charts' ? tfPrefs.charts : tab === 'trends' ? 'D' : tfPrefs.signals;
+    if (_wantTf !== timeframe) applyTimeframe(_wantTf);
+    syncTfButtons();
     // Start every tab at the top. The panes share the document's scroll
     // offset, so tapping through from halfway down the Dashboard used to drop
     // you into the middle of the signal list — worst from a Sector Radar tap,
@@ -3294,7 +3336,7 @@
     // 4-TF buy/sell/neutral grid — see all timeframes at a glance
     const tfGrid = document.getElementById('mpTfGrid');
     if (tfGrid && allData.length) {
-      const tfs = TIMEFRAMES.map(t => ({
+      const tfs = TIMEFRAMES.filter(t => SIGNAL_TFS.has(t.code)).map(t => ({
         code: t.code, field: t.prefix + 'trend_direction', label: t.label,
       }));
       tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
@@ -4878,7 +4920,14 @@
     overlay.classList.remove('open');
   }
 
-  async function openModal(name) {
+  // Signals live on Daily and Weekly only. A sheet opened from a chart view
+  // (1H/4H/3D) shows the signal timeframe the reader last used, never a 4H/3D
+  // signal. openModalAt has no await in it, so withSignalTf is safe here.
+  function openModal(name) {
+    return withSignalTf(() => openModalAt(name));
+  }
+
+  function openModalAt(name) {
     const item = allData.find(d => d.instrument_name === name);
     if (!item) return;
     openModalName = name;
@@ -8005,9 +8054,14 @@
 
   function reelCardHtml(item, i) {
     const name  = item.instrument_name;
-    const sig   = item[f('primary_signal')] || '';
-    const trend = effectiveTrend(item);
-    const conf  = item[f('signal_confidence')] || '';
+    // On a chart view (1H/4H/3D) the signal shown is the signal timeframe's and
+    // is labelled with it, so a Daily B3 is never read as a 4H one.
+    const onSigTf = SIGNAL_TFS.has(timeframe);
+    const sig   = withSignalTf(() => item[f('primary_signal')] || '');
+    // 1H carries no signal-engine columns, so it has no trend word either.
+    const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
+    const trend = hasTfRow ? effectiveTrend(item) : '';
+    const conf  = onSigTf ? (item[f('signal_confidence')] || '') : TF_BY_CODE[tfPrefs.signals].label;
     const mv    = parseFloat(item.pct_1d);
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
@@ -8045,7 +8099,7 @@
       </div>
 
       <footer class="reel-foot">
-        <span class="reel-trend ${trCls}">${trend}</span>
+        ${trend ? `<span class="reel-trend ${trCls}">${trend}</span>` : ''}
         <span class="reel-tf-tag">${tfMeta().label}</span>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
@@ -8087,6 +8141,9 @@
     // mean two different things on two tabs.
     if (reel.stack !== 'all') rows = rows.filter(d => matchesStackFilter(d, reel.stack));
 
+    // Signal scopes and the signal sort read the signal timeframe: on a chart
+    // view (1H/4H/3D), "Buys only" means a Daily or Weekly buy.
+    rows = withSignalTf(() => {
     switch (reel.scope) {
       case 'today':   rows = rows.filter(firedOnLatestBar); break;
       case 'signal':  rows = rows.filter(d => !!d[f('primary_signal')]); break;
@@ -8095,6 +8152,8 @@
       case 'watch':   rows = rows.filter(d => d[f('watch_flag')] === 'yes'); break;
       case 'starred': rows = rows.filter(d => userStarred.has(d.instrument_name)); break;
     }
+    return rows;
+    });
 
     const sigRank = d => {
       if (firedOnLatestBar(d)) return 0;
@@ -8108,6 +8167,7 @@
     };
 
     const sorted = [...rows];
+    withSignalTf(() => {
     if (reel.sort === 'name') {
       sorted.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
     } else if (reel.sort === 'move') {
@@ -8121,6 +8181,7 @@
         daysAgo(a) - daysAgo(b) ||
         a.instrument_name.localeCompare(b.instrument_name));
     }
+    });
     return sorted;
   }
 
@@ -8232,8 +8293,11 @@
     ctx.fillRect(0, 0, W, H + HEAD + FOOT);
 
     const item  = allData.find(d => d.instrument_name === name) || {};
-    const sig   = item[f('primary_signal')] || '';
-    const trend = effectiveTrend(item);
+    // Same rule as the card: on a chart view the signal is the signal
+    // timeframe's and says so; 1H has no trend word.
+    const _sig  = withSignalTf(() => item[f('primary_signal')] || '');
+    const sig   = _sig && !SIGNAL_TFS.has(timeframe) ? `${_sig} (${TF_BY_CODE[tfPrefs.signals].label})` : _sig;
+    const trend = (item[f('close')] !== undefined && item[f('close')] !== '') ? effectiveTrend(item) : '';
     const full  = instName(name);
 
     ctx.textBaseline = 'alphabetic';

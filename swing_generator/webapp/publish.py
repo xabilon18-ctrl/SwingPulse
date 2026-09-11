@@ -13,6 +13,7 @@ Modes:
 import argparse
 import concurrent.futures
 import glob
+import gzip
 import json
 import os
 import shutil
@@ -92,6 +93,20 @@ def load_latest_trends(date_str, src_dir=None):
     return {}
 
 
+def _dump_json_gz(path, obj, **kw):
+    """Write JSON gzipped under its plain .json name.
+
+    The app's three big startup files went out uncompressed: 7.9 MB of the
+    8.24 MB a phone downloaded on first open (signals.json 4.59 MB, 0.63 MB
+    gzipped). The public r2.dev endpoint compresses nothing itself, and
+    upload_to_r2 already sets Content-Encoding: gzip on gzip bytes
+    (_is_gzipped), as it does for the chart feed. mtime=0 keeps identical
+    content byte-identical between runs.
+    """
+    with open(path, 'wb') as raw, gzip.GzipFile(fileobj=raw, mode='wb', mtime=0, compresslevel=9) as gz:
+        gz.write(json.dumps(obj, **kw).encode('utf-8'))
+
+
 def build_summary(df, dt):
     if df.empty:
         return {}
@@ -100,7 +115,8 @@ def build_summary(df, dt):
 
     trend_counts  = _col('trend_direction').value_counts().to_dict()
     trend_counts.pop('', None)
-    sigs          = _col('h4_primary_signal').fillna('').astype(str)
+    # Daily, like the screen it sits under (was h4_ — 4H counts under a Daily app).
+    sigs          = _col('primary_signal').fillna('').astype(str)
     buy_mask      = sigs.str.startswith('B')
     sell_mask     = sigs.str.startswith('S')
     signal_types  = sigs[sigs != ''].value_counts().to_dict()
@@ -129,7 +145,7 @@ def build_summary(df, dt):
         'trend_counts':     trend_counts,
         'buy_count':        int(buy_mask.sum()),
         'sell_count':       int(sell_mask.sum()),
-        'volume_spikes':    int((_col('h4_volume_spike_flag') == 'yes').sum()),
+        'volume_spikes':    int((_col('volume_spike_flag') == 'yes').sum()),
         'key_level_touches': int((_col('key_level_touched_today') == 'yes').sum()),
         'signal_types':     signal_types,
         'groups':           groups,
@@ -168,127 +184,56 @@ _ALIGN_NOTES = {
     'Mixed':         'mixed timeframe picture',
 }
 
-_CONF_NOTES = {
-    'high':     'high-confidence setup',
-    'standard': 'standard-confidence setup',
-    'low':      'low-confidence — wait for additional confirmation',
-}
-
-
 def _explain_one(row: pd.Series) -> str:
-    """Build a specific, data-driven signal explanation from signal fields — no API."""
+    """Plain description of what fired on DAILY bars — no API, no forecasts.
+
+    Rewritten 2026-09-11. It used to read the 4H columns (published beside a
+    Daily screen) and to add judgements the evidence does not support:
+    "high-confidence setup" (tiers fitted in-sample), "MA order fully stacked"
+    (the order score points the wrong way), "volume spike confirms institutional
+    participation" and "breakout expected" (both measured null). Entries tested
+    no better than random ones taken the same day, and shorts lost after costs,
+    so a sell reads as a warning for longs, not as a short entry.
+    """
     def v(col):
         val = row.get(col, '')
         return str(val).strip() if val is not None and str(val) not in ('', 'nan', 'None') else ''
 
-    sig   = v('h4_primary_signal')
-    conf  = v('h4_confirmation_status')
-    sconf = v('h4_signal_confidence')
-    trend = v('h4_trend_direction') or v('trend_direction')
-    run   = v('h4_trend_run_days')
-    align = v('tf_alignment')
-    order = v('h4_ma_order_score')
-    vol   = v('h4_volume_spike_flag')
-    roc   = v('h4_roc')
-    comp  = v('h4_ribbon_compression')
-    tp    = v('h4_potential_turning_point_flag')
-    kl    = ''
-    spread= v('h4_ribbon_spread')
+    sig    = v('primary_signal')
+    trend  = v('trend_direction')
+    run    = v('trend_run_days')
+    vol    = v('volume_spike_flag')
+    comp   = v('ribbon_compression')
+    spread = v('ribbon_spread')
 
-    # Direction comes from the signal code itself (B* = buy, S* = sell);
-    # fall back to trend direction when no signal is present.
-    is_buy  = sig.startswith('B')
-    is_sell = sig.startswith('S')
-    if not is_buy and not is_sell:
-        is_buy = trend == 'UPTREND'
-        is_sell = trend == 'DOWNTREND'
-
-    # ── Sentence 1: what is firing and why ───────────────────────────
-    sig_desc = _SIG_WHAT.get(sig, ('signal',))[0]
+    sig_desc  = _SIG_WHAT.get(sig, ('signal',))[0]
     trend_lbl = 'uptrend' if trend == 'UPTREND' else 'downtrend' if trend == 'DOWNTREND' else 'sideways trend'
 
-    s1_clauses = [f"{sig} {sig_desc}"]
-
-    if run:
-        try:
-            run_int = int(float(run))
-            s1_clauses.append(f"{run_int}-day {trend_lbl}")
-        except ValueError:
-            pass
-    else:
-        s1_clauses.append(trend_lbl)
-
-    extras = []
-    # tf_alignment note intentionally omitted — timeframes are scored and
-    # explained independently; a cross-TF "counter-trend" note here would
-    # contradict the single-timeframe read shown next to it.
+    clauses = [f"{sig} {sig_desc}"]
+    try:
+        days = int(float(run)) if run else 0
+    except ValueError:
+        days = 0
+    clauses.append(f"{days}-day {trend_lbl}" if days > 0 else trend_lbl)
+    facts = []
     if vol == 'yes':
-        extras.append('volume spike confirms institutional participation')
-    if sconf:
-        conf_note = _CONF_NOTES.get(sconf, '')
-        if conf_note:
-            extras.append(conf_note)
-    if order:
+        facts.append('volume above its 25-day average')
+    if comp == 'yes' and spread:
         try:
-            o = int(float(order))
-            _max_pairs = len(MA_PERIODS) - 1
-            if o >= _max_pairs - 1:
-                extras.append(f'MA order fully stacked bullish ({o}/{_max_pairs})')
-            elif o <= 3:
-                extras.append(f'MA order fully stacked bearish ({o}/{_max_pairs})')
+            facts.append(f'moving averages bunched within {abs(float(spread)):.1f}%')
         except ValueError:
             pass
-    if roc:
-        try:
-            r = float(roc)
-            if abs(r) >= 3:
-                extras.append(f'strong momentum (ROC {r:+.1f}%)')
-        except ValueError:
-            pass
+    s1 = ', '.join(clauses) + (' — ' + '; '.join(facts) if facts else '')
+    s1 = s1[:1].upper() + s1[1:] + '.'   # not capitalize(): it lowercases MA500 / B4
 
-    def _sentence_case(s: str) -> str:
-        """Uppercase only the first letter — str.capitalize() would
-        lowercase technical terms like MA500 / B4 / ROC."""
-        return s[:1].upper() + s[1:] if s else s
-
-    s1_body = ', '.join(s1_clauses)
-    if extras:
-        s1_body += ' — ' + '; '.join(extras[:2])
-    sentence1 = _sentence_case(s1_body) + '.'
-
-    # ── Sentence 2: what to watch / risk ─────────────────────────────
-    s2_parts = []
-
-    if comp == 'yes':
-        if spread:
-            try:
-                sp = float(spread)
-                s2_parts.append(f'ribbon compressed ({sp:.1f}% spread) — breakout expected')
-            except ValueError:
-                s2_parts.append('ribbon squeeze active — watch for breakout direction')
-        else:
-            s2_parts.append('ribbon squeeze active — watch for breakout')
-
-    if tp:
-        s2_parts.append(f'potential turning point: {tp}')
-    elif kl == 'yes':
-        s2_parts.append('key level touched today — watch for reaction')
-
-    if is_buy:
-        if not s2_parts:
-            s2_parts.append('hold while price stays above the MA ribbon')
-        s2_parts.append(f'invalidated on a close below MA{_shortest_ma}')
-    elif is_sell:
-        if not s2_parts:
-            s2_parts.append('hold while price stays below the MA ribbon')
-        s2_parts.append(f'invalidated on a close above MA{_shortest_ma}')
-
-    if sconf == 'low':
-        s2_parts.insert(0, 'low confidence — wait for next-candle confirmation')
-
-    sentence2 = _sentence_case('; '.join(s2_parts[:3])) + '.'
-
-    return f'{sentence1} {sentence2}'
+    if sig.startswith('B'):
+        s2 = f'The setup fails on a close below MA{_shortest_ma}.'
+    elif sig.startswith('S'):
+        s2 = ('Trend weakening — a warning for longs, not a short entry (shorts lost '
+              f'after costs in testing). It clears on a close back above MA{_shortest_ma}.')
+    else:
+        s2 = ''
+    return f'{s1} {s2}'.strip()
 
 
 EVENT_TITLES = {
@@ -367,7 +312,7 @@ def generate_explanations(df: pd.DataFrame) -> dict:
     No API key required — runs entirely from signal data fields.
     Returns {instrument_name: explanation_text}.
     """
-    _sig_col = 'h4_primary_signal' if 'h4_primary_signal' in df.columns else 'primary_signal'
+    _sig_col = 'primary_signal'
     signaled = df[df[_sig_col].notna() & (df[_sig_col] != '')].copy()
     if signaled.empty:
         return {}
@@ -567,8 +512,7 @@ def build_data(output_dir, src_signals_dir=None):
     print(f'  Instruments:  {len(df)}')
 
     signals_data = {'date': dt, 'data': df.to_dict(orient='records')}
-    with open(os.path.join(output_dir, 'signals.json'), 'w') as f:
-        json.dump(signals_data, f, separators=(',', ':'))
+    _dump_json_gz(os.path.join(output_dir, 'signals.json'), signals_data, separators=(',', ':'))
 
     summary = build_summary(df, dt)
     summary['fetched_at'] = fetched_at
@@ -590,8 +534,7 @@ def build_data(output_dir, src_signals_dir=None):
         json.dump(ai_set, f, separators=(',', ':'))
 
     trends = load_latest_trends(dt, src_dir=src_signals_dir)
-    with open(os.path.join(output_dir, 'trends.json'), 'w') as f:
-        json.dump(trends, f, separators=(',', ':'))
+    _dump_json_gz(os.path.join(output_dir, 'trends.json'), trends, separators=(',', ':'))
     print(f'  Trend histories: {len(trends)}')
 
     explanations = generate_explanations(df)
@@ -635,8 +578,7 @@ def build_data(output_dir, src_signals_dir=None):
     if bt_files:
         with open(bt_files[-1]) as f:
             bt = json.load(f)
-        with open(os.path.join(output_dir, 'backtest.json'), 'w') as f:
-            json.dump(bt, f, separators=(',', ':'))
+        _dump_json_gz(os.path.join(output_dir, 'backtest.json'), bt, separators=(',', ':'))
         print(f'  Backtest report: {os.path.basename(bt_files[-1])}')
     else:
         print(f'  Backtest report: none found in {OUTPUT_DIR}')

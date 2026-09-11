@@ -277,15 +277,22 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # so neither gets one. This used to be `if prefix`, which was the same thing
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
-INTRADAY_PREFIXES = {'h4_', 'h1_'}
+INTRADAY_PREFIXES = {'h4_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, tf_alignment, context modifiers,
 # the ledger, the backtest) reads this rather than restating ('', 'h4_') in its
 # own words; the pair was hand-copied in four places before Weekly, which is
 # how a new timeframe reaches production wired into three of them.
+#
+# 1H is NOT in this table (removed 2026-09-11). Its signals never beat a random
+# entry taken the same day in other instruments (-0.031R before Jul 2025,
+# -0.006R since, n=13,309), it was the costliest timeframe to compute (~32% of
+# signal time), and the hourly feed is only ~2 years deep, so it can never be
+# tested across a full cycle. The 1H CHART is unaffected: webapp/chart_feed.py
+# builds it from the hourly cache on its own, and _h1_frame/_h1_ma_periods stay
+# in main.py for it and for backtest.py research runs.
 TIMEFRAMES = (
-    ('1H', 'h1_'),
     ('4H', 'h4_'),
     ('D',  ''),
     ('3D', 'd3_'),
@@ -386,8 +393,6 @@ OUTPUT_COLUMNS = [
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
-    # ── 1-Hour (signals + indicators) ──
-    *_tf_signal_columns('h1_'),
     # ── 4-Hour (signals + indicators) ──
     *_tf_signal_columns('h4_'),
     # ── 3-Day (signals + indicators) ──

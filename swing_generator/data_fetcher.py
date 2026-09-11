@@ -47,12 +47,21 @@ def _cache_path(ticker: str, suffix: str = '') -> str:
     return os.path.join(CACHE_DIR, f'{safe}{tag}.parquet')
 
 
-def _is_fresh(path: str, max_age_hours: int = 20) -> bool:
+# How old a cache file may be before a run downloads again. 20h locally, so
+# repeated dev runs reuse one download; CI sets FETCH_MAX_AGE_HOURS=1 so every
+# scheduled run downloads (2026-09-11). Under the 20h gate only the first run of
+# the day fetched, and the next morning's run then finalised that mid-session
+# snapshot as a closed bar — the US bar was taken ~4% into its session.
+DEFAULT_MAX_AGE_HOURS = float(os.environ.get('FETCH_MAX_AGE_HOURS', '20'))
+
+
+def _is_fresh(path: str, max_age_hours: float | None = None) -> bool:
     """Return True if the cache file exists and is newer than max_age_hours."""
     if not os.path.exists(path):
         return False
     age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))
-    return age < timedelta(hours=max_age_hours)
+    limit = DEFAULT_MAX_AGE_HOURS if max_age_hours is None else max_age_hours
+    return age < timedelta(hours=limit)
 
 
 def _normalise(df: pd.DataFrame) -> pd.DataFrame:
@@ -249,6 +258,42 @@ def _full_download(ticker: str, start: datetime, end: datetime,
     return _drop_priceless(_normalise(df))
 
 
+def _unadjusted_split(df: pd.DataFrame) -> str | None:
+    """Describe a split the cache holds but never back-adjusted, else None.
+
+    An incremental fetch appends new bars and never rewrites older ones, while
+    Yahoo re-adjusts the whole history after a split. When a split lands between
+    two runs the cache keeps pre-split prices before it and post-split prices
+    after it: a one-bar drop by exactly the split factor that the engine reads
+    as a crash. MNST 90.36 -> 45.53 on 2026-08-11 and APH 158.55 -> 79.56 on
+    2026-09-01 (both 2:1) each fired a false S1 that way. An adjusted history
+    has no such bar. Yahoo's split row can sit a couple of bars away from the
+    price move (APH's is dated 09-03), so look five bars either side.
+
+    Only REAL splits count — factor >= 1.5 or <= 1/1.5, and a matching one-bar
+    move. Yahoo's split column also carries small corporate-action ratios
+    (0.91, 1.03, 1.1 ...); a first cut without that floor matched an ordinary
+    day's move against them and flagged 80 of 812 caches, which would have
+    re-downloaded all 80 on every run. With it: MNST and APH only (2026-09-11).
+    """
+    if 'Stock Splits' not in df.columns or 'Close' not in df.columns or len(df) < 3:
+        return None
+    splits = df['Stock Splits']
+    splits = splits[(splits >= 1.5) | ((splits > 0) & (splits <= 1 / 1.5))]
+    if splits.empty:
+        return None
+    close = df['Close'].astype(float)
+    jump = close.shift(1) / close          # > 1 where price fell from one bar to the next
+    for day, factor in splits.items():
+        pos = int(close.index.searchsorted(day))
+        window = jump.iloc[max(pos - 5, 1):pos + 6].dropna()
+        hit = window[((window / float(factor) - 1).abs() < 0.10) & ((window - 1).abs() > 0.3)]
+        if not hit.empty:
+            return (f'{float(factor):g}-for-1 split near {str(day)[:10]} not adjusted '
+                    f'(x{hit.iloc[0]:.2f} drop on {str(hit.index[0])[:10]})')
+    return None
+
+
 def _append_new_bars(path: str, new_df: pd.DataFrame) -> pd.DataFrame:
     """Append new_df rows to the parquet file, deduplicate, and save."""
     existing = pd.read_parquet(path)
@@ -277,7 +322,12 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
 
     # ── Already fresh: return immediately ────────────────────────────────
     if not force_refresh and _is_fresh(path):
-        return _read_cache(path)
+        cached = _read_cache(path)
+        problem = _unadjusted_split(cached)
+        if problem is None:
+            return cached
+        print(f'    WARN [{ticker}] {problem} — re-downloading full history')
+        force_refresh = True
 
     # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bar.
     end = datetime.today() + timedelta(days=1)
@@ -297,6 +347,21 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
                 print(f'    INFO [{ticker}] using stale cache')
                 return _read_cache(path)
             return None
+
+    # ── A split the cache never adjusted: replace the whole history ───────
+    try:
+        problem = _unadjusted_split(_read_cache(path))
+    except Exception:
+        problem = None
+    if problem:
+        print(f'    WARN [{ticker}] {problem} — re-downloading full history')
+        try:
+            df = _full_download(ticker, end - timedelta(days=int(HISTORY_YEARS * 365.25)), end)
+            if not df.empty:
+                df.to_parquet(path)
+                return df
+        except Exception as exc:
+            print(f'    WARN [{ticker}] split re-download failed: {exc}')
 
     # ── Incremental: fetch only new bars ─────────────────────────────────
     try:
@@ -376,7 +441,7 @@ HOURLY_HISTORY_DAYS = 729   # Yahoo Finance max for 1h interval
 
 
 def fetch_hourly(ticker: str, force_refresh: bool = False,
-                 max_age_hours: int = 20) -> pd.DataFrame | None:
+                 max_age_hours: float | None = None) -> pd.DataFrame | None:
     """
     Return an hourly OHLCV DataFrame for *ticker*.
 
@@ -519,7 +584,7 @@ def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str,
 
 
 def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False,
-                     max_age_hours: int = 20) -> dict[str, pd.DataFrame]:
+                     max_age_hours: float | None = None) -> dict[str, pd.DataFrame]:
     """Fetch hourly data for every instrument. Returns dict ticker → DataFrame.
 
     Cash indices in H4_SOURCE are fetched from their 24h contract instead. The
