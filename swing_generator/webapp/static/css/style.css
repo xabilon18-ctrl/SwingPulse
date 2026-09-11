@@ -8910,10 +8910,15 @@ body.chart-full-open { overflow: hidden; }
 .reel-ladder-lbl { font-size: 16px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
 .reel-ladder-lbl-key { fill: var(--text-secondary); font-weight: 700; }
 /* Full-screen chart: previous / next without closing. */
+/* Bottom-right corner of the full-screen view (user request): the last thing
+   in the footer, pushed right, and still right if the footer wraps while
+   drawing tools add Lock and Clear. */
+#chartFull .reel-foot { flex-wrap: wrap; row-gap: 6px; }
+.cf-steps { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
 .cf-step {
   appearance: none; border: 1px solid var(--border); background: transparent;
   color: var(--text-secondary); border-radius: 8px;
-  width: 32px; height: 32px; font-size: 20px; line-height: 1; cursor: pointer; flex: 0 0 auto;
+  width: 38px; height: 36px; font-size: 22px; line-height: 1; cursor: pointer; flex: 0 0 auto;
 }
 .cf-step:disabled { opacity: .35; cursor: default; }
 .cf-step:active:not(:disabled) { background: var(--bg-hover); }

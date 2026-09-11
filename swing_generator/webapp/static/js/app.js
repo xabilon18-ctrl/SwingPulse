@@ -8244,7 +8244,6 @@
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
           ${reelTrendlineHtml(item)}
         </div>
-        ${steps}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -8262,6 +8261,7 @@
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${edit && ch && !ch.locked ? '' : ' hidden'}>Lock</button>
           <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${edit && ch ? '' : ' hidden'}>Clear</button>
         </div>
+        ${steps ? `<div class="cf-steps">${steps}</div>` : ''}
       </footer>`;
   }
 
