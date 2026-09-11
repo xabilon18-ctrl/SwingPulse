@@ -69,6 +69,32 @@ def _resample(df: pd.DataFrame, freq: str) -> pd.DataFrame:
     return resampled
 
 
+ATR_PERIOD = 14   # the true-range average backtest.py sizes its 2xATR stop with
+
+
+def _atr_pct(frame: pd.DataFrame) -> str:
+    """ATR(14) as a percent of the last close, blank without enough history.
+
+    backtest._add_atr's definition exactly — zero-price bars masked, simple mean
+    of true range — because the card doubles it into the 2xATR stop the backtest
+    and the ledger grade trades with. The "worth the cost?" line reads it: a stop
+    under ~3% of price on Daily (~6.8% on Weekly) lost money after financing and
+    spread in testing, on random entries as much as on signals (2026-09-11).
+    """
+    tail = frame.tail(ATR_PERIOD + 1)
+    if len(tail) < ATR_PERIOD + 1 or not {'High', 'Low', 'Close'} <= set(tail.columns):
+        return ''
+    high  = tail['High'].where(tail['High'] > 0)
+    low   = tail['Low'].where(tail['Low'] > 0)
+    close = tail['Close'].where(tail['Close'] > 0)
+    prev  = close.shift(1)
+    tr = pd.concat([high - low, (high - prev).abs(), (low - prev).abs()], axis=1).max(axis=1)
+    atr, last = tr.iloc[1:].mean(), close.iloc[-1]
+    if pd.isna(atr) or pd.isna(last) or last <= 0:
+        return ''
+    return _fmt(atr / last * 100, decimals=3)
+
+
 def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
                  signal_lookback=None):
     """Extract the latest signal row from a processed DataFrame.
@@ -151,6 +177,7 @@ def _extract_row(df_processed, run_date, prefix='', ma_periods=None,
         f'{prefix}stack_pair':                    row.get('stack_pair', '') or '',
         f'{prefix}stack_gap_pct':                 _fmt(row.get('stack_gap_pct'), decimals=2),
         f'{prefix}stack_flip_bars':               _fmt(row.get('stack_flip_bars'), decimals=0),
+        f'{prefix}atr_pct':                       _atr_pct(target),
     }
 
     if not prefix:
@@ -954,6 +981,22 @@ def main():
     fetch_all_hourly(instruments, force_refresh=args.refresh)
     _e2 = _time.time() - _t2
     print(f'  Hourly data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+
+    # 2b. Daily vs hourly close cross-check — a free second source that catches
+    #     a feed which is wrong outright. It does NOT catch unadjusted splits
+    #     (both caches carry them alike); data_fetcher._history_mismatch does.
+    #     Published as data_checks.json; the instrument sheet warns on a flag.
+    try:
+        import json as _json
+        from data_fetcher import cross_check_daily_hourly
+        _checks = cross_check_daily_hourly(instruments)
+        os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+        with open(os.path.join(config.OUTPUT_DIR, 'data_checks.json'), 'w') as _fh:
+            _json.dump(_checks, _fh, separators=(',', ':'))
+        print(f"  Daily vs hourly check: {_checks['checked']} compared, "
+              f"{len(_checks['flagged'])} disagree: {', '.join(sorted(_checks['flagged'])) or 'none'}\n")
+    except Exception as _exc:
+        print(f'  Daily vs hourly check failed: {_exc}\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()

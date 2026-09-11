@@ -351,6 +351,8 @@ def _tf_signal_columns(prefix, ma_periods=None):
         # held longer with no cross matched it). These four fields feed a card
         # strip and a filter; nothing in signals.py reads them.
         f'{p}stack_state', f'{p}stack_pair', f'{p}stack_gap_pct', f'{p}stack_flip_bars',
+        # ATR(14) as % of close (main._atr_pct) — the card's "worth the cost?" line.
+        f'{p}atr_pct',
     ]
 
 # ---------------------------------------------------------------------------

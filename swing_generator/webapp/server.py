@@ -1238,6 +1238,17 @@ def api_rotation_paper():
         return jsonify(_json.load(f))
 
 
+@app.route('/api/data-checks')
+def api_data_checks():
+    """Daily vs hourly close disagreements, written by main.py step 2b."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, 'data_checks.json')
+    if not os.path.exists(path):
+        return jsonify({})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
 @app.route('/api/sector-radar')
 def api_sector_radar():
     """Sector activity radar summary written by sector_activity.py.

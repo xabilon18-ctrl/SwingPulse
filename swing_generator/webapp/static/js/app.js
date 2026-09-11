@@ -24,6 +24,7 @@
   let rotationData = null;
   let rotationPaper = null;
   let leadersShowAll = false;
+  let dataChecks = null;      // daily vs hourly price-feed disagreements (data_checks.json)
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : tf === '3D' ? '3D' : 'D');
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
@@ -1658,7 +1659,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes, dcRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1677,6 +1678,7 @@
         fetchJson('/api/shape-similarity', null),
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
+        fetchJson('/api/data-checks', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1699,6 +1701,7 @@
       resetEventIndexes();   // both indexes are derived from the two lines above
       rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
       rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
+      dataChecks = (dcRes && dcRes.flagged) ? dcRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -2014,6 +2017,91 @@
   // counter-trend signals stay visible.
   const SIG_CTX = { B1: 'broke above ribbon', S1: 'broke below ribbon', B2: 'recovered MA50', S2: 'lost MA50', B3: 'bounced at MA250', S3: 'rejected at MA250', B4: 'bounced at MA500', S4: 'rejected at MA500' };
   // No confidence tier on the chip since 2026-09-11 (see verdictOf); a sell is a WARNING.
+  // ── One trend sentence (2026-09-11) ─────────────────────────────────────
+  // The same words on every card that describes a trend: the REGIME (the
+  // established trend and how long it has run) and where price is RIGHT NOW
+  // against the ribbon. Those two disagree on ~9% of uptrend days, and exactly
+  // then the odds the trend is still intact 3 months later fall from ~72% to
+  // 34–41% — so the "now" half is the half worth reading. On Daily the regime
+  // comes from the Trends tab's own segments, so card and tab always agree.
+  function trendSentence(item) {
+    const pre = tfMeta().prefix;
+    const close = parseFloat(item[pre + 'close']);
+    if (!isFinite(close)) return null;
+    let dir = '', age = '';
+    if (timeframe === 'D') {
+      const seg = (trendsData[item.instrument_name] || [])[0];
+      if (seg && (seg.direction === 'UPTREND' || seg.direction === 'DOWNTREND')) {
+        dir = seg.direction;
+        age = `${Number(seg.days).toLocaleString('en-US')} days`;
+      }
+    }
+    if (!dir) {
+      dir = item[pre + 'established_trend'] || '';
+      const run = parseInt(item[pre + 'trend_run_days']);
+      if ((dir === 'UPTREND' || dir === 'DOWNTREND') && run > 0) age = `${run.toLocaleString('en-US')} ${tfMeta().bar}`;
+    }
+    const mas = Object.keys(item)
+      .filter(k => k.startsWith(pre + 'ma_') && /^\d+$/.test(k.slice(pre.length + 3)))
+      .map(k => ({ p: +k.slice(pre.length + 3), v: parseFloat(item[k]) }))
+      .filter(m => isFinite(m.v))
+      .sort((a, b) => a.p - b.p);
+    const names = list => list.map(m => 'MA' + m.p).join(' & ');
+    const below = mas.filter(m => close < m.v);
+    const above = mas.filter(m => close >= m.v);
+    let head, now = '', against = false;
+    if (dir === 'UPTREND') {
+      head = 'Uptrend' + (age ? ' ' + age : '');
+      against = below.length > 0;
+      if (mas.length) now = !against ? `above all ${mas.length} MAs`
+                          : below.length === mas.length ? `now below all ${mas.length} MAs` : `now below ${names(below)}`;
+    } else if (dir === 'DOWNTREND') {
+      head = 'Downtrend' + (age ? ' ' + age : '');
+      against = above.length > 0;
+      if (mas.length) now = !against ? `below all ${mas.length} MAs`
+                          : above.length === mas.length ? `now above all ${mas.length} MAs` : `now above ${names(above)}`;
+    } else {
+      head = 'No established trend';
+      if (mas.length) now = above.length === mas.length ? `above all ${mas.length} MAs`
+                          : below.length === mas.length ? `below all ${mas.length} MAs`
+                          : `above ${names(above)}`;
+    }
+    return { dir, against, head, now,
+             glyph: dir === 'UPTREND' ? '▲' : dir === 'DOWNTREND' ? '▼' : '—',
+             text: now ? `${head} · ${now}` : head };
+  }
+
+  // ── "Worth the cost?" (2026-09-11) ──────────────────────────────────────
+  // The stop the backtest and ledger grade with is 2×ATR(14). When that is a
+  // small share of price, financing and spread are a big share of the risk:
+  // stops under ~3.0% on Daily and ~6.8% on Weekly lost money after costs in
+  // testing — on random entries as much as on signals, so it is a cost fact,
+  // not a signal claim. Shown only where something fired.
+  const COST_TIGHT = { D: { pct: 3.0, r: '−0.22R' }, W: { pct: 6.8, r: '−0.21R' } };
+  function stopPctOf(item) {
+    const a = parseFloat(item[f('atr_pct')]);
+    return isFinite(a) && a > 0 ? a * 2 : null;
+  }
+  function costTight(item) {
+    const rule = COST_TIGHT[timeframe], s = stopPctOf(item);
+    return !!(rule && s != null && item[f('primary_signal')] && s < rule.pct);
+  }
+  function costLineHtml(item) {
+    const rule = COST_TIGHT[timeframe], s = stopPctOf(item);
+    if (!rule || s == null || !item[f('primary_signal')]) return '';
+    const stop = s.toFixed(s < 10 ? 1 : 0);
+    return s < rule.pct
+      ? `<div class="sc-cost sc-cost-tight" title="In testing (2013–26) stops this tight lost money after financing and spread, on random entries as much as on signals.">Stop 2×ATR ≈ ${stop}% of price · tight: after financing and spread, trades like this averaged ${rule.r}</div>`
+      : `<div class="sc-cost">Stop 2×ATR ≈ ${stop}% of price · wide enough that costs stay a small share of the risk</div>`;
+  }
+
+  // Price-feed warning for the instrument sheet (data_checks.json, main.py 2b).
+  function dataWarnHtml(item) {
+    const fl = dataChecks && dataChecks.flagged && dataChecks.flagged[item.instrument_name];
+    if (!fl) return '';
+    return `<div class="mh-data-warn">⚠ Price feeds disagree: this market's daily close and its hourly feed differed by more than ${dataChecks.tolerance_pct || 3}% on ${fl.bad_days} of the last ${fl.days} days (worst ${fl.worst_pct}% on ${fl.worst_date}). Treat its levels and signals with caution.</div>`;
+  }
+
   function setupPanelHtml(item, opts = {}) {
     const t = effectiveTrend(item);
     const sig = item[f('primary_signal')] || '';
@@ -2021,14 +2109,15 @@
     const lastSigType = item[f('last_signal_type')] || '';
     const lastIsBuy = lastSigType.startsWith('B');
     const lastSigAge = signalAge(item[f('last_signal_date')] || '', item[f('date')]).label;
-    const pos = ribbonPos(item);
-    const phase = ribbonPhase(item, t);
-    let posNote = pos === 'inside' ? 'price in ribbon' : pos === 'above' ? 'price above ribbon' : pos === 'below' ? 'price below ribbon' : '';
-    if (phase === 'REACTION') posNote = 'in MAs — watch B2 / B3 / B4';
-    if (phase === 'RALLY')    posNote = 'in MAs — watch S2 / S3 / S4';
-    const stGlyph = t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
-    const stCls   = t === 'UPTREND' ? 'sc-state-up' : t === 'DOWNTREND' ? 'sc-state-dn' : 'sc-state-neu';
-    const stateLine = `<div class="sc-setup-state ${stCls}">${stGlyph} ${t}${phase ? ` <span class="sc-phase">· ${phase}</span>` : ''}${posNote ? ` <span class="sc-hint">${posNote}</span>` : ''}</div>`;
+    // One trend sentence (trendSentence): the regime and where price is now.
+    // It replaced "▲ UPTREND · REACTION in MAs — watch B2 / B3 / B4", which
+    // nudged toward entries that test no better than random (2026-09-11).
+    const ts = trendSentence(item);
+    const stCls = !ts ? 'sc-state-neu' : ts.against ? 'sc-state-pull'
+                : ts.dir === 'UPTREND' ? 'sc-state-up' : ts.dir === 'DOWNTREND' ? 'sc-state-dn' : 'sc-state-neu';
+    const stateLine = ts
+      ? `<div class="sc-setup-state ${stCls}">${ts.glyph} ${ts.head}${ts.now ? ` <span class="sc-hint">· ${ts.now}</span>` : ''}</div>`
+      : `<div class="sc-setup-state sc-state-neu">— ${t}</div>`;
 
     let sigChip;
     if (sig) {
@@ -2046,6 +2135,7 @@
     return `<div class="sc-setup ${t === 'UPTREND' ? 'sc-setup-up' : t === 'DOWNTREND' ? 'sc-setup-dn' : 'sc-setup-neu'}">
       ${stateLine}
       <div class="sc-setup-event">${sigChip}${sinceHtml}</div>
+      ${costLineHtml(item)}
     </div>${maStackHtml(item)}`;
   }
 
@@ -4226,7 +4316,7 @@
         ? '<div class="sc-stat"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-na">—</div></div>'
         : `<div class="sc-stat" title="Today's volume vs its ${tfMeta().label.toLowerCase()} rolling average — ${fmtRvol(rv)} of normal"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-vol">${fmtRvol(rv)}</div></div>`;
 
-      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
+      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}${costTight(item) ? ' sc-cost-dim' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="scanner-top">
           <div>${cardIdentityHtml(item, { isAi: _aiScan, sep: ' / ' })}</div>
           ${cardActionsHtml(item.instrument_name, { starred })}
@@ -5125,6 +5215,7 @@
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
             ${modalEventHtml(item)}
+            ${dataWarnHtml(item)}
             ${modalShapeHtml(item)}
           </div>
           <div class="mh-sig-wrap">
@@ -5548,6 +5639,7 @@
           <div class="tc-since">${since}</div>
           ${moveStr}
         </div>
+        ${(() => { const ts = d.raw ? trendSentence(d.raw) : null; return ts && ts.now ? `<div class="tc-now${ts.against ? ' tc-now-against' : ''}">Now: ${ts.now}</div>` : ''; })()}
         <div class="tc-signal-row">
           <span class="tc-sig-label" style="color:${sigColor}">${sigLabel}</span>
           <div style="display:flex;align-items:center;gap:5px">${volDot}${priceStr}</div>
