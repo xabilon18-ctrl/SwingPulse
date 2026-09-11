@@ -2568,7 +2568,6 @@
     renderTrackRecord();
     renderAlertBanner();
     rebuildCharts();
-    renderConfidenceBreakdown();
     renderGroupPulse();
     renderVolumePulse();
     renderRotation();
@@ -3409,88 +3408,6 @@
         <span class="tci-label">${lbl}</span>
       </div>`;
     }).join('');
-  }
-
-  // ── Confidence Breakdown (Dashboard) ──────────────────────────────────
-  let activeConfLevel = '';  // currently shown confidence level
-
-  function renderConfidenceBreakdown() {
-    const el = document.getElementById('confidenceBreakdown');
-    if (!el) return;
-
-    // Count by confidence level
-    const counts = { high: 0, standard: 0, low: 0, none: 0 };
-    const byLevel = { high: [], standard: [], low: [], none: [] };
-    allData.forEach(d => {
-      const conf = d[f('signal_confidence')] || '';
-      const level = (conf === 'high' || conf === 'standard' || conf === 'low') ? conf : 'none';
-      counts[level]++;
-      byLevel[level].push(d);
-    });
-    const total = allData.length || 1;
-
-    const segData = [
-      { key: 'high', label: 'High', cls: 'conf-seg-high', count: counts.high },
-      { key: 'standard', label: 'Std', cls: 'conf-seg-standard', count: counts.standard },
-      { key: 'low', label: 'Low', cls: 'conf-seg-low', count: counts.low },
-      { key: 'none', label: 'None', cls: 'conf-seg-none', count: counts.none },
-    ];
-
-    el.innerHTML = `
-      <div class="conf-stacked-bar">
-        ${segData.filter(s => s.count > 0).map(s =>
-          `<div class="${s.cls}" style="width:${(s.count / total * 100).toFixed(1)}%" data-conf="${s.key}" title="${s.label}: ${s.count}">${s.count > 0 ? s.count : ''}</div>`
-        ).join('')}
-      </div>
-      <div class="conf-inst-list" id="confInstList"></div>
-    `;
-
-    // Click segments to show/hide lists
-    el.querySelectorAll('.conf-stacked-bar > div').forEach(seg => {
-      seg.addEventListener('click', () => {
-        const level = seg.dataset.conf;
-        if (activeConfLevel === level) {
-          activeConfLevel = '';
-        } else {
-          activeConfLevel = level;
-        }
-        renderConfInstList(byLevel);
-      });
-    });
-
-    // Default: show high-confidence instruments if any
-    if (counts.high > 0) {
-      activeConfLevel = 'high';
-    } else {
-      activeConfLevel = '';
-    }
-    renderConfInstList(byLevel);
-  }
-
-  function renderConfInstList(byLevel) {
-    const container = document.getElementById('confInstList');
-    if (!container) return;
-
-    if (!activeConfLevel || !byLevel[activeConfLevel] || !byLevel[activeConfLevel].length) {
-      container.innerHTML = '';
-      return;
-    }
-
-    const items = byLevel[activeConfLevel];
-    const levelLabels = { high: 'High Confidence', standard: 'Standard Confidence', low: 'Low Confidence', none: 'No Confidence Rating' };
-    container.innerHTML = `
-      <div style="font-size:.72rem;font-weight:700;padding:4px 0;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px">${levelLabels[activeConfLevel]} (${items.length})</div>
-      ${items.map(item => {
-        const sig = item[f('primary_signal')] || '';
-        const buy = isBuy(item);
-        const sell = isSell(item);
-        const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig)}" style="font-size:.55rem;padding:1px 5px">${sig}</span>` : '';
-        return `<div class="conf-inst-row" data-act="openModal" data-arg="${item.instrument_name}">
-          <span style="font-weight:600">${item.instrument_name} ${sigBadge}</span>
-          <span style="color:var(--text-muted)">${item.group || ''}</span>
-        </div>`;
-      }).join('')}
-    `;
   }
 
   // ── Tab navigation helper ─────────────────────────────────────────────
@@ -6936,13 +6853,8 @@
                    points: sigPts });
     }
 
-    // 2. Signal confidence (max 10) — backtested expectancy of this signal code
-    //    on this timeframe + asset class (confidence_map.json). 'low' means the
-    //    code historically LOSES money there, so it subtracts.
-    const conf = (item[f('signal_confidence')] || '').toLowerCase();
-    if (conf === 'high')          lines.push({ label: 'High confidence — backtested edge', points: 10 });
-    else if (conf === 'standard') lines.push({ label: 'Standard confidence', points: 5 });
-    else if (conf === 'low')      lines.push({ label: 'Low confidence — negative backtest expectancy', points: -10 });
+    // 2. Signal confidence — REMOVED 2026-09-11. The tiers were fitted on the
+    //    trades they claimed to predict, and nothing shows this score any more.
 
     // 3. Ribbon squeeze (max 10) — coiled-spring setup on the active TF
     if (item[f('ribbon_compression')] === 'yes') {
