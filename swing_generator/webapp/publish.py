@@ -1067,7 +1067,11 @@ def deploy_ui_to_pages(ui_dir, project_name=None):
     cmd = [wrangler] if wrangler else ['npx', 'wrangler']
     env = {**os.environ, 'PATH': '/usr/local/bin:' + os.environ.get('PATH', '')}
     result = subprocess.run(
-        cmd + ['pages', 'deploy', ui_dir, '--project-name', name],
+        # --branch main, always. Without it wrangler names the deploy after the
+        # CURRENT GIT BRANCH, so deploying from a feature branch silently went to
+        # a preview URL (<branch>.swingpulse200.pages.dev) while the live site
+        # kept the old build and this still printed 'deploy complete' (2026-09-11).
+        cmd + ['pages', 'deploy', ui_dir, '--project-name', name, '--branch', 'main'],
         capture_output=True, text=True, env=env,
     )
     output = result.stdout + result.stderr
