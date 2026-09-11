@@ -548,7 +548,8 @@ def build_data(output_dir, src_signals_dir=None):
                   'sector_activity_w.json', 'sector_radar_w.json',
                   'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
-                  'instrument_flavours.json', 'events.json'):
+                  'instrument_flavours.json', 'events.json',
+                  'rotation.json', 'rotation_paper.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
             # Byte-for-byte, as the comment above always claimed. It used to
@@ -861,7 +862,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
-                  'events.json', 'events.ics']:
+                  'events.json', 'events.ics',
+                  'rotation.json', 'rotation_paper.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -1006,6 +1008,8 @@ def build_ui():
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")
     js = js.replace("'/api/events'",       f"'{base}/events.json'")
+    js = js.replace("'/api/rotation-paper'", f"'{base}/rotation_paper.json'")
+    js = js.replace("'/api/rotation'",     f"'{base}/rotation.json'")
     # The calendar SUBSCRIPTION feed. Must be an absolute R2 URL: the app is on
     # pages.dev and the .ics lives in the bucket, and webcal:// is resolved by
     # the OS calendar app, which has no page context to resolve a relative path.

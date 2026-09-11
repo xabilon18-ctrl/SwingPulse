@@ -1216,6 +1216,28 @@ def api_shape_similarity():
             return jsonify(json.load(fh))
 
 
+@app.route('/api/rotation')
+def api_rotation():
+    """Sector rotation wheel + market ranking, written by rotation.py."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, 'rotation.json')
+    if not os.path.exists(path):
+        return jsonify({})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
+@app.route('/api/rotation-paper')
+def api_rotation_paper():
+    """The market ranking's forward paper record, written by rotation.py."""
+    import json as _json
+    path = os.path.join(OUTPUT_DIR, 'rotation_paper.json')
+    if not os.path.exists(path):
+        return jsonify({})
+    with open(path) as f:
+        return jsonify(_json.load(f))
+
+
 @app.route('/api/sector-radar')
 def api_sector_radar():
     """Sector activity radar summary written by sector_activity.py.

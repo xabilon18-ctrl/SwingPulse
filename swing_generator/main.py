@@ -1037,6 +1037,17 @@ def main():
     from shape_similarity import write as write_shape_similarity
     write_shape_similarity(instruments)
 
+    # 5d-ter. Sector rotation wheel + market ranking + its forward paper record.
+    #         Isolated like the radar: a failure here must not cost the signals;
+    #         tools/health_check.py flags the two files going stale instead.
+    try:
+        from rotation import update as update_rotation
+        update_rotation(instruments)
+    except Exception:
+        import traceback
+        print('\n  Rotation: FAILED')
+        traceback.print_exc()
+
     # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
     #     Never fatal: a Yahoo metadata outage must not cost a day of signals.
     from events import write_events

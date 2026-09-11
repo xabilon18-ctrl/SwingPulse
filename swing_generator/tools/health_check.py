@@ -87,6 +87,8 @@ TIMESTAMPED = [
     ('sector_activity.json',     'updated_at'),
     ('sector_radar.json',        'generated_at'),
     ('instrument_flavours.json', 'generated_at'),
+    ('rotation.json',            'generated_at'),
+    ('rotation_paper.json',      'updated_at'),
 ]
 
 # Files the app loads that must at least fetch and parse. They are rebuilt from

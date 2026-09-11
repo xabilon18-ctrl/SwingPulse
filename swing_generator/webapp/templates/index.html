@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=261">
+  <link rel="stylesheet" href="/static/css/style.css?v=262">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -223,6 +223,16 @@
         <div class="trend-alert-scroll" id="trendAlertScroll"></div>
       </div>
 
+      <!-- Sector rotation wheel (rotation.py) — where money has been moving between
+           sectors. Describes; never names a "next" sector (tested 2026-09-11). -->
+      <div class="card" id="rotationCard" style="display:none">
+        <div class="card-header">
+          <h3>Sector Rotation</h3>
+          <span class="sr-period" id="rotationWeek"></span>
+        </div>
+        <div id="rotationBody"></div>
+      </div>
+
       <!-- Sector Activity Radar — anomaly monitor, quiet on normal days -->
       <div class="card" id="sectorRadarCard" style="display:none">
         <div class="card-header">
@@ -231,6 +241,16 @@
           <span class="sr-badge" id="sectorRadarBadge"></span>
         </div>
         <div id="sectorRadarBody"></div>
+      </div>
+
+      <!-- Market ranking (rotation.py) — the one ranking that beat an average basket
+           in testing, with its forward paper record. -->
+      <div class="card" id="leadersCard" style="display:none">
+        <div class="card-header">
+          <h3>Market Ranking</h3>
+          <span class="sr-period" id="leadersAsOf"></span>
+        </div>
+        <div id="leadersBody"></div>
       </div>
 
       <!-- Timeframe Alignment Summary — hidden 2026-09-11: agreement between timeframes
@@ -910,6 +930,6 @@
 
 
 
-  <script src="/static/js/app.js?v=311"></script>
+  <script src="/static/js/app.js?v=312"></script>
 </body>
 </html>

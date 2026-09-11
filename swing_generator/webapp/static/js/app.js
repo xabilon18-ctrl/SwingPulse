@@ -20,6 +20,10 @@
   // predictive: it says which charts have moved alike, which is how the app can
   // warn that five "separate" buys are one bet. Never feeds confidence.
   let shapeSim = { neighbours: {}, families: [], family_of: {} };
+  // Sector rotation wheel + market ranking + its paper record (rotation.py).
+  let rotationData = null;
+  let rotationPaper = null;
+  let leadersShowAll = false;
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : tf === '3D' ? '3D' : 'D');
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
@@ -1654,7 +1658,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1671,6 +1675,8 @@
         fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/events', null),
         fetchJson('/api/shape-similarity', null),
+        fetchJson('/api/rotation', null),
+        fetchJson('/api/rotation-paper', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1691,6 +1697,8 @@
       shapeSim = (shRes && (shRes.by_tf || shRes.neighbours)) ? shRes
                  : { neighbours: {}, families: [], family_of: {} };
       resetEventIndexes();   // both indexes are derived from the two lines above
+      rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
+      rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';
@@ -2487,7 +2495,9 @@
     renderConfidenceBreakdown();
     renderGroupPulse();
     renderVolumePulse();
+    renderRotation();
     renderSectorRadar();
+    renderLeaders();
     renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
@@ -2908,6 +2918,193 @@
     'Index': 'Indices', 'Commodities': 'Commod',
   };
 
+  // ── Sector rotation wheel (rotation.json) ─────────────────────────────────
+  // DESCRIBES where money has been moving between sectors. It never names a
+  // "next" sector: tested 2013-26, sectors in Improving reached Leading within
+  // 4 weeks 57-62% of the time but did not beat the average sector afterwards,
+  // and the order of leaders did not repeat (1 of 19 later changes called).
+  const ROT_ZONES = ['Leading', 'Improving', 'Weakening', 'Lagging'];
+  const ROT_COL = { Leading: 'var(--accent)', Improving: 'var(--volume)',
+                    Weakening: 'var(--text-secondary)', Lagging: 'var(--neutral)' };
+  const ROT_ABBR = { 'Basic Materials': 'Materials', 'Communication Services': 'Comms',
+    'Consumer Cyclical': 'Cons. cyclical', 'Consumer Defensive': 'Cons. defensive',
+    'Financial Services': 'Financials', 'Real Estate': 'Real estate' };
+  const rotShort = s => ROT_ABBR[s] || s;
+  function rotDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00Z');
+    return isNaN(d) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  }
+
+  function rotationWheelSvg(sectors) {
+    const W = 340, H = 270, CX = W / 2, CY = H / 2, HX = CX - 22, HY = CY - 20;
+    const pts = sectors.flatMap(s => s.trail || []);
+    // Scale to the 90th percentile, not the maximum: one sector running hot
+    // (crypto) would otherwise squash every other dot into the middle.
+    const q90 = arr => { const a = arr.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(0.9 * (a.length - 1))] : 1; };
+    const sMax = Math.max(0.5, q90(pts.map(p => Math.abs(p[0]))));
+    const dMax = Math.max(0.5, q90(pts.map(p => Math.abs(p[1]))));
+    const X = v => CX + Math.max(-1, Math.min(1, v / sMax)) * HX;
+    const Y = v => CY - Math.max(-1, Math.min(1, v / dMax)) * HY;
+    let out = `<svg class="rot-wheel" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sector rotation wheel: each sector plotted by strength against the average sector (right is stronger) and direction (up is strengthening), with an 8-week tail.">`
+      + `<rect x="${CX}" y="0" width="${CX}" height="${CY}" fill="var(--accent)" opacity=".07"/>`
+      + `<rect x="0" y="0" width="${CX}" height="${CY}" fill="var(--volume)" opacity=".08"/>`
+      + `<rect x="${CX}" y="${CY}" width="${CX}" height="${CY}" fill="var(--text-secondary)" opacity=".03"/>`
+      + `<line x1="${CX}" y1="0" x2="${CX}" y2="${H}" stroke="var(--border)"/><line x1="0" y1="${CY}" x2="${W}" y2="${CY}" stroke="var(--border)"/>`
+      + `<text x="8" y="15" class="rot-q" fill="var(--volume)">IMPROVING</text>`
+      + `<text x="${W - 8}" y="15" class="rot-q" text-anchor="end" fill="var(--accent)">LEADING</text>`
+      + `<text x="8" y="${H - 7}" class="rot-q" fill="var(--text-muted)">LAGGING</text>`
+      + `<text x="${W - 8}" y="${H - 7}" class="rot-q" text-anchor="end" fill="var(--text-secondary)">WEAKENING</text>`;
+    // Labels place in priority order: Leading, Improving and Weakening first
+    // and always shown; a Lagging label that would still collide is dropped —
+    // nine lagging sectors bunch together, and the zone list under the wheel
+    // names every sector anyway. Widths are estimated at 6px a character, rows 13px
+    // apart (a 10px label's box is ~12px tall, so 11px still touched).
+    const important = s => s.zone === 'Leading' || s.zone === 'Improving' || s.zone === 'Weakening';
+    const drawn = sectors.filter(s => s.trail && s.trail.length && s.zone)
+      .map(s => ({ s, x: X(s.strength), y: Y(s.direction) }))
+      .sort((a, b) => (important(b.s) - important(a.s)) || (a.y - b.y));
+    drawn.forEach(({ s }) => {
+      out += `<polyline points="${s.trail.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="${ROT_COL[s.zone]}" stroke-width="1.4" opacity=".45" stroke-linejoin="round"/>`;
+    });
+    drawn.forEach(({ s, x, y }) => {
+      out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${ROT_COL[s.zone]}" stroke="var(--bg-card)" stroke-width="1.5"><title>${escText(s.name)}: ${s.zone} · strength ${s.strength} · direction ${s.direction}</title></circle>`;
+    });
+    const placed = [];
+    const clash = (x, y, w) => placed.some(p => x < p.x + p.w + 3 && p.x < x + w + 3 && Math.abs(p.y - y) < 13);
+    drawn.forEach(({ s, x, y }) => {
+      const label = rotShort(s.name);
+      const lw = label.length * 6;
+      const lx = x + 7 + lw > W - 4 ? x - 7 - lw : x + 7;
+      let ly = y + 3.5;
+      for (let n = 0; n < 6 && clash(lx, ly, lw); n++) ly += 13;
+      ly = Math.max(12, Math.min(H - 16, ly));
+      if (clash(lx, ly, lw) && !important(s)) return;
+      placed.push({ x: lx, y: ly, w: lw });
+      const strong = s.zone === 'Leading' || s.zone === 'Improving';
+      out += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" class="rot-lbl${strong ? ' rot-lbl-strong' : ''}">${escText(label)}</text>`;
+    });
+    return out + '</svg>';
+  }
+
+  function renderRotation() {
+    const card = document.getElementById('rotationCard');
+    const body = document.getElementById('rotationBody');
+    if (!card || !body) return;
+    const d = rotationData;
+    const w = d && d.wheel;
+    if (!w || !Array.isArray(w.sectors) || !w.sectors.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const t = d.thermometer || {};
+    const wk = document.getElementById('rotationWeek');
+    if (wk) wk.textContent = 'week to ' + rotDate(w.week);
+    const byZone = z => w.sectors.filter(s => s.zone === z).sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0));
+    const zoneRow = z => {
+      const list = byZone(z);
+      if (!list.length) return '';
+      return `<div class="rot-zone"><span class="rot-zone-lbl rot-z-${z.toLowerCase()}">${z}</span>`
+        + list.map(s => `<button class="rot-chip" data-rot-sector="${escText(s.name)}">${escText(rotShort(s.name))}</button>`).join('')
+        + `</div>`;
+    };
+    const before = (w.previous || []).map(p => `${escText(rotShort(p.name))} <span class="rot-dim">${rotDate(p.from)}–${rotDate(p.to)}</span>`).join(' · ');
+    const thermoWord = t.zone === 'Washout' ? 'Washout, a broad sell-off' : t.zone === 'Stretched' ? 'Stretched, most markets already up' : 'Normal';
+    body.innerHTML = `
+      <div class="rot-top">
+        ${w.active ? `<div class="rot-active"><span class="rot-active-lbl">Active now</span><span class="rot-active-name">${escText(w.active.name)}</span><span class="rot-active-since">since ${rotDate(w.active.since)} · ${w.active.weeks} wk${w.active.weeks === 1 ? '' : 's'}</span></div>` : ''}
+        ${before ? `<div class="rot-before">Before: ${before}</div>` : ''}
+        ${t.pct_above_200d != null ? `<div class="rot-thermo">${t.pct_above_200d}% of markets above their 200-day average · ${thermoWord} (${t.pct_4w_ago}% four weeks ago)</div>` : ''}
+      </div>
+      ${rotationWheelSvg(w.sectors)}
+      <div class="rot-zones">${ROT_ZONES.map(zoneRow).join('')}</div>
+      <p class="rot-note">Where money has been moving, not where it goes next. Each dot is a sector against the average sector; tails show the last 8 weeks. In testing (2013–26), sectors in Improving reached Leading within 4 weeks 57–62% of the time but did not beat the average sector afterwards, and the order of leaders did not repeat. Tap a sector to see its markets.</p>`;
+    body.querySelectorAll('[data-rot-sector]').forEach(el =>
+      el.addEventListener('click', () => srGoToSector(el.dataset.rotSector)));
+  }
+
+  // ── Market ranking + paper record (rotation.json, rotation_paper.json) ────
+  // The one ranking that beat an equal-weight basket both before and after
+  // 2022 in testing. The paper record is marked forward from its first run and
+  // never backfilled, so it shows the ranking on data it has not seen.
+  function leadersSparkSvg(nav) {
+    const W = 300, H = 36;
+    const vals = nav.flatMap(p => [p.port, p.basket]);
+    const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
+    const x = i => 2 + (i / Math.max(1, nav.length - 1)) * (W - 4);
+    const y = v => H - 3 - ((v - lo) / span) * (H - 6);
+    const line = key => nav.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+    return `<svg class="lead-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`
+      + `<polyline points="${line('basket')}" fill="none" stroke="var(--text-muted)" stroke-width="1.5"/>`
+      + `<polyline points="${line('port')}" fill="none" stroke="var(--accent)" stroke-width="2"/></svg>`;
+  }
+
+  function renderLeaders() {
+    const card = document.getElementById('leadersCard');
+    const body = document.getElementById('leadersBody');
+    if (!card || !body) return;
+    const d = rotationData && rotationData.leaders;
+    if (!d || !Array.isArray(d.list) || !d.list.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const asOf = document.getElementById('leadersAsOf');
+    if (asOf) asOf.textContent = 'as of ' + rotDate(rotationData.as_of);
+    const byName = new Map(allData.map(it => [it.instrument_name, it]));
+    const pct = v => v == null ? '—' : (v >= 0 ? '+' : '') + (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1)) + '%';
+    const rows = (leadersShowAll ? d.list : d.list.slice(0, 10)).map(r => {
+      const code = (byName.get(r.name) || {}).primary_signal || '';
+      const sigTag = code ? `<span class="lead-tag ${code[0] === 'B' ? 'sig-b' : 'sig-s'}" title="Fired on the latest Daily bar">${code}</span>` : '';
+      const newTag = r.new ? '<span class="lead-tag new" title="Entered the ranking since the last re-rank">NEW</span>' : '';
+      const high = r.below_high == null ? '' : r.below_high < 0.5 ? 'at its high' : `${r.below_high.toFixed(0)}% below high`;
+      const bits = [escText(rotShort(r.sector)), r.cls === 'Crypto' ? 'very volatile' : '', high, r.mom_3m != null ? '3m ' + pct(r.mom_3m) : '']
+        .filter(Boolean).join(' · ');
+      return `<div class="lead-row" data-act="openModal" data-arg="${escText(r.name)}" role="button" tabindex="0">`
+        + `<span class="lead-rank">${r.rank}</span>`
+        + `<div class="lead-main"><div class="lead-l1"><span class="lead-name">${escText(r.name)}</span>${newTag}${sigTag}</div><div class="lead-l2">${bits}</div></div>`
+        + `<span class="lead-move" title="Move from 12 months ago to 1 month ago">${pct(r.mom_12_1)}</span></div>`;
+    }).join('');
+    const hiddenList = d.hidden || [];
+    const hidden = hiddenList.slice(0, 6).map(h => escText(h.name)).join(', ');
+    const P = rotationPaper;
+    let paper = '';
+    if (P && Array.isArray(P.nav) && P.nav.length) {
+      const last = P.nav[P.nav.length - 1];
+      const pr = last.port - 100, br = last.basket - 100;
+      const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+      paper = `<div class="lead-paper">
+        <div class="lead-paper-lbl">Paper record · since ${rotDate(P.started)}</div>
+        <div class="lead-paper-row"><span>Ranking <b class="${pr >= 0 ? 'perf-pos' : 'perf-neg'}">${sign(pr)}</b></span><span>Average basket <b>${sign(br)}</b></span></div>
+        ${P.nav.length >= 2 ? leadersSparkSvg(P.nav) : ''}
+        <div class="lead-paper-sub">Not real trades. The top ${(P.holdings || d.list).length} held at equal weight from ${rotDate(P.started)}, after financing and spread, re-ranked every 20 sessions${P.next_rerank_in != null ? ` (next in ${P.next_rerank_in})` : ''}. Never backfilled.</div>
+      </div>`;
+    }
+    body.innerHTML = `
+      <p class="lead-intro">Markets with the strongest steady climb over the past year, not counting the last month. At most two per sector.</p>
+      <div class="lead-list">${rows}</div>
+      ${d.list.length > 10 ? `<button class="lead-more" id="leadersMore">${leadersShowAll ? 'Show top 10' : `Show all ${d.list.length}`}</button>` : ''}
+      ${hidden ? `<p class="lead-hidden">Left out by the two-per-sector cap: ${hidden}${hiddenList.length > 6 ? '…' : ''}. They move with names already listed.</p>` : ''}
+      ${paper}
+      <p class="rot-note">In testing (2013–26) this ranking beat an average basket both before and after 2022, but in lumps: 2021 and 2022 lost. It is not a buy signal. Use it to choose which markets to study, and keep it to two per sector.</p>`;
+    const more = document.getElementById('leadersMore');
+    if (more) more.addEventListener('click', () => { leadersShowAll = !leadersShowAll; renderLeaders(); });
+  }
+
+  // Jump to Signals searched to a sector. Shared by the Sector Radar and the
+  // rotation wheel (it used to live inside renderSectorRadar).
+  function srGoToSector(sector) {
+    const inp = document.getElementById('scannerSearch');
+    if (inp) inp.value = sector;
+    clearCatChip();
+    scannerSort = 'signal';
+    const sortSel = document.getElementById('scannerSort');
+    if (sortSel) sortSel.value = 'signal';
+    updateScannerCtxStrip?.();
+    navigateToTab('scanner');
+    buildScannerCards();
+    // Re-assert the top AFTER the cards exist. navigateToTab scrolls while the
+    // scanner still holds the previous card set; rebuilding changes the document
+    // height, and scroll anchoring can pull the viewport back down.
+    try { window.scrollTo({ top: 0, behavior: 'instant' }); }
+    catch (_) { document.scrollingElement.scrollTop = 0; }
+  }
+
   function renderSectorRadar() {
     const card = document.getElementById('sectorRadarCard');
     const body = document.getElementById('sectorRadarBody');
@@ -3046,22 +3243,6 @@
 
     // Any sector element (spoke, hot/building card, baseline chip) → Signals
     // filtered to that sector, ranked activity-first (signal-bearing on top).
-    const srGoToSector = sector => {
-      const inp = document.getElementById('scannerSearch');
-      if (inp) inp.value = sector;
-      clearCatChip();
-      scannerSort = 'signal';
-      const sortSel = document.getElementById('scannerSort');
-      if (sortSel) sortSel.value = 'signal';
-      updateScannerCtxStrip?.();
-      navigateToTab('scanner');
-      buildScannerCards();
-      // Re-assert the top AFTER the cards exist. navigateToTab scrolls while the
-      // scanner still holds the previous card set; rebuilding changes the document
-      // height, and scroll anchoring can pull the viewport back down.
-      try { window.scrollTo({ top: 0, behavior: 'instant' }); }
-      catch (_) { document.scrollingElement.scrollTop = 0; }
-    };
     body.querySelectorAll('[data-sr-info]').forEach(el => {
       // The z readout sits INSIDE the chip/card, which navigates to Signals on
       // click. Without stopPropagation the modal would open AND the tab would
