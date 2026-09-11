@@ -7440,7 +7440,10 @@
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
     // Details and TradingView, which moved the chart every time one appeared.
-    return ch ? 'Edit' : 'Channel';
+    // 'Draw', not 'Channel' (2026-09-11): the button opens FOUR tools — channel,
+    // trend line, level and the 10 price lines — so naming it after one of them
+    // described a quarter of what it does.
+    return ch ? 'Edit' : 'Draw';
   }
 
   function reelSyncChannelButtons() {
@@ -7498,6 +7501,15 @@
            `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`;
   }
 
+  // An invisible fat line laid over a drawing's own geometry, so the DRAWING is
+  // a tap target. Its visible stroke is 2.6 viewBox units of dotted line — about
+  // a millimetre on a phone — which you cannot reliably hit, so before this the
+  // only way to choose which drawing Lock/Unlock/Clear acted on was to grab one
+  // of its handles. 40 units is ~14px on a phone card.
+  function reelHitLine(x1, y1, x2, y2, idx) {
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="reel-ch-hit" data-di="${idx}"/>`;
+  }
+
   // Trend line — two anchors, extended across the panel the way the channel's
   // edges are, so it reads as a line you can project rather than a segment.
   function reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive) {
@@ -7515,7 +7527,8 @@
       const above = Math.max(yA, yB) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">line ${above ? '↑' : '↓'} off-scale</text>`;
     }
-    const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`;
+    const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
+               + reelHitLine(L.x0, yA, L.x1, yB, idx);
     const badge = d.locked
       ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
     let handles = '';
@@ -7535,7 +7548,8 @@
       const above = y < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">level ${above ? '↑' : '↓'} off-scale</text>`;
     }
-    const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`;
+    const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
+               + reelHitLine(L.x0, y, L.x1, y, idx);
     const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
     const badge = d.locked
       ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
@@ -7556,6 +7570,7 @@
       if (y < L.py0 || y > L.py1) continue;
       const key = k === 0 || k === 3;
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
+           + reelHitLine(L.x0, y, L.x1, y, idx)
            + `<text x="${(L.x1 - 6).toFixed(1)}" y="${(y - 6).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-key' : ''}" text-anchor="end">${k + 1} · ${reelFmtPrice(p)}</text>`;
       drawn++;
     }
@@ -7664,6 +7679,11 @@
       + seg(dUp,  'reel-ch reel-ch-edge')
       + seg(dDn,  'reel-ch reel-ch-edge')
       + seg(dMid, 'reel-ch reel-ch-mid')
+      // Tap targets over all three lines, so a channel can be made the active
+      // drawing by touching any part of it rather than only its handles.
+      + reelHitLine(XA, yA + dUp,  XB, yB + dUp,  idx)
+      + reelHitLine(XA, yA + dDn,  XB, yB + dDn,  idx)
+      + reelHitLine(XA, yA + dMid, XB, yB + dMid, idx)
       + handles + badge;
   }
 
@@ -7852,13 +7872,16 @@
     const xOf = i => L.x0 + i * bw + bw / 2;
 
     // ── Price axis ──
-    // Drawn first so everything else sits on top of the gridlines.
+    // LABELS ONLY since 2026-09-11. The horizontal gridlines that used to run
+    // across the panel at the round numbers are gone at the user's request:
+    // reelTicks re-picks its levels every time the price window changes, so
+    // panning or zooming made lines appear and disappear under the price —
+    // movement that reads as the chart doing something when nothing happened.
+    // The numbers still sit in the gutter, which is where a level is read.
     const ticks = reelTicks(sc.lo, sc.hi, L.H > 700 ? 8 : 6);
-    const grid = ticks.map(v => {
-      const y = sc.y(v);
-      return `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-opacity=".55"/>` +
-             `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`;
-    }).join('');
+    const grid = ticks.map(v =>
+      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
+    ).join('');
 
     // ── MA ribbon ──
     // Dotted, and each line coloured by its OWN slope: falling red, rising
@@ -8034,6 +8057,25 @@
     // The pointer handlers need the exact geometry that was DRAWN, not a
     // recomputation that might drift from it, so it is stashed on the host.
     host._reelCtx = { L, sc, bw, b, name, bundle };
+
+    // Park the tool bar just above the trend strip and the date row.
+    //
+    // The bar has to be a SIBLING of the chart — the chart's innerHTML is
+    // replaced on every repaint, so a child would be destroyed — which means
+    // its `bottom` is measured against the CARD, footer and all. No CSS
+    // constant can express "clear of the dates" for both a phone card and a
+    // wide desktop one, because the reserve below the plot is a fixed number of
+    // viewBox units and the viewBox height tracks the box's own aspect. The
+    // layout already knows where that reserve starts (L.stripY), and one
+    // viewBox unit is clientWidth/1000 CSS px, so measure it here instead.
+    const _tb = host.parentElement && host.parentElement.querySelector('.reel-toolbar');
+    if (_tb) {
+      const unit    = (host.clientWidth || 360) / 1000;
+      const hostR   = host.getBoundingClientRect();
+      const baseR   = (_tb.offsetParent || host.parentElement).getBoundingClientRect();
+      const stripTop = hostR.top + L.stripY * unit;      // top of the trend strip
+      _tb.style.bottom = Math.max(0, Math.round(baseR.bottom - stripTop + 4)) + 'px';
+    }
 
     // Grab strip over the price scale. Drag it up and the price window narrows,
     // so the same bars are drawn over the same height with less price in
@@ -8934,6 +8976,24 @@
         // the strip, and the drag itself calls preventDefault on the first
         // move — by which point we know it is a drag and not a tap.
         return;
+      }
+
+      // TAP A DRAWING TO SELECT IT (2026-09-11). Lock, Unlock and Clear act on
+      // the ACTIVE drawing, and until now the only way to change which one that
+      // was is to grab a handle — so on a chart carrying three drawings the
+      // buttons silently meant the last one added. Touching any part of a line
+      // now makes it active and opens editing, so its handles appear where you
+      // just touched. Deliberately does NOT claim the gesture: no capture, no
+      // preventDefault, no mode — a drag that happens to start on a line still
+      // pans the chart exactly as it did before.
+      const _di = ev.target && ev.target.dataset ? ev.target.dataset.di : undefined;
+      if (_di !== undefined && _di !== '' && !isNaN(+_di)) {
+        setActiveIdx(ctx.name, +_di);
+        reel.editing = ctx.name;
+        // Without this the tap also opens the instrument modal on the way up.
+        reel.lastGestureAt = Date.now();
+        reelRepaint(host);
+        reelSyncChannelButtons();
       }
 
       // A handle grab wins immediately — no axis lock, because dragging a

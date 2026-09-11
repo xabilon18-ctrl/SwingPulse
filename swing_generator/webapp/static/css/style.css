@@ -7672,6 +7672,10 @@ body {
 .reel-move.down { color: var(--sell); }
 
 .reel-chart {
+  /* Everything you draw is WHITE (2026-09-11, user's choice). Set here rather
+     than on the card so the full-screen chart, which is not inside one, gets
+     the same colour from the same line. */
+  --reel-ch-color: #ffffff;
   flex: 1 1 auto; min-height: 0; margin: 6px 0; position: relative;
   /* The browser keeps VERTICAL panning (the reel scrolls); horizontal drags
      come to our pointer handler, which is what pans through history. Without
@@ -7774,6 +7778,11 @@ body {
 /* The real hit area — invisible, and it must not swallow its own pointer
    events, hence pointer-events:all on a transparent fill. */
 .reel-ch-grab { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
+/* The tap target laid over a drawing's own lines (reelHitLine). Invisible and
+   deliberately fat: the visible stroke is a dotted 2.6 units, which is about a
+   millimetre on a phone and cannot be hit. pointer-events:stroke is what makes
+   a transparent stroke clickable at all. */
+.reel-ch-hit { fill: none; stroke: transparent; stroke-width: 40; pointer-events: stroke; cursor: pointer; }
 
 /* While a channel is being edited the chart takes EVERY gesture. With the
    normal `pan-y` the browser claimed any vertical drag for scrolling the reel
@@ -7852,20 +7861,32 @@ body {
 /* Drawing tools — a vertical strip ON the chart, where a charting app puts
    them, rather than in the footer: five controls plus three tools overflow a
    375px row, and the tools belong next to the thing they draw on. */
+/* A WHITE HORIZONTAL BAR ABOVE THE DATE ROW (2026-09-11, user's layout). It was
+   a dark vertical strip pinned to the left edge at mid-height, which sat on top
+   of the very price action you draw against. Bottom-anchored instead, clear of
+   the date row and the trend strip: reelLayout reserves axisH 30 + stripH 34 of
+   the viewBox below the plot, and because the viewBox height tracks the box's
+   own aspect that reserve is ~5% of a phone card's height and ~10% of a wide
+   desktop one — so 12% clears both. Overshooting only floats the bar a little
+   higher over the chart; undershooting would cover the dates. */
 .reel-toolbar {
-  position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
-  z-index: 3; display: flex; flex-direction: column; gap: 2px;
+  /* Fallback only — reelChartSvg() overwrites `bottom` with the measured gap
+     above the trend strip as soon as the chart paints. */
+  position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
+  z-index: 3; display: flex; flex-direction: row; gap: 2px;
   padding: 3px; border-radius: 9px;
-  background: rgba(0,0,0,.62); border: 1px solid var(--border);
-  backdrop-filter: blur(3px);
+  background: #fff; border: 1px solid rgba(0,0,0,.3);
+  box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }
 .reel-toolbar[hidden] { display: none; }
 .reel-tool {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--accent); padding: 7px; border-radius: 6px;
+  /* Dark ink on the white bar — the accent was chosen to read on a dark
+     translucent panel and is close to invisible on white. */
+  color: #1a1a19; padding: 7px; border-radius: 6px;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.reel-tool:active { background: rgba(255,255,255,.10); }
+.reel-tool:active { background: rgba(0,0,0,.12); }
 .reel-tool svg { display: block; }
 /* A drawn level's price, in the gutter with the axis ticks where levels are read. */
 .reel-ch-lvl { fill: var(--reel-ch-color, #f2f2ee); font-weight: 700; }
@@ -8905,8 +8926,9 @@ body.chart-full-open { overflow: hidden; }
 .reel-strip-lbl { font-size: 17px; fill: var(--text-muted); font-family: inherit; }
 
 /* Ten price lines (2026-09-11): dotted like the calendar lines; 1 and 4 carry the handles. */
-.reel-ladder { stroke: var(--text-muted); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .75; }
-.reel-ladder-key { stroke: var(--text-secondary); stroke-width: 2.2; stroke-opacity: .95; }
+/* White like every other drawing — these are hand-placed, not computed. */
+.reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }
+.reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 2.2; stroke-opacity: .95; }
 .reel-ladder-lbl { font-size: 16px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
 .reel-ladder-lbl-key { fill: var(--text-secondary); font-weight: 700; }
 /* Full-screen chart: previous / next without closing. */
