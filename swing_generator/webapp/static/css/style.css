@@ -7783,15 +7783,18 @@ body {
 
 /* Vertical calendar lines — dotted, and deliberately fainter than the price
    gridlines: they are for orientation, not for reading a level off. */
-/* --border (#2a2a28) on a #121211 panel is a 3-point luminance difference:
-   the lines were technically drawn and effectively invisible, on the phone and
-   in a shared PNG alike. Mid-grey at 60% reads as a guide without competing
-   with price. */
-.reel-tgrid { stroke: var(--text-muted); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .6; }
+/* BLACK since 2026-09-12, at the user's request, and no longer a token: these
+   were mid-grey because the panel used to be #121211 (on which --border was a
+   3-point luminance difference and the lines were effectively invisible). The
+   plot ground is white now, so the old reasoning is dead — black is what reads,
+   and it matches how the user's own charts draw a calendar boundary.
+   The year line stays lighter than the administration line below it: that
+   hierarchy is carried by opacity, width and dash, not by hue. */
+.reel-tgrid { stroke: #14140f; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .75; }
 /* A change of administration is a regime boundary, not a calendar fence, so it
    carries more weight than a year line — it is the only one on the slow
    timeframes and it is there to be read against. */
-.reel-tgrid-admin { stroke: var(--text-secondary); stroke-width: 2; stroke-dasharray: 7 6; stroke-opacity: .8; }
+.reel-tgrid-admin { stroke: #14140f; stroke-width: 2; stroke-dasharray: 7 6; stroke-opacity: 1; }
 .reel-tgrid-lbl { opacity: 1; }
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
