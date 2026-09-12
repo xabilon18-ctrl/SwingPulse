@@ -166,10 +166,13 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   flex: 1 1 0;                                      /* 1H / 4H / Daily / 3D / Weekly split evenly */
   min-width: 0;                                     /* 'Weekly' must not push the row wider than the bar */
   border-radius: 7px;
-  color: var(--text-dim, #9aa3b2);
+  /* Amber and heavier (2026-09-12): D / 3D / W name the timeframe everything
+     on screen is being read at. The SELECTED button keeps its dark ink on the
+     amber pill below — amber on amber would be unreadable. */
+  color: var(--accent, #fbbf24);
   font-size: 14px;
   line-height: 1;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: .06em;
   text-align: center;
   padding: 12px 0;
@@ -182,7 +185,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 @media (max-width: 420px) {
   .tf-switch-btn { font-size: 12.5px; letter-spacing: .01em; }
 }
-.tf-switch-btn:hover { color: var(--text, #e6e9ef); background: rgba(255,255,255,.05); }
+.tf-switch-btn:hover { color: var(--accent, #fbbf24); background: rgba(255,255,255,.05); }
 .tf-switch-btn:active { transform: scale(.96); filter: brightness(.9); }
 .tf-switch-btn.active {
   color: #0a0a0b;
@@ -7833,8 +7836,11 @@ body {
 .reel-trend.up   { color: var(--buy); }
 .reel-trend.down { color: var(--sell); }
 .reel-trend.flat { color: var(--text-muted); }
+/* Amber and bold (2026-09-12, user's call). Which timeframe you are looking at
+   is the one fact on a chart you must never misread — muted grey in a pill read
+   as decoration. */
 .reel-tf-tag {
-  font-size: .62rem; color: var(--text-muted);
+  font-size: .62rem; color: var(--accent); font-weight: 800; letter-spacing: .04em;
   padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px;
 }
 .reel-foot-actions { margin-left: auto; display: flex; gap: 6px; }
@@ -8699,7 +8705,7 @@ body {
   background: var(--glass);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  color: var(--text-secondary);
+  color: var(--accent);
   cursor: pointer;
   transition: background var(--transition), color var(--transition),
               border-color var(--transition);
@@ -8717,7 +8723,10 @@ body {
 .reel-nav-pos {
   font-size: .6rem;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
+  /* Amber and bold (2026-09-12) — "which chart of how many" is the one thing
+     that tells you where you are in an 798-card reel. */
+  color: var(--accent);
+  font-weight: 800;
   letter-spacing: .02em;
   text-align: center;
   line-height: 1.15;
@@ -8939,10 +8948,10 @@ body.chart-full-open { overflow: hidden; }
 .cf-steps { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
 .cf-step {
   appearance: none; border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); border-radius: 8px;
+  color: var(--accent); border-radius: 8px;
   width: 38px; height: 36px; font-size: 22px; line-height: 1; cursor: pointer; flex: 0 0 auto;
 }
 .cf-step:disabled { opacity: .35; cursor: default; }
 .cf-step:active:not(:disabled) { background: var(--bg-hover); }
-.cf-pos { flex: 0 0 auto; font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cf-pos { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .cf-title .reel-trendline { font-size: .78rem; }
