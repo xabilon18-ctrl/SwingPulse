@@ -1057,6 +1057,7 @@ _CHART_BUILDERS = {
     'D':  chart_feed.build_daily,
     '3D': chart_feed.build_3d,
     'W':  chart_feed.build_weekly,
+    'M':  chart_feed.build_monthly,
 }
 
 

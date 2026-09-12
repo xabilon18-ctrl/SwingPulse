@@ -135,6 +135,12 @@
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
+    // Monthly is CHART ONLY and carries one MA (50). `chartOnly` is what tells
+    // the rest of the app that no m_ column exists on a row — 3D and W both
+    // have their own columns, so this is the first timeframe where a prefixed
+    // read returns nothing at all, and anything reading one must borrow the
+    // signal timeframe instead of silently answering "" / NEUTRAL.
+    { code: 'M',  prefix: 'm_',  label: 'Monthly', tv: 'M',  bar: 'months',  barShort: '25-month', chartOnly: true },
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
@@ -7700,7 +7706,7 @@
   // timeframe absent from this table draws no lines at all, and its window's
   // first and last dates come back as the axis instead.
   const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter', 'D': 'year',
-                           '3D': 'admin', 'W': 'admin' };
+                           '3D': 'admin', 'W': 'admin', 'M': 'admin' };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
@@ -8459,10 +8465,16 @@
 
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
-    if (reel.trend !== 'all') rows = rows.filter(d => effectiveTrend(d) === reel.trend);
+    // On a chartOnly timeframe (Monthly) the row carries NO prefixed columns at
+    // all, so these two read the signal timeframe the way the scopes below
+    // already do. Without it `m_trend_direction` is undefined on every row,
+    // effectiveTrend answers NEUTRAL for all 798, and picking Uptrend empties
+    // the reel — a filter that silently matches nothing.
+    const withRowTf = fn => (TF_BY_CODE[timeframe] || {}).chartOnly ? withSignalTf(fn) : fn();
+    if (reel.trend !== 'all') rows = withRowTf(() => rows.filter(d => effectiveTrend(d) === reel.trend));
     // Same predicate the Signals sheet uses, so "near cross" cannot come to
     // mean two different things on two tabs.
-    if (reel.stack !== 'all') rows = rows.filter(d => matchesStackFilter(d, reel.stack));
+    if (reel.stack !== 'all') rows = withRowTf(() => rows.filter(d => matchesStackFilter(d, reel.stack)));
 
     // Signal scopes and the signal sort read the signal timeframe: on a chart
     // view (1H/4H/3D), "Buys only" means a Daily or Weekly buy.

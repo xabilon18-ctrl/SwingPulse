@@ -69,6 +69,45 @@ def _resample(df: pd.DataFrame, freq: str) -> pd.DataFrame:
     return resampled
 
 
+def _resample_monthly(df_daily: pd.DataFrame) -> pd.DataFrame:
+    """Resample finished daily bars to monthly, dropping the month in progress.
+
+    The same two rules as _resample_weekly. Months are labelled by their END
+    ('ME'), and the CURRENT month is dropped — a month is not a bar until it has
+    closed (Important Rule 10). Without that the right-hand bar of a monthly
+    chart would redraw every day for up to a month.
+
+    CHART ONLY. No m_ signal column exists anywhere and none should: with a
+    single MA the dispatch in add_signals collapses (_ma500/_ma250/_ma25 all
+    become 50), so B2/B3/B4 and S2/S3/S4 are structurally dead, and the monthly
+    MA50 state measured CONTRARIAN when paired per-instrument (12m -4.60pp,
+    only 36% of instruments positive). Monthly is context, never a signal
+    source — which is also why 'm_' must stay out of ALIGNMENT_PREFIXES.
+    """
+    ohlcv = ['Open', 'High', 'Low', 'Close', 'Volume']
+    cols  = [c for c in ohlcv if c in df_daily.columns]
+    if not cols or df_daily.empty:
+        return df_daily.iloc[0:0]
+
+    d = df_daily[cols].copy()
+    if getattr(d.index, 'tz', None) is not None:
+        d.index = d.index.tz_localize(None)
+
+    monthly = d.resample('ME').agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum',
+    }).dropna(subset=['Close'])
+
+    if monthly.empty:
+        return monthly
+
+    # Drop the in-progress month: its label (that month's last calendar day) is
+    # still ahead of the newest daily bar we hold. Compared on dates, so a bar
+    # labelled on a month-end that has actually finished is admitted.
+    last_daily = pd.Timestamp(d.index.max()).normalize()
+    return monthly[pd.DatetimeIndex(monthly.index).normalize() <= last_daily]
+
+
 ATR_PERIOD = 14   # the true-range average backtest.py sizes its 2xATR stop with
 
 

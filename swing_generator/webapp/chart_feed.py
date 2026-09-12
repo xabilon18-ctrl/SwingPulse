@@ -59,7 +59,7 @@ sys.path.insert(0, PROJECT_DIR)
 from data_fetcher import h4_ticker                      # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
-                  _resample_weekly, _resample_3d)
+                  _resample_weekly, _resample_3d, _resample_monthly)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -94,9 +94,17 @@ BARS_BY_TF = {
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
+    'M':  300,    # every month there is — the cache tops out at 244 monthly bars
     '4H': 520,
     '1H': 520,
 }
+
+# Monthly carries ONE moving average, and it has to be this one. Measured over
+# 200 instruments: 98% hold the 50 monthly bars MA50 needs, and 0% hold the 250
+# or 500 that MA250/MA500 would need (that is ~21 and ~42 YEARS of history
+# against a cache whose median is 244 months). Those two lines would be blank on
+# every instrument, so the monthly ribbon is MA50 alone.
+MONTHLY_MA_PERIODS = [50]
 
 # Ribbon points are emitted every Nth bar (the last bar is always included).
 # The MAs are smooth and drawn dotted, so this is invisible on screen and cuts
@@ -270,6 +278,28 @@ def build_3d(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['3D'])
 
 
+def build_monthly(cache_dir: str, ticker: str) -> dict | None:
+    """Monthly chart from the same daily cache every other timeframe reads.
+
+    The one timeframe that deliberately ignores MIN_RIBBON_LINES: it carries a
+    single line by design (see MONTHLY_MA_PERIODS), so the two-line floor —
+    which exists to reject a ribbon too short to be worth drawing — would reject
+    every monthly chart instead. The floor still applies in its own terms: an
+    instrument without 50 monthly bars gets no monthly chart at all.
+    """
+    path = os.path.join(cache_dir, _cache_name(ticker))
+    if not os.path.exists(path):
+        return None
+    df = pd.read_parquet(path)
+    if df.empty:
+        return None
+    monthly = _resample_monthly(df)
+    periods = [p for p in MONTHLY_MA_PERIODS if p <= len(monthly)]
+    if not periods:
+        return None
+    return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
+
+
 def _cache_name(ticker: str, suffix: str = '') -> str:
     safe = (ticker
             .replace('=', '_EQ_')
@@ -305,9 +335,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'D': 0, '3D': 0, 'W': 0, 'chunks': 0}
+    stats = {'D': 0, '3D': 0, 'W': 0, 'M': 0, 'chunks': 0}
 
-    for tf, builder in (('D', build_daily), ('3D', build_3d), ('W', build_weekly)):
+    for tf, builder in (('D', build_daily), ('3D', build_3d), ('W', build_weekly),
+                        ('M', build_monthly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 
