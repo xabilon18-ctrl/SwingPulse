@@ -8208,11 +8208,32 @@
   // looking at rather than the one you opened.
   function chartFullStep(dir) {
     const list = reel.list || [];
+    const n = list.length;
+    if (!n) return;
     const i = list.findIndex(d => d.instrument_name === chartFullName);
-    const next = i < 0 ? null : list[i + dir];
-    if (!next) return;
+    if (i < 0) return;
+    // The list WRAPS (2026-09-12, user's request): pressing back on chart 1
+    // lands on the LAST chart and counts down from there, and forward from the
+    // last one returns to 1. Before this both ends were dead buttons, which
+    // reads as broken rather than as "you have reached the end".
+    const j = (i + dir + n) % n;
+    if (j === i) return;                     // a one-chart list has nowhere to go
+    const next = list[j];
     chartFullClose();
-    reelStepBy(dir);
+    // Put the reel behind on the SAME card. reelStepBy() scrolls exactly one
+    // screen, which is right for a neighbour and wrong for a wrap: stepping
+    // back from chart 1 would scroll off the top and leave the reel on the
+    // wrong instrument once full screen closes. Position by the card itself,
+    // the way reelRebuildKeepingPlace() and openChartFor() already do.
+    const host = document.getElementById('chartReel');
+    const el = host && host.querySelector(`.reel-card[data-name="${CSS.escape(next.instrument_name)}"]`);
+    if (host && el) {
+      host.scrollTop = el.offsetTop - host.offsetTop;
+      reelPaintVisible();
+      reelSyncNav();
+    } else {
+      reelStepBy(dir);                       // card not built yet — old behaviour
+    }
     chartFullOpen(next.instrument_name);
   }
 
@@ -8272,10 +8293,13 @@
     const edit  = reel.editing === name && !(ch && ch.locked);
     const list  = reel.list || [];
     const pos   = list.findIndex(d => d.instrument_name === name);
+    // Neither button is ever disabled (2026-09-12): the list WRAPS. Back from
+    // chart 1 goes to the last one and counts down from there, which is what
+    // the reader asked for — a dead ‹ on the first chart just looked broken.
     const steps = pos < 0 ? '' :
-      `<button class="cf-step" data-act="chart-full-step" data-dir="-1" aria-label="Previous chart"${pos <= 0 ? ' disabled' : ''}>‹</button>`
+      `<button class="cf-step" data-act="chart-full-step" data-dir="-1" aria-label="Previous chart">‹</button>`
       + `<span class="cf-pos">${pos + 1}/${list.length}</span>`
-      + `<button class="cf-step" data-act="chart-full-step" data-dir="1" aria-label="Next chart"${pos >= list.length - 1 ? ' disabled' : ''}>›</button>`;
+      + `<button class="cf-step" data-act="chart-full-step" data-dir="1" aria-label="Next chart">›</button>`;
     return `
       <header class="cf-head">
         <div class="cf-title">
