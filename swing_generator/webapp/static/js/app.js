@@ -7361,11 +7361,16 @@
     syncPush();
   }
 
-  // Add (or start editing) the channel on one card. A first tap drops a
-  // channel already fitted to what you are looking at, so the first drag is an
-  // adjustment rather than a construction.
+  // Open (or close) the drawing tools on one card.
+  //
+  // It does NOT place anything. Until 2026-09-12 a first tap dropped a default
+  // CHANNEL on the chart before you had chosen a tool — so asking to see the
+  // tools left you with a channel to delete, and the button named one of the
+  // four tools by picking it for you. Now the tap only opens the tool row
+  // (`[data-tools]`, shown by reelSyncChannelButtons while reel.editing is this
+  // card); a drawing appears when you tap the tool you actually want, which is
+  // channelAdd's job.
   function channelToggleEdit(name, host) {
-    const ctx = host && host._reelCtx;
     // Locked is a real gate, not a label. Unlocking goes STRAIGHT into editing:
     // you only unlock in order to change something, and making that two taps
     // read as "I cannot adjust the channel any more".
@@ -7379,15 +7384,7 @@
       return;
     }
     if (reel.editing === name) { reel.editing = null; channelSave(); }
-    else {
-      if (!channelsFor(name).length && ctx) {
-        const def = reelDefaultChannel(ctx.b);
-        if (!def) return;
-        addChannelFor(name, def);
-        channelSave();
-      }
-      reel.editing = name;
-    }
+    else reel.editing = name;
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
   }
@@ -7446,10 +7443,10 @@
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
     // Details and TradingView, which moved the chart every time one appeared.
-    // 'Draw', not 'Channel' (2026-09-11): the button opens FOUR tools — channel,
-    // trend line, level and the 10 price lines — so naming it after one of them
-    // described a quarter of what it does.
-    return ch ? 'Edit' : 'Draw';
+    // 'Drawing', not 'Channel' (2026-09-12): the button opens FOUR tools —
+    // channel, trend line, level and the 10 price lines — so naming it after one
+    // of them described a quarter of what it does.
+    return ch ? 'Edit' : 'Drawing';
   }
 
   function reelSyncChannelButtons() {
