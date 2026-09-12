@@ -7840,8 +7840,11 @@ body {
    is the one fact on a chart you must never misread — muted grey in a pill read
    as decoration. */
 .reel-tf-tag {
-  font-size: .62rem; color: var(--accent); font-weight: 800; letter-spacing: .04em;
-  padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px;
+  /* Sized up 2026-09-12 (.62 -> .82rem): at .62rem it was the smallest text in
+     the footer, which is the wrong rank for the label that says what every
+     other number on the chart means. */
+  font-size: .82rem; color: var(--accent); font-weight: 800; letter-spacing: .04em;
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px;
 }
 .reel-foot-actions { margin-left: auto; display: flex; gap: 6px; }
 .reel-act {
@@ -8833,6 +8836,9 @@ body {
   touch-action: none;
 }
 #chartFull .reel-foot  { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); }
+/* Bigger again full screen — there is room, and this is the screen you read a
+   chart on properly. */
+#chartFull .reel-tf-tag { font-size: .95rem; padding: 4px 12px; }
 
 .cf-head {
   display: flex; align-items: center; gap: 10px;
