@@ -7675,10 +7675,26 @@ body {
 .reel-move.down { color: var(--sell); }
 
 .reel-chart {
-  /* Everything you draw is WHITE (2026-09-11, user's choice). Set here rather
-     than on the card so the full-screen chart, which is not inside one, gets
-     the same colour from the same line. */
-  --reel-ch-color: #ffffff;
+  /* WHITE PLOT GROUND (2026-09-12, user's request — it is how they read charts
+     in TradingView). Every mark the SVG makes takes its colour from a token, so
+     the entire re-colouring is these few lines scoped to the chart box: its
+     descendants inherit them, while the tool bar, header and footer sit OUTSIDE
+     it and keep the app's dark chrome.
+     NB the horizontal price gridlines are NOT coming back with the white ground
+     — they were removed on purpose (they re-pick their levels on every zoom). */
+  background: #ffffff;
+  border-radius: 8px;
+  /* Bars were #f2f2f4 and the rising MA #b6bac6 — near-white and pale grey,
+     both chosen for a dark panel and both invisible on this one. */
+  --reel-bar:   #14140f;
+  --reel-ma-up: #14140f;   /* rising MA; a FALLING one still takes --sell red */
+  /* Drawings go dark for the same reason. They were white by choice on
+     2026-09-11, and white on white cannot be seen at all. */
+  --reel-ch-color: #14140f;
+  /* Axis numbers, calendar lines, clip tags and strip labels all read these. */
+  --text-secondary: #3f3f46;
+  --text-muted:     #70707a;
+  --border:         #c9c9c4;
   flex: 1 1 auto; min-height: 0; margin: 6px 0; position: relative;
   /* The browser keeps VERTICAL panning (the reel scrolls); horizontal drags
      come to our pointer handler, which is what pans through history. Without
@@ -7735,6 +7751,16 @@ body {
 .reel-chart.is-tzooming .reel-tgrip { background: linear-gradient(to top, rgba(255,255,255,.07), transparent); }
 
 .reel-chart.is-yzooming .reel-ygrip { background: linear-gradient(to left, rgba(255,255,255,.07), transparent); }
+
+/* The grips wash themselves WHITE to show they are being dragged, which is
+   invisible now the plot ground is white. Same feedback, inverted — these come
+   after the rules above on purpose, so they win at equal specificity. */
+@media (hover: hover) {
+  .reel-ygrip:hover { background: linear-gradient(to left, rgba(0,0,0,.07), transparent); }
+  .reel-tgrip:hover { background: linear-gradient(to top,  rgba(0,0,0,.07), transparent); }
+}
+.reel-chart.is-yzooming .reel-ygrip { background: linear-gradient(to left, rgba(0,0,0,.10), transparent); }
+.reel-chart.is-tzooming .reel-tgrip { background: linear-gradient(to top,  rgba(0,0,0,.10), transparent); }
 /* The whole chart stops fighting the finger for the duration of the drag. */
 .reel-chart.is-yzooming, .reel-chart.is-tzooming, .reel-chart.is-panning { touch-action: none; }
 
