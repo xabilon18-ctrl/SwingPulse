@@ -132,15 +132,16 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
+    // 10m is CHART ONLY, and the fastest row in the table. `chartOnly` is what
+    // tells the rest of the app that no m10_ column exists on a row — D, 3D and
+    // W all have their own columns, so on this one a prefixed read returns
+    // nothing at all, and anything reading one must borrow the signal timeframe
+    // instead of silently answering "" / NEUTRAL. (The flag arrived with
+    // Monthly, which held this slot until 2026-09-14.)
+    { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
-    // Monthly is CHART ONLY and carries one MA (50). `chartOnly` is what tells
-    // the rest of the app that no m_ column exists on a row — 3D and W both
-    // have their own columns, so this is the first timeframe where a prefixed
-    // read returns nothing at all, and anything reading one must borrow the
-    // signal timeframe instead of silently answering "" / NEUTRAL.
-    { code: 'M',  prefix: 'm_',  label: 'Monthly', tv: 'M',  bar: 'months',  barShort: '25-month', chartOnly: true },
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
@@ -1233,8 +1234,9 @@
         ' — fixed until the next 3-day bar closes.'
       : (matches
           ? 'Daily sector activity, updated every run.'
-          : `Daily sector activity. There is no ${timeframe} radar — too little hourly `
-            + `history for a baseline — so this is today\u2019s daily reading.`);
+          : `Daily sector activity. There is no ${timeframe} radar — the radar scores `
+            + `each sector against its own 20-period baseline and only D, 3D and W `
+            + `have one — so this is today\u2019s daily reading.`);
   }
 
   function syncTfLock() {
@@ -7199,6 +7201,16 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
     const w = reel.range;
     if (w && w < n) return w;
+    // 10m OPENS ON ITS WHOLE BUNDLE, which is exactly one calendar month — the
+    // one timeframe where the default window is the bundle rather than a slice
+    // of it. Everywhere else the bundle is DEPTH behind a two-year read (see
+    // REEL_DEFAULT_WINDOW_BARS above) and 520 bars is a deliberate choice of
+    // scale. Here the depth IS the scale the user asked for, and 520 bars would
+    // undo it unevenly: three weeks of an equity's month but only 3.6 days of a
+    // 24h instrument's, which is the exact bar-count-vs-calendar mismatch that
+    // cutting the bundle by date was meant to end. Zoom still works from here;
+    // it just starts at a month instead of arriving at one.
+    if (timeframe === '10m') return n;
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
@@ -7695,15 +7707,30 @@
   // fact you navigate by. Which boundary depends on how much calendar the
   // timeframe shows — a year line on a 1H chart covering six weeks would never
   // appear, and quarter lines on a Weekly chart covering ten years would be a
-  // picket fence. So: years on D / 3D / W, quarters on 1H / 4H.
+  // picket fence. So: years on D, quarters on 1H / 4H, MONTHS on 10m (the user's
+  // call, 2026-09-14).
+  //
+  // The 10m window is one calendar month, so a month boundary is ONE line in it
+  // — deliberately sparse. Two denser cuts were tried first and were wrong for
+  // the same reason a quarter line is wrong on Weekly: a session line put 21
+  // lines in the window on an equity and 31 on a 24h instrument, and a week line
+  // put four. The month line marks the one boundary that is the same boundary on
+  // all 798, which is the whole point of a grid you navigate by.
+  //
+  // Because it is one line, the window's own first and last dates are KEPT as
+  // end-stops (see the axis code) — they only ever had to be dropped when the
+  // grid drew enough labels to collide with them.
+  //
+  // Label collisions are handled in the caller, which is the only place that
+  // knows where a line lands in x.
   //
   // 3D and Weekly are OFF at the user's request (2026-09-08). Those charts span
   // six and ten years, so a year line lands every few centimetres and the grid
   // stops being a reference and starts being a fence across the price. A
   // timeframe absent from this table draws no lines at all, and its window's
   // first and last dates come back as the axis instead.
-  const REEL_TIME_GRID = { '1H': 'quarter', '4H': 'quarter', 'D': 'year',
-                           '3D': 'admin', 'W': 'admin', 'M': 'admin' };
+  const REEL_TIME_GRID = { '10m': 'month', '1H': 'quarter', '4H': 'quarter',
+                           'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
@@ -7726,6 +7753,15 @@
   // holds empty space to the right and pans further into it, and a channel
   // projected into that space is unreadable without a date against it.
   const REEL_FUTURE_YEARS = 4;
+
+  // "Sep" — a month line's label. Deliberately NOT the year: the 10m window is
+  // one month, so the year is the one part of the date that cannot change inside
+  // it and it would only cost width.
+  function reelMonthLabel(ts) {
+    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
+    return isNaN(d) ? String(ts).slice(0, 7)
+      : d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+  }
 
   function reelTimeGrid(b, tf) {
     const mode = REEL_TIME_GRID[tf];
@@ -7752,11 +7788,18 @@
       const y = +str.slice(0, 4), m = +str.slice(5, 7);
       if (!y || !m) continue;
       const q   = Math.floor((m - 1) / 3);
-      const key = mode === 'quarter' ? y + ':' + q : String(y);
+      const key = mode === 'month'   ? str.slice(0, 7)
+                : mode === 'quarter' ? y + ':' + q
+                : String(y);
       // The FIRST bar of the new period is the boundary. i===0 is skipped: the
       // left edge is not a crossing, it is just where the window happens to start.
       if (prev !== null && key !== prev.key) {
-        out.push({ fi: i, label: mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y : String(y) });
+        out.push({
+          fi: i,
+          label: mode === 'month'   ? reelMonthLabel(str)
+               : mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y
+               : String(y),
+        });
       }
       prev = { key };
     }
@@ -8030,13 +8073,26 @@
     // last dates stay as end-stops so the axis is never blank on a range that
     // happens to cross no boundary at all.
     const tg = reelTimeGrid(b, timeframe);
+    // Every boundary gets its LINE; labels are thinned so they cannot overlap.
+    // On the slow timeframes a boundary is rare enough that this never fires,
+    // but 10m crosses a session every ~39 bars, so zoomed out its labels would
+    // print on top of one another — one unreadable smear where the dates should
+    // be. The line is the navigation aid and is always drawn; the label is the
+    // annotation and is dropped when there is no room for it. LABEL_MIN_GAP is
+    // in viewBox units, where the panel is ~880 wide and a "8 Sep" at font-size
+    // 16 measures ~70.
+    const LABEL_MIN_GAP = 96;
+    let lastLabelX = -Infinity;
     const timeGrid = tg.map(t => {
       const x = xOf(t.fi);
       if (x < L.x0 || x > L.x1) return '';
       const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
+      const room = (x - lastLabelX) >= LABEL_MIN_GAP;
       const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin' : 'reel-tgrid';
+      const label = (!near && room);
+      if (label) lastLabelX = x;
       return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>` +
-             (near ? '' : `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${t.label}</text>`);
+             (label ? `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${t.label}</text>` : '');
     }).join('');
 
     // Once the calendar lines are labelled they ARE the axis, so the window's
@@ -8044,7 +8100,15 @@
     // moment you panned, because the last bar is no longer at the right edge.
     // They come back only on a range that crosses no boundary at all, so the
     // axis is never left blank.
-    const hasGridLabels = /reel-tgrid-lbl/.test(timeGrid);
+    //
+    // "Enough labels" is now TWO, not one (2026-09-14). The 10m window is a
+    // single calendar month and its grid is monthly, so it draws exactly one
+    // line: under the old test that one label replaced the whole axis, leaving
+    // a chart whose only date was "Sep". One label cannot collide with the
+    // end-stops the way a panned row of year labels does — it is nowhere near
+    // the edges, which is precisely why the `near` rule let it through.
+    const gridLabelCount = (timeGrid.match(/reel-tgrid-lbl/g) || []).length;
+    const hasGridLabels = gridLabelCount >= 2;
     const dates = hasGridLabels ? '' :
       [0, n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
         const anchor = i === 0 ? 'start' : 'end';
@@ -8462,7 +8526,7 @@
 
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
-    // On a chartOnly timeframe (Monthly) the row carries NO prefixed columns at
+    // On a chartOnly timeframe (10m) the row carries NO prefixed columns at
     // all, so these two read the signal timeframe the way the scopes below
     // already do. Without it `m_trend_direction` is undefined on every row,
     // effectiveTrend answers NEUTRAL for all 798, and picking Uptrend empties

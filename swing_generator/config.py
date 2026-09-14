@@ -266,6 +266,47 @@ REFIRE_PCT_3D    = 0.065
 NEW_TREND_PCT_3D = 0.05
 
 # ---------------------------------------------------------------------------
+# 10-minute bar geometry  (added 2026-09-14)  — CHART ONLY
+# ---------------------------------------------------------------------------
+# A chart view, like Monthly. It emits NO signal columns and votes in no
+# alignment: the measured record of intraday signals on this app is that they
+# do not beat a same-day random entry (1H -0.031R/-0.006R over n=13,309, 4H 82%
+# of fires never confirmed), and both were removed on 2026-09-11 for it. What
+# the user asked for is the picture, so the picture is all this builds.
+#
+# YAHOO HAS NO 10m INTERVAL. Verified 2026-09-14 — the API answers
+#   "Invalid input - interval=10m is not supported. Valid intervals:
+#    [1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 4h, 1d, 5d, 1wk, 1mo, 3mo]"
+# so the frame is RESAMPLED FROM 5m, which is the only divisor of 10 on offer.
+# 1m would also divide it and is useless here: Yahoo serves 1m for 7 days, and
+# 7 days is 273 ten-minute bars on an equity — not even a warm MA500.
+#
+# HOW DEEP IT CAN EVER GO. Yahoo caps the 5m feed and the two request forms do
+# NOT cap it the same way (both measured on AAPL, 2026-09-14):
+#   period='60d'          -> 4,650 5m rows, 60 sessions, 88 calendar days
+#   start/end, 60 days    -> 3,169 5m rows, 41 sessions
+#   start/end, 75+ days   -> REFUSED, "must be within the last 60 days"
+# So the full download uses the PERIOD form and gets 60 sessions; the
+# incremental top-up uses a short start/end range, which is well inside the cap.
+# 60 sessions is the ceiling on this timeframe, permanently — there is no
+# deeper 10m history to buy from this feed at any price.
+FIVE_MIN_PERIOD   = '60d'   # Yahoo's deepest 5m window (~60 sessions)
+TEN_MIN_RULE      = '10min' # pandas resample rule; 5m -> 10m is exact
+
+# NO SESSION SCALING, and that is deliberate. Bars per session measured across
+# all 37 instrument groups (2026-09-14, one ticker each, 37/37 returned data):
+#   Japan equity   34.0      US equity      38.8      European equity  51.0
+#   ^VIX           77.8      crypto/forex  143.3
+# so MA500 spans 14.7 sessions on a Tokyo name and 3.5 days on BTC. That is the
+# same spread H4_SESSION_NORMALIZE exists to correct — but that rule fires ONLY
+# for cash indices redirected to a 24h contract by H4_SOURCE, where the ribbon
+# would otherwise describe a different instrument's clock. Nothing is redirected
+# here: every 10m chart is built from its own ticker's own 5m bars, so 38.8
+# bars/session IS a US equity's session, and it is what TradingView draws for
+# the same symbol. Scaling would make this app's 10m chart disagree with every
+# other 10m chart in the world. See main._h4_ma_periods for the same reasoning.
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')

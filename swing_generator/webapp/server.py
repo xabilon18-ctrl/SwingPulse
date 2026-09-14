@@ -1054,10 +1054,10 @@ _chart_chunk_cache: dict = {}
 
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
+    '10m': chart_feed.build_10m,
     'D':  chart_feed.build_daily,
     '3D': chart_feed.build_3d,
     'W':  chart_feed.build_weekly,
-    'M':  chart_feed.build_monthly,
 }
 
 
@@ -1101,7 +1101,10 @@ def api_chart_chunk(tf: str, cid: int):
         if payload:
             data[name] = payload
 
-    out = {'tf': tf, 'bars': chart_feed.BARS, 'data': data}
+    # Per-timeframe depth, matching what build_chart_feed writes into the
+    # published chunk. It was the flat BARS here and BARS_BY_TF there, so the
+    # dev server described every chunk as 520 bars while serving 1300.
+    out = {'tf': tf, 'bars': chart_feed.BARS_BY_TF.get(tf, chart_feed.BARS), 'data': data}
     _chart_chunk_cache[key] = out
     return jsonify(out)
 

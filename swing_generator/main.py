@@ -42,12 +42,14 @@ from _active_config import (
     INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES, ALIGNMENT_PREFIXES,
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
+    TEN_MIN_RULE,
 )
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import (fetch_all, fetch_all_hourly, h4_ticker,
-                           drop_unfinished_1h, drop_unfinished_4h)
+from data_fetcher  import (fetch_all, fetch_all_hourly, fetch_all_5m, h4_ticker,
+                           drop_unfinished_1h, drop_unfinished_4h,
+                           drop_unfinished_10m)
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -454,6 +456,36 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     # bar. Hourly caches are stored in UTC, so the window test needs no
     # per-exchange timetable. See data_fetcher §"Finished sessions only".
     return drop_unfinished_4h(resampled)
+
+
+def _resample_10m(df_5m: pd.DataFrame) -> pd.DataFrame:
+    """Resample 5-minute OHLCV to 10-minute bars — the 10m CHART's only frame.
+
+    Two 5m bars make one 10m bar exactly, so unlike the 4H case there is no
+    bucket that can hold a variable number of sessions' worth of trade. What a
+    bucket CAN hold is one bar instead of two, at the end of a session whose
+    close does not land on a ten-minute boundary; that is a real half-bar and it
+    is kept, exactly as the daily frame keeps a short holiday session.
+
+    Empty buckets — the overnight gap, the weekend — are dropped rather than
+    carried as NaN, so the chart draws a continuous series of TRADED bars and
+    the x axis is bar-indexed like every other timeframe here. That is also what
+    every charting package does with intraday data.
+    """
+    cols = [c for c in ('Open', 'High', 'Low', 'Close', 'Volume') if c in df_5m.columns]
+    df = df_5m[cols].copy()
+    # Strip timezone for clean resampling, matching every other frame here.
+    if df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+    resampled = df.resample(TEN_MIN_RULE).agg({
+        'Open': 'first',
+        'High': 'max',
+        'Low': 'min',
+        'Close': 'last',
+        'Volume': 'sum',
+    }).dropna(subset=['Close'])
+    # Important Rule 10: never compute on a bar whose window is still open.
+    return drop_unfinished_10m(resampled)
 
 
 def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
@@ -955,6 +987,10 @@ def main():
                         help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--profile', type=str, default='ma500',
                         help='Config profile (default: ma500)')
+    # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
+    # only wants signals can skip it and the ~1 minute it costs.
+    parser.add_argument('--no-intraday', action='store_true',
+                        help='Skip the 5m download (10m chart feed will go stale)')
     args = parser.parse_args()
 
     run_date = (
@@ -986,7 +1022,20 @@ def main():
 
     # No hourly download since 2026-09-11 — 1H and 4H were removed and nothing
     # else needs hourly prices (the daily-vs-hourly check went with them).
+    #
+    # 5m IS downloaded (2026-09-14): it is the only feed the 10m CHART can be
+    # built from, Yahoo having no 10m interval. Nothing in the signal engine
+    # reads it — no 10m columns exist and no worker below touches this cache —
+    # it is here because this is the module that owns downloads, and
+    # webapp/chart_feed.py reads the cache it fills. Skipped entirely by
+    # --no-intraday, for a signals-only run that wants none of the cost.
     _e2 = 0.0
+    if not args.no_intraday:
+        _t2 = _time.time()
+        print('  Fetching 5m market data (10m chart feed) ...\n')
+        fetch_all_5m(instruments, force_refresh=args.refresh)
+        _e2 = _time.time() - _t2
+        print(f'  5m data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()

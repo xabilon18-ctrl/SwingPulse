@@ -18,7 +18,8 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from _active_config import HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED, H4_SOURCE
+from _active_config import (HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED, H4_SOURCE,
+                            FIVE_MIN_PERIOD)
 
 
 def h4_ticker(ticker: str) -> str:
@@ -176,6 +177,21 @@ def drop_unfinished_4h(df: pd.DataFrame) -> pd.DataFrame:
     return df[pd.DatetimeIndex(idx) + pd.Timedelta(hours=4) <= _utc_now()]
 
 
+def drop_unfinished_10m(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop trailing 10-minute bars whose window has not elapsed yet.
+
+    Same rule as drop_unfinished_1h/4h at a ten-minute window (Important Rule
+    10: never compute on a bar whose period is still open). 5m caches are stored
+    in UTC like the hourly ones, so no per-exchange timetable is needed.
+    """
+    if df.empty:
+        return df
+    idx = df.index
+    if getattr(idx, 'tz', None) is not None:
+        idx = idx.tz_convert('UTC').tz_localize(None)
+    return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=10) <= _utc_now()]
+
+
 def heal_daily_gaps_from_hourly(daily: pd.DataFrame, hourly: pd.DataFrame) -> pd.DataFrame:
     """Rebuild whole daily bars Yahoo's daily feed simply omitted.
 
@@ -229,20 +245,31 @@ def _read_cache(path: str) -> pd.DataFrame:
 
 
 def _full_download(ticker: str, start: datetime, end: datetime,
-                   interval: str = '1d') -> pd.DataFrame | None:
+                   interval: str = '1d', period: str | None = None) -> pd.DataFrame | None:
     """Download a date range from Yahoo Finance. Raises on empty response.
 
     Uses Ticker.history() rather than yf.download() — download() mutates
     module-level shared state (shared._DFS/_ERRORS) and cross-contaminates
     results when called from multiple threads (the 2026-06 cache-corruption
     bug). Ticker.history() is self-contained and thread-safe.
+
+    `period`, when given, REPLACES start/end. It exists for one measured reason:
+    on the 5m feed Yahoo's two request forms do not return the same history.
+    period='60d' answers with 60 SESSIONS (~88 calendar days, 4,650 rows on
+    AAPL); the same window asked for as start/end is refused outright ("must be
+    within the last 60 days") and a legal 60-calendar-day range yields only 41
+    sessions. So the deep 5m pull asks by period and the incremental top-up
+    asks by range. Everything downstream — tz handling, _normalise,
+    _drop_priceless — is shared, so there is still one definition of "a clean
+    frame from Yahoo". See config.py §"10-minute bar geometry".
     """
+    hist_kw = ({'period': period} if period else
+               {'start': start.strftime('%Y-%m-%d'), 'end': end.strftime('%Y-%m-%d')})
     df = yf.Ticker(ticker).history(
-        start=start.strftime('%Y-%m-%d'),
-        end=end.strftime('%Y-%m-%d'),
         interval=interval,
         auto_adjust=True,
         actions=(interval == '1d'),
+        **hist_kw,
     )
     if df.empty:
         raise ValueError('empty response')
@@ -561,6 +588,103 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
         return None
 
 
+FIVE_MIN_FALLBACK_DAYS = 55   # incremental ceiling; Yahoo refuses past 60
+
+
+def fetch_5m(ticker: str, force_refresh: bool = False,
+             max_age_hours: float | None = None) -> pd.DataFrame | None:
+    """
+    Return a 5-minute OHLCV DataFrame for *ticker* — the feed the 10m CHART is
+    resampled from. Nothing else reads it: 10m emits no signals.
+
+    - force_refresh=True / no cache → full period='60d' pull (~60 sessions)
+    - Normal run                    → fetches from the last cached bar and appends
+    - Cache < max_age_hours         → returned immediately
+
+    Structured exactly like fetch_hourly, with ONE deliberate difference: the
+    full pull asks by PERIOD, not by start/end, because on the 5m feed those two
+    forms return different amounts of history (see _full_download). The
+    incremental path still asks by range — it only ever wants the last few days,
+    which is comfortably inside Yahoo's 60-day window.
+    """
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    path = _cache_path(ticker, suffix='5m')
+
+    # ── Already fresh ─────────────────────────────────────────────────────
+    if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
+        return _read_cache(path)
+
+    # yfinance treats `end` as EXCLUSIVE, so add a day to include today's bars.
+    end = datetime.today() + timedelta(days=1)
+
+    # ── Force refresh / cold cache: the deepest window Yahoo will serve ───
+    if force_refresh or not os.path.exists(path):
+        try:
+            df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
+            if df.empty:
+                raise ValueError('no priced bars in response')
+            df.to_parquet(path)
+            return df
+        except Exception as exc:
+            print(f'    WARN [{ticker}] 5m download failed: {exc}')
+            if os.path.exists(path):
+                print(f'    INFO [{ticker}] using stale 5m cache')
+                return _read_cache(path)
+            return None
+
+    # ── Incremental: fetch from the last cached bar onward ───────────────
+    # A 5m cache goes STALE in a way the daily and hourly ones do not: its whole
+    # window is only 60 sessions, so a long enough pause leaves a hole that can
+    # never be stitched — the missing bars have aged out of Yahoo entirely.
+    # Clamping the resume point and re-pulling the full period when the cache
+    # has fallen too far behind is what keeps the frame continuous.
+    try:
+        existing  = _read_cache(path)
+        last_date = existing.index[-1]
+        if getattr(last_date, 'tzinfo', None) is not None:
+            last_date = last_date.tz_localize(None)
+
+        gap_days = (end - last_date.to_pydatetime()).days
+        if gap_days > FIVE_MIN_FALLBACK_DAYS:
+            # The hole is older than the feed. Stitching would splice two
+            # disjoint series into one frame and draw a chart with a silent
+            # discontinuity in it; start again instead.
+            print(f'    INFO [{ticker}] 5m cache {gap_days}d behind — re-pulling full window')
+            df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
+            df.to_parquet(path)
+            return df
+
+        start = last_date.to_pydatetime() - timedelta(days=1)   # overlap; dedup handles repeats
+        new_df = _full_download(ticker, start, end, interval='5m')
+
+        # Nothing priced on offer — see the daily path. Not an error.
+        if new_df.empty:
+            os.utime(path, None)
+            return _drop_priceless(existing)
+
+        # Same sanity guard as daily and hourly: an absurd discontinuity means
+        # the cache holds bad data, so re-pull rather than stitch onto it.
+        prev_close = existing['Close'].iloc[-1]
+        new_close  = new_df['Close'].iloc[-1]
+        ratio = (float(new_close) / float(prev_close)
+                 if pd.notna(prev_close) and pd.notna(new_close) and float(prev_close) != 0
+                 else 1.0)
+        if ratio > 3 or ratio < 1 / 3:
+            print(f'    WARN [{ticker}] 5m discontinuity (jump x{ratio:.2f}) '
+                  f'— re-downloading full 5m window')
+            df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
+            df.to_parquet(path)
+            return df
+
+        return _append_new_bars(path, new_df)
+
+    except Exception as exc:
+        print(f'    WARN [{ticker}] 5m incremental failed: {exc}')
+        if os.path.exists(path):
+            return _read_cache(path)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Bulk fetch helpers (called by main.py)
 # ---------------------------------------------------------------------------
@@ -640,4 +764,26 @@ def fetch_all_hourly(instruments: list[dict], force_refresh: bool = False,
         kind='hourly ',
     )
     print(f'\n  Loaded hourly data for {len(data)}/{len(instruments)} instruments.\n')
+    return data
+
+
+def fetch_all_5m(instruments: list[dict], force_refresh: bool = False,
+                 max_age_hours: float | None = None) -> dict[str, pd.DataFrame]:
+    """Fetch 5-minute data for every instrument — the 10m chart's only feed.
+
+    NOT routed through h4_ticker. That redirect exists so a cash index's 4H
+    ribbon matches the 24h contract it is charted on; here every instrument is
+    charted on ITSELF at 10m, so ^NDX must show ^NDX's own session and not NQ=F's
+    around-the-clock one. See config.py §"10-minute bar geometry".
+
+    min_rows is 200 as on the hourly side: below that there is no MA50, let
+    alone a ribbon, and the instrument simply gets no 10m chart.
+    """
+    data = _fetch_all_parallel(
+        instruments,
+        lambda t: fetch_5m(t, force_refresh, max_age_hours=max_age_hours),
+        min_rows=200,
+        kind='5m ',
+    )
+    print(f'\n  Loaded 5m data for {len(data)}/{len(instruments)} instruments.\n')
     return data

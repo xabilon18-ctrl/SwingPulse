@@ -59,7 +59,7 @@ sys.path.insert(0, PROJECT_DIR)
 from data_fetcher import h4_ticker                      # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
-                  _resample_weekly, _resample_3d, _resample_monthly)
+                  _resample_weekly, _resample_3d, _resample_10m)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -91,20 +91,29 @@ MIN_RIBBON_LINES = 2
 BARS = 520
 
 BARS_BY_TF = {
+    # 10m is the ONE timeframe not cut to a bar count — see build_10m. The entry
+    # is the safety ceiling on a month's worth, not the window: a 24h instrument
+    # puts ~4,300 ten-minute bars in a calendar month against an equity's ~815.
+    '10m': 4600,
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
-    'M':  300,    # every month there is — the cache tops out at 244 monthly bars
     '4H': 520,
     '1H': 520,
 }
 
-# Monthly carries ONE moving average, and it has to be this one. Measured over
-# 200 instruments: 98% hold the 50 monthly bars MA50 needs, and 0% hold the 250
-# or 500 that MA250/MA500 would need (that is ~21 and ~42 YEARS of history
-# against a cache whose median is 244 months). Those two lines would be blank on
-# every instrument, so the monthly ribbon is MA50 alone.
-MONTHLY_MA_PERIODS = [50]
+# MONTHLY was REMOVED 2026-09-14 at the user's request, along with
+# MONTHLY_MA_PERIODS = [50] and build_monthly(). It carried one moving average
+# because it could: 98% of instruments hold the 50 monthly bars MA50 needs and
+# 0% hold the 250 or 500 the other two would (~21 and ~42 years against a cache
+# whose median is 244 months), so the ribbon this app is built on was never
+# actually drawable there. main._resample_monthly STAYS — backtest.py and the
+# research scripts use it, and the monthly MA50 finding (mildly contrarian
+# within-instrument) is a result, not dead code.
+#
+# NB the published chart/M/*.json chunks are NOT deleted by this: the publisher
+# only ever writes, it has no sweep step (see the stale-chunk note in
+# DOCUMENTATION). They will sit on R2 unreferenced until removed by hand.
 
 # Ribbon points are emitted every Nth bar (the last bar is always included).
 # The MAs are smooth and drawn dotted, so this is invisible on screen and cuts
@@ -278,26 +287,55 @@ def build_3d(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['3D'])
 
 
-def build_monthly(cache_dir: str, ticker: str) -> dict | None:
-    """Monthly chart from the same daily cache every other timeframe reads.
+def build_10m(cache_dir: str, ticker: str) -> dict | None:
+    """10-minute chart, resampled from the instrument's own 5m cache.
 
-    The one timeframe that deliberately ignores MIN_RIBBON_LINES: it carries a
-    single line by design (see MONTHLY_MA_PERIODS), so the two-line floor —
-    which exists to reject a ribbon too short to be worth drawing — would reject
-    every monthly chart instead. The floor still applies in its own terms: an
-    instrument without 50 monthly bars gets no monthly chart at all.
+    The only timeframe here with a HARD CEILING on history: Yahoo serves ~60
+    sessions of 5m and refuses anything older, so 1300 ten-minute bars is about
+    33 sessions on a US equity and ~9 days on a 24h instrument, and no amount of
+    cache-warming will ever make it deeper. That is enough for the MA500 anchor
+    to be fully warm rather than warming up — an equity's 60 sessions give ~2,325
+    ten-minute bars, of which the 1,025 behind the window are the ribbon's
+    lead-in (measured on AAPL, 2026-09-14).
+
+    Reads the ticker's OWN 5m file, never h4_ticker's redirect: at 4H a cash
+    index borrows the 24h contract's clock on purpose, but a 10m chart of ^NDX
+    has to be ^NDX's own session or it is a chart of something else.
+
+    Periods are MA_PERIODS unscaled — see config.py §"10-minute bar geometry"
+    for why session-normalising here would be wrong.
+
+    CUT BY CALENDAR, NOT BY BAR COUNT — the only timeframe here that is, and the
+    user asked for it directly: "one month for all". Every other timeframe slices
+    `tail(bars)`, which works there because a daily bar is a day on every
+    instrument in the book. A ten-minute bar is not: measured 2026-09-14, an
+    equity puts 38.8 of them in a session and a 24h instrument 143.3, so a flat
+    1300 bars was 34 sessions of Apple against 10 days of Bitcoin — the same
+    button showing three different amounts of market depending on what you were
+    looking at. One month of calendar is one month on all 798.
+
+    The ribbon is still computed over the WHOLE 5m cache before the cut (that is
+    what _bundle does), so MA500 is warm at the left edge rather than warming up
+    inside the window — ~60 sessions of 5m behind a one-month window is plenty.
     """
-    path = os.path.join(cache_dir, _cache_name(ticker))
+    path = os.path.join(cache_dir, _cache_name(ticker, suffix='5m'))
     if not os.path.exists(path):
         return None
-    df = pd.read_parquet(path)
-    if df.empty:
+    df_5m = pd.read_parquet(path)
+    if df_5m.empty:
         return None
-    monthly = _resample_monthly(df)
-    periods = [p for p in MONTHLY_MA_PERIODS if p <= len(monthly)]
-    if not periods:
+    ten = _resample_10m(df_5m)
+    periods = [p for p in MA_PERIODS if p <= len(ten)]
+    if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
+    # One calendar month back from the newest bar. DateOffset, not 30 days, so
+    # the window is the month the reader means rather than an approximation of
+    # it. Clamped to the ceiling so a pathological cache cannot emit a bundle of
+    # unbounded size.
+    cutoff = ten.index[-1] - pd.DateOffset(months=1)
+    n_month = int((ten.index > cutoff).sum()) or len(ten)
+    bars = min(n_month, BARS_BY_TF['10m'])
+    return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
 def _cache_name(ticker: str, suffix: str = '') -> str:
@@ -325,7 +363,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'D': n, '3D': n, 'W': n, 'chunks': n_files}. 1H and 4H removed 2026-09-11.
+    Returns {'10m': n, 'D': n, '3D': n, 'W': n, 'chunks': n_files}.
+    1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14.
     """
     chart_dir = os.path.join(output_dir, 'chart')
     os.makedirs(chart_dir, exist_ok=True)
@@ -335,10 +374,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'D': 0, '3D': 0, 'W': 0, 'M': 0, 'chunks': 0}
+    stats = {'10m': 0, 'D': 0, '3D': 0, 'W': 0, 'chunks': 0}
 
-    for tf, builder in (('D', build_daily), ('3D', build_3d), ('W', build_weekly),
-                        ('M', build_monthly)):
+    for tf, builder in (('10m', build_10m), ('D', build_daily), ('3D', build_3d),
+                        ('W', build_weekly)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 
