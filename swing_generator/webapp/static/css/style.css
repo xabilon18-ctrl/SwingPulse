@@ -8900,7 +8900,14 @@ body {
      the reel. */
   touch-action: none;
 }
-#chartFull .reel-foot  { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); }
+/* The home-bar inset is reserved ONCE, by #chartFull's own padding above. This
+   rule used to add `calc(6px + env(safe-area-inset-bottom))` on top of it, so on
+   a 34pt-inset iPhone the row sat 34pt higher than it should have — 75px of dead
+   white below the 3D / Drawing / ‹ › controls (measured against a simulated
+   34px inset; on a desktop browser both terms are 0 and the bug is invisible).
+   Plain 6px: the controls drop to the safe-area edge and the chart, which is
+   flex: 1, takes the 34pt back. */
+#chartFull .reel-foot  { padding: 6px 10px; }
 /* Bigger again full screen — there is room, and this is the screen you read a
    chart on properly. */
 #chartFull .reel-tf-tag { font-size: .95rem; padding: 4px 12px; }
