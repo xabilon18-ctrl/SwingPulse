@@ -8696,11 +8696,6 @@
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
 
-  function cssVar(name, fallback) {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
-  }
-
   // Render one card's chart to a PNG blob, with a caption strip so the picture
   // still says what it is once it has left the app.
   async function chartToPngBlob(name, host) {
@@ -8731,7 +8726,27 @@
     const ctx = cv.getContext('2d');
     ctx.scale(SCALE, SCALE);
 
-    ctx.fillStyle = cssVar('--bg-card', '#121211');
+    // GROUND AND INK COME FROM THE CHART BOX ITSELF, never from :root.
+    //
+    // This used to fill --bg-card (#121211) and caption in --text-primary. That
+    // was right while the plot was dark. Since the white plot ground (v271) the
+    // ground is a CSS `background` on the .reel-chart DIV — not on the SVG — so
+    // the serialized clone is transparent, and the bars, which inlineSvgStyles
+    // correctly resolves to the #14140f ink chosen FOR a white panel, were being
+    // painted onto a #121211 canvas. Near-black on near-black: the share button
+    // emitted a plain black chart.
+    //
+    // Reading the live host's own computed values instead means the picture
+    // cannot drift from the chart again — .reel-chart re-points exactly these
+    // tokens for its ground, so whatever it is set to is what gets shared.
+    const hcs    = getComputedStyle(host);
+    const ground = (hcs.backgroundColor && !/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(hcs.backgroundColor))
+                   ? hcs.backgroundColor : '#ffffff';
+    const ink    = hcs.getPropertyValue('--reel-bar').trim()       || '#14140f';
+    const ink2   = hcs.getPropertyValue('--text-secondary').trim() || '#3f3f46';
+    const ink3   = hcs.getPropertyValue('--text-muted').trim()     || '#70707a';
+
+    ctx.fillStyle = ground;
     ctx.fillRect(0, 0, W, H + HEAD + FOOT);
 
     const item  = allData.find(d => d.instrument_name === name) || {};
@@ -8743,23 +8758,23 @@
     const full  = instName(name);
 
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = cssVar('--text-primary', '#f4f4f5');
+    ctx.fillStyle = ink;
     ctx.font = '700 40px system-ui, -apple-system, "Segoe UI", sans-serif';
     ctx.fillText(name, 24, 52);
 
     const nameW = ctx.measureText(name).width;
-    ctx.fillStyle = cssVar('--text-muted', '#6e6e79');
+    ctx.fillStyle = ink3;
     ctx.font = '400 26px system-ui, -apple-system, "Segoe UI", sans-serif';
     if (full && full !== name) ctx.fillText(full, 24 + nameW + 14, 52);
 
-    ctx.fillStyle = cssVar('--text-secondary', '#a1a1aa');
+    ctx.fillStyle = ink2;
     ctx.font = '500 26px system-ui, -apple-system, "Segoe UI", sans-serif';
     const sub = [tfMeta().label, trend, sig].filter(Boolean).join('  ·  ');
     ctx.fillText(sub, 24, 84);
 
     ctx.drawImage(img, 0, HEAD, W, H);
 
-    ctx.fillStyle = cssVar('--text-muted', '#6e6e79');
+    ctx.fillStyle = ink3;
     ctx.font = '400 22px system-ui, -apple-system, "Segoe UI", sans-serif';
     ctx.fillText('SwingPulse · ' + new Date().toISOString().slice(0, 10), 24, H + HEAD + 30);
 
