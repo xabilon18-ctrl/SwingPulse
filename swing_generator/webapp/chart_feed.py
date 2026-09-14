@@ -59,7 +59,8 @@ sys.path.insert(0, PROJECT_DIR)
 from data_fetcher import h4_ticker                      # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
-                  _resample_weekly, _resample_3d, _resample_10m)
+                  _resample_weekly, _resample_3d, _resample_10m,
+                  _m10_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -68,6 +69,10 @@ from _active_config import MA_PERIODS                   # noqa: E402
 # returned None — no chart at all — for 141 instruments on Weekly and 53 on
 # 3-Day. Under the old 20-MA ribbon those same frames kept a dozen lines.
 MIN_RIBBON_LINES = 2
+
+# How many calendar months the 10m bundle CARRIES. The app opens on the most
+# recent one; the rest is what panning back reaches. See build_10m.
+CARRY_MONTHS = 2
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -92,9 +97,10 @@ BARS = 520
 
 BARS_BY_TF = {
     # 10m is the ONE timeframe not cut to a bar count — see build_10m. The entry
-    # is the safety ceiling on a month's worth, not the window: a 24h instrument
-    # puts ~4,300 ten-minute bars in a calendar month against an equity's ~815.
-    '10m': 4600,
+    # is the safety ceiling on CARRY_MONTHS' worth, not the window: a 24h
+    # instrument puts ~4,300 ten-minute bars in a calendar month against an
+    # equity's ~815, and Yahoo's own 5m ceiling stops it at 8,599.
+    '10m': 8800,
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
@@ -302,8 +308,9 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     index borrows the 24h contract's clock on purpose, but a 10m chart of ^NDX
     has to be ^NDX's own session or it is a chart of something else.
 
-    Periods are MA_PERIODS unscaled — see config.py §"10-minute bar geometry"
-    for why session-normalising here would be wrong.
+    Periods come from _m10_ma_periods: unscaled for anything exchange-traded,
+    scaled up for round-the-clock instruments so MA500 reaches the same number of
+    CALENDAR days on every chart. See config.py §"Ribbon normalisation".
 
     CUT BY CALENDAR, NOT BY BAR COUNT — the only timeframe here that is, and the
     user asked for it directly: "one month for all". Every other timeframe slices
@@ -325,16 +332,43 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     if df_5m.empty:
         return None
     ten = _resample_10m(df_5m)
-    periods = [p for p in MA_PERIODS if p <= len(ten)]
+    # NOT `[p for p in MA_PERIODS ...]` — a round-the-clock instrument needs its
+    # ribbon scaled or MA500 reaches 3.5 days against an equity's 18.5. The chart
+    # carries its own `p`, so the app draws whatever this returns.
+    periods = _m10_ma_periods(ten)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    # One calendar month back from the newest bar. DateOffset, not 30 days, so
-    # the window is the month the reader means rather than an approximation of
-    # it. Clamped to the ceiling so a pathological cache cannot emit a bundle of
-    # unbounded size.
-    cutoff = ten.index[-1] - pd.DateOffset(months=1)
-    n_month = int((ten.index > cutoff).sum()) or len(ten)
-    bars = min(n_month, BARS_BY_TF['10m'])
+    # TWO calendar months are CARRIED; the app OPENS on the most recent one
+    # (reelWindowBars). Same split every other timeframe uses — the bundle is
+    # depth, the window is the view — and it is what lets the reader pan back
+    # into the previous month, which a one-month bundle could not do at all: the
+    # chart simply ran out of history at its left edge.
+    #
+    # Two, not everything Yahoo has (~3 months for an equity, capped at 59 days
+    # for a 24h instrument). Depth is not free here the way it is on the daily
+    # feed: measured 2026-09-14, AAPL goes 11.8 -> 25.9 -> 35.2 KB gzipped at
+    # 1/2/3 months and BTC 79.0 -> 147.4, and five of those share a chunk. Two
+    # months answers "show me the previous month" exactly and costs half of what
+    # carrying the lot would.
+    #
+    # DateOffset, not 30 days: the window is the month the reader means rather
+    # than an approximation of it. Clamped to the ceiling so a pathological cache
+    # cannot emit a bundle of unbounded size.
+    cutoff = ten.index[-1] - pd.DateOffset(months=CARRY_MONTHS)
+    n_carry = int((ten.index > cutoff).sum()) or len(ten)
+
+    # LEAVE THE SLOWEST MA ITS WARM-UP. _bundle computes the ribbon over the
+    # whole frame and then tails it, so the carried window is warm only while
+    # there are at least max(periods) bars BEHIND it. On an equity that is free
+    # (2,326 bars total against 1,677 carried). On a 24h instrument it is not:
+    # BTC's entire 10m history is 8,599 bars and two calendar months is ~8,599 of
+    # them, so the carry swallowed the lead-in and the chart shipped 167 null
+    # MA500 points — a ribbon that visibly began partway into the window, which
+    # is exactly the "MAs look wrong on crypto" report. Capping the carry here
+    # costs BTC ~3.5 days of pannable history and buys a ribbon that is drawn all
+    # the way to the left edge.
+    warm_cap = len(ten) - max(periods)
+    bars = min(n_carry, BARS_BY_TF['10m'], max(warm_cap, 1))
     return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 

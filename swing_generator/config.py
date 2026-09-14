@@ -293,6 +293,43 @@ NEW_TREND_PCT_3D = 0.05
 FIVE_MIN_PERIOD   = '60d'   # Yahoo's deepest 5m window (~60 sessions)
 TEN_MIN_RULE      = '10min' # pandas resample rule; 5m -> 10m is exact
 
+# ── Ribbon normalisation for ROUND-THE-CLOCK instruments (2026-09-14) ────────
+# Measured bars per CALENDAR day on the 10m frame, and what MA500 therefore
+# averages over:
+#     Tokyo equity     23.3  -> 21.5 days      UK / EU equity  ~36   -> 14.0 days
+#     US equity        27.1  -> 18.5 days      Forex          100.9  ->  5.0 days
+#     Johannesburg     33.0  -> 15.2 days      Crypto         144.0  ->  3.5 days
+# Every exchange-traded name lands in a 14-21 day band because they all close
+# overnight and at weekends. A 24/7 or 24/5 instrument does not, so it packs 5.3x
+# more bars into the same calendar day and the SAME MA500 reaches a fifth as far
+# back — the ribbon collapses onto price and stops being a trend reference.
+#
+# This is the identical fault H4_SESSION_NORMALIZE exists to correct one
+# timeframe up, with the sign reversed: there a session-limited index reached too
+# FAR back against a 24h contract, here a 24h instrument reaches too SHORT
+# against a session-limited one.
+#
+# Scaled by MEASURED bars/day rather than by asset class, so a new 24h instrument
+# is handled without being listed anywhere. Sampled one instrument per group
+# across all 37 groups (2026-09-14), the population is sharply bimodal:
+#     exchange-traded   23.3 .. 36.7   (Tokyo 23.3 ... Frankfurt/Paris/Milan 36.7)
+#     round-the-clock   95.5 .. 144.0  (dollar index 95.5, commodities 96.3,
+#                                       forex 101.2, crypto 144.0)
+# — a gap 58.8 wide with nothing in it. The threshold could sit anywhere inside
+# that gap; it sits just ABOVE the equity cluster rather than in the middle of it
+# because the gap is not quite empty: ^VIX measures 55.6 bars/day on its ~15h
+# extended session, and at a mid-gap threshold it would have been the one chart
+# left reaching 9.0 days while every other instrument reached 14-21. 45 clears
+# the densest equity venue by 23% and catches ^VIX with it.
+#
+# COST, stated plainly: a normalised crypto chart no longer matches what a stock
+# TradingView 10m MA500 would draw for the same symbol. That parity is the reason
+# the first cut of this timeframe did NOT normalise. It was the wrong call — a
+# ribbon that means a different length of market on different instruments is not
+# one ribbon, and this app's whole read is "where is price against the ribbon".
+TEN_MIN_BARS_PER_DAY_TARGET   = 27.1   # a US equity: 39 bars/session, 5 sessions a week
+TEN_MIN_NORMALIZE_ABOVE       = 45.0   # above this many bars/day, scale the ribbon
+
 # NO SESSION SCALING, and that is deliberate. Bars per session measured across
 # all 37 instrument groups (2026-09-14, one ticker each, 37/37 returned data):
 #   Japan equity   34.0      US equity      38.8      European equity  51.0

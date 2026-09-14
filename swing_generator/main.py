@@ -42,7 +42,7 @@ from _active_config import (
     INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES, ALIGNMENT_PREFIXES,
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
-    TEN_MIN_RULE,
+    TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -636,6 +636,48 @@ def _h1_ma_periods(h1: pd.DataFrame, ticker: str) -> list[int]:
             scale   = bps / H1_BARS_PER_SESSION_TARGET
             periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
     return [p for p in periods if p <= len(h1)]
+
+
+def _m10_bars_per_calendar_day(ten: pd.DataFrame) -> float:
+    """Ten-minute bars per CALENDAR day — not per session.
+
+    Calendar, because that is the axis the ribbon has to mean something on: the
+    question is "how far back does MA500 reach", and the answer a reader wants is
+    in days, not in sessions of unequal length. Measured over the whole frame, so
+    weekends and holidays are counted in exactly as they are lived.
+    """
+    if ten.empty or len(ten) < 2:
+        return 0.0
+    days = (ten.index[-1] - ten.index[0]).total_seconds() / 86400.0
+    return float(len(ten) / days) if days > 0 else 0.0
+
+
+def _m10_ma_periods(ten: pd.DataFrame) -> list[int]:
+    """Ribbon periods for the 10m chart, normalised for round-the-clock markets.
+
+    An exchange-traded name closes overnight and at weekends, so every venue in
+    the book lands between 23.3 and 36.6 ten-minute bars per calendar day and
+    MA500 reaches back 14-21 days on all of them. A 24/7 instrument puts 144 bars
+    in a day and the same MA500 reaches 3.5 — the ribbon stops being a trend
+    reference and becomes three lines lying on the price.
+
+    So above TEN_MIN_NORMALIZE_ABOVE bars/day the periods are scaled to the
+    calendar reach a US equity gets. Below it nothing is touched, which leaves
+    every exchange-traded chart exactly as TradingView draws it.
+
+    Scaled on MEASURED bars/day rather than on asset class, so a new 24h
+    instrument needs no entry in any list — commodities (~97/day) and forex
+    (~101/day) are caught by the same test as crypto (144/day).
+
+    Mirrors _h4_ma_periods, including the max(3, ...) floor and the final
+    `p <= len(frame)` clip. See config.py for the measurements.
+    """
+    periods = MA_PERIODS
+    bpd = _m10_bars_per_calendar_day(ten)
+    if bpd > TEN_MIN_NORMALIZE_ABOVE and TEN_MIN_BARS_PER_DAY_TARGET > 0:
+        scale   = bpd / TEN_MIN_BARS_PER_DAY_TARGET
+        periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
+    return [p for p in periods if p <= len(ten)]
 
 
 def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:

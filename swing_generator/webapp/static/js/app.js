@@ -7191,6 +7191,22 @@
   // zoom is for. Ten is where a daily chart is two trading weeks and the bars
   // are about as wide as they are tall.
   const REEL_MIN_WINDOW_BARS = 10;
+  // How many of a 10m bundle's trailing bars fall inside its last calendar
+  // month. Counted from the timestamps, because the answer differs per
+  // instrument by design and any constant would be wrong for most of the book.
+  function reelMonthWindowBars(b) {
+    if (b._mw) return b._mw;
+    const t = reelBarTimes(b);
+    const last = t[t.length - 1];
+    if (!isFinite(last)) return (b._mw = b.c.length);
+    const d = new Date(last);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    const cut = d.getTime();
+    let i = t.length - 1;
+    while (i > 0 && t[i - 1] > cut) i--;
+    return (b._mw = Math.max(REEL_MIN_WINDOW_BARS, t.length - i));
+  }
+
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
@@ -7201,16 +7217,14 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
     const w = reel.range;
     if (w && w < n) return w;
-    // 10m OPENS ON ITS WHOLE BUNDLE, which is exactly one calendar month — the
-    // one timeframe where the default window is the bundle rather than a slice
-    // of it. Everywhere else the bundle is DEPTH behind a two-year read (see
-    // REEL_DEFAULT_WINDOW_BARS above) and 520 bars is a deliberate choice of
-    // scale. Here the depth IS the scale the user asked for, and 520 bars would
-    // undo it unevenly: three weeks of an equity's month but only 3.6 days of a
-    // 24h instrument's, which is the exact bar-count-vs-calendar mismatch that
-    // cutting the bundle by date was meant to end. Zoom still works from here;
-    // it just starts at a month instead of arriving at one.
-    if (timeframe === '10m') return n;
+    // 10m OPENS ON ONE CALENDAR MONTH, measured off the bundle's own dates
+    // rather than taken as a bar count. Everywhere else the default window is
+    // 520 bars because a daily bar is a day on every instrument; a ten-minute
+    // bar is not (38.8 a session on an equity, 143.3 on a 24h contract), so a
+    // bar count here would open on three weeks of Apple and 3.6 days of
+    // Bitcoin. The bundle CARRIES two months (chart_feed.CARRY_MONTHS) — the
+    // second one is what panning left reaches.
+    if (timeframe === '10m') return reelMonthWindowBars(bundle);
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
@@ -7754,6 +7768,11 @@
   // projected into that space is unreadable without a date against it.
   const REEL_FUTURE_YEARS = 4;
 
+  // Same idea one scale down, for the 10m grid: how many month boundaries past
+  // the last bar to keep drawing. Two, so the line is already there as you
+  // scroll rather than appearing once you arrive.
+  const REEL_FUTURE_MONTHS = 2;
+
   // "Sep" — a month line's label. Deliberately NOT the year: the 10m window is
   // one month, so the year is the one part of the date that cannot change inside
   // it and it would only cost width.
@@ -7802,6 +7821,33 @@
         });
       }
       prev = { key };
+    }
+
+    // The month the chart has not reached yet, projected into the blank space to
+    // the right (REEL_FUTURE_FRAC allows 0.9 of a window of it).
+    //
+    // NB this does NOT use reelBarIndexForDate. That extrapolates from the
+    // spacing of the LAST TEN BARS, which on an intraday frame is ten minutes
+    // apart — it therefore projects as though the market traded around the
+    // clock and put the next month boundary 2,343 bars past the last bar on
+    // AAPL, against a reachable 702. The line existed and could never be
+    // scrolled to. Averaged over the WHOLE bundle a bar is 53.3 minutes of
+    // calendar time on AAPL (overnight gaps and weekends included) and the same
+    // boundary lands 440 bars out, which is reachable — while on BTC, which
+    // really does trade around the clock, the two agree at 10.0 min/bar. That
+    // is the whole difference: a session-bound instrument's bars represent far
+    // more calendar time than their own spacing suggests.
+    if (mode === 'month') {
+      const bt   = reelBarTimes(b);
+      const perMs = n > 1 ? (bt[n - 1] - bt[0]) / (n - 1) : 0;
+      const last = new Date(String(b.t[n - 1]).slice(0, 10) + 'T00:00:00Z');
+      if (perMs > 0 && !isNaN(last)) {
+        for (let k = 1; k <= REEL_FUTURE_MONTHS; k++) {
+          const d  = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + k, 1));
+          const fi = (n - 1) + (d.getTime() - bt[n - 1]) / perMs;
+          if (isFinite(fi)) out.push({ fi, label: reelMonthLabel(d.toISOString()), future: true });
+        }
+      }
     }
 
     // Years the chart has not reached yet — 2027, 2028 and so on. There are no
