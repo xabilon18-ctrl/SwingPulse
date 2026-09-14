@@ -8339,14 +8339,24 @@ body {
 /* ── Dashboard event banner ─────────────────────────────────────────────── */
 /* Sits between #staleBanner and #marketStateBanner: the stack reads
    "can I trust this data" → "what is coming" → "what are conditions". */
+/* Same geometry as a .card (2026-09-13, user's request): it is a card in the
+   dashboard stack, and at radius-sm / 11px padding / no bottom margin it read
+   as a strip welded to the Market Pulse card below it. Radius, padding, margin
+   and shadow now come from the same numbers .card uses; only the colour stays
+   gold, because that is what marks it as the thing coming up. */
 .event-banner {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  padding: 11px 12px;
-  border-radius: var(--radius-sm);
+  padding: 18px;
+  border-radius: var(--radius-lg);
   background: var(--accent-glow);
   border: 1px solid var(--accent);
+  margin-bottom: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 1px 2px rgba(0,0,0,.5),
+    0 12px 32px -16px rgba(0,0,0,.8);
   cursor: pointer;
 }
 .event-banner:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -8847,12 +8857,38 @@ body {
    A fixed layer over everything, inset for the notch and the home bar, with
    the same header/chart/footer shape as a reel card so the delegated button
    dispatch and the gesture wiring work on it unchanged. */
+/* ALL WHITE, EDGE TO EDGE (2026-09-13, user's request). The plot ground went
+   white on 2026-09-12 but the overlay behind it stayed --bg-base black, so the
+   full-screen chart read as a white box floating on a black sheet — header,
+   footer and the safe-area inset all dark. The background here paints the
+   padding box too, so the notch and home-bar insets go white with it. */
 #chartFull {
   position: fixed; inset: 0; z-index: 4000;
   display: none; flex-direction: column;
-  background: var(--bg-base, #000);
+  background: #ffffff;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
            env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+/* The chrome's colours are re-pointed on the header and footer ONLY, never on
+   the whole overlay: .reel-chart is a child of it, and every mark the chart
+   draws reads --buy/--sell/--accent. Re-pointing them higher up would repaint
+   the chart itself, and a falling MA must be the same red full screen as it is
+   on the card. Gold is 1.7:1 on white and the buy green 2.2:1 — both illegible
+   here — so the chrome takes the darker members of the same hues. */
+#chartFull > .cf-head,
+#chartFull > .reel-foot {
+  --text-primary:   #14140f;
+  --text-secondary: #3f3f46;
+  --text-muted:     #70707a;
+  --border:         #c9c9c4;
+  --border-active:  #8a8a84;
+  --bg-elevated:    #f2f2f0;
+  --bg-hover:       #e6e6e3;
+  --accent:         #a16207;
+  --buy:            #047857;
+  --sell:           #b91c1c;
+  --watch:          #b45309;
+  color: var(--text-primary);
 }
 #chartFull.open { display: flex; }
 /* The chart takes every pixel the header and footer do not. */
