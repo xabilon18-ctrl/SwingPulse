@@ -7970,6 +7970,12 @@ body {
 .reel-swatch.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
 .reel-tool.on { background: rgba(0,0,0,.12); }
 .reel-tool-del { color: #b91c1c; }
+/* Six tools share the row now (colour ×6, %/B, duplicate, lock, delete): trimmed
+   padding keeps the widest case inside a 375px card. */
+.reel-props .reel-tool { padding: 6px; }
+.reel-props .reel-swatch { padding: 4px; }
+/* The square move handle reads as "grab the whole thing". */
+.reel-ch-move { rx: 4; }
 /* "%" — sized to sit with the 22px icons beside it. */
 /* Entry marker: a solid short line and a see-through × on the entry candle. */
 .reel-entry { fill: none; stroke: var(--reel-ch-color, #14140f); stroke-width: 3; stroke-linecap: round; }

@@ -5917,6 +5917,7 @@
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
+  const ICON_COPY   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`;
   const ICON_LOCK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
   const ICON_UNLOCK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
   const ICON_TRASH  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 20 7"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>`;
@@ -5964,6 +5965,7 @@
     return sw
       + `<span class="reel-props-sep"></span>`
       + pct + bold
+      + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
   }
@@ -7756,6 +7758,62 @@
            `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`;
   }
 
+  // MOVE handle (2026-09-15): a square, so it cannot be mistaken for the round
+  // shape handles. Dragging it carries the WHOLE drawing — every date shifts by
+  // the same number of bars and every price by the same amount — so nothing
+  // about its shape changes.
+  function reelMoveHandle(L, x, y, idx, isActive) {
+    if (!(x >= L.x0 - 2 && x <= L.x1 + 2)) return '';
+    const cls = isActive ? 'reel-ch-h reel-ch-move' : 'reel-ch-h reel-ch-move is-idle';
+    return `<rect x="${(x - 12).toFixed(1)}" y="${(y - 12).toFixed(1)}" width="24" height="24" rx="4" class="${cls}" data-h="m" data-ci="${idx}"/>` +
+           `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="m" data-ci="${idx}"/>`;
+  }
+
+  // Where a move handle sits along a line from (xa,ya) to (xb,yb): its middle,
+  // pulled into the panel so a drawing you can see is always one you can move.
+  function reelMoveSpot(L, xa, ya, xb, yb, bias) {
+    const pad = 60;
+    let mx = (xa + xb) / 2 + (bias || 0);
+    mx = Math.min(Math.max(mx, L.x0 + pad), L.x1 - pad);
+    const t = Math.abs(xb - xa) > 0.5 ? (mx - xa) / (xb - xa) : 0;
+    return { x: mx, y: ya + (yb - ya) * t };
+  }
+
+  const DRAW_DATE_KEYS  = ['t', 't1', 't2'];
+  const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p4'];
+
+  // Write `orig` shifted by dBars and dP into `target`. Offsets that are not
+  // positions (a channel's up/dn) are left alone, which is what keeps the shape.
+  function reelShiftDrawing(target, orig, dBars, dP, b) {
+    if (dBars) {
+      for (const k of DRAW_DATE_KEYS) {
+        if (typeof orig[k] !== 'string') continue;
+        const fi = reelBarIndexForDate(b, orig[k]);
+        const dt = fi == null ? null : reelDateForBarIndex(b, fi + dBars);
+        if (dt) target[k] = dt;
+      }
+    } else {
+      for (const k of DRAW_DATE_KEYS) if (typeof orig[k] === 'string') target[k] = orig[k];
+    }
+    for (const k of DRAW_PRICE_KEYS) if (typeof orig[k] === 'number') target[k] = orig[k] + dP;
+  }
+
+  // Duplicate the selected drawing with every measurement intact, dropped a
+  // little below the original so the two can be told apart, and select the copy.
+  function channelDuplicate(name, host) {
+    const d = activeChannel(name);
+    const ctx = host && host._reelCtx;
+    if (!d || !ctx) return;
+    const copy = JSON.parse(JSON.stringify(d));
+    delete copy.locked;                      // a fresh copy is there to be moved
+    reelShiftDrawing(copy, d, 0, -(ctx.sc.hi - ctx.sc.lo) * 0.08, ctx.b);
+    addChannelFor(name, copy);
+    reel.editing = name;
+    channelSave();
+    reelRepaint(host);
+    reelSyncChannelButtons();
+  }
+
   // An invisible fat line laid over a drawing's own geometry, so the DRAWING is
   // a tap target. Its visible stroke is 2.6 viewBox units of dotted line — about
   // a millimetre on a phone — which you cannot reliably hit, so before this the
@@ -7790,6 +7848,8 @@
     let handles = '';
     if (editing && !d.locked) {
       handles = reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive);
+      const mv = reelMoveSpot(L, x1, y1, x2, y2);
+      handles += reelMoveHandle(L, mv.x, mv.y, idx, isActive);
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
     }
     return line + handles;
@@ -7844,6 +7904,8 @@
       const y1 = sc.y(d.p1), y4 = sc.y(d.p4);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
+      const ym = sc.y(d.p1 + 4 * step);
+      if (ym >= L.py0 && ym <= L.py1) handles += reelMoveHandle(L, L.x0 + (L.x1 - L.x0) * 0.65, ym, idx, isActive);
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Lines 1 and 4 are outside this range — zoom out to adjust</text>`;
     }
     return out + handles;
@@ -7942,6 +8004,13 @@
       const my = yAtX(mx);
       handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
+      // Move handle on the midline, a step to the side of the edge handles so
+      // the three never sit on top of one another in a narrow channel.
+      if (handles) {
+        const side = (mx + 130 <= L.x1 - 60) ? 130 : -130;
+        const mvx = mx + side;
+        handles += reelMoveHandle(L, mvx, yAtX(mvx) + dMid, idx, isActive);
+      }
       // Zoom in past both anchors and there is nothing left on screen to grab —
       // the channel still draws in the right place (it is anchored to dates and
       // prices, not to the window), it just cannot be adjusted from here. Say
@@ -9344,6 +9413,7 @@
     let mode = null;         // null | 'pan' | 'handle' | 'scroll' | 'yzoom'
     let handle = null;       // 'a' | 'b' | 'u' | 'd'
     let chIdx = -1;          // which channel the grabbed handle belongs to
+    let moveStart = null;    // move handle: {orig, fi0, p0} captured at grab
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
     let grab = null;         // price window captured when the scale was grabbed
     // Every finger currently down, so a second one can turn the gesture into a
@@ -9464,6 +9534,16 @@
         // whichever happened to be added last.
         chIdx = +ev.target.dataset.ci;
         if (!isNaN(chIdx)) setActiveIdx(ctx.name, chIdx);
+        moveStart = null;
+        if (handle === 'm') {
+          const pt0 = reelSvgPoint(host, ev);
+          const d0  = channelsFor(ctx.name)[chIdx];
+          if (pt0 && d0) moveStart = {
+            orig: JSON.parse(JSON.stringify(d0)),
+            fi0:  (pt0.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw,
+            p0:   ctx.sc.inv(pt0.y),
+          };
+        }
         host.setPointerCapture(pid);
         ev.preventDefault();
       }
@@ -9558,6 +9638,13 @@
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
 
+      // The whole drawing, shape untouched.
+      if (handle === 'm') {
+        if (moveStart) reelShiftDrawing(ch, moveStart.orig, Math.round(fi - moveStart.fi0), price - moveStart.p0, ctx.b);
+        schedule();
+        return;
+      }
+
       // A horizontal level is one number and one handle.
       if (ch.kind === 'hline') { ch.p = price; schedule(); return; }
 
@@ -9649,7 +9736,9 @@
         const lk = reel.lockY.get(c.name);
         if (lk && lk._provisional) { reel.lockY.delete(c.name); reelRepaint(host); }
       }
-      if (mode === 'handle') channelSave();
+      // After a handle drag the properties row follows the drawing just moved —
+      // grabbing a handle selects that drawing, and the row must say so.
+      if (mode === 'handle') { channelSave(); reelSyncChannelButtons(); }
       // Suppresses the click that a drag inevitably ends with, which would
       // otherwise open the instrument modal every time you panned. A grab on
       // the price scale that never moved is NOT suppressed — it was a tap, and
@@ -9660,7 +9749,7 @@
       }
       host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching');
       try { host.releasePointerCapture(pid); } catch (_) {}
-      pid = null; mode = null; handle = null; chIdx = -1; grab = null;
+      pid = null; mode = null; handle = null; chIdx = -1; grab = null; moveStart = null;
     };
     host.addEventListener('pointerup', finish);
     host.addEventListener('pointercancel', finish);
@@ -10161,6 +10250,7 @@
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
+      if (btn.dataset.act === 'draw-dup')  { channelDuplicate(name, chHost); return true; }
       if (btn.dataset.act === 'draw-bold') {
         const d = activeChannel(name);
         if (d && d.kind === 'entry') {
