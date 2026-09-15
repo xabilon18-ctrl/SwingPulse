@@ -9087,7 +9087,9 @@ body.chart-full-open { overflow: hidden; }
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 2.2; stroke-opacity: .95; }
 /* Black and LARGER than the price axis (24px phone / 18px desktop) — the user
    reads the ladder by these, so they outrank the numbers in the gutter. */
-.reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 500; font-variant-numeric: tabular-nums; }
+/* 10% and 100% — the two ends of the ladder — are the bold ones (user, 2026-09-15). */
+.reel-ladder-lbl-end { font-weight: 900; }
 @media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
 /* Full-screen chart: previous / next without closing. */
 /* Bottom-right corner of the full-screen view (user request): the last thing

@@ -7801,7 +7801,7 @@
            // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
            // on line 10 (user, 2026-09-15). The price used to sit at the right
            // end, where it crowded the axis it duplicated.
-           + `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl">${(k + 1) * 10}%</text>`;
+           + `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${k === 0 || k === LADDER_LINES - 1 ? ' reel-ladder-lbl-end' : ''}">${(k + 1) * 10}%</text>`;
       drawn++;
     }
     if (!drawn) {
