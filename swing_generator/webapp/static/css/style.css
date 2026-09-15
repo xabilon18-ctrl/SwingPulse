@@ -9084,7 +9084,7 @@ body.chart-full-open { overflow: hidden; }
 /* Ten price lines (2026-09-11): dotted like the calendar lines; 1 and 4 carry the handles. */
 /* White like every other drawing — these are hand-placed, not computed. */
 .reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }
-.reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 2.2; stroke-opacity: .95; }
+.reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 4; stroke-dasharray: 5 7; stroke-opacity: 1; }
 /* Black and LARGER than the price axis (24px phone / 18px desktop) — the user
    reads the ladder by these, so they outrank the numbers in the gutter. */
 .reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 500; font-variant-numeric: tabular-nums; }

@@ -7795,7 +7795,10 @@
     for (let k = 0; k < LADDER_LINES; k++) {
       const p = d.p1 + k * step, y = sc.y(p);
       if (y < L.py0 || y > L.py1) continue;
-      const key = k === 0 || k === 3;
+      // The two ENDS of the ladder are the bold lines, matching their bold 10%
+      // and 100% labels (user, 2026-09-15). Line 4 used to be heavy because it
+      // carries a handle; the handle marks it well enough on its own.
+      const key = k === 0 || k === LADDER_LINES - 1;
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
