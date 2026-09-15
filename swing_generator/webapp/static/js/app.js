@@ -1347,7 +1347,7 @@
   }
 
   // A reader's choice: only timeframes this tab can show, remembered per side.
-  function setTimeframe(tf) {
+  function setTimeframe(tf, anchorName) {
     if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
     if (currentTab === 'charts') tfPrefs.charts = tf;
     else if (currentTab !== 'trends') tfPrefs.signals = tf;
@@ -1355,16 +1355,18 @@
       localStorage.setItem('swingpulse-tf', tfPrefs.signals);
       localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
     } catch (e) {}
-    applyTimeframe(tf);
+    applyTimeframe(tf, anchorName);
   }
 
-  function applyTimeframe(tf) {
+  // `anchorName` — the chart to stay on. Given when the switch came from the
+  // chart's own timeframe pill, which knows exactly which instrument it is on.
+  function applyTimeframe(tf, anchorName) {
     if (!isTf(tf)) return;
     if (tf === timeframe) return;
     // Which chart the reader is on, captured BEFORE anything re-renders:
     // renderAll() rebuilds the reel and resets its scroll, so asking afterwards
     // always answered "the first card".
-    const reelAnchor = (currentTab === 'charts') ? reelVisibleName() : null;
+    const reelAnchor = (currentTab === 'charts') ? (anchorName || reelVisibleName()) : null;
 
     timeframe = tf;
     // Bar offsets do not carry across timeframes — "40 bars back" is a fortnight
@@ -8377,6 +8379,53 @@
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
 
+  // ── Timeframe switch ON the chart (2026-09-15) ────────────────────────
+  // The pill in each chart's footer opens a menu of every chart timeframe, and
+  // picking one redraws THAT instrument — on the card, or in full screen, which
+  // stays open. The header toggle already kept the reel's place, but it is off
+  // screen behind the full-screen view, so there was no way to flick one chart
+  // from 10m to Weekly without closing it and finding it again.
+  function reelTfMenuClose() {
+    document.querySelectorAll('.reel-tf-menu').forEach(m => m.remove());
+    document.querySelectorAll('.reel-tf-tag[aria-expanded="true"]')
+      .forEach(b => b.setAttribute('aria-expanded', 'false'));
+  }
+
+  function reelTfMenuToggle(tag) {
+    const foot = tag.closest('.reel-foot');
+    const open = foot && foot.querySelector('.reel-tf-menu');
+    reelTfMenuClose();
+    if (!foot || open) return;
+    const name = tag.dataset.name;
+    const menu = document.createElement('div');
+    menu.className = 'reel-tf-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = tabTfs('charts').map(code => {
+      const on = code === timeframe;
+      return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${name}">${TF_BY_CODE[code].label}</button>`;
+    }).join('');
+    foot.appendChild(menu);
+    tag.setAttribute('aria-expanded', 'true');
+  }
+
+  // Any tap outside the open menu closes it. Capture phase, so it runs before
+  // the tap does anything else — and a tap on the pill itself is left to the
+  // toggle, or the menu would close and immediately reopen.
+  document.addEventListener('click', e => {
+    if (!document.querySelector('.reel-tf-menu')) return;
+    if (e.target.closest('.reel-tf-menu, .reel-tf-tag')) return;
+    reelTfMenuClose();
+  }, true);
+
+  function reelSwitchTf(name, tf) {
+    if (!isTf(tf) || tf === timeframe) return;
+    const full = chartFullName;
+    setTimeframe(tf, name);
+    // Full screen is a separate overlay the reel rebuild does not touch, so it
+    // is redrawn on the same instrument at the new timeframe.
+    if (full) chartFullOpen(full);
+  }
+
   // ── Full-screen chart ────────────────────────────────────────────────
   //
   // The same renderer, the same gesture wiring and the same buttons — only the
@@ -8589,7 +8638,7 @@
         <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
       </div>
       <footer class="reel-foot">
-        <span class="reel-tf-tag">${tfMeta().label}</span>
+        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
           <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${edit && ch && !ch.locked ? '' : ' hidden'}>Lock</button>
@@ -8691,7 +8740,7 @@
       </div>
 
       <footer class="reel-foot">
-        <span class="reel-tf-tag">${tfMeta().label}</span>
+        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
@@ -9982,9 +10031,11 @@
     window.__reelBtnAct = function (e) {
       // .reel-share-btn lives in the card HEADER, so it is matched here too —
       // it is not a .reel-act and closest('.reel-act') silently skipped it.
-      const btn = e.target.closest('.reel-act, .reel-share-btn, .reel-tool');
+      const btn = e.target.closest('.reel-act, .reel-share-btn, .reel-tool, .reel-tf-tag, .reel-tf-opt');
       if (!btn) return false;
       const name = btn.dataset.name;
+      if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
+      if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
       if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
       if (btn.dataset.act === 'star')   {
