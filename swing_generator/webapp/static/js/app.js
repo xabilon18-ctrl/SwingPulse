@@ -5861,8 +5861,12 @@
   document.getElementById('trendsListSort').addEventListener('change', () => buildTrendsCards());
 
   // ── Public API ───────────────────────────────────────────────────────
+  // Takes the star BUTTON (lists, modal) or an instrument NAME (the chart reel).
+  // It only ever read btn.dataset.ticker, and the reel passes a name — so the
+  // ★ on every chart card threw and never starred anything (found 2026-09-15).
   function toggleStar(btn) {
-    const ticker = btn.dataset.ticker;
+    const ticker = typeof btn === 'string' ? btn : btn.dataset.ticker;
+    if (!ticker) return;
     const nowStarred = !userStarred.has(ticker);
     if (nowStarred) {
       userStarred.add(ticker);
@@ -5878,6 +5882,11 @@
       const svg = b.querySelector('svg');
       if (svg) svg.setAttribute('fill', nowStarred ? 'currentColor' : 'none');
     });
+    // ...and the chart reel's stars, on the cards and in full screen.
+    document.querySelectorAll('[data-act="star"][data-name]').forEach(b => {
+      if (b.dataset.name === ticker) b.classList.toggle('on', nowStarred);
+    });
+    if (typeof reelSyncStarPill === 'function') reelSyncStarPill();
     localStorage.setItem(sk('swingpulse-starred'), JSON.stringify([...userStarred]));
     syncPush(true);   // the user just changed stars — an empty result is meant
     renderWlMyList();
@@ -8872,6 +8881,7 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
+        <button class="reel-share-btn reel-star-btn${userStarred.has(name) ? ' on' : ''}" data-act="star" data-name="${name}" aria-label="Star chart" title="Star">★</button>
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -10256,6 +10266,19 @@
     reelSyncNav();
   }
 
+  // ★ Starred pill (2026-09-15): the same filter as Show → Starred, one tap
+  // away. It is a shortcut onto reel.scope, not a second filter, so the two can
+  // never disagree.
+  function reelSyncStarPill() {
+    const pill = document.getElementById('reelStarPill');
+    if (!pill) return;
+    const on = reel.scope === 'starred';
+    pill.classList.toggle('on', on);
+    pill.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const n = pill.querySelector('.fp-val');
+    if (n) n.textContent = userStarred.size ? ' ' + userStarred.size : '';
+  }
+
   function reelSyncSimBar() {
     const bar = document.getElementById('reelSimBar');
     const nm  = document.getElementById('reelSimName');
@@ -10271,7 +10294,11 @@
       if (el) el.textContent = txt ? ' · ' + txt : '';
     };
     const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'watch', starred: 'starred' };
+                       sell: 'sells', watch: 'watch',
+                       // Starred is announced by the gold ★ Starred pill itself;
+                       // repeating it here widened Show enough to wrap the
+                       // filter bar onto a third row on a phone.
+                       starred: '' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
@@ -10283,6 +10310,7 @@
     const cv = document.querySelector('#reelPillClass .fp-cv');
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
+    reelSyncStarPill();
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
                   reel.stack !== 'all' || reel.similarTo ||
                   reel.sort !== 'signal' || reel.search || reel.range;
@@ -10336,6 +10364,19 @@
       });
     };
     optGroup('reelScopeOpts', 'scope', 'scope');
+    const starPill = document.getElementById('reelStarPill');
+    if (starPill) {
+      starPill.addEventListener('click', () => {
+        reel.scope = reel.scope === 'starred' ? 'all' : 'starred';
+        const box = document.getElementById('reelScopeOpts');
+        if (box) box.querySelectorAll('.reel-opt').forEach(b =>
+          b.classList.toggle('active', b.dataset.scope === reel.scope));
+        buildReel();
+        const el = document.getElementById('chartReel');
+        if (el) el.scrollTop = 0;
+        reelSyncNav();
+      });
+    }
     optGroup('reelTrendOpts', 'trend', 'trend');
     optGroup('reelStackOpts', 'stack', 'stack');
     optGroup('reelSortOpts',  'sort',  'sort');
@@ -10432,7 +10473,6 @@
       if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
       if (btn.dataset.act === 'star')   {
         window.SP.toggleStar(name);
-        btn.classList.toggle('on', userStarred.has(name));
         return true;
       }
       const cardEl = btn.closest('.reel-card');

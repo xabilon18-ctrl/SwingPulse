@@ -7625,6 +7625,19 @@ body {
   color: var(--text-secondary); font-size: .72rem; cursor: pointer;
 }
 
+/* ★ Starred shortcut — shaped like the Reset chip beside it, gold when on. */
+.reel-star-pill {
+  flex: 0 0 auto; padding: 6px 12px; border-radius: 999px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: .72rem; font-weight: 600; cursor: pointer;
+}
+.reel-star-pill .fp-val { opacity: .7; font-weight: 500; }
+.reel-star-pill.on { color: #1a1a19; background: var(--accent); border-color: var(--accent); }
+.reel-star-pill.on .fp-val { opacity: .8; }
+/* The full-screen header star: amber when the chart is starred. */
+.reel-star-btn { font-size: 19px; line-height: 1; }
+.reel-star-btn.on { color: #d99a00; }
+
 /* ── The reel ───────────────────────────────────────────────────────────── */
 .reel {
   flex: 1 1 auto;
