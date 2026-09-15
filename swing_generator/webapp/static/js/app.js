@@ -5916,6 +5916,46 @@
   const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
+  const ICON_LOCK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+  const ICON_UNLOCK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
+  const ICON_TRASH  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 20 7"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>`;
+
+  // Colours a drawing can take (2026-09-15). All chosen to read on the WHITE
+  // plot ground; the first is the default ink every drawing had before colour
+  // existed. A stored colour not on this list is ignored rather than injected
+  // into markup — the value arrives through sync.
+  const DRAW_COLORS = ['#14140f', '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea'];
+  const drawColor = d => (d && DRAW_COLORS.includes(d.color)) ? d.color : DRAW_COLORS[0];
+
+  // The Draw bar: a PROPERTIES row for the selected drawing above the four
+  // tools. Card and full screen used to carry two hand-copied toolbars; one
+  // builder now serves both.
+  function reelToolbarHtml(name, edit) {
+    return `<div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
+        <div class="reel-props" data-props${edit && channelsFor(name).length ? '' : ' hidden'}>${reelPropsHtml(name)}</div>
+        <div class="reel-tools-row">
+          <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
+        </div>
+      </div>`;
+  }
+
+  // Properties of the ONE selected drawing — colour, lock, delete. Every button
+  // acts on that drawing only; tap another line to move the bar to it.
+  function reelPropsHtml(name) {
+    const d = activeChannel(name);
+    if (!d) return '';
+    const cur = drawColor(d);
+    const sw = DRAW_COLORS.map(c =>
+      `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('');
+    return sw
+      + `<span class="reel-props-sep"></span>`
+      + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
+      + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
+  }
+
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
@@ -7545,15 +7585,9 @@
     // Locked is a real gate, not a label. Unlocking goes STRAIGHT into editing:
     // you only unlock in order to change something, and making that two taps
     // read as "I cannot adjust the channel any more".
-    const _cur = activeChannel(name);
-    if (_cur && _cur.locked) {
-      _cur.locked = false;
-      reel.editing = name;
-      channelSave();
-      if (host) reelRepaint(host);
-      reelSyncChannelButtons();
-      return;
-    }
+    // (The old "tap Unlock to edit" shortcut is gone: each drawing now carries
+    // its own lock in the properties row, so this button only opens and closes
+    // Draw mode and never changes a drawing.)
     if (reel.editing === name) { reel.editing = null; channelSave(); }
     else reel.editing = name;
     if (host) reelRepaint(host);
@@ -7591,7 +7625,7 @@
     const ch = activeChannel(name);
     if (!ch) return;
     ch.locked = !!locked;
-    if (locked) reel.editing = null;
+    // Draw mode stays open: locking ONE drawing says nothing about the others.
     channelSave();
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
@@ -7599,7 +7633,9 @@
 
   function channelClear(name, host) {
     clearChannelFor(name);
-    if (reel.editing === name) reel.editing = null;
+    // Stay in Draw mode while other drawings remain — deleting one is not
+    // "I am finished with the chart".
+    if (reel.editing === name && !channelsFor(name).length) reel.editing = null;
     channelSave();
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
@@ -7608,9 +7644,15 @@
   // ONE place decides what the channel controls say — the card HTML and the
   // live update both read it, so the two cannot drift apart. Every label is what
   // the button will DO, not what state it is in.
+  // The Draw button leads with a pencil (user, 2026-09-15). Built in one place
+  // because the label is rewritten live — setting textContent would strip it.
+  const ICON_PENCIL = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4L8 20l-5 1 1-5z"/><path d="M14 6l4 4"/></svg>`;
+  function channelBtnHtml(name) {
+    return ICON_PENCIL + `<span>${channelBtnLabel(name)}</span>`;
+  }
+
   function channelBtnLabel(name) {
     const ch = activeChannel(name);
-    if (ch && ch.locked)        return 'Unlock';
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
     // Details and TradingView, which moved the chart every time one appeared.
@@ -7629,19 +7671,25 @@
       const tools = card.querySelector('[data-tools]');
       if (tools) tools.hidden = reel.editing !== name;
       const btn  = card.querySelector('[data-act="channel"]');
-      const clr  = card.querySelector('[data-act="channel-clear"]');
-      const lk   = card.querySelector('[data-act="channel-lock"]');
       if (btn) {
-        btn.textContent = channelBtnLabel(name);
-        btn.classList.toggle('on', reel.editing === name || !!(ch && ch.locked));
+        btn.innerHTML = channelBtnHtml(name);
+        btn.classList.toggle('on', reel.editing === name);
       }
-      if (lk)  lk.hidden  = !(reel.editing === name && ch && !ch.locked);
-      if (clr) clr.hidden = !(reel.editing === name && ch);
+      reelSyncProps(card, name);
       // Edit mode is modal, so the card shows only the controls that belong to
       // it. Five buttons do not fit a phone footer — TradingView was clipped —
       // and Details/TradingView are the wrong thing to hit mid-drag anyway.
-      card.classList.toggle('ch-editing', reel.editing === name && !(ch && ch.locked));
+      card.classList.toggle('ch-editing', reel.editing === name);
     });
+  }
+
+  // Rebuild the properties row for whichever drawing is selected now.
+  function reelSyncProps(root, name) {
+    const props = root && root.querySelector('[data-props]');
+    if (!props) return;
+    const show = reel.editing === name && channelsFor(name).length > 0;
+    props.hidden = !show;
+    if (show) props.innerHTML = reelPropsHtml(name);
   }
 
   // The narrowest a channel may be, in viewBox units. Dragging the width handle
@@ -7652,8 +7700,14 @@
 
   function reelChannelsSvg(list, b, L, sc, bw, editing, activeI) {
     if (!list || !list.length) return '';
-    return list.map((d, i) =>
-      reelDrawingSvg(d, b, L, sc, bw, editing, i, i === activeI)).join('');
+    // Each drawing is its own group: its colour is a custom property on the
+    // group (every drawing class already reads --reel-ch-color), and the
+    // selected one is marked so you can see what the properties row acts on.
+    return list.map((d, i) => {
+      const sel = editing && i === activeI;
+      return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}">`
+        + reelDrawingSvg(d, b, L, sc, bw, editing, i, i === activeI) + '</g>';
+    }).join('');
   }
 
   // One entry point for every tool. Each kind renders its own geometry but they
@@ -7684,6 +7738,14 @@
     return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="reel-ch-hit" data-di="${idx}"/>`;
   }
 
+  // A small padlock at the LEFT end of a locked drawing's own line. Every badge
+  // used to print "locked" at the same top-left spot, so two locked drawings
+  // stacked into one smear and you could not tell which was which.
+  function reelLockBadge(L, y) {
+    const yy = Math.min(Math.max(y - 8, L.py0 + 22), L.py1 - 8);
+    return `<text x="${(L.x0 + 8).toFixed(1)}" y="${yy.toFixed(1)}" class="reel-ch-lock">\u{1F512}</text>`;
+  }
+
   // Trend line — two anchors, extended across the panel the way the channel's
   // edges are, so it reads as a line you can project rather than a segment.
   function reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive) {
@@ -7703,8 +7765,7 @@
     }
     const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
                + reelHitLine(L.x0, yA, L.x1, yB, idx);
-    const badge = d.locked
-      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    const badge = d.locked ? reelLockBadge(L, yA) : '';
     let handles = '';
     if (editing && !d.locked) {
       handles = reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive);
@@ -7725,8 +7786,7 @@
     const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
                + reelHitLine(L.x0, y, L.x1, y, idx);
     const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
-    const badge = d.locked
-      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    const badge = d.locked ? reelLockBadge(L, y) : '';
     const handles = (editing && !d.locked)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
     return line + tag + handles + badge;
@@ -7752,8 +7812,7 @@
       const above = Math.max(sc.y(d.p1), sc.y(d.p1 + 9 * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">10 lines ${above ? '↑' : '↓'} off-scale</text>`;
     }
-    const badge = d.locked
-      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>` : '';
+    const badge = d.locked ? reelLockBadge(L, sc.y(d.p1)) : '';
     let handles = '';
     if (editing && !d.locked) {
       const hx = L.x0 + (L.x1 - L.x0) * 0.35;
@@ -7845,9 +7904,7 @@
 
     // A locked channel says so on the chart, so "why will this not move" has an
     // answer without hunting through the footer.
-    const badge = ch.locked
-      ? `<text x="${(L.x0 + 6).toFixed(1)}" y="${(L.py0 + 14).toFixed(1)}" class="reel-ch-lock">\u{1F512} locked</text>`
-      : '';
+    const badge = ch.locked ? reelLockBadge(L, yA + dUp) : '';
 
     return band
       + seg(dUp,  'reel-ch reel-ch-edge')
@@ -8607,7 +8664,7 @@
   function chartFullHtml(item) {
     const name  = item.instrument_name;
     const ch    = activeChannel(name);
-    const edit  = reel.editing === name && !(ch && ch.locked);
+    const edit  = reel.editing === name;
     const list  = reel.list || [];
     const pos   = list.findIndex(d => d.instrument_name === name);
     // Neither button is ever disabled (2026-09-12): the list WRAPS. Back from
@@ -8631,18 +8688,11 @@
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
-      <div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
-        <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
-      </div>
+      ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
         <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
-          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${edit && ch && !ch.locked ? '' : ' hidden'}>Lock</button>
-          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${edit && ch ? '' : ' hidden'}>Clear</button>
+          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>
         </div>
         ${steps ? `<div class="cf-steps">${steps}</div>` : ''}
       </footer>`;
@@ -8656,13 +8706,12 @@
     const ch   = activeChannel(name);
     const edit = reel.editing === name;
     const q = a => el.querySelector(`[data-act="${a}"]`);
-    const b = q('channel'), lk = q('channel-lock'), clr = q('channel-clear');
+    const b = q('channel');
     const add = el.querySelector('[data-tools]');
-    if (b) { b.textContent = channelBtnLabel(name); b.classList.toggle('on', edit || !!(ch && ch.locked)); }
+    if (b) { b.innerHTML = channelBtnHtml(name); b.classList.toggle('on', edit); }
     if (add) add.hidden = !edit;
-    if (lk)  lk.hidden  = !(edit && ch && !ch.locked);
-    if (clr) clr.hidden = !(edit && ch);
-    el.classList.toggle('ch-editing', edit && !(ch && ch.locked));
+    reelSyncProps(el, name);
+    el.classList.toggle('ch-editing', edit);
   }
 
   // Repaint whatever cards are currently drawn — used when returning from full
@@ -8709,7 +8758,9 @@
     const starred = userStarred.has(name);
 
     const _chNow = activeChannel(name);
-    const _chEditing = reel.editing === name && !(_chNow && _chNow.locked);
+    // Draw mode belongs to the CHART, not to one drawing: a locked selection no
+    // longer switches the whole card out of it (2026-09-15, per-drawing props).
+    const _chEditing = reel.editing === name;
     return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-main">
@@ -8732,20 +8783,13 @@
       <div class="reel-chart" id="reelChart-${i}">
         <div class="reel-skel"><span></span></div>
       </div>
-      <div class="reel-toolbar" data-tools${_chEditing ? '' : ' hidden'}>
-        <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
-        <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
-      </div>
+      ${reelToolbarHtml(name, _chEditing)}
 
       <footer class="reel-foot">
         <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
           <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
-          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnLabel(name)}</button>
-          <button class="reel-act reel-act-lock" data-act="channel-lock" data-name="${name}"${reel.editing === name && _chNow && !_chNow.locked ? '' : ' hidden'}>Lock</button>
-          <button class="reel-act reel-act-clr" data-act="channel-clear" data-name="${name}"${reel.editing === name && _chNow ? '' : ' hidden'}>Clear</button>
+          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
         </div>
@@ -10049,8 +10093,18 @@
       if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
-      if (btn.dataset.act === 'channel-lock')  { channelSetLocked(name, true, chHost); return true; }
-      if (btn.dataset.act === 'channel-clear') { channelClear(name, chHost); return true; }
+      if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
+      if (btn.dataset.act === 'draw-delete') { channelClear(name, chHost); return true; }
+      if (btn.dataset.act === 'draw-color')  {
+        const d = activeChannel(name);
+        if (d && DRAW_COLORS.includes(btn.dataset.color)) {
+          d.color = btn.dataset.color;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
       return false;
     };
 

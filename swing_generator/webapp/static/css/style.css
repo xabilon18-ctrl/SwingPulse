@@ -7905,6 +7905,9 @@ body {
   background: var(--bg-elevated); border: 1px solid var(--border);
   color: var(--text-secondary); font-size: .7rem; cursor: pointer;
 }
+/* Pencil + label. */
+.reel-act-ch { display: inline-flex; align-items: center; gap: 6px; }
+.reel-act-ch svg { flex: 0 0 auto; display: block; }
 .reel-act:hover { border-color: var(--border-active); color: var(--text-primary); }
 .reel-act.on { color: var(--accent); border-color: var(--accent); }
 .reel-act-clr { color: var(--sell); }
@@ -7941,6 +7944,30 @@ body {
   box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }
 .reel-toolbar[hidden] { display: none; }
+/* Two rows since 2026-09-15: the selected drawing's properties above the four
+   tools. The bar is anchored by its bottom edge, so the extra row grows UP over
+   the chart and never pushes the tools off the date row. */
+.reel-toolbar { flex-direction: column; align-items: stretch; }
+.reel-tools-row { display: flex; justify-content: center; gap: 2px; }
+.reel-props {
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  padding-bottom: 3px; margin-bottom: 3px; border-bottom: 1px solid rgba(0,0,0,.14);
+}
+.reel-props[hidden] { display: none; }
+.reel-props-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: rgba(0,0,0,.18); }
+.reel-swatch { padding: 6px; }
+.reel-swatch i {
+  display: block; width: 17px; height: 17px; border-radius: 50%;
+  background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0,0,0,.2);
+}
+/* The drawing's current colour: a ring, so the swatch keeps its own colour. */
+.reel-swatch.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
+.reel-tool.on { background: rgba(0,0,0,.12); }
+.reel-tool-del { color: #b91c1c; }
+/* The drawing the properties row is acting on reads heavier than the rest. */
+.reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }
+.reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
+.reel-draw.is-sel .reel-ladder  { stroke-opacity: 1; }
 .reel-tool {
   appearance: none; border: 0; background: transparent; cursor: pointer;
   /* Dark ink on the white bar — the accent was chosen to read on a dark
@@ -8937,6 +8964,16 @@ body {
 /* Bigger again full screen — there is room, and this is the screen you read a
    chart on properly. */
 #chartFull .reel-tf-tag { font-size: .95rem; padding: 4px 12px; }
+/* Draw button, full screen: the same pill as the timeframe button beside it —
+   white ground, hairline border, bold black label — and the ‹ › steps' height,
+   so the footer reads as one set of controls rather than a grey chip among
+   outlined buttons (user, 2026-09-15). */
+#chartFull .reel-act-ch {
+  height: 36px; padding: 0 14px; border-radius: 999px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-primary); font-size: .95rem; font-weight: 800; letter-spacing: .02em;
+}
+#chartFull .reel-act-ch.on { background: var(--bg-hover); border-color: var(--border-active); }
 
 .cf-head {
   display: flex; align-items: center; gap: 10px;
