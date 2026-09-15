@@ -273,6 +273,90 @@
     catch (_) { return {}; }
   })();
 
+  // ── Drawing sync: one edit time per chart ──────────────────────────
+  // Drawings used to sync as ONE blob, last writer wins. So a device that had
+  // not pulled yet — a laptop left open, a phone woken from the background —
+  // pushed its old copy the moment you touched anything, and the drawing just
+  // made on the other device was overwritten on the server and then pulled back
+  // off the device that drew it. Now every (instrument, timeframe) carries the
+  // time it was last edited, and two copies are merged chart by chart: the
+  // newer edit wins, a deletion is a newer edit with nothing in it.
+  const chKey = (name, tf) => name + '|' + tf;
+  let channelMod = (() => {
+    try { return JSON.parse(localStorage.getItem(sk('sp-channels-mod')) || '{}') || {}; }
+    catch (_) { return {}; }
+  })();
+  // What each chart looked like when last saved or merged, so channelSave can
+  // tell which charts THIS device changed without every caller saying so.
+  let channelSnap = {};
+  function channelSnapAll() {
+    channelSnap = {};
+    for (const name of Object.keys(instChannels))
+      for (const tf of Object.keys(instChannels[name] || {}))
+        channelSnap[chKey(name, tf)] = JSON.stringify(instChannels[name][tf]);
+  }
+  channelSnapAll();
+
+  function channelStampChanges() {
+    const now = Date.now();
+    const cur = {};
+    for (const name of Object.keys(instChannels))
+      for (const tf of Object.keys(instChannels[name] || {}))
+        cur[chKey(name, tf)] = JSON.stringify(instChannels[name][tf]);
+    for (const k of new Set([...Object.keys(cur), ...Object.keys(channelSnap)]))
+      if (cur[k] !== channelSnap[k]) channelMod[k] = now;
+    channelSnap = cur;
+    try { localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod)); } catch (_) {}
+  }
+
+  // Merge a remote copy into this device's drawings. Returns true if anything
+  // on screen changed. `remoteNewer` only breaks a tie between two copies that
+  // were never timestamped (drawings made before this shipped) — it is the old
+  // whole-blob rule, applied to those charts alone.
+  function channelMergeRemote(remote, remoteNewer) {
+    if (!remote || !remote.channels || typeof remote.channels !== 'object') return false;
+    const rCh  = expandChannelStore(remote.channels);
+    const rMod = (remote.channelsMod && typeof remote.channelsMod === 'object') ? remote.channelsMod : {};
+    let editingName = null;
+    try { editingName = reel.editing; } catch (_) {}
+    const keys = new Set(Object.keys(rMod).concat(Object.keys(channelMod)));
+    for (const obj of [instChannels, rCh])
+      for (const name of Object.keys(obj))
+        for (const tf of Object.keys(obj[name] || {})) keys.add(chKey(name, tf));
+    let changed = false;
+    for (const k of keys) {
+      const cut = k.lastIndexOf('|');
+      const name = k.slice(0, cut), tf = k.slice(cut + 1);
+      if (!name || !tf) continue;
+      // Never swap a chart out from under a drawing that is open for editing
+      // here — its handles hold the objects being dragged. It saves on release,
+      // and that save is the newer edit.
+      if (name === editingName) continue;
+      const lm = +channelMod[k] || 0, rm = +rMod[k] || 0;
+      const localList  = instChannels[name] && instChannels[name][tf];
+      const remoteList = rCh[name] && rCh[name][tf];
+      const takeRemote = rm > lm || (rm === 0 && lm === 0 && remoteNewer && remoteList);
+      if (!takeRemote) continue;
+      if (JSON.stringify(localList || null) !== JSON.stringify(remoteList || null)) {
+        if (remoteList && remoteList.length) {
+          if (!instChannels[name]) instChannels[name] = {};
+          instChannels[name][tf] = remoteList;
+        } else if (instChannels[name]) {
+          delete instChannels[name][tf];
+          if (!Object.keys(instChannels[name]).length) delete instChannels[name];
+        }
+        changed = true;
+      }
+      if (rm > lm) channelMod[k] = rm;
+    }
+    channelSnapAll();
+    try {
+      localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
+      localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod));
+    } catch (_) {}
+    return changed;
+  }
+
   // Every channel on one instrument on the CHART CURRENTLY SHOWN.
   function channelsFor(name) {
     const per = instChannels[name];
@@ -333,12 +417,6 @@
       instrumentNotes = remote.notes;
       localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
     }
-    // Channels ride the same blob. The Worker shallow-merges unknown keys
-    // ({...prev, ...incoming}), so this needed no Worker change.
-    if (remote.channels && typeof remote.channels === 'object') {
-      instChannels = expandChannelStore(remote.channels);
-      localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
-    }
     localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
   }
 
@@ -353,6 +431,12 @@
       const remote = await res.json();
       if (!remote || !remote.lastModified) return;
       const localMod = parseInt(localStorage.getItem(sk('sp-last-modified')) || '0');
+      // Drawings merge chart by chart on EVERY pull, whatever the blob's own
+      // timestamp says — see channelMergeRemote.
+      const drawingsChanged = channelMergeRemote(remote, remote.lastModified > localMod);
+      if (drawingsChanged && !(remote.lastModified > localMod)) {
+        try { reelRepaintVisible(); } catch (_) {}
+      }
       if (remote.lastModified > localMod) {
         syncApplyRemote(remote);
         // Full re-render so every tab (signals, scanner, watchlist) reflects synced data
@@ -369,16 +453,29 @@
   // edit, a background flush) OMITS the key entirely and the Worker keeps what
   // it already has. Without this, editing a note on a device whose list had not
   // loaded yet uploaded [] over the real list — and the Worker had no history.
-  function syncPushNow(intentional) {
+  async function syncPushNow(intentional) {
     if (!syncUser) return;
-    const stars = [...userStarred];
-    const payload = { notes: instrumentNotes, channels: instChannels, lastModified: Date.now() };
-    if (stars.length || intentional) payload.starred = stars;
-
     // Always record locally — a device with no sync password still works, it
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
     if (!syncToken()) return;
+
+    // Read before writing, so drawings made on another device since this one
+    // last pulled are merged in rather than overwritten by this device's copy.
+    // Offline, nothing is sent — the next push after reconnecting does it.
+    try {
+      const got = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`,
+                              { cache: 'no-store', headers: syncHeaders() });
+      if (got.status === 401) { syncPasswordRejected(); return; }
+      if (got.ok && channelMergeRemote(await got.json(), false)) {
+        try { reelRepaintVisible(); } catch (_) {}
+      }
+    } catch (_) { return; }
+
+    const stars = [...userStarred];
+    const payload = { notes: instrumentNotes, channels: instChannels,
+                      channelsMod: channelMod, lastModified: Date.now() };
+    if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
     fetch(`${SYNC_WORKER}/sync?user=${syncUser}${clearing}`, {
       method:  'PUT',
@@ -483,8 +580,11 @@
     // Reload user-specific data from their own storage bucket
     userStarred    = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
     instrumentNotes = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}');
-    try { instChannels = JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}'); }
+    try { instChannels = expandChannelStore(JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}')); }
     catch (_) { instChannels = {}; }
+    try { channelMod = JSON.parse(localStorage.getItem(sk('sp-channels-mod')) || '{}') || {}; }
+    catch (_) { channelMod = {}; }
+    channelSnapAll();
     updateSyncBadge();
     // A device that has never synced this user needs the password once; after
     // that the token is stored and this step never shows again.
@@ -6803,6 +6903,14 @@
     checkForAppUpdate();          // reload if a newer build shipped while backgrounded
     if (syncUser) syncPull();
   });
+  // A desktop browser left open behind another window never goes "hidden", so
+  // visibilitychange alone meant a laptop could sit on stale drawings all day.
+  let _lastFocusPull = 0;
+  window.addEventListener('focus', () => {
+    if (!syncUser || Date.now() - _lastFocusPull < 15000) return;
+    _lastFocusPull = Date.now();
+    syncPull();
+  });
 
   // ── Single source of truth for the confluence score ───────────────────
   // Returns { isBullish, lines: [{label, points}] }. Both radarConfluenceScore()
@@ -7041,8 +7149,8 @@
     // Floor only guards against a degenerate box mid-layout — set it near the
     // real card aspect and a wide desktop card letterboxes instead of filling.
     const H  = Math.max(200, Math.min(1800, Math.round(W * ch / Math.max(1, cw))));
-    const gutW  = 118;                       // price labels live here
-    const axisH = 30;                        // date row
+    const gutW  = 128;                       // price labels live here (24-unit text since 2026-09-15)
+    const axisH = 34;                        // date row
     const stripH = 34;                       // trend strip + its label (reelTrendStripSvg)
     return {
       W, H,
@@ -7173,6 +7281,9 @@
       mi: keep.map(j => mi[j] - from),
       m:  b.m.map(series => keep.map(j => series[j])),
       _from: from, _n: n,
+      // The whole bundle, so dates map to x against ALL of history rather than
+      // against whatever happens to be on screen (see reelBarIndexForDate).
+      _src: b,
     };
   }
 
@@ -7283,19 +7394,35 @@
   // Fractional bar index for a date, EXTRAPOLATING outside the window so a
   // channel drawn on Weekly still has a slope when you look at it on 1H, where
   // both its anchors may sit years off the left edge.
+  // How many bars the extrapolation's bar spacing is averaged over. It was the
+  // last TEN, which on a daily chart is two weeks and so swings with where the
+  // weekends fall — enough to tilt a projected channel from one day to the next.
+  const REEL_EXTRAP_BARS = 250;
+
+  // WINDOW-RELATIVE, but measured against the whole bundle. Until 2026-09-15 it
+  // measured against the visible slice only, so an anchor that had scrolled
+  // off-screen was EXTRAPOLATED from the ten bars at the window's edge — and
+  // those ten bars change on every pan step. That is why a channel slid in and
+  // out of place as the chart moved. Against the full bundle an anchor inside
+  // history is interpolated exactly, and only a future anchor is projected,
+  // from a spacing that no pan can change.
   function reelBarIndexForDate(b, dateStr) {
+    if (b._src) {
+      const fi = reelBarIndexForDate(b._src, dateStr);
+      return fi == null ? null : fi - b._from;
+    }
     const bt = reelBarTimes(b);
     const n  = bt.length;
     const t  = reelParseTs(dateStr);
     if (!isFinite(t) || !n) return null;
     if (n === 1) return 0;
     if (t <= bt[0]) {
-      const k = Math.min(n - 1, 10);
+      const k = Math.min(n - 1, REEL_EXTRAP_BARS);
       const per = (bt[k] - bt[0]) / k;
       return per > 0 ? (t - bt[0]) / per : 0;
     }
     if (t >= bt[n - 1]) {
-      const k = Math.max(0, n - 1 - 10);
+      const k = Math.max(0, n - 1 - REEL_EXTRAP_BARS);
       const per = (bt[n - 1] - bt[k]) / Math.max(1, n - 1 - k);
       return per > 0 ? (n - 1) + (t - bt[n - 1]) / per : n - 1;
     }
@@ -7306,8 +7433,23 @@
   }
 
   function reelDateForBarIndex(b, fi) {
+    if (b._src) return reelDateForBarIndex(b._src, fi + b._from);
     const n = b.t.length;
     if (!n) return null;
+    // Past the newest bar there is no label to snap to. This used to clamp to
+    // the last bar, so a handle dropped out in the blank space ahead of price
+    // was saved at TODAY's date with the pointer's price — the line re-tilted
+    // the moment it was released. Project a timestamp instead, with exactly the
+    // spacing reelBarIndexForDate projects with, so the round trip is exact.
+    if (fi > n - 1 + 0.5) {
+      const bt = reelBarTimes(b);
+      const k = Math.max(0, n - 1 - REEL_EXTRAP_BARS);
+      const per = (bt[n - 1] - bt[k]) / Math.max(1, n - 1 - k);
+      if (per > 0 && isFinite(bt[n - 1])) {
+        const d = new Date(bt[n - 1] + (fi - (n - 1)) * per);
+        if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
+      }
+    }
     const i = Math.round(Math.min(Math.max(0, fi), n - 1));
     return String(b.t[i]);          // full label — hour-precise when drawn on 1H/4H
   }
@@ -7383,6 +7525,7 @@
   }
 
   function channelSave() {
+    channelStampChanges();
     try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
     syncPush();
   }
@@ -7837,14 +7980,17 @@
     // really does trade around the clock, the two agree at 10.0 min/bar. That
     // is the whole difference: a session-bound instrument's bars represent far
     // more calendar time than their own spacing suggests.
+    // Both projections below measure off the WHOLE bundle (b._src), not the
+    // visible slice, so a pan cannot move a future line.
+    const src = b._src || b, from = b._from || 0, sn = src.t.length;
     if (mode === 'month') {
-      const bt   = reelBarTimes(b);
-      const perMs = n > 1 ? (bt[n - 1] - bt[0]) / (n - 1) : 0;
-      const last = new Date(String(b.t[n - 1]).slice(0, 10) + 'T00:00:00Z');
+      const bt   = reelBarTimes(src);
+      const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
+      const last = new Date(String(src.t[sn - 1]).slice(0, 10) + 'T00:00:00Z');
       if (perMs > 0 && !isNaN(last)) {
         for (let k = 1; k <= REEL_FUTURE_MONTHS; k++) {
           const d  = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + k, 1));
-          const fi = (n - 1) + (d.getTime() - bt[n - 1]) / perMs;
+          const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs - from;
           if (isFinite(fi)) out.push({ fi, label: reelMonthLabel(d.toISOString()), future: true });
         }
       }
@@ -7854,7 +8000,7 @@
     // bars there, so these are projected from the spacing of the last ten and
     // dropped by the x-clamp when they fall off the panel.
     if (mode === 'year') {
-      const lastY = +String(b.t[n - 1]).slice(0, 4);
+      const lastY = +String(src.t[sn - 1]).slice(0, 4);
       for (let y = lastY + 1; y <= lastY + REEL_FUTURE_YEARS; y++) {
         const fi = reelBarIndexForDate(b, y + '-01-01');
         if (fi != null) out.push({ fi, label: String(y), future: true });
@@ -8101,9 +8247,13 @@
     const last = b.c[n - 1];
     const lastY = sc.y(last);
     const lastTag =
-      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 4" stroke-opacity=".8"/>` +
-      `<rect x="${L.x1 + 2}" y="${(lastY - 13).toFixed(1)}" width="${L.W - L.x1 - 4}" height="26" rx="4" fill="var(--accent)"/>` +
-      `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 6).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
+      // Heavier since 2026-09-15 ("make the price line more visible"): a 1-unit
+      // 2/4 dash at 80% was a faint dotted thread on the white ground. The line
+      // takes a DEEPER amber than the tag: the app's accent is chosen for a
+      // black background and all but disappears as a thin stroke on white.
+      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="4" stroke-dasharray="14 6" stroke-opacity="1"/>` +
+      `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" fill="var(--accent)"/>` +
+      `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
 
     // Clipped-ribbon tag — says which way the ribbon ran off and by how much,
     // so a capped scale never silently hides where the anchor is.
@@ -8127,7 +8277,7 @@
     // annotation and is dropped when there is no room for it. LABEL_MIN_GAP is
     // in viewBox units, where the panel is ~880 wide and a "8 Sep" at font-size
     // 16 measures ~70.
-    const LABEL_MIN_GAP = 96;
+    const LABEL_MIN_GAP = 116;
     let lastLabelX = -Infinity;
     const timeGrid = tg.map(t => {
       const x = xOf(t.fi);

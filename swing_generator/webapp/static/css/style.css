@@ -7790,11 +7790,14 @@ body {
    and it matches how the user's own charts draw a calendar boundary.
    The year line stays lighter than the administration line below it: that
    hierarchy is carried by opacity, width and dash, not by hue. */
-.reel-tgrid { stroke: #14140f; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .75; }
+/* Full black on EVERY timeframe (2026-09-15): the year/month line used to sit at
+   75% opacity, which read as grey next to the admin line. The hierarchy is now
+   carried by width and dash alone. */
+.reel-tgrid { stroke: #000000; stroke-width: 2.6; stroke-dasharray: 3 8; stroke-opacity: 1; }
 /* A change of administration is a regime boundary, not a calendar fence, so it
    carries more weight than a year line — it is the only one on the slow
    timeframes and it is there to be read against. */
-.reel-tgrid-admin { stroke: #14140f; stroke-width: 2; stroke-dasharray: 7 6; stroke-opacity: 1; }
+.reel-tgrid-admin { stroke: #000000; stroke-width: 3; stroke-dasharray: 7 6; stroke-opacity: 1; }
 .reel-tgrid-lbl { opacity: 1; }
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
@@ -7826,10 +7829,10 @@ body {
    positioned ancestor has to be the card. */
 .reel-card {
   position: relative;
-  /* Width of the price gutter, as drawn by reelLayout(): 118 of a 1000-wide
+  /* Width of the price gutter, as drawn by reelLayout(): 128 of a 1000-wide
      viewBox. Kept here so the nav buttons can be positioned clear of the
      price-scale drag strip without hard-coding the same number twice. */
-  --reel-gutter: 11.8%;
+  --reel-gutter: 12.8%;
 }
 
 .reel-hint {
@@ -7842,7 +7845,7 @@ body {
 }
 @keyframes reelHintIn { from { opacity: 0; transform: translate(-50%, 4px); } }
 .reel-axis {
-  font-size: 19px; fill: var(--text-secondary);
+  font-size: 24px; fill: var(--text-secondary);
   font-family: inherit; font-variant-numeric: tabular-nums;
 }
 .reel-axis-last { fill: #1a1a19; font-weight: 700; text-anchor: end; }
@@ -7947,7 +7950,7 @@ body {
 @media (min-width: 768px) {
   .reel-card { padding: 14px 24px 16px; max-width: 1100px; margin: 0 auto; width: 100%; }
   .reel-name { font-size: 1.15rem; }
-  .reel-axis, .reel-clip-tag { font-size: 15px; }
+  .reel-axis, .reel-clip-tag { font-size: 18px; }
 }
 
 /* ── Sector Radar: z readout doubles as the info trigger ─────────────────
@@ -8716,7 +8719,7 @@ body {
    these buttons sit ABOVE it in the stack — so parked over it they stole the
    most natural place to grab, and a drag meant to stretch the chart jumped to
    the next instrument instead. --reel-gutter mirrors the price gutter in
-   reelLayout() (118 of a 1000-wide viewBox); the chart reserves ten empty bars
+   reelLayout() (128 of a 1000-wide viewBox); the chart reserves ten empty bars
    to the left of that scale (REEL_RIGHT_PAD_BARS), so this lands on blank
    chart rather than on top of price. */
 .reel-nav {
