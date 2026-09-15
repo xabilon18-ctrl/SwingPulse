@@ -9486,6 +9486,8 @@
     let handle = null;       // 'a' | 'b' | 'u' | 'd'
     let chIdx = -1;          // which channel the grabbed handle belongs to
     let moveStart = null;    // move handle: {orig, fi0, p0} captured at grab
+    let tapPick = null;      // a line touched at pointerdown; selected only if it stays a tap
+    const TAP_SLOP_PX = 8, TAP_MAX_MS = 600;
     let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
     let grab = null;         // price window captured when the scale was grabbed
     // Every finger currently down, so a second one can turn the gesture into a
@@ -9586,15 +9588,16 @@
       // just touched. Deliberately does NOT claim the gesture: no capture, no
       // preventDefault, no mode — a drag that happens to start on a line still
       // pans the chart exactly as it did before.
+      //
+      // ON A REAL TAP ONLY (2026-09-15). This used to select on pointerDOWN, so
+      // a pan that merely started on a line — they are fat tap targets —
+      // opened Draw mode and the properties pop-up in the middle of scrolling
+      // the chart. Now the line is only remembered here, and finish() selects
+      // it if the finger came up where it went down, quickly, without the
+      // gesture having become a pan, a scroll or a handle drag.
       const _di = ev.target && ev.target.dataset ? ev.target.dataset.di : undefined;
-      if (_di !== undefined && _di !== '' && !isNaN(+_di)) {
-        setActiveIdx(ctx.name, +_di);
-        reel.editing = ctx.name;
-        // Without this the tap also opens the instrument modal on the way up.
-        reel.lastGestureAt = Date.now();
-        reelRepaint(host);
-        reelSyncChannelButtons();
-      }
+      tapPick = (_di !== undefined && _di !== '' && !isNaN(+_di))
+        ? { di: +_di, x: ev.clientX, y: ev.clientY, t: Date.now() } : null;
 
       // A handle grab wins immediately — no axis lock, because dragging a
       // handle straight up is a legitimate gesture and must not scroll away.
@@ -9793,6 +9796,7 @@
       pts.delete(ev.pointerId);
 
       if (mode === 'pinch') {
+        tapPick = null;
         if (pts.size >= 2) return;              // a third finger left; still pinching
         reel.lastGestureAt = Date.now();        // never let a pinch open the instrument
         host.classList.remove('is-pinching', 'is-yzooming', 'is-tzooming', 'is-panning');
@@ -9802,6 +9806,10 @@
       }
 
       if (ev.pointerId !== pid) return;
+      const pick = tapPick; tapPick = null;
+      const wasTap = !!pick && ev.type === 'pointerup' && mode === null
+        && Math.hypot(ev.clientX - pick.x, ev.clientY - pick.y) <= TAP_SLOP_PX
+        && Date.now() - pick.t <= TAP_MAX_MS;
       // A gesture that never became a pan leaves the axis free to fit again.
       const c = host._reelCtx;
       if (c) {
@@ -9811,6 +9819,14 @@
       // After a handle drag the properties row follows the drawing just moved —
       // grabbing a handle selects that drawing, and the row must say so.
       if (mode === 'handle') { channelSave(); reelSyncChannelButtons(); }
+      if (wasTap && c && channelsFor(c.name)[pick.di]) {
+        setActiveIdx(c.name, pick.di);
+        reel.editing = c.name;
+        // The click that follows this pointerup must not open the instrument.
+        reel.lastGestureAt = Date.now();
+        reelRepaint(host);
+        reelSyncChannelButtons();
+      }
       // Suppresses the click that a drag inevitably ends with, which would
       // otherwise open the instrument modal every time you panned. A grab on
       // the price scale that never moved is NOT suppressed — it was a tap, and
