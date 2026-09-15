@@ -9,10 +9,18 @@ on:
   # The stale banner does NOT need to be kept in sync: since app.js v231 it reads
   # summary.fetched_at against a flat 32h and knows nothing about this schedule.
   schedule:
-    - cron: '35 1  * * 1-5'  # lands ~05:00 SAST — pre-market, on the US close
-    - cron: '35 9  * * 1-5'  # lands ~13:00 SAST — midday
-    - cron: '35 14 * * 1-5'  # lands ~18:00 SAST — afternoon close
-    - cron: '5 17  * * 1-5'  # lands ~20:30 SAST — evening, after the US open settles
+    - cron: '35 1  * * 1-5'  # lands ~08:30 SAST — morning
+    # US-session runs (added 2026-09-15). GitHub started crons 2.5-4.7h late in
+    # Sep 2026 — less late the later the UTC hour — so each cron sits that much
+    # before its landing. Landings are SAST while US daylight time lasts; from
+    # Nov 1 the US session moves an hour later (16:30-23:00 SAST).
+    - cron: '35 9  * * 1-5'  # lands ~15:45 SAST — US open
+    - cron: '35 10 * * 1-5'  # lands ~16:30 SAST — first hour of the US session
+    - cron: '5 13  * * 1-5'  # lands ~18:30 SAST — US midday
+    - cron: '35 14 * * 1-5'  # lands ~19:45 SAST
+    - cron: '35 15 * * 1-5'  # lands ~20:30 SAST — last stretch before the close
+    - cron: '5 17  * * 1-5'  # lands ~21:40 SAST
+    - cron: '5 18  * * 1-5'  # lands ~22:30 SAST — just after the US close
     - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
 
   # Manual trigger
@@ -28,6 +36,15 @@ on:
           normal runs — it costs a second full R2 upload pass.
         type: boolean
         default: false
+
+# One publish at a time. Eight weekday runs land ~1h apart and GitHub's delay
+# varies by hours, so two can overlap — and two publishes writing the same R2
+# keys is how the ledger was clobbered 342→43 on 2026-07-10. A run that arrives
+# while one is in flight waits; if a third arrives, GitHub drops the older
+# waiting one, which is fine — the newer run publishes newer data.
+concurrency:
+  group: swingpulse-publish
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -138,7 +155,11 @@ jobs:
       # a file left over from the previous run has to be older than the gap
       # between two crons, or it sneaks past. Was 3h when the tightest gap was
       # 5h; the 17:05 run added 2026-08-27 sits 2.5h after 14:35, so 3h would
-      # now accept a file the previous run wrote. See tools/health_check.py.
+      # now accept a file the previous run wrote. Cut to 0.75h on 2026-09-15
+      # when the US-session runs put landings ~1h apart. Warm runs take ~8 min
+      # end to end, so a file this run wrote is minutes old. Runs that queue
+      # back-to-back can still sneak one past — the limit of an age check.
+      # See tools/health_check.py.
       #
       # MUST stay above the notifier below — `if: failure()` only fires for
       # steps that already ran, so a check placed after it would fail the run
@@ -146,7 +167,7 @@ jobs:
       - name: Verify the publish moved the data
         run: |
           cd swing_generator
-          python3 tools/health_check.py --max-age-hours 2
+          python3 tools/health_check.py --max-age-hours 0.75
 
       # ── 6b. Does the data LOOK like data? ────────────────────────────────
       # health_check.py above proves every file was written by this run. It
