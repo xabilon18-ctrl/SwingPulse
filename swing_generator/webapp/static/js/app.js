@@ -8013,37 +8013,31 @@
   // A thin bar under the price: green while the established trend is up, red
   // while it is down, lighter on bars where price sat on the wrong side of the
   // fast average — a pullback inside the trend. It says how long a trend has
-  // run, never which way the next move goes. DAILY ONLY: it reads the Trends
-  // tab's segment history, and no other timeframe carries a trend's start —
-  // trend_run_days counts bars on the trend side of the ribbon, not the age.
+  // run, never which way the next move goes. It reads the Trends tab's DAILY
+  // segment history, which is kept in dates — so it maps onto any timeframe's
+  // bars by date.
+  //
+  // EVERY TIMEFRAME since 2026-09-15. It was Daily-only, and the plot still
+  // reserves the strip's band on every timeframe, so flicking 10m → Daily → 3D
+  // showed a strip, then an empty gap, then a strip: "there and not there".
+  // Off Daily it is labelled as the DAILY trend, because that is what it is;
+  // the lighter pullback shading still uses the chart's own fast average.
   function reelTrendStripSvg(b, L, xOf, bw, item, bundle) {
     const n = b.c.length;
-    if (!n || L.stripY == null || timeframe !== 'D') return '';
-    const pre = tfMeta().prefix;
+    if (!n || L.stripY == null) return '';
     const day = s => String(s).slice(0, 10);
     const longDate = d => new Date(d + 'T00:00:00Z')
       .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-    let dirAt, curDir = '', since = '';
-    if (timeframe === 'D') {
-      const segs = trendsData[item.instrument_name] || [];          // newest first
-      if (!segs.length) return '';
-      dirAt = t => {
-        const d = day(t);
-        if (segs[0].end && d > segs[0].end) return segs[0].direction;
-        for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
-        return '';
-      };
-      curDir = segs[0].direction;
-      since = segs[0].start;
-    } else {
-      curDir = item[pre + 'established_trend'] || '';
-      const run = parseInt(item[pre + 'trend_run_days']);
-      const N = bundle.c.length;
-      if (!(run > 0) || !N) return '';
-      const startT = String(bundle.t[Math.max(0, N - run)]);
-      dirAt = t => (String(t) >= startT ? curDir : '');
-      since = run <= N ? day(startT) : '';
-    }
+    const segs = trendsData[item.instrument_name] || [];            // newest first
+    if (!segs.length) return '';
+    const dirAt = t => {
+      const d = day(t);
+      if (segs[0].end && d > segs[0].end) return segs[0].direction;
+      for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
+      return '';
+    };
+    const curDir = segs[0].direction;
+    const since  = segs[0].start;
     if (curDir !== 'UPTREND' && curDir !== 'DOWNTREND') return '';
 
     // Fast average at every bar. The ribbon ships sampled every b.ms bars, so
@@ -8078,9 +8072,10 @@
     }
     flush(n);
     if (!out) return '';
-    const word = curDir === 'UPTREND' ? 'Uptrend' : 'Downtrend';
+    const word = (timeframe === 'D' ? '' : 'Daily ') + (curDir === 'UPTREND' ? 'uptrend' : 'downtrend');
     const legend = `lighter = ${curDir === 'UPTREND' ? 'below' : 'above'} MA${b.p[0]}`;
-    const text = since ? `${word} since ${longDate(since)} · ${legend}` : legend;
+    const Word = word.charAt(0).toUpperCase() + word.slice(1);
+    const text = since ? `${Word} since ${longDate(since)} · ${legend}` : legend;
     return out + `<text x="${L.x0 + 4}" y="${L.stripY - 5}" class="reel-strip-lbl">${text}</text>`;
   }
 
@@ -8251,7 +8246,9 @@
       // 2/4 dash at 80% was a faint dotted thread on the white ground. The line
       // takes a DEEPER amber than the tag: the app's accent is chosen for a
       // black background and all but disappears as a thin stroke on white.
-      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="4" stroke-dasharray="14 6" stroke-opacity="1"/>` +
+      // Thin again (user, same day: "don't make the price line bold") — kept
+      // at full strength in the deeper amber, which is what makes it findable.
+      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="1.6" stroke-dasharray="6 5" stroke-opacity="1"/>` +
       `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" fill="var(--accent)"/>` +
       `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
 
@@ -8366,8 +8363,16 @@
 
     const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
 
+    // Price, ribbon and drawings are clipped to the plot. A channel or trend
+    // line is drawn edge to edge at its own slope, so a steep one used to run
+    // straight down through the trend strip and the date labels — on screen and
+    // in the shared picture. The id is keyed by geometry, so two charts of the
+    // same size sharing one id resolve to identical rectangles.
+    const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}`;
+
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      ${grid}${timeGrid}${ribbon}${bars}${channel}${lastTag}${clipTag}${dates}${strip}
+      <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
+      ${grid}${timeGrid}<g clip-path="url(#${plotClipId})">${ribbon}${bars}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -8840,7 +8845,11 @@
     const cs = getComputedStyle(liveEl);
     for (const prop of SHARE_STYLE_PROPS) {
       const v = cs.getPropertyValue(prop);
-      if (v && v !== 'none' && v !== 'normal') cloneEl.setAttribute(prop, v.trim());
+      // `none` IS a value and must be copied. Skipping it (2026-09-15) left the
+      // channel band — `.reel-ch-band { fill: none }` — with no fill attribute
+      // at all, and an SVG shape with no fill paints BLACK: every shared chart
+      // with a channel came out with the inside of the channel blacked in.
+      if (v && v !== 'normal') cloneEl.setAttribute(prop, v.trim());
     }
     const lk = liveEl.children, ck = cloneEl.children;
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
@@ -8858,6 +8867,12 @@
 
     const clone = svg.cloneNode(true);
     inlineSvgStyles(svg, clone);
+    // Editing chrome is not part of the picture: the drag handles, their
+    // invisible grab circles and tap targets, and the "zoom out to adjust" note
+    // only exist while Draw is open. Removed AFTER the style walk, which pairs
+    // live and cloned children by position.
+    clone.querySelectorAll('.reel-ch-h, .reel-ch-grab, .reel-ch-hit, .reel-ch-note')
+         .forEach(el => el.remove());
     clone.setAttribute('width', W);
     clone.setAttribute('height', H);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
@@ -9047,15 +9062,9 @@
   // have zoomed in first, which reads as a broken gesture rather than a limit.
   // Throttled: this is called from a pointermove, and reelHint re-arms its own
   // timer on every call.
-  let _zoomHintAt = 0;
-  function reelZoomLimitHint(host, n, dir) {
-    const now = Date.now();
-    if (now - _zoomHintAt < 1200) return;
-    _zoomHintAt = now;
-    reelHint(host, dir === 'out'
-      ? `All ${n} bars are already shown — this is the whole chart`
-      : `${REEL_MIN_WINDOW_BARS} bars is as close as it goes`);
-  }
+  // Silent since 2026-09-15: the user asked for the black message bubbles over
+  // the chart to go. Reaching a zoom limit simply stops the zoom.
+  function reelZoomLimitHint(host, n, dir) {}
 
   // Apply a drag of `dx` CSS pixels to the time window captured at grab time.
   // Exponential, so the same travel is the same ratio wherever you start, and
@@ -9392,12 +9401,10 @@
         let moved = reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle);
         // ...and the same drag carries the price window up and down with it.
         if (reelApplyYPan(host, ctx, grab, dy)) moved = true;
+        // Nothing off-screen to scroll to → nothing happens. The "Whole chart is
+        // already shown" bubble that used to pop up here was removed at the
+        // user's request (2026-09-15): black text sitting over the bars.
         if (moved) schedule();
-        else if (dx > 0 && reelWindowBars(ctx.bundle, ctx.name) >= ctx.bundle.c.length) {
-          // Nothing off-screen to scroll to. Say which control makes room,
-          // rather than letting the drag read as broken.
-          reelHint(host, 'Whole chart is already shown — pick a Range to scroll back');
-        }
         return;
       }
 
