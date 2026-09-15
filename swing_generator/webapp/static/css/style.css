@@ -7920,6 +7920,9 @@ body {
 }
 .reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
 .reel-share-btn svg { display: block; }
+.reel-back-btn[hidden] { display: none; }
+/* Back is the one header icon you reach for mid-browse — a shade stronger. */
+.reel-back-btn { color: var(--text-secondary); }
 /* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was
    reported as not being there at all. "+ Add" wrapped to two lines and grew the
    footer, so the word alone. */

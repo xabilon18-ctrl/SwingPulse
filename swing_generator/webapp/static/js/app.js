@@ -5942,6 +5942,7 @@
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
+  const ICON_BACK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg>`;
   const ICON_UNDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>`;
   const ICON_REDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>`;
   const ICON_COPY   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`;
@@ -8708,6 +8709,7 @@
     el.className = 'reel-card chart-full open';
     el.dataset.name = name;
     el.innerHTML = chartFullHtml(item);
+    chartHistNote(name);
     document.body.classList.add('chart-full-open');
 
     const host = el.querySelector('.reel-chart');
@@ -8869,6 +8871,7 @@
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
           ${reelTrendlineHtml(item)}
         </div>
+        ${chartBackBtnHtml()}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -8960,6 +8963,7 @@
           ${simPct(name)}
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+          ${chartBackBtnHtml()}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
@@ -9996,6 +10000,19 @@
     // The step buttons are gone; nothing here may require them any more, or the
     // counter and the scroll sync go with them.
     if (!el || !nav) return;
+    // Back-history sees every settle, including a one-chart search result —
+    // which is exactly how you usually get to a chart — so it runs BEFORE the
+    // single-chart early return below.
+    if (!chartFullName) {
+      const rb0 = el.getBoundingClientRect();
+      let best = null, bestOv = 0;
+      for (const c of el.querySelectorAll('.reel-card')) {
+        const b = c.getBoundingClientRect();
+        const ov = Math.min(b.bottom, rb0.bottom) - Math.max(b.top, rb0.top);
+        if (ov > bestOv) { bestOv = ov; best = c; }
+      }
+      if (best) chartHistNote(best.dataset.name);
+    }
 
     const total = reel.list ? reel.list.length : 0;
     // One chart cannot be stepped through, and no charts must not show a "0/0".
@@ -10083,6 +10100,88 @@
       if (chartFullName) { chartFullStep(down ? 1 : -1); return; }
       reelStepBy(down ? 1 : -1);
     });
+  }
+
+  // ── Back to the previous chart (2026-09-15) ───────────────────────────
+  // A chart counts as "used" once you have stayed on it for CHART_HIST_DWELL_MS
+  // — flicking past twenty charts on the way to one is not twenty visits. The
+  // entry is instrument AND timeframe, so switching AVGO from Daily to Weekly
+  // is a step Back can undo. Back walks one step further each press, like a
+  // browser's back button; in memory for this visit only.
+  const CHART_HIST_DWELL_MS = 1200;
+  const CHART_HIST_MAX = 30;
+  const chartHist = { back: [], cur: null, pending: null, timer: 0, jumping: false };
+
+  function chartHistNote(name) {
+    if (!name || currentTab !== 'charts') return;
+    const here = { name, tf: timeframe };
+    if (chartHist.cur && chartHist.cur.name === name && chartHist.cur.tf === timeframe) {
+      clearTimeout(chartHist.timer); chartHist.pending = null;
+      return;
+    }
+    if (chartHist.pending && chartHist.pending.name === name && chartHist.pending.tf === timeframe) return;
+    chartHist.pending = here;
+    clearTimeout(chartHist.timer);
+    // Arriving by Back is not a new visit — it must not push the chart you left.
+    const delay = chartHist.jumping ? 0 : CHART_HIST_DWELL_MS;
+    chartHist.timer = setTimeout(() => {
+      const p = chartHist.pending;
+      chartHist.pending = null;
+      if (!p) return;
+      if (chartHist.cur && !chartHist.jumping) {
+        chartHist.back.push(chartHist.cur);
+        if (chartHist.back.length > CHART_HIST_MAX) chartHist.back.shift();
+      }
+      chartHist.jumping = false;
+      chartHist.cur = p;
+      chartHistSyncButtons();
+    }, delay);
+  }
+
+  function chartHistLabel(e) {
+    return e ? `${e.name} · ${(TF_BY_CODE[e.tf] || {}).label || e.tf}` : '';
+  }
+
+  function chartBackBtnHtml() {
+    const prev = chartHist.back[chartHist.back.length - 1];
+    return `<button class="reel-share-btn reel-back-btn" data-act="chart-back" aria-label="Back to previous chart"${prev ? ` title="Back to ${chartHistLabel(prev)}"` : ' hidden'}>${ICON_BACK}</button>`;
+  }
+
+  function chartHistSyncButtons() {
+    const prev = chartHist.back[chartHist.back.length - 1];
+    document.querySelectorAll('[data-act="chart-back"]').forEach(b => {
+      b.hidden = !prev;
+      if (prev) b.title = 'Back to ' + chartHistLabel(prev);
+    });
+  }
+
+  function chartGoBack() {
+    const target = chartHist.back.pop();
+    if (!target) { chartHistSyncButtons(); return; }
+    clearTimeout(chartHist.timer); chartHist.pending = null;
+    chartHist.jumping = true;
+    const full = !!chartFullName;
+    if (target.tf !== timeframe && isTf(target.tf)) setTimeframe(target.tf, target.name);
+    const host = document.getElementById('chartReel');
+    const find = () => host && host.querySelector(`.reel-card[data-name="${CSS.escape(target.name)}"]`);
+    let el = find();
+    // Filtered out since (a search, a pill): clear the filters rather than
+    // leave Back doing nothing.
+    if (!el) {
+      const rst = document.getElementById('reelReset');
+      if (rst) rst.click();
+      el = find();
+    }
+    if (host && el) {
+      host.scrollTop = el.offsetTop - host.offsetTop;
+      reelPaintVisible();
+      reelSyncNav();
+    }
+    if (full) chartFullOpen(target.name);
+    // Settle straight onto the target as the current chart.
+    chartHist.cur = null;
+    chartHistNote(target.name);
+    chartHistSyncButtons();
   }
 
   // Open the Charts tab showing this instrument and the charts most like it,
@@ -10313,6 +10412,7 @@
       }
       const cardEl = btn.closest('.reel-card');
       const chHost = cardEl && cardEl.querySelector('.reel-chart');
+      if (btn.dataset.act === 'chart-back')    { chartGoBack(); return true; }
       if (btn.dataset.act === 'chart-expand')  { chartFullOpen(name); return true; }
       if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
