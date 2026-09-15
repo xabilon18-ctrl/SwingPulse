@@ -7948,7 +7948,13 @@ body {
    tools. The bar is anchored by its bottom edge, so the extra row grows UP over
    the chart and never pushes the tools off the date row. */
 .reel-toolbar { flex-direction: column; align-items: stretch; }
-.reel-tools-row { display: flex; justify-content: center; gap: 2px; }
+.reel-tools-row { display: flex; justify-content: space-around; gap: 2px; }
+/* The tool icons were 15px beside 17px swatches and full-size lock/delete
+   glyphs, and huddled in the middle under a row that spans the bar. Same icon
+   size and spread as the row above, so the two rows read as one panel. */
+.reel-tools-row .reel-tool { padding: 8px 12px; }
+.reel-tools-row .reel-tool svg, .reel-props .reel-tool svg { width: 22px; height: 22px; }
+.reel-props .reel-swatch i { width: 22px; height: 22px; }
 .reel-props {
   display: flex; align-items: center; justify-content: center; gap: 1px;
   padding-bottom: 3px; margin-bottom: 3px; border-bottom: 1px solid rgba(0,0,0,.14);
@@ -9079,8 +9085,10 @@ body.chart-full-open { overflow: hidden; }
 /* White like every other drawing — these are hand-placed, not computed. */
 .reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 2.2; stroke-opacity: .95; }
-.reel-ladder-lbl { font-size: 16px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
-.reel-ladder-lbl-key { fill: var(--text-secondary); font-weight: 700; }
+/* Black and LARGER than the price axis (24px phone / 18px desktop) — the user
+   reads the ladder by these, so they outrank the numbers in the gutter. */
+.reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
 /* Full-screen chart: previous / next without closing. */
 /* Bottom-right corner of the full-screen view (user request): the last thing
    in the footer, pushed right, and still right if the footer wraps while

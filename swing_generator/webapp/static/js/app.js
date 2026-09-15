@@ -7738,13 +7738,8 @@
     return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="reel-ch-hit" data-di="${idx}"/>`;
   }
 
-  // A small padlock at the LEFT end of a locked drawing's own line. Every badge
-  // used to print "locked" at the same top-left spot, so two locked drawings
-  // stacked into one smear and you could not tell which was which.
-  function reelLockBadge(L, y) {
-    const yy = Math.min(Math.max(y - 8, L.py0 + 22), L.py1 - 8);
-    return `<text x="${(L.x0 + 8).toFixed(1)}" y="${yy.toFixed(1)}" class="reel-ch-lock">\u{1F512}</text>`;
-  }
+  // NO lock badge on the chart (user, 2026-09-15). A locked drawing shows it
+  // only in the properties row, where its lock button reads as on.
 
   // Trend line — two anchors, extended across the panel the way the channel's
   // edges are, so it reads as a line you can project rather than a segment.
@@ -7765,13 +7760,12 @@
     }
     const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
                + reelHitLine(L.x0, yA, L.x1, yB, idx);
-    const badge = d.locked ? reelLockBadge(L, yA) : '';
     let handles = '';
     if (editing && !d.locked) {
       handles = reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive);
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
     }
-    return line + handles + badge;
+    return line + handles;
   }
 
   // Horizontal price line — one price, spanning the panel. The label sits in
@@ -7786,10 +7780,9 @@
     const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
                + reelHitLine(L.x0, y, L.x1, y, idx);
     const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
-    const badge = d.locked ? reelLockBadge(L, y) : '';
     const handles = (editing && !d.locked)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
-    return line + tag + handles + badge;
+    return line + tag + handles;
   }
 
   // Ten price lines — dotted like the calendar lines, always evenly spaced,
@@ -7805,14 +7798,16 @@
       const key = k === 0 || k === 3;
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
-           + `<text x="${(L.x1 - 6).toFixed(1)}" y="${(y - 6).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-key' : ''}" text-anchor="end">${k + 1} · ${reelFmtPrice(p)}</text>`;
+           // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
+           // on line 10 (user, 2026-09-15). The price used to sit at the right
+           // end, where it crowded the axis it duplicated.
+           + `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl">${(k + 1) * 10}%</text>`;
       drawn++;
     }
     if (!drawn) {
       const above = Math.max(sc.y(d.p1), sc.y(d.p1 + 9 * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">10 lines ${above ? '↑' : '↓'} off-scale</text>`;
     }
-    const badge = d.locked ? reelLockBadge(L, sc.y(d.p1)) : '';
     let handles = '';
     if (editing && !d.locked) {
       const hx = L.x0 + (L.x1 - L.x0) * 0.35;
@@ -7821,7 +7816,7 @@
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Lines 1 and 4 are outside this range — zoom out to adjust</text>`;
     }
-    return out + handles + badge;
+    return out + handles;
   }
 
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
@@ -7904,7 +7899,6 @@
 
     // A locked channel says so on the chart, so "why will this not move" has an
     // answer without hunting through the footer.
-    const badge = ch.locked ? reelLockBadge(L, yA + dUp) : '';
 
     return band
       + seg(dUp,  'reel-ch reel-ch-edge')
@@ -7915,7 +7909,7 @@
       + reelHitLine(XA, yA + dUp,  XB, yB + dUp,  idx)
       + reelHitLine(XA, yA + dDn,  XB, yB + dDn,  idx)
       + reelHitLine(XA, yA + dMid, XB, yB + dMid, idx)
-      + handles + badge;
+      + handles;
   }
 
   // Vertical time lines. Calendar boundaries, not evenly-spaced ticks: a line
