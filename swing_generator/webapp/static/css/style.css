@@ -7971,6 +7971,11 @@ body {
 .reel-tool.on { background: rgba(0,0,0,.12); }
 .reel-tool-del { color: #b91c1c; }
 /* "%" — sized to sit with the 22px icons beside it. */
+/* Entry marker: a solid short line and a see-through × on the entry candle. */
+.reel-entry { fill: none; stroke: var(--reel-ch-color, #14140f); stroke-width: 3; stroke-linecap: round; }
+.reel-entry.is-bold { stroke-width: 6; }
+.reel-entry-x { stroke-opacity: .45; stroke-width: 3; }
+.reel-entry-x.is-bold { stroke-width: 5; }
 .reel-tool-pct { font: 800 20px/22px system-ui, -apple-system, "Segoe UI", sans-serif; min-width: 36px; color: #1a1a19; }
 /* The drawing the properties row is acting on reads heavier than the rest. */
 .reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }

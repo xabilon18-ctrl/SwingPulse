@@ -5916,6 +5916,7 @@
   const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
+  const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
   const ICON_LOCK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
   const ICON_UNLOCK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
   const ICON_TRASH  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 20 7"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>`;
@@ -5938,6 +5939,7 @@
           <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
         </div>
       </div>`;
   }
@@ -5955,9 +5957,13 @@
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
       : '';
+    // An entry marker gets a BOLD switch (user, 2026-09-15).
+    const bold = d.kind === 'entry'
+      ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
+      : '';
     return sw
       + `<span class="reel-props-sep"></span>`
-      + pct
+      + pct + bold
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
   }
@@ -7565,7 +7571,21 @@
     return null;
   }
 
+  // Entry marker: starts ON a candle — three quarters of the way across the
+  // window, at that bar's close — and runs a short way to the right.
+  function reelDefaultEntry(b) {
+    const n = b.c.length;
+    if (n < 4) return null;
+    let i = Math.floor(n * 0.75);
+    while (i > 0 && b.c[i] == null) i--;
+    if (b.c[i] == null) return null;
+    const len = Math.max(4, Math.round(n * 0.1));
+    const t2 = reelDateForBarIndex(b, i + len);
+    return t2 ? { kind: 'entry', t: String(b.t[i]), p: b.c[i], t2 } : null;
+  }
+
   function reelDefaultDrawing(kind, b) {
+    if (kind === 'entry') return reelDefaultEntry(b);
     if (kind === 'trend') return reelDefaultTrend(b);
     if (kind === 'hline') return reelDefaultHLine(b);
     if (kind === 'ladder') return reelDefaultLadder(b);
@@ -7616,7 +7636,7 @@
       // Offset from whatever is already there — two drawings on the same pixels
       // look like one and cannot be told apart to drag.
       const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
-      if (def.kind === 'hline') def.p -= shift;
+      if (def.kind === 'hline' || def.kind === 'entry') def.p -= shift;
       else if (def.kind === 'ladder') { def.p1 -= shift; def.p4 -= shift; }
       else { def.p1 -= shift; def.p2 -= shift; }
     }
@@ -7724,6 +7744,7 @@
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'ladder') return reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'entry')  return reelEntrySvg(d, b, L, sc, bw, editing, idx, isActive);
     return reelChannelSvg(d, b, L, sc, bw, editing, idx, isActive);
   }
 
@@ -7826,6 +7847,30 @@
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Lines 1 and 4 are outside this range — zoom out to adjust</text>`;
     }
     return out + handles;
+  }
+
+  // Entry marker (2026-09-15). A SHORT solid line from the entry candle to a
+  // chosen end, with a see-through × on the candle itself. Two handles: the
+  // × moves the whole marker (it snaps to a bar, the price follows the finger),
+  // and the far end makes the line longer or shorter. Colour and bold come
+  // from the properties row like every other drawing.
+  function reelEntrySvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const i1 = reelBarIndexForDate(b, d.t), i2 = reelBarIndexForDate(b, d.t2);
+    if (i1 == null || i2 == null) return '';
+    const xAt = fi => L.x0 + fi * bw + bw / 2;
+    const x1 = xAt(i1), x2 = Math.max(xAt(i2), x1 + 2);
+    const y = sc.y(d.p);
+    if (y < L.py0 - 20 || y > L.py1 + 20 || x2 < L.x0 || x1 > L.x1) return '';
+    const cls = 'reel-entry' + (d.bold ? ' is-bold' : '');
+    const r = d.bold ? 13 : 10;   // half-size of the ×
+    const line = `<line x1="${x1.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}"/>`;
+    const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
+    const hit = reelHitLine(x1 - r, y, x2, y, idx);
+    let handles = '';
+    if (editing && !d.locked) {
+      handles = reelHandle(L, x1, y, 'e', idx, isActive) + reelHandle(L, x2, y, 'r', idx, isActive);
+    }
+    return line + cross + hit + handles;
   }
 
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
@@ -9516,6 +9561,25 @@
       // A horizontal level is one number and one handle.
       if (ch.kind === 'hline') { ch.p = price; schedule(); return; }
 
+      // Entry: the × moves the whole marker and keeps its length in bars; the
+      // far end only changes the length, and never crosses back past the ×.
+      if (ch.kind === 'entry') {
+        const iE = reelBarIndexForDate(ctx.b, ch.t), iR = reelBarIndexForDate(ctx.b, ch.t2);
+        if (iE == null || iR == null) return;
+        if (handle === 'e') {
+          const to = Math.round(fi);
+          const dt = reelDateForBarIndex(ctx.b, to);
+          const dt2 = reelDateForBarIndex(ctx.b, to + (iR - iE));
+          if (dt && dt2) { ch.t = dt; ch.t2 = dt2; }
+          ch.p = price;
+        } else if (handle === 'r') {
+          const dt2 = reelDateForBarIndex(ctx.b, Math.max(fi, iE + 1));
+          if (dt2) ch.t2 = dt2;
+        }
+        schedule();
+        return;
+      }
+
       // Ten price lines: line 1 and line 4 are the anchors, the rest follow.
       // Refuse a drag that would collapse them onto one price (they vanish).
       if (ch.kind === 'ladder') {
@@ -10097,6 +10161,16 @@
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
+      if (btn.dataset.act === 'draw-bold') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'entry') {
+          if (d.bold) delete d.bold; else d.bold = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
       if (btn.dataset.act === 'draw-labels') {
         const d = activeChannel(name);
         if (d && d.kind === 'ladder') {
