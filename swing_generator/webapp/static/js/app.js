@@ -289,6 +289,20 @@
   // What each chart looked like when last saved or merged, so channelSave can
   // tell which charts THIS device changed without every caller saying so.
   let channelSnap = {};
+
+  // Undo / redo (2026-09-15). Per CHART (instrument|timeframe), in memory for
+  // this visit. Entries are the whole chart's drawing list as JSON, so any
+  // change — add, drag, colour, lock, duplicate, delete — undoes as one step.
+  const drawUndo = new Map(), drawRedo = new Map();
+  const DRAW_HISTORY_MAX = 50;
+  let drawHistoryMuted = false;
+  function drawHistoryPush(map, k, json) {
+    const st = map.get(k) || [];
+    st.push(json);
+    if (st.length > DRAW_HISTORY_MAX) st.shift();
+    map.set(k, st);
+  }
+
   function channelSnapAll() {
     channelSnap = {};
     for (const name of Object.keys(instChannels))
@@ -304,7 +318,15 @@
       for (const tf of Object.keys(instChannels[name] || {}))
         cur[chKey(name, tf)] = JSON.stringify(instChannels[name][tf]);
     for (const k of new Set([...Object.keys(cur), ...Object.keys(channelSnap)]))
-      if (cur[k] !== channelSnap[k]) channelMod[k] = now;
+      if (cur[k] !== channelSnap[k]) {
+        channelMod[k] = now;
+        // Every saved change is one undo step for that chart — the state it
+        // replaced goes on the chart's undo stack and its redo stack is spent.
+        if (!drawHistoryMuted) {
+          drawHistoryPush(drawUndo, k, channelSnap[k] == null ? null : channelSnap[k]);
+          drawRedo.delete(k);
+        }
+      }
     channelSnap = cur;
     try { localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod)); } catch (_) {}
   }
@@ -346,6 +368,9 @@
           if (!Object.keys(instChannels[name]).length) delete instChannels[name];
         }
         changed = true;
+        // Another device changed this chart; an undo here would put back a
+        // state that no longer exists anywhere else.
+        drawUndo.delete(k); drawRedo.delete(k);
       }
       if (rm > lm) channelMod[k] = rm;
     }
@@ -5917,6 +5942,8 @@
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
+  const ICON_UNDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>`;
+  const ICON_REDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>`;
   const ICON_COPY   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`;
   const ICON_LOCK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
   const ICON_UNLOCK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
@@ -5936,6 +5963,9 @@
     return `<div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
         <div class="reel-props" data-props${edit && channelsFor(name).length ? '' : ' hidden'}>${reelPropsHtml(name)}</div>
         <div class="reel-tools-row">
+          <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
+          <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
+          <span class="reel-props-sep"></span>
           <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
@@ -5943,6 +5973,11 @@
           <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
         </div>
       </div>`;
+  }
+
+  function drawCanStep(name, dir) {
+    const st = (dir < 0 ? drawUndo : drawRedo).get(chKey(name, timeframe));
+    return !!(st && st.length);
   }
 
   // Properties of the ONE selected drawing — colour, lock, delete. Every button
@@ -7663,7 +7698,8 @@
     clearChannelFor(name);
     // Stay in Draw mode while other drawings remain — deleting one is not
     // "I am finished with the chart".
-    if (reel.editing === name && !channelsFor(name).length) reel.editing = null;
+    // Draw mode stays open even when the last one goes, so Undo is still there
+    // to bring it back.
     channelSave();
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
@@ -7713,6 +7749,10 @@
 
   // Rebuild the properties row for whichever drawing is selected now.
   function reelSyncProps(root, name) {
+    const u = root && root.querySelector('[data-act="draw-undo"]');
+    const r = root && root.querySelector('[data-act="draw-redo"]');
+    if (u) u.disabled = !drawCanStep(name, -1);
+    if (r) r.disabled = !drawCanStep(name, 1);
     const props = root && root.querySelector('[data-props]');
     if (!props) return;
     const show = reel.editing === name && channelsFor(name).length > 0;
@@ -7731,10 +7771,14 @@
     // Each drawing is its own group: its colour is a custom property on the
     // group (every drawing class already reads --reel-ch-color), and the
     // selected one is marked so you can see what the properties row acts on.
+    //
+    // ONLY the selected drawing is editable (user, 2026-09-15): it alone grows
+    // handles. The rest draw as plain lines that a tap selects, so dragging
+    // near one drawing can never move another that happens to sit close by.
     return list.map((d, i) => {
       const sel = editing && i === activeI;
       return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}">`
-        + reelDrawingSvg(d, b, L, sc, bw, editing, i, i === activeI) + '</g>';
+        + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
     }).join('');
   }
 
@@ -7796,6 +7840,30 @@
       for (const k of DRAW_DATE_KEYS) if (typeof orig[k] === 'string') target[k] = orig[k];
     }
     for (const k of DRAW_PRICE_KEYS) if (typeof orig[k] === 'number') target[k] = orig[k] + dP;
+  }
+
+  // Undo (dir -1) or redo (dir +1) the last change on THIS chart.
+  function drawHistoryStep(name, host, dir) {
+    const k = chKey(name, timeframe);
+    const from = dir < 0 ? drawUndo : drawRedo;
+    const to   = dir < 0 ? drawRedo : drawUndo;
+    const st = from.get(k);
+    if (!st || !st.length) return;
+    const target = st.pop();
+    drawHistoryPush(to, k, channelSnap[k] == null ? null : channelSnap[k]);
+    const list = target ? JSON.parse(target) : null;
+    if (list && list.length) {
+      if (!instChannels[name]) instChannels[name] = {};
+      instChannels[name][timeframe] = list;
+    } else if (instChannels[name]) {
+      delete instChannels[name][timeframe];
+      if (!Object.keys(instChannels[name]).length) delete instChannels[name];
+    }
+    reel.activeCh.delete(k);
+    drawHistoryMuted = true;
+    try { channelSave(); } finally { drawHistoryMuted = false; }
+    if (host) reelRepaint(host);
+    reelSyncChannelButtons();
   }
 
   // Duplicate the selected drawing with every measurement intact, dropped a
@@ -10250,6 +10318,8 @@
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
+      if (btn.dataset.act === 'draw-undo') { drawHistoryStep(name, chHost, -1); return true; }
+      if (btn.dataset.act === 'draw-redo') { drawHistoryStep(name, chHost, 1); return true; }
       if (btn.dataset.act === 'draw-dup')  { channelDuplicate(name, chHost); return true; }
       if (btn.dataset.act === 'draw-bold') {
         const d = activeChannel(name);

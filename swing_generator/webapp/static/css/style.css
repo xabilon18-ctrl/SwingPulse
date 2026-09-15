@@ -7952,7 +7952,11 @@ body {
 /* The tool icons were 15px beside 17px swatches and full-size lock/delete
    glyphs, and huddled in the middle under a row that spans the bar. Same icon
    size and spread as the row above, so the two rows read as one panel. */
-.reel-tools-row .reel-tool { padding: 8px 12px; }
+.reel-tools-row .reel-tool { padding: 8px 9px; }
+.reel-tools-row .reel-props-sep { margin: 6px 2px; }
+/* Undo/redo with nothing to step to: still there, clearly unavailable. */
+.reel-hist:disabled { opacity: .28; cursor: default; }
+.reel-hist:disabled:active { background: transparent; }
 .reel-tools-row .reel-tool svg, .reel-props .reel-tool svg { width: 22px; height: 22px; }
 .reel-props .reel-swatch i { width: 22px; height: 22px; }
 .reel-props {
