@@ -5950,8 +5950,14 @@
     const cur = drawColor(d);
     const sw = DRAW_COLORS.map(c =>
       `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('');
+    // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
+    // labels (user, 2026-09-15). On = labels showing, the default.
+    const pct = d.kind === 'ladder'
+      ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+      : '';
     return sw
       + `<span class="reel-props-sep"></span>`
+      + pct
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
   }
@@ -7804,7 +7810,7 @@
            // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
            // on line 10 (user, 2026-09-15). The price used to sit at the right
            // end, where it crowded the axis it duplicated.
-           + `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${k === 0 || k === LADDER_LINES - 1 ? ' reel-ladder-lbl-end' : ''}">${(k + 1) * 10}%</text>`;
+           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${k === 0 || k === LADDER_LINES - 1 ? ' reel-ladder-lbl-end' : ''}">${(k + 1) * 10}%</text>`);
       drawn++;
     }
     if (!drawn) {
@@ -10091,6 +10097,16 @@
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
+      if (btn.dataset.act === 'draw-labels') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          if (d.hideLabels) delete d.hideLabels; else d.hideLabels = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
       if (btn.dataset.act === 'draw-delete') { channelClear(name, chHost); return true; }
       if (btn.dataset.act === 'draw-color')  {
         const d = activeChannel(name);

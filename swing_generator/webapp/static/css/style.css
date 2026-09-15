@@ -7970,6 +7970,8 @@ body {
 .reel-swatch.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
 .reel-tool.on { background: rgba(0,0,0,.12); }
 .reel-tool-del { color: #b91c1c; }
+/* "%" — sized to sit with the 22px icons beside it. */
+.reel-tool-pct { font: 800 20px/22px system-ui, -apple-system, "Segoe UI", sans-serif; min-width: 36px; color: #1a1a19; }
 /* The drawing the properties row is acting on reads heavier than the rest. */
 .reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
