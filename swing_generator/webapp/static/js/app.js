@@ -10215,7 +10215,16 @@
     buildReel();
     reelSyncSimBar();
     const host = document.getElementById('chartReel');
-    const el = host && host.querySelector(`.reel-card[data-name="${CSS.escape(name)}"]`);
+    const find = () => host && host.querySelector(`.reel-card[data-name="${CSS.escape(name)}"]`);
+    let el = find();
+    // A search or pill left on the Charts tab can hide the very chart asked
+    // for, and the reel then sat on whatever was first — "Chart" on MSFT
+    // showed AVGO (2026-09-15). Clear the filters in that case, and only then.
+    if (!el) {
+      const rst = document.getElementById('reelReset');
+      if (rst) rst.click();
+      el = find();
+    }
     if (host && el) {
       // Position the container itself; scrollIntoView can scroll the page
       // around the fixed pane instead of the reel.
