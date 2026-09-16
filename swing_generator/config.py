@@ -293,6 +293,22 @@ NEW_TREND_PCT_3D = 0.05
 FIVE_MIN_PERIOD   = '60d'   # Yahoo's deepest 5m window (~60 sessions)
 TEN_MIN_RULE      = '10min' # pandas resample rule; 5m -> 10m is exact
 
+# HOW OLD THE 5m CACHE MAY BE before a run re-downloads it. This has to be set
+# from the BAR, not from the run cadence, and that is why it is here rather than
+# left to data_fetcher's DEFAULT_MAX_AGE_HOURS.
+#
+# That default is 1h in CI (FETCH_MAX_AGE_HOURS), which is right for a daily bar
+# and wrong for a ten-minute one. The eight weekday runs land ~45min-2h apart,
+# so on 2026-09-16 three of the six weekday gaps were UNDER an hour — those runs
+# found a "fresh" 5m cache, skipped the download, and republished a 10m chart
+# identical to the previous run's. A ten-minute chart that only moves on some
+# runs is the reported "the 10m chart never updates on every run".
+#
+# 0.15h = 9 minutes: just inside one bar, so any run that lands after a new 10m
+# bar closed fetches it, and two runs genuinely minutes apart still share one
+# download. Costs ~1 minute of wall clock on the runs that previously skipped.
+FIVE_MIN_MAX_AGE_HOURS = 0.15
+
 # ── Ribbon normalisation for ROUND-THE-CLOCK instruments (2026-09-14) ────────
 # Measured bars per CALENDAR day on the 10m frame, and what MA500 therefore
 # averages over:

@@ -43,6 +43,7 @@ from _active_config import (
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
+    FIVE_MIN_MAX_AGE_HOURS,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -1075,7 +1076,14 @@ def main():
     if not args.no_intraday:
         _t2 = _time.time()
         print('  Fetching 5m market data (10m chart feed) ...\n')
-        fetch_all_5m(instruments, force_refresh=args.refresh)
+        # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
+        # which is the right gate for a daily bar and far too coarse for a
+        # ten-minute one: three of the weekday cron landings sit less than an
+        # hour apart, found a "fresh" cache, skipped the download, and
+        # republished the previous run's 10m chart unchanged. See config
+        # §FIVE_MIN_MAX_AGE_HOURS.
+        fetch_all_5m(instruments, force_refresh=args.refresh,
+                     max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
         print(f'  5m data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 

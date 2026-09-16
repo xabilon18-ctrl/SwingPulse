@@ -1814,6 +1814,11 @@
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
       summaryData = sumRes;
+      // Before renderAll() below rebuilds the reel out of them. The chart
+      // bundles are the one feed loadAll does not re-fetch here — they are
+      // pulled per chunk as cards scroll into view — so this is where a new
+      // publish has to reach them. See reelInvalidateCache.
+      reelInvalidateCache(sumRes.fetched_at || '');
       tvMap = tvRes || {};
       aiSet = new Set(aiRes || []);
       trendsData = trendsRes || {};
@@ -7185,8 +7190,46 @@
 
   // ── Data access ──────────────────────────────────────────────────────
 
+  // The publish whose bundles this page is holding — summary.fetched_at, set by
+  // reelInvalidateCache below. It goes on the URL as well as in the cache key:
+  // chunks are served `public, max-age=900`, and the `?v=` the publisher bakes
+  // into these URLs only moves on a UI DEPLOY, which the data pipeline never
+  // does. Between deploys the URL was a constant, so a fetch issued minutes
+  // after a publish could still be answered from the browser's own 15-minute
+  // copy. Stamping the publish on index and chunks alike keeps them the matched
+  // pair they have to be, and makes a new publish a new URL.
+  let reelDataVersion = '';
+
+  function reelStamp(url) {
+    return url + (url.indexOf('?') < 0 ? '?' : '&') + 'd=' + encodeURIComponent(reelDataVersion);
+  }
+
+  // Drop every cached chart bundle when a new publish lands.
+  //
+  // reel.chunks and reel.index are memoised for the life of the PAGE, and
+  // nothing ever dropped them. That is right between publishes and wrong across
+  // one: loadAll() re-fetches every other feed — on its 4-hourly timer, on the
+  // stale-banner retry, on a tab becoming visible — and then calls renderAll(),
+  // which rebuilds the reel from these same cached bundles. So the charts
+  // redrew the data the page had at LAUNCH for as long as it stayed open, and
+  // an installed PWA stays open for days.
+  //
+  // Daily, 3-Day and Weekly hid this: their newest bar only moves once a
+  // session, so a launch snapshot was usually right by accident. 10m is rebuilt
+  // by every run, roughly an hour apart, so it was always the launch snapshot
+  // and never moved — which is exactly how it was reported.
+  function reelInvalidateCache(stamp) {
+    stamp = String(stamp || '');
+    if (!stamp || stamp === reelDataVersion) return;
+    reelDataVersion = stamp;
+    reel.chunks.clear();
+    reel.inflight.clear();
+    reel.index = null;
+    reelIndexPromise = null;
+  }
+
   function reelChunkUrl(tf, cid) {
-    return '/api/chart/' + tf + '/' + cid;
+    return reelStamp('/api/chart/' + tf + '/' + cid);
   }
 
   let reelIndexPromise = null;
@@ -7196,9 +7239,13 @@
     // the first fetch was still in flight.
     if (reel.index) return Promise.resolve(reel.index);
     if (!reelIndexPromise) {
-      reelIndexPromise = fetchJson('/api/chart-index',
+      // Captured, not re-read in the callback: a publish can land while this is
+      // in flight, and an index that describes the previous one must not be
+      // seeded into a cache that has already been cleared for the new one.
+      const ver = reelDataVersion;
+      reelIndexPromise = fetchJson(reelStamp('/api/chart-index'),
         { chunk_size: 10, bars: REEL_BARS_FALLBACK, chunks: {} })
-        .then(idx => { reel.index = idx; return idx; });
+        .then(idx => { if (ver === reelDataVersion) reel.index = idx; return idx; });
     }
     return reelIndexPromise;
   }
@@ -7216,18 +7263,22 @@
     if (reel.chunks.has(key)) return reel.chunks.get(key);
     if (reel.inflight.has(key)) return reel.inflight.get(key);
 
+    // Same capture as reelLoadIndex: if a publish lands mid-fetch, this response
+    // belongs to the previous one. Hand it to the caller that asked, but do not
+    // re-seed the cache reelInvalidateCache has just emptied.
+    const ver = reelDataVersion;
     const p = fetch(reelChunkUrl(tf, cid))
       .then(r => r.ok ? r.json() : null)
       .then(j => {
         const data = (j && j.data) || {};
-        reel.chunks.set(key, data);
+        if (ver === reelDataVersion) reel.chunks.set(key, data);
         reel.inflight.delete(key);
         return data;
       })
       .catch(() => {
         // Cache the failure as empty so a dead chunk doesn't refetch on every
         // scroll tick. A refresh clears it.
-        reel.chunks.set(key, {});
+        if (ver === reelDataVersion) reel.chunks.set(key, {});
         reel.inflight.delete(key);
         return {};
       });
