@@ -8308,6 +8308,16 @@
   // otherwise nowhere on the chart, and the 10m bundle is two months deep, so
   // panning back through it left you with "Tue 11" and no way to tell August
   // from September.
+  // "Jan 2026" — a quarter line's label. The MONTH is the name, not "Q1": the
+  // line marks one of the four equal parts the year is cut into, and the month
+  // it starts on is the thing you read a date against. Q-names also read as
+  // fiscal quarters, which these are not — they are the calendar's.
+  function reelQuarterLabel(y, q) {
+    const d = new Date(Date.UTC(y, q * 3, 1));
+    return isNaN(d) ? String(y)
+      : d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + ' ' + y;
+  }
+
   function reelMonthStartLabel(ts) {
     const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
     return isNaN(d) ? String(ts).slice(0, 7)
@@ -8364,7 +8374,7 @@
           month: monthStart,
           label: monthStart          ? reelMonthStartLabel(str)
                : mode === 'day'      ? reelDayLabel(str)
-               : mode === 'quarter'  ? 'Q' + (q + 1) + ' ' + y
+               : mode === 'quarter'  ? reelQuarterLabel(y, q)
                : String(y),
         });
       }
@@ -8437,7 +8447,7 @@
           const y  = last.getUTCFullYear() + Math.floor(qi / 4);
           const q  = qi % 4;
           const fi = (sn - 1) + (Date.UTC(y, q * 3, 1) - bt[sn - 1]) / perMs - from;
-          if (isFinite(fi)) out.push({ fi, future: true, label: 'Q' + (q + 1) + ' ' + y });
+          if (isFinite(fi)) out.push({ fi, future: true, label: reelQuarterLabel(y, q) });
         }
       }
     }
