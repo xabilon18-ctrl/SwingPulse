@@ -139,6 +139,13 @@
     // instead of silently answering "" / NEUTRAL. (The flag arrived with
     // Monthly, which held this slot until 2026-09-14.)
     { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
+    // 4H is BACK as of 2026-09-17, at the user's request — and back as a CHART
+    // ONLY, like 10m. The signals stay gone (see SIGNAL_TFS below and the
+    // 2026-09-11 finding: 71.7% agreement with Daily, 82% of its fires never
+    // confirmed), so no h4_ column exists on a row and `chartOnly` is what keeps
+    // the trend/stack filters from reading one. Its calendar grid is QUARTERS —
+    // REEL_TIME_GRID, which kept the entry through the removal.
+    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
     { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
@@ -151,7 +158,8 @@
   // Which timeframes each tab may show (2026-09-11). Buy/sell signals exist on
   // Daily and Weekly only: 1H/4H/3D signals never beat a random entry taken the
   // same day, and 4H/3D mostly repeat Daily, so those three are CHART VIEWS.
-  // Charts offers all five, the signal tabs offer D/W, Trends is Daily data.
+  // Charts offers all five (10m · 4H · Daily · 3D · Weekly), the signal tabs
+  // offer D/W, Trends is Daily data.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
   const SIGNAL_TFS = new Set(['D', 'W']);
@@ -8677,6 +8685,12 @@
     // 16 measures ~70.
     const LABEL_MIN_GAP = 116;
     let lastLabelX = -Infinity;
+    // Where the labels that SURVIVE the thinning actually land, and how wide
+    // they are, so the end-stops below can get out of their way. Width is the
+    // same estimate LABEL_MIN_GAP is built on — about 14 viewBox units per
+    // character at the axis font size.
+    const lblW = s => String(s).length * 14;
+    const drawnLabels = [];
     // The month has to appear SOMEWHERE. On 10m the grid is days, a window is
     // about three sessions, and a month boundary falls inside one on maybe three
     // days in twenty — so on most days no line carries a month, the end-stops
@@ -8705,6 +8719,7 @@
           if (!t.month) text += ' ' + reelMonthOf(t.fi, b);
           monthShown = true;
         }
+        drawnLabels.push([x, lblW(text)]);
       }
       return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>` +
              (label ? `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>` : '');
@@ -8725,11 +8740,26 @@
     // day line.
     const gridLabelCount = (timeGrid.match(/reel-tgrid-lbl/g) || []).length;
     const hasGridLabels = gridLabelCount >= 2;
+    // An end-stop that the ONE surviving grid label would print on top of is
+    // dropped — the calendar line is the better reference, and two dates in the
+    // same centimetre of axis are worse than one. The `near` rule above only
+    // suppresses a label inside the outer tenth of the panel, which is not far
+    // enough for a ten-character end-stop: it was exposed by 4H, where 520
+    // four-hour bars is about ONE calendar quarter on a 24h instrument, so the
+    // window usually carries exactly one quarter line and it can land anywhere —
+    // BTCUSD read "2026-06-1Q3 2026" at the left edge.
+    const clearOfGrid = (x, w, anchor) => {
+      const lo = anchor === 'start' ? x : x - w;
+      const hi = anchor === 'start' ? x + w : x;
+      return !drawnLabels.some(([gx, gw]) => gx + gw / 2 > lo && gx - gw / 2 < hi);
+    };
     const dates = hasGridLabels ? '' :
       [0, n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
         const anchor = i === 0 ? 'start' : 'end';
         const x = i === 0 ? L.x0 : xOf(i);
-        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${reelEndStopLabel(b.t[i])}</text>`;
+        const text = reelEndStopLabel(b.t[i]);
+        if (!clearOfGrid(x, lblW(text), anchor)) return '';
+        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${text}</text>`;
       }).join('');
 
     // ── Trend channel, if one is saved for this instrument ──
@@ -9104,7 +9134,14 @@
   // The trend sentence for a chart header — the card and the full-screen view
   // share it, so "extended" never loses the writing the card has.
   function reelTrendlineHtml(item) {
-    const hasTfRow = item[f('close')] !== undefined && item[f('close')] !== '';
+    // A chartOnly timeframe HAS no row, so the sentence must not render on one —
+    // asked of the flag, not only of the column. 10m is safe either way (no
+    // m10_ column has ever existed), but `h4_` columns were published until
+    // 2026-09-11 and still sit in older local output, so a column test alone
+    // brought a three-month-old 4H trend back onto the card in local dev while
+    // the live app showed nothing. The flag is the fact; the column is evidence.
+    const hasTfRow = !tfMeta().chartOnly
+      && item[f('close')] !== undefined && item[f('close')] !== '';
     const ts = hasTfRow ? trendSentence(item) : null;
     if (!ts) return '';
     return `<span class="reel-trendline ${ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'down' : 'flat'}">${ts.glyph} ${ts.head}`
@@ -9380,7 +9417,11 @@
     // timeframe's and says so; 1H has no trend word.
     const _sig  = withSignalTf(() => item[f('primary_signal')] || '');
     const sig   = _sig && !SIGNAL_TFS.has(timeframe) ? `${_sig} (${TF_BY_CODE[tfPrefs.signals].label})` : _sig;
-    const trend = (item[f('close')] !== undefined && item[f('close')] !== '') ? effectiveTrend(item) : '';
+    // chartOnly first, for the reason in reelTrendlineHtml: a stale h4_ column
+    // must not put a trend word on a shared 4H card that the app itself shows
+    // no trend word for.
+    const trend = (!tfMeta().chartOnly && item[f('close')] !== undefined && item[f('close')] !== '')
+      ? effectiveTrend(item) : '';
     const full  = instName(name);
 
     ctx.textBaseline = 'alphabetic';

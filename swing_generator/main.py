@@ -1030,10 +1030,10 @@ def main():
                         help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--profile', type=str, default='ma500',
                         help='Config profile (default: ma500)')
-    # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
-    # only wants signals can skip it and the ~1 minute it costs.
+    # The 5m and hourly pulls feed the 10m and 4H CHARTS only — no signal reads
+    # either — so a run that only wants signals can skip them and their cost.
     parser.add_argument('--no-intraday', action='store_true',
-                        help='Skip the 5m download (10m chart feed will go stale)')
+                        help='Skip the 5m and hourly downloads (10m and 4H chart feeds will go stale)')
     args = parser.parse_args()
 
     run_date = (
@@ -1063,8 +1063,16 @@ def main():
     _e1 = _time.time() - _t1
     print(f'  Daily data: {int(_e1 // 60)}m {int(_e1 % 60):02d}s\n')
 
-    # No hourly download since 2026-09-11 — 1H and 4H were removed and nothing
-    # else needs hourly prices (the daily-vs-hourly check went with them).
+    # Hourly is downloaded again since 2026-09-17, for the 4H CHART ONLY — the
+    # user asked for that chart back. It is NOT a signal feed: 4H is still out
+    # of config.TIMEFRAMES and no h4_ column exists, so nothing below reads this
+    # cache; webapp/chart_feed.build_4h resamples it, exactly as build_10m
+    # resamples the 5m cache. The daily-vs-hourly cross-check (data_checks.json)
+    # is NOT restored with it — it was retired on its own terms.
+    #
+    # The freshness gate is data_fetcher's default (1h in CI), not the 9 minutes
+    # the 5m pull uses: a 4-hour bar cannot change more than a 1h-stale cache
+    # already shows, so the runs that land under an hour apart may skip it.
     #
     # 5m IS downloaded (2026-09-14): it is the only feed the 10m CHART can be
     # built from, Yahoo having no 10m interval. Nothing in the signal engine
@@ -1075,6 +1083,11 @@ def main():
     _e2 = 0.0
     if not args.no_intraday:
         _t2 = _time.time()
+        print('  Fetching hourly market data (4H chart feed) ...\n')
+        # Populates the hourly parquet cache; chart_feed re-reads it per-ticker
+        # (no return used). Incremental — it resumes from the last cached bar,
+        # so the gap since 2026-09-11 fills itself on the first run.
+        fetch_all_hourly(instruments, force_refresh=args.refresh)
         print('  Fetching 5m market data (10m chart feed) ...\n')
         # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
         # which is the right gate for a daily bar and far too coarse for a
@@ -1085,7 +1098,7 @@ def main():
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
-        print(f'  5m data: {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (hourly + 5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
