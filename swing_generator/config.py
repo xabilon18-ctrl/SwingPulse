@@ -152,6 +152,17 @@ TREND_DOWN_FRAC = 0.35   # ≤1 of 3 MAs held → DOWNTREND
 # 4H chart is ~2 bars/session everywhere, TradingView included — our ribbon
 # already matches. Only instruments CHARTED as 24h contracts are affected.
 #
+# CORRECTION 2026-09-17: that "~2 bars/session everywhere" was true for HALF THE
+# YEAR. While _resample_4h bucketed on the clock from midnight UTC, a US session
+# straddled three buckets on winter time (14:30-21:00 UTC) and two on summer time
+# (13:30-20:00) — so AAPL and AVGO carried 166 four-hour bars in 2026Q1 against
+# 124 in 2026Q2, a 34% swing with no market event behind it. It stretched the
+# ribbon across a winter and drew a visibly wider quarter on a bar-indexed chart.
+# _resample_4h now counts four hours from each SESSION'S OWN OPEN, which makes it
+# 2.00 bars/session year-round (measured; EU indices 3.00, crypto 6.00) and this
+# paragraph true as written. A 24h instrument is unaffected — its session opens
+# at 00:00, so the groups land on the same clock buckets as before.
+#
 # Two fixes, in order of preference:
 #   1. H4_SOURCE — pull the 4H timeframe from the 24h contract. Exact: real 24h
 #      bars, so wick-touch setups (B3/B4) are right too. Daily is untouched and

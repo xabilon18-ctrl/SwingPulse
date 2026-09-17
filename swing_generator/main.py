@@ -438,7 +438,34 @@ def _consolidate_short_trends(segments: list[dict], df: pd.DataFrame) -> list[di
 
 
 def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
-    """Resample hourly OHLCV to 4-hour bars."""
+    """Resample hourly OHLCV to 4-hour bars, ANCHORED TO EACH SESSION'S OPEN.
+
+    Four hourly bars counted from the session's own first bar — not a clock
+    bucket running from midnight UTC, which is what this did until 2026-09-17.
+
+    Why it changed. A clock bucket makes the bar count per session depend on
+    where the session happens to fall against the UTC grid, and a US session
+    MOVES against that grid twice a year: 14:30-21:00 UTC on winter time
+    straddles three buckets (12-16, 16-20, 20-24) and 13:30-20:00 on summer time
+    straddles two. Same 6.5-hour session, 3 bars or 2 depending on the month.
+    Measured on the AAPL and AVGO hourly caches, bars per quarter came out
+    2025Q4 121, 2026Q1 166, 2026Q2 124 — a 34% swing with no market event behind
+    it. On a bar-indexed x-axis that is drawn as a 34% wider quarter, which is
+    why the chart's calendar lines could not be evenly spaced however the grid
+    was computed: the bars underneath them were not evenly spread through time.
+    It also stretched the ribbon — MA500 covered noticeably fewer calendar days
+    across a winter than across a summer.
+
+    Counting from the session open fixes both at the source: a 6.5h session is
+    two 4H bars in January and two in July. This is also what config.py's 4H
+    geometry note has always CLAIMED ("a US equity ... is ~2 bars/session
+    everywhere, TradingView included") — the claim was true only in summer.
+
+    A 24h instrument is unaffected: its session IS the UTC day, so counting four
+    bars from 00:00 lands on exactly the buckets the clock produced, and crypto
+    keeps its 6 bars a day. The last group of a short session can hold fewer
+    than four hours, exactly as the last clock bucket of one could.
+    """
     ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
     # Keep only standard columns
     available = [c for c in ohlcv_cols if c in df_hourly.columns]
@@ -446,13 +473,34 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     # Strip timezone info for clean resampling
     if df_h.index.tz is not None:
         df_h.index = df_h.index.tz_localize(None)
-    resampled = df_h.resample('4h').agg({
+    if df_h.empty:
+        return df_h
+    df_h = df_h[~df_h.index.duplicated(keep='last')].sort_index()
+
+    idx  = pd.DatetimeIndex(df_h.index)
+    day  = idx.normalize()                      # the session this bar belongs to
+    # Bucket by ELAPSED TIME from the session's own open, not by counting bars
+    # into it. Counting re-phases the whole rest of a day whenever one hourly bar
+    # is missing, and they are missing often enough to matter: on the positional
+    # version BTC-USD came out with the same 4,874 bars as the clock buckets and
+    # different contents, purely from holes. An offset survives a hole — the bars
+    # either side of it still land where they belong.
+    base = pd.Series(idx, index=day).groupby(level=0).min().reindex(day).to_numpy()
+    off  = ((idx.to_numpy() - base) // np.timedelta64(4, 'h')).astype(int)
+    key  = pd.MultiIndex.from_arrays([day, off])
+    resampled = df_h.groupby(key).agg({
         'Open': 'first',
         'High': 'max',
         'Low': 'min',
         'Close': 'last',
         'Volume': 'sum',
     }).dropna(subset=['Close'])
+    # A bar is stamped with its FIRST hourly bar, which is the session open for
+    # the first group of the day — so a label still says when the bar started,
+    # as a clock bucket's did, and drop_unfinished_4h's +4h window still reads.
+    first = pd.Series(idx, index=key).groupby(level=[0, 1]).first()
+    resampled.index = pd.DatetimeIndex(first.reindex(resampled.index).to_numpy())
+    resampled.index.name = df_hourly.index.name
     # Same rule as the daily timeframe: a bucket still being filled is not a
     # bar. Hourly caches are stored in UTC, so the window test needs no
     # per-exchange timetable. See data_fetcher §"Finished sessions only".

@@ -209,6 +209,30 @@ that buys, and what it costs:
   Weekly SELLS are worse than random (−0.063R). Best cells: `W|B3|Equity` +0.061 over
   random (n=2,315) and `W|B4|Equity` +0.111 (n=586) — deep pullbacks again.
 
+**4H bars are anchored to the SESSION OPEN, not to the clock (2026-09-17).**
+`_resample_4h` groups four hours forward from each session's own first bar. It used to
+bucket from midnight UTC, which made the bar count per session depend on where the session
+fell against the UTC grid — and a US session moves against that grid twice a year, so
+14:30-21:00 (winter) straddled THREE buckets and 13:30-20:00 (summer) two. Measured on the
+AAPL/AVGO caches: **2026Q1 held 166 four-hour bars against 2026Q2's 124**, a 34% swing with
+no market event behind it, which on a bar-indexed x-axis drew Q1 34% wider than Q2 and made
+the chart's calendar lines impossible to space evenly. It stretched the ribbon too — MA500
+covered fewer calendar days across a winter than across a summer.
+- **After: 2.00 bars/session year-round** for a US equity (EU indices 3.00, Tokyo ~2, crypto
+  6.00 — all exact integers now, which is the tell that the geometry is uniform). Quarters
+  come out 126 / 122 / 124 bars instead of 121 / 166 / 124.
+- **A 24h instrument is unaffected in principle** — its session opens at 00:00, so the
+  groups land on the same clock buckets. In practice a handful of week-open sessions differ
+  (futures and forex open Sunday 22:00/23:00 UTC, not midnight): BTC 3 sessions of 816,
+  NQ=F 123 of 645 relabelled, and **zero** close-price changes on shared bars.
+- **Bucketing is by ELAPSED TIME from the open, not by counting bars into the session.**
+  Counting re-phases the whole rest of a day when one hourly bar is missing — the first cut
+  did exactly that and silently changed BTC's contents while keeping its bar count.
+- **The golden snapshot was refreshed for this** (35 frames, 909 → 884 fires). Only `4H`
+  frames moved; every Daily and Weekly frame is byte-identical, which is the check that the
+  signal engine itself did not change. 4H carries no signals in production, so nothing the
+  app reads depends on those fires.
+
 **4H bar geometry (2026-07-30).** A 4H bar is only as fast as its session. yfinance 1h is
 regular-session only for a cash index, so `^NDX` gave 2 four-hour bars/session vs the 24h
 contract's 6 — MA500 spanned ~305 days instead of ~83, and the 4H could not report a
