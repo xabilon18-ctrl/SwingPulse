@@ -27,7 +27,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4.5.1 (exact pin + SRI hash). *Lightweight Charts is NOT used — see Important Rule 2.* |
 | Utility helpers | *(none — `utils.js` was deleted in cfe4013; its helpers live in `app.js`)* |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | GitHub Actions (`publish.yml`) — cron **3×/day weekdays** (01:35, 09:35, 14:35 UTC — land ~05:00/13:00/18:00 SAST after GitHub's 1.5–3h queue) + 1×/day weekends (08 UTC, crypto) + manual. Restored to three runs 2026-07-31. |
+| CI pipeline | GitHub Actions (`publish.yml`) — cron **9×/day weekdays** (01:35, **07:05**, 09:35, 10:35, 13:05, 14:35, 15:35, 17:05, 18:05 UTC) + 1×/day weekends (08 UTC, crypto) + manual. Crons are set EARLY because GitHub queues them **2.8–4.9h** (measured 2026-09-15/16; later UTC hours queue less), so they land ~08:30, **~14:00**, 16:20, 17:10, 19:35, 20:20, 21:05, 22:05, 22:55 SAST. 3→8 runs on 2026-09-15, 9th (midday/European session) added 2026-09-17. |
 | Repo | https://github.com/xabilon18-ctrl/SwingPulse — **the only one.** `xabilon18/SwingPulse` was the original prod repo until 2026-06-01 and is now retired: its publish workflow is disabled, it holds no commits this one lacks, and the local `prod` remote was removed 2026-08-27. Manual run: `gh workflow run publish.yml --repo xabilon18-ctrl/SwingPulse --ref main` |
 
 ---
@@ -811,7 +811,7 @@ Run it after ANY change to signals.py/config.py signal logic.
 **Debug blank chart in modal:** ~~autoSize / requestAnimationFrame~~ — stale, see Important
 Rules 2/4/5. Lightweight Charts is gone; modal charts are Chart.js now.
 
-**Data not updating:** CI cron runs 3×/day weekdays (01:35/09:35/14:35 UTC, landing ~1.5h later due to GitHub queue → ~05:00/13:00/18:00 SAST) + 1×/day weekends (08 UTC → 10:00 SAST); ad-hoc runs are manual from the GitHub Actions tab. Stale banner is schedule-agnostic since app.js v231 — it flags `now - summary.fetched_at > 32h`, so publish.yml cron changes need no front-end sync. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
+**Data not updating:** CI cron runs 9×/day weekdays (01:35/07:05/09:35/10:35/13:05/14:35/15:35/17:05/18:05 UTC, landing 2.8–4.9h later due to the GitHub queue → ~08:30/14:00/16:20/17:10/19:35/20:20/21:05/22:05/22:55 SAST) + 1×/day weekends (08 UTC → ~10:00 SAST); ad-hoc runs are manual from the GitHub Actions tab. Stale banner is schedule-agnostic since app.js v231 — it flags `now - summary.fetched_at > 32h`, so publish.yml cron changes need no front-end sync. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
 
 **Update version numbers:** After any UI change, bump `?v=NNN` on `app.js` and/or `style.css` in
 `index.html` — there are only TWO now, `utils.js` is gone. A Stop hook

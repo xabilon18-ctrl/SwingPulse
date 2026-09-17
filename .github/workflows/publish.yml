@@ -10,6 +10,16 @@ on:
   # summary.fetched_at against a flat 32h and knows nothing about this schedule.
   schedule:
     - cron: '35 1  * * 1-5'  # lands ~08:30 SAST — morning
+    # Midday, at the user's request (2026-09-17). Fills the one long gap in the
+    # weekday schedule: nothing landed between ~08:30 and ~15:45 SAST, which is
+    # the whole European session. Europe is mid-afternoon here and the US has
+    # not opened, so this is the run that refreshes the EU/Asia book.
+    #
+    # 07:05 not 12:00: measured over 2026-09-15/16, every cron at or before
+    # 13:05 UTC landed 4.5-4.9h late (01:35 -> 06:28, 09:35 -> 14:17), so the
+    # two that bracket this one put it at ~4.8h. Re-measure before trusting it;
+    # GitHub's lag has moved before and it is the only reason this is not '0 12'.
+    - cron: '5 7  * * 1-5'  # lands ~14:00 SAST — European session / midday
     # US-session runs (added 2026-09-15). GitHub started crons 2.5-4.7h late in
     # Sep 2026 — less late the later the UTC hour — so each cron sits that much
     # before its landing. Landings are SAST while US daylight time lasts; from
@@ -37,7 +47,7 @@ on:
         type: boolean
         default: false
 
-# One publish at a time. Eight weekday runs land ~1h apart and GitHub's delay
+# One publish at a time. Nine weekday runs land ~1h apart and GitHub's delay
 # varies by hours, so two can overlap — and two publishes writing the same R2
 # keys is how the ledger was clobbered 342→43 on 2026-07-10. A run that arrives
 # while one is in flight waits; if a third arrives, GitHub drops the older
