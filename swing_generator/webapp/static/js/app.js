@@ -8250,6 +8250,15 @@
   // precision this has no way to earn.
   const REEL_FUTURE_DAYS = 4;
 
+  // And the same again for the quarter grid, which is 4H's. Two, because that is
+  // what the blank space actually holds: REEL_FUTURE_FRAC allows 0.9 of a window
+  // past the newest bar, and a 520-bar 4H window is ~290 days of blank on a
+  // session-bound equity (3.2 quarters) but only ~86 days on a 24h contract
+  // (0.94). So the second line is reachable on an equity and falls off the panel
+  // on BTC, where the x-clamp drops it — one or two quarters ahead, depending on
+  // what the instrument's own bars are worth in calendar time.
+  const REEL_FUTURE_QUARTERS = 2;
+
   // Does this instrument print bars at weekends? Asked of the BUNDLE, not of the
   // asset class, which the grid has no handle on here — and the bundle is the
   // thing that actually knows: a 24h contract has Saturday bars, an equity does
@@ -8401,6 +8410,34 @@
           out.push({ fi, future: true, month: monthStart,
                      label: monthStart ? reelMonthStartLabel(iso) : reelDayLabel(iso) });
           added++;
+        }
+      }
+    }
+
+    // Quarters the chart has not reached yet — what the year branch below does
+    // for Daily, at the scale 4H is read on. Without them the right-hand blank
+    // space carries no date at all on this timeframe, so a channel projected
+    // into it could not be read against anything.
+    //
+    // Projected the DAY branch's way, not the year branch's: `reelBarIndexForDate`
+    // extrapolates from the spacing of the last ten bars, and on an intraday
+    // frame those are four hours apart, so it projects as though the market
+    // traded around the clock — the same trap documented above. Averaged over
+    // the whole bundle a 4H bar is ~14.9h of calendar time on a US equity
+    // (overnight gaps and weekends included) against 4.0h on a 24h contract, and
+    // that difference is exactly what decides where the next quarter lands.
+    if (mode === 'quarter') {
+      const bt    = reelBarTimes(src);
+      const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
+      const last  = new Date(bt[sn - 1]);
+      if (perMs > 0 && !isNaN(last)) {
+        const lastQ = Math.floor(last.getUTCMonth() / 3);
+        for (let k = 1; k <= REEL_FUTURE_QUARTERS; k++) {
+          const qi = lastQ + k;                       // quarters since Jan of last's year
+          const y  = last.getUTCFullYear() + Math.floor(qi / 4);
+          const q  = qi % 4;
+          const fi = (sn - 1) + (Date.UTC(y, q * 3, 1) - bt[sn - 1]) / perMs - from;
+          if (isFinite(fi)) out.push({ fi, future: true, label: 'Q' + (q + 1) + ' ' + y });
         }
       }
     }
@@ -8753,12 +8790,23 @@
       const hi = anchor === 'start' ? x + w : x;
       return !drawnLabels.some(([gx, gw]) => gx + gw / 2 > lo && gx - gw / 2 < hi);
     };
+    // LAST BAR FIRST, then the window's start — the order decides which one
+    // survives when the two collide, and they do: panning forward moves the last
+    // bar off the right edge and into the middle of the panel, so on a window
+    // with one grid label both end-stops end up in the same centimetre of axis
+    // ("2026-08-05" printed through "2026-09-09"). The last bar's date is the one
+    // worth keeping — it is where the data ends, and the blank space to its right
+    // is the thing being read — so it is placed first and the start is dropped.
+    // Each one placed joins drawnLabels, so the test is the same one the grid
+    // labels get rather than a second rule about the same pixels.
     const dates = hasGridLabels ? '' :
-      [0, n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
+      [n - 1, 0].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
         const anchor = i === 0 ? 'start' : 'end';
         const x = i === 0 ? L.x0 : xOf(i);
         const text = reelEndStopLabel(b.t[i]);
-        if (!clearOfGrid(x, lblW(text), anchor)) return '';
+        const w = lblW(text);
+        if (!clearOfGrid(x, w, anchor)) return '';
+        drawnLabels.push([anchor === 'start' ? x + w / 2 : x - w / 2, w]);
         return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${text}</text>`;
       }).join('');
 
