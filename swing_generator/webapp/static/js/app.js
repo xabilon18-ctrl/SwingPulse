@@ -7454,21 +7454,29 @@
   // zoom is for. Ten is where a daily chart is two trading weeks and the bars
   // are about as wide as they are tall.
   const REEL_MIN_WINDOW_BARS = 10;
-  // How many of a 10m bundle's trailing bars fall inside its last calendar
-  // month. Counted from the timestamps, because the answer differs per
-  // instrument by design and any constant would be wrong for most of the book.
-  function reelMonthWindowBars(b) {
-    if (b._mw) return b._mw;
-    const t = reelBarTimes(b);
-    const last = t[t.length - 1];
-    if (!isFinite(last)) return (b._mw = b.c.length);
-    const d = new Date(last);
-    d.setUTCMonth(d.getUTCMonth() - 1);
-    const cut = d.getTime();
-    let i = t.length - 1;
-    while (i > 0 && t[i - 1] > cut) i--;
-    return (b._mw = Math.max(REEL_MIN_WINDOW_BARS, t.length - i));
-  }
+  // What a 10m card OPENS on. A BAR COUNT, and a small one.
+  //
+  // This used to be one calendar month, measured off each bundle's own dates so
+  // that every instrument opened on the same span of time. It was the wrong
+  // thing to hold constant. A month of ten-minute bars is 1,172 bars on A2A,
+  // 1,677 on AAPL and 4,300 on BTCUSD, and the card's plot is ~345px wide on a
+  // phone: 0.29px per bar, 0.08px on BTC. At that density there are no candles
+  // on screen at all, just a smear, and a whole new session — 39 bars on a US
+  // equity — is 11px of change at the right edge of a picture that is otherwise
+  // identical pixel for pixel. Hence "the 10m candles never change": they were
+  // changing, the data was live to within twelve minutes of the publish, and
+  // none of it was visible.
+  //
+  // The old note against a bar count was that it opens on "three weeks of Apple
+  // and 3.6 days of Bitcoin". True at 520 bars; at 120 it is three sessions of
+  // Apple against a day and a bit of Bitcoin, which is a spread worth paying for
+  // readable candles. Bar count is what governs whether a candle can be drawn at
+  // all, so bar count is what this timeframe has to hold constant — ~2.9px per
+  // bar here, which is where an OHLC bar's open and close ticks still resolve.
+  //
+  // The bundle still CARRIES two months (chart_feed.CARRY_MONTHS); panning left
+  // and the Range pill reach all of it.
+  const REEL_TEN_MIN_WINDOW_BARS = 120;
 
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
@@ -7480,14 +7488,10 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
     const w = reel.range;
     if (w && w < n) return w;
-    // 10m OPENS ON ONE CALENDAR MONTH, measured off the bundle's own dates
-    // rather than taken as a bar count. Everywhere else the default window is
-    // 520 bars because a daily bar is a day on every instrument; a ten-minute
-    // bar is not (38.8 a session on an equity, 143.3 on a 24h contract), so a
-    // bar count here would open on three weeks of Apple and 3.6 days of
-    // Bitcoin. The bundle CARRIES two months (chart_feed.CARRY_MONTHS) — the
-    // second one is what panning left reaches.
-    if (timeframe === '10m') return reelMonthWindowBars(bundle);
+    // 10m opens far tighter than everything else — see REEL_TEN_MIN_WINDOW_BARS.
+    if (timeframe === '10m') {
+      return Math.max(REEL_MIN_WINDOW_BARS, Math.min(n, REEL_TEN_MIN_WINDOW_BARS));
+    }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
@@ -8169,19 +8173,20 @@
   // fact you navigate by. Which boundary depends on how much calendar the
   // timeframe shows — a year line on a 1H chart covering six weeks would never
   // appear, and quarter lines on a Weekly chart covering ten years would be a
-  // picket fence. So: years on D, quarters on 1H / 4H, MONTHS on 10m (the user's
-  // call, 2026-09-14).
+  // picket fence. So: years on D, quarters on 1H / 4H, DAYS on 10m.
   //
-  // The 10m window is one calendar month, so a month boundary is ONE line in it
-  // — deliberately sparse. Two denser cuts were tried first and were wrong for
-  // the same reason a quarter line is wrong on Weekly: a session line put 21
-  // lines in the window on an equity and 31 on a 24h instrument, and a week line
-  // put four. The month line marks the one boundary that is the same boundary on
-  // all 798, which is the whole point of a grid you navigate by.
+  // 10m was MONTHS at the user's call on 2026-09-14, and the reasoning then was
+  // sound: the window was one calendar month, a month boundary was exactly one
+  // line in it, and a session line would have put 21 lines in the window on an
+  // equity and 31 on a 24h instrument. What changed is the window, not the
+  // reasoning — it is ~3 sessions now (REEL_TEN_MIN_WINDOW_BARS), because at a
+  // month's width no candle could be drawn at all. At three sessions a month
+  // line is one that almost never exists, and a day line is the sparse one: two
+  // or three in the window, none of them a fence.
   //
-  // Because it is one line, the window's own first and last dates are KEPT as
-  // end-stops (see the axis code) — they only ever had to be dropped when the
-  // grid drew enough labels to collide with them.
+  // The window's own first and last bars stay as end-stops (see the axis code)
+  // for a range that crosses no boundary at all — which on 10m is any window
+  // sitting inside one day.
   //
   // Label collisions are handled in the caller, which is the only place that
   // knows where a line lands in x.
@@ -8191,7 +8196,13 @@
   // stops being a reference and starts being a fence across the price. A
   // timeframe absent from this table draws no lines at all, and its window's
   // first and last dates come back as the axis instead.
-  const REEL_TIME_GRID = { '10m': 'month', '1H': 'quarter', '4H': 'quarter',
+  // 10m is DAYS. It was months, which was right while the window was a calendar
+  // month; the window is now ~3 sessions (REEL_TEN_MIN_WINDOW_BARS), and a month
+  // line inside three days is a line that almost never exists — which would have
+  // left an intraday chart with no date reference between its two edge labels.
+  // The session boundary is the reference an intraday chart is actually read
+  // against, and on a session-bound instrument it doubles as the overnight gap.
+  const REEL_TIME_GRID = { '10m': 'day', '1H': 'quarter', '4H': 'quarter',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
@@ -8216,18 +8227,83 @@
   // projected into that space is unreadable without a date against it.
   const REEL_FUTURE_YEARS = 4;
 
-  // Same idea one scale down, for the 10m grid: how many month boundaries past
-  // the last bar to keep drawing. Two, so the line is already there as you
-  // scroll rather than appearing once you arrive.
-  const REEL_FUTURE_MONTHS = 2;
+  // Same idea one scale down, for the 10m grid: how many DAY boundaries past the
+  // last bar to keep drawing, so the line is already there as you scroll rather
+  // than appearing once you arrive. Four, because how far the blank space
+  // actually reaches in calendar terms depends on the instrument — 0.9 of a
+  // 120-bar window is about four days on a US equity and under one on BTC — and
+  // the ones that land off the panel are dropped by the x-clamp anyway.
+  //
+  // These sit at UTC midnight, while an in-window day line sits on the first BAR
+  // of the day, which on a session-bound instrument is the open. So a projected
+  // line lands a few bars earlier than the session it names would actually
+  // start. It is a date reference for reading a channel out into blank space,
+  // not a bar that exists, and pinning it to a modelled session open would be
+  // precision this has no way to earn.
+  const REEL_FUTURE_DAYS = 4;
 
-  // "Sep" — a month line's label. Deliberately NOT the year: the 10m window is
-  // one month, so the year is the one part of the date that cannot change inside
-  // it and it would only cost width.
-  function reelMonthLabel(ts) {
+  // Does this instrument print bars at weekends? Asked of the BUNDLE, not of the
+  // asset class, which the grid has no handle on here — and the bundle is the
+  // thing that actually knows: a 24h contract has Saturday bars, an equity does
+  // not. Only the projected day lines need it, and only so they don't label a
+  // day the market is shut. Memoised on the bundle like reelBarTimes; a new
+  // publish brings new bundle objects, so it cannot go stale.
+  function reelTradesWeekends(src) {
+    if (src._wk !== undefined) return src._wk;
+    const bt = reelBarTimes(src);
+    let wk = false;
+    // The recent tail only: a bundle carries two months, and an instrument does
+    // not change its trading week inside one.
+    for (let i = bt.length - 1, seen = 0; i >= 0 && seen < 2000; i--, seen++) {
+      const d = new Date(bt[i]).getUTCDay();
+      if (d === 0 || d === 6) { wk = true; break; }
+    }
+    return (src._wk = wk);
+  }
+
+  // The axis end-stop: the window's own first and last bar, used when the grid
+  // crossed too few boundaries to be the axis by itself. A DATE alone is the
+  // right answer on every timeframe whose bar is a day or longer — and the wrong
+  // one on 10m, where 120 bars is under a day on a 24h instrument: both ends
+  // then read "2026-09-16" and the axis says nothing at all. Intraday gets the
+  // time, which is the part that actually varies inside such a window.
+  function reelEndStopLabel(ts) {
+    const str = String(ts);
+    if (timeframe !== '10m') return str.slice(0, 10);
+    const hm = str.slice(11, 16);
+    return hm ? reelDayLabel(str) + ' ' + hm : str.slice(0, 10);
+  }
+
+  // "Sep" for the bar at a grid line's index. Reads the bar's own label where
+  // there is a bar, and falls back to the date the grid projected where there is
+  // not — a future line sits past the last bar by definition.
+  function reelMonthOf(fi, b) {
+    const i = Math.round(fi);
+    const str = (i >= 0 && i < b.t.length) ? String(b.t[i])
+                                           : reelDateForBarIndex(b, fi) || '';
+    const d = new Date(String(str).slice(0, 10) + 'T00:00:00Z');
+    return isNaN(d) ? String(str).slice(5, 7)
+      : d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+  }
+
+  // "1 Sep" — the label for the first bar a new month traded. Carries the MONTH,
+  // which a plain day label does not: on a ~3-session window the month name is
+  // otherwise nowhere on the chart, and the 10m bundle is two months deep, so
+  // panning back through it left you with "Tue 11" and no way to tell August
+  // from September.
+  function reelMonthStartLabel(ts) {
     const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
     return isNaN(d) ? String(ts).slice(0, 7)
-      : d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+      : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  }
+
+  // "Tue 16" — a day line's label, for the 10m grid. The weekday earns its width
+  // on an intraday chart: it is what tells you at a glance which gap is a
+  // weekend and which is just a night.
+  function reelDayLabel(ts) {
+    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
+    return isNaN(d) ? String(ts).slice(5, 10)
+      : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
   }
 
   function reelTimeGrid(b, tf) {
@@ -8255,16 +8331,23 @@
       const y = +str.slice(0, 4), m = +str.slice(5, 7);
       if (!y || !m) continue;
       const q   = Math.floor((m - 1) / 3);
-      const key = mode === 'month'   ? str.slice(0, 7)
+      const key = mode === 'day'     ? str.slice(0, 10)
                 : mode === 'quarter' ? y + ':' + q
                 : String(y);
       // The FIRST bar of the new period is the boundary. i===0 is skipped: the
       // left edge is not a crossing, it is just where the window happens to start.
       if (prev !== null && key !== prev.key) {
+        // A day boundary that is ALSO a month boundary is the month line. It is
+        // the same bar either way — the first one the new month traded — so it
+        // is marked rather than drawn twice, and it takes the month's weight and
+        // the month's label ("1 Sep" against a plain "Tue 15").
+        const monthStart = mode === 'day' && prev.key.slice(0, 7) !== key.slice(0, 7);
         out.push({
           fi: i,
-          label: mode === 'month'   ? reelMonthLabel(str)
-               : mode === 'quarter' ? 'Q' + (q + 1) + ' ' + y
+          month: monthStart,
+          label: monthStart          ? reelMonthStartLabel(str)
+               : mode === 'day'      ? reelDayLabel(str)
+               : mode === 'quarter'  ? 'Q' + (q + 1) + ' ' + y
                : String(y),
         });
       }
@@ -8288,15 +8371,28 @@
     // Both projections below measure off the WHOLE bundle (b._src), not the
     // visible slice, so a pan cannot move a future line.
     const src = b._src || b, from = b._from || 0, sn = src.t.length;
-    if (mode === 'month') {
-      const bt   = reelBarTimes(src);
+    if (mode === 'day') {
+      const bt    = reelBarTimes(src);
       const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
-      const last = new Date(String(src.t[sn - 1]).slice(0, 10) + 'T00:00:00Z');
+      const last  = new Date(String(src.t[sn - 1]).slice(0, 10) + 'T00:00:00Z');
+      const wk    = reelTradesWeekends(src);
       if (perMs > 0 && !isNaN(last)) {
-        for (let k = 1; k <= REEL_FUTURE_MONTHS; k++) {
-          const d  = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + k, 1));
+        // Walk forward a day at a time and SKIP the days this instrument does
+        // not trade, rather than taking k days as k lines: on an equity that
+        // put "Sat 19" and "Sun 20" on the chart every Thursday. The cap on k
+        // is what stops the walk if the skip rule ever matches everything.
+        for (let k = 1, added = 0; added < REEL_FUTURE_DAYS && k <= 14; k++) {
+          const d   = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth(),
+                                        last.getUTCDate() + k));
+          const dow = d.getUTCDay();
+          if (!wk && (dow === 0 || dow === 6)) continue;
           const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs - from;
-          if (isFinite(fi)) out.push({ fi, label: reelMonthLabel(d.toISOString()), future: true });
+          if (!isFinite(fi)) continue;
+          const monthStart = d.getUTCDate() === 1;
+          const iso = d.toISOString();
+          out.push({ fi, future: true, month: monthStart,
+                     label: monthStart ? reelMonthStartLabel(iso) : reelDayLabel(iso) });
+          added++;
         }
       }
     }
@@ -8581,16 +8677,37 @@
     // 16 measures ~70.
     const LABEL_MIN_GAP = 116;
     let lastLabelX = -Infinity;
+    // The month has to appear SOMEWHERE. On 10m the grid is days, a window is
+    // about three sessions, and a month boundary falls inside one on maybe three
+    // days in twenty — so on most days no line carries a month, the end-stops
+    // that would have carried one are suppressed the moment two day labels are
+    // drawn, and the chart ends up saying "Tue 15  Wed 16" and never which
+    // month. The bundle is two months deep and pans through both, so that is a
+    // real way to get lost. Fix: the FIRST label actually drawn takes the month
+    // too. Decided here rather than in reelTimeGrid because thinning happens
+    // here — which boundary survives to be labelled is not known until now.
+    let monthShown = false;
     const timeGrid = tg.map(t => {
       const x = xOf(t.fi);
       if (x < L.x0 || x > L.x1) return '';
       const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
       const room = (x - lastLabelX) >= LABEL_MIN_GAP;
-      const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin' : 'reel-tgrid';
+      const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin'
+                 : t.month ? 'reel-tgrid reel-tgrid-month'
+                 : 'reel-tgrid';
       const label = (!near && room);
-      if (label) lastLabelX = x;
+      let text = t.label;
+      if (label) {
+        lastLabelX = x;
+        if (timeframe === '10m' && !monthShown) {
+          // A month-start label already names its month; anything else gets it
+          // appended once — "Mon 14" becomes "Mon 14 Sep".
+          if (!t.month) text += ' ' + reelMonthOf(t.fi, b);
+          monthShown = true;
+        }
+      }
       return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>` +
-             (label ? `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${t.label}</text>` : '');
+             (label ? `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>` : '');
     }).join('');
 
     // Once the calendar lines are labelled they ARE the axis, so the window's
@@ -8599,19 +8716,20 @@
     // They come back only on a range that crosses no boundary at all, so the
     // axis is never left blank.
     //
-    // "Enough labels" is now TWO, not one (2026-09-14). The 10m window is a
-    // single calendar month and its grid is monthly, so it draws exactly one
-    // line: under the old test that one label replaced the whole axis, leaving
-    // a chart whose only date was "Sep". One label cannot collide with the
-    // end-stops the way a panned row of year labels does — it is nowhere near
-    // the edges, which is precisely why the `near` rule let it through.
+    // "Enough labels" is TWO, not one (2026-09-14). A single label cannot collide
+    // with the end-stops the way a panned row of year labels does — it is
+    // nowhere near the edges, which is precisely why the `near` rule let it
+    // through — so letting one label replace the whole axis left charts whose
+    // only date was "Sep". It still earns its keep on the day grid: a 10m window
+    // that crosses exactly one midnight keeps its end-stop times as well as the
+    // day line.
     const gridLabelCount = (timeGrid.match(/reel-tgrid-lbl/g) || []).length;
     const hasGridLabels = gridLabelCount >= 2;
     const dates = hasGridLabels ? '' :
       [0, n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
         const anchor = i === 0 ? 'start' : 'end';
         const x = i === 0 ? L.x0 : xOf(i);
-        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${String(b.t[i]).slice(0, 10)}</text>`;
+        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${reelEndStopLabel(b.t[i])}</text>`;
       }).join('');
 
     // ── Trend channel, if one is saved for this instrument ──
