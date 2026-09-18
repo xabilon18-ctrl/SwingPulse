@@ -7784,8 +7784,9 @@
   // it and the furthest low below it, so the leg sits inside its own channel the
   // way a hand-drawn one does. Anchors are stored at the leg's OWN ends —
   // the renderer extends the lines across the panel from there.
-  function reelChannelForLeg(b, i1, i2) {
+  function reelChannelForLeg(b, i1, i2, projectRight) {
     if (i2 - i1 < MIN_LEG_BARS) return null;
+    const n = b.c.length;
     let sx = 0, sy = 0, sxx = 0, sxy = 0, k = 0;
     for (let i = i1; i <= i2; i++) {
       const c = b.c[i];
@@ -7798,15 +7799,39 @@
     const m  = (k * sxy - sx * sy) / den;
     const c0 = (sy - m * sx) / k;
     const at = i => c0 + m * i;
+    // The rails hold EVERYTHING the leg contains — the bars AND the ribbon
+    // (user, 2026-09-18: "the trend cover in it all the MAs and price"). Highs
+    // and lows alone leave the slow MAs outside the channel in a strong move:
+    // measured on ALL_AX 4H, MA500 ran near 55 while the up channel's lower rail
+    // was at 63.85, so the line the whole system is built on sat outside the
+    // thing drawn around the trend.
+    //
+    // The ribbon ships SAMPLED (every b.ms'th bar, indices in b.mi), which is
+    // all this needs: an extreme of a moving average is not a spike, so the
+    // sample that matters is never between two samples.
     let up = 0, dn = 0;
+    const take = (v, base) => {
+      if (v == null) return;
+      if (v - base > up) up = v - base;
+      if (v - base < dn) dn = v - base;
+    };
     for (let i = i1; i <= i2; i++) {
-      const h = (b.h || b.c)[i], l = (b.l || b.c)[i], base = at(i);
-      if (h != null && h - base > up) up = h - base;
-      if (l != null && l - base < dn) dn = l - base;
+      const base = at(i);
+      take((b.h || b.c)[i], base);
+      take((b.l || b.c)[i], base);
+    }
+    const mi = b.mi || ((b.m && b.m[0]) ? b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1)) : []);
+    for (const series of (b.m || [])) {
+      for (let j = 0; j < series.length; j++) {
+        const i = mi[j];
+        if (i == null || i < i1 || i > i2) continue;
+        take(series[j], at(i));
+      }
     }
     if (!(up > 0) && !(dn < 0)) return null;
     return { kind: 'channel', t1: String(b.t[i1]), p1: at(i1),
-                              t2: String(b.t[i2]), p2: at(i2), up, dn };
+                              t2: String(b.t[i2]), p2: at(i2), up, dn,
+             clipL: true, clipR: !projectRight };
   }
 
   // TWO channels on every chart and every timeframe (user request, 2026-09-18):
@@ -7819,7 +7844,8 @@
     if (n < 24) return [];
     const out = [];
     for (const [i1, i2] of reelSwingLegs(b)) {
-      const ch = reelChannelForLeg(b, i1, i2);
+      // The FIRST leg back is the developing one; only it projects forward.
+      const ch = reelChannelForLeg(b, i1, i2, out.length === 0);
       if (ch) out.push(ch);
       if (out.length === 2) break;
     }
@@ -8279,7 +8305,18 @@
     const dDn  = sc.y(ch.p1 + ch.dn) - sc.y(ch.p1);   // positive: down
     const dMid = (dUp + dDn) / 2;                     // halfway, by measurement
 
-    const XA = L.x0, XB = L.x1;
+    // A channel normally spans the whole panel — a projection is what it is for.
+    // A SEEDED one is bounded instead (`clipL` / `clipR`, set by
+    // reelChannelForLeg): two auto-placed channels at full width put six long
+    // dotted lines across the price in the same ink as the ribbon, and the user's
+    // report was exactly that — "the trend covers all the MAs and price". Bounded,
+    // each one sits over the leg it describes. The DEVELOPING one still runs to
+    // the right edge, because where the trend projects is the whole point of it.
+    // Hand-drawn channels carry neither flag and are untouched.
+    const xLegL = Math.min(x1, x2), xLegR = Math.max(x1, x2);
+    let XA = ch.clipL ? Math.max(L.x0, xLegL) : L.x0;
+    let XB = ch.clipR ? Math.min(L.x1, xLegR) : L.x1;
+    if (!(XB - XA > 1)) { XA = L.x0; XB = L.x1; }     // degenerate: draw it all
     const yA = yAtX(XA), yB = yAtX(XB);
 
     // Off-scale guard. A channel drawn on Weekly, seen on 1H, is being
@@ -8435,14 +8472,6 @@
   // precision this has no way to earn.
   const REEL_FUTURE_DAYS = 4;
 
-  // And the same again for the quarter grid, which is 4H's. Two, because that is
-  // what the blank space actually holds: REEL_FUTURE_FRAC allows 0.9 of a window
-  // past the newest bar, and a 520-bar 4H window is ~290 days of blank on a
-  // session-bound equity (3.2 quarters) but only ~86 days on a 24h contract
-  // (0.94). So the second line is reachable on an equity and falls off the panel
-  // on BTC, where the x-clamp drops it — one or two quarters ahead, depending on
-  // what the instrument's own bars are worth in calendar time.
-  const REEL_FUTURE_QUARTERS = 2;
 
   // Does this instrument print bars at weekends? Asked of the BUNDLE, not of the
   // asset class, which the grid has no handle on here — and the bundle is the
@@ -8523,6 +8552,54 @@
     const n = b.t ? b.t.length : 0;
     if (!mode || !n) return [];
 
+    // ── The quarter grid: A YEAR CUT INTO FOUR EQUAL PARTS ────────────────
+    // Not the calendar's quarters. Those cannot land evenly however the bars are
+    // fixed: Q1 is 90 days with three US market holidays in it and Q4 is 92 with
+    // two, so on a bar-indexed axis they differ by several percent and the eye
+    // reads that as a mistake. This takes the two year boundaries around each
+    // year, measures the distance between them IN BARS, and drops three lines at
+    // the exact quarter points of it — so every gap inside a year is identical by
+    // construction, and the year lines themselves still sit on 1 January.
+    //
+    // A line is therefore within a day or two of the calendar quarter rather than
+    // on it, which is the trade the user asked for (2026-09-18) and is why the
+    // labels name the MONTH the line falls in rather than claiming "Q2".
+    //
+    // Measured off the WHOLE bundle, not the visible slice, so panning cannot
+    // move a line; `from` maps it back onto the slice being drawn. The projection
+    // past the last bar uses the bundle's average ms/bar for the reason the day
+    // grid does — reelBarIndexForDate reads the last ten bars, which on a 4H
+    // frame are four hours apart, and would project as though the market never
+    // closed.
+    if (mode === 'quarter') {
+      const src = b._src || b, from = b._from || 0, sn = src.t.length;
+      if (sn < 2) return [];
+      const bt = reelBarTimes(src);
+      const perMs = (bt[sn - 1] - bt[0]) / (sn - 1);
+      if (!(perMs > 0)) return [];
+      const idxForMs = ms => {
+        if (ms <= bt[0])      return (ms - bt[0]) / perMs - from;
+        if (ms >= bt[sn - 1]) return (sn - 1) + (ms - bt[sn - 1]) / perMs - from;
+        let lo = 0, hi = sn - 1;
+        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= ms) lo = mid; else hi = mid; }
+        const span = bt[hi] - bt[lo];
+        return lo + (span ? (ms - bt[lo]) / span : 0) - from;
+      };
+      const y0 = new Date(bt[0]).getUTCFullYear();
+      const y1 = new Date(bt[sn - 1]).getUTCFullYear() + 1;   // +1 covers the blank space
+      const lastFi = (sn - 1) - from;
+      const out = [];
+      for (let y = y0; y <= y1; y++) {
+        const a = idxForMs(Date.UTC(y, 0, 1)), z = idxForMs(Date.UTC(y + 1, 0, 1));
+        if (!isFinite(a) || !isFinite(z) || z <= a) continue;
+        for (let k = 0; k < 4; k++) {
+          const fi = a + k * (z - a) / 4;
+          out.push({ fi, label: reelQuarterLabel(y, k), future: fi > lastFi });
+        }
+      }
+      return out;
+    }
+
     // Administration boundaries are DATES, not bars — most of them fall on a
     // weekend or a holiday and so are not a bar at all. reelBarIndexForDate
     // interpolates between the bars either side and extrapolates past the last
@@ -8542,10 +8619,7 @@
       const str = String(b.t[i]);
       const y = +str.slice(0, 4), m = +str.slice(5, 7);
       if (!y || !m) continue;
-      const q   = Math.floor((m - 1) / 3);
-      const key = mode === 'day'     ? str.slice(0, 10)
-                : mode === 'quarter' ? y + ':' + q
-                : String(y);
+      const key = mode === 'day' ? str.slice(0, 10) : String(y);
       // The FIRST bar of the new period is the boundary. i===0 is skipped: the
       // left edge is not a crossing, it is just where the window happens to start.
       if (prev !== null && key !== prev.key) {
@@ -8557,9 +8631,8 @@
         out.push({
           fi: i,
           month: monthStart,
-          label: monthStart          ? reelMonthStartLabel(str)
-               : mode === 'day'      ? reelDayLabel(str)
-               : mode === 'quarter'  ? reelQuarterLabel(y, q)
+          label: monthStart     ? reelMonthStartLabel(str)
+               : mode === 'day' ? reelDayLabel(str)
                : String(y),
         });
       }
@@ -8605,34 +8678,6 @@
           out.push({ fi, future: true, month: monthStart,
                      label: monthStart ? reelMonthStartLabel(iso) : reelDayLabel(iso) });
           added++;
-        }
-      }
-    }
-
-    // Quarters the chart has not reached yet — what the year branch below does
-    // for Daily, at the scale 4H is read on. Without them the right-hand blank
-    // space carries no date at all on this timeframe, so a channel projected
-    // into it could not be read against anything.
-    //
-    // Projected the DAY branch's way, not the year branch's: `reelBarIndexForDate`
-    // extrapolates from the spacing of the last ten bars, and on an intraday
-    // frame those are four hours apart, so it projects as though the market
-    // traded around the clock — the same trap documented above. Averaged over
-    // the whole bundle a 4H bar is ~14.9h of calendar time on a US equity
-    // (overnight gaps and weekends included) against 4.0h on a 24h contract, and
-    // that difference is exactly what decides where the next quarter lands.
-    if (mode === 'quarter') {
-      const bt    = reelBarTimes(src);
-      const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
-      const last  = new Date(bt[sn - 1]);
-      if (perMs > 0 && !isNaN(last)) {
-        const lastQ = Math.floor(last.getUTCMonth() / 3);
-        for (let k = 1; k <= REEL_FUTURE_QUARTERS; k++) {
-          const qi = lastQ + k;                       // quarters since Jan of last's year
-          const y  = last.getUTCFullYear() + Math.floor(qi / 4);
-          const q  = qi % 4;
-          const fi = (sn - 1) + (Date.UTC(y, q * 3, 1) - bt[sn - 1]) / perMs - from;
-          if (isFinite(fi)) out.push({ fi, future: true, label: reelQuarterLabel(y, q) });
         }
       }
     }
