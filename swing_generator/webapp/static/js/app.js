@@ -266,9 +266,13 @@
         const per = {};
         for (const tf of Object.keys(v)) {
           // A single object is the pre-list shape; a list is current.
-          const list = (Array.isArray(v[tf]) ? v[tf] : [v[tf]])
+          const src  = v[tf];
+          const list = (Array.isArray(src) ? src : [src])
             .map(migrateChannel).filter(Boolean);
-          if (list.length) per[tf] = list;
+          // An EMPTY ARRAY is kept, where it used to be dropped. It is now
+          // meaningful: "this chart's channels were deleted", as against "this
+          // chart has none yet", which is what seeds an untouched chart with two.
+          if (list.length || Array.isArray(src)) per[tf] = list;
         }
         if (Object.keys(per).length) out[name] = per;
       }
@@ -368,7 +372,9 @@
       const takeRemote = rm > lm || (rm === 0 && lm === 0 && remoteNewer && remoteList);
       if (!takeRemote) continue;
       if (JSON.stringify(localList || null) !== JSON.stringify(remoteList || null)) {
-        if (remoteList && remoteList.length) {
+        if (remoteList) {
+          // Including an EMPTY one — that is another device saying these
+          // channels were deleted, and dropping the key here would re-seed them.
           if (!instChannels[name]) instChannels[name] = {};
           instChannels[name][tf] = remoteList;
         } else if (instChannels[name]) {
@@ -391,9 +397,56 @@
   }
 
   // Every channel on one instrument on the CHART CURRENTLY SHOWN.
+  //
+  // A chart with nothing stored answers with its SEEDS — the two channels every
+  // chart opens with (see reelSeedChannels). A stored EMPTY list is not the same
+  // thing and does not seed: that is a chart whose channels were deleted.
   function channelsFor(name) {
     const per = instChannels[name];
-    return (per && per[timeframe]) || [];
+    const stored = per && per[timeframe];
+    if (stored) return stored;
+    return channelSeeds.get(name + '|' + timeframe) || [];
+  }
+
+  // ── The two channels every chart starts with (2026-09-18) ───────────────
+  // Held HERE, in memory, and not in instChannels — a chart you merely scrolled
+  // past must not write drawings into storage. That store syncs to every device
+  // and every write to it is an undo step, so seeding on sight would fill the
+  // sync blob with drawings nobody drew and make Undo step through charts the
+  // reader never touched. The seeds are committed the moment a chart is edited,
+  // through setActiveIdx — the one call every edit passes through — and from
+  // then on they are ordinary drawings: draggable, lockable, deletable, undoable
+  // and synced. Cleared per publish, since a new bundle is a new window to fit.
+  const channelSeeds = new Map();
+
+  function channelSeedsFor(name, b) {
+    const k = name + '|' + timeframe;
+    if (channelSeeds.has(k)) return channelSeeds.get(k);
+    const per = instChannels[name];
+    if (per && per[timeframe]) return per[timeframe];      // stored wins, seeds never built
+    const seeds = reelSeedChannels(b);
+    channelSeeds.set(k, seeds);
+    return seeds;
+  }
+
+  // Every props-row action that edits the drawings on a chart. The dispatcher
+  // commits the seeds before running any of them (see the note there).
+  const DRAW_MUTATING_ACTS = new Set([
+    'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo',
+  ]);
+
+  // Commit this chart's seeds into the store, by REFERENCE — a drag already
+  // holding one of these objects keeps working on the copy that is now saved.
+  function channelSeedCommit(name) {
+    const k = name + '|' + timeframe;
+    const seeds = channelSeeds.get(k);
+    if (!seeds) return;
+    channelSeeds.delete(k);
+    if (!seeds.length) return;
+    if (instChannels[name] && instChannels[name][timeframe]) return;
+    if (!instChannels[name]) instChannels[name] = {};
+    instChannels[name][timeframe] = seeds;
   }
 
   // Which one Lock and Clear act on, and which one draws its handles solid:
@@ -407,7 +460,13 @@
     return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
   }
 
-  function setActiveIdx(name, i) { reel.activeCh.set(name + '|' + timeframe, i); }
+  // Selecting a drawing is the first act of every edit — a handle grab and a tap
+  // both land here — so this is where seeds stop being defaults and become this
+  // chart's own drawings.
+  function setActiveIdx(name, i) {
+    channelSeedCommit(name);
+    reel.activeCh.set(name + '|' + timeframe, i);
+  }
 
   function activeChannel(name) {
     const i = activeIdx(name);
@@ -430,8 +489,9 @@
     if (i < 0) return;
     per[timeframe].splice(i, 1);
     reel.activeCh.delete(name + '|' + timeframe);
-    if (!per[timeframe].length) delete per[timeframe];
-    if (!Object.keys(per).length) delete instChannels[name];
+    // The key STAYS, holding an empty list, where it used to be deleted: an
+    // absent key now means "never touched" and seeds two channels, so deleting
+    // the last one would have brought both straight back on the next repaint.
   }
 
   function syncApplyRemote(remote) {
@@ -7648,6 +7708,34 @@
     };
   }
 
+  // TWO channels on every chart and every timeframe (user request, 2026-09-18).
+  //
+  // They are fitted to DIFFERENT SPANS on purpose: one across the whole window,
+  // one across its last third. Two channels built the same way would sit exactly
+  // on top of each other — one drawing wearing two outlines, impossible to grab
+  // separately and useless to read. This pair says "the move" and "the leg you
+  // are in now", which is the comparison a channel is drawn for in the first
+  // place.
+  //
+  // Fitted to the VISIBLE window at first paint, exactly as a hand-added channel
+  // is (channelAdd passes the same slice), so a seeded channel and a drawn one
+  // start life identically. Panning afterwards does not refit either of them.
+  //
+  // Needs 24 bars: the tail third has to clear reelDefaultChannel's own 8-bar
+  // floor, or the second channel comes back null and the chart would seed one.
+  // Below that it seeds NOTHING rather than one — a lone default channel on a
+  // near-empty chart is more confusing than a clean chart.
+  const SEED_SPANS = 3;          // the short channel covers the last 1/3
+  function reelSeedChannels(b) {
+    const n = b && b.c ? b.c.length : 0;
+    if (n < 24) return [];
+    const cut  = Math.floor(n * (SEED_SPANS - 1) / SEED_SPANS);
+    const tail = { c: b.c.slice(cut), l: b.l.slice(cut),
+                   h: b.h.slice(cut), t: b.t.slice(cut) };
+    const pair = [reelDefaultChannel(b), reelDefaultChannel(tail)];
+    return pair.every(Boolean) ? pair : [];
+  }
+
   // ── The other two tools ──────────────────────────────────────────────
   // Both start fitted to what is on screen, for the same reason the channel
   // does: the first drag should be an adjustment, not a construction.
@@ -8822,6 +8910,9 @@
 
     // ── Trend channel, if one is saved for this instrument ──
     const name    = item.instrument_name;
+    // Builds this chart's two default channels the first time it is painted, if
+    // it has none of its own. Read-only — nothing is stored until an edit.
+    channelSeedsFor(name, b);
     const channel = reelChannelsSvg(channelsFor(name), b, L, sc, bw,
                                     reel.editing === name, activeIdx(name));
 
@@ -10748,6 +10839,14 @@
       if (btn.dataset.act === 'chart-back')    { chartGoBack(); return true; }
       if (btn.dataset.act === 'chart-expand')  { chartFullOpen(name); return true; }
       if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
+      // Anything that CHANGES this chart's drawings commits its seeds first —
+      // the two channels a chart opens with are not in the store until then, so
+      // without this Delete quietly did nothing (clearChannelFor returns early
+      // when the chart has no stored list), a colour or a lock was written to an
+      // object nothing saves, and adding a drawing created the stored list from
+      // scratch and took both seeded channels off the chart. Opening Draw mode
+      // is NOT in this list: looking at the tools changes nothing.
+      if (DRAW_MUTATING_ACTS.has(btn.dataset.act)) channelSeedCommit(name);
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
