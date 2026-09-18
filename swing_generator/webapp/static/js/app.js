@@ -7710,30 +7710,127 @@
 
   // TWO channels on every chart and every timeframe (user request, 2026-09-18).
   //
-  // They are fitted to DIFFERENT SPANS on purpose: one across the whole window,
-  // one across its last third. Two channels built the same way would sit exactly
-  // on top of each other — one drawing wearing two outlines, impossible to grab
-  // separately and useless to read. This pair says "the move" and "the leg you
-  // are in now", which is the comparison a channel is drawn for in the first
-  // place.
-  //
   // Fitted to the VISIBLE window at first paint, exactly as a hand-added channel
   // is (channelAdd passes the same slice), so a seeded channel and a drawn one
   // start life identically. Panning afterwards does not refit either of them.
   //
-  // Needs 24 bars: the tail third has to clear reelDefaultChannel's own 8-bar
-  // floor, or the second channel comes back null and the chart would seed one.
-  // Below that it seeds NOTHING rather than one — a lone default channel on a
-  // near-empty chart is more confusing than a clean chart.
-  const SEED_SPANS = 3;          // the short channel covers the last 1/3
+  // Each channel belongs to a SWING LEG, not to a slice of the window. Read off
+  // the user's own ALL_AX 4H chart (2026-09-18): one channel on the fall from the
+  // January high to the April low, the other on the rally off that low which is
+  // still running. So: the developing leg, and the completed one before it.
+  //
+  // Where the legs come from, read off the user's own ALL_AX / GOLD / US100
+  // charts rather than invented: the window's HIGHEST HIGH and LOWEST LOW are
+  // the boundary, and the big move between them is a leg. What decides whether
+  // the move SINCE that last extreme is a leg of its own or just a pullback
+  // inside the one before it is how much of that leg it has given back.
+  //
+  // Measured on the 4H bundles the user drew on (2026-09-18), move since the
+  // last extreme as a share of the leg before it:
+  //     ALL_AX 30%   GOLD 44%   BTCUSD 21%   ->  pullback, the leg still stands
+  //     US100  60%                           ->  a new leg, and it is the one running
+  // The user's ALL_AX channels are the 30% case: one channel on the rise from
+  // the March low to the August high, with that -10% pullback held INSIDE it,
+  // and the other on the fall that came before. A zigzag was tried first and got
+  // this wrong — it broke the rise into two at the August high, which is exactly
+  // what the user had not done.
+  //
+  // RETRACE_NEW_LEG is therefore the whole rule, and 0.5 is the classic place to
+  // put it: give back half of a move and it is no longer a pullback in it.
+  const RETRACE_NEW_LEG = 0.5;
+  const MIN_LEG_BARS    = 8;        // shorter than this is a wick, not a leg
+
+  // [developing, previous] as [i1, i2] index pairs, or fewer when the window
+  // does not hold them.
+  function reelSwingLegs(b) {
+    const n = b.c.length;
+    const hi = b.h || b.c, lo = b.l || b.c;
+    let iHi = -1, iLo = -1;
+    for (let i = 0; i < n; i++) {
+      if (hi[i] != null && (iHi < 0 || hi[i] > hi[iHi])) iHi = i;
+      if (lo[i] != null && (iLo < 0 || lo[i] < lo[iLo])) iLo = i;
+    }
+    if (iHi < 0 || iLo < 0 || iHi === iLo) return [];
+    const A = Math.min(iHi, iLo), B = Math.max(iHi, iLo);
+    const pA = A === iLo ? lo[A] : hi[A];
+    const pB = B === iHi ? hi[B] : lo[B];
+    const span = Math.abs(pB - pA);
+    const last = b.c[n - 1];
+    const frac = span && last != null ? Math.abs(last - pB) / span : 0;
+
+    // Given back half the leg: the tail IS the leg now running, and the move
+    // between the two extremes is the one before it.
+    if (frac >= RETRACE_NEW_LEG && (n - 1 - B) >= MIN_LEG_BARS) return [[B, n - 1], [A, B]];
+
+    // Otherwise the move between the extremes is still the developing leg, and
+    // the previous one runs from the opposite extreme before it.
+    let j = A;
+    for (let i = 0; i <= A; i++) {
+      if (A === iLo) { if (hi[i] != null && hi[i] > hi[j]) j = i; }
+      else           { if (lo[i] != null && lo[i] < lo[j]) j = i; }
+    }
+    const legs = [[A, B]];
+    if (A - j >= MIN_LEG_BARS) legs.push([j, A]);
+    // Nothing before it — the leg starts at the left edge, as it does on a chart
+    // that has run one way the whole window. The pullback since the last extreme
+    // is then the second channel: it is the only other structure on the chart,
+    // and two channels is what was asked for.
+    else if ((n - 1 - B) >= MIN_LEG_BARS) legs.push([B, n - 1]);
+    return legs;
+  }
+
+  // A channel fitted to bars [i1, i2]: the spine is the least-squares line
+  // through their closes and the edges are pushed out to the furthest high above
+  // it and the furthest low below it, so the leg sits inside its own channel the
+  // way a hand-drawn one does. Anchors are stored at the leg's OWN ends —
+  // the renderer extends the lines across the panel from there.
+  function reelChannelForLeg(b, i1, i2) {
+    if (i2 - i1 < MIN_LEG_BARS) return null;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0, k = 0;
+    for (let i = i1; i <= i2; i++) {
+      const c = b.c[i];
+      if (c == null) continue;
+      sx += i; sy += c; sxx += i * i; sxy += i * c; k++;
+    }
+    if (k < 3) return null;
+    const den = k * sxx - sx * sx;
+    if (!den) return null;
+    const m  = (k * sxy - sx * sy) / den;
+    const c0 = (sy - m * sx) / k;
+    const at = i => c0 + m * i;
+    let up = 0, dn = 0;
+    for (let i = i1; i <= i2; i++) {
+      const h = (b.h || b.c)[i], l = (b.l || b.c)[i], base = at(i);
+      if (h != null && h - base > up) up = h - base;
+      if (l != null && l - base < dn) dn = l - base;
+    }
+    if (!(up > 0) && !(dn < 0)) return null;
+    return { kind: 'channel', t1: String(b.t[i1]), p1: at(i1),
+                              t2: String(b.t[i2]), p2: at(i2), up, dn };
+  }
+
+  // TWO channels on every chart and every timeframe (user request, 2026-09-18):
+  // the developing leg and the one before it. Falls back to the old
+  // window/last-third pair when the window holds fewer than two legs — a chart
+  // that has run one way the whole time still gets two channels rather than one
+  // or none, and dragging one is how the reader tells it what they see.
   function reelSeedChannels(b) {
     const n = b && b.c ? b.c.length : 0;
     if (n < 24) return [];
-    const cut  = Math.floor(n * (SEED_SPANS - 1) / SEED_SPANS);
+    const out = [];
+    for (const [i1, i2] of reelSwingLegs(b)) {
+      const ch = reelChannelForLeg(b, i1, i2);
+      if (ch) out.push(ch);
+      if (out.length === 2) break;
+    }
+    if (out.length === 2) return out;                   // [developing, previous]
+    // A window with no legs to find (flat, or too short) still gets its pair,
+    // fitted the old way — whole window and last third.
+    const cut  = Math.floor(n * 2 / 3);
     const tail = { c: b.c.slice(cut), l: b.l.slice(cut),
                    h: b.h.slice(cut), t: b.t.slice(cut) };
     const pair = [reelDefaultChannel(b), reelDefaultChannel(tail)];
-    return pair.every(Boolean) ? pair : [];
+    return pair.every(Boolean) ? pair : out;
   }
 
   // ── The other two tools ──────────────────────────────────────────────
