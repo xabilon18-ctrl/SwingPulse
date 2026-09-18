@@ -7779,59 +7779,59 @@
     return legs;
   }
 
-  // A channel fitted to bars [i1, i2]: the spine is the least-squares line
-  // through their closes and the edges are pushed out to the furthest high above
-  // it and the furthest low below it, so the leg sits inside its own channel the
-  // way a hand-drawn one does. Anchors are stored at the leg's OWN ends —
-  // the renderer extends the lines across the panel from there.
-  function reelChannelForLeg(b, i1, i2, projectRight) {
+  // A channel fitted to bars [i1, i2], built the way the user draws one
+  // (2026-09-18: "the trend line is parallel to the 500ma and it also include
+  // price and the first top or bottom is the midway of the trend"):
+  //   - SLOPE is the MA500's slope over the leg (least squares through the
+  //     slowest ribbon series), so the channel runs parallel to the anchor;
+  //   - the MIDLINE passes through the leg's first extreme — the low an up leg
+  //     starts from, the high a down leg starts from;
+  //   - the rails sit the SAME distance either side, far enough out to hold
+  //     every high and low of the leg.
+  // Price is what the rails contain; the ribbon is no longer forced inside.
+  // Falls back to the slope of the closes when the leg holds too few MA500
+  // samples (short history, or a leg shorter than the ribbon's sampling).
+  function reelChannelForLeg(b, i1, i2) {
     if (i2 - i1 < MIN_LEG_BARS) return null;
     const n = b.c.length;
-    let sx = 0, sy = 0, sxx = 0, sxy = 0, k = 0;
-    for (let i = i1; i <= i2; i++) {
-      const c = b.c[i];
-      if (c == null) continue;
-      sx += i; sy += c; sxx += i * i; sxy += i * c; k++;
-    }
-    if (k < 3) return null;
-    const den = k * sxx - sx * sx;
-    if (!den) return null;
-    const m  = (k * sxy - sx * sy) / den;
-    const c0 = (sy - m * sx) / k;
-    const at = i => c0 + m * i;
-    // The rails hold EVERYTHING the leg contains — the bars AND the ribbon
-    // (user, 2026-09-18: "the trend cover in it all the MAs and price"). Highs
-    // and lows alone leave the slow MAs outside the channel in a strong move:
-    // measured on ALL_AX 4H, MA500 ran near 55 while the up channel's lower rail
-    // was at 63.85, so the line the whole system is built on sat outside the
-    // thing drawn around the trend.
-    //
-    // The ribbon ships SAMPLED (every b.ms'th bar, indices in b.mi), which is
-    // all this needs: an extreme of a moving average is not a spike, so the
-    // sample that matters is never between two samples.
-    let up = 0, dn = 0;
-    const take = (v, base) => {
-      if (v == null) return;
-      if (v - base > up) up = v - base;
-      if (v - base < dn) dn = v - base;
+    const hi = b.h || b.c, lo = b.l || b.c;
+    const lsSlope = pts => {
+      if (pts.length < 2) return null;
+      let sx = 0, sy = 0, sxx = 0, sxy = 0;
+      for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+      const k = pts.length, den = k * sxx - sx * sx;
+      return den ? (k * sxy - sx * sy) / den : null;
     };
+    const slow = (b.m && b.m.length) ? b.m[b.m.length - 1] : null;
+    const mi = b.mi || ((b.m && b.m[0]) ? b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1)) : []);
+    const maPts = [];
+    if (slow) for (let j = 0; j < slow.length; j++) {
+      const i = mi[j];
+      if (i != null && i >= i1 && i <= i2 && slow[j] != null) maPts.push([i, slow[j]]);
+    }
+    let m = maPts.length >= 3 ? lsSlope(maPts) : null;
+    if (m == null) {
+      const cPts = [];
+      for (let i = i1; i <= i2; i++) if (b.c[i] != null) cPts.push([i, b.c[i]]);
+      m = lsSlope(cPts);
+    }
+    if (m == null) return null;
+    const upLeg = (b.c[i2] != null && b.c[i1] != null) ? b.c[i2] >= b.c[i1] : m >= 0;
+    const pivot = upLeg ? lo[i1] : hi[i1];
+    if (pivot == null) return null;
+    const at = i => pivot + m * (i - i1);
+    let w = 0;
     for (let i = i1; i <= i2; i++) {
       const base = at(i);
-      take((b.h || b.c)[i], base);
-      take((b.l || b.c)[i], base);
+      if (hi[i] != null) w = Math.max(w, Math.abs(hi[i] - base));
+      if (lo[i] != null) w = Math.max(w, Math.abs(lo[i] - base));
     }
-    const mi = b.mi || ((b.m && b.m[0]) ? b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1)) : []);
-    for (const series of (b.m || [])) {
-      for (let j = 0; j < series.length; j++) {
-        const i = mi[j];
-        if (i == null || i < i1 || i > i2) continue;
-        take(series[j], at(i));
-      }
-    }
-    if (!(up > 0) && !(dn < 0)) return null;
+    if (!(w > 0)) return null;
+    // Bounded to the leg at BOTH ends — nothing projects past it (user,
+    // 2026-09-18: "the channels are extended").
     return { kind: 'channel', t1: String(b.t[i1]), p1: at(i1),
-                              t2: String(b.t[i2]), p2: at(i2), up, dn,
-             clipL: true, clipR: !projectRight };
+                              t2: String(b.t[i2]), p2: at(i2), up: w, dn: -w,
+             clipL: true, clipR: true };
   }
 
   // TWO channels on every chart and every timeframe (user request, 2026-09-18):
@@ -7844,8 +7844,9 @@
     if (n < 24) return [];
     const out = [];
     for (const [i1, i2] of reelSwingLegs(b)) {
-      // The FIRST leg back is the developing one; only it projects forward.
-      const ch = reelChannelForLeg(b, i1, i2, out.length === 0);
+      // The FIRST leg back is the developing one: it runs to the last bar, so
+      // the pullback since its extreme sits inside it — but never past today.
+      const ch = reelChannelForLeg(b, i1, out.length === 0 ? n - 1 : i2);
       if (ch) out.push(ch);
       if (out.length === 2) break;
     }
@@ -8310,9 +8311,9 @@
     // reelChannelForLeg): two auto-placed channels at full width put six long
     // dotted lines across the price in the same ink as the ribbon, and the user's
     // report was exactly that — "the trend covers all the MAs and price". Bounded,
-    // each one sits over the leg it describes. The DEVELOPING one still runs to
-    // the right edge, because where the trend projects is the whole point of it.
-    // Hand-drawn channels carry neither flag and are untouched.
+    // each one sits over the leg it describes, from its first bar to its last —
+    // the developing one included, so none runs past the bars into the blank
+    // space. Hand-drawn channels carry neither flag and are untouched.
     const xLegL = Math.min(x1, x2), xLegR = Math.max(x1, x2);
     let XA = ch.clipL ? Math.max(L.x0, xLegL) : L.x0;
     let XB = ch.clipR ? Math.min(L.x1, xLegR) : L.x1;
