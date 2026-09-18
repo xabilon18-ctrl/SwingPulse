@@ -7827,11 +7827,10 @@
       if (lo[i] != null) w = Math.max(w, Math.abs(lo[i] - base));
     }
     if (!(w > 0)) return null;
-    // Bounded to the leg at BOTH ends — nothing projects past it (user,
-    // 2026-09-18: "the channels are extended").
+    // EXTENDED across the whole panel, both ways, like a hand-drawn channel
+    // (user, 2026-09-18: "make sure the channels are extended") — no clip flags.
     return { kind: 'channel', t1: String(b.t[i1]), p1: at(i1),
-                              t2: String(b.t[i2]), p2: at(i2), up: w, dn: -w,
-             clipL: true, clipR: true };
+                              t2: String(b.t[i2]), p2: at(i2), up: w, dn: -w };
   }
 
   // TWO channels on every chart and every timeframe (user request, 2026-09-18):
@@ -8311,9 +8310,9 @@
     // reelChannelForLeg): two auto-placed channels at full width put six long
     // dotted lines across the price in the same ink as the ribbon, and the user's
     // report was exactly that — "the trend covers all the MAs and price". Bounded,
-    // each one sits over the leg it describes, from its first bar to its last —
-    // the developing one included, so none runs past the bars into the blank
-    // space. Hand-drawn channels carry neither flag and are untouched.
+    // each one sits over the leg it describes. Seeds stopped setting the flags
+    // on 2026-09-18 (the user wants them extended); the clip stays for any
+    // channel stored with them.
     const xLegL = Math.min(x1, x2), xLegR = Math.max(x1, x2);
     let XA = ch.clipL ? Math.max(L.x0, xLegL) : L.x0;
     let XB = ch.clipR ? Math.min(L.x1, xLegR) : L.x1;
