@@ -7546,6 +7546,35 @@
   // and the Range pill reach all of it.
   const REEL_TEN_MIN_WINDOW_BARS = 120;
 
+  // How far OUT a card may zoom. The whole bundle everywhere except 10m, which
+  // stops at ONE MONTH AND TEN DAYS of calendar (user, 2026-09-19): the bundle
+  // carries two months, but past about forty days the candles are a smear
+  // on every instrument, so that is the widest view that is still a chart.
+  // Measured off the bundle's own timestamps, so it is the same span of
+  // calendar on an equity (~1,000 bars) and on BTC (~5,800). Memoised on the
+  // bundle like reelBarTimes; a new publish brings new bundle objects.
+  const REEL_TEN_MIN_MAX_SPAN = { months: 1, days: 10 };
+  function reelMaxBars(bundle) {
+    const n = bundle.c.length;
+    if (timeframe !== '10m' || n < 2) return n;
+    if (bundle._maxBars) return bundle._maxBars;
+    const bt   = reelBarTimes(bundle);
+    const last = new Date(bt[n - 1]);
+    const cut  = Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - REEL_TEN_MIN_MAX_SPAN.months,
+                          last.getUTCDate() - REEL_TEN_MIN_MAX_SPAN.days,
+                          last.getUTCHours(), last.getUTCMinutes());
+    let k = n - 1;
+    while (k > 0 && bt[k - 1] >= cut) k--;
+    return (bundle._maxBars = Math.max(REEL_MIN_WINDOW_BARS, n - k));
+  }
+
+  // The window a card opens on — what a zoom override is cleared back to.
+  function reelDefaultBars(bundle) {
+    const n = bundle.c.length;
+    if (timeframe === '10m') return Math.max(REEL_MIN_WINDOW_BARS, Math.min(n, REEL_TEN_MIN_WINDOW_BARS));
+    return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
+  }
+
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
@@ -7553,14 +7582,11 @@
     // where it is set, so a stale entry from a wider bundle can never ask for
     // more bars than this one has.
     const z = reel.tzoom.get(name);
-    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), n));
+    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle)));
     const w = reel.range;
     if (w && w < n) return w;
     // 10m opens far tighter than everything else — see REEL_TEN_MIN_WINDOW_BARS.
-    if (timeframe === '10m') {
-      return Math.max(REEL_MIN_WINDOW_BARS, Math.min(n, REEL_TEN_MIN_WINDOW_BARS));
-    }
-    return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
+    return reelDefaultBars(bundle);
   }
 
   function reelPanOf(name) { return reel.pan.get(name) || 0; }
@@ -9739,13 +9765,13 @@
 
     // Fingers apart = zoom in = FEWER bars over the same width.
     if (base.dx0 >= MIN_SPREAD && sx >= 1) {
-      const n = ctx.bundle.c.length;
+      const n = reelMaxBars(ctx.bundle);
       let bars = Math.round(base.bars * (base.dx0 / sx));
       bars = Math.min(Math.max(bars, REEL_MIN_WINDOW_BARS), n);
       if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
         if (bars >= n && sx < base.dx0) reelZoomLimitHint(host, n, 'out');
       } else {
-        if (bars === Math.min(n, REEL_DEFAULT_WINDOW_BARS)) reel.tzoom.delete(ctx.name);
+        if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
         else                                                reel.tzoom.set(ctx.name, bars);
         reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);
         changed = true;
@@ -9797,7 +9823,7 @@
   function reelApplyTZoom(host, ctx, grab, dx) {
     const wPx = host.getBoundingClientRect().width || 0;
     const K   = Math.max(140, wPx * 0.9);
-    const n   = ctx.bundle.c.length;
+    const n   = reelMaxBars(ctx.bundle);
     let bars  = grab.bars * Math.exp(dx / K);
     bars = Math.min(Math.max(Math.round(bars), REEL_MIN_WINDOW_BARS), n);
     if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
@@ -9813,7 +9839,7 @@
     // the whole bundle. Those used to be the same number; since the bundle
     // carries more than a card opens with, deleting at full width snapped the
     // chart straight back to 520 bars — zooming all the way out undid itself.
-    if (bars === Math.min(n, REEL_DEFAULT_WINDOW_BARS)) reel.tzoom.delete(ctx.name);
+    if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
     else                                                reel.tzoom.set(ctx.name, bars);
     reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);   // re-clamp, never widen
     return true;

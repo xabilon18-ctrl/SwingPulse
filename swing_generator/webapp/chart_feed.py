@@ -104,7 +104,15 @@ BARS_BY_TF = {
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
-    '4H': 520,
+    # 4H CARRIES more than it shows (user, 2026-09-19: "i cannot go back further
+    # on the 4h"). The card still opens on 520 bars (REEL_DEFAULT_WINDOW_BARS);
+    # this is how far back a drag can reach. 2190 = a year of a 24h instrument
+    # (6 bars x 365); a US equity's whole hourly cache is only ~1,120 four-hour
+    # bars (Yahoo keeps 730 days of 1h), so equities ship everything they have.
+    # Cost: the oldest ~500 bars of an equity carry no MA500 (it has not warmed
+    # up yet — 167 null points of 374 on AAPL); the 520-bar opening window is
+    # fully warm on every instrument. Gzipped bundle AAPL 8 -> 18 KB, BTC 10 -> 43.
+    '4H': 2190,
     '1H': 520,
 }
 
