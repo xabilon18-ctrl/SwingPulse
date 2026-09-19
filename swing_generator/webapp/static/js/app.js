@@ -7522,29 +7522,6 @@
   // zoom is for. Ten is where a daily chart is two trading weeks and the bars
   // are about as wide as they are tall.
   const REEL_MIN_WINDOW_BARS = 10;
-  // What a 10m card OPENS on. A BAR COUNT, and a small one.
-  //
-  // This used to be one calendar month, measured off each bundle's own dates so
-  // that every instrument opened on the same span of time. It was the wrong
-  // thing to hold constant. A month of ten-minute bars is 1,172 bars on A2A,
-  // 1,677 on AAPL and 4,300 on BTCUSD, and the card's plot is ~345px wide on a
-  // phone: 0.29px per bar, 0.08px on BTC. At that density there are no candles
-  // on screen at all, just a smear, and a whole new session — 39 bars on a US
-  // equity — is 11px of change at the right edge of a picture that is otherwise
-  // identical pixel for pixel. Hence "the 10m candles never change": they were
-  // changing, the data was live to within twelve minutes of the publish, and
-  // none of it was visible.
-  //
-  // The old note against a bar count was that it opens on "three weeks of Apple
-  // and 3.6 days of Bitcoin". True at 520 bars; at 120 it is three sessions of
-  // Apple against a day and a bit of Bitcoin, which is a spread worth paying for
-  // readable candles. Bar count is what governs whether a candle can be drawn at
-  // all, so bar count is what this timeframe has to hold constant — ~2.9px per
-  // bar here, which is where an OHLC bar's open and close ticks still resolve.
-  //
-  // The bundle still CARRIES two months (chart_feed.CARRY_MONTHS); panning left
-  // and the Range pill reach all of it.
-  const REEL_TEN_MIN_WINDOW_BARS = 120;
 
   // How far OUT a card may zoom. The whole bundle everywhere except 10m, which
   // stops at ONE MONTH AND TEN DAYS of calendar (user, 2026-09-19): the bundle
@@ -7554,24 +7531,45 @@
   // calendar on an equity (~1,000 bars) and on BTC (~5,800). Memoised on the
   // bundle like reelBarTimes; a new publish brings new bundle objects.
   const REEL_TEN_MIN_MAX_SPAN = { months: 1, days: 10 };
+  // How many of the bundle's newest bars fall inside a calendar span ending at
+  // its last bar. Timestamps, not a bar count, so the span is the same amount
+  // of CALENDAR on an equity and on a 24h instrument.
+  function reelBarsInSpan(bundle, months, days) {
+    const n = bundle.c.length;
+    if (n < 2) return n;
+    const bt   = reelBarTimes(bundle);
+    const last = new Date(bt[n - 1]);
+    const cut  = Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - months,
+                          last.getUTCDate() - days, last.getUTCHours(), last.getUTCMinutes());
+    let k = n - 1;
+    while (k > 0 && bt[k - 1] >= cut) k--;
+    return Math.max(REEL_MIN_WINDOW_BARS, n - k);
+  }
+
   function reelMaxBars(bundle) {
     const n = bundle.c.length;
     if (timeframe !== '10m' || n < 2) return n;
     if (bundle._maxBars) return bundle._maxBars;
-    const bt   = reelBarTimes(bundle);
-    const last = new Date(bt[n - 1]);
-    const cut  = Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - REEL_TEN_MIN_MAX_SPAN.months,
-                          last.getUTCDate() - REEL_TEN_MIN_MAX_SPAN.days,
-                          last.getUTCHours(), last.getUTCMinutes());
-    let k = n - 1;
-    while (k > 0 && bt[k - 1] >= cut) k--;
-    return (bundle._maxBars = Math.max(REEL_MIN_WINDOW_BARS, n - k));
+    return (bundle._maxBars = reelBarsInSpan(bundle, REEL_TEN_MIN_MAX_SPAN.months,
+                                             REEL_TEN_MIN_MAX_SPAN.days));
   }
 
   // The window a card opens on — what a zoom override is cleared back to.
+  //
+  // 10m opens on ONE CALENDAR MONTH and 4H on ONE CALENDAR YEAR, every time the
+  // timeframe is switched to (user, 2026-09-19: "the 10 min chart has to show
+  // me a full month on every switch, 4h full year"). This reverses the 120-bar
+  // 10m window of 2026-09-17 by the user's explicit call: a month of 10m is
+  // ~800 bars on an equity and ~4,300 on BTC, so candles there are sub-pixel
+  // and read as a line — zoom in (drag the time axis) to see them. 4H is ~500
+  // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '10m') return Math.max(REEL_MIN_WINDOW_BARS, Math.min(n, REEL_TEN_MIN_WINDOW_BARS));
+    if (timeframe === '10m' || timeframe === '4H') {
+      if (bundle._defBars) return bundle._defBars;
+      const span = timeframe === '10m' ? [1, 0] : [12, 0];
+      return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
+    }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
@@ -7585,7 +7583,7 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle)));
     const w = reel.range;
     if (w && w < n) return w;
-    // 10m opens far tighter than everything else — see REEL_TEN_MIN_WINDOW_BARS.
+    // 10m and 4H open on a calendar span — see reelDefaultBars.
     return reelDefaultBars(bundle);
   }
 
@@ -8432,11 +8430,9 @@
   // picket fence. So: years on D, half-years on 1H / 4H, MONTHS on 10m.
   //
   // 10m is MONTHS, at the user's call (2026-09-14, and again 2026-09-19 over
-  // the day grid that replaced it on 09-17). The window stays ~3 sessions
-  // (REEL_TEN_MIN_WINDOW_BARS) so candles can be drawn, which means a month line
-  // is on screen only when the window crosses the 1st — you pan back to it, or
-  // zoom out to it. That was the trade the user chose: day lines are gone
-  // rather than kept faint underneath.
+  // the day grid that replaced it on 09-17). Since 2026-09-19 the card opens on
+  // a whole calendar month (reelDefaultBars), so a month line is on screen at
+  // the 1st every time. Day lines are gone rather than kept faint underneath.
   //
   // The window's own first and last bars stay as end-stops (see the axis code)
   // for a range that crosses no boundary at all — which on 10m is most windows,
