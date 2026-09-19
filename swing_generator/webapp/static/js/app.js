@@ -6021,6 +6021,7 @@
   const TOOL_CHANNEL = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="16" x2="21" y2="6"/><line x1="3" y1="21" x2="21" y2="11"/><line x1="3" y1="18.5" x2="21" y2="8.5" stroke-dasharray="2 3" opacity=".65"/></svg>`;
   const TOOL_TREND   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="19" x2="21" y2="5"/><circle cx="4.5" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="19.5" cy="6" r="1.8" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
+  const TOOL_VLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
@@ -6051,7 +6052,8 @@
           <span class="reel-props-sep"></span>
           <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal level" aria-label="Add horizontal level">${TOOL_HLINE}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal line" aria-label="Add horizontal line">${TOOL_HLINE}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="vline" data-name="${name}" title="Vertical line" aria-label="Add vertical line">${TOOL_VLINE}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
         </div>
@@ -6076,8 +6078,9 @@
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
       : '';
-    // An entry marker gets a BOLD switch (user, 2026-09-15).
-    const bold = d.kind === 'entry'
+    // A BOLD switch on entry markers (user, 2026-09-15) and on horizontal and
+    // vertical lines (user, 2026-09-19).
+    const bold = DRAW_BOLDABLE.has(d.kind)
       ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
       : '';
     return sw
@@ -7916,6 +7919,13 @@
     return null;
   }
 
+  // Vertical line: three quarters of the way across the window, on a bar.
+  function reelDefaultVLine(b) {
+    const n = b.c.length;
+    if (!n) return null;
+    return { kind: 'vline', t: String(b.t[Math.floor((n - 1) * 0.75)]) };
+  }
+
   // Entry marker: starts ON a candle — three quarters of the way across the
   // window, at that bar's close — and runs a short way to the right.
   function reelDefaultEntry(b) {
@@ -7933,6 +7943,7 @@
     if (kind === 'entry') return reelDefaultEntry(b);
     if (kind === 'trend') return reelDefaultTrend(b);
     if (kind === 'hline') return reelDefaultHLine(b);
+    if (kind === 'vline') return reelDefaultVLine(b);
     if (kind === 'ladder') return reelDefaultLadder(b);
     return reelDefaultChannel(b);
   }
@@ -7982,6 +7993,11 @@
       // look like one and cannot be told apart to drag.
       const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
       if (def.kind === 'hline' || def.kind === 'entry') def.p -= shift;
+      else if (def.kind === 'vline') {
+        const fi = reelBarIndexForDate(ctx.b, def.t);
+        const dt = fi == null ? null : reelDateForBarIndex(ctx.b, Math.round(fi - ctx.b.c.length * 0.08 * n));
+        if (dt) def.t = dt;
+      }
       else if (def.kind === 'ladder') { def.p1 -= shift; def.p4 -= shift; }
       else { def.p1 -= shift; def.p2 -= shift; }
     }
@@ -8097,6 +8113,7 @@
     if (!d) return '';
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'vline') return reelVLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'ladder') return reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'entry')  return reelEntrySvg(d, b, L, sc, bw, editing, idx, isActive);
     return reelChannelSvg(d, b, L, sc, bw, editing, idx, isActive);
@@ -8132,6 +8149,7 @@
   }
 
   const DRAW_DATE_KEYS  = ['t', 't1', 't2'];
+  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline']);
   const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p4'];
 
   // Write `orig` shifted by dBars and dP into `target`. Offsets that are not
@@ -8240,11 +8258,31 @@
       const above = y < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">level ${above ? '↑' : '↓'} off-scale</text>`;
     }
-    const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
+    const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
                + reelHitLine(L.x0, y, L.x1, y, idx);
     const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
     const handles = (editing && !d.locked)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
+    return line + tag + handles;
+  }
+
+  // A vertical line on one bar (user, 2026-09-19). Stored as a DATE, so it
+  // lands on the same moment on every timeframe; the date is printed at the
+  // top of the line. One handle, halfway down, drags it sideways bar by bar.
+  function reelVLineSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const fi = reelBarIndexForDate(b, d.t);
+    if (fi == null) return '';
+    const x = L.x0 + fi * bw + bw / 2;
+    if (x < L.x0 || x > L.x1) {
+      const left = x < L.x0;
+      return `<text x="${left ? L.x0 + 6 : L.x1 - 6}" y="${L.py0 + 58}" class="reel-clip-tag" text-anchor="${left ? 'start' : 'end'}">line ${left ? '←' : '→'} off-screen</text>`;
+    }
+    const line = `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
+               + reelHitLine(x, L.py0, x, L.py1, idx);
+    const nearRight = x > L.x1 - (L.x1 - L.x0) * 0.2;
+    const tag = `<text x="${(x + (nearRight ? -8 : 8)).toFixed(1)}" y="${(L.py0 + 20).toFixed(1)}" class="reel-axis reel-ch-lvl" text-anchor="${nearRight ? 'end' : 'start'}">${reelEndStopLabel(d.t)}</text>`;
+    const handles = (editing && !d.locked)
+      ? reelHandle(L, x, L.py0 + (L.py1 - L.py0) * 0.5, 't', idx, isActive) : '';
     return line + tag + handles;
   }
 
@@ -10176,6 +10214,12 @@
 
       // A horizontal level is one number and one handle.
       if (ch.kind === 'hline') { ch.p = price; schedule(); return; }
+      if (ch.kind === 'vline') {
+        const dt = reelDateForBarIndex(ctx.b, Math.round(fi));
+        if (dt) ch.t = dt;
+        schedule();
+        return;
+      }
 
       // Entry: the × moves the whole marker and keeps its length in bars; the
       // far end only changes the length, and never crosses back past the ×.
@@ -10940,7 +10984,7 @@
       if (btn.dataset.act === 'draw-dup')  { channelDuplicate(name, chHost); return true; }
       if (btn.dataset.act === 'draw-bold') {
         const d = activeChannel(name);
-        if (d && d.kind === 'entry') {
+        if (d && DRAW_BOLDABLE.has(d.kind)) {
           if (d.bold) delete d.bold; else d.bold = true;
           channelSave();
           if (chHost) reelRepaint(chHost);

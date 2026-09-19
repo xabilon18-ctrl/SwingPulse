@@ -8010,6 +8010,9 @@ body {
 .reel-tool-pct { font: 800 20px/22px system-ui, -apple-system, "Segoe UI", sans-serif; min-width: 36px; color: #1a1a19; }
 /* The drawing the properties row is acting on reads heavier than the rest. */
 .reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }
+/* Bold horizontal / vertical line (2026-09-19): wins over the selected weight. */
+.reel-draw .reel-ch-edge.is-bold,
+.reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
 .reel-draw.is-sel .reel-ladder  { stroke-opacity: 1; }
 .reel-tool {
