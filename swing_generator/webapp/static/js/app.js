@@ -546,17 +546,26 @@
   // edit, a background flush) OMITS the key entirely and the Worker keeps what
   // it already has. Without this, editing a note on a device whose list had not
   // loaded yet uploaded [] over the real list — and the Worker had no history.
-  async function syncPushNow(intentional) {
+  async function syncPushNow(intentional, quick) {
     if (!syncUser) return;
     // Always record locally — a device with no sync password still works, it
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
     if (!syncToken()) return;
 
+    // A pending drawing batch is covered by whatever this push sends — the
+    // payload carries every drawing — so the timer is dropped rather than
+    // firing a second identical write 30 seconds later.
+    if (syncDrawTimer) { clearTimeout(syncDrawTimer); syncDrawTimer = 0; }
+
     // Read before writing, so drawings made on another device since this one
     // last pulled are merged in rather than overwritten by this device's copy.
     // Offline, nothing is sent — the next push after reconnecting does it.
-    try {
+    // SKIPPED on a quick flush (the page is closing): the browser kills a
+    // pending request as the page goes away, and a read that never returns
+    // would take the write with it. The merge is what the next pull does
+    // anyway, and the Worker merges by key on its side.
+    if (!quick) try {
       const got = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`,
                               { cache: 'no-store', headers: syncHeaders() });
       if (got.status === 401) { syncPasswordRejected(); return; }
@@ -574,6 +583,9 @@
       method:  'PUT',
       headers: syncHeaders({ 'Content-Type': 'application/json' }),
       body:    JSON.stringify(payload),
+      // keepalive lets the request outlive the page it was fired from, which
+      // is the whole point of the flush on pagehide.
+      keepalive: !!quick,
     }).then(res => {
       if (res.status === 401) syncPasswordRejected();
       // 409 = the Worker refused a destructive write. Not an error the user
@@ -586,6 +598,35 @@
   function syncPush(intentional) {
     clearTimeout(syncPushTimer);
     syncPushTimer = setTimeout(() => syncPushNow(intentional), 800);
+  }
+
+  // DRAWINGS BATCH (2026-09-22). A star or a note is a few edits a day; a chart
+  // session is hundreds — every finished drag, colour tap, lock, bold, add and
+  // delete used to send its own save, and each save is TWO KV writes (the blob
+  // plus its one-generation backup). That is what exhausted the free tier's
+  // 1,000 writes a day on 2026-09-19 and blocked sync until midnight UTC.
+  //
+  // So drawings are held: the first change starts a 30-second clock and every
+  // change inside it rides along, which turns ten minutes of drawing into ~20
+  // writes instead of several hundred. The hold is a THROTTLE, not a debounce —
+  // a debounce would keep pushing the deadline back while you were still
+  // drawing and could go minutes without saving anything.
+  //
+  // Nothing is at risk while the clock runs: the drawing is already in
+  // localStorage (channelSave writes that synchronously), so this only delays
+  // when the OTHER device sees it. The flushes below close the gap that matters
+  // — leaving the page, or hiding the app.
+  const SYNC_DRAW_HOLD_MS = 30000;
+  let syncDrawTimer = 0;
+  function syncPushDrawings() {
+    if (syncDrawTimer) return;
+    syncDrawTimer = setTimeout(() => { syncDrawTimer = 0; syncPushNow(); }, SYNC_DRAW_HOLD_MS);
+  }
+  function syncFlushDrawings(quick) {
+    if (!syncDrawTimer) return;
+    clearTimeout(syncDrawTimer);
+    syncDrawTimer = 0;
+    syncPushNow(false, quick);
   }
 
   // ── Sync password step (shown after picking a user on a new device) ──────
@@ -1538,6 +1579,9 @@
 
   function doTabSwitch(btn) {
     const tab = btn.dataset.tab;
+    // Leaving the charts: send any held drawing changes now (see
+    // syncPushDrawings) instead of waiting out the batch clock.
+    if (currentTab === 'charts' && tab !== 'charts') syncFlushDrawings();
     navTabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     panes.forEach(p => p.classList.remove('active'));
@@ -7076,10 +7120,15 @@
 
   // Re-sync when user returns to the tab (catches changes made on another device)
   document.addEventListener('visibilitychange', () => {
+    // Going away: send whatever drawing changes are being held. On iOS this is
+    // the only event a swipe-away reliably fires.
+    if (document.visibilityState === 'hidden') { syncFlushDrawings(true); return; }
     if (document.visibilityState !== 'visible') return;
     checkForAppUpdate();          // reload if a newer build shipped while backgrounded
     if (syncUser) syncPull();
   });
+  window.addEventListener('pagehide', () => syncFlushDrawings(true));
+
   // A desktop browser left open behind another window never goes "hidden", so
   // visibilitychange alone meant a laptop could sit on stale drawings all day.
   let _lastFocusPull = 0;
@@ -7951,7 +8000,7 @@
   function channelSave() {
     channelStampChanges();
     try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
-    syncPush();
+    syncPushDrawings();
   }
 
   // Open (or close) the drawing tools on one card.
