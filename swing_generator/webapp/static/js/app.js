@@ -552,6 +552,9 @@
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
     if (!syncToken()) return;
+    // Whatever this push carries includes every drawing, so the catch-up
+    // marker is spent here rather than in each caller.
+    try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
 
     // A pending drawing batch is covered by whatever this push sends — the
     // payload carries every drawing — so the timer is dropped rather than
@@ -606,21 +609,39 @@
   // plus its one-generation backup). That is what exhausted the free tier's
   // 1,000 writes a day on 2026-09-19 and blocked sync until midnight UTC.
   //
-  // So drawings are held: the first change starts a 30-second clock and every
-  // change inside it rides along, which turns ten minutes of drawing into ~20
-  // writes instead of several hundred. The hold is a THROTTLE, not a debounce —
-  // a debounce would keep pushing the deadline back while you were still
-  // drawing and could go minutes without saving anything.
+  // So drawings are held: the first change starts a clock and every change
+  // inside it rides along. The hold is a THROTTLE, not a debounce — a debounce
+  // would keep pushing the deadline back while you were still drawing and could
+  // go a whole session without saving anything.
+  //
+  // FOUR HOURS since 2026-09-22 (was 30 seconds), at the user's call, because
+  // they work on the phone only: iOS fires visibilitychange every time the app
+  // is swiped away, and the flushes below are what actually save there. The
+  // clock is now only the backstop for a session left open in the foreground
+  // for hours, so a phone session costs about one save when you leave Charts
+  // and one when you leave the app, instead of one every 30 seconds on top.
   //
   // Nothing is at risk while the clock runs: the drawing is already in
   // localStorage (channelSave writes that synchronously), so this only delays
-  // when the OTHER device sees it. The flushes below close the gap that matters
-  // — leaving the page, or hiding the app.
-  const SYNC_DRAW_HOLD_MS = 30000;
+  // when the OTHER device sees it — and the dirty marker below covers a reload,
+  // which throws the pending timer away.
+  const SYNC_DRAW_HOLD_MS = 4 * 60 * 60 * 1000;
+  const SYNC_DRAW_DIRTY   = 'sp-draw-dirty';
   let syncDrawTimer = 0;
   function syncPushDrawings() {
+    try { localStorage.setItem(sk(SYNC_DRAW_DIRTY), '1'); } catch (_) {}
     if (syncDrawTimer) return;
     syncDrawTimer = setTimeout(() => { syncDrawTimer = 0; syncPushNow(); }, SYNC_DRAW_HOLD_MS);
+  }
+
+  // Drawings changed in an earlier visit that never reached the Worker — the
+  // page was reloaded or killed before any flush fired, and the timer died with
+  // it. One catch-up push per start, and only when the marker is set.
+  function syncCatchUpDrawings() {
+    if (!syncUser || !syncToken()) return;
+    let dirty = false;
+    try { dirty = localStorage.getItem(sk(SYNC_DRAW_DIRTY)) === '1'; } catch (_) {}
+    if (dirty) syncPushNow();
   }
   function syncFlushDrawings(quick) {
     if (!syncDrawTimer) return;
@@ -7063,7 +7084,7 @@
   updateSyncBadge();
   if (!syncUser) showUserPicker();
   // Initial load — pull watchlist sync after data is ready
-  loadAll().then(() => { if (syncUser) syncPull(); });
+  loadAll().then(() => { if (syncUser) { syncPull(); syncCatchUpDrawings(); } });
 
   // ── Auto-refresh every 4 hours (matches CI pipeline cadence) ────────
   // Silently re-fetches all data in the background; if the page is hidden
