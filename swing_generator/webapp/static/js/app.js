@@ -7029,13 +7029,21 @@
   // on a phone, so a 1.6 viewBox would waste half the card on empty bands.
   // preserveAspectRatio="none" would fill it but stretch the text and strokes,
   // so instead the viewBox height follows the box we were given.
+  // The viewBox is 1000 units across a PHONE card and every size in it —
+  // fonts, gutters, line weights, hit targets — was tuned there. Past the
+  // widest phone card the viewBox WIDENS instead of scaling up (user,
+  // 2026-09-24: "it is perfect on the phone but funny on iPad and laptop" —
+  // the fixed 1000 blew every label and stroke up 2-3x). Every phone (card up
+  // to 520 CSS px) renders exactly as before; an iPad or laptop gets a bigger
+  // chart with text ~1.5x a phone's (it is read from further away), not 2-3x.
+  const REEL_PHONE_CARD_PX = 520;
   function reelLayout(host) {
-    const W  = 1000;
     const cw = host.clientWidth  || 360;
     const ch = host.clientHeight || 440;
+    const W  = Math.max(1000, Math.round(1000 * cw / REEL_PHONE_CARD_PX));
     // Floor only guards against a degenerate box mid-layout — set it near the
     // real card aspect and a wide desktop card letterboxes instead of filling.
-    const H  = Math.max(200, Math.min(1800, Math.round(W * ch / Math.max(1, cw))));
+    const H  = Math.max(200, Math.min(8000, Math.round(W * ch / Math.max(1, cw))));
     const gutW  = 128;                       // price labels live here (24-unit text since 2026-09-15)
     const axisH = 34;                        // date row
     const stripH = 34;                       // trend strip + its label (reelTrendStripSvg)
@@ -8853,7 +8861,7 @@
     // viewBox unit is clientWidth/1000 CSS px, so measure it here instead.
     const _tb = host.parentElement && host.parentElement.querySelector('.reel-toolbar');
     if (_tb) {
-      const unit    = (host.clientWidth || 360) / 1000;
+      const unit    = (host.clientWidth || 360) / L.W;
       const hostR   = host.getBoundingClientRect();
       const baseR   = (_tb.offsetParent || host.parentElement).getBoundingClientRect();
       const stripTop = hostR.top + L.stripY * unit;      // top of the trend strip

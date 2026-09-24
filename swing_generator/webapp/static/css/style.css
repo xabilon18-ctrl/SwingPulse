@@ -493,6 +493,26 @@ body.tf-locked .tf-switch-note { display: block; }
   overflow-x: hidden;
 }
 .tab-pane.active { display: block; }
+/* iPad and laptop (2026-09-24, user: "perfect on the phone but funny on iPad
+   and laptop"). The dashboard cards were designed at phone width; stretched to
+   700-1400px they read as empty bands. From 720px they flow in two columns
+   (three from 1500px), each card keeping roughly its phone proportions;
+   banners and the horizontal trend-change strip span the full width. Phones
+   are untouched. */
+@media (min-width: 720px) {
+  #pane-dashboard.active { column-count: 2; column-gap: 16px; }
+  #pane-dashboard.active > * { break-inside: avoid; margin-top: 0; }
+  #pane-dashboard.active > .card { display: inline-block; width: 100%; margin-bottom: 16px; }
+  #pane-dashboard.active > .stale-banner,
+  #pane-dashboard.active > #eventBanner,
+  #pane-dashboard.active > #marketStateBanner,
+  #pane-dashboard.active > .trend-alert-banner,
+  #pane-dashboard.active > #marketPulse { column-span: all; }
+  #pane-dashboard.active > #marketPulse.card { display: block; }
+}
+@media (min-width: 1500px) {
+  #pane-dashboard.active { column-count: 3; }
+}
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ── Bottom Nav ───────────────────────────────────────────────────────── */
