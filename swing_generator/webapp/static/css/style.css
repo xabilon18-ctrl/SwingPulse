@@ -9257,3 +9257,14 @@ body.chart-full-open { overflow: hidden; }
   color: var(--text-primary); border-radius: 10px; padding: 12px; font: inherit; font-size: .95rem; cursor: pointer; text-decoration: none; }
 .wl2-cancel { color: var(--text-muted); }
 @media (min-width: 720px) { .wl2-body { column-count: 2; column-gap: 24px; } .wl2-group { break-after: avoid; } .wl2-row { break-inside: avoid; } }
+
+/* Watchlist live prices (2026-09-24) */
+.wl2-tag { margin-left: 8px; font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--watch); vertical-align: 2px; }
+.wl2-tag.live { color: var(--buy); }
+.wl2-tag.closed { color: var(--text-muted); }
+.wl2-livedot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--buy);
+  margin-right: 6px; vertical-align: 1px; animation: wl2pulse 2s ease-in-out infinite; }
+@keyframes wl2pulse { 50% { opacity: .35; } }
+.wl2-price.flash { animation: wl2flash .9s ease-out; }
+@keyframes wl2flash { from { color: var(--accent); } to { color: inherit; } }

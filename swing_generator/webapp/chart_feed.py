@@ -56,7 +56,7 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
-from data_fetcher import h4_ticker, load_5m, FIVE_MIN_LEVEL_REF   # noqa: E402
+from data_fetcher import h4_ticker, load_5m, FIVE_MIN_LEVEL_REF, _read_5m_raw   # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d, _resample_10m,
@@ -456,7 +456,22 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
         ts, last, pc, srcname = daily.index[-1], float(daily['Close'].iloc[-1]), float(daily['Close'].iloc[-2]), 'D'
     else:
         return None
-    return {'p': _round(last), 'pc': _round(pc), 't': ts.strftime('%Y-%m-%d %H:%M'), 's': srcname}
+    out = {'p': _round(last), 'pc': _round(pc), 't': ts.strftime('%Y-%m-%d %H:%M'), 's': srcname,
+           # LIVE polling (Watchlist): `y` is the Yahoo symbol to poll, `b` the
+           # spot/cash shift to subtract from it (load_5m's basis at the last
+           # bar), `yc` an unshifted level reference polled alongside — the cash
+           # index or XAUT — which the app uses whenever it is the fresher print.
+           'y': src}
+    ref = FIVE_MIN_LEVEL_REF.get(ticker)
+    if ref:
+        try:
+            raw_last = float(_read_5m_raw(src)['Close'].iloc[-1])
+            adj_last = float(load_5m(ticker)['Close'].iloc[-1])
+            out['b'] = _round(raw_last - adj_last)
+        except Exception:
+            pass
+        out['yc'] = ref
+    return out
 
 
 def build_quotes(cache_dir: str, ticker_map: dict, max_workers: int = 8) -> dict:

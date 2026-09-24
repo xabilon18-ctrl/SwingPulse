@@ -1097,9 +1097,107 @@
   function wlQuote(name) {
     const q = quotesData && quotesData.q && quotesData.q[name];
     if (!q || q.p == null) return null;
-    const ch = q.pc ? q.p - q.pc : null;
-    return { p: q.p, ch, pct: q.pc ? (q.p / q.pc - 1) * 100 : null, t: q.t };
+    // A live print newer than the run's price wins (wlLive, polled below).
+    const L = wlLive[name];
+    const runMs = Date.parse(String(q.t).replace(' ', 'T') + ':00Z');
+    const useLive = L && (!isFinite(runMs) || L.t * 1000 >= runMs);
+    const p = useLive ? L.p : q.p;
+    const ch = q.pc ? p - q.pc : null;
+    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, t: q.t,
+             live: !!useLive, age: useLive ? (Date.now() / 1000 - L.t) / 60 : null };
   }
+
+  // ── LIVE PRICES (2026-09-24) ─────────────────────────────────────────────
+  // While the Watchlist is on screen and the page is visible, the rows in view
+  // (plus a screen either side) are re-priced every WL_LIVE_MS through the
+  // cron Worker's /live relay (Yahoo spark; the browser cannot call Yahoo).
+  // quotes.json says what to poll: `y` (shifted by `b` to spot/cash) and the
+  // unshifted reference `yc`; whichever printed more recently is used. A
+  // print's age is shown honestly: futures run 10 min behind, European
+  // exchanges 15; a market with no print for an hour reads "closed".
+  const WL_LIVE_URL = 'https://swingpulse-cron.xabilon18.workers.dev/live';
+  const WL_LIVE_MS = 30000;
+  const wlLive = {};            // name -> { p, t (unix s) }
+  let wlLiveTimer = 0, wlLiveAt = 0, wlLiveBusy = false;
+
+  function wlVisibleNames() {
+    const h = window.innerHeight || 800;
+    return [...document.querySelectorAll('#wl2Body .wl2-row')].filter(r => {
+      const b = r.getBoundingClientRect();
+      return b.bottom > -h && b.top < 2 * h;
+    }).map(r => r.dataset.wlRow).slice(0, 90);
+  }
+
+  async function wlPollLive() {
+    if (wlLiveBusy || currentTab !== 'watchlist' || document.hidden || !quotesData) return;
+    const names = wlVisibleNames();
+    if (!names.length) return;
+    const want = new Set();
+    names.forEach(n => { const q = quotesData.q[n]; if (!q) return;
+      if (q.y) want.add(q.y); if (q.yc) want.add(q.yc); });
+    if (!want.size) return;
+    wlLiveBusy = true;
+    try {
+      const r = await fetch(WL_LIVE_URL + '?s=' + [...want].map(encodeURIComponent).join(','), { cache: 'no-store' });
+      const got = r.ok ? await r.json() : {};
+      names.forEach(n => {
+        const q = quotesData.q[n]; if (!q) return;
+        const c = [];
+        if (q.y && got[q.y]) c.push({ p: got[q.y][0] - (q.b || 0), t: got[q.y][1] });
+        if (q.yc && got[q.yc]) c.push({ p: got[q.yc][0], t: got[q.yc][1] });
+        if (!c.length) return;
+        c.sort((a, b) => b.t - a.t);
+        wlLive[n] = c[0];
+      });
+      wlLiveAt = Date.now();
+      wlPaintLive(names);
+    } catch (_) { /* offline or relay down: the run's prices stay */ }
+    finally { wlLiveBusy = false; }
+  }
+
+  function wlAgeTag(x) {
+    if (!x || !x.live) return '';
+    if (x.age > 60) return '<span class="wl2-tag closed">closed</span>';
+    if (x.age >= 8) return `<span class="wl2-tag">${Math.round(x.age)}m delayed</span>`;
+    return '<span class="wl2-tag live">live</span>';
+  }
+
+  // Re-price rows in place — no re-render, so scroll position and taps survive.
+  function wlPaintLive(names) {
+    names.forEach(n => {
+      const row = document.querySelector(`#wl2Body .wl2-row[data-wl-row="${CSS.escape(n)}"]`);
+      const x = wlQuote(n);
+      if (!row || !x) return;
+      const pe = row.querySelector('.wl2-price'), ce = row.querySelector('.wl2-chg'), te = row.querySelector('.wl2-tagslot');
+      const txt = wlFmtPrice(x.p);
+      if (pe && pe.textContent !== txt) {
+        pe.textContent = txt;
+        pe.classList.remove('flash'); void pe.offsetWidth; pe.classList.add('flash');
+      }
+      if (ce) {
+        ce.textContent = x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : '';
+        ce.className = 'wl2-chg' + (x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '');
+      }
+      if (te) te.innerHTML = wlAgeTag(x);
+    });
+    const a = document.getElementById('wl2AsOf');
+    if (a && wlLiveAt) a.innerHTML = `<span class="wl2-livedot"></span>Live · updated ${new Date(wlLiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · change vs previous close`;
+  }
+
+  function wlLiveStart() {
+    if (wlLiveTimer) return;
+    wlPollLive();
+    wlLiveTimer = setInterval(wlPollLive, WL_LIVE_MS);
+  }
+  function wlLiveStop() { if (wlLiveTimer) { clearInterval(wlLiveTimer); wlLiveTimer = 0; } }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) wlLiveStop(); else if (currentTab === 'watchlist') wlLiveStart();
+  });
+  let wlScrollT = 0;
+  window.addEventListener('scroll', () => {
+    if (currentTab !== 'watchlist') return;
+    clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 700);
+  }, { passive: true });
 
   // Price with thousands separators and decimals that suit its size.
   function wlFmtPrice(v) {
@@ -1172,7 +1270,7 @@
       const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
       return `<button class="wl2-row" data-wl-row="${escText(n)}">
         ${wlBadge(n, d.asset_class)}
-        <span class="wl2-names"><span class="wl2-sym">${escText(n)}</span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
+        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
         <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
           <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span></span>
       </button>`;
@@ -1190,6 +1288,7 @@
       });
     } else html = rows.map(rowHtml).join('');
     body.innerHTML = html;
+    if (wlLiveTimer) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
   }
 
   // Action sheet for one row.
@@ -1786,7 +1885,7 @@
     catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
-    if (tab === 'watchlist') renderWatchlist();
+    if (tab === 'watchlist') { renderWatchlist(); wlLiveStart(); } else wlLiveStop();
     if (tab === 'charts') renderChartsLazy();
   }
 
