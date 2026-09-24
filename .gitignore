@@ -49,3 +49,6 @@ swing_generator/*.zip
 # ── Logs ───────────────────────────────────────────────────────────────────
 logs/
 *.log
+
+# Personal strategy notes — kept local, never published (2026-09-24)
+Swing Trading Strategy.rtf
