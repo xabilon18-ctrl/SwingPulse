@@ -1105,15 +1105,14 @@ def _process_worker(args: tuple) -> tuple:
 
         # The 5m cache (downloaded before this pool starts) feeds the m5_
         # signals. Missing or unreadable -> no 5m columns, Daily unaffected.
-        df_5m = None
-        # A US cash index reads its FUTURES contract's 5m bars (h4_ticker;
-        # see data_fetcher.fetch_all_5m) — the cash index sleeps 20h a day.
-        p5 = _cache_path(h4_ticker(ticker), suffix='5m')
-        if os.path.exists(p5):
-            try:
-                df_5m = pd.read_parquet(p5)
-            except Exception:
-                df_5m = None
+        # data_fetcher.load_5m: the instrument's 5m source (a US index reads its
+        # FUTURES contract — the cash index sleeps 20h a day) shifted to the
+        # spot/cash LEVEL where FIVE_MIN_LEVEL_REF has a reference.
+        try:
+            from data_fetcher import load_5m
+            df_5m = load_5m(ticker)
+        except Exception:
+            df_5m = None
 
         # ── Reuse what cannot have changed (2026-09-24, 30-minute runs) ──
         # Daily signals read FINISHED sessions only, so between two runs most

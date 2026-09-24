@@ -56,7 +56,7 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
-from data_fetcher import h4_ticker                      # noqa: E402
+from data_fetcher import h4_ticker, load_5m, FIVE_MIN_LEVEL_REF   # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d, _resample_10m,
@@ -397,13 +397,11 @@ def build_5m(cache_dir: str, ticker: str) -> dict | None:
     CARRY_MONTHS_5M of calendar shipped, and the carry capped so the slowest MA
     keeps its warm-up on a 24/7 instrument. See build_10m for the reasoning.
     """
-    # US cash indices chart their nearly-24h FUTURES at 5m (h4_ticker; see
-    # data_fetcher.fetch_all_5m). The daily chart stays on the cash index.
-    path = os.path.join(cache_dir, _cache_name(h4_ticker(ticker), suffix='5m'))
-    if not os.path.exists(path):
-        return None
-    df_5m = pd.read_parquet(path)
-    if df_5m.empty:
+    # data_fetcher.load_5m: US indices draw their nearly-24h FUTURES, gold its
+    # COMEX contract — each shifted to the cash/spot LEVEL the user trades.
+    # The daily chart stays on the instrument's own ticker.
+    df_5m = load_5m(ticker)
+    if df_5m is None or df_5m.empty:
         return None
     five = _frame_5m(df_5m)
     if len(five) < 2:
@@ -431,19 +429,20 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
     dpath = os.path.join(cache_dir, _cache_name(ticker))
     daily = pd.read_parquet(dpath)[['Close']].dropna() if os.path.exists(dpath) else pd.DataFrame()
     src = h4_ticker(ticker)
-    p5 = os.path.join(cache_dir, _cache_name(src, suffix='5m'))
+    adjusted = src != ticker or ticker in FIVE_MIN_LEVEL_REF
     five = pd.DataFrame()
-    if os.path.exists(p5):
-        try:
-            five = _frame_5m(pd.read_parquet(p5))
-        except Exception:
-            five = pd.DataFrame()
+    try:
+        raw = load_5m(ticker)
+        if raw is not None and len(raw):
+            five = _frame_5m(raw)
+    except Exception:
+        five = pd.DataFrame()
     if daily.index.tz is not None if len(daily) else False:
         daily.index = daily.index.tz_localize(None)
 
     if len(five) and (not len(daily) or five.index[-1].normalize() >= daily.index[-1].normalize()):
         ts, last = five.index[-1], float(five['Close'].iloc[-1])
-        if src != ticker:
+        if adjusted:
             brk = ts.normalize() + pd.Timedelta(hours=22)
             if brk > ts:
                 brk -= pd.Timedelta(days=1)

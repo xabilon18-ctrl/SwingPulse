@@ -801,15 +801,11 @@ def fetch_all_5m(instruments: list[dict], force_refresh: bool = False,
     # not these?". The cash index only prints 13:30-20:00 UTC, so its 5m chart
     # sat on yesterday's close all morning while the CFD the user trades moved.
     # Fetched under the CONTRACT's name, as the hourly feed was.
-    seen = set()
-    mapped = []
-    for i in instruments:
-        src = h4_ticker(i['ticker'])
-        if src in seen:
-            continue
-        seen.add(src)
-        mapped.append({**i, 'ticker': src})
-    instruments = mapped
+    # Plus each one's LEVEL reference (FIVE_MIN_LEVEL_REF: the cash index for a
+    # futures-drawn index, XAUT for gold), which load_5m needs current too.
+    by_t = {i['ticker']: i for i in instruments}
+    instruments = [{**by_t.get(t, {'name': t}), 'ticker': t}
+                   for t in five_min_fetch_list([i['ticker'] for i in instruments])]
     if not force_refresh:
         now = _utc_now()
         todo = [i for i in instruments if _may_have_traded_5m(i['ticker'], now)]
@@ -826,6 +822,80 @@ def fetch_all_5m(instruments: list[dict], force_refresh: bool = False,
     )
     print(f'\n  5m data fetched for {len(todo)}/{len(instruments)} instruments.\n')
     return {}
+
+
+# ── 5m LEVEL ADJUSTMENT (2026-09-24) ──────────────────────────────────────
+# Some 5m charts are drawn from a FUTURES contract for its clean, near-24h
+# bars, but the user trades — and compares against on TradingView — the SPOT /
+# CASH price. Futures sit above spot by the carry ("basis"): measured
+# 2026-09-24, GC=F ran $34-38 over spot gold, which put the app's gold 5m chart
+# at 4,303 against TradingView's 4,270. So the futures bars are SHIFTED by the
+# basis measured against a level reference while both trade — the way CFD
+# brokers price these instruments out of hours. Shape and liquidity stay the
+# contract's; the level becomes the reference's.
+#   instrument ticker -> reference ticker for the price LEVEL
+FIVE_MIN_LEVEL_REF = {
+    '^GSPC': '^GSPC', '^NDX': '^NDX', '^DJI': '^DJI', '^RUT': '^RUT',  # via ES/NQ/YM/RTY=F
+    '^N225': '^N225',                                                 # via NKD=F
+    'GC=F':  'XAUT-USD',   # spot gold: XAUT read 4,270.0 when TradingView spot did
+}
+# Basis = rolling MEDIAN of (source - reference) over the last 24h of bars the
+# two share: one cash session for an index, a full day for gold. A median
+# because the reference can be thin (XAUT's 5m returns correlate 0.31 with
+# GC=F's) — its LEVEL is right, its individual prints are noisy.
+FIVE_MIN_BASIS_WINDOW = '24h'
+
+
+def _read_5m_raw(ticker: str) -> pd.DataFrame | None:
+    path = _cache_path(ticker, suffix='5m')
+    if not os.path.exists(path):
+        return None
+    df = pd.read_parquet(path)
+    if df.empty:
+        return None
+    if df.index.tz is not None:
+        df.index = df.index.tz_convert('UTC').tz_localize(None)
+    return df[~df.index.duplicated(keep='last')].sort_index()
+
+
+def load_5m(ticker: str) -> pd.DataFrame | None:
+    """The 5m OHLCV every 5m consumer reads (chart, signals, quotes): the
+    instrument's 5m source (its own ticker, or its futures contract via
+    h4_ticker), shifted to the level of FIVE_MIN_LEVEL_REF when it has one.
+    Without the reference file the unadjusted source is returned."""
+    src = _read_5m_raw(h4_ticker(ticker))
+    if src is None:
+        return None
+    ref_t = FIVE_MIN_LEVEL_REF.get(ticker)
+    if not ref_t:
+        return src
+    ref = _read_5m_raw(ref_t)
+    if ref is None or 'Close' not in ref:
+        return src
+    both = pd.concat([src['Close'], ref['Close']], axis=1, keys=['s', 'r']).dropna()
+    if len(both) < 12:
+        return src
+    diff = (both['s'] - both['r'])
+    basis = diff.rolling(FIVE_MIN_BASIS_WINDOW, min_periods=6).median().dropna()
+    if basis.empty:
+        return src
+    b = basis.reindex(src.index.union(basis.index)).ffill().bfill().reindex(src.index)
+    out = src.copy()
+    for c in ('Open', 'High', 'Low', 'Close'):
+        if c in out:
+            out[c] = out[c] - b
+    return out
+
+
+def five_min_fetch_list(tickers) -> list[str]:
+    """Every ticker whose 5m file must be current: each instrument's 5m source
+    plus its level reference."""
+    out = []
+    for t in tickers:
+        for x in (h4_ticker(t), FIVE_MIN_LEVEL_REF.get(t)):
+            if x and x not in out:
+                out.append(x)
+    return out
 
 
 # How far back an instrument's own trading hours are learned from, and the
