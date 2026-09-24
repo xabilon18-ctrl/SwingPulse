@@ -1,35 +1,16 @@
 name: SwingPulse Daily Publish
 
 on:
-  # GitHub queues scheduled jobs 1.5-3h at busy slots (worst at :00), so crons are
-  # set ~1.5h EARLIER and off-peak (:35) so runs LAND near the target local time.
-  # Target landing times are 05:00 / 13:00 / 18:00 SAST (UTC+2), restored to three
-  # runs on 2026-07-31 — a warm run finishes in ~20 min, so the extra passes cost
-  # little. The morning run was manual-only from 2026-07-16 until then.
   # The stale banner does NOT need to be kept in sync: since app.js v231 it reads
   # summary.fetched_at against a flat 32h and knows nothing about this schedule.
   schedule:
-    # EIGHT weekday runs spread EVENLY 08:00-23:00 SAST, one every ~2h09,
-    # each named for the market session it lands in (user's request,
-    # 2026-09-24; app.js shows the same names on the Daily button). Eight, not
-    # nine, because 8 x ~10 billed min (publish + watchdog) is what fits
-    # GitHub Free's 2,000 min/month.
-    #
-    # Each cron sits BEFORE its landing by GitHub's queue lag, measured on
-    # 2026-09-22/23 for crons at the same hour: ~4.9h before 05:00 UTC, ~5.5h
-    # around 07:00, ~4.6h from 09:00-13:00, ~3.6h around 15:00, ~2.9h at 18:00.
-    # The lag moves +/-30 min day to day and has drifted before — re-measure
-    # (`gh run list --event schedule --json createdAt`) before trusting it.
-    # Landings are SAST while US/EU daylight time lasts; from Nov 1 the US
-    # session is 16:30-23:00 SAST and the runs will want nudging an hour later.
-    - cron: '5 1   * * 1-5'  # lands ~08:00 SAST — Asia close
-    - cron: '15 3  * * 1-5'  # lands ~10:09 SAST — Europe open (Asia settled)
-    - cron: '10 5  * * 1-5'  # lands ~12:17 SAST — Europe morning
-    - cron: '55 6  * * 1-5'  # lands ~14:26 SAST — Europe afternoon
-    - cron: '55 9  * * 1-5'  # lands ~16:34 SAST — US open
-    - cron: '5 12  * * 1-5'  # lands ~18:43 SAST — US midday
-    - cron: '15 15 * * 1-5'  # lands ~20:51 SAST — US afternoon
-    - cron: '5 18  * * 1-5'  # lands ~23:00 SAST — US close
+    # WEEKDAYS are no longer scheduled here (2026-09-24). GitHub queues cron
+    # runs 2.5-5h late (measured Sep 2026), so the 30-minute cadence the user
+    # asked for — every :00 and :30, 08:00-23:00 SAST, Mon-Fri — is driven by
+    # a Cloudflare Cron Trigger (swing_generator/webapp/cron-worker) that calls
+    # workflow_dispatch on the minute. The repo went PUBLIC the same day, which
+    # is what makes 31 runs a day free (GitHub Free caps PRIVATE repos at
+    # 2,000 min/month). Weekends stay here: crypto only, once a day.
     - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
 
   # Manual trigger
