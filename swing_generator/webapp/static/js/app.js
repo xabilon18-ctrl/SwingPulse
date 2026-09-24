@@ -10002,7 +10002,12 @@
 
     const vb = (svg.getAttribute('viewBox') || '0 0 1000 800').split(/\s+/).map(Number);
     const W = vb[2] || 1000, H = vb[3] || 800;
-    const HEAD = 96, FOOT = 46, SCALE = 2;
+    // The picture is a dark branded card: header band, the plot inset with
+    // rounded corners on its own ground, footer band. The plot keeps its
+    // aspect — it is scaled into the inset, never stretched.
+    const HEAD = 150, FOOT = 76, PAD = 18, SCALE = 2;
+    const CW = W - 2 * PAD, CH = Math.round(H * CW / W);
+    const TOTAL = HEAD + CH + FOOT;
 
     const clone = svg.cloneNode(true);
     inlineSvgStyles(svg, clone);
@@ -10026,7 +10031,7 @@
     });
 
     const cv = document.createElement('canvas');
-    cv.width = W * SCALE; cv.height = (H + HEAD + FOOT) * SCALE;
+    cv.width = W * SCALE; cv.height = TOTAL * SCALE;
     const ctx = cv.getContext('2d');
     ctx.scale(SCALE, SCALE);
 
@@ -10040,18 +10045,13 @@
     // painted onto a #121211 canvas. Near-black on near-black: the share button
     // emitted a plain black chart.
     //
-    // Reading the live host's own computed values instead means the picture
-    // cannot drift from the chart again — .reel-chart re-points exactly these
-    // tokens for its ground, so whatever it is set to is what gets shared.
+    // Reading the live host's own computed value instead means the picture
+    // cannot drift from the chart again. The header and footer are a separate
+    // matter: they sit on the picture's own dark frame (below), never on the
+    // plot ground, so they carry fixed brand colours.
     const hcs    = getComputedStyle(host);
     const ground = (hcs.backgroundColor && !/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(hcs.backgroundColor))
                    ? hcs.backgroundColor : '#ffffff';
-    const ink    = hcs.getPropertyValue('--reel-bar').trim()       || '#14140f';
-    const ink2   = hcs.getPropertyValue('--text-secondary').trim() || '#3f3f46';
-    const ink3   = hcs.getPropertyValue('--text-muted').trim()     || '#70707a';
-
-    ctx.fillStyle = ground;
-    ctx.fillRect(0, 0, W, H + HEAD + FOOT);
 
     const item  = allData.find(d => d.instrument_name === name) || {};
     // Same rule as the card: on a chart view the signal is the signal
@@ -10065,26 +10065,160 @@
       ? effectiveTrend(item) : '';
     const full  = instName(name);
 
+    // Brand colours, fixed: the frame is dark in both app themes.
+    const AMBER = '#fbbf24', BUY = '#10b981', SELL = '#ef4444';
+    const TXT = '#f5f5f4', MUTED = '#a1a1aa', DIM = '#71717a';
+    const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+    const sideCol = _sig.startsWith('B') ? BUY : _sig.startsWith('S') ? SELL : AMBER;
+
+    const rr = (x, y, w, h, r) => {
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);         ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    };
+    const hexA = (hex, a) => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+    };
+
+    // Frame: near-black with a glow in the signal's colour (amber when none).
+    const bg = ctx.createLinearGradient(0, 0, 0, TOTAL);
+    bg.addColorStop(0, '#1c1c1a'); bg.addColorStop(1, '#0c0c0b');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, TOTAL);
+    const glow = ctx.createRadialGradient(W * 0.85, 0, 0, W * 0.85, 0, W * 0.6);
+    glow.addColorStop(0, hexA(sideCol, 0.28)); glow.addColorStop(1, hexA(sideCol, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, HEAD + 40);
+
+    // Top stripe: signal colour running into amber.
+    const stripe = ctx.createLinearGradient(0, 0, W, 0);
+    stripe.addColorStop(0, sideCol); stripe.addColorStop(0.6, AMBER); stripe.addColorStop(1, hexA(AMBER, 0));
+    ctx.fillStyle = stripe;
+    ctx.fillRect(0, 0, W, 6);
+
+    // Right block: last price and its 5-bar change.
+    const X0 = PAD + 8, XR = W - PAD - 8;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = ink;
-    ctx.font = '700 40px system-ui, -apple-system, "Segoe UI", sans-serif';
-    ctx.fillText(name, 24, 52);
+    const priceStr = formatPrice(item[f('close')]);
+    const roc      = parseFloat(item[f('roc')]);
+    let rightW = 0;
+    if (priceStr !== '--') {
+      ctx.textAlign = 'right';
+      ctx.fillStyle = TXT;
+      ctx.font = `700 40px ${FONT}`;
+      ctx.fillText(priceStr, XR, 62);
+      rightW = ctx.measureText(priceStr).width;
+      if (!isNaN(roc)) {
+        ctx.fillStyle = roc >= 0 ? BUY : SELL;
+        ctx.font = `600 22px ${FONT}`;
+        const rs = `${roc >= 0 ? '▲ +' : '▼ '}${roc.toFixed(1)}%  5 bars`;
+        ctx.fillText(rs, XR, 96);
+        rightW = Math.max(rightW, ctx.measureText(rs).width);
+      }
+      ctx.textAlign = 'left';
+    }
 
+    // Ticker, then the full name dimmed beside it — cut to fit the price block.
+    ctx.fillStyle = TXT;
+    ctx.font = `800 46px ${FONT}`;
+    ctx.fillText(name, X0, 64);
     const nameW = ctx.measureText(name).width;
-    ctx.fillStyle = ink3;
-    ctx.font = '400 26px system-ui, -apple-system, "Segoe UI", sans-serif';
-    if (full && full !== name) ctx.fillText(full, 24 + nameW + 14, 52);
+    if (full && full !== name) {
+      ctx.fillStyle = MUTED;
+      ctx.font = `400 24px ${FONT}`;
+      const room = XR - rightW - 28 - (X0 + nameW + 14);
+      let t = full;
+      while (t.length > 1 && ctx.measureText(t).width > room) t = t.slice(0, -2) + '…';
+      if (room > 40) ctx.fillText(t, X0 + nameW + 14, 62);
+    }
 
-    ctx.fillStyle = ink2;
-    ctx.font = '500 26px system-ui, -apple-system, "Segoe UI", sans-serif';
-    const sub = [tfMeta().label, trend, sig].filter(Boolean).join('  ·  ');
-    ctx.fillText(sub, 24, 84);
+    // Chip row: timeframe · trend · signal.
+    const pill = (x, text, o) => {
+      ctx.font = `700 19px ${FONT}`;
+      const w = ctx.measureText(text).width + 30, y = 100, h = 34;
+      ctx.save();
+      if (o.glow) { ctx.shadowColor = hexA(o.glow, 0.7); ctx.shadowBlur = 16; }
+      rr(x, y, w, h, h / 2);
+      ctx.fillStyle = o.fill; ctx.fill();
+      ctx.restore();
+      if (o.stroke) { rr(x + 0.75, y + 0.75, w - 1.5, h - 1.5, h / 2); ctx.strokeStyle = o.stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+      ctx.fillStyle = o.color;
+      ctx.font = `700 19px ${FONT}`;
+      ctx.fillText(text, x + 15, y + 24);
+      return x + w + 10;
+    };
+    let px = X0;
+    px = pill(px, tfMeta().label.toUpperCase(), { fill: hexA(AMBER, 0.1), stroke: hexA(AMBER, 0.6), color: AMBER });
+    if (trend) {
+      const tc = trend === 'UPTREND' ? BUY : trend === 'DOWNTREND' ? SELL : MUTED;
+      const arrow = trend === 'UPTREND' ? '▲ ' : trend === 'DOWNTREND' ? '▼ ' : '◆ ';
+      px = pill(px, arrow + trend.charAt(0) + trend.slice(1).toLowerCase(),
+                { fill: hexA(tc, 0.14), stroke: hexA(tc, 0.5), color: tc });
+    }
+    if (sig) px = pill(px, sig, { fill: sideCol, color: '#0c0c0b', glow: sideCol });
 
-    ctx.drawImage(img, 0, HEAD, W, H);
+    // The plot, inset on its own ground with rounded corners.
+    ctx.save();
+    rr(PAD, HEAD, CW, CH, 16);
+    ctx.clip();
+    ctx.fillStyle = ground;
+    ctx.fillRect(PAD, HEAD, CW, CH);
+    ctx.drawImage(img, PAD, HEAD, CW, CH);
+    ctx.restore();
+    rr(PAD + 0.5, HEAD + 0.5, CW - 1, CH - 1, 16);
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
 
-    ctx.fillStyle = ink3;
-    ctx.font = '400 22px system-ui, -apple-system, "Segoe UI", sans-serif';
-    ctx.fillText('SwingPulse · ' + new Date().toISOString().slice(0, 10), 24, H + HEAD + 30);
+    // Footer: a heartbeat mark + wordmark on the left, the moment on the
+    // right, and a faint pulse trace running between them.
+    const fy = HEAD + CH + FOOT / 2 + 2;
+    const beat = (x, y, s) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 8 * s, y);  ctx.lineTo(x + 12 * s, y - 6 * s);
+      ctx.lineTo(x + 17 * s, y + 12 * s); ctx.lineTo(x + 23 * s, y - 16 * s);
+      ctx.lineTo(x + 28 * s, y + 5 * s);  ctx.lineTo(x + 31 * s, y);
+      ctx.lineTo(x + 40 * s, y);
+    };
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.shadowColor = hexA(AMBER, 0.8); ctx.shadowBlur = 10;
+    beat(X0, fy, 1); ctx.strokeStyle = AMBER; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = TXT;
+    ctx.font = `800 26px ${FONT}`;
+    ctx.fillText('Swing', X0 + 50, fy + 9);
+    const sw = ctx.measureText('Swing').width;
+    ctx.fillStyle = AMBER;
+    ctx.fillText('Pulse', X0 + 50 + sw, fy + 9);
+    const brandEnd = X0 + 50 + sw + ctx.measureText('Pulse').width;
+
+    const d = new Date(), MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const pad2 = n => String(n).padStart(2, '0');
+    const stamp = `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 20px ${FONT}`;
+    ctx.fillText(stamp, XR, fy + 7);
+    const stampW = ctx.measureText(stamp).width;
+    ctx.textAlign = 'left';
+
+    const t0 = brandEnd + 24, t1 = XR - stampW - 24;
+    if (t1 - t0 > 80) {
+      const trace = ctx.createLinearGradient(t0, 0, t1, 0);
+      trace.addColorStop(0, hexA(AMBER, 0)); trace.addColorStop(0.5, hexA(AMBER, 0.35)); trace.addColorStop(1, hexA(AMBER, 0));
+      ctx.strokeStyle = trace; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+      const mid = (t0 + t1) / 2;
+      ctx.beginPath(); ctx.moveTo(t0, fy); ctx.lineTo(mid - 20, fy);
+      ctx.lineTo(mid - 12, fy); ctx.lineTo(mid - 8, fy - 6); ctx.lineTo(mid - 3, fy + 12);
+      ctx.lineTo(mid + 3, fy - 16); ctx.lineTo(mid + 8, fy + 5); ctx.lineTo(mid + 11, fy);
+      ctx.lineTo(t1, fy);
+      ctx.stroke();
+    }
 
     return await new Promise(res => cv.toBlob(res, 'image/png'));
   }
