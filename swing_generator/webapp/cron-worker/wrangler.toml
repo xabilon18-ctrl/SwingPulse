@@ -1,0 +1,26 @@
+# SwingPulse run scheduler (2026-09-24).
+#
+# GitHub's own cron queues scheduled runs 2.5-5h late (measured Sep 2026), so a
+# 30-minute cadence cannot live there. Cloudflare Cron Triggers fire on the
+# minute; each one asks GitHub to start publish.yml via workflow_dispatch,
+# which starts within seconds. The workflow's concurrency group still stops two
+# runs overlapping.
+#
+# Every 30 min, 08:00-23:00 SAST (UTC+2, no DST), Monday-Friday:
+#   06:00 .. 20:30 UTC on the hour and half hour, plus 21:00 UTC.
+# Weekends stay on GitHub's own once-a-day crypto cron.
+#
+# Secret (set once, by hand — a fine-grained token for THIS repo only,
+# permission "Actions: Read and write"):
+#     npx wrangler secret put GH_TOKEN
+name               = "swingpulse-cron"
+main               = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["0,30 6-20 * * 1-5", "0 21 * * 1-5"]
+
+[vars]
+REPO     = "xabilon18-ctrl/SwingPulse"
+WORKFLOW = "publish.yml"
+REF      = "main"

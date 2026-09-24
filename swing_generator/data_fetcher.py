@@ -12,6 +12,7 @@ Strategy:
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -789,11 +790,57 @@ def fetch_all_5m(instruments: list[dict], force_refresh: bool = False,
     min_rows is 200 as on the hourly side: below that there is no MA50, let
     alone a ribbon, and the instrument simply gets no 10m chart.
     """
-    data = _fetch_all_parallel(
-        instruments,
+    # Only instruments whose market can have printed a bar since the last run
+    # (2026-09-24, 30-minute runs). A closed market's 5m file cannot change, so
+    # asking Yahoo for it is a wasted request — ~half the book at a typical run,
+    # ~85% at 22:00 SAST. Its cached file is still read by the signal and chart
+    # steps, so nothing downstream changes.
+    if not force_refresh:
+        now = _utc_now()
+        todo = [i for i in instruments if _may_have_traded_5m(i['ticker'], now)]
+        skipped = len(instruments) - len(todo)
+        if skipped:
+            print(f'  5m: {skipped} instruments skipped — market closed since the last bar')
+    else:
+        todo = instruments
+    _fetch_all_parallel(
+        todo,
         lambda t: fetch_5m(t, force_refresh, max_age_hours=max_age_hours),
         min_rows=200,
         kind='5m ',
     )
-    print(f'\n  Loaded 5m data for {len(data)}/{len(instruments)} instruments.\n')
-    return data
+    print(f'\n  5m data fetched for {len(todo)}/{len(instruments)} instruments.\n')
+    return {}
+
+
+# How far back an instrument's own trading hours are learned from, and the
+# longest a cached 5m file may go without a fetch whatever those hours say
+# (so a new session pattern, a holiday change or a relisting is picked up).
+FIVE_MIN_HOURS_LOOKBACK_DAYS = 14
+FIVE_MIN_FORCE_FETCH_HOURS   = 6
+
+
+def _may_have_traded_5m(ticker: str, now: pd.Timestamp) -> bool:
+    """True if this instrument may have new 5m bars: its cache is missing or
+    unreadable, not fetched for FIVE_MIN_FORCE_FETCH_HOURS, or it has traded in
+    this (weekday, UTC hour) or the previous one at any point in the last two
+    weeks. The previous hour catches the final bars of a session that closed
+    since the last run."""
+    path = _cache_path(ticker, suffix='5m')
+    try:
+        if not os.path.exists(path):
+            return True
+        if (time.time() - os.path.getmtime(path)) > FIVE_MIN_FORCE_FETCH_HOURS * 3600:
+            return True
+        idx = pd.read_parquet(path, columns=['Close']).index
+        if getattr(idx, 'tz', None) is not None:
+            idx = idx.tz_convert('UTC').tz_localize(None)
+        idx = idx[idx >= idx[-1] - pd.Timedelta(days=FIVE_MIN_HOURS_LOOKBACK_DAYS)]
+        seen = set(zip(idx.dayofweek, idx.hour))
+        for back in (0, 1):
+            t = now - pd.Timedelta(hours=back)
+            if (t.dayofweek, t.hour) in seen:
+                return True
+        return False
+    except Exception:
+        return True

@@ -783,11 +783,12 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h4)]
 
 
-def _process_5m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
-                now_utc: Optional[pd.Timestamp] = None) -> dict:
-    """5m B1/S1 signals -> the m5_ columns of the row (empty dict if no data).
+def _compute_5m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
+    """The CACHEABLE half of the 5m pass: (row data, recent fires) — a pure
+    function of the 5m bars, so an unchanged 5m file reuses it (see
+    _process_worker). Liveness is wall-clock and applied by _live_5m.
 
-    Same engine as Daily (add_signals), with three differences, all because a
+    Same engine as Daily (add_signals), with two differences, both because a
     5m bar is not a day:
       * B1/S1 ONLY. B2-B4/S2-S4 fires are blanked after the engine runs; the
         trend latch they sit on is untouched, so B1/S1 fire exactly as they
@@ -795,17 +796,13 @@ def _process_5m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
       * NO RE-FIRES (refire_pct=0). The re-fire band is 5% of MA500 for 10
         CALENDAR days — on 5m that is thousands of bars in which almost every
         bar qualifies. Only the real cross of all three MAs fires.
-      * A fire stays LIVE for FIVE_MIN_SIGNAL_LIVE_HOURS: the runs are ~2h
-        apart, so "fired on the latest bar" would list almost nothing. While
-        live, m5_primary_signal / confidence / status and m5_date/m5_datetime
-        describe the FIRE bar; the price fields stay the latest bar's.
     """
     if df_5m is None or df_5m.empty:
-        return {}
+        return None
     five = _frame_5m(df_5m)
     periods = _m5_ma_periods(five)
     if len(periods) < 2:
-        return {}
+        return None
     five = add_all_indicators(five, ma_periods=periods)
     five = add_signals(five, ma_periods=periods, refire_pct=0.0,
                        new_trend_pct=0.05, tf='5m', asset_class=asset_class)
@@ -816,23 +813,45 @@ def _process_5m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
     data, _ = _extract_row(five, run_date, prefix='m5_', ma_periods=periods,
                            signal_lookback=SIGNAL_LOOKBACK_5M)
     if data is None:
-        return {}
+        return None
+    # Only fires that can still be live: `now` is never before the last bar,
+    # so anything older than the window measured from the last bar never is.
+    fr = five[five['primary_signal'].isin(FIVE_MIN_SIGNAL_CODES)]
+    fr = fr[fr.index >= five.index[-1] - pd.Timedelta(hours=FIVE_MIN_SIGNAL_LIVE_HOURS)]
+    fires = [(ts, r['primary_signal'], r.get('signal_confidence', '') or '',
+              r.get('confirmation_status', '') or '') for ts, r in fr.iterrows()]
+    return data, fires
 
+
+def _live_5m(state, now_utc: Optional[pd.Timestamp] = None) -> dict:
+    """Apply the wall-clock half: a fire stays LIVE for FIVE_MIN_SIGNAL_LIVE_HOURS
+    (runs are ~30 min apart, so "fired on the latest bar" would list almost
+    nothing). While live, m5_primary_signal / confidence / status and m5_date/
+    m5_datetime describe the FIRE bar; the price fields stay the latest bar's."""
+    if not state:
+        return {}
+    data, fires = state
+    data = dict(data)
     now = now_utc if now_utc is not None else pd.Timestamp.utcnow().tz_localize(None)
-    fires = five[five['primary_signal'].isin(FIVE_MIN_SIGNAL_CODES)]
-    fires = fires[fires.index >= now - pd.Timedelta(hours=FIVE_MIN_SIGNAL_LIVE_HOURS)]
-    if not fires.empty:
-        ts, fr = fires.index[-1], fires.iloc[-1]
+    live = [f for f in fires if f[0] >= now - pd.Timedelta(hours=FIVE_MIN_SIGNAL_LIVE_HOURS)]
+    if live:
+        ts, code, conf, status = live[-1]
         data.update({
-            'm5_primary_signal':     fr['primary_signal'],
-            'm5_signal_confidence':  fr.get('signal_confidence', '') or '',
-            'm5_confirmation_status': fr.get('confirmation_status', '') or '',
-            'm5_date':               str(ts.date()),
-            'm5_datetime':           str(ts),
+            'm5_primary_signal':      code,
+            'm5_signal_confidence':   conf,
+            'm5_confirmation_status': status,
+            'm5_date':                str(ts.date()),
+            'm5_datetime':            str(ts),
         })
     else:
         data.update({'m5_primary_signal': '', 'm5_signal_confidence': ''})
     return data
+
+
+def _process_5m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
+                now_utc: Optional[pd.Timestamp] = None) -> dict:
+    """5m B1/S1 signals -> the m5_ columns of the row (empty dict if no data)."""
+    return _live_5m(_compute_5m_state(df_5m, asset_class, run_date), now_utc)
 
 
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
@@ -901,9 +920,10 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # ── 3-DAY and WEEKLY: removed 2026-09-24 (see config.TIMEFRAMES). ──
 
         # ── 5-MINUTE: B1/S1 only (2026-09-24). A failure here must not drop
-        # the instrument's Daily row. ──
+        # the instrument's Daily row. Normally passed df_5m=None: the worker
+        # runs and caches the 5m half itself (_process_worker). ──
         try:
-            m5_data = _process_5m(df_5m, _asset_cls, run_date)
+            m5_data = _process_5m(df_5m, _asset_cls, run_date) if df_5m is not None else {}
         except Exception:
             m5_data = {}
 
@@ -992,6 +1012,66 @@ def _fmt(value, decimals: int = 6) -> str:
 # Multiprocessing worker  (must be module-level for pickle)
 # ---------------------------------------------------------------------------
 
+# ── Per-instrument result cache ─────────────────────────────────────────────
+# Lives in the parquet cache directory so CI's actions/cache carries it between
+# runs. A missing, corrupt or stale entry simply recomputes.
+def _engine_hash() -> str:
+    import hashlib
+    h = hashlib.sha256()
+    here = os.path.dirname(os.path.abspath(__file__))
+    for f in ('main.py', 'signals.py', 'indicators.py', 'key_levels.py', 'config.py',
+              '_active_config.py', 'instruments.py', 'data_fetcher.py', 'confidence_map.json'):
+        try:
+            with open(os.path.join(here, f), 'rb') as fh:
+                h.update(f.encode() + b'\0' + fh.read())
+        except OSError:
+            h.update(f.encode() + b'\0missing')
+    return h.hexdigest()[:16]
+
+_ENGINE_HASH = _engine_hash()
+
+
+def _fp(kind, run_date, key, df) -> str:
+    import hashlib
+    h = hashlib.sha256(f'{_ENGINE_HASH}|{kind}|{run_date}|{key}'.encode())
+    if df is None or df.empty:
+        h.update(b'empty')
+    else:
+        h.update(pd.util.hash_pandas_object(df, index=True).values.tobytes())
+        h.update(','.join(map(str, df.columns)).encode())
+    return h.hexdigest()
+
+
+def _rowcache_path(ticker: str) -> str:
+    from data_fetcher import _cache_path
+    base = os.path.dirname(_cache_path(ticker))
+    d = os.path.join(base, 'rowcache')
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, os.path.basename(_cache_path(ticker)).replace('.parquet', '.pkl'))
+
+
+def _rowcache_load(ticker: str) -> dict:
+    import pickle
+    try:
+        with open(_rowcache_path(ticker), 'rb') as fh:
+            rc = pickle.load(fh)
+        return rc if isinstance(rc, dict) else {}
+    except Exception:
+        return {}
+
+
+def _rowcache_save(ticker: str, rc: dict) -> None:
+    import pickle
+    path = _rowcache_path(ticker)
+    tmp = path + '.tmp'
+    try:
+        with open(tmp, 'wb') as fh:
+            pickle.dump(rc, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
 def _process_worker(args: tuple) -> tuple:
     """
     Worker function run in a separate process for each instrument.
@@ -1034,16 +1114,45 @@ def _process_worker(args: tuple) -> tuple:
             except Exception:
                 df_5m = None
 
-        row, trend_segs = process_instrument(
-            ticker, df.copy(), inst_meta, run_date, df_5m=df_5m
-        )
+        # ── Reuse what cannot have changed (2026-09-24, 30-minute runs) ──
+        # Daily signals read FINISHED sessions only, so between two runs most
+        # instruments' daily frame is byte-identical and so is their row. Each
+        # half is keyed on a fingerprint of exactly what it reads — the bars,
+        # the instrument's metadata, the run date and the engine's own source
+        # (_ENGINE_HASH) — and recomputed on any difference. The 5m half caches
+        # its state only; liveness is wall-clock and re-applied every run.
+        rc = _rowcache_load(ticker)
+        meta_key = tuple(sorted((k, str(v)) for k, v in inst_meta.items()))
+        d_fp = _fp('D', run_date, meta_key, df)
+        if rc.get('d_fp') == d_fp:
+            row_d, trend_segs = rc['d_row'], rc['trends']
+            hit_d = True
+        else:
+            row_d, trend_segs = process_instrument(ticker, df.copy(), inst_meta, run_date)
+            rc.update(d_fp=d_fp, d_row=row_d, trends=trend_segs)
+            hit_d = False
+        m5_fp = _fp('5m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
+        if rc.get('m5_fp') == m5_fp:
+            state, hit_5 = rc['m5_state'], True
+        else:
+            try:
+                state = _compute_5m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
+            except Exception:
+                state = None
+            rc.update(m5_fp=m5_fp, m5_state=state)
+            hit_5 = False
+        if not (hit_d and hit_5):
+            _rowcache_save(ticker, rc)
+        row = ({**row_d, **_live_5m(state)} if row_d else None)
 
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
             m5_primary = row.get('m5_primary_signal', '')
             m5_tag    = f' 5m[{m5_primary}]' if m5_primary else ''
-            status_str = f'OK{d_tag}{m5_tag}'.strip()
+            reuse = ('' if not (hit_d or hit_5) else
+                     ' (reused ' + '+'.join(x for x, h in (('D', hit_d), ('5m', hit_5)) if h) + ')')
+            status_str = f'OK{d_tag}{m5_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 
