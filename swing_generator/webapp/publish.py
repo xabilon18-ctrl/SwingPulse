@@ -172,18 +172,6 @@ _SIG_WHAT = {
     'S4': (f'anchor rejection at MA{_longest_ma}',),
 }
 
-# Keys must match the labels emitted by _compute_tf_alignment in main.py
-_ALIGN_NOTES = {
-    'Quad Bull':     'all four timeframes aligned bullish',
-    'Quad Bear':     'all four timeframes aligned bearish',
-    'Triple Bull':   'three timeframes aligned bullish',
-    'Triple Bear':   'three timeframes aligned bearish',
-    'Double Bull':   'two timeframes aligned bullish',
-    'Double Bear':   'two timeframes aligned bearish',
-    'Counter-trend': 'counter-trend setup — higher timeframe conflicts',
-    'Mixed':         'mixed timeframe picture',
-}
-
 def _explain_one(row: pd.Series) -> str:
     """Plain description of what fired on DAILY bars — no API, no forecasts.
 
@@ -545,8 +533,6 @@ def build_data(output_dir, src_signals_dir=None):
     # Live signal ledger + sector activity series — copy verbatim if present
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
-                  'sector_activity_w.json', 'sector_radar_w.json',
-                  'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'events.json',
                   'rotation.json', 'rotation_paper.json'):
@@ -858,8 +844,6 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'backtest.json', 'flow_volumes.json',
                   'signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
-                  'sector_activity_w.json', 'sector_radar_w.json',
-                  'sector_activity_3d.json', 'sector_radar_3d.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics',
@@ -1000,10 +984,6 @@ def build_ui():
     # which is the worst way for it to fail. A published API path has to be a
     # path, because that is the only thing this rewrite can see.
     js = js.replace("'/api/shape-similarity'", f"'{base}/shape_similarity.json'")
-    js = js.replace("'/api/sector-radar-w'", f"'{base}/sector_radar_w.json'")
-    js = js.replace("'/api/sector-activity-w'", f"'{base}/sector_activity_w.json'")
-    js = js.replace("'/api/sector-radar-3d'", f"'{base}/sector_radar_3d.json'")
-    js = js.replace("'/api/sector-activity-3d'", f"'{base}/sector_activity_3d.json'")
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")

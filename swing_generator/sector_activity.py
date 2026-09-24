@@ -8,9 +8,9 @@ Per trading day per radar sector (see instruments.radar_sector_of) we record:
     members    – sector universe size at record time
     rate       – (buys + sells + vol_spikes) / members
 
-TWO radars, one implementation (see TF_SPECS):
+ONE radar since 2026-09-24 (the 3-day and weekly radars went with those
+timeframes); TF_SPECS keeps the per-timeframe shape so one can be re-added:
     D — daily bars, 20-day baseline  -> sector_activity.json  / sector_radar.json
-    W — weekly bars, 20-week baseline -> sector_activity_w.json / sector_radar_w.json
 4H is deliberately absent: its history only exists for ~2 years of hourly cache,
 where both D and W backfill from the full parquet cache with the production
 engine. Mixing TFs inside ONE series would bend the baseline; running two series
@@ -100,26 +100,9 @@ TF_SPECS = {
         'writes_flavours': True,
         'zero_fill':      False,        # see the note under 'zero_fill' below
     },
-    '3D': {
-        'label':          '3-day period',
-        'prefix':         'd3_',
-        'activity_file':  'sector_activity_3d.json',
-        'radar_file':     'sector_radar_3d.json',
-        'baseline':       20,           # 20 THREE-DAY PERIODS (~3 months)
-        'retain':         260,          # ~3 years of 3-day bars
-        'writes_flavours': False,       # same rule as Weekly — validated on D only
-        'zero_fill':      True,
-    },
-    'W': {
-        'label':          'week',
-        'prefix':         'w_',
-        'activity_file':  'sector_activity_w.json',
-        'radar_file':     'sector_radar_w.json',
-        'baseline':       20,           # 20 WEEKS
-        'retain':         200,          # ~4 years of weeks
-        'writes_flavours': False,       # see above — deliberate, not an omission
-        'zero_fill':      True,
-    },
+    # '3D' and 'W' were removed 2026-09-24 with those timeframes. The machinery
+    # still takes a `tf` — re-adding a spec here (label, prefix, files,
+    # baseline, retain, writes_flavours=False, zero_fill=True) is the whole job.
 }
 
 # `zero_fill` — a period with NO events must be recorded as a row of zeros, not
@@ -615,7 +598,7 @@ if __name__ == '__main__':
     p.add_argument('--backfill', action='store_true')
     p.add_argument('--report', action='store_true')
     p.add_argument('--tf', choices=sorted(TF_SPECS), default='D',
-                   help="radar timeframe: D (daily), 3D (3-day) or W (weekly)")
+                   help="radar timeframe: D (daily)")
     p.add_argument('--all-tfs', action='store_true',
                    help='run the chosen action for every timeframe')
     args = p.parse_args()

@@ -93,7 +93,7 @@ MIN_FAMILY_SIZE = 3
 # and a 520-bar one do not look alike even when the numbers correlate, because
 # the reel draws both across the same width. Coverage at 520: D/4H/1H ~100%,
 # 3D 95%, Weekly 84%.
-SHAPE_TIMEFRAMES = ('D', '3D', 'W')   # 1H and 4H removed 2026-09-11
+SHAPE_TIMEFRAMES = ('D',)   # 1H/4H removed 2026-09-11, 3D/W 2026-09-24
 
 
 def _frame_for(path, tf):

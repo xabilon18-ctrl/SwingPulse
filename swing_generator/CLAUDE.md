@@ -84,7 +84,17 @@ RIBBON_COMPRESSION_THRESHOLD = 5.0                 # wider than MA200 (step 25 v
 ## Signal System
 
 ### Timeframes
-`10m` (10-minute — CHART ONLY) · `4H` (4-Hour — CHART ONLY) · `D` (Daily) · `3D` (3-Day) · `W` (Weekly)
+`10m` (10-minute — CHART ONLY) · `D` (Daily — the only signal timeframe) · `3D` (3-Day — CHART ONLY)
+
+**CURRENT STATE — 4H and Weekly REMOVED, 3D CHART-ONLY (2026-09-24, user decision).** The app is
+Daily + the 10m and 3D charts. `config.TIMEFRAMES` is `(('D', ''),)`, OUTPUT_COLUMNS has no `d3_`/`w_`
+columns (143 → 59), `tf_alignment` is gone (nothing left to vote against Daily), the 3D/W
+sector radars and shape groupings are gone, the ledger stops recording W fires (old records
+stay and keep grading), and hourly prices are no longer downloaded. Why: GitHub Free's
+2,000 Actions minutes/month — 9 weekday runs cost ~2,550 at ~11 min/run. The resample
+helpers, `build_4h/3d/weekly` and the `*_3D/*_WEEKLY` constants stay for backtest.py
+research. Drawings saved on the removed charts are kept in the sync store, just not shown.
+Everything below about 4H/3D/Weekly/alignment is HISTORY.
 
 **Monthly is a CHART, not a timeframe (2026-09-12).** It exists only in the chart feed
 (`chart_feed.build_monthly` → `chart/M/<chunk>.json`) and on the Charts switch. It is NOT in

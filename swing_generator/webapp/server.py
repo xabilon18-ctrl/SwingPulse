@@ -1055,10 +1055,8 @@ _chart_chunk_cache: dict = {}
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
     '10m': chart_feed.build_10m,
-    '4H': chart_feed.build_4h,
     'D':  chart_feed.build_daily,
     '3D': chart_feed.build_3d,
-    'W':  chart_feed.build_weekly,
 }
 
 
@@ -1145,62 +1143,6 @@ def api_names():
         return jsonify(_json.load(f))
 
 
-# Radar files per timeframe — mirrors sector_activity.TF_SPECS. 4H has no radar
-# (too little hourly history to build a baseline), so it falls back to daily.
-_RADAR_FILES    = {'D': 'sector_radar.json',    '3D': 'sector_radar_3d.json',
-                   'W': 'sector_radar_w.json'}
-_ACTIVITY_FILES = {'D': 'sector_activity.json', '3D': 'sector_activity_3d.json',
-                   'W': 'sector_activity_w.json'}
-
-
-@app.route('/api/sector-radar-w')
-def api_sector_radar_w():
-    """Weekly radar under its own PATH. The published site is static JSON, so a
-    '?tf=' query string cannot select a file there — publish.py rewrites paths,
-    not query strings. Local and published must therefore agree on paths."""
-    import json as _json
-    path = os.path.join(OUTPUT_DIR, _RADAR_FILES['W'])
-    if not os.path.exists(path):
-        return jsonify({})
-    with open(path) as f:
-        return jsonify(_json.load(f))
-
-
-@app.route('/api/sector-activity-w')
-def api_sector_activity_w():
-    """Weekly activity series — the radar info modal's sparkline source."""
-    import json as _json
-    path = os.path.join(OUTPUT_DIR, _ACTIVITY_FILES['W'])
-    if not os.path.exists(path):
-        return jsonify(None)
-    with open(path) as f:
-        return jsonify(_json.load(f))
-
-
-@app.route('/api/sector-radar-3d')
-def api_sector_radar_3d():
-    """3-day radar under its own PATH, for the same reason the weekly one has
-    its own: the published site is static JSON and publish.py rewrites paths,
-    not query strings."""
-    import json as _json
-    path = os.path.join(OUTPUT_DIR, _RADAR_FILES['3D'])
-    if not os.path.exists(path):
-        return jsonify({})
-    with open(path) as f:
-        return jsonify(_json.load(f))
-
-
-@app.route('/api/sector-activity-3d')
-def api_sector_activity_3d():
-    """3-day activity series — the radar info modal's sparkline source."""
-    import json as _json
-    path = os.path.join(OUTPUT_DIR, _ACTIVITY_FILES['3D'])
-    if not os.path.exists(path):
-        return jsonify(None)
-    with open(path) as f:
-        return jsonify(_json.load(f))
-
-
 @app.route('/api/shape-similarity')
 def api_shape_similarity():
     """Chart lookalikes + families, written by shape_similarity.py.
@@ -1243,13 +1185,10 @@ def api_rotation_paper():
 
 @app.route('/api/sector-radar')
 def api_sector_radar():
-    """Sector activity radar summary written by sector_activity.py.
-
-    ?tf=W returns the weekly radar. Unknown or absent -> daily, so an old client
-    that does not send the parameter keeps working unchanged."""
+    """Sector activity radar summary written by sector_activity.py (Daily only
+    since 2026-09-24)."""
     import json as _json
-    fname = _RADAR_FILES.get(request.args.get('tf', 'D'), _RADAR_FILES['D'])
-    path = os.path.join(OUTPUT_DIR, fname)
+    path = os.path.join(OUTPUT_DIR, 'sector_radar.json')
     if not os.path.exists(path):
         return jsonify({})
     with open(path) as f:
@@ -1261,8 +1200,7 @@ def api_sector_activity():
     """Per-day sector activity series — powers the radar info modal sparkline.
     572K, so the frontend lazy-loads it on first info-button tap, never at boot."""
     import json as _json
-    fname = _ACTIVITY_FILES.get(request.args.get('tf', 'D'), _ACTIVITY_FILES['D'])
-    path = os.path.join(OUTPUT_DIR, fname)
+    path = os.path.join(OUTPUT_DIR, 'sector_activity.json')
     if not os.path.exists(path):
         return jsonify(None)
     with open(path) as f:

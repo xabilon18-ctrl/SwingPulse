@@ -10,12 +10,10 @@
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
-  // Radar payloads keyed by timeframe. sector_radar.json is 3.4 KB, so both
-  // are fetched at boot and the switch is a re-point, not a round trip.
-  // 4H has NO radar of its own — there is only ~2 years of hourly cache, too
-  // little to build a baseline from — so it reads the daily one and the card
-  // says so rather than letting a daily reading pass for a 4H one.
-  let sectorRadarByTf = { D: null, '3D': null, W: null };
+  // Radar payloads keyed by timeframe. Daily only since 2026-09-24, when the 3D
+  // and Weekly radars went with those timeframes; the 10m chart has no radar
+  // and the card says so rather than letting a daily reading pass for a 10m one.
+  let sectorRadarByTf = { D: null };
   // Chart-shape lookalikes + families (shape_similarity.py). DESCRIPTIVE, not
   // predictive: it says which charts have moved alike, which is how the app can
   // warn that five "separate" buys are one bet. Never feeds confidence.
@@ -25,7 +23,7 @@
   let rotationPaper = null;
   let leadersShowAll = false;
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
-  const RADAR_TF_FOR = tf => (tf === 'W' ? 'W' : tf === '3D' ? '3D' : 'D');
+  const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
   const INTRADAY_TFS = new Set();   // none since 1H and 4H were removed (2026-09-11)
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
@@ -37,7 +35,6 @@
   let activeStatFilter = '';      // stat card rearrange filter
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
   let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
-  let activeAlignFilter    = ''; // pulse alignment filter: e.g. 'Triple Bull'
   let activeScannerFilter = 'all';
   // Class chips (Crypto / Indices / Banks / Tech / …). These used to work by
   // writing their term into the search box, which made every other chip filter
@@ -68,9 +65,6 @@
   let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
   const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
   let scannerPage = 1;             // how many pages shown so far
-  let wlFilter = 'all';
-  let wlSort = 'signal';
-  let activeAlertTab = 'keylvl';
   // ── Cross-device Sync ────────────────────────────────────────────────
   const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
   let syncUser = localStorage.getItem('sp-user') || '';
@@ -139,30 +133,24 @@
     // instead of silently answering "" / NEUTRAL. (The flag arrived with
     // Monthly, which held this slot until 2026-09-14.)
     { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
-    // 4H is BACK as of 2026-09-17, at the user's request — and back as a CHART
-    // ONLY, like 10m. The signals stay gone (see SIGNAL_TFS below and the
-    // 2026-09-11 finding: 71.7% agreement with Daily, 82% of its fires never
-    // confirmed), so no h4_ column exists on a row and `chartOnly` is what keeps
-    // the trend/stack filters from reading one. Its calendar grid is QUARTERS —
-    // REEL_TIME_GRID, which kept the entry through the removal.
-    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
-    { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar' },
-    { code: 'W',  prefix: 'w_',  label: 'Weekly', tv: 'W',   bar: 'weeks',   barShort: '25-week' },
+    // 3D is a CHART ONLY since 2026-09-24: its signals, radar and d3_ columns
+    // went with Weekly and 4H, the picture stayed at the user's request.
+    { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar', chartOnly: true },
+    // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
+    // stay in the store untouched — expandChannelStore keeps every key it finds.
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
   const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
 
   let timeframe = 'D';
-  // Which timeframes each tab may show (2026-09-11). Buy/sell signals exist on
-  // Daily and Weekly only: 1H/4H/3D signals never beat a random entry taken the
-  // same day, and 4H/3D mostly repeat Daily, so those three are CHART VIEWS.
-  // Charts offers all five (10m · 4H · Daily · 3D · Weekly), the signal tabs
-  // offer D/W, Trends is Daily data.
+  // Which timeframes each tab may show. Buy/sell signals exist on Daily only
+  // since 2026-09-24 (Weekly went with 3D and 4H). Charts offers 10m · Daily ·
+  // 3D, the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['D', 'W']);
+  const SIGNAL_TFS = new Set(['D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -818,44 +806,8 @@
     return result === 'granted';
   }
 
-  // Notification dedup store — last signal/conf handed to the SW per instrument.
-  // Daily TF only (sw.js checkForNewSignals compares item.primary_signal).
-  // Per-device by design: each device dedups its own notifications.
-  let notifiedSignals = JSON.parse(localStorage.getItem('sp-last-notified') || '{}');
-
-  function updateNotifiedStore() {
-    let changed = false;
-    for (const item of allData) {
-      const name = item.instrument_name;
-      const sig  = item.primary_signal || '';
-      const conf = item.confirmation_status || '';
-      const prev = notifiedSignals[name];
-      if (sig) {
-        if (!prev || prev.signal !== sig || prev.conf !== conf) {
-          notifiedSignals[name] = { signal: sig, conf };
-          changed = true;
-        }
-      } else if (prev) {
-        delete notifiedSignals[name];
-        changed = true;
-      }
-    }
-    if (changed) localStorage.setItem('sp-last-notified', JSON.stringify(notifiedSignals));
-  }
-
-  function checkAndNotifyNewSignals() {
-    if (!swRegistration || !allData.length) return;
-    if (Notification.permission !== 'granted') return;
-    const starred = [...userStarred];
-    if (!starred.length) return;
-    const lastSeen = notifiedSignals;
-    navigator.serviceWorker.ready.then(reg => {
-      if (!reg.active) return;
-      reg.active.postMessage({ type: 'CHECK_SIGNALS', starred, lastSeen });
-      // Also cache state in IDB for the background push handler
-      reg.active.postMessage({ type: 'CACHE_USER_STATE', starred, lastSeen });
-    });
-  }
+  // Signal notifications for starred instruments were removed with the stars
+  // (2026-09-24); sw.js now shows macro events and a plain update notice only.
 
   // ── Web Push subscribe (background notifications) ─────────────────────
   const VAPID_PUBLIC_KEY = 'BOO2qQLHIMhVkOKGkL2ClLs2RPVz_Lc5y10woA_OaU0FdAoFVYU4ZrWDy-OSzg6-TBgxELpbmKlrsahsdlN4i_w';
@@ -1097,7 +1049,6 @@
     if (tab === 'dashboard')   renderDashboard();
     else if (tab === 'scanner')  renderScanner();
     else if (tab === 'trends')   renderTrendsLazy();
-    else if (tab === 'watchlist') renderWatchlist();
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -1259,12 +1210,8 @@
       + ` data-act="openChartFor" data-arg="${name}" data-stop="1">${EXPAND_ICON}</button>`;
   }
 
-  function cardActionsHtml(name, opts = {}) {
-    const { starred = false } = opts;
-    return `<div class="scanner-actions">${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}`
-      + `<button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${name}"`
-      + ` title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}"`
-      + ` data-act="toggleStar" data-stop="1">★</button></div>`;
+  function cardActionsHtml(name) {
+    return `<div class="scanner-actions">${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}</div>`;
   }
 
   // What is scheduled for this instrument, at chip density. ONE definition,
@@ -1476,22 +1423,13 @@
     // not against '4H' by name — that literal silently answered "matches"
     // for 1H the moment a second intraday timeframe existed.
     const matches = actual === RADAR_TF_FOR(timeframe) && !INTRADAY_TFS.has(timeframe);
-    el.textContent = actual === 'W' ? 'This week'
-                   : actual === '3D' ? 'This 3-day bar'
-                   : 'Today';
+    el.textContent = 'Today';
     el.classList.toggle('is-mismatch', !matches);
-    const _periodEnd = tf => ((sectorRadarByTf[tf] && sectorRadarByTf[tf].sectors[0] || {}).date || '');
-    el.title = actual === 'W'
-      ? 'Weekly sector activity for the week ending ' + _periodEnd('W') +
-        ' — fixed until the next week closes.'
-      : actual === '3D'
-      ? 'Sector activity for the 3-day bar ending ' + _periodEnd('3D') +
-        ' — fixed until the next 3-day bar closes.'
-      : (matches
-          ? 'Daily sector activity, updated every run.'
-          : `Daily sector activity. There is no ${timeframe} radar — the radar scores `
-            + `each sector against its own 20-period baseline and only D, 3D and W `
-            + `have one — so this is today\u2019s daily reading.`);
+    el.title = matches
+      ? 'Daily sector activity, updated every run.'
+      : `Daily sector activity. There is no ${timeframe} radar — the radar scores `
+        + `each sector against its own 20-day baseline and only Daily has one — `
+        + `so this is today\u2019s daily reading.`;
   }
 
   function syncTfLock() {
@@ -1547,8 +1485,7 @@
   try {
     const _savedTf = localStorage.getItem('swingpulse-tf');
     const _savedChartTf = localStorage.getItem('swingpulse-chart-tf');
-    // A saved 1H/4H/3D (from before those became chart views) opens on Daily;
-    // Charts keeps it, since that is where it still means something.
+    // A saved timeframe that no longer exists (1H/4H/3D/W) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
     tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
   } catch (e) {}
@@ -1572,7 +1509,6 @@
   function renderAll() {
     renderDashboard();
     renderScanner();
-    renderWatchlist();
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
     tabDirty.trends = true;
@@ -1924,7 +1860,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, srwRes, sr3Res, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1936,8 +1872,6 @@
         fetchJson('/api/backtest', null),
         fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
-        fetchJson('/api/sector-radar-w', null),
-        fetchJson('/api/sector-radar-3d', null),
         fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/events', null),
         fetchJson('/api/shape-similarity', null),
@@ -1960,7 +1894,7 @@
       backtestData = btRes;
       ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
       const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
-      sectorRadarByTf = { D: _okRadar(srRes), '3D': _okRadar(sr3Res), W: _okRadar(srwRes) };
+      sectorRadarByTf = { D: _okRadar(srRes) };
       syncRadarTf();
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
@@ -2070,8 +2004,6 @@
         scheduleStaleRetry(!!msg);
       }
 
-      updateNotifiedStore();
-      checkAndNotifyNewSignals();
       renderAll();
     } catch (e) {
       console.error('Failed to load data:', e);
@@ -2801,38 +2733,6 @@
     document.getElementById('pulseDowntrend').textContent = down + ' downtrend';
     document.getElementById('pulseNeutral').textContent = neutral + ' neutral';
 
-    // Dominant alignment
-    const alignCounts = {};
-    allData.forEach(d => {
-      if (effectiveTrend(d) === 'NEUTRAL') return;  // neutral takes priority over alignment (no Triple Bull conflict)
-      const a = d.tf_alignment || ''; if (a) alignCounts[a] = (alignCounts[a]||0)+1;
-    });
-    const domAlign = Object.entries(alignCounts).sort((a,b)=>b[1]-a[1])[0];
-    const pulseAlignEl = document.getElementById('pulseAlignment');
-    if (pulseAlignEl && domAlign) {
-      pulseAlignEl.textContent = domAlign[0] + ' (' + domAlign[1] + ')';
-      pulseAlignEl.className = 'pulse-alignment ' + alignCls(domAlign[0]);
-    } else if (pulseAlignEl) {
-      pulseAlignEl.textContent = '--';
-    }
-
-    // Update new MP card alignment row
-    const mpBdAlign = document.getElementById('mpBdAlign');
-    if (mpBdAlign && domAlign) {
-      const alignName  = domAlign[0];
-      const alignCount = domAlign[1];
-      const isBull = alignName.includes('Bull');
-      const isBear = alignName.includes('Bear');
-      const color  = isBull ? 'var(--buy)' : isBear ? 'var(--sell)' : 'var(--accent)';
-      mpBdAlign.dataset.filterAlign = alignName;
-      const dot = document.getElementById('mpAlignDot');
-      const lbl = document.getElementById('mpAlignLbl');
-      const val = document.getElementById('mpAlignVal');
-      if (dot) dot.style.background = color;
-      if (lbl) { lbl.textContent = alignName; lbl.style.color = color; }
-      if (val) { val.textContent = alignCount; val.style.color = color; }
-    }
-
     // Stat card counts kept in hidden spans for potential JS references
     animateCount(document.getElementById('buyCount'), s.buy_count || 0);
     animateCount(document.getElementById('sellCount'), s.sell_count || 0);
@@ -2846,7 +2746,6 @@
     renderRotation();
     renderSectorRadar();
     renderLeaders();
-    renderAlignmentSummary();
     renderCompressionFeed();
     renderSignalFeed();
     renderThemesCard();
@@ -3706,10 +3605,10 @@
     // Signal direction (0–30): buy ratio of active signals
     const sigTotal = buy + sell;
     const sigPts = sigTotal > 0 ? Math.round((buy / sigTotal) * 30) : 15;
-    // Bonus (0–20): triple-aligned + vol spikes
-    const tripleCount = allData.filter(d => isTripleAligned(d)).length;
+    // Bonus (0–20): vol spikes. (Aligned instruments counted here too until
+    // tf_alignment was removed with Weekly on 2026-09-24.)
     const volCount    = s.volume_spikes || 0;
-    const bonusPts    = Math.min(Math.round((tripleCount + volCount) / total * 30), 20);
+    const bonusPts    = Math.min(Math.round(volCount / total * 30), 20);
     return Math.min(Math.max(trendPts + sigPts + bonusPts, 0), 100);
   }
 
@@ -3840,100 +3739,6 @@
     }).join('');
   }
 
-  // ── Alignment Summary (Dashboard) ────────────────────────────────────
-  let activeAlignment = '';   // currently expanded alignment label
-
-  function renderAlignmentSummary() {
-    const el = document.getElementById('alignmentSummary');
-    if (!el) return;
-
-    // Group instruments by alignment
-    const groups = {};
-    allData.forEach(item => {
-      const a = item.tf_alignment || 'Unknown';
-      if (!groups[a]) groups[a] = [];
-      groups[a].push(item);
-    });
-
-    const order = ['Aligned Bull', 'Mixed', 'Counter-trend', 'Aligned Bear'];
-    const labels = order.filter(k => groups[k]);
-
-    const colorVar = label =>
-      label.includes('Bull') ? '--buy' : label.includes('Bear') ? '--sell' : label === 'Counter-trend' ? '--volume' : '--watch';
-
-    el.innerHTML = `
-      <div class="alignment-grid">
-        ${labels.map(label => {
-          const active = activeAlignment === label;
-          return `<div class="alignment-item ${active ? 'alignment-active' : ''}" data-align="${label}" role="button" tabindex="0">
-            <div class="alignment-item-count" style="color:var(${colorVar(label)})">${groups[label].length}</div>
-            <div class="alignment-item-label">${label}</div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="alignment-instruments" id="alignmentInstruments"></div>
-    `;
-
-    // Click handlers
-    el.querySelectorAll('.alignment-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const label = item.dataset.align;
-        if (activeAlignment === label) {
-          activeAlignment = '';
-        } else {
-          activeAlignment = label;
-        }
-        el.querySelectorAll('.alignment-item').forEach(i => i.classList.toggle('alignment-active', i.dataset.align === activeAlignment));
-        renderAlignmentInstruments(groups);
-      });
-    });
-
-    renderAlignmentInstruments(groups);
-  }
-
-  function renderAlignmentInstruments(groups) {
-    const container = document.getElementById('alignmentInstruments');
-    if (!container) return;
-
-    if (!activeAlignment || !groups[activeAlignment]) {
-      container.innerHTML = '';
-      container.style.display = 'none';
-      return;
-    }
-
-    container.style.display = '';
-    const items = groups[activeAlignment];
-    container.innerHTML = `
-      <div class="alignment-inst-header">${activeAlignment} <span style="color:var(--text-muted)">(${items.length})</span></div>
-      <div class="alignment-inst-list">
-        ${items.map(item => {
-          const sig = item[f('primary_signal')] || '';
-          const buy = isBuy(item);
-          const sell = isSell(item);
-          const sigBadge = sig ? `<span class="feed-badge badge-${sigClass(sig) || 'p4'}">${sig}</span>` : '';
-          const conf = item[f('signal_confidence')] || '';
-          const confBadge = conf ? `<span class="badge-confidence conf-${conf}">${conf}</span>` : '';
-          const roc = parseFloat(item[f('roc')]);
-          const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-          const trend = effectiveTrend(item);
-          const compression = item[f('ribbon_compression')] === 'yes';
-          return `<div class="alignment-inst-row ${buy ? 'feed-buy' : sell ? 'feed-sell' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
-            <div class="alignment-inst-name">
-              ${item.instrument_name} ${tvBtn(item.instrument_name, '')}
-              ${sigBadge} ${confBadge}
-              ${compression ? '<span class="compression-alert" style="font-size:.55rem">SQUEEZE</span>' : ''}
-            </div>
-            <div class="alignment-inst-meta">
-              <span class="scanner-tag ${trendTag(trend)}" style="font-size:.6rem;padding:1px 6px">${trend}</span>
-              ${rocStr ? `<span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem">${rocStr}</span>` : ''}
-              <span style="font-size:.7rem;color:var(--text-muted)">${formatPrice(item[f('close')])}</span>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    `;
-  }
-
   // ── Compression Feed (Dashboard) ─────────────────────────────────────
   function renderCompressionFeed() {
     const card = document.getElementById('compressionCard');
@@ -3988,9 +3793,7 @@
       sectorActivity = sectorActivityByTf[tf];
       return sectorActivity;
     }
-    const r = await fetchJson(tf === 'W'  ? '/api/sector-activity-w'
-                            : tf === '3D' ? '/api/sector-activity-3d'
-                                          : '/api/sector-activity', null);
+    const r = await fetchJson('/api/sector-activity', null);
     sectorActivityByTf[tf] = (r && Array.isArray(r.rows)) ? r : null;
     sectorActivity = sectorActivityByTf[tf];
     return sectorActivity;
@@ -4104,14 +3907,6 @@
       </div>`;
   }
 
-  // ── Alignment helper ─────────────────────────────────────────────────
-  function alignCls(label) {
-    if (label.includes('Bull')) return 'align-bull';
-    if (label.includes('Bear')) return 'align-bear';
-    if (label === 'Counter-trend') return 'align-counter';
-    return 'align-mixed';
-  }
-
   // ── Signals Tab ──────────────────────────────────────────────────────
   // ── Signal age helper (Feature 6: visual decay) ─────────────────────
   // Age is measured against the DATA's own latest bar (asOfStr), not the wall
@@ -4143,18 +3938,6 @@
     return `<span class="note-indicator" title="${note.replace(/"/g,'&quot;')}">✏</span>`;
   }
 
-  // ── Feature 4: Multi-TF Alignment badge ─────────────────────────────
-  function isTripleAligned(item) {
-    const a = item.tf_alignment || '';
-    return a === 'Aligned Bull' || a === 'Aligned Bear';
-  }
-  function badge3TF(item) {
-    if (!isTripleAligned(item)) return '';
-    const a = item.tf_alignment || '';
-    const bull = a.includes('Bull');
-    return `<span class="badge-3tf ${bull ? 'badge-3tf-bull' : 'badge-3tf-bear'}">2TF✓</span>`;
-  }
-
   // Trend maturity badge based on trend run days
   function trendMaturityBadge(item) {
     const days = parseInt(item[f('trend_run_days')]);
@@ -4171,7 +3954,6 @@
   function similarityScore(a, b) {
     let s = 0;
     if (a[f('primary_signal')] && a[f('primary_signal')] === b[f('primary_signal')]) s += 4;
-    if (a.tf_alignment && a.tf_alignment === b.tf_alignment) s += 3;
     if (a[f('trend_direction')] && a[f('trend_direction')] === b[f('trend_direction')]) s += 2;
     if (isBuy(a) && isBuy(b)) s += 1;
     if (isSell(a) && isSell(b)) s += 1;
@@ -4298,7 +4080,6 @@
     const group = document.getElementById('scannerGroupFilter').value;
     const sector = document.getElementById('scannerSectorFilter').value;
     const trend = document.getElementById('scannerTrendFilter').value;
-    const alignFilter = document.getElementById('scannerAlignFilter').value;
 
     let filtered = allData;
     if (search) filtered = filtered.filter(d => matchesSearch(d, search));
@@ -4319,13 +4100,6 @@
     const stackSel = document.getElementById('scannerStackFilter');
     const stackVal = stackSel ? stackSel.value : 'all';
     if (stackVal !== 'all') filtered = filtered.filter(d => matchesStackFilter(d, stackVal));
-
-    // ── Alignment filter ── (neutral-oscillation instruments are excluded from
-    // directional Bull/Bear alignment so they stay solely in the Neutral bucket)
-    if (alignFilter === 'bull')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bull') && effectiveTrend(d) !== 'NEUTRAL');
-    else if (alignFilter === 'bear')    filtered = filtered.filter(d => (d.tf_alignment||'').includes('Bear') && effectiveTrend(d) !== 'NEUTRAL');
-    else if (alignFilter === 'counter') filtered = filtered.filter(d => d.tf_alignment === 'Counter-trend');
-    else if (alignFilter === 'mixed')   filtered = filtered.filter(d => d.tf_alignment === 'Mixed');
 
     // ── RSI zone filter (uses active timeframe RSI) ──
     const rsiSel = document.getElementById('scannerRsiFilter');
@@ -4363,8 +4137,6 @@
       // Sessions, not calendar days — the same window the chip label names.
       else if (activeScannerFilter === 'event')      filtered = filtered.filter(d => !!nextEventFor(d.instrument_name, 7));
       else if (activeScannerFilter === 'noevent')    filtered = filtered.filter(d => !nextEventFor(d.instrument_name, 7));
-      else if (activeScannerFilter === 'analyzed')   filtered = filtered.filter(d => userStarred.has(d.instrument_name));
-      else if (activeScannerFilter === 'unanalyzed') filtered = filtered.filter(d => !userStarred.has(d.instrument_name));
       else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
       else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
       else if (activeScannerFilter === 'today') {
@@ -4373,14 +4145,6 @@
         // while the cards right below it read "Today". Now it uses the same
         // test the cards do: the fire is on this instrument's newest bar.
         filtered = filtered.filter(firedOnLatestBar);
-      } else if (activeScannerFilter === 'best') {
-        filtered = filtered.filter(d => {
-          const align = d.tf_alignment || '';
-          const t = effectiveTrend(d);
-          const alignedBull = align.includes('Bull') && t === 'UPTREND';
-          const alignedBear = align.includes('Bear') && t === 'DOWNTREND';
-          return alignedBull || alignedBear;
-        });
       } else if (activeScannerFilter !== 'all') {
         // Match exact signal code (e.g. BP1, SP2)
         filtered = filtered.filter(d => d[f('primary_signal')] === activeScannerFilter);
@@ -4463,13 +4227,11 @@
       const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
       const compression = item[f('ribbon_compression')] === 'yes';
       const ribbonSpread = parseFloat(item[f('ribbon_spread')]);
-      const align = item.tf_alignment || '';
       const maOrder = parseInt(item[f('ma_order_score')]);
       const maMaxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
       const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
       const roc = parseFloat(item[f('roc')]);
       const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-      const starred = userStarred.has(item.instrument_name);
       const pct = pctFromMa(item);
       const conv = convictionOf(item);   // sector-mood grade (validated Phase 0); null when no signal
       // Cap animation delay so the browser doesn't track hundreds of CSS timers
@@ -4495,7 +4257,7 @@
       return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}${costTight(item) ? ' sc-cost-dim' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
         <div class="scanner-top">
           <div>${cardIdentityHtml(item, { isAi: _aiScan, sep: ' / ' })}</div>
-          ${cardActionsHtml(item.instrument_name, { starred })}
+          ${cardActionsHtml(item.instrument_name)}
         </div>
         <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
         ${verdictBarHtml(item)}
@@ -4789,8 +4551,7 @@
   if (radarChip) {
     radarChip.addEventListener('click', () => {
       // Deactivate other context chips
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
-      if (typeof resetAnalyzedChip === 'function') resetAnalyzedChip();
+      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
       if (typeof resetEventChip === 'function') resetEventChip();
       document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
       document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
@@ -4810,37 +4571,6 @@
     });
   }
 
-  // ── Analyzed chip — cycles off → Analyzed → Unanalyzed → off ──
-  const analyzedChip = document.getElementById('analyzedChip');
-  const analyzedLabel = analyzedChip ? analyzedChip.querySelector('.analyzed-label') : null;
-  function resetAnalyzedChip() {
-    if (!analyzedChip) return;
-    analyzedChip.classList.remove('on', 'off');
-    if (analyzedLabel) analyzedLabel.textContent = 'Analyzed';
-  }
-  if (analyzedChip) {
-    analyzedChip.addEventListener('click', () => {
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
-      resetRadarChip();
-      resetEventChip();
-      document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-      if (activeScannerFilter === 'analyzed') {
-        analyzedChip.classList.remove('on'); analyzedChip.classList.add('off');
-        analyzedLabel.textContent = 'Unanalyzed';
-        activeScannerFilter = 'unanalyzed';
-      } else if (activeScannerFilter === 'unanalyzed') {
-        resetAnalyzedChip();
-        activeScannerFilter = 'all';
-      } else {
-        analyzedChip.classList.add('on');
-        analyzedLabel.textContent = 'Analyzed';
-        activeScannerFilter = 'analyzed';
-      }
-      buildScannerCards();
-    });
-  }
-
   // ── Event chip — cycles off → Event soon → No event → off ──
   // A signal that fires the session before a report is a different trade from
   // the same signal on a clear week, and until now the scanner had no way to
@@ -4855,9 +4585,8 @@
   }
   if (eventChip) {
     eventChip.addEventListener('click', () => {
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
       resetRadarChip();
-      resetAnalyzedChip();
       document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
       document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
       if (activeScannerFilter === 'event') {
@@ -4879,12 +4608,11 @@
   // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike, Macro S/R) ──
   document.querySelector('.sig-ctx-row').addEventListener('click', e => {
     const chip = e.target.closest('.sig-ctx-chip');
-    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip' || chip.id === 'analyzedChip' || chip.id === 'eventChip') return;
+    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip' || chip.id === 'eventChip') return;
     const wasActive = chip.classList.contains('active');
     // Deactivate all context chips (except filters btn, signal btn, radar chip, analyzed chip)
-    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#analyzedChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
     resetRadarChip();
-    resetAnalyzedChip();
     resetEventChip();
     // Also reset direction toggle to All
     document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
@@ -4937,7 +4665,6 @@
     // above never cleared them: Radar/Analyzed/Event stayed lit while the
     // filter they represented had just been replaced by a signal type.
     resetRadarChip();
-    resetAnalyzedChip();
     resetEventChip();
     closeSheets();
     buildScannerCards();
@@ -4959,7 +4686,7 @@
 
   // Update filter badge count
   function updateFilterBadge() {
-    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerAlignFilter','scannerRsiFilter','scannerStackFilter'];
+    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerRsiFilter','scannerStackFilter'];
     let count = selects.filter(id => {
       const el = document.getElementById(id);
       return el && el.value !== 'all';
@@ -4993,167 +4720,9 @@
     closeSheets();
   });
 
-  // ── Watchlist tab controls ───────────────────────────────────────────
-  document.getElementById('wlSort').addEventListener('change', e => { wlSort = e.target.value; renderWlMyList(); });
-  document.getElementById('wlFilterChips').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    document.querySelectorAll('#wlFilterChips .chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    wlFilter = chip.dataset.filter;
-    renderWlMyList();
-  });
-  document.getElementById('alertFilterChips').addEventListener('click', e => {
-    const chip = e.target.closest('[data-alert]');
-    if (!chip) return;
-    document.querySelectorAll('#alertFilterChips [data-alert]').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    activeAlertTab = chip.dataset.alert;
-    renderWlAlerts();
-  });
-  // Star buttons use inline data-act="toggleStar" data-stop="1"
-  // to prevent the parent card's openModal from firing.
-
-  // ── Watchlist Tab ────────────────────────────────────────────────────
-  function renderWatchlist() {
-    renderWlMyList();
-    renderWlAlerts();
-  }
-
-  function renderWlMyList() {
-    const allData = getActiveData(); // respect AI filter
-    const listEl  = document.getElementById('wlMyList');
-    const statsEl = document.getElementById('wlStats');
-    if (!listEl) return;
-
-    const starred = allData.filter(d => userStarred.has(d.instrument_name));
-
-    // Stats bar
-    const withSignal = starred.filter(d => d[f('primary_signal')]).length;
-    const upCount    = starred.filter(d => effectiveTrend(d) === 'UPTREND').length;
-    if (statsEl) {
-      statsEl.innerHTML = starred.length
-        ? `<span class="sig-sum-total">${starred.length} analyzed</span>` +
-          (withSignal ? `<span class="sig-sum-item sig-sum-buy">${withSignal} signal</span>` : '') +
-          (upCount    ? `<span class="sig-sum-item" style="background:rgba(16,185,129,.15);color:var(--buy)">${upCount} uptrend</span>` : '')
-        : '';
-    }
-
-    // Empty watchlist
-    if (!starred.length) {
-      listEl.innerHTML = `<div class="wl-empty">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        <p>Tap ★ on any instrument after you've analyzed its chart to track it here</p>
-      </div>`;
-      return;
-    }
-
-    // Apply filter
-    let filtered = starred;
-    if (wlFilter === 'buy')     filtered = filtered.filter(isBuy);
-    else if (wlFilter === 'sell')    filtered = filtered.filter(isSell);
-    else if (wlFilter === 'signal')  filtered = filtered.filter(d => !!(d[f('primary_signal')]));
-    else if (wlFilter === 'uptrend') filtered = filtered.filter(d => effectiveTrend(d) === 'UPTREND');
-
-    // Sort
-    const confOrder = { high: 3, standard: 2, low: 1, '': 0 };
-    if (wlSort === 'signal') {
-      filtered = [...filtered].sort((a, b) => {
-        const aHas = !!(a[f('primary_signal')]), bHas = !!(b[f('primary_signal')]);
-        if (aHas !== bHas) return bHas - aHas;
-        return (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || '');
-      });
-    } else if (wlSort === 'trend') {
-      const tOrd = { UPTREND: 0, NEUTRAL: 1, DOWNTREND: 2 };
-      filtered = [...filtered].sort((a, b) => (tOrd[effectiveTrend(a)] ?? 1) - (tOrd[effectiveTrend(b)] ?? 1));
-    } else if (wlSort === 'age') {
-      filtered = [...filtered].sort((a, b) => (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || ''));
-    } else if (wlSort === 'alpha') {
-      filtered = [...filtered].sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
-    }
-
-    if (!filtered.length) {
-      listEl.innerHTML = '<div class="wl-empty">No instruments match this filter</div>';
-      return;
-    }
-
-    listEl.innerHTML = filtered.map(item => {
-      const t    = effectiveTrend(item);
-      const sig  = item[f('primary_signal')] || '';
-      const buy  = isBuy(item), sell = isSell(item);
-      const roc  = parseFloat(item[f('roc')]);
-      const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-      const lastSigType = item[f('last_signal_type')] || '';
-      const age  = signalAge(item[f('last_signal_date')] || '', item[f('date')]);
-      const phase = ribbonPhase(item, t);
-      const hasAlert = !!(item.key_level_touched_today === 'yes' || item[f('volume_spike_flag')] === 'yes');
-      const _aiWl = isAI(item.instrument_name);
-      return `<div class="wl-card${_aiWl ? ' ai-card' : ''}" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="wl-card-top">
-          <div class="wl-card-left">${cardIdentityHtml(item, { tag: 'span', isAi: _aiWl, sep: ' · ' })}</div>
-          <div class="wl-card-right">
-            <span class="wl-card-price">${formatPrice(item[f('close')])}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}">${rocStr}</span>` : ''}</span>
-            ${(() => { const p = signalPerf(item); return (p && p.days > 0) ? `<span class="wl-signal-perf ${parseFloat(p.pct)>=0?'perf-pos':'perf-neg'}" title="Since ${p.signal} signal on ${p.date}">${parseFloat(p.pct)>=0?'+':''}${p.pct}% · ${p.days}d</span>` : ''; })()}
-            ${cardActionsHtml(item.instrument_name, { starred: true })}
-          </div>
-        </div>
-        <div class="wl-card-badges">
-          ${verdictChipHtml(item)}
-          <span class="scanner-tag ${trendTag(t)}">${t}</span>
-          ${phase ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${phase}</span>` : ''}
-          ${lastSigType && age.label ? `<span class="sig-age ${age.decayClass}"><b class="${lastSigType.startsWith('B') ? 'sc-code-buy' : 'sc-code-sell'}">${lastSigType}</b> ${age.label}</span>` : ''}
-          ${hasAlert ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">⚡ Alert</span>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  function renderWlAlerts() {
-    const allData = getActiveData(); // respect AI filter
-    const listEl = document.getElementById('wlAlertsList');
-    if (!listEl) return;
-
-    const keylvl  = allData.filter(d => d.key_level_touched_today === 'yes');
-    const vol     = allData.filter(d => d[f('volume_spike_flag')] === 'yes');
-
-    // Update count badges
-    const updBadge = (id, arr) => { const e = document.getElementById(id); if (e) e.textContent = arr.length ? `(${arr.length})` : ''; };
-    updBadge('cntKeyLvl', keylvl);  updBadge('cntVol', vol);
-
-    const datasets = { keylvl, vol };
-    const active   = datasets[activeAlertTab] || keylvl;
-    const emptyMsg = { keylvl: 'No key level touches today', vol: 'No volume spikes today' };
-
-    if (!active.length) {
-      listEl.innerHTML = `<div class="wl-empty">${emptyMsg[activeAlertTab]}</div>`;
-      return;
-    }
-
-    listEl.innerHTML = active.map(item => {
-      const t       = effectiveTrend(item);
-      const sig     = item[f('primary_signal')] || '';
-      const buy     = isBuy(item), sell = isSell(item);
-      const starred = userStarred.has(item.instrument_name);
-      let detail = '';
-      if (activeAlertTab === 'keylvl') detail = `${item.key_level_type || ''} @ ${formatPrice(item.key_level_price)} · ${item.key_level_touch_count || 0} touches`;
-      else if (activeAlertTab === 'vol') {
-        const v = parseInt(item[f('volume')] || 0), a = parseInt(item[f('volume_average')] || 0);
-        detail = `Vol: ${v.toLocaleString()} (avg: ${a.toLocaleString()})`;
-      }
-      return `<div class="wl-alert-item" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="wl-alert-left">
-          <span class="wl-alert-name">${item.instrument_name}</span>
-          <span class="wl-alert-detail">${detail}</span>
-        </div>
-        <div class="wl-alert-right">
-          <span class="scanner-tag ${trendTag(t)}" style="font-size:.6rem;padding:2px 5px">${t.charAt(0)}</span>
-          ${sig ? `<span class="scanner-tag ${buy ? 'tag-up' : sell ? 'tag-down' : 'tag-neutral'}" style="font-size:.6rem;padding:2px 5px">${sig.slice(0,5)}</span>` : ''}
-          ${tvBtn(item.instrument_name, '')}
-          <button class="star-btn ${starred ? 'starred' : ''}" data-ticker="${item.instrument_name}" title="${starred ? 'Unmark as analyzed' : 'Mark as analyzed'}" data-act="toggleStar" data-stop="1">★</button>
-        </div>
-      </div>`;
-    }).join('');
-  }
+  // The Analyzed (watchlist) tab was removed 2026-09-24 at the user's request.
+  // Stars (analyzed marks) went the same day. userStarred is still loaded and
+  // synced so the saved list survives on the server, but nothing reads it.
 
   // ── Instrument Modal ─────────────────────────────────────────────────
   const overlay = document.getElementById('modalOverlay');
@@ -5327,9 +4896,8 @@
     overlay.classList.remove('open');
   }
 
-  // Signals live on Daily and Weekly only. A sheet opened from a chart view
-  // (1H/4H/3D) shows the signal timeframe the reader last used, never a 4H/3D
-  // signal. openModalAt has no await in it, so withSignalTf is safe here.
+  // Signals live on Daily only. A sheet opened from the 10m chart view shows
+  // the Daily signal, never a 10m one (10m has no signal columns). openModalAt has no await in it, so withSignalTf is safe here.
   function openModal(name) {
     return withSignalTf(() => openModalAt(name));
   }
@@ -5385,7 +4953,6 @@
         <div class="mh-top">
           <div class="mh-name-group">
             <div class="mh-name-row">
-              <button class="mh-star star-btn ${userStarred.has(item.instrument_name) ? 'starred' : ''}" data-ticker="${item.instrument_name}" data-act="toggleStar" data-stop="1" title="${userStarred.has(item.instrument_name) ? 'Unmark as analyzed' : 'Mark as analyzed'}">★</button>
               <div class="mh-name">${item.instrument_name}</div>
             </div>
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
@@ -5999,39 +5566,6 @@
   document.getElementById('trendsListSort').addEventListener('change', () => buildTrendsCards());
 
   // ── Public API ───────────────────────────────────────────────────────
-  // Takes the star BUTTON (lists, modal) or an instrument NAME (the chart reel).
-  // It only ever read btn.dataset.ticker, and the reel passes a name — so the
-  // ★ on every chart card threw and never starred anything (found 2026-09-15).
-  function toggleStar(btn) {
-    const ticker = typeof btn === 'string' ? btn : btn.dataset.ticker;
-    if (!ticker) return;
-    const nowStarred = !userStarred.has(ticker);
-    if (nowStarred) {
-      userStarred.add(ticker);
-      // First star → ask for notification permission
-      if (userStarred.size === 1) requestNotificationPermission();
-    } else {
-      userStarred.delete(ticker);
-    }
-    // Update all star buttons for this ticker on the page
-    document.querySelectorAll(`.star-btn[data-ticker="${ticker}"]`).forEach(b => {
-      b.classList.toggle('starred', nowStarred);
-      b.title = nowStarred ? 'Unmark as analyzed' : 'Mark as analyzed';
-      const svg = b.querySelector('svg');
-      if (svg) svg.setAttribute('fill', nowStarred ? 'currentColor' : 'none');
-    });
-    // ...and the chart reel's stars, on the cards and in full screen.
-    document.querySelectorAll('[data-act="star"][data-name]').forEach(b => {
-      if (b.dataset.name === ticker) b.classList.toggle('on', nowStarred);
-    });
-    if (typeof reelSyncStarPill === 'function') reelSyncStarPill();
-    localStorage.setItem(sk('swingpulse-starred'), JSON.stringify([...userStarred]));
-    syncPush(true);   // the user just changed stars — an empty result is meant
-    renderWlMyList();
-    renderEventBanner();   // banner is starred-scoped; keep it in step
-    updateNotifBell();
-  }
-
   function openTvPicker(btn, name) {
     // Remove any existing picker (toggle off if same button tapped again)
     const existing = document.getElementById('tvPicker');
@@ -6405,32 +5939,24 @@
     return n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} sessions`;
   }
 
-  // Starred first, then earnings before ex-dividend, then alphabetical — the
-  // rows you care about are at the top of the sheet without a second control.
+  // Macro first, then earnings before ex-dividend, then alphabetical. (Starred
+  // rows sorted first until stars were removed, 2026-09-24.)
   function sortEvents(list) {
     const rank = { macro: 0, earnings: 1, exdiv: 2 };
-    const star = e => { const i = evInstrument(e); return i ? userStarred.has(i) : false; };
     return list.slice().sort((a, b) =>
-      (star(b) - star(a))
-      || ((rank[a.type] ?? 9) - (rank[b.type] ?? 9))
+      ((rank[a.type] ?? 9) - (rank[b.type] ?? 9))
       || evLabel(a).localeCompare(evLabel(b)));
   }
 
-  // Upcoming events within `days`, nearest first. Starred-only when the user
-  // has a list; everything otherwise, so an empty star list still shows news
-  // rather than an empty calendar.
+  // Upcoming events within `days`, nearest first, across every instrument
+  // (starred-only until stars were removed, 2026-09-24).
   function upcomingEvents(days) {
-    const mine = userStarred.size > 0;
     return (eventsData.events || [])
       .filter(e => {
         const n = tradingDaysUntil(e.date);
         if (n < 0 || n > days) return false;
         if (e.type === 'exdiv') return false;   // not a gap risk; calendar only
-        const inst = evInstrument(e);
-        // A market-wide event has no instrument to star — it hits everything,
-        // so the starred-list scope never filters it out.
-        if (!inst) return true;
-        return mine ? userStarred.has(inst) : true;
+        return true;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -6462,11 +5988,10 @@
       const names = [...new Set(soon.map(e => evInstrument(e)).filter(Boolean))];
       const shown = names.slice(0, 4).map(x => `<b>${x}</b>`).join(', ');
       const more  = names.length > 4 ? ` and ${names.length - 4} more` : '';
-      const scope = userStarred.size > 0 ? ' from your starred list' : '';
       lead = names.length === 1
         ? `${names[0]} reports ${when}`
         : `${names.length} companies report in the next ${EVENT_BANNER_DAYS} sessions`;
-      body = `${shown}${more}${scope}. An earnings date is the one scheduled gap
+      body = `${shown}${more}. An earnings date is the one scheduled gap
               you can see coming — check size before the close.`;
     }
 
@@ -6536,7 +6061,6 @@
     const label = `${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][(d.getDay()+6)%7]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
     const rows = evs.map(e => {
       const inst = evInstrument(e);
-      const star = inst ? userStarred.has(inst) : false;
       const grp  = inst ? ((instrumentByName(inst) || {}).group || '') : '';
       const kind = EVENT_KINDS[e.type] || e.type;
       // A macro row carries a time where the minute matters; an earnings row
@@ -6552,19 +6076,17 @@
         : '';
       return `<div class="cal-ev ${e.type}${inst ? ' cal-ev-open' : ''}"${open}>
         <div class="cal-ev-top">
-          <span class="cal-ev-name">${evLabel(e)}${star ? ' <span class="cal-ev-star">★</span>' : ''}</span>
+          <span class="cal-ev-name">${evLabel(e)}</span>
           <span class="cal-ev-kind">${kind}</span>
         </div>
         ${meta ? `<div class="cal-ev-meta">${meta}</div>` : ''}
       </div>`;
     }).join('');
-    const starred = evs.filter(e => { const i = evInstrument(e); return i && userStarred.has(i); }).length;
     return `<div class="cal-sheet">
       <div class="cal-sheet-head">
         <span class="cal-sheet-date">${label}</span>
         <button type="button" class="cal-sheet-close" data-act="calClose">Close</button>
       </div>
-      ${starred ? `<div class="cal-ev-meta" style="margin-bottom:8px">${starred} on your starred list</div>` : ''}
       ${rows}
       <div class="cal-sheet-acts">
         <button type="button" class="cal-act" data-act="calIcs" data-arg="${date}">Add this day to calendar</button>
@@ -6968,7 +6490,7 @@
     setTimeout(() => openFromNotification(open || '', day || ''), 1200);
   })();
 
-  window.SP = { openModal, toggleStar, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
+  window.SP = { openModal, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
                 calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar,
                 showSimilarCharts, clearSimilarCharts, openChartFor,
                 openRatesBoard };
@@ -6992,37 +6514,20 @@
     });
   }
 
-  // Wire trend + alignment filters via mp-breakdown container → navigate to scanner
+  // Wire trend filters via mp-breakdown container → navigate to scanner
   const mpBreakdown = document.getElementById('mpBreakdown');
   if (mpBreakdown) {
     mpBreakdown.addEventListener('click', e => {
       const row = e.target.closest('.mp-filter-row');
       if (!row) return;
       const trend = row.dataset.filterTrend;
-      const align = row.dataset.filterAlign;  // e.g. "Triple Bull", "Counter-trend"
       const trendSel = document.getElementById('scannerTrendFilter');
-      const alignSel = document.getElementById('scannerAlignFilter');
-      if (!trendSel || !alignSel) return;
-
-      if (trend) {
-        // Toggle: clicking the active trend resets it
-        trendSel.value = trendSel.value === trend ? 'all' : trend;
-        alignSel.value = 'all';
-      } else if (align) {
-        // Map alignment label → scanner select value
-        let alignVal = 'all';
-        if (align.includes('Bull'))         alignVal = 'bull';
-        else if (align.includes('Bear'))    alignVal = 'bear';
-        else if (align === 'Counter-trend') alignVal = 'counter';
-        else if (align === 'Mixed')         alignVal = 'mixed';
-        // Toggle
-        alignSel.value = alignSel.value === alignVal ? 'all' : alignVal;
-        trendSel.value = 'all';
-      }
+      if (!trendSel || !trend) return;
+      // Toggle: clicking the active trend resets it
+      trendSel.value = trendSel.value === trend ? 'all' : trend;
 
       // Also keep heatmap filter in sync for when user scrolls back to dashboard
       activeTrendFilter = trendSel.value !== 'all' ? trendSel.value : '';
-      activeAlignFilter = '';
 
       updateScannerCtxStrip();
       navigateToTab('scanner');
@@ -7037,13 +6542,11 @@
     const clsSel   = document.getElementById('scannerClassFilter');
     const grpSel   = document.getElementById('scannerGroupFilter');
     const trendSel = document.getElementById('scannerTrendFilter');
-    const alignSel = document.getElementById('scannerAlignFilter');
     const cls   = clsSel?.value   !== 'all' ? clsSel.value   : '';
     const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
     const trend = trendSel?.value !== 'all' ? trendSel.value : '';
-    const align = alignSel?.value !== 'all' ? alignSel.value : '';
 
-    if (!cls && !grp && !trend && !align && !activeRegionFilter) {
+    if (!cls && !grp && !trend && !activeRegionFilter) {
       strip.style.display = 'none';
       strip.innerHTML = '';
       return;
@@ -7058,10 +6561,6 @@
       const cls = trend === 'UPTREND' ? 'ctx-pill-bull' : trend === 'DOWNTREND' ? 'ctx-pill-bear' : 'ctx-pill-neut';
       pills.push(`<span class="ctx-pill ${cls}">Trend: <strong>${lbl}</strong></span>`);
     }
-    if (align) {
-      const lbl = { bull:'Bull Aligned', bear:'Bear Aligned', counter:'Counter-trend', mixed:'Mixed' }[align] || align;
-      pills.push(`<span class="ctx-pill ctx-pill-align">Alignment: <strong>${lbl}</strong></span>`);
-    }
     strip.style.display = 'flex';
     strip.innerHTML = pills.join('') +
       `<button class="ctx-clear-btn" id="ctxClearBtn">✕ Reset</button>`;
@@ -7070,9 +6569,7 @@
       if (clsSel)   clsSel.value   = 'all';
       if (grpSel)   grpSel.value   = 'all';
       if (trendSel) trendSel.value = 'all';
-      if (alignSel) alignSel.value = 'all';
       activeTrendFilter = '';
-      activeAlignFilter = '';
       activeRegionFilter = '';
       renderGroupPulse();
       updateScannerCtxStrip();
@@ -9422,7 +8919,6 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
-        <button class="reel-share-btn reel-star-btn${userStarred.has(name) ? ' on' : ''}" data-act="star" data-name="${name}" aria-label="Star chart" title="Star">★</button>
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -9501,7 +8997,6 @@
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
-    const starred = userStarred.has(name);
 
     const _chNow = activeChannel(name);
     // Draw mode belongs to the CHART, not to one drawing: a locked selection no
@@ -9535,7 +9030,6 @@
       <footer class="reel-foot">
         <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
-          <button class="reel-act ${starred ? 'on' : ''}" data-act="star" data-name="${name}" aria-label="Star">★</button>
           <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
@@ -9579,7 +9073,7 @@
     if (reel.stack !== 'all') rows = withRowTf(() => rows.filter(d => matchesStackFilter(d, reel.stack)));
 
     // Signal scopes and the signal sort read the signal timeframe: on a chart
-    // view (1H/4H/3D), "Buys only" means a Daily or Weekly buy.
+    // view (10m), "Buys only" means a Daily buy.
     rows = withSignalTf(() => {
     switch (reel.scope) {
       case 'today':   rows = rows.filter(firedOnLatestBar); break;
@@ -9587,7 +9081,6 @@
       case 'buy':     rows = rows.filter(isBuy); break;
       case 'sell':    rows = rows.filter(isSell); break;
       case 'watch':   rows = rows.filter(d => d[f('watch_flag')] === 'yes'); break;
-      case 'starred': rows = rows.filter(d => userStarred.has(d.instrument_name)); break;
     }
     return rows;
     });
@@ -10824,19 +10317,6 @@
     reelSyncNav();
   }
 
-  // ★ Starred pill (2026-09-15): the same filter as Show → Starred, one tap
-  // away. It is a shortcut onto reel.scope, not a second filter, so the two can
-  // never disagree.
-  function reelSyncStarPill() {
-    const pill = document.getElementById('reelStarPill');
-    if (!pill) return;
-    const on = reel.scope === 'starred';
-    pill.classList.toggle('on', on);
-    pill.setAttribute('aria-pressed', on ? 'true' : 'false');
-    const n = pill.querySelector('.fp-val');
-    if (n) n.textContent = userStarred.size ? ' ' + userStarred.size : '';
-  }
-
   function reelSyncSimBar() {
     const bar = document.getElementById('reelSimBar');
     const nm  = document.getElementById('reelSimName');
@@ -10852,11 +10332,7 @@
       if (el) el.textContent = txt ? ' · ' + txt : '';
     };
     const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'watch',
-                       // Starred is announced by the gold ★ Starred pill itself;
-                       // repeating it here widened Show enough to wrap the
-                       // filter bar onto a third row on a phone.
-                       starred: '' };
+                       sell: 'sells', watch: 'watch' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
@@ -10868,7 +10344,6 @@
     const cv = document.querySelector('#reelPillClass .fp-cv');
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
-    reelSyncStarPill();
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
                   reel.stack !== 'all' || reel.similarTo ||
                   reel.sort !== 'signal' || reel.search || reel.range;
@@ -10922,19 +10397,6 @@
       });
     };
     optGroup('reelScopeOpts', 'scope', 'scope');
-    const starPill = document.getElementById('reelStarPill');
-    if (starPill) {
-      starPill.addEventListener('click', () => {
-        reel.scope = reel.scope === 'starred' ? 'all' : 'starred';
-        const box = document.getElementById('reelScopeOpts');
-        if (box) box.querySelectorAll('.reel-opt').forEach(b =>
-          b.classList.toggle('active', b.dataset.scope === reel.scope));
-        buildReel();
-        const el = document.getElementById('chartReel');
-        if (el) el.scrollTop = 0;
-        reelSyncNav();
-      });
-    }
     optGroup('reelTrendOpts', 'trend', 'trend');
     optGroup('reelStackOpts', 'stack', 'stack');
     optGroup('reelSortOpts',  'sort',  'sort');
@@ -11029,10 +10491,6 @@
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
       if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
-      if (btn.dataset.act === 'star')   {
-        window.SP.toggleStar(name);
-        return true;
-      }
       const cardEl = btn.closest('.reel-card');
       const chHost = cardEl && cardEl.querySelector('.reel-chart');
       if (btn.dataset.act === 'chart-back')    { chartGoBack(); return true; }

@@ -229,10 +229,9 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
     added = 0
     for tf, sig_col, conf_col, date_col, ts_col in (
         ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
-        # 4H stopped recording 2026-09-11 (timeframe removed); older 4H records stay.
-        # Weekly bars are unique by date, so no ts_col — the same reason Daily
-        # has none. See config.INTRADAY_PREFIXES.
-        ('W',  'w_primary_signal',  'w_signal_confidence',  'w_date',  ''),
+        # 4H stopped recording 2026-09-11 and Weekly 2026-09-24 (timeframes
+        # removed). Older records of both stay, and open Weekly ones keep being
+        # graded — _price_frame still resamples 'W'.
     ):
         code = str(row.get(sig_col) or '').strip()
         fire_date = str(row.get(date_col) or '').strip()

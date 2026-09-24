@@ -39,7 +39,7 @@ from _active_config import (
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
     H1_SESSION_NORMALIZE, H1_BARS_PER_SESSION_TARGET,
-    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES, ALIGNMENT_PREFIXES,
+    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES,
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
@@ -48,7 +48,7 @@ from _active_config import (
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import (fetch_all, fetch_all_hourly, fetch_all_5m, h4_ticker,
+from data_fetcher  import (fetch_all, fetch_all_5m, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m)
 from indicators    import add_all_indicators
@@ -85,7 +85,7 @@ def _resample_monthly(df_daily: pd.DataFrame) -> pd.DataFrame:
     become 50), so B2/B3/B4 and S2/S3/S4 are structurally dead, and the monthly
     MA50 state measured CONTRARIAN when paired per-instrument (12m -4.60pp,
     only 36% of instruments positive). Monthly is context, never a signal
-    source — which is also why 'm_' must stay out of ALIGNMENT_PREFIXES.
+    source.
     """
     ohlcv = ['Open', 'High', 'Low', 'Close', 'Volume']
     cols  = [c for c in ohlcv if c in df_daily.columns]
@@ -752,66 +752,6 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h4)]
 
 
-# ---------------------------------------------------------------------------
-# Multi-timeframe alignment
-# ---------------------------------------------------------------------------
-
-def _compute_tf_alignment(row: dict) -> tuple[str, int]:
-    """
-    Score how many timeframes agree on direction (Daily + Weekly). 4H and 1H
-    were removed 2026-09-11; 3D does not vote — see config.ALIGNMENT_PREFIXES.
-
-    Returns (label, score):
-        score: -2 to +2  (positive = bullish alignment, negative = bearish)
-               Widened from -2..+2 when Weekly was added 2026-09-02; consumers
-               that drew a bar from this must rescale, not clamp.
-        label: 'Aligned Bull/Bear' — every timeframe with a ribbon agrees
-               'Counter-trend'     — TFs in opposite directions
-               'Mixed'             — no clear direction
-
-    Reads trend_direction — where price sits in each timeframe's ribbon RIGHT
-    NOW. It used to read established_trend and fall back to trend_direction,
-    but established_trend is a latch: signals.py sets in_uptrend on B1 (close
-    above all 20 MAs) and clears it only on S1 (close below all 20), so it
-    survives any decline that stops short of the anchor. US100 on 2026-07-28
-    was labelled 'Aligned Bull' while its 4H close sat below most of its ribbon with
-    RSI 31, because a 4H B2 on 07-14 had latched in_uptrend and nothing since
-    could un-latch it. Alignment is a question about now, so it takes the
-    positional read; established_trend stays untouched for the Trends tab
-    segments and the signal gates that legitimately want the latch.
-    """
-    # A timeframe that produced no ribbon at all (too little history for even a
-    # clipped MA set) is ABSENT, and absent is not the same as NEUTRAL. NEUTRAL
-    # is an opinion — price is inside the ribbon — and it has always blocked
-    # alignment; that must not change. Absent should simply not vote, otherwise
-    # the ~7 instruments with under 75 weekly bars could never read Aligned
-    # again. Hence `present`, not a hard-coded count of 2 (which quietly
-    # stopped meaning "all of them" the moment a third timeframe existed).
-    trends  = []
-    present = 0
-    for prefix in ALIGNMENT_PREFIXES:
-        t = row.get(f'{prefix}trend_direction', '')
-        if not t:
-            continue
-        present += 1
-        trends.append(1 if t == 'UPTREND' else -1 if t == 'DOWNTREND' else 0)
-
-    score      = sum(trends)
-    up_count   = trends.count(1)
-    down_count = trends.count(-1)
-
-    if present and up_count == present:
-        label = 'Aligned Bull'
-    elif present and down_count == present:
-        label = 'Aligned Bear'
-    elif up_count > 0 and down_count > 0:
-        label = 'Counter-trend'
-    else:
-        label = 'Mixed'
-
-    return label, score
-
-
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
                        run_date: date, hourly_df: pd.DataFrame = None) -> Optional[dict]:
     """
@@ -874,51 +814,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
         # ── 4-HOUR: removed 2026-09-11 (see config.TIMEFRAMES). ──
 
-        # ── 3-DAY (grouped from the same finished daily bars) ──
-        # Same engine, same MA50-MA500 ribbon, on 3-day bars. No session
-        # scaling: three business days are three business days on every venue,
-        # so the 4H geometry problem has no analogue here. Short-history names
-        # clip the ribbon exactly as the daily side does.
-        d3_data = {}
-        three_day = _resample_3d(df)
-        d3_ma_periods = [p for p in MA_PERIODS if p <= len(three_day)]
-        # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
-        if len(d3_ma_periods) >= 2:
-            three_day = add_all_indicators(three_day, ma_periods=d3_ma_periods)
-            three_day = add_signals(three_day, ma_periods=d3_ma_periods,
-                                    refire_pct=REFIRE_PCT_3D,
-                                    new_trend_pct=NEW_TREND_PCT_3D,
-                                    tf='3D', asset_class=_asset_cls)
-            d3_data, _ = _extract_row(
-                three_day, run_date, prefix='d3_',
-                ma_periods=d3_ma_periods,
-                signal_lookback=SIGNAL_LOOKBACK_3D,
-            )
-            if d3_data is None:
-                d3_data = {}
-
-        # ── WEEKLY (resampled from the same finished daily bars) ──
-        # Runs the identical engine and the identical MA50-MA500 ribbon on
-        # weekly bars. No session scaling: a week is a week on every venue, so
-        # the 4H geometry problem has no weekly analogue. Short-history names
-        # clip the ribbon exactly as the daily side does.
-        w_data = {}
-        weekly = _resample_weekly(df)
-        w_ma_periods = [p for p in MA_PERIODS if p <= len(weekly)]
-        # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
-        if len(w_ma_periods) >= 2:
-            weekly = add_all_indicators(weekly, ma_periods=w_ma_periods)
-            weekly = add_signals(weekly, ma_periods=w_ma_periods,
-                                 refire_pct=REFIRE_PCT_WEEKLY,
-                                 new_trend_pct=NEW_TREND_PCT_WEEKLY,
-                                 tf='W', asset_class=_asset_cls)
-            w_data, _ = _extract_row(
-                weekly, run_date, prefix='w_',
-                ma_periods=w_ma_periods,
-                signal_lookback=SIGNAL_LOOKBACK_WEEKLY,
-            )
-            if w_data is None:
-                w_data = {}
+        # ── 3-DAY and WEEKLY: removed 2026-09-24 (see config.TIMEFRAMES). ──
 
         row = {
             'instrument_name':  inst_meta['name'],
@@ -931,14 +827,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
-            **(d3_data or {}),
-            **(w_data or {}),
         }
-
-        # ── Multi-timeframe alignment (computed after all TFs are assembled) ──
-        tf_label, tf_score = _compute_tf_alignment(row)
-        row['tf_alignment'] = tf_label
-        row['tf_alignment_score'] = tf_score
 
         # ── Context confidence modifiers (edge-audit phase 3a) — needs the
         # assembled row so same-TF fields are present; deltas per CONTEXT_RULES.
@@ -1049,12 +938,8 @@ def _process_worker(args: tuple) -> tuple:
 
         if row:
             d_primary = row.get('primary_signal', '')
-            w_primary = row.get('w_primary_signal', '')
-            tf_align  = row.get('tf_alignment', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
-            w_tag     = f' W[{w_primary}]' if w_primary else ''
-            align_tag = f' <{tf_align}>' if tf_align else ''
-            status_str = f'OK{d_tag}{w_tag}{align_tag}'.strip()
+            status_str = f'OK{d_tag}'.strip()
         else:
             status_str = 'skipped'
 
@@ -1078,10 +963,10 @@ def main():
                         help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--profile', type=str, default='ma500',
                         help='Config profile (default: ma500)')
-    # The 5m and hourly pulls feed the 10m and 4H CHARTS only — no signal reads
-    # either — so a run that only wants signals can skip them and their cost.
+    # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
+    # only wants signals can skip it and its cost.
     parser.add_argument('--no-intraday', action='store_true',
-                        help='Skip the 5m and hourly downloads (10m and 4H chart feeds will go stale)')
+                        help='Skip the 5m download (the 10m chart feed will go stale)')
     args = parser.parse_args()
 
     run_date = (
@@ -1111,16 +996,9 @@ def main():
     _e1 = _time.time() - _t1
     print(f'  Daily data: {int(_e1 // 60)}m {int(_e1 % 60):02d}s\n')
 
-    # Hourly is downloaded again since 2026-09-17, for the 4H CHART ONLY — the
-    # user asked for that chart back. It is NOT a signal feed: 4H is still out
-    # of config.TIMEFRAMES and no h4_ column exists, so nothing below reads this
-    # cache; webapp/chart_feed.build_4h resamples it, exactly as build_10m
-    # resamples the 5m cache. The daily-vs-hourly cross-check (data_checks.json)
-    # is NOT restored with it — it was retired on its own terms.
-    #
-    # The freshness gate is data_fetcher's default (1h in CI), not the 9 minutes
-    # the 5m pull uses: a 4-hour bar cannot change more than a 1h-stale cache
-    # already shows, so the runs that land under an hour apart may skip it.
+    # Hourly prices are NOT downloaded (again) since 2026-09-24: they fed only
+    # the 4H chart, which was removed with 3-Day and Weekly. That was ~45s of
+    # every CI run. The hourly parquet cache is left on disk for research.
     #
     # 5m IS downloaded (2026-09-14): it is the only feed the 10m CHART can be
     # built from, Yahoo having no 10m interval. Nothing in the signal engine
@@ -1131,11 +1009,6 @@ def main():
     _e2 = 0.0
     if not args.no_intraday:
         _t2 = _time.time()
-        print('  Fetching hourly market data (4H chart feed) ...\n')
-        # Populates the hourly parquet cache; chart_feed re-reads it per-ticker
-        # (no return used). Incremental — it resumes from the last cached bar,
-        # so the gap since 2026-09-11 fills itself on the first run.
-        fetch_all_hourly(instruments, force_refresh=args.refresh)
         print('  Fetching 5m market data (10m chart feed) ...\n')
         # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
         # which is the right gate for a daily bar and far too coarse for a
@@ -1146,7 +1019,7 @@ def main():
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
-        print(f'  Intraday data (hourly + 5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
@@ -1219,9 +1092,8 @@ def main():
 
     # 5d. Sector activity series — upsert today's per-sector rows + radar json
     from sector_activity import update_all_timeframes
-    # Every radar timeframe (D + W), each isolated so one failing cannot stop
-    # the other or the run. instrument_flavours.json stays DAILY-only — the
-    # guard is in sector_activity.write_radar(), not here.
+    # Daily only since 2026-09-24 (the 3D and Weekly radars went with those
+    # timeframes). Isolated inside, so a failure cannot stop the run.
     update_all_timeframes(output_df)
 
     # 5d-bis. Chart shape similarity — which charts look like each other, and
@@ -1391,19 +1263,10 @@ def _print_summary(df: pd.DataFrame) -> None:
         print(f'\n  PRIMARY SIGNALS ({len(primary_rows)}):')
         for _, r in primary_rows.iterrows():
             conf = r.get('signal_confidence', '')
-            align = r.get('tf_alignment', '')
             print(f'    {r.get("instrument_name",""):<15}  '
                   f'{r.get("primary_signal",""):<4}  '
                   f'{f"[{conf}]":<12}  '
-                  f'{f"<{align}>":<16}  '
                   f'{r.get("confirmation_status","")}')
-
-    # Alignment summary
-    if 'tf_alignment' in df.columns:
-        print('\n  TIMEFRAME ALIGNMENT:')
-        align_counts = df['tf_alignment'].value_counts()
-        for label, cnt in align_counts.items():
-            print(f'    {cnt:3d}  {label}')
 
     # Compression alerts
     if 'ribbon_compression' in df.columns:

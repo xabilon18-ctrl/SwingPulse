@@ -385,7 +385,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 INTRADAY_PREFIXES = set()   # none since 1H (and then 4H) were removed on 2026-09-11
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
-# that loops over timeframes (column emission, tf_alignment, context modifiers,
+# that loops over timeframes (column emission, context modifiers,
 # the ledger, the backtest) reads this rather than restating ('', 'h4_') in its
 # own words; the pair was hand-copied in four places before Weekly, which is
 # how a new timeframe reaches production wired into three of them.
@@ -402,36 +402,21 @@ INTRADAY_PREFIXES = set()   # none since 1H (and then 4H) were removed on 2026-0
 # it agreed with Daily 71.7% of the time, 82% of its fires were never confirmed
 # and worth ~0, and it had already been reduced to a chart view. With 1H and 4H
 # both gone nothing needs hourly prices, so main.py no longer downloads them.
+#
+# 3-Day and Weekly are NOT in this table either (removed 2026-09-24, at the
+# user's request). Neither had an edge over a same-day random entry (the
+# 2026-09-11 control), 3D agreed with Daily 66.5% of the time, and dropping
+# them with the 4H chart cut CI time, which is what the GitHub Free
+# 2,000-minute budget is spent on. The 3D CHART stays (webapp/chart_feed.py,
+# chart only, like 10m). With Weekly gone there is nothing left to vote against
+# Daily, so tf_alignment went with it. _resample_3d/_resample_weekly and the
+# *_3D/*_WEEKLY constants stay for the 3D chart and backtest.py research runs.
 TIMEFRAMES = (
     ('D',  ''),
-    ('3D', 'd3_'),
-    ('W',  'w_'),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
 TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
 
-# Which timeframes VOTE in tf_alignment. Not the same question as "which
-# timeframes exist", which is why this is its own tuple rather than TF_PREFIXES.
-#
-# 1H is deliberately excluded (2026-09-03). Two reasons, both measured:
-#   1. It would double-count the intraday read. Daily and 4H already agree on
-#      71.7% of instruments (2026-09-01), and 1H — resampled from the same
-#      hourly bars 4H is built from — agrees with 4H by more than that. Letting
-#      both vote makes "every timeframe agrees" mostly a statement about one
-#      feed sampled twice.
-#   2. It would silently widen the score from -3..+3 to -4..+4. Every consumer
-#      that draws a bar from tf_alignment_score would then under-fill it, and
-#      the failure is invisible — the bar just never reaches the end.
-# Add 'h1_' here only alongside a rescale of every consumer.
-#
-# 3D is excluded for the SAME TWO REASONS, measured 2026-09-08:
-#   1. It would double-count the daily read. 3D agrees with Daily on 66.5% of
-#      bars and is built by aggregating the very same daily bars, so letting
-#      both vote makes "every timeframe agrees" largely a statement about the
-#      daily frame sampled twice.
-#   2. It would widen the score from -3..+3 to -4..+4 with nothing to catch it,
-#      which is precisely the trap documented for 1H above.
-ALIGNMENT_PREFIXES = tuple(p for _, p in TIMEFRAMES if p not in ('h1_', 'd3_'))
 
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
@@ -496,16 +481,10 @@ CONF_TIER_ORDER = ['low', 'standard', 'high']
 # Column order for output
 OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry', 'asset_class',
-    # ── Multi-timeframe alignment ──
-    'tf_alignment', 'tf_alignment_score',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
-    # ── 3-Day (signals + indicators) ──
-    *_tf_signal_columns('d3_'),
-    # ── Weekly (signals + indicators) ──
-    *_tf_signal_columns('w_'),
 ]

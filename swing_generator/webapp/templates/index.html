@@ -49,14 +49,12 @@
         <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       </div>
     </header>
-    <!-- ===== GLOBAL TIMEFRAME TOGGLE (4H / Daily) ===== -->
+    <!-- ===== GLOBAL TIMEFRAME TOGGLE (10m / Daily / 3D) ===== -->
     <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
       <div class="tf-switch">
         <button class="tf-switch-btn" id="tfBtn10m" data-tf="10m" role="tab" aria-selected="false">10m</button>
-        <button class="tf-switch-btn" id="tfBtn4H" data-tf="4H" role="tab" aria-selected="false">4H</button>
         <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
         <button class="tf-switch-btn" id="tfBtn3D" data-tf="3D" role="tab" aria-selected="false">3D</button>
-        <button class="tf-switch-btn" id="tfBtnW"  data-tf="W"  role="tab" aria-selected="false">Weekly</button>
         <!-- Shown instead of the buttons on tabs the timeframe doesn't drive
              (Trends reads daily trend segments only). Same box as the buttons,
              so the topbar-stack height — which .bottom-nav's desktop `top`
@@ -150,7 +148,7 @@
           Three components, computed on the active timeframe:<br>
           • Trend balance — uptrends vs downtrends (0–50)<br>
           • Signal direction — buy share of active B/S signals (0–30)<br>
-          • Bonus — TF-aligned instruments + volume spikes (0–20)
+          • Bonus — volume spikes (0–20)
         </div>
         <div class="mp-card-body">
           <div class="mp-gauge-wrap">
@@ -193,11 +191,6 @@
               <span class="mp-bd-lbl">Neutral</span>
               <span class="mp-bd-val" id="gbNeutral" style="color:var(--text-secondary)">--</span>
             </div>
-            <div class="mp-bd-row mp-filter-row mp-align-row" id="mpBdAlign" hidden>
-              <span class="mp-bd-dot" id="mpAlignDot" style="background:var(--accent)"></span>
-              <span class="mp-bd-lbl" id="mpAlignLbl" style="color:var(--accent)">--</span>
-              <span class="mp-bd-val" id="mpAlignVal" style="color:var(--accent)">--</span>
-            </div>
           </div>
         </div>
         <div class="mp-score-track">
@@ -208,7 +201,6 @@
         <span style="display:none" id="pulseUptrend"></span>
         <span style="display:none" id="pulseDowntrend"></span>
         <span style="display:none" id="pulseNeutral"></span>
-        <span style="display:none" id="pulseAlignment"></span>
         <span style="display:none" id="gbBuy"></span>
         <span style="display:none" id="gbSell"></span>
       </div>
@@ -251,13 +243,6 @@
           <span class="sr-period" id="leadersAsOf"></span>
         </div>
         <div id="leadersBody"></div>
-      </div>
-
-      <!-- Timeframe Alignment Summary — hidden 2026-09-11: agreement between timeframes
-           measured BACKWARDS (counter-trend setups did better). JS still renders into it. -->
-      <div class="card" hidden>
-        <div class="card-header"><h3>TF Alignment</h3></div>
-        <div class="alignment-summary" id="alignmentSummary"></div>
       </div>
 
       <!-- Stat cards removed — counts now surfaced in gauge + By Group -->
@@ -464,10 +449,6 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Vol Spike
         </button>
-        <button class="sig-ctx-chip sig-chip-analyzed" id="analyzedChip" title="Filter by analyzed — tap to cycle: off → Analyzed → Unanalyzed">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
-          <span class="analyzed-label">Analyzed</span>
-        </button>
             </div>
           </div>
         </details>
@@ -547,15 +528,6 @@
               <option value="NEUTRAL">Neutral</option>
             </select>
           </label>
-          <label class="sig-adv-label" hidden>Alignment
-            <select class="sig-adv-select" id="scannerAlignFilter">
-              <option value="all">All Alignments</option>
-              <option value="bull">Bull Aligned</option>
-              <option value="bear">Bear Aligned</option>
-              <option value="counter">Counter-trend</option>
-              <option value="mixed">Mixed</option>
-            </select>
-          </label>
           <label class="sig-adv-label">MA Stack
             <select class="sig-adv-select" id="scannerStackFilter">
               <option value="all">Any stack</option>
@@ -608,61 +580,6 @@
           <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
         </div>
       </div>
-    </section>
-
-    <!-- ========== WATCHLIST TAB ========== -->
-    <section class="tab-pane" id="pane-watchlist">
-
-      <!-- My Watchlist -->
-      <div class="card wl-my-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:#3b82f6">★</span>
-            My Analyzed
-          </h3>
-          <div class="wl-header-right">
-            <div class="signal-summary" id="wlStats"></div>
-            <select class="select-input wl-sort-select" id="wlSort">
-              <option value="signal">Signal First</option>
-              <option value="trend">Trend</option>
-              <option value="age">Newest Signal</option>
-              <option value="alpha">A–Z</option>
-            </select>
-          </div>
-        </div>
-        <div class="filter-chips wl-filter-chips" id="wlFilterChips">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip chip-buy" data-filter="buy">Buy</button>
-          <button class="chip chip-sell" data-filter="sell">Sell</button>
-          <button class="chip" data-filter="signal">Has Signal</button>
-          <button class="chip" data-filter="uptrend">Uptrend</button>
-        </div>
-        <div id="wlMyList"></div>
-      </div>
-
-      <!-- Today's Alerts -->
-      <div class="card wl-alerts-card">
-        <div class="card-header">
-          <h3>
-            <span class="card-icon" style="color:var(--accent)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            </span>
-            Today's Alerts
-          </h3>
-          <div class="filter-chips" id="alertFilterChips" style="margin:0">
-            <button class="chip active" data-alert="keylvl">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-              Key Level <span class="wl-alert-count" id="cntKeyLvl"></span>
-            </button>
-            <button class="chip" data-alert="vol">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="13" width="4" height="8" rx="1"/><rect x="10" y="9" width="4" height="12" rx="1"/><rect x="18" y="4" width="4" height="17" rx="1"/></svg>
-              Vol Spike <span class="wl-alert-count" id="cntVol"></span>
-            </button>
-          </div>
-        </div>
-        <div id="wlAlertsList"></div>
-      </div>
-
     </section>
 
     <!-- ========== TRENDS TAB ========== -->
@@ -771,7 +688,6 @@
                 <button class="reel-opt" data-scope="buy">Buys only</button>
                 <button class="reel-opt" data-scope="sell">Sells only</button>
                 <button class="reel-opt" data-scope="watch">Watch flagged</button>
-                <button class="reel-opt" data-scope="starred">Starred</button>
               </div>
             </div>
           </details>
@@ -847,7 +763,6 @@
             </div>
           </details>
 
-          <button class="reel-star-pill" id="reelStarPill" type="button" aria-pressed="false" title="Show only starred charts">★ Starred<span class="fp-val"></span></button>
           <button class="reel-reset" id="reelReset" style="display:none">Reset</button>
         </div>
       </div>
@@ -874,10 +789,6 @@
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
       <span class="nav-tab-label">Signals</span>
     </button>
-    <button class="nav-tab" data-tab="watchlist">
-      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
-      <span class="nav-tab-label">Analyzed</span>
-    </button>
     <button class="nav-tab" data-tab="trends">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg></span>
       <span class="nav-tab-label">Trends</span>
@@ -896,7 +807,7 @@
         <div class="trade-sheet-header" style="justify-content:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
           <span style="font-size:1.1rem;font-weight:800">Who are you?</span>
         </div>
-        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your analyzed instruments and notes sync across all your devices.</p>
+        <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 24px">Your notes and drawings sync across all your devices.</p>
         <div style="display:flex;gap:14px;justify-content:center">
           <button onclick="window.SP_setUser('zabs')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Zabs</button>
           <button onclick="window.SP_setUser('hemi')" class="trade-email-btn" style="font-size:1rem;padding:14px 28px">Hemi</button>
@@ -930,6 +841,6 @@
 
 
 
-  <script src="/static/js/app.js?v=359"></script>
+  <script src="/static/js/app.js?v=360"></script>
 </body>
 </html>
