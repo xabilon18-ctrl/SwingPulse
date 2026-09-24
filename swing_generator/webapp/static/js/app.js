@@ -1068,6 +1068,13 @@
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
 
+  // DIVISIONS (2026-09-24): a list entry beginning with WL_DIV is a heading
+  // inside the list ("European markets"), not an instrument — kept in the same
+  // array so it moves, syncs and orders exactly like one.
+  const WL_DIV = '§';
+  const wlIsDiv = x => typeof x === 'string' && x.startsWith(WL_DIV);
+  const wlCount = l => l.items.filter(x => !wlIsDiv(x)).length;
+
   function wlSave() {
     wlStore.mod = Date.now();
     try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
@@ -1232,7 +1239,7 @@
     const lists = wlStore.lists;
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
     const pills = [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all">All markets</button>`]
-      .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}">${escText(l.name)} <span class="wl2-n">${l.items.length}</span></button>`))
+      .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}">${escText(l.name)} <span class="wl2-n">${wlCount(l)}</span></button>`))
       .concat(wlUi.list !== 'all' ? [wlEdit
         ? `<button class="wl2-pill wl2-done" data-wl-edit>Done</button>`
         : `<button class="wl2-pill wl2-edit" data-wl-edit>Edit list</button>`] : [])
@@ -1254,10 +1261,18 @@
       body.innerHTML = `<div class="wl2-editbar">
           <button class="wl2-ebtn" data-wl-lmove="-1" ${li === 0 ? 'disabled' : ''}>◀ Move list</button>
           <button class="wl2-ebtn" data-wl-lmove="1" ${li === lists.length - 1 ? 'disabled' : ''}>Move list ▶</button>
+          <button class="wl2-ebtn" data-wl-adddiv>+ Division</button>
           <button class="wl2-ebtn" data-wl-rename>Rename</button>
           <button class="wl2-ebtn wl2-danger" data-wl-dellist>Delete list</button>
         </div>`
         + (cur.items.length ? cur.items.map((n, i) => {
+          if (wlIsDiv(n)) return `<div class="wl2-erow wl2-ediv">
+            <span class="wl2-names"><span class="wl2-divname">${escText(n.slice(1))}</span></span>
+            <button class="wl2-mv" data-wl-rendiv="${escText(n)}" aria-label="Rename division">✎</button>
+            <button class="wl2-mv" data-wl-mv="-1" data-n="${escText(n)}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
+            <button class="wl2-mv" data-wl-mv="1" data-n="${escText(n)}" ${i === cur.items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
+            <button class="wl2-mv wl2-x" data-wl-rmx="${escText(n)}" aria-label="Remove division">✕</button>
+          </div>`;
           const d = byName[n] || { asset_class: '' };
           return `<div class="wl2-erow">
             ${wlBadge(n, d.asset_class)}
@@ -1306,9 +1321,21 @@
     };
     let html = '';
     if (!rows.length) {
-      html = cur && !cur.items.length
+      html = cur && !wlCount(cur)
         ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
         : `<div class="wl2-empty">Nothing matches.</div>`;
+    } else if (wlUi.sort === 'group' && cur) {
+      // The list in its own order, divisions as headings. A division whose
+      // instruments are all filtered out (class chip, search) is hidden.
+      const shown = new Set(rows.map(d => d.instrument_name));
+      const byName = Object.fromEntries(rows.map(d => [d.instrument_name, d]));
+      let pending = null;
+      cur.items.forEach(n => {
+        if (wlIsDiv(n)) { pending = n.slice(1); return; }
+        if (!shown.has(n)) return;
+        if (pending !== null) { html += `<div class="wl2-group wl2-udiv">${escText(pending)}</div>`; pending = null; }
+        html += rowHtml(byName[n]);
+      });
     } else if (wlUi.sort === 'group' && !cur) {
       let g = null;
       rows.forEach(d => {
@@ -1389,6 +1416,22 @@
         if (lm) {
           const L = wlStore.lists, i = L.indexOf(l), j = i + Number(lm.dataset.wlLmove);
           if (j >= 0 && j < L.length) { [L[i], L[j]] = [L[j], L[i]]; wlSave(); }
+          return renderWatchlist();
+        }
+        if (t.closest('[data-wl-adddiv]')) {
+          const v = (prompt('Division name (e.g. European markets):') || '').trim().slice(0, 40);
+          if (v) {
+            let key = WL_DIV + v, k = 2;
+            while (l.items.includes(key)) key = WL_DIV + v + ' ' + (k++);
+            l.items.unshift(key); wlSave();
+          }
+          return renderWatchlist();
+        }
+        const rd = t.closest('[data-wl-rendiv]');
+        if (rd) {
+          const old = rd.dataset.wlRendiv, i = l.items.indexOf(old);
+          const v = (prompt('Rename division:', old.slice(1)) || '').trim().slice(0, 40);
+          if (v && i >= 0 && !l.items.includes(WL_DIV + v)) { l.items[i] = WL_DIV + v; wlSave(); }
           return renderWatchlist();
         }
         if (t.closest('[data-wl-rename]')) {

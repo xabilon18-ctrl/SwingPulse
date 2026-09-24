@@ -9283,3 +9283,8 @@ body.chart-full-open { overflow: hidden; }
 .wl2-mv { flex: none; width: 38px; height: 38px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border);
   color: var(--text-primary); font-size: .9rem; cursor: pointer; }
 .wl2-x { color: var(--sell); }
+
+/* Watchlist divisions (2026-09-24) */
+.wl2-ediv { background: rgba(255,255,255,.03); }
+.wl2-divname { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding-left: 4px; }
+.wl2-udiv { color: var(--text-secondary); }
