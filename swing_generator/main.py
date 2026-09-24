@@ -1102,6 +1102,9 @@ def _process_worker(args: tuple) -> tuple:
         # keeps the raw bar so a late-settling volume can still be healed by the
         # next run's re-request. See data_fetcher §"Finished sessions only".
         df = drop_unfinished_daily(df)
+        # CHINA50: the ETF's daily bars in index points (data_fetcher.scale_daily).
+        from data_fetcher import scale_daily
+        df = scale_daily(ticker, df)
 
         # The 5m cache (downloaded before this pool starts) feeds the m5_
         # signals. Missing or unreadable -> no 5m columns, Daily unaffected.

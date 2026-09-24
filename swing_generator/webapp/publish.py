@@ -366,6 +366,7 @@ def build_names():
         '^HSI':   'Hang Seng',
         '^BVSP':  'Bovespa',
         '^STOXX50E': 'Euro Stoxx 50',
+        '2822.HK':   'FTSE China A50',   # CHINA50 — SGX A50 futures at 5m
         # Crypto (strip generic " USD" suffix)
         'BTC-USD':   'Bitcoin',
         'ETH-USD':   'Ethereum',

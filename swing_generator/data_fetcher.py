@@ -32,7 +32,96 @@ def h4_ticker(ticker: str) -> str:
     that contract. DAILY is unaffected and still comes from `ticker` — the two
     timeframes are independent. See config.py §"4H bar geometry".
     """
+    if ticker in SGX_FRONT:
+        return sgx_front(SGX_FRONT[ticker])
     return H4_SOURCE.get(ticker, ticker)
+
+
+# ── SGX front-month futures (2026-09-24) ─────────────────────────────────────
+# CHINA50 is the user's FOREX.com "China A50 CFD" (TradingView FOREXCOM:CHINA50,
+# ~14,300 index points), priced off SGX's FTSE China A50 future. Yahoo carries
+# the SGX contracts per month (CN-U26.SI = Sep 2026) — 5m, day session only
+# (01:00-08:35 UTC; the night session is not on Yahoo), ~60 days deep, no
+# daily history. So the 5m chart reads the FRONT contract, rolled
+# automatically: of this month's and the next two, the one that traded the
+# most on its latest day. Daily history comes from the CSOP A50 ETF 2822.HK
+# (from 2012) scaled to index points — see daily_level_scale.
+SGX_FRONT = {'2822.HK': 'CN'}
+_MONTH_CODES = 'FGHJKMNQUVXZ'
+
+
+def sgx_candidates(root: str, now=None) -> list[str]:
+    now = now or _utc_now()
+    out = []
+    for k in range(3):
+        m = (now.month - 1 + k) % 12
+        y = now.year + (now.month - 1 + k) // 12
+        out.append(f'{root}-{_MONTH_CODES[m]}{y % 100:02d}.SI')
+    return out
+
+
+def sgx_front(root: str) -> str:
+    """The most-traded of the candidate contracts on its latest day in the 5m
+    cache; this month's contract when nothing is cached yet."""
+    best, best_vol = None, -1
+    for sym in sgx_candidates(root):
+        path = _cache_path(sym, suffix='5m')
+        try:
+            df = pd.read_parquet(path, columns=['Volume'])
+            last = df.index[-1]
+            vol = float(df['Volume'][df.index.normalize() == last.normalize()].sum())
+            # A contract whose last print is days older than today's front has
+            # expired: judge only on bars from the last 3 days.
+            if (_utc_now() - (last.tz_convert('UTC').tz_localize(None) if last.tzinfo else last)).days > 3:
+                continue
+            if vol > best_vol:
+                best, best_vol = sym, vol
+        except Exception:
+            continue
+    return best or sgx_candidates(root)[0]
+
+
+# Daily bars of these tickers are multiplied by a factor so the DAILY chart is
+# in the same units as the 5m source (index points, not the ETF's HK$). One
+# constant across the whole history: MAs, crossings, % moves and every signal
+# are unchanged by it — only the axis labels move. Factor = median over the
+# last 10 shared days of (front-contract 5m close nearest 08:00 UTC) /
+# (ETF daily close), recomputed each run.
+DAILY_SCALE_FROM_5M = {'2822.HK'}
+
+
+def daily_level_scale(ticker: str, daily: pd.DataFrame) -> float:
+    if ticker not in DAILY_SCALE_FROM_5M or daily is None or daily.empty:
+        return 1.0
+    try:
+        five = pd.read_parquet(_cache_path(h4_ticker(ticker), suffix='5m'), columns=['Close'])
+        if five.index.tz is not None:
+            five.index = five.index.tz_convert('UTC').tz_localize(None)
+        d = daily.copy()
+        if d.index.tz is not None:
+            d.index = d.index.tz_localize(None)
+        ratios = []
+        for day, row in d['Close'].dropna().tail(15).items():
+            seg = five['Close'][(five.index.normalize() == pd.Timestamp(day).normalize())
+                                & (five.index.hour < 8)]
+            if len(seg) and row:
+                ratios.append(float(seg.iloc[-1]) / float(row))
+        ratios = ratios[-10:]
+        return float(pd.Series(ratios).median()) if ratios else 1.0
+    except Exception:
+        return 1.0
+
+
+def scale_daily(ticker: str, df: pd.DataFrame) -> pd.DataFrame:
+    """df with OHLC multiplied by daily_level_scale (a copy; Volume untouched)."""
+    f = daily_level_scale(ticker, df)
+    if f == 1.0:
+        return df
+    out = df.copy()
+    for c in ('Open', 'High', 'Low', 'Close'):
+        if c in out:
+            out[c] = out[c] * f
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -892,7 +981,8 @@ def five_min_fetch_list(tickers) -> list[str]:
     plus its level reference."""
     out = []
     for t in tickers:
-        for x in (h4_ticker(t), FIVE_MIN_LEVEL_REF.get(t)):
+        extra = sgx_candidates(SGX_FRONT[t]) if t in SGX_FRONT else []
+        for x in (h4_ticker(t), FIVE_MIN_LEVEL_REF.get(t), *extra):
             if x and x not in out:
                 out.append(x)
     return out

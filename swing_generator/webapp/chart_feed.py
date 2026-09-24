@@ -56,7 +56,8 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
-from data_fetcher import h4_ticker, load_5m, FIVE_MIN_LEVEL_REF, _read_5m_raw   # noqa: E402
+from data_fetcher import (h4_ticker, load_5m, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
+                          scale_daily, SGX_FRONT)
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d, _resample_10m,
@@ -223,7 +224,7 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     path = os.path.join(cache_dir, _cache_name(ticker))
     if not os.path.exists(path):
         return None
-    df = pd.read_parquet(path)
+    df = scale_daily(ticker, pd.read_parquet(path))
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
@@ -427,7 +428,7 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
     the contract's own last 5m close before the 22:00 UTC session break.
     """
     dpath = os.path.join(cache_dir, _cache_name(ticker))
-    daily = pd.read_parquet(dpath)[['Close']].dropna() if os.path.exists(dpath) else pd.DataFrame()
+    daily = scale_daily(ticker, pd.read_parquet(dpath))[['Close']].dropna() if os.path.exists(dpath) else pd.DataFrame()
     src = h4_ticker(ticker)
     adjusted = src != ticker or ticker in FIVE_MIN_LEVEL_REF
     five = pd.DataFrame()
