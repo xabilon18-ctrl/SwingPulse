@@ -8199,6 +8199,15 @@
       : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
 
+  // Monday of the UTC week a 'YYYY-MM-DD' falls in — a 5m day line whose week
+  // differs from the previous line's is a WEEK START (bold dashed, user
+  // 2026-09-24), whether that first bar is Monday or a later day after a holiday.
+  function reelWeekKey(day) {
+    const d = new Date(day.slice(0, 10) + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+
   // "Tue 22" — a 5m day line's label ("Thu 1 Oct" on the first of a month).
   function reelDayLineLabel(ts, withMonth) {
     const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
@@ -8232,7 +8241,8 @@
           if (wd === 0 || wd === 6) weekend = true;
           if (prevDay !== null) {
             const month = day.slice(0, 7) !== prevDay.slice(0, 7);
-            lines.push({ fi: i, month, label: reelDayLineLabel(day, month) });
+            const week  = reelWeekKey(day) !== reelWeekKey(prevDay);
+            lines.push({ fi: i, month, week, label: reelDayLineLabel(day, month) });
           }
           prevDay = day;
         }
@@ -8240,15 +8250,18 @@
         const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
         if (perMs > 0 && prevDay) {
           const d = new Date(prevDay + 'T00:00:00Z');
-          let added = 0, lastMonth = d.getUTCMonth();
+          let added = 0, lastMonth = d.getUTCMonth(), lastWeek = reelWeekKey(prevDay);
           while (added < REEL_FUTURE_DAYS) {
             d.setUTCDate(d.getUTCDate() + 1);
             const wd = d.getUTCDay();
             if (!weekend && (wd === 0 || wd === 6)) continue;
             const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs;
+            const iso = d.toISOString();
             const month = d.getUTCMonth() !== lastMonth;
+            const week  = reelWeekKey(iso) !== lastWeek;
             lastMonth = d.getUTCMonth();
-            lines.push({ fi, future: true, month, label: reelDayLineLabel(d.toISOString(), month) });
+            lastWeek  = reelWeekKey(iso);
+            lines.push({ fi, future: true, month, week, label: reelDayLineLabel(iso, month) });
             added++;
           }
         }
@@ -8661,6 +8674,7 @@
       const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
       const room = (x - lastLabelX) >= LABEL_MIN_GAP;
       const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin'
+                 : t.week  ? 'reel-tgrid reel-tgrid-week'
                  : t.month ? 'reel-tgrid reel-tgrid-month'
                  : 'reel-tgrid';
       const label = (!near && room);
