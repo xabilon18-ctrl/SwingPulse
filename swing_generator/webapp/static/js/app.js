@@ -6151,10 +6151,12 @@
   // stay valid so drawings coloured before today keep theirs.
   const DRAW_TOY = { channel: '#3b82f6', trend: '#22c55e', hline: '#f97316',
                      vline: '#a855f7', ladder: '#ec4899', entry: '#f59e0b' };
-  const DRAW_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#f59e0b', '#ef4444', '#14140f'];
+  //
+  // DEFAULT IS BLACK again (user, same day: "the default colour is black not
+  // pink"). The toy colours stay in the palette, after black.
+  const DRAW_COLORS = ['#14140f', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#f59e0b', '#ef4444'];
   const DRAW_COLORS_OK = new Set([...DRAW_COLORS, '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea']);
-  const drawColor = d => (d && DRAW_COLORS_OK.has(d.color)) ? d.color
-                        : (d && DRAW_TOY[d.kind || 'channel']) || DRAW_COLORS[0];
+  const drawColor = d => (d && DRAW_COLORS_OK.has(d.color)) ? d.color : DRAW_COLORS[0];
 
   // The Draw bar: a PROPERTIES row for the selected drawing above the four
   // tools. Card and full screen used to carry two hand-copied toolbars; one
