@@ -805,7 +805,7 @@
   // (2026-09-24); sw.js now shows macro events and a plain update notice only.
 
   // ── Web Push subscribe (background notifications) ─────────────────────
-  const VAPID_PUBLIC_KEY = 'BOO2qQLHIMhVkOKGkL2ClLs2RPVz_Lc5y10woA_OaU0FdAoFVYU4ZrWDy-OSzg6-TBgxELpbmKlrsahsdlN4i_w';
+  const VAPID_PUBLIC_KEY = 'BGTt0ibpBc0izJ1IsjGg9YD8SLYoQpf2jYtCpECqnWAIDDuKeiULpkJ-Ocf4Yf-oNtBJKhb1Dv4PGyuGPRmGEZc';
 
   function urlBase64ToUint8Array(base64) {
     const padding = '='.repeat((4 - base64.length % 4) % 4);

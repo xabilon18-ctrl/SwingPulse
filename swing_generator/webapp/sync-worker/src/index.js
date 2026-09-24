@@ -86,7 +86,7 @@ async function latestRun(env) {
 // service in every request and to the browser in applicationServerKey).
 // The PRIVATE half lives in `wrangler secret put VAPID_PRIVATE` — it used to
 // sit in this file in plaintext.
-const VAPID_PUBLIC  = 'BOO2qQLHIMhVkOKGkL2ClLs2RPVz_Lc5y10woA_OaU0FdAoFVYU4ZrWDy-OSzg6-TBgxELpbmKlrsahsdlN4i_w';
+const VAPID_PUBLIC  = 'BGTt0ibpBc0izJ1IsjGg9YD8SLYoQpf2jYtCpECqnWAIDDuKeiULpkJ-Ocf4Yf-oNtBJKhb1Dv4PGyuGPRmGEZc';
 const VAPID_SUBJECT = 'mailto:xabilon18@gmail.com';
 
 const MAX_FAILS   = 10;          // wrong passwords per user…
