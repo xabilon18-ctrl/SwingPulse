@@ -10244,23 +10244,59 @@
     const file = new File([blob], `${name.replace(/[^\w.-]+/g, '_')}-${tfMeta().code}.png`,
                           { type: 'image/png' });
 
-    // Share sheet where the device has one (iOS/Android), download everywhere
-    // else. canShare({files}) is the only honest test — navigator.share alone
-    // exists on browsers that refuse file payloads.
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    showSharePreview(blob, file, name, host);
+  }
+
+  // The picture is shown BEFORE it goes anywhere: the image, then Share / Save /
+  // Cancel. A side benefit: the share sheet now opens from a fresh tap. It used
+  // to open at the end of an async render, by which time Safari can consider the
+  // original tap spent and refuse navigator.share.
+  function showSharePreview(blob, file, name, host) {
+    const url = URL.createObjectURL(blob);
+    const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    const ov = document.createElement('div');
+    ov.className = 'share-prev';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-label', 'Share preview');
+    ov.innerHTML = `
+      <div class="share-prev-img"><img alt="Preview of the shared ${name} chart"></div>
+      <div class="share-prev-bar">
+        <button type="button" class="share-prev-btn" data-sp="cancel">Cancel</button>
+        <button type="button" class="share-prev-btn" data-sp="save">Save</button>
+        ${canShareFile ? '<button type="button" class="share-prev-btn is-main" data-sp="share">Share</button>' : ''}
+      </div>`;
+    ov.querySelector('img').src = url;
+
+    const close = () => {
+      ov.remove();
+      document.removeEventListener('keydown', onKey);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    const save = () => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      close();
+      if (host) reelHint(host, 'Chart saved as ' + file.name);
+    };
+
+    ov.addEventListener('click', async e => {
+      const btn = e.target.closest('[data-sp]');
+      if (!btn) { if (e.target === ov) close(); return; }
+      const act = btn.dataset.sp;
+      if (act === 'cancel') return close();
+      if (act === 'save')   return save();
       try {
         await navigator.share({ files: [file], title: `${name} · ${tfMeta().label}` });
-        return;
+        close();
       } catch (err) {
-        if (err && err.name === 'AbortError') return;   // user closed the sheet
+        if (!err || err.name !== 'AbortError') save();   // share refused → fall back to saving
       }
-    }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = file.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    if (host) reelHint(host, 'Chart saved as ' + file.name);
+    });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
   }
 
   // ── Chart gestures: pan sideways, and drag the channel handles ───────
