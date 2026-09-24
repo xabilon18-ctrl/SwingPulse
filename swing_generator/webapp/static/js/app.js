@@ -7489,7 +7489,12 @@
   // window/last-third pair when the window holds fewer than two legs — a chart
   // that has run one way the whole time still gets two channels rather than one
   // or none, and dragging one is how the reader tells it what they see.
+  // OFF since 2026-09-24 (user: "remove the channels on all charts, I will add
+  // manually"). Charts open with NO channels; the Drawing tools still add one
+  // fitted to the window. The fitting code below is kept, unreached.
+  const REEL_SEED_CHANNELS = false;
   function reelSeedChannels(b) {
+    if (!REEL_SEED_CHANNELS) return [];
     const n = b && b.c ? b.c.length : 0;
     if (n < 24) return [];
     const out = [];
@@ -8204,11 +8209,7 @@
   // Monday of the UTC week a 'YYYY-MM-DD' falls in — a 5m day line whose week
   // differs from the previous line's is a WEEK START (bold dashed, user
   // 2026-09-24), whether that first bar is Monday or a later day after a holiday.
-  function reelWeekKey(day) {
-    const d = new Date(day.slice(0, 10) + 'T00:00:00Z');
-    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-    return d.toISOString().slice(0, 10);
-  }
+
 
   // "Tue 22" — a 5m day line's label ("Thu 1 Oct" on the first of a month).
   function reelDayLineLabel(ts, withMonth) {
@@ -8217,6 +8218,79 @@
     const o = { weekday: 'short', day: 'numeric', timeZone: 'UTC' };
     if (withMonth) o.month = 'short';
     return d.toLocaleDateString('en-GB', o);
+  }
+
+  // Bundle-indexed, evenly spaced 5m day/week lines — see the 'day' mode note.
+  function reelEvenDayGrid(src) {
+    const sn = src.t.length;
+    if (sn < 2) return [];
+    const DAY = 86400000;
+    const dayMs = str => Date.parse(String(str).slice(0, 10) + 'T00:00:00Z');
+    let seven = false;
+    for (let i = 0; i < sn && !seven; i++) if (new Date(dayMs(src.t[i])).getUTCDay() === 6) seven = true;
+    const dpw = seven ? 7 : 5;
+    // Monday (ms) of the trading week a bar belongs to. On a 5-day instrument a
+    // Saturday/Sunday bar is the NEXT week's open.
+    const weekOf = str => {
+      const d = dayMs(str), wd = new Date(d).getUTCDay();
+      if (!seven && (wd === 0 || wd === 6)) return d + (wd === 0 ? 1 : 2) * DAY;
+      return d - ((wd + 6) % 7) * DAY;
+    };
+    const starts = [];                       // [bar index, week Monday ms]
+    let prev = null;
+    for (let i = 0; i < sn; i++) {
+      const w = weekOf(src.t[i]);
+      if (w !== prev) { if (prev !== null) starts.push([i, w]); prev = w; }
+    }
+    let A, monday, step;
+    if (starts.length >= 2) {
+      const [i0, w0] = starts[0], [i1, w1] = starts[starts.length - 1];
+      const weeks = Math.round((w1 - w0) / (7 * DAY));
+      step = (i1 - i0) / (weeks * dpw);
+      A = i1; monday = w1;
+    } else {
+      // Under two weeks of bars: average over the trading days present.
+      const days = new Set(src.t.map(t => String(t).slice(0, 10))).size || 1;
+      step = sn / days;
+      A = starts.length ? starts[0][0] : 0;
+      monday = starts.length ? starts[0][1] : weekOf(src.t[0]);
+    }
+    if (!(step > 0)) return [];
+    // ANCHOR ON THE LATEST TRADING DAY'S FIRST BAR, not the week start, so the
+    // lines nearest "now" sit on the right day; the average step's drift then
+    // falls on the old weeks rather than on today. `monday` is that day's week.
+    {
+      const tradeDay = str => {
+        const d = dayMs(str), wd = new Date(d).getUTCDay();
+        return (!seven && (wd === 0 || wd === 6)) ? d + (wd === 0 ? 1 : 2) * DAY : d;
+      };
+      const lastDay = tradeDay(src.t[sn - 1]);
+      let i = sn - 1;
+      while (i > 0 && tradeDay(src.t[i - 1]) === lastDay) i--;
+      const dow = (new Date(lastDay).getUTCDay() + 6) % 7;   // Mon = 0
+      monday = lastDay - dow * DAY;
+      A = i - dow * step;                                    // where Monday falls
+    }
+    const dateOfK = k => {
+      const wk = Math.floor(k / dpw), dow = k - wk * dpw;
+      return new Date(monday + (wk * 7 + dow) * DAY);
+    };
+    const lines = [];
+    const kMin = Math.ceil(-A / step);
+    const kMax = dpw * (1 + REEL_FUTURE_WEEKS);
+    let lastMonth = null;
+    for (let k = kMin; k <= kMax; k++) {
+      const week = ((k % dpw) + dpw) % dpw === 0;
+      const d = dateOfK(k);
+      const month = lastMonth !== null && d.getUTCMonth() !== lastMonth;
+      lastMonth = d.getUTCMonth();
+      if (k >= dpw && !week) continue;       // past the current week: week starts only
+      const fi = A + k * step;
+      if (fi <= 0) continue;
+      lines.push({ fi, week, future: fi > sn - 1,
+                   label: reelDayLineLabel(d.toISOString(), month) });
+    }
+    return lines;
   }
 
   function reelTimeGrid(b, tf) {
@@ -8229,49 +8303,18 @@
     // onto the drawn slice with `from`. Future days are projected at the
     // bundle's average ms/bar (overnight gaps included) for the reason the
     // month projection below explains.
+    // EVENLY SPACED (user, 2026-09-24: "your lines are not even"). A line on
+    // each day's first bar is uneven on a bar-indexed axis — days hold
+    // different bar counts (short Fridays, a commodity's Sunday-evening open).
+    // So one step = the bundle's average bars per TRADING DAY, measured between
+    // its first and last week starts, and every line past and future sits a
+    // whole number of steps from the current week's start: 5 per week for
+    // anything that does not trade Saturday (stocks, indices, commodities,
+    // forex — their Sunday-evening bars count as Monday), 7 for crypto.
+    // Future: every remaining day of the current week, then week starts only.
     if (mode === 'day') {
       const src = b._src || b, from = b._from || 0, sn = src.t.length;
-      // Bundle-indexed lines, memoised on the bundle like reelBarTimes (a new
-      // publish brings new bundle objects); only the `from` shift is per-draw.
-      if (!src._dayGrid) {
-        const lines = [];
-        let prevDay = null, weekend = false;
-        for (let i = 0; i < sn; i++) {
-          const day = String(src.t[i]).slice(0, 10);
-          if (day === prevDay) continue;
-          const wd = new Date(day + 'T00:00:00Z').getUTCDay();
-          if (wd === 0 || wd === 6) weekend = true;
-          if (prevDay !== null) {
-            const month = day.slice(0, 7) !== prevDay.slice(0, 7);
-            const week  = reelWeekKey(day) !== reelWeekKey(prevDay);
-            lines.push({ fi: i, month, week, label: reelDayLineLabel(day, month) });
-          }
-          prevDay = day;
-        }
-        const bt = reelBarTimes(src);
-        const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
-        if (perMs > 0 && prevDay) {
-          const d = new Date(prevDay + 'T00:00:00Z');
-          const thisWeek = reelWeekKey(prevDay);
-          let weeks = 0, lastMonth = d.getUTCMonth(), lastWeek = thisWeek;
-          while (weeks < REEL_FUTURE_WEEKS) {
-            d.setUTCDate(d.getUTCDate() + 1);
-            const wd = d.getUTCDay();
-            if (!weekend && (wd === 0 || wd === 6)) continue;
-            const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs;
-            const iso = d.toISOString();
-            const month = d.getUTCMonth() !== lastMonth;
-            const week  = reelWeekKey(iso) !== lastWeek;
-            lastMonth = d.getUTCMonth();
-            lastWeek  = reelWeekKey(iso);
-            if (week) weeks++;
-            // Every day of the current week; after it, week starts only.
-            if (reelWeekKey(iso) === thisWeek || week)
-              lines.push({ fi, future: true, month, week, label: reelDayLineLabel(iso, month) });
-          }
-        }
-        src._dayGrid = lines;
-      }
+      if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
       return src._dayGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
     }
 
