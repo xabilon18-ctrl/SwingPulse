@@ -9327,3 +9327,24 @@ body.chart-full-open { overflow: hidden; }
 /* Full card width (it shrank to its content once the rows could wrap). */
 .reel-toolbar { width: calc(100% - 12px); max-width: 560px; box-sizing: border-box; }
 .reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 7px; margin: 0 1px; }
+
+/* ── Drawings on the chart as TOYS (2026-09-24, user) ───────────────────────
+   Toy colour per tool (drawColor), dotted lines as chunky round BEADS, a soft
+   plastic shadow, candy drag-knobs and haloed labels. The ladder's bold
+   dividers keep the 5m week line's dash and weight — the user's earlier call. */
+.reel-draw { filter: drop-shadow(0 1.5px 1.5px rgba(0,0,0,.28)); }
+.reel-ch-edge { stroke-width: 7; stroke-dasharray: 0.1 12; stroke-linecap: round; stroke-opacity: 1; }
+.reel-ch-mid  { stroke-width: 5; stroke-dasharray: 0.1 13; stroke-linecap: round; stroke-opacity: .75; }
+.reel-draw.is-sel .reel-ch-edge { stroke-width: 9; stroke-opacity: 1; }
+.reel-draw .reel-ch-edge.is-bold,
+.reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 11; stroke-dasharray: 0.1 14; stroke-opacity: 1; }
+.reel-ladder { stroke-width: 5; stroke-dasharray: 0.1 11; stroke-linecap: round; stroke-opacity: .9; }
+.reel-ladder-key { stroke-width: 6; stroke-dasharray: 14 6; stroke-linecap: round; stroke-opacity: 1; }
+.reel-ladder-lbl { fill: var(--reel-ch-color, #ec4899); paint-order: stroke; stroke: #fff; stroke-width: 7px; stroke-linejoin: round; font-weight: 800; }
+.reel-ch-lvl { paint-order: stroke; stroke: #fff; stroke-width: 6px; stroke-linejoin: round; }
+.reel-entry { stroke-width: 5; }
+.reel-entry.is-bold { stroke-width: 8; }
+/* Candy knobs: solid toy colour, thick white rim. */
+.reel-ch-h { fill: var(--reel-ch-color, #3b82f6); fill-opacity: 1; stroke: #fff; stroke-width: 5; }
+.reel-ch-h:active { fill-opacity: .85; }
+.reel-ch-h.is-idle { fill-opacity: .45; stroke-opacity: .8; }

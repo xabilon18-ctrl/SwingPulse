@@ -6143,8 +6143,18 @@
   // plot ground; the first is the default ink every drawing had before colour
   // existed. A stored colour not on this list is ignored rather than injected
   // into markup — the value arrives through sync.
-  const DRAW_COLORS = ['#14140f', '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea'];
-  const drawColor = d => (d && DRAW_COLORS.includes(d.color)) ? d.color : DRAW_COLORS[0];
+  //
+  // TOY COLOURS (2026-09-24, user: "the actual tools to look like toys — the
+  // channel, the percentage line etc"). A drawing with no colour of its own
+  // takes its TOOL's toy colour — the same as its button in the Draw bar —
+  // instead of black ink. The palette leads with those six; the older colours
+  // stay valid so drawings coloured before today keep theirs.
+  const DRAW_TOY = { channel: '#3b82f6', trend: '#22c55e', hline: '#f97316',
+                     vline: '#a855f7', ladder: '#ec4899', entry: '#f59e0b' };
+  const DRAW_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#f59e0b', '#ef4444', '#14140f'];
+  const DRAW_COLORS_OK = new Set([...DRAW_COLORS, '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea']);
+  const drawColor = d => (d && DRAW_COLORS_OK.has(d.color)) ? d.color
+                        : (d && DRAW_TOY[d.kind || 'channel']) || DRAW_COLORS[0];
 
   // The Draw bar: a PROPERTIES row for the selected drawing above the four
   // tools. Card and full screen used to carry two hand-copied toolbars; one
