@@ -3221,7 +3221,6 @@
   // "next" sector: tested 2013-26, sectors in Improving reached Leading within
   // 4 weeks 57-62% of the time but did not beat the average sector afterwards,
   // and the order of leaders did not repeat (1 of 19 later changes called).
-  const ROT_ZONES = ['Leading', 'Improving', 'Weakening', 'Lagging'];
   const ROT_COL = { Leading: 'var(--accent)', Improving: 'var(--volume)',
                     Weakening: 'var(--text-secondary)', Lagging: 'var(--neutral)' };
   const ROT_ABBR = { 'Basic Materials': 'Materials', 'Communication Services': 'Comms',
@@ -3285,6 +3284,54 @@
     return out + '</svg>';
   }
 
+  // ── Rotation BOARD (2026-09-24, replaces the wheel as the default view) ──
+  // The wheel's tails and labels piled on top of each other on a phone. The
+  // board keeps the wheel's geometry — Improving | Leading over Lagging |
+  // Weakening — as four tiles of plain sector names, strongest first, each with
+  // an arrow for the way it moved over the last week, and a "This week" line
+  // naming every sector that changed tile. Zones come from the same strength/
+  // direction signs rotation.py uses; the wheel stays behind "Show paths".
+  const rotZoneOf = p => p[0] >= 0 ? (p[1] >= 0 ? 'Leading' : 'Weakening')
+                                   : (p[1] >= 0 ? 'Improving' : 'Lagging');
+  let rotShowPaths = false;
+  try { rotShowPaths = localStorage.getItem('swingpulse-rot-paths') === '1'; } catch (_) {}
+
+  function rotArrow(s) {
+    const t = s.trail || [];
+    if (t.length < 2) return '';
+    const [a, b] = [t[t.length - 2], t[t.length - 1]];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    if (!dx && !dy) return '';
+    // Screen y points down, so the map's "up" is a negative rotation.
+    const deg = -Math.atan2(dy, dx) * 180 / Math.PI;
+    return `<span class="rot-arrow" style="transform:rotate(${deg.toFixed(0)}deg)" aria-hidden="true">➜</span>`;
+  }
+
+  function rotationBoardHtml(sectors) {
+    const tile = z => {
+      const list = sectors.filter(s => s.zone === z)
+        .sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0));
+      return `<div class="rot-tile rot-tile-${z.toLowerCase()}">
+        <div class="rot-tile-hd"><span>${z}</span><span class="rot-tile-n">${list.length}</span></div>
+        ${list.length ? list.map(s => {
+          const t = s.trail || [];
+          const was = t.length >= 2 ? rotZoneOf(t[t.length - 2]) : s.zone;
+          const fresh = was !== s.zone;
+          return `<button class="rot-row${fresh ? ' is-new' : ''}" data-rot-sector="${escText(s.name)}" title="${escText(s.name)} · strength ${s.strength} · direction ${s.direction}${fresh ? ' · was ' + was : ''}">
+            <span class="rot-row-name">${escText(rotShort(s.name))}</span>${rotArrow(s)}</button>`;
+        }).join('') : '<div class="rot-tile-empty">—</div>'}
+      </div>`;
+    };
+    const moves = sectors.map(s => {
+      const t = s.trail || [];
+      const was = t.length >= 2 ? rotZoneOf(t[t.length - 2]) : s.zone;
+      return was !== s.zone ? `<b>${escText(rotShort(s.name))}</b> → ${s.zone}` : '';
+    }).filter(Boolean);
+    return `<div class="rot-board">${['Improving', 'Leading', 'Lagging', 'Weakening'].map(tile).join('')}</div>
+      <div class="rot-moves">${moves.length ? '<span class="rot-moves-lbl">This week</span> ' + moves.join(' · ') : '<span class="rot-moves-lbl">This week</span> no sector changed zone'}</div>
+      <div class="rot-axes">← weaker than average · stronger → &nbsp;|&nbsp; ↑ gaining · losing ↓ &nbsp;|&nbsp; ➜ last week's move</div>`;
+  }
+
   function renderRotation() {
     const card = document.getElementById('rotationCard');
     const body = document.getElementById('rotationBody');
@@ -3296,14 +3343,6 @@
     const t = d.thermometer || {};
     const wk = document.getElementById('rotationWeek');
     if (wk) wk.textContent = 'week to ' + rotDate(w.week);
-    const byZone = z => w.sectors.filter(s => s.zone === z).sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0));
-    const zoneRow = z => {
-      const list = byZone(z);
-      if (!list.length) return '';
-      return `<div class="rot-zone"><span class="rot-zone-lbl rot-z-${z.toLowerCase()}">${z}</span>`
-        + list.map(s => `<button class="rot-chip" data-rot-sector="${escText(s.name)}">${escText(rotShort(s.name))}</button>`).join('')
-        + `</div>`;
-    };
     const before = (w.previous || []).map(p => `${escText(rotShort(p.name))} <span class="rot-dim">${rotDate(p.from)}–${rotDate(p.to)}</span>`).join(' · ');
     const thermoWord = t.zone === 'Washout' ? 'Washout, a broad sell-off' : t.zone === 'Stretched' ? 'Stretched, most markets already up' : 'Normal';
     body.innerHTML = `
@@ -3312,9 +3351,16 @@
         ${before ? `<div class="rot-before">Before: ${before}</div>` : ''}
         ${t.pct_above_200d != null ? `<div class="rot-thermo">${t.pct_above_200d}% of markets above their 200-day average · ${thermoWord} (${t.pct_4w_ago}% four weeks ago)</div>` : ''}
       </div>
-      ${rotationWheelSvg(w.sectors)}
-      <div class="rot-zones">${ROT_ZONES.map(zoneRow).join('')}</div>
-      <p class="rot-note">Where money has been moving, not where it goes next. Each dot is a sector against the average sector; tails show the last 8 weeks. In testing (2013–26), sectors in Improving reached Leading within 4 weeks 57–62% of the time but did not beat the average sector afterwards, and the order of leaders did not repeat. Tap a sector to see its markets.</p>`;
+      ${rotationBoardHtml(w.sectors)}
+      <button class="rot-paths-toggle" data-rot-paths aria-expanded="${rotShowPaths}">${rotShowPaths ? 'Hide paths' : 'Show paths (8 weeks)'}</button>
+      ${rotShowPaths ? rotationWheelSvg(w.sectors) : ''}
+      <p class="rot-note">Where money has been moving, not where it goes next. Each sector is measured against the average sector. In testing (2013–26), sectors in Improving reached Leading within 4 weeks 57–62% of the time but did not beat the average sector afterwards, and the order of leaders did not repeat. Tap a sector to see its markets.</p>`;
+    const tg = body.querySelector('[data-rot-paths]');
+    if (tg) tg.addEventListener('click', () => {
+      rotShowPaths = !rotShowPaths;
+      try { localStorage.setItem('swingpulse-rot-paths', rotShowPaths ? '1' : '0'); } catch (_) {}
+      renderRotation();
+    });
     body.querySelectorAll('[data-rot-sector]').forEach(el =>
       el.addEventListener('click', () => srGoToSector(el.dataset.rotSector)));
   }
