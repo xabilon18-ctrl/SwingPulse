@@ -25,7 +25,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set();   // none since 1H and 4H were removed (2026-09-11)
+  const INTRADAY_TFS = new Set(['5m']);   // 5m since 2026-09-24 (1H/4H removed 2026-09-11)
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -126,12 +126,10 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
-    // 5m is CHART ONLY, and the fastest row in the table. `chartOnly` is what
-    // tells the rest of the app that no m5_ column exists on a row, so a
-    // prefixed read returns nothing at all, and anything reading one must
-    // borrow the signal timeframe instead of silently answering "" / NEUTRAL.
-    // 5m replaced the 10m and 3D charts on 2026-09-24 (user).
-    { code: '5m', prefix: 'm5_', label: '5m', tv: '5', bar: '5-minute bars', barShort: '25-bar', chartOnly: true },
+    // 5m replaced the 10m and 3D charts on 2026-09-24 (user), and got B1/S1
+    // SIGNALS the same day (m5_ columns; B1/S1 only, a fire stays on the row
+    // for 24h — see config.TIMEFRAMES). Signals tab + Charts; Dashboard is Daily.
+    { code: '5m', prefix: 'm5_', label: '5m', tv: '5', bar: '5-minute bars', barShort: '25-bar' },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
@@ -147,8 +145,8 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['D']);
-  const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'] };
+  const SIGNAL_TFS = new Set(['5m', 'D']);
+  const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
   // Run fn with the signal timeframe active when the current one is a chart
@@ -907,6 +905,14 @@
     return tfMeta().prefix + field;
   }
 
+  // A bar count as the reader's unit: days on Daily, TRADING time on 5m
+  // ("20m", "3h") — a 5m run of 4 bars is twenty minutes, not four days.
+  function barsLabel(n) {
+    if (timeframe !== '5m') return `${n}d`;
+    const mins = n * 5;
+    return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
+  }
+
   // Relative volume (RVOL): today's volume ÷ rolling-average volume, for the
   // active timeframe. Returns null when volume isn't reported (forex/CFDs) or
   // the average is zero, so callers can simply skip rendering.
@@ -1440,7 +1446,7 @@
   function setTimeframe(tf, anchorName) {
     if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
     if (currentTab === 'charts') tfPrefs.charts = tf;
-    else if (currentTab !== 'trends') tfPrefs.signals = tf;
+    else if (currentTab !== 'trends' && currentTab !== 'dashboard') tfPrefs.signals = tf;
     try {
       localStorage.setItem('swingpulse-tf', tfPrefs.signals);
       localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
@@ -1486,7 +1492,7 @@
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
     tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
   } catch (e) {}
-  timeframe = tfPrefs.signals;   // the app opens on the Dashboard
+  timeframe = 'D';   // the app opens on the Dashboard, which is Daily-only
 
   // Wire the global header timeframe toggle (4H / Daily)
   document.querySelectorAll('.tf-switch-btn').forEach(b => {
@@ -1547,7 +1553,8 @@
     // Each tab shows its own timeframe (TAB_TFS): Charts restores the one last
     // used there, the signal tabs theirs, and Trends is always Daily — it used
     // to only relabel itself "Daily" while every badge and price on it stayed 4H.
-    const _wantTf = tab === 'charts' ? tfPrefs.charts : tab === 'trends' ? 'D' : tfPrefs.signals;
+    const _wantTf = tab === 'charts' ? tfPrefs.charts
+                  : (tab === 'trends' || tab === 'dashboard') ? 'D' : tfPrefs.signals;
     if (_wantTf !== timeframe) applyTimeframe(_wantTf);
     syncTfButtons();
     // Start every tab at the top. The panes share the document's scroll
@@ -4314,7 +4321,7 @@
           push(60, item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : '');
           push(55, compression ? `<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE${!isNaN(ribbonSpread) ? ' ' + ribbonSpread.toFixed(1) + '%' : ''}</span>` : '');
           push(35, trendMaturityBadge(item));
-          push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${runDays}d run</span>` : '');
+          push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${barsLabel(runDays)} run</span>` : '');
           extras.sort((a, b) => b.p - a.p);
           const MAX = 4;
           const visible = extras.slice(0, MAX).map(b => b.html).join('');
@@ -5098,7 +5105,7 @@
           <div class="mh-section-title">Signal Status</div>
           <div class="modal-status-card ${buy?'status-buy':sell?'status-sell':'status-neutral'}">
             <div class="status-main">${item[f('confirmation_status')]||'No confirmed signal'}</div>
-            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${item[f('last_signal_days_ago')]}d ago)</div>`:''}
+            ${item[f('last_signal_type')]?`<div class="status-sub">Last: <strong>${item[f('last_signal_type')]}</strong> on ${item[f('last_signal_date')]} (${barsLabel(item[f('last_signal_days_ago')])} ago)</div>`:''}
             ${item[f('volume_spike_flag')]==='yes'&&sig?`<div class="status-sub" style="color:var(--volume)">Volume spike on signal bar</div>`:''}
           </div>
         </div>
@@ -5776,11 +5783,11 @@
     lines.push('───────────────');
 
     if (sig && dirLabel) lines.push(`${dirLabel} · ${sig}`);
-    else if (trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${run}d run` : ''}`);
+    else if (trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${barsLabel(run)} run` : ''}`);
 
     lines.push(`💰 ${price}${rocStr ? '  ' + rocStr + ' (5d)' : ''}`);
 
-    if (sig && trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${run}d run` : ''}`);
+    if (sig && trend) lines.push(`${trendEmoji} ${trend.charAt(0) + trend.slice(1).toLowerCase()}${!isNaN(run) && run > 0 ? ` · ${barsLabel(run)} run` : ''}`);
     if (volSpk) lines.push(`📊 Volume Spike`);
 
     lines.push('───────────────');

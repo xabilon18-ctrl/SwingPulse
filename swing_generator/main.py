@@ -34,7 +34,8 @@ import _active_config as config
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D,
+    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_5M,
+    FIVE_MIN_SIGNAL_CODES, FIVE_MIN_SIGNAL_LIVE_HOURS,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
@@ -782,8 +783,61 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h4)]
 
 
+def _process_5m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
+                now_utc: Optional[pd.Timestamp] = None) -> dict:
+    """5m B1/S1 signals -> the m5_ columns of the row (empty dict if no data).
+
+    Same engine as Daily (add_signals), with three differences, all because a
+    5m bar is not a day:
+      * B1/S1 ONLY. B2-B4/S2-S4 fires are blanked after the engine runs; the
+        trend latch they sit on is untouched, so B1/S1 fire exactly as they
+        would with the others present.
+      * NO RE-FIRES (refire_pct=0). The re-fire band is 5% of MA500 for 10
+        CALENDAR days — on 5m that is thousands of bars in which almost every
+        bar qualifies. Only the real cross of all three MAs fires.
+      * A fire stays LIVE for FIVE_MIN_SIGNAL_LIVE_HOURS: the runs are ~2h
+        apart, so "fired on the latest bar" would list almost nothing. While
+        live, m5_primary_signal / confidence / status and m5_date/m5_datetime
+        describe the FIRE bar; the price fields stay the latest bar's.
+    """
+    if df_5m is None or df_5m.empty:
+        return {}
+    five = _frame_5m(df_5m)
+    periods = _m5_ma_periods(five)
+    if len(periods) < 2:
+        return {}
+    five = add_all_indicators(five, ma_periods=periods)
+    five = add_signals(five, ma_periods=periods, refire_pct=0.0,
+                       new_trend_pct=0.05, tf='5m', asset_class=asset_class)
+    drop = five['primary_signal'].astype(str).ne('') & \
+           ~five['primary_signal'].isin(FIVE_MIN_SIGNAL_CODES)
+    five.loc[drop, ['primary_signal', 'signal_confidence', 'confirmation_status']] = ''
+
+    data, _ = _extract_row(five, run_date, prefix='m5_', ma_periods=periods,
+                           signal_lookback=SIGNAL_LOOKBACK_5M)
+    if data is None:
+        return {}
+
+    now = now_utc if now_utc is not None else pd.Timestamp.utcnow().tz_localize(None)
+    fires = five[five['primary_signal'].isin(FIVE_MIN_SIGNAL_CODES)]
+    fires = fires[fires.index >= now - pd.Timedelta(hours=FIVE_MIN_SIGNAL_LIVE_HOURS)]
+    if not fires.empty:
+        ts, fr = fires.index[-1], fires.iloc[-1]
+        data.update({
+            'm5_primary_signal':     fr['primary_signal'],
+            'm5_signal_confidence':  fr.get('signal_confidence', '') or '',
+            'm5_confirmation_status': fr.get('confirmation_status', '') or '',
+            'm5_date':               str(ts.date()),
+            'm5_datetime':           str(ts),
+        })
+    else:
+        data.update({'m5_primary_signal': '', 'm5_signal_confidence': ''})
+    return data
+
+
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
-                       run_date: date, hourly_df: pd.DataFrame = None) -> Optional[dict]:
+                       run_date: date, hourly_df: pd.DataFrame = None,
+                       df_5m: pd.DataFrame = None) -> Optional[dict]:
     """
     Run the full pipeline for one instrument (daily + 4H).
     Returns (row_dict, trend_segments) or (None, []) on error.
@@ -846,6 +900,13 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
         # ── 3-DAY and WEEKLY: removed 2026-09-24 (see config.TIMEFRAMES). ──
 
+        # ── 5-MINUTE: B1/S1 only (2026-09-24). A failure here must not drop
+        # the instrument's Daily row. ──
+        try:
+            m5_data = _process_5m(df_5m, _asset_cls, run_date)
+        except Exception:
+            m5_data = {}
+
         row = {
             'instrument_name':  inst_meta['name'],
             'group':            inst_meta.get('group', ''),
@@ -857,6 +918,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
+            **m5_data,
         }
 
         # ── Context confidence modifiers (edge-audit phase 3a) — needs the
@@ -962,14 +1024,26 @@ def _process_worker(args: tuple) -> tuple:
         # next run's re-request. See data_fetcher §"Finished sessions only".
         df = drop_unfinished_daily(df)
 
+        # The 5m cache (downloaded before this pool starts) feeds the m5_
+        # signals. Missing or unreadable -> no 5m columns, Daily unaffected.
+        df_5m = None
+        p5 = _cache_path(ticker, suffix='5m')
+        if os.path.exists(p5):
+            try:
+                df_5m = pd.read_parquet(p5)
+            except Exception:
+                df_5m = None
+
         row, trend_segs = process_instrument(
-            ticker, df.copy(), inst_meta, run_date
+            ticker, df.copy(), inst_meta, run_date, df_5m=df_5m
         )
 
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
-            status_str = f'OK{d_tag}'.strip()
+            m5_primary = row.get('m5_primary_signal', '')
+            m5_tag    = f' 5m[{m5_primary}]' if m5_primary else ''
+            status_str = f'OK{d_tag}{m5_tag}'.strip()
         else:
             status_str = 'skipped'
 
