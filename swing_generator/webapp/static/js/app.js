@@ -1858,6 +1858,52 @@
     }, 10 * 60 * 1000);                         // every 10 minutes
   }
 
+  // ── Market session of the data on screen (2026-09-24) ─────────────────
+  // Eight weekday runs land ~2h09 apart, 08:00-23:00 SAST, each named for the
+  // session it lands in — the same names as the cron comments in
+  // .github/workflows/publish.yml. The Daily button carries the name of the
+  // session the CURRENT data was fetched in, read off summary.fetched_at, so
+  // "Daily · US midday" says which prices you are looking at.
+  // Windows are SAST clock times (UTC+2, no DST) while US/EU summer time
+  // lasts; from Nov 1 the US session is an hour later and these move with the
+  // crons. Each window opens halfway between two landings.
+  const SESSIONS_SAST = [          // [minute of the SAST day it starts, name]
+    [ 7 * 60,      'Asia close' ],
+    [ 9 * 60 + 5,  'Europe open' ],
+    [11 * 60 + 13, 'Europe morning' ],
+    [13 * 60 + 21, 'Europe afternoon' ],
+    [15 * 60 + 30, 'US open' ],
+    [17 * 60 + 38, 'US midday' ],
+    [19 * 60 + 47, 'US afternoon' ],
+    [21 * 60 + 55, 'US close' ],
+  ];
+  function sessionNameAt(fetchedAt) {
+    if (!fetchedAt) return '';
+    // Published stamps are UTC ('...Z'); a local-dev stamp has no zone and is
+    // local clock time — parsed exactly as the date badge parses it.
+    const iso = fetchedAt.includes('T') ? fetchedAt : fetchedAt.replace(' ', 'T');
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const sast = new Date(d.getTime() + 2 * 3600e3);          // SAST = UTC+2
+    const day = sast.getUTCDay();                              // 0 Sun .. 6 Sat
+    if (day === 0 || day === 6) return 'Weekend · crypto';
+    const min = sast.getUTCHours() * 60 + sast.getUTCMinutes();
+    // Before 07:00 SAST is still last night's US close.
+    let name = 'US close';
+    for (const [start, n] of SESSIONS_SAST) if (min >= start) name = n;
+    return name;
+  }
+  function syncSessionLabel(fetchedAt) {
+    const btn = document.getElementById('tfBtnD');
+    if (!btn) return;
+    const name = sessionNameAt(fetchedAt);
+    btn.innerHTML = name
+      ? `Daily<span class="tf-sess">${name}</span>`
+      : 'Daily';
+    btn.classList.toggle('has-sess', !!name);
+    btn.title = name ? `Daily — data from the ${name} run` : '';
+  }
+
   async function loadAll() {
     try {
       const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
@@ -1918,6 +1964,7 @@
         }
       }
       document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
+      syncSessionLabel(sumRes.fetched_at);
 
       // Staleness warning: compare data AGE against the CI schedule, not the
       // calendar date — data from yesterday 22:00 is fine at 05:00 today.

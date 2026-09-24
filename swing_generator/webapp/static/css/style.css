@@ -191,6 +191,23 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   color: #0a0a0b;
   background: var(--accent, #fbbf24);
 }
+/* Daily carries the market session its data came from (2026-09-24) as a
+   second line. Padding drops by exactly the second line's height (2px gap +
+   10px line) so the button — and the bar the desktop .bottom-nav offset is
+   hard-synced to — stays 38px tall. */
+.tf-switch-btn.has-sess { padding: 6px 4px; }
+.tf-sess {
+  display: block;
+  margin-top: 2px;
+  font-size: 9.5px;
+  line-height: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  opacity: .8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Stand-in for the buttons on tabs the timeframe doesn't drive. Same padding
    and line-height as .tf-switch-btn so the bar keeps its exact height (the
    desktop .bottom-nav offset below is hard-synced to it). */
