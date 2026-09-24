@@ -21,6 +21,8 @@
   // Sector rotation wheel + market ranking + its paper record (rotation.py).
   let rotationData = null;
   let rotationPaper = null;
+  // Watchlist tab: latest price + previous close per instrument (quotes.json).
+  let quotesData = null;
   let leadersShowAll = false;
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
@@ -146,7 +148,7 @@
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
   const SIGNAL_TFS = new Set(['5m', 'D']);
-  const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'] };
+  const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
   // Run fn with the signal timeframe active when the current one is a chart
@@ -331,6 +333,7 @@
   // were never timestamped (drawings made before this shipped) — it is the old
   // whole-blob rule, applied to those charts alone.
   function channelMergeRemote(remote, remoteNewer) {
+    wlMergeRemote(remote);
     if (!remote || !remote.channels || typeof remote.channels !== 'object') return false;
     const rCh  = expandChannelStore(remote.channels);
     const rMod = (remote.channelsMod && typeof remote.channelsMod === 'object') ? remote.channelsMod : {};
@@ -562,7 +565,8 @@
 
     const stars = [...userStarred];
     const payload = { notes: instrumentNotes, channels: instChannels,
-                      channelsMod: channelMod, lastModified: Date.now() };
+                      channelsMod: channelMod, watchlists: wlStore,
+                      lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
     fetch(`${SYNC_WORKER}/sync?user=${syncUser}${clearing}`, {
@@ -1047,11 +1051,222 @@
     renderCurrentTab();
   }
 
+  // ── WATCHLIST TAB (2026-09-24, replaces Trends in the nav) ───────────────
+  // A TradingView-style price list: every instrument's latest price and its
+  // change on the previous close (quotes.json, rebuilt every run), grouped by
+  // market, filterable by class, sortable by move — plus the reader's OWN
+  // lists, which sync across devices with notes and drawings. A row opens an
+  // action sheet: chart in the app, TradingView, details, add to / remove
+  // from a list.
+  const WL_KEY = 'sp-watchlists';
+  let wlStore = (() => {
+    try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null');
+          if (v && Array.isArray(v.lists)) return v; } catch (_) {}
+    return { lists: [], mod: 0 };
+  })();
+  const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group' };
+  try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
+
+  function wlSave() {
+    wlStore.mod = Date.now();
+    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
+    try { syncPush(); } catch (_) {}
+  }
+  function wlSaveUi() { try { localStorage.setItem('swingpulse-wl-ui', JSON.stringify(wlUi)); } catch (_) {} }
+  // Newest wins, whole store — lists are edited a few times a week, never
+  // concurrently on two devices in any way worth a per-item merge.
+  function wlMergeRemote(remote) {
+    const r = remote && remote.watchlists;
+    if (!r || !Array.isArray(r.lists) || !(r.mod > (wlStore.mod || 0))) return;
+    wlStore = r;
+    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
+    if (currentTab === 'watchlist') renderWatchlist();
+  }
+
+  const WL_CLASSES = [['all', 'All'], ['Index', 'Indices'], ['Equity', 'Stocks'],
+                      ['Currency', 'Forex'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
+  const WL_CLASS_COL = { Index: '#3b6fd8', Equity: '#6b5bd6', Currency: '#1f9d8b',
+                         Commodity: '#c98a12', Crypto: '#d4602c' };
+
+  function wlBadge(name, cls) {
+    const digits = (String(name).match(/\d+/) || [''])[0];
+    const txt = digits && digits.length <= 3 ? digits : String(name).replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+    return `<span class="wl2-badge" style="background:${WL_CLASS_COL[cls] || '#555'}">${escText(txt)}</span>`;
+  }
+
+  function wlQuote(name) {
+    const q = quotesData && quotesData.q && quotesData.q[name];
+    if (!q || q.p == null) return null;
+    const ch = q.pc ? q.p - q.pc : null;
+    return { p: q.p, ch, pct: q.pc ? (q.p / q.pc - 1) * 100 : null, t: q.t };
+  }
+
+  // Price with thousands separators and decimals that suit its size.
+  function wlFmtPrice(v) {
+    if (v == null || !isFinite(v)) return '—';
+    const a = Math.abs(v), dec = a >= 1000 ? 1 : a >= 10 ? 2 : a >= 1 ? 4 : 5;
+    return Number(v).toLocaleString('en-US', { minimumFractionDigits: a >= 1000 ? 0 : dec, maximumFractionDigits: dec });
+  }
+  function wlFmtPct(v) {
+    if (v == null || !isFinite(v)) return '';
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + '%';
+  }
+
+  function wlFmtChange(v, ref) {
+    if (v == null || !isFinite(v)) return '';
+    const a = Math.abs(v), dec = ref >= 1000 ? 1 : ref >= 10 ? 2 : ref >= 1 ? 3 : 5;
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + a.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+
+  function renderWatchlist() {
+    const body = document.getElementById('wl2Body');
+    if (!body) return;
+    // As-of line: when the prices were published, in the reader's time.
+    const asOf = document.getElementById('wl2AsOf');
+    if (asOf) {
+      const g = quotesData && quotesData.generated_at ? new Date(quotesData.generated_at) : null;
+      asOf.textContent = g && !isNaN(g)
+        ? 'Prices from the ' + g.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' run · change vs previous close'
+        : 'Prices load with the next run';
+    }
+    // List pills: All markets + the reader's own lists + New.
+    const lists = wlStore.lists;
+    if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
+    const pills = [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all">All markets</button>`]
+      .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}">${escText(l.name)} <span class="wl2-n">${l.items.length}</span></button>`))
+      .concat([`<button class="wl2-pill wl2-new" data-wl-new>+ New list</button>`]);
+    if (wlUi.list !== 'all') pills.push(`<button class="wl2-pill wl2-edit" data-wl-manage>Rename / delete</button>`);
+    document.getElementById('wl2Lists').innerHTML = pills.join('');
+    document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
+      `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
+    const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
+    const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
+
+    // Rows.
+    let rows = allData.slice();
+    const cur = lists.find(l => l.id === wlUi.list);
+    if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
+    if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
+    const q = wlUi.q.trim().toLowerCase();
+    if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
+      || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
+      || String(d.group || '').toLowerCase().includes(q));
+    const pctOf = d => { const x = wlQuote(d.instrument_name); return x && x.pct != null ? x.pct : null; };
+    if (wlUi.sort === 'up' || wlUi.sort === 'down') {
+      const sgn = wlUi.sort === 'up' ? -1 : 1;
+      rows.sort((a, b) => { const x = pctOf(a), y = pctOf(b);
+        if (x == null) return 1; if (y == null) return -1; return sgn * (x - y); });
+    } else if (wlUi.sort === 'name') rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
+    else if (cur) rows.sort((a, b) => cur.items.indexOf(a.instrument_name) - cur.items.indexOf(b.instrument_name));
+    else {
+      // Markets first, then stocks: indices, commodities, forex, crypto, then
+      // every equity group — alphabetical inside each class.
+      const CLS_ORDER = { Index: 0, Commodity: 1, Currency: 2, Crypto: 3, Equity: 4 };
+      const co = d => CLS_ORDER[d.asset_class] ?? 5;
+      rows.sort((a, b) => (co(a) - co(b)) || String(a.group).localeCompare(String(b.group))
+                        || a.instrument_name.localeCompare(b.instrument_name));
+    }
+
+    const rowHtml = d => {
+      const n = d.instrument_name, x = wlQuote(n);
+      const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
+      return `<button class="wl2-row" data-wl-row="${escText(n)}">
+        ${wlBadge(n, d.asset_class)}
+        <span class="wl2-names"><span class="wl2-sym">${escText(n)}</span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
+        <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
+          <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span></span>
+      </button>`;
+    };
+    let html = '';
+    if (!rows.length) {
+      html = cur && !cur.items.length
+        ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
+        : `<div class="wl2-empty">Nothing matches.</div>`;
+    } else if (wlUi.sort === 'group' && !cur) {
+      let g = null;
+      rows.forEach(d => {
+        if (d.group !== g) { g = d.group; html += `<div class="wl2-group">${escText(g || 'Other')}</div>`; }
+        html += rowHtml(d);
+      });
+    } else html = rows.map(rowHtml).join('');
+    body.innerHTML = html;
+  }
+
+  // Action sheet for one row.
+  function wlOpenSheet(name) {
+    wlCloseSheet();
+    const lists = wlStore.lists;
+    const x = wlQuote(name);
+    const el = document.createElement('div');
+    el.className = 'wl2-sheet-wrap';
+    el.innerHTML = `<div class="wl2-sheet" role="dialog" aria-label="${escText(name)}">
+      <div class="wl2-sheet-hd"><b>${escText(name)}</b> <span>${escText(namesData[name] || '')}</span>
+        ${x ? `<div class="wl2-sheet-px">${wlFmtPrice(x.p)} <span class="wl2-chg${x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : ''}">${wlFmtPct(x.pct)}</span></div>` : ''}</div>
+      <button class="wl2-act" data-wl-act="chart">Open chart in app</button>
+      <a class="wl2-act" href="${tvUrl(name)}" target="_blank" rel="noopener">Open in TradingView</a>
+      <button class="wl2-act" data-wl-act="details">Details &amp; signal</button>
+      ${lists.map(l => l.items.includes(name)
+        ? `<button class="wl2-act" data-wl-act="rm" data-id="${escText(l.id)}">Remove from ${escText(l.name)}</button>`
+        : `<button class="wl2-act" data-wl-act="add" data-id="${escText(l.id)}">Add to ${escText(l.name)}</button>`).join('')}
+      <button class="wl2-act" data-wl-act="addnew">Add to a new list…</button>
+      <button class="wl2-act wl2-cancel" data-wl-act="close">Close</button>
+    </div>`;
+    el.addEventListener('click', e => {
+      if (e.target === el) return wlCloseSheet();
+      const b = e.target.closest('[data-wl-act]'); if (!b) return;
+      const act = b.dataset.wlAct, list = lists.find(l => l.id === b.dataset.id);
+      if (act === 'chart') { wlCloseSheet(); openChartFor(name); }
+      else if (act === 'details') { wlCloseSheet(); openModal(name); }
+      else if (act === 'add' && list) { list.items.push(name); wlSave(); wlCloseSheet(); renderWatchlist(); }
+      else if (act === 'rm' && list) { list.items = list.items.filter(n => n !== name); wlSave(); wlCloseSheet(); renderWatchlist(); }
+      else if (act === 'addnew') { const l = wlNewList(); if (l) { l.items.push(name); wlSave(); } wlCloseSheet(); renderWatchlist(); }
+      else if (act === 'close') wlCloseSheet();
+    });
+    document.body.appendChild(el);
+  }
+  function wlCloseSheet() { document.querySelectorAll('.wl2-sheet-wrap').forEach(n => n.remove()); }
+  function wlNewList() {
+    const name = (prompt('Name for the new list:') || '').trim();
+    if (!name) return null;
+    const l = { id: 'l' + Date.now().toString(36), name: name.slice(0, 30), items: [] };
+    wlStore.lists.push(l); wlSave();
+    return l;
+  }
+
+  // Wiring (delegated, once).
+  (function wlWire() {
+    const pane = document.getElementById('pane-watchlist');
+    if (!pane) return;
+    pane.addEventListener('click', e => {
+      const t = e.target;
+      const row = t.closest('[data-wl-row]');
+      if (row) return wlOpenSheet(row.dataset.wlRow);
+      const lp = t.closest('[data-wl-list]');
+      if (lp) { wlUi.list = lp.dataset.wlList; wlSaveUi(); return renderWatchlist(); }
+      const cp = t.closest('[data-wl-cls]');
+      if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
+      if (t.closest('[data-wl-manage]')) {
+        const l = wlStore.lists.find(x => x.id === wlUi.list); if (!l) return;
+        const v = prompt(`Rename "${l.name}" — or clear the box and press OK to DELETE the list:`, l.name);
+        if (v === null) return;
+        if (!v.trim()) { wlStore.lists = wlStore.lists.filter(x => x.id !== l.id); wlUi.list = 'all'; wlSaveUi(); }
+        else l.name = v.trim().slice(0, 30);
+        wlSave(); return renderWatchlist();
+      }
+    });
+    const s = document.getElementById('wl2Search');
+    if (s) s.addEventListener('input', () => { wlUi.q = s.value; wlSaveUi(); renderWatchlist(); });
+    const so = document.getElementById('wl2Sort');
+    if (so) so.addEventListener('change', () => { wlUi.sort = so.value; wlSaveUi(); renderWatchlist(); });
+  })();
+
   function renderCurrentTab() {
     const tab = currentTab;
     if (tab === 'dashboard')   renderDashboard();
     else if (tab === 'scanner')  renderScanner();
     else if (tab === 'trends')   renderTrendsLazy();
+    else if (tab === 'watchlist') renderWatchlist();
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -1404,7 +1619,8 @@
   // Tabs the timeframe toggle does NOT drive. Trends is built from daily trend
   // segments (trends.json), so the switch sat there doing nothing — it now says
   // what timeframe you're actually looking at instead of offering a dead choice.
-  const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only' };
+  const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
+                           watchlist: 'Latest prices · updated every run' };
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
   //
@@ -1446,7 +1662,7 @@
   function setTimeframe(tf, anchorName) {
     if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
     if (currentTab === 'charts') tfPrefs.charts = tf;
-    else if (currentTab !== 'trends' && currentTab !== 'dashboard') tfPrefs.signals = tf;
+    else if (currentTab !== 'trends' && currentTab !== 'dashboard' && currentTab !== 'watchlist') tfPrefs.signals = tf;
     try {
       localStorage.setItem('swingpulse-tf', tfPrefs.signals);
       localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
@@ -1554,7 +1770,7 @@
     // used there, the signal tabs theirs, and Trends is always Daily — it used
     // to only relabel itself "Daily" while every badge and price on it stayed 4H.
     const _wantTf = tab === 'charts' ? tfPrefs.charts
-                  : (tab === 'trends' || tab === 'dashboard') ? 'D' : tfPrefs.signals;
+                  : (tab === 'trends' || tab === 'dashboard' || tab === 'watchlist') ? 'D' : tfPrefs.signals;
     if (_wantTf !== timeframe) applyTimeframe(_wantTf);
     syncTfButtons();
     // Start every tab at the top. The panes share the document's scroll
@@ -1570,6 +1786,7 @@
     catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
+    if (tab === 'watchlist') renderWatchlist();
     if (tab === 'charts') renderChartsLazy();
   }
 
@@ -1910,7 +2127,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -1927,6 +2144,7 @@
         fetchJson('/api/shape-similarity', null),
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
+        fetchJson('/api/quotes', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -1954,6 +2172,7 @@
       resetEventIndexes();   // both indexes are derived from the two lines above
       rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
       rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
+      quotesData = (quotesRes && quotesRes.q) ? quotesRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';

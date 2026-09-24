@@ -597,6 +597,17 @@ def build_data(output_dir, src_signals_dir=None):
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
         json.dump(names, f, separators=(',', ':'), ensure_ascii=False)
 
+    # Watchlist quotes — latest price + previous close per instrument, one
+    # small file (chart_feed.build_quotes). A failure costs the Watchlist its
+    # prices, never the publish.
+    try:
+        from chart_feed import build_quotes
+        _quotes = build_quotes(CACHE_DIR, get_ticker_map())
+        _dump_json_gz(os.path.join(output_dir, 'quotes.json'), _quotes, separators=(',', ':'))
+        print(f'  Quotes: {len(_quotes["q"])} instruments')
+    except Exception as e:
+        print(f'  WARN quotes.json not built: {e}')
+
     # Chart reel feed — the app's only source of price history now. It also
     # feeds the volume sparklines, which used to read the per-instrument
     # `history/` dump that stopped being built when the modal's Lightweight
@@ -847,7 +858,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics',
-                  'rotation.json', 'rotation_paper.json']:
+                  'rotation.json', 'rotation_paper.json', 'quotes.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -971,6 +982,7 @@ def build_ui():
     js = js.replace("'/api/tv-map'",          f"'{base}/tv-map.json'")
     js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
+    js = js.replace("'/api/quotes'",       f"'{base}/quotes.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")

@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=293">
+  <link rel="stylesheet" href="/static/css/style.css?v=294">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -582,6 +582,25 @@
     </section>
 
     <!-- ========== TRENDS TAB ========== -->
+    <!-- ===== WATCHLIST (2026-09-24, replaced Trends in the nav) ===== -->
+    <section class="tab-pane" id="pane-watchlist">
+      <div class="wl2-head">
+        <input type="text" id="wl2Search" class="search-input" placeholder="Search name, full name, group…" autocomplete="off">
+        <div class="wl2-asof" id="wl2AsOf"></div>
+      </div>
+      <div class="wl2-lists" id="wl2Lists"></div>
+      <div class="wl2-bar">
+        <div class="wl2-classes" id="wl2Classes"></div>
+        <select class="select-input wl2-sort" id="wl2Sort" aria-label="Sort">
+          <option value="group">By group</option>
+          <option value="up">Top gainers</option>
+          <option value="down">Top losers</option>
+          <option value="name">A–Z</option>
+        </select>
+      </div>
+      <div id="wl2Body" class="wl2-body"></div>
+    </section>
+
     <section class="tab-pane" id="pane-trends">
       <!-- Filter bar -->
       <div class="trends-filter-bar">
@@ -788,9 +807,9 @@
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
       <span class="nav-tab-label">Signals</span>
     </button>
-    <button class="nav-tab" data-tab="trends">
-      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 16 8 11 12 14 20 6"/><polyline points="16 6 20 6 20 10"/></svg></span>
-      <span class="nav-tab-label">Trends</span>
+    <button class="nav-tab" data-tab="watchlist">
+      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></span>
+      <span class="nav-tab-label">Watchlist</span>
     </button>
     <button class="nav-tab" data-tab="charts">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="4" x2="6" y2="20"/><rect x="3.5" y="8" width="5" height="7" rx="1"/><line x1="14" y1="4" x2="14" y2="20"/><rect x="11.5" y="6" width="5" height="9" rx="1"/><line x1="21" y1="9" x2="21" y2="20"/></svg></span>
@@ -840,6 +859,6 @@
 
 
 
-  <script src="/static/js/app.js?v=370"></script>
+  <script src="/static/js/app.js?v=371"></script>
 </body>
 </html>

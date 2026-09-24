@@ -9215,3 +9215,45 @@ body.chart-full-open { overflow: hidden; }
 .cf-step:active:not(:disabled) { background: var(--bg-hover); }
 .cf-pos { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .cf-title .reel-trendline { font-size: .78rem; }
+
+/* ── Watchlist tab (2026-09-24) — TradingView-style price list ─────────── */
+.wl2-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.wl2-asof { font-size: .72rem; color: var(--text-muted); }
+.wl2-lists, .wl2-classes { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.wl2-lists::-webkit-scrollbar, .wl2-classes::-webkit-scrollbar { display: none; }
+.wl2-lists { margin-bottom: 8px; }
+.wl2-pill, .wl2-chip { flex: none; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+.wl2-pill.on, .wl2-chip.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+.wl2-new { color: var(--accent); border-style: dashed; }
+.wl2-edit { color: var(--text-muted); }
+.wl2-n { opacity: .7; font-weight: 600; }
+.wl2-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.wl2-classes { flex: 1; min-width: 0; }
+.wl2-sort { flex: none; width: auto; font-size: .8rem; padding: 6px 8px; }
+.wl2-group { font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted);
+  padding: 16px 2px 6px; border-bottom: 1px solid var(--border); }
+.wl2-row { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border);
+  padding: 10px 2px; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
+.wl2-row:active { background: rgba(255,255,255,.04); }
+.wl2-badge { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-weight: 800; font-size: .82rem; letter-spacing: -.02em; }
+.wl2-names { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wl2-sym { font-size: 1.02rem; font-weight: 600; }
+.wl2-full { font-size: .82rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl2-px { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.wl2-price { font-size: 1.02rem; font-weight: 600; }
+.wl2-chg { font-size: .84rem; color: var(--text-muted); }
+.wl2-chg.up { color: var(--buy); }
+.wl2-chg.down { color: var(--sell); }
+.wl2-empty { color: var(--text-muted); padding: 28px 8px; text-align: center; line-height: 1.5; }
+.wl2-sheet-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+.wl2-sheet { width: 100%; max-width: 520px; background: var(--bg-card); border-radius: 16px 16px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0));
+  display: flex; flex-direction: column; gap: 6px; max-height: 80vh; overflow-y: auto; }
+.wl2-sheet-hd { padding: 4px 4px 10px; color: var(--text-muted); }
+.wl2-sheet-hd b { color: var(--text-primary); font-size: 1.1rem; margin-right: 6px; }
+.wl2-sheet-px { margin-top: 4px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.wl2-act { display: block; text-align: center; background: var(--bg-elevated, rgba(255,255,255,.05)); border: 1px solid var(--border);
+  color: var(--text-primary); border-radius: 10px; padding: 12px; font: inherit; font-size: .95rem; cursor: pointer; text-decoration: none; }
+.wl2-cancel { color: var(--text-muted); }
+@media (min-width: 720px) { .wl2-body { column-count: 2; column-gap: 24px; } .wl2-group { break-after: avoid; } .wl2-row { break-inside: avoid; } }

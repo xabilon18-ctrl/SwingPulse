@@ -1107,6 +1107,12 @@ def api_chart_chunk(tf: str, cid: int):
     return jsonify(out)
 
 
+@app.route('/api/quotes')
+def api_quotes():
+    """Latest price + previous close per instrument (Watchlist tab)."""
+    return jsonify(chart_feed.build_quotes(CACHE_DIR, get_ticker_map()))
+
+
 @app.route('/api/trends')
 def api_trends():
     """Return trend segment history for all instruments."""

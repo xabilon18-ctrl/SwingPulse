@@ -418,6 +418,63 @@ def build_5m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(five, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
+def _quote_one(cache_dir: str, ticker: str) -> dict | None:
+    """Latest price + previous close for the Watchlist tab (quotes.json).
+
+    Price is the newest FINISHED 5m bar when there is one (the same feed the
+    5m chart draws, so a US index reads its futures contract), else the newest
+    daily close. Previous close is the daily close of the last session BEFORE
+    that price's date — except for a futures-redirected index, whose 5m price
+    and the cash index's daily close are different instruments: there it is
+    the contract's own last 5m close before the 22:00 UTC session break.
+    """
+    dpath = os.path.join(cache_dir, _cache_name(ticker))
+    daily = pd.read_parquet(dpath)[['Close']].dropna() if os.path.exists(dpath) else pd.DataFrame()
+    src = h4_ticker(ticker)
+    p5 = os.path.join(cache_dir, _cache_name(src, suffix='5m'))
+    five = pd.DataFrame()
+    if os.path.exists(p5):
+        try:
+            five = _frame_5m(pd.read_parquet(p5))
+        except Exception:
+            five = pd.DataFrame()
+    if daily.index.tz is not None if len(daily) else False:
+        daily.index = daily.index.tz_localize(None)
+
+    if len(five) and (not len(daily) or five.index[-1].normalize() >= daily.index[-1].normalize()):
+        ts, last = five.index[-1], float(five['Close'].iloc[-1])
+        if src != ticker:
+            brk = ts.normalize() + pd.Timedelta(hours=22)
+            if brk > ts:
+                brk -= pd.Timedelta(days=1)
+            prev = five['Close'][five.index < brk]
+            pc = float(prev.iloc[-1]) if len(prev) else None
+        else:
+            prev = daily['Close'][daily.index.normalize() < ts.normalize()]
+            pc = float(prev.iloc[-1]) if len(prev) else None
+        srcname = '5m'
+    elif len(daily) >= 2:
+        ts, last, pc, srcname = daily.index[-1], float(daily['Close'].iloc[-1]), float(daily['Close'].iloc[-2]), 'D'
+    else:
+        return None
+    return {'p': _round(last), 'pc': _round(pc), 't': ts.strftime('%Y-%m-%d %H:%M'), 's': srcname}
+
+
+def build_quotes(cache_dir: str, ticker_map: dict, max_workers: int = 8) -> dict:
+    """{'generated_at': ISO UTC, 'q': {name: {p, pc, t, s}}} for every instrument."""
+    from datetime import datetime, timezone
+
+    def _one(name):
+        try:
+            return name, _quote_one(cache_dir, ticker_map[name])
+        except Exception:
+            return name, None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        q = {n: v for n, v in ex.map(_one, sorted(ticker_map)) if v}
+    return {'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'q': q}
+
+
 def _cache_name(ticker: str, suffix: str = '') -> str:
     safe = (ticker
             .replace('=', '_EQ_')
