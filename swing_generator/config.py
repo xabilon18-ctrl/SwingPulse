@@ -357,6 +357,14 @@ FIVE_MIN_MAX_AGE_HOURS = 0.15
 TEN_MIN_BARS_PER_DAY_TARGET   = 27.1   # a US equity: 39 bars/session, 5 sessions a week
 TEN_MIN_NORMALIZE_ABOVE       = 45.0   # above this many bars/day, scale the ribbon
 
+# The 5m CHART (2026-09-24, replaced 10m and 3D) uses the same normalisation at
+# twice the bar density: a 5m bar is half a 10m bar, so every measured bars/day
+# above doubles and the gap between the exchange-traded and round-the-clock
+# clusters (~47-73 vs ~191-288) keeps the same shape. Same calendar reach for
+# MA500 as the 10m ribbon had (~9 days on a US equity).
+FIVE_MIN_BARS_PER_DAY_TARGET  = 2 * TEN_MIN_BARS_PER_DAY_TARGET   # 54.2
+FIVE_MIN_NORMALIZE_ABOVE      = 2 * TEN_MIN_NORMALIZE_ABOVE       # 90.0
+
 # NO SESSION SCALING, and that is deliberate. Bars per session measured across
 # all 37 instrument groups (2026-09-14, one ticker each, 37/37 returned data):
 #   Japan equity   34.0      US equity      38.8      European equity  51.0

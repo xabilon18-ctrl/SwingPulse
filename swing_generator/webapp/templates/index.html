@@ -49,12 +49,11 @@
         <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       </div>
     </header>
-    <!-- ===== GLOBAL TIMEFRAME TOGGLE (10m / Daily / 3D) ===== -->
+    <!-- ===== GLOBAL TIMEFRAME TOGGLE (5m / Daily) ===== -->
     <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
       <div class="tf-switch">
-        <button class="tf-switch-btn" id="tfBtn10m" data-tf="10m" role="tab" aria-selected="false">10m</button>
+        <button class="tf-switch-btn" id="tfBtn5m" data-tf="5m" role="tab" aria-selected="false">5m</button>
         <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
-        <button class="tf-switch-btn" id="tfBtn3D" data-tf="3D" role="tab" aria-selected="false">3D</button>
         <!-- Shown instead of the buttons on tabs the timeframe doesn't drive
              (Trends reads daily trend segments only). Same box as the buttons,
              so the topbar-stack height — which .bottom-nav's desktop `top`
@@ -841,6 +840,6 @@
 
 
 
-  <script src="/static/js/app.js?v=361"></script>
+  <script src="/static/js/app.js?v=362"></script>
 </body>
 </html>

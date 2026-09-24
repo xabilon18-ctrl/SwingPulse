@@ -44,13 +44,14 @@ from _active_config import (
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
     FIVE_MIN_MAX_AGE_HOURS,
+    FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
 )
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
 from data_fetcher  import (fetch_all, fetch_all_5m, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
-                           drop_unfinished_10m)
+                           drop_unfinished_10m, drop_unfinished_5m)
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -537,6 +538,35 @@ def _resample_10m(df_5m: pd.DataFrame) -> pd.DataFrame:
     return drop_unfinished_10m(resampled)
 
 
+def _frame_5m(df_5m: pd.DataFrame) -> pd.DataFrame:
+    """The 5m CHART's frame: the 5m cache as downloaded, tz stripped, NaN-price
+    rows dropped and the still-open bar removed. No resampling — Yahoo's own 5m
+    bars ARE the chart (2026-09-24, replaced the 10m chart resampled from them).
+    """
+    cols = [c for c in ('Open', 'High', 'Low', 'Close', 'Volume') if c in df_5m.columns]
+    df = df_5m[cols].copy()
+    if df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+    df = df[~df.index.duplicated(keep='last')].sort_index().dropna(subset=['Close'])
+    # Important Rule 10: never compute on a bar whose window is still open.
+    return drop_unfinished_5m(df)
+
+
+def _m5_ma_periods(five: pd.DataFrame) -> list[int]:
+    """Ribbon periods for the 5m chart — _m10_ma_periods at twice the density.
+
+    Exchange-traded names keep MA_PERIODS untouched (TradingView parity); a
+    round-the-clock instrument is scaled so MA500 reaches the same calendar span
+    a US equity's does. See config.py §FIVE_MIN_BARS_PER_DAY_TARGET.
+    """
+    periods = MA_PERIODS
+    bpd = _m10_bars_per_calendar_day(five)   # generic: bars per calendar day
+    if bpd > FIVE_MIN_NORMALIZE_ABOVE and FIVE_MIN_BARS_PER_DAY_TARGET > 0:
+        scale   = bpd / FIVE_MIN_BARS_PER_DAY_TARGET
+        periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
+    return [p for p in periods if p <= len(five)]
+
+
 def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
     """Resample finished daily bars to weekly, dropping the week in progress.
 
@@ -966,7 +996,7 @@ def main():
     # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
     # only wants signals can skip it and its cost.
     parser.add_argument('--no-intraday', action='store_true',
-                        help='Skip the 5m download (the 10m chart feed will go stale)')
+                        help='Skip the 5m download (the 5m chart feed will go stale)')
     args = parser.parse_args()
 
     run_date = (
@@ -1009,7 +1039,7 @@ def main():
     _e2 = 0.0
     if not args.no_intraday:
         _t2 = _time.time()
-        print('  Fetching 5m market data (10m chart feed) ...\n')
+        print('  Fetching 5m market data (5m chart feed) ...\n')
         # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
         # which is the right gate for a daily bar and far too coarse for a
         # ten-minute one: three of the weekday cron landings sit less than an

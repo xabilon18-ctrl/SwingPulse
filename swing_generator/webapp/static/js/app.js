@@ -126,17 +126,14 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
-    // 10m is CHART ONLY, and the fastest row in the table. `chartOnly` is what
-    // tells the rest of the app that no m10_ column exists on a row — D, 3D and
-    // W all have their own columns, so on this one a prefixed read returns
-    // nothing at all, and anything reading one must borrow the signal timeframe
-    // instead of silently answering "" / NEUTRAL. (The flag arrived with
-    // Monthly, which held this slot until 2026-09-14.)
-    { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
+    // 5m is CHART ONLY, and the fastest row in the table. `chartOnly` is what
+    // tells the rest of the app that no m5_ column exists on a row, so a
+    // prefixed read returns nothing at all, and anything reading one must
+    // borrow the signal timeframe instead of silently answering "" / NEUTRAL.
+    // 5m replaced the 10m and 3D charts on 2026-09-24 (user).
+    { code: '5m', prefix: 'm5_', label: '5m', tv: '5', bar: '5-minute bars', barShort: '25-bar', chartOnly: true },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
-    // 3D is a CHART ONLY since 2026-09-24: its signals, radar and d3_ columns
-    // went with Weekly and 4H, the picture stayed at the user's request.
-    { code: '3D', prefix: 'd3_', label: '3D',     tv: '3D',  bar: '3-day bars', barShort: '25-bar', chartOnly: true },
+    // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
     // stay in the store untouched — expandChannelStore keeps every key it finds.
   ];
@@ -146,8 +143,8 @@
 
   let timeframe = 'D';
   // Which timeframes each tab may show. Buy/sell signals exist on Daily only
-  // since 2026-09-24 (Weekly went with 3D and 4H). Charts offers 10m · Daily ·
-  // 3D, the signal tabs and Trends are Daily.
+  // since 2026-09-24 (Weekly went with 3D and 4H). Charts offers 5m · Daily,
+  // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
   const SIGNAL_TFS = new Set(['D']);
@@ -1485,7 +1482,7 @@
   try {
     const _savedTf = localStorage.getItem('swingpulse-tf');
     const _savedChartTf = localStorage.getItem('swingpulse-chart-tf');
-    // A saved timeframe that no longer exists (1H/4H/3D/W) opens on Daily.
+    // A saved timeframe that no longer exists (1H/4H/3D/W/10m) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
     tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
   } catch (e) {}
@@ -7147,6 +7144,8 @@
   // Measured off the bundle's own timestamps, so it is the same span of
   // calendar on an equity (~1,000 bars) and on BTC (~5,800). Memoised on the
   // bundle like reelBarTimes; a new publish brings new bundle objects.
+  // 5m (replaced 10m 2026-09-24) zooms out to the whole bundle — one calendar
+  // month — so it needs no span cap of its own.
   const REEL_TEN_MIN_MAX_SPAN = { months: 1, days: 10 };
   // How many of the bundle's newest bars fall inside a calendar span ending at
   // its last bar. Timestamps, not a bar count, so the span is the same amount
@@ -7173,7 +7172,11 @@
 
   // The window a card opens on — what a zoom override is cleared back to.
   //
-  // 10m opens on ONE CALENDAR MONTH and 4H on ONE CALENDAR YEAR, every time the
+  // 5m opens on ONE CALENDAR WEEK (2026-09-24): its grid is DAY lines, and a
+  // week is five of them on an equity, seven on crypto — the view the day grid
+  // is for. Zoom out (drag the time axis) reaches the whole month carried.
+  //
+  // 10m opened on ONE CALENDAR MONTH and 4H on ONE CALENDAR YEAR, every time the
   // timeframe is switched to (user, 2026-09-19: "the 10 min chart has to show
   // me a full month on every switch, 4h full year"). This reverses the 120-bar
   // 10m window of 2026-09-17 by the user's explicit call: a month of 10m is
@@ -7182,9 +7185,9 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '10m' || timeframe === '4H') {
+    if (timeframe === '5m' || timeframe === '10m' || timeframe === '4H') {
       if (bundle._defBars) return bundle._defBars;
-      const span = timeframe === '10m' ? [1, 0] : [12, 0];
+      const span = timeframe === '5m' ? [0, 7] : timeframe === '10m' ? [1, 0] : [12, 0];
       return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
@@ -7200,7 +7203,7 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle)));
     const w = reel.range;
     if (w && w < n) return w;
-    // 10m and 4H open on a calendar span — see reelDefaultBars.
+    // 5m opens on a calendar span — see reelDefaultBars.
     return reelDefaultBars(bundle);
   }
 
@@ -8100,8 +8103,21 @@
   // first and last dates come back as the axis instead.
   // 4H is HALVES since 2026-09-19 (user request): the year cut into two equal
   // parts, where it was four. Same construction as before, one parameter.
-  const REEL_TIME_GRID = { '10m': 'month', '1H': 'half', '4H': 'half',
+  //
+  // 5m is DAYS (user, 2026-09-24: "time gridlines dividing by daily on the 5
+  // min"). A line on the first bar of each new UTC day — which is each session
+  // on every exchange-traded instrument and midnight on 24h ones — labelled
+  // "Tue 22"; the first day of a month is drawn at month weight and labelled
+  // "Thu 1 Oct" so the month is never lost.
+  const REEL_TIME_GRID = { '5m': 'day', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
+
+  // How many future DAY lines the 5m grid projects past the last bar (trading
+  // days — an instrument with no weekend bars gets no Saturday line).
+  const REEL_FUTURE_DAYS = 5;
+
+  // Intraday timeframes: bar labels carry a time, end-stops show it.
+  const isIntradayTf = tf => tf === '5m' || tf === '10m';
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
@@ -8146,7 +8162,7 @@
   // on a 10m chart ("Thu 17 Sept 14:30").
   function reelEndStopLabel(ts) {
     const str = String(ts);
-    if (timeframe !== '10m') return str.slice(0, 10);
+    if (!isIntradayTf(timeframe)) return str.slice(0, 10);
     const hm = str.slice(11, 16);
     return hm ? reelDayLabel(str) + ' ' + hm : str.slice(0, 10);
   }
@@ -8176,10 +8192,63 @@
       : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
 
+  // "Tue 22" — a 5m day line's label ("Thu 1 Oct" on the first of a month).
+  function reelDayLineLabel(ts, withMonth) {
+    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
+    if (isNaN(d)) return String(ts).slice(5, 10);
+    const o = { weekday: 'short', day: 'numeric', timeZone: 'UTC' };
+    if (withMonth) o.month = 'short';
+    return d.toLocaleDateString('en-GB', o);
+  }
+
   function reelTimeGrid(b, tf) {
     const mode = REEL_TIME_GRID[tf];
     const n = b.t ? b.t.length : 0;
     if (!mode || !n) return [];
+
+    // ── The day grid (5m) ──────────────────────────────────────────────
+    // Measured off the WHOLE bundle so a pan cannot move a line, mapped back
+    // onto the drawn slice with `from`. Future days are projected at the
+    // bundle's average ms/bar (overnight gaps included) for the reason the
+    // month projection below explains.
+    if (mode === 'day') {
+      const src = b._src || b, from = b._from || 0, sn = src.t.length;
+      // Bundle-indexed lines, memoised on the bundle like reelBarTimes (a new
+      // publish brings new bundle objects); only the `from` shift is per-draw.
+      if (!src._dayGrid) {
+        const lines = [];
+        let prevDay = null, weekend = false;
+        for (let i = 0; i < sn; i++) {
+          const day = String(src.t[i]).slice(0, 10);
+          if (day === prevDay) continue;
+          const wd = new Date(day + 'T00:00:00Z').getUTCDay();
+          if (wd === 0 || wd === 6) weekend = true;
+          if (prevDay !== null) {
+            const month = day.slice(0, 7) !== prevDay.slice(0, 7);
+            lines.push({ fi: i, month, label: reelDayLineLabel(day, month) });
+          }
+          prevDay = day;
+        }
+        const bt = reelBarTimes(src);
+        const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
+        if (perMs > 0 && prevDay) {
+          const d = new Date(prevDay + 'T00:00:00Z');
+          let added = 0, lastMonth = d.getUTCMonth();
+          while (added < REEL_FUTURE_DAYS) {
+            d.setUTCDate(d.getUTCDate() + 1);
+            const wd = d.getUTCDay();
+            if (!weekend && (wd === 0 || wd === 6)) continue;
+            const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs;
+            const month = d.getUTCMonth() !== lastMonth;
+            lastMonth = d.getUTCMonth();
+            lines.push({ fi, future: true, month, label: reelDayLineLabel(d.toISOString(), month) });
+            added++;
+          }
+        }
+        src._dayGrid = lines;
+      }
+      return src._dayGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
+    }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
     // Two since 2026-09-19; it was four (quarters) from 2026-09-18.

@@ -7828,7 +7828,7 @@ body {
    carries more weight than a year line — it is the only one on the slow
    timeframes and it is there to be read against. */
 .reel-tgrid-admin { stroke: #000000; stroke-width: 3; stroke-dasharray: 7 6; stroke-opacity: 1; }
-/* A month boundary on the 10m day grid. Same bar as the day line it replaces, so
+/* A month boundary on the 5m day grid. Same bar as the day line it replaces, so
    the weight is the only thing that separates them — the start of a month is a
    boundary you navigate by, the other twenty days of it are not. Matches the
    admin line's weight for the same reason: on its timeframe it is the big one. */

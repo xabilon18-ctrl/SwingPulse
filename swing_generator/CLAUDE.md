@@ -84,7 +84,11 @@ RIBBON_COMPRESSION_THRESHOLD = 5.0                 # wider than MA200 (step 25 v
 ## Signal System
 
 ### Timeframes
-`10m` (10-minute — CHART ONLY) · `D` (Daily — the only signal timeframe) · `3D` (3-Day — CHART ONLY)
+`5m` (5-minute — CHART ONLY, day grid lines, opens on a week) · `D` (Daily — the only signal timeframe)
+
+**2026-09-24 (later): 10m and 3D charts REPLACED by 5m** (user). `chart_feed.build_5m` reads the 5m cache
+as-is (`main._frame_5m`, ribbon via `main._m5_ma_periods` = the 10m normalisation at 2x density), carries
+one calendar month. `build_10m`/`build_3d` stay for research; their R2 chunks are orphaned.
 
 **CURRENT STATE — 4H and Weekly REMOVED, 3D CHART-ONLY (2026-09-24, user decision).** The app is
 Daily + the 10m and 3D charts. `config.TIMEFRAMES` is `(('D', ''),)`, OUTPUT_COLUMNS has no `d3_`/`w_`
