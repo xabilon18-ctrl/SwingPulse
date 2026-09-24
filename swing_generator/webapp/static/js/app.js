@@ -10005,7 +10005,10 @@
     // The picture is a dark branded card: header band, the plot inset with
     // rounded corners on its own ground, footer band. The plot keeps its
     // aspect — it is scaled into the inset, never stretched.
-    const HEAD = 150, FOOT = 76, PAD = 18, SCALE = 2;
+    // K enlarges the header and footer as a whole: they are laid out in a
+    // 150- and 76-unit logical band and drawn under ctx.scale(K), so every
+    // font, pill and gap grows together and the plot keeps its full width.
+    const K = 1.4, HEAD = Math.round(150 * K), FOOT = Math.round(76 * K), PAD = 18, SCALE = 2;
     const CW = W - 2 * PAD, CH = Math.round(H * CW / W);
     const TOTAL = HEAD + CH + FOOT;
 
@@ -10092,7 +10095,7 @@
     const glow = ctx.createRadialGradient(W * 0.85, 0, 0, W * 0.85, 0, W * 0.6);
     glow.addColorStop(0, hexA(sideCol, 0.28)); glow.addColorStop(1, hexA(sideCol, 0));
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, HEAD + 40);
+    ctx.fillRect(0, 0, W, TOTAL);   // the gradient fades itself; a shorter rect leaves a hard edge beside the plot
 
     // Top stripe: signal colour running into amber.
     const stripe = ctx.createLinearGradient(0, 0, W, 0);
@@ -10100,8 +10103,13 @@
     ctx.fillStyle = stripe;
     ctx.fillRect(0, 0, W, 6);
 
+    // Header band, in logical units under K. X0/XR still line up with the
+    // plot's edges once scaled.
+    ctx.save();
+    ctx.scale(K, K);
+    const X0 = (PAD + 8) / K, XR = (W - PAD - 8) / K;
+
     // Right block: last price and its 5-bar change.
-    const X0 = PAD + 8, XR = W - PAD - 8;
     ctx.textBaseline = 'alphabetic';
     const priceStr = formatPrice(item[f('close')]);
     const roc      = parseFloat(item[f('roc')]);
@@ -10160,6 +10168,7 @@
                 { fill: hexA(tc, 0.14), stroke: hexA(tc, 0.5), color: tc });
     }
     if (sig) px = pill(px, sig, { fill: sideCol, color: '#0c0c0b', glow: sideCol });
+    ctx.restore();
 
     // The plot, inset on its own ground with rounded corners.
     ctx.save();
@@ -10174,7 +10183,9 @@
 
     // Footer: a heartbeat mark + wordmark on the left, the moment on the
     // right, and a faint pulse trace running between them.
-    const fy = HEAD + CH + FOOT / 2 + 2;
+    ctx.save();
+    ctx.scale(K, K);
+    const fy = (HEAD + CH) / K + 76 / 2 + 2;
     const beat = (x, y, s) => {
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -10219,6 +10230,7 @@
       ctx.lineTo(t1, fy);
       ctx.stroke();
     }
+    ctx.restore();
 
     return await new Promise(res => cv.toBlob(res, 'image/png'));
   }
