@@ -397,7 +397,9 @@ def build_5m(cache_dir: str, ticker: str) -> dict | None:
     CARRY_MONTHS_5M of calendar shipped, and the carry capped so the slowest MA
     keeps its warm-up on a 24/7 instrument. See build_10m for the reasoning.
     """
-    path = os.path.join(cache_dir, _cache_name(ticker, suffix='5m'))
+    # US cash indices chart their nearly-24h FUTURES at 5m (h4_ticker; see
+    # data_fetcher.fetch_all_5m). The daily chart stays on the cash index.
+    path = os.path.join(cache_dir, _cache_name(h4_ticker(ticker), suffix='5m'))
     if not os.path.exists(path):
         return None
     df_5m = pd.read_parquet(path)

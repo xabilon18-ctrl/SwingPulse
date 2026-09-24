@@ -795,6 +795,21 @@ def fetch_all_5m(instruments: list[dict], force_refresh: bool = False,
     # asking Yahoo for it is a wasted request — ~half the book at a typical run,
     # ~85% at 22:00 SAST. Its cached file is still read by the signal and chart
     # steps, so nothing downstream changes.
+    # US cash indices (and the Nikkei) are charted at 5m on their nearly-24h
+    # FUTURES (H4_SOURCE: ^GSPC -> ES=F, ^DJI -> YM=F, ^NDX -> NQ=F, ^RUT ->
+    # RTY=F, ^N225 -> NKD=F) — user, 2026-09-24: "indices run throughout, why
+    # not these?". The cash index only prints 13:30-20:00 UTC, so its 5m chart
+    # sat on yesterday's close all morning while the CFD the user trades moved.
+    # Fetched under the CONTRACT's name, as the hourly feed was.
+    seen = set()
+    mapped = []
+    for i in instruments:
+        src = h4_ticker(i['ticker'])
+        if src in seen:
+            continue
+        seen.add(src)
+        mapped.append({**i, 'ticker': src})
+    instruments = mapped
     if not force_refresh:
         now = _utc_now()
         todo = [i for i in instruments if _may_have_traded_5m(i['ticker'], now)]
