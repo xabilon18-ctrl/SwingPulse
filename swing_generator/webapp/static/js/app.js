@@ -8119,11 +8119,10 @@
   const REEL_TIME_GRID = { '5m': 'day', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
-  // How many future DAY lines the 5m grid projects past the last bar (trading
-  // days — an instrument with no weekend bars gets no Saturday line).
-  const REEL_FUTURE_DAYS = 5;
-  // ...and how many future WEEK-START lines (user 2026-09-24: "include old and
-  // future weeks"). Past weeks come from the bundle itself (two months).
+  // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
+  // remaining trading day of the CURRENT week, then only WEEK-START lines, this
+  // many weeks ahead. Past weeks come from the bundle itself (two months).
+  // An instrument with no weekend bars gets no Saturday/Sunday line.
   const REEL_FUTURE_WEEKS = 8;
 
   // Intraday timeframes: bar labels carry a time, end-stops show it.
@@ -8253,8 +8252,9 @@
         const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
         if (perMs > 0 && prevDay) {
           const d = new Date(prevDay + 'T00:00:00Z');
-          let added = 0, weeks = 0, lastMonth = d.getUTCMonth(), lastWeek = reelWeekKey(prevDay);
-          while (added < REEL_FUTURE_DAYS || weeks < REEL_FUTURE_WEEKS) {
+          const thisWeek = reelWeekKey(prevDay);
+          let weeks = 0, lastMonth = d.getUTCMonth(), lastWeek = thisWeek;
+          while (weeks < REEL_FUTURE_WEEKS) {
             d.setUTCDate(d.getUTCDate() + 1);
             const wd = d.getUTCDay();
             if (!weekend && (wd === 0 || wd === 6)) continue;
@@ -8265,10 +8265,9 @@
             lastMonth = d.getUTCMonth();
             lastWeek  = reelWeekKey(iso);
             if (week) weeks++;
-            // Past the first REEL_FUTURE_DAYS only week (and month) starts are drawn.
-            if (added < REEL_FUTURE_DAYS || week || month)
+            // Every day of the current week; after it, week starts only.
+            if (reelWeekKey(iso) === thisWeek || week)
               lines.push({ fi, future: true, month, week, label: reelDayLineLabel(iso, month) });
-            added++;
           }
         }
         src._dayGrid = lines;

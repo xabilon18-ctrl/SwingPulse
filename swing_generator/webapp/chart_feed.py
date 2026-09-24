@@ -74,9 +74,9 @@ MIN_RIBBON_LINES = 2
 # recent one; the rest is what panning back reaches. See build_10m.
 CARRY_MONTHS = 2
 
-# Same for the 5m bundle. TWO months since 2026-09-24 (user: "include old
-# weeks" — pan back through earlier weeks). Measured: AAPL 25 -> 49 KB gzipped,
-# BTC 150 -> 285 KB (the warm-up cap below trims BTC to ~2 months less 9 days).
+# How far back the 5m bundle goes: TWO MONTHS (user, 2026-09-24: "2 months is
+# fine going back"). AAPL 49 KB gzipped, BTC 285 KB (the warm-up cap below trims
+# BTC to ~2 months less 9 days).
 CARRY_MONTHS_5M = 2
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
