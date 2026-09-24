@@ -8860,18 +8860,17 @@
         const fi = reelBarIndexForDate(b, y + '-01-01');
         if (fi != null) out.push({ fi, label: String(y), future: true });
       }
-      // US ADMINISTRATIONS on Daily too (user, 2026-09-24): drawn at the 5m
-      // week line's weight (.reel-tgrid-admin), over the thinner year lines.
-      // Listed LAST so, where a label must be dropped, it is the year's.
-      REEL_ADMIN_TERMS.forEach(t => {
-        const fi = reelBarIndexForDate(b, t.date);
-        if (fi != null) out.push({ fi, label: t.label, admin: true });
+      // US ADMINISTRATIONS on Daily (user, 2026-09-24): the YEAR LINE of each
+      // administration's first year is drawn bold (.reel-tgrid-admin, the 5m
+      // week line's weight) and named — "2025 · Trump II". Not a separate line
+      // on inauguration day: that sat three weeks from the 1 January line and
+      // read as a double line ("let line align with the other lines").
+      const admYear = {};
+      REEL_ADMIN_TERMS.forEach(t => { admYear[t.date.slice(0, 4)] = t.label; });
+      out.forEach(l => {
+        const name = admYear[l.label];
+        if (name) { l.admin = true; l.label = l.label + ' · ' + name.replace(' ends', ' end'); }
       });
-      out.sort((p, q) => p.fi - q.fi);
-      // A year line within ~2 months of an administration keeps its LINE but
-      // gives up its label, so "Trump II" reads rather than "2025".
-      const adm = out.filter(l => l.admin).map(l => l.fi);
-      out.forEach(l => { if (!l.admin && adm.some(a => Math.abs(a - l.fi) < 45)) l.label = ''; });
     }
     return out;
   }
