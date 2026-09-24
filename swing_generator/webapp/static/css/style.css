@@ -9332,3 +9332,56 @@ body.chart-full-open { overflow: hidden; }
    defaults each tool to its button's colour), but the original thin dotted
    weights, knobs and labels are back — the bead / candy restyle was too bold
    for the user ("original look was fine"). */
+
+/* ── Compact lively signal card (2026-09-24, preview) ─────────────────────── */
+.scanner-card.sc2 { padding: 12px 14px 10px 16px; position: relative; overflow: hidden;
+  border-left: 4px solid var(--neutral); display: flex; flex-direction: column; gap: 7px; }
+.sc2.sc2-side-buy  { border-left-color: var(--buy);
+  background: radial-gradient(120% 90% at 0% 0%, rgba(16,185,129,.14), transparent 55%), var(--bg-card); }
+.sc2.sc2-side-sell { border-left-color: var(--sell);
+  background: radial-gradient(120% 90% at 0% 0%, rgba(239,68,68,.14), transparent 55%), var(--bg-card); }
+.sc2-r1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sc2-badge { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 800; font-size: .74rem; color: #fff; background: #555; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.sc2-b-index { background: #3b6fd8; } .sc2-b-equity { background: #6b5bd6; } .sc2-b-currency { background: #1f9d8b; }
+.sc2-b-commodity { background: #c98a12; } .sc2-b-crypto { background: #d4602c; }
+.sc2-id { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.sc2-name { font-weight: 800; font-size: 1.02rem; }
+.sc2-full { font-size: .74rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc2-chip { flex: none; font-size: .7rem; font-weight: 800; letter-spacing: .03em; padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.sc2-chip.sc2-buy  { color: #04150e; background: var(--buy);  box-shadow: 0 0 12px var(--buy-glow); }
+.sc2-chip.sc2-sell { color: #fff;    background: var(--sell); box-shadow: 0 0 12px var(--sell-glow); }
+.sc2-chip.sc2-aged { background: transparent; box-shadow: none; border: 1px solid currentColor; }
+.sc2-chip.sc2-buy.sc2-aged { color: var(--buy); } .sc2-chip.sc2-sell.sc2-aged { color: var(--sell); }
+.sc2-chip.sc2-none { color: var(--text-muted); border: 1px solid var(--border); }
+.sc2-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 5px;
+  vertical-align: 1px; animation: wl2pulse 1.6s ease-in-out infinite; }
+.sc2-r2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sc2-price { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sc2-d1 { font-size: .86rem; font-weight: 700; }
+.sc2-trend { font-size: .8rem; font-weight: 700; }
+.sc2-t-up { color: var(--buy); } .sc2-t-dn { color: var(--sell); } .sc2-t-pull { color: var(--watch); } .sc2-t-neu { color: var(--text-muted); }
+.sc2-now { font-weight: 500; opacity: .85; }
+.sc2-r3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .76rem; }
+.sc2-mas { display: inline-flex; gap: 3px; }
+.sc2-ma { font-size: .66rem; font-weight: 800; padding: 2px 6px; border-radius: 6px; }
+.sc2-ma.up { color: #04150e; background: var(--buy); } .sc2-ma.dn { color: #fff; background: var(--sell); }
+.sc2-ma.na { color: var(--text-muted); border: 1px solid var(--border); }
+.sc2-mv b { font-weight: 600; color: var(--text-muted); font-size: .68rem; }
+.sc2-mv { font-variant-numeric: tabular-nums; font-weight: 700; }
+.sc2-vol { color: var(--volume); }
+.sc2-r4 { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.sc2-meaning { flex: 1; min-width: 0; font-size: .74rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc2-tag { flex: none; font-size: .62rem; font-weight: 800; padding: 3px 7px; border-radius: 6px; letter-spacing: .03em; }
+.sc2-tag.vol, .sc2-tag.sq { color: var(--volume); background: var(--volume-soft); }
+.sc2 .scanner-actions { flex: none; display: flex; gap: 4px; margin-left: auto; }
+.sc2 .scanner-actions button, .sc2 .scanner-actions a { transform: scale(.85); }
+
+.sc2-r3 { gap: 8px; flex-wrap: nowrap; overflow: hidden; }
+.sc2-mv { white-space: nowrap; }
+.sc2-tag.volx { color: var(--volume); background: var(--volume-soft); }
+.scanner-card.sc2 { gap: 6px; }
+.sc2-r3 { gap: 6px; font-size: .72rem; }
+.sc2-ma { padding: 2px 5px; font-size: .62rem; }
+.sc2-mv b { font-size: .62rem; }
+.sc2-r3 { flex-wrap: wrap; overflow: visible; row-gap: 4px; }

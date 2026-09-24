@@ -4761,31 +4761,59 @@
         ? '<div class="sc-stat"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-na">—</div></div>'
         : `<div class="sc-stat" title="Today's volume vs its ${tfMeta().label.toLowerCase()} rolling average — ${fmtRvol(rv)} of normal"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-vol">${fmtRvol(rv)}</div></div>`;
 
-      return `<div class="scanner-card pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}${costTight(item) ? ' sc-cost-dim' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="scanner-top">
-          <div>${cardIdentityHtml(item, { isAi: _aiScan, sep: ' / ' })}</div>
+      // ── COMPACT LIVELY CARD (2026-09-24, user: "the signal cards seem dead
+      // and need some life, and height is big"). Same facts in about half the
+      // height: identity + glowing signal chip, price + day move + one trend
+      // line, an MA 50·250·500 position strip beside the period moves, then
+      // the signal's meaning + tags + actions. Stop/ATR and the MA-stack row
+      // live in the details sheet (tap the card). Tinted by signal side.
+      const sig = item[f('primary_signal')] || '';
+      const lastSig = item[f('last_signal_type')] || '';
+      const code = sig || lastSig;
+      const side = code ? (code[0] === 'B' ? 'buy' : 'sell') : 'none';
+      const age = signalAge(item[f('last_signal_date')] || '', item[f('date')]);
+      const fresh = !!sig && age.isToday;
+      const chip = code
+        ? `<span class="sc2-chip sc2-${side}${sig ? '' : ' sc2-aged'}">${fresh ? '<i class="sc2-dot"></i>' : ''}${code} ${side === 'buy' ? 'BUY' : 'WARN'}${age.label ? ' · ' + age.label.replace(' ago', '') : ''}</span>`
+        : '<span class="sc2-chip sc2-none">no signal</span>';
+      const d1 = parseFloat(item.pct_1d);
+      const ts = trendSentence(item);
+      const tCls = !ts ? 'neu' : ts.against ? 'pull' : ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'dn' : 'neu';
+      const trendLine = ts ? `<span class="sc2-trend sc2-t-${tCls}">${ts.glyph} ${ts.head}${ts.now ? ` <span class="sc2-now">· ${ts.now}</span>` : ''}</span>` : '';
+      const close = parseFloat(item[f('close')]);
+      const maPill = per => {
+        const m = parseFloat(item[f('ma_' + per)]);
+        if (!isFinite(m) || !isFinite(close)) return `<span class="sc2-ma na">${per}</span>`;
+        return `<span class="sc2-ma ${close >= m ? 'up' : 'dn'}" title="Price ${close >= m ? 'above' : 'below'} MA${per}">${per}</span>`;
+      };
+      const mv = (lbl, v) => { v = parseFloat(v); return isNaN(v) ? '' :
+        `<span class="sc2-mv"><b>${lbl}</b> <span class="${v >= 0 ? 'perf-pos' : 'perf-neg'}">${v >= 0 ? '+' : ''}${v.toFixed(Math.abs(v) >= 100 ? 0 : 1)}%</span></span>`; };
+      const rvv = rvol(item);
+      const tags = [];
+      if (item[f('volume_spike_flag')] === 'yes') tags.push('<span class="sc2-tag vol">VOL SPIKE</span>');
+      if (compression) tags.push(`<span class="sc2-tag sq">SQUEEZE${!isNaN(ribbonSpread) ? ' ' + ribbonSpread.toFixed(1) + '%' : ''}</span>`);
+      const meaning = code ? (SIG_PLAIN[code] || '') : '';
+      const initials = (() => { const n = item.instrument_name, dg = (n.match(/\d+/) || [''])[0];
+        return dg && dg.length <= 3 ? dg : n.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(); })();
+      return `<div class="scanner-card sc2 sc2-side-${side} pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}${costTight(item) ? ' sc-cost-dim' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
+        <div class="sc2-r1">
+          <span class="sc2-badge sc2-b-${String(item.asset_class || '').toLowerCase()}">${escText(initials)}</span>
+          <span class="sc2-id"><span class="sc2-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${_aiScan ? ' <span class="ai-chip-mini">AI</span>' : ''}</span><span class="sc2-full">${escText(instName(item.instrument_name) || item.group || '')}</span></span>
+          ${chip}
+        </div>
+        <div class="sc2-r2">
+          <span class="sc2-price">${formatPrice(item[f('close')])}</span>
+          ${isNaN(d1) ? '' : `<span class="sc2-d1 ${d1 >= 0 ? 'perf-pos' : 'perf-neg'}">${d1 >= 0 ? '▲' : '▼'} ${Math.abs(d1).toFixed(2)}%</span>`}
+          ${trendLine}
+        </div>
+        <div class="sc2-r3">
+          <span class="sc2-mas">${maPill(50)}${maPill(250)}${maPill(500)}</span>
+          ${mv('1W', item.pct_1w)}${mv('1M', item.pct_1m)}${mv('1Y', item.pct_1y)}
+        </div>
+        <div class="sc2-r4">
+          <span class="sc2-meaning">${meaning ? escText(meaning) : ''}</span>${tags.join('')}${rvv !== null ? `<span class="sc2-tag volx">VOL ${fmtRvol(rvv)}</span>` : ''}${eventChipHtml(item.instrument_name)}
           ${cardActionsHtml(item.instrument_name)}
         </div>
-        <div class="scanner-price">${formatPrice(item[f('close')])}${pct !== null ? ` <span class="roc-val ${pct >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Distance from MA500"><span class="pm-lbl">MA500</span>${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` : ''}${rocStr ? ` <span class="roc-val ${roc >= 0 ? 'roc-pos' : 'roc-neg'}" style="font-size:.7rem" title="Rate of change"><span class="pm-lbl">ROC</span>${rocStr}</span>` : ''}</div>
-        ${verdictBarHtml(item)}
-        ${setupPanelHtml(item, { showConf: false })}
-        <div class="sc-stats">${statTile('1D', item.pct_1d, 'Move over the last daily bar')}${statTile('1W', item.pct_1w, 'Move over the last 5 trading days')}${statTile('1M', item.pct_1m, 'Move over the last 21 trading days')}${statTile('1Y', item.pct_1y, 'Move over the last 252 trading days')}${volTile}</div>
-        ${(() => {
-          // Build prioritized badge list — trend tag always shown, then top 4 by priority
-          const extras = [];
-          const push = (p, html) => { if (html) extras.push({ p, html }); };
-          push(60, item[f('volume_spike_flag')] === 'yes' ? '<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">VOL SPIKE</span>' : '');
-          push(55, compression ? `<span class="scanner-tag" style="background:var(--volume-soft);color:var(--volume)">SQUEEZE${!isNaN(ribbonSpread) ? ' ' + ribbonSpread.toFixed(1) + '%' : ''}</span>` : '');
-          push(35, trendMaturityBadge(item));
-          push(30, runDays > 0 ? `<span class="scanner-tag" style="background:var(--accent-glow);color:var(--accent)">${barsLabel(runDays)} run</span>` : '');
-          extras.sort((a, b) => b.p - a.p);
-          const MAX = 4;
-          const visible = extras.slice(0, MAX).map(b => b.html).join('');
-          const overflow = extras.length > MAX
-            ? `<span class="scanner-tag scanner-overflow" title="Open card to see all signals">+${extras.length - MAX}</span>`
-            : '';
-          return (visible || overflow) ? `<div class="scanner-meta">${visible}${overflow}</div>` : '';
-        })()}
       </div>`;
     };
 
