@@ -9288,3 +9288,42 @@ body.chart-full-open { overflow: hidden; }
 .wl2-ediv { background: rgba(255,255,255,.03); }
 .wl2-divname { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding-left: 4px; }
 .wl2-udiv { color: var(--text-secondary); }
+
+/* ── Drawing tools as colourful toys (2026-09-24, user) ─────────────────────
+   Each tool its own bright colour, rounded, with a chunky raised edge that
+   presses down on tap — they should stand out from the chart, not blend in. */
+.reel-tools-row .reel-tool[data-act="channel-add"] {
+  --toy: #3b82f6; --toy-edge: #1d4ed8;
+  background: var(--toy); color: #fff; border-radius: 12px;
+  box-shadow: 0 3px 0 var(--toy-edge), 0 4px 10px rgba(0,0,0,.18);
+  transform: translateY(-2px); transition: transform .08s, box-shadow .08s;
+  margin: 0 2px;
+}
+.reel-tools-row .reel-tool[data-act="channel-add"]:active {
+  transform: translateY(1px); box-shadow: 0 0 0 var(--toy-edge), 0 1px 4px rgba(0,0,0,.2);
+}
+.reel-tools-row .reel-tool[data-kind="trend"]  { --toy: #22c55e; --toy-edge: #15803d; }
+.reel-tools-row .reel-tool[data-kind="hline"]  { --toy: #f97316; --toy-edge: #c2410c; }
+.reel-tools-row .reel-tool[data-kind="vline"]  { --toy: #a855f7; --toy-edge: #7e22ce; }
+.reel-tools-row .reel-tool[data-kind="ladder"] { --toy: #ec4899; --toy-edge: #be185d; }
+.reel-tools-row .reel-tool[data-kind="entry"]  { --toy: #facc15; --toy-edge: #ca8a04; color: #3b2f00; }
+.reel-tools-row .reel-hist {
+  background: #e7e5e4; color: #292524; border-radius: 12px;
+  box-shadow: 0 3px 0 #a8a29e; transform: translateY(-2px); margin: 0 2px;
+}
+.reel-tools-row .reel-hist:disabled { opacity: .45; }
+.reel-tools-row .reel-hist:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 0 0 #a8a29e; }
+/* Ladder stack controls in the properties row — pink, like the ladder tool. */
+.reel-stack { display: inline-flex; gap: 4px; margin: 0 4px; }
+.reel-stack-btn { background: #ec4899; color: #fff; border-radius: 10px; font: 800 15px/20px system-ui, -apple-system, sans-serif;
+  min-width: 40px; padding: 6px 6px; box-shadow: 0 2px 0 #be185d; }
+.reel-stack-btn:disabled { opacity: .35; }
+.reel-stack-btn sup { font-size: 10px; margin-left: 1px; }
+.reel-stack-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+/* The toy buttons + ladder stack controls no longer fit one phone-width row:
+   wrap, centred, instead of clipping both ends (2026-09-24). */
+.reel-tools-row, .reel-props { flex-wrap: wrap; justify-content: center; row-gap: 8px; }
+.reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 10px; }
+/* Full card width (it shrank to its content once the rows could wrap). */
+.reel-toolbar { width: calc(100% - 12px); max-width: 560px; box-sizing: border-box; }
+.reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 7px; margin: 0 1px; }

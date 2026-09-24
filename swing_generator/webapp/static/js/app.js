@@ -418,7 +418,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels',
+    'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo',
   ]);
 
@@ -6183,6 +6183,13 @@
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+        // Stack a copy of the 10 lines above / below, or take one away.
+        + `<span class="reel-stack" role="group" aria-label="Stack ladder">`
+        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="1" data-name="${name}" title="Build another block above" aria-label="Build another block above">+▲</button>`
+        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" title="Remove the top stack" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲${ladderStack(d, 'up') ? `<sup>${ladderStack(d, 'up')}</sup>` : ''}</button>`
+        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="1" data-name="${name}" title="Build another block below" aria-label="Build another block below">+▼</button>`
+        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" title="Remove the bottom stack" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼${ladderStack(d, 'down') ? `<sup>${ladderStack(d, 'down')}</sup>` : ''}</button>`
+        + `</span>`
       : '';
     // A BOLD switch on entry markers (user, 2026-09-15) and on horizontal and
     // vertical lines (user, 2026-09-19).
@@ -8382,27 +8389,43 @@
   // Ten price lines — dotted like the calendar lines, always evenly spaced,
   // adjusted from line 1 and line 4. Each line is numbered and priced at the
   // right-hand end of the plot, clear of the axis ticks in the gutter.
+  // STACKS (2026-09-24, user: "build above it or below it divided by the bold
+  // line"): extra copies of the ladder above (d.up) and below (d.down), each
+  // built EDGE TO EDGE on its neighbour — a block's bold end line IS the next
+  // block's bold start line — and each carrying the same 10%..100% divisions
+  // at the same spacing. Derived from the two handles on every draw, so
+  // adjusting the original readjusts every block. Unlimited; removed one at a
+  // time. A block spans LADDER_LINES-1 steps (10% to 100% is nine gaps).
+  const ladderStack = (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0));
+
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
     const step = (d.p4 - d.p1) / 3;
     if (!isFinite(step) || step === 0) return '';
     let out = '', drawn = 0;
-    for (let k = 0; k < LADDER_LINES; k++) {
+    const SPAN = LADDER_LINES - 1;                 // steps per block
+    const kMin = -SPAN * ladderStack(d, 'down');
+    const kMax = SPAN * (1 + ladderStack(d, 'up'));
+    for (let k = kMin; k <= kMax; k++) {
       const p = d.p1 + k * step, y = sc.y(p);
       if (y < L.py0 || y > L.py1) continue;
-      // The two ENDS of the ladder are the bold lines, matching their bold 10%
-      // and 100% labels (user, 2026-09-15). Line 4 used to be heavy because it
-      // carries a handle; the handle marks it well enough on its own.
-      const key = k === 0 || k === LADDER_LINES - 1;
+      // Block boundaries are the bold lines — the original's 10% and 100%, and
+      // every divider between stacked blocks (user, 2026-09-15 / 09-24).
+      const j = ((k % SPAN) + SPAN) % SPAN;
+      const key = j === 0;
+      // Every block reads 10%..100% from its own bottom; a divider is its
+      // lower block's 100% and its upper block's 10% — labelled from the
+      // original's side: 100% above the original, 10% at or below it.
+      const pctLbl = j !== 0 ? (j + 1) * 10 : (k > 0 ? 100 : 10);
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
            // on line 10 (user, 2026-09-15). The price used to sit at the right
            // end, where it crowded the axis it duplicated.
-           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${k === 0 || k === LADDER_LINES - 1 ? ' reel-ladder-lbl-end' : ''}">${(k + 1) * 10}%</text>`);
+           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}">${pctLbl}%</text>`);
       drawn++;
     }
     if (!drawn) {
-      const above = Math.max(sc.y(d.p1), sc.y(d.p1 + 9 * step)) < L.py0;
+      const above = Math.max(sc.y(d.p1 + kMin * step), sc.y(d.p1 + kMax * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">10 lines ${above ? '↑' : '↓'} off-scale</text>`;
     }
     let handles = '';
@@ -11174,6 +11197,18 @@
         const d = activeChannel(name);
         if (d && DRAW_BOLDABLE.has(d.kind)) {
           if (d.bold) delete d.bold; else d.bold = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      if (btn.dataset.act === 'draw-stack') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          const dir = btn.dataset.dir === 'down' ? 'down' : 'up';
+          const n = ladderStack(d, dir) + (Number(btn.dataset.d) || 0);
+          if (n > 0) d[dir] = n; else delete d[dir];
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
