@@ -8122,6 +8122,9 @@
   // How many future DAY lines the 5m grid projects past the last bar (trading
   // days — an instrument with no weekend bars gets no Saturday line).
   const REEL_FUTURE_DAYS = 5;
+  // ...and how many future WEEK-START lines (user 2026-09-24: "include old and
+  // future weeks"). Past weeks come from the bundle itself (two months).
+  const REEL_FUTURE_WEEKS = 8;
 
   // Intraday timeframes: bar labels carry a time, end-stops show it.
   const isIntradayTf = tf => tf === '5m' || tf === '10m';
@@ -8250,8 +8253,8 @@
         const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
         if (perMs > 0 && prevDay) {
           const d = new Date(prevDay + 'T00:00:00Z');
-          let added = 0, lastMonth = d.getUTCMonth(), lastWeek = reelWeekKey(prevDay);
-          while (added < REEL_FUTURE_DAYS) {
+          let added = 0, weeks = 0, lastMonth = d.getUTCMonth(), lastWeek = reelWeekKey(prevDay);
+          while (added < REEL_FUTURE_DAYS || weeks < REEL_FUTURE_WEEKS) {
             d.setUTCDate(d.getUTCDate() + 1);
             const wd = d.getUTCDay();
             if (!weekend && (wd === 0 || wd === 6)) continue;
@@ -8261,7 +8264,10 @@
             const week  = reelWeekKey(iso) !== lastWeek;
             lastMonth = d.getUTCMonth();
             lastWeek  = reelWeekKey(iso);
-            lines.push({ fi, future: true, month, week, label: reelDayLineLabel(iso, month) });
+            if (week) weeks++;
+            // Past the first REEL_FUTURE_DAYS only week (and month) starts are drawn.
+            if (added < REEL_FUTURE_DAYS || week || month)
+              lines.push({ fi, future: true, month, week, label: reelDayLineLabel(iso, month) });
             added++;
           }
         }

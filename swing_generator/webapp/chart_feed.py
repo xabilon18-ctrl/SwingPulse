@@ -74,10 +74,10 @@ MIN_RIBBON_LINES = 2
 # recent one; the rest is what panning back reaches. See build_10m.
 CARRY_MONTHS = 2
 
-# Same for the 5m bundle (2026-09-24). ONE month, not two: a 5m bar is half a
-# 10m bar, so a month of 5m is the same payload two months of 10m were (~1,650
-# bars on a US equity, ~8,900 on a 24/7 instrument).
-CARRY_MONTHS_5M = 1
+# Same for the 5m bundle. TWO months since 2026-09-24 (user: "include old
+# weeks" — pan back through earlier weeks). Measured: AAPL 25 -> 49 KB gzipped,
+# BTC 150 -> 285 KB (the warm-up cap below trims BTC to ~2 months less 9 days).
+CARRY_MONTHS_5M = 2
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -107,8 +107,8 @@ BARS_BY_TF = {
     # equity's ~815, and Yahoo's own 5m ceiling stops it at 8,599.
     '10m': 8800,
     # 5m (2026-09-24, replaced 10m and 3D on the Charts tab): the same ceiling
-    # role — one calendar month of a 24/7 instrument is ~8,900 five-minute bars.
-    '5m': 9000,
+    # role — two calendar months of a 24/7 instrument is ~17,500 five-minute bars.
+    '5m': 18000,
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
