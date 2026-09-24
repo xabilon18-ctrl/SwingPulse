@@ -1065,6 +1065,7 @@
     return { lists: [], mod: 0 };
   })();
   const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group' };
+  let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
 
   function wlSave() {
@@ -1232,17 +1233,45 @@
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
     const pills = [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all">All markets</button>`]
       .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}">${escText(l.name)} <span class="wl2-n">${l.items.length}</span></button>`))
+      .concat(wlUi.list !== 'all' ? [wlEdit
+        ? `<button class="wl2-pill wl2-done" data-wl-edit>Done</button>`
+        : `<button class="wl2-pill wl2-edit" data-wl-edit>Edit list</button>`] : [])
       .concat([`<button class="wl2-pill wl2-new" data-wl-new>+ New list</button>`]);
-    if (wlUi.list !== 'all') pills.push(`<button class="wl2-pill wl2-edit" data-wl-manage>Rename / delete</button>`);
     document.getElementById('wl2Lists').innerHTML = pills.join('');
     document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
       `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
     const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
 
+    // EDIT MODE (2026-09-24, "an option to rearrange my watchlists"): the
+    // list in its own order, each row with move up / move down / remove, and
+    // a bar to rename, delete or move the whole list among the others.
+    const cur = lists.find(l => l.id === wlUi.list);
+    if (!cur) wlEdit = false;
+    if (wlEdit && cur) {
+      const li = lists.indexOf(cur);
+      const byName = Object.fromEntries(allData.map(d => [d.instrument_name, d]));
+      body.innerHTML = `<div class="wl2-editbar">
+          <button class="wl2-ebtn" data-wl-lmove="-1" ${li === 0 ? 'disabled' : ''}>◀ Move list</button>
+          <button class="wl2-ebtn" data-wl-lmove="1" ${li === lists.length - 1 ? 'disabled' : ''}>Move list ▶</button>
+          <button class="wl2-ebtn" data-wl-rename>Rename</button>
+          <button class="wl2-ebtn wl2-danger" data-wl-dellist>Delete list</button>
+        </div>`
+        + (cur.items.length ? cur.items.map((n, i) => {
+          const d = byName[n] || { asset_class: '' };
+          return `<div class="wl2-erow">
+            ${wlBadge(n, d.asset_class)}
+            <span class="wl2-names"><span class="wl2-sym">${escText(n)}</span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
+            <button class="wl2-mv" data-wl-mv="-1" data-n="${escText(n)}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
+            <button class="wl2-mv" data-wl-mv="1" data-n="${escText(n)}" ${i === cur.items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
+            <button class="wl2-mv wl2-x" data-wl-rmx="${escText(n)}" aria-label="Remove">✕</button>
+          </div>`; }).join('')
+        : `<div class="wl2-empty">This list is empty.</div>`);
+      return;
+    }
+
     // Rows.
     let rows = allData.slice();
-    const cur = lists.find(l => l.id === wlUi.list);
     if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
     if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
     const q = wlUi.q.trim().toLowerCase();
@@ -1341,17 +1370,37 @@
       const row = t.closest('[data-wl-row]');
       if (row) return wlOpenSheet(row.dataset.wlRow);
       const lp = t.closest('[data-wl-list]');
-      if (lp) { wlUi.list = lp.dataset.wlList; wlSaveUi(); return renderWatchlist(); }
+      if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
-      if (t.closest('[data-wl-manage]')) {
-        const l = wlStore.lists.find(x => x.id === wlUi.list); if (!l) return;
-        const v = prompt(`Rename "${l.name}" — or clear the box and press OK to DELETE the list:`, l.name);
-        if (v === null) return;
-        if (!v.trim()) { wlStore.lists = wlStore.lists.filter(x => x.id !== l.id); wlUi.list = 'all'; wlSaveUi(); }
-        else l.name = v.trim().slice(0, 30);
-        wlSave(); return renderWatchlist();
+      if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
+      const l = wlStore.lists.find(x => x.id === wlUi.list);
+      if (l) {
+        const mv = t.closest('[data-wl-mv]');
+        if (mv) {
+          const i = l.items.indexOf(mv.dataset.n), j = i + Number(mv.dataset.wlMv);
+          if (i >= 0 && j >= 0 && j < l.items.length) { [l.items[i], l.items[j]] = [l.items[j], l.items[i]]; wlSave(); }
+          return renderWatchlist();
+        }
+        const rx = t.closest('[data-wl-rmx]');
+        if (rx) { l.items = l.items.filter(n => n !== rx.dataset.wlRmx); wlSave(); return renderWatchlist(); }
+        const lm = t.closest('[data-wl-lmove]');
+        if (lm) {
+          const L = wlStore.lists, i = L.indexOf(l), j = i + Number(lm.dataset.wlLmove);
+          if (j >= 0 && j < L.length) { [L[i], L[j]] = [L[j], L[i]]; wlSave(); }
+          return renderWatchlist();
+        }
+        if (t.closest('[data-wl-rename]')) {
+          const v = (prompt('New name for this list:', l.name) || '').trim();
+          if (v) { l.name = v.slice(0, 30); wlSave(); }
+          return renderWatchlist();
+        }
+        if (t.closest('[data-wl-dellist]')) {
+          if (!confirm(`Delete the list "${l.name}"? The instruments stay in All markets.`)) return;
+          wlStore.lists = wlStore.lists.filter(x => x.id !== l.id); wlUi.list = 'all'; wlEdit = false;
+          wlSaveUi(); wlSave(); return renderWatchlist();
+        }
       }
     });
     const s = document.getElementById('wl2Search');
@@ -8811,6 +8860,18 @@
         const fi = reelBarIndexForDate(b, y + '-01-01');
         if (fi != null) out.push({ fi, label: String(y), future: true });
       }
+      // US ADMINISTRATIONS on Daily too (user, 2026-09-24): drawn at the 5m
+      // week line's weight (.reel-tgrid-admin), over the thinner year lines.
+      // Listed LAST so, where a label must be dropped, it is the year's.
+      REEL_ADMIN_TERMS.forEach(t => {
+        const fi = reelBarIndexForDate(b, t.date);
+        if (fi != null) out.push({ fi, label: t.label, admin: true });
+      });
+      out.sort((p, q) => p.fi - q.fi);
+      // A year line within ~2 months of an administration keeps its LINE but
+      // gives up its label, so "Trump II" reads rather than "2025".
+      const adm = out.filter(l => l.admin).map(l => l.fi);
+      out.forEach(l => { if (!l.admin && adm.some(a => Math.abs(a - l.fi) < 45)) l.label = ''; });
     }
     return out;
   }
@@ -9097,7 +9158,7 @@
                  : t.week  ? 'reel-tgrid reel-tgrid-week'
                  : t.month ? 'reel-tgrid reel-tgrid-month'
                  : 'reel-tgrid';
-      const label = (!near && room);
+      const label = (!near && room && !!t.label);
       let text = t.label;
       if (label) {
         lastLabelX = x;
