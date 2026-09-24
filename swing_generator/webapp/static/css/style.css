@@ -9385,3 +9385,55 @@ body.chart-full-open { overflow: hidden; }
 .sc2-ma { padding: 2px 5px; font-size: .62rem; }
 .sc2-mv b { font-size: .62rem; }
 .sc2-r3 { flex-wrap: wrap; overflow: visible; row-gap: 4px; }
+
+/* ── Dashboard hub restyle (2026-09-24, preview) ─────────────────────────────
+   Same language as the new signal cards: a coloured accent edge + soft tint
+   per card, tighter padding, long cards folded to a preview. */
+#pane-dashboard > .card { --acc: var(--accent); border-left: 4px solid var(--acc);
+  background: radial-gradient(130% 70% at 0% 0%, color-mix(in srgb, var(--acc) 11%, transparent), transparent 60%), var(--bg-card);
+  padding: 14px 14px 12px; position: relative; overflow: hidden; }
+#pane-dashboard > #marketPulse      { --acc: var(--buy); }
+#pane-dashboard > #dashMoversCard   { --acc: #facc15; }
+#pane-dashboard > #rotationCard     { --acc: #a855f7; }
+#pane-dashboard > #sectorRadarCard  { --acc: #3b82f6; }
+#pane-dashboard > #leadersCard      { --acc: #f97316; }
+#pane-dashboard > #techThemesCard   { --acc: #ec4899; }
+#pane-dashboard > #groupPulseCard   { --acc: #14b8a6; }
+#pane-dashboard > #volumePulseCard  { --acc: #8b5cf6; }
+#pane-dashboard > #trackRecordCard  { --acc: #64748b; }
+#pane-dashboard > #compressionCard  { --acc: #6366f1; }
+#pane-dashboard > .card .card-header h3 { font-size: .8rem; letter-spacing: .09em; }
+#pane-dashboard > .card .card-header h3::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--acc); box-shadow: 0 0 8px var(--acc); margin-right: 8px; vertical-align: 1px; }
+.dash-link { background: none; border: 0; color: var(--acc, var(--accent)); font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; }
+/* Folded long cards */
+#pane-dashboard > .card.dash-folded { max-height: var(--fold-h, 340px); padding-bottom: 46px; }
+#pane-dashboard > .card.dash-folded::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+  background: linear-gradient(to bottom, transparent, var(--bg-card) 62%); pointer-events: none; }
+.dash-more { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 2;
+  background: color-mix(in srgb, var(--acc, var(--accent)) 22%, var(--bg-card)); color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--acc, var(--accent)) 55%, transparent); border-radius: 999px;
+  padding: 6px 16px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+#pane-dashboard > .card:not(.dash-folded) .dash-more { position: static; transform: none; display: block; margin: 10px auto 0; }
+/* Watchlist movers tiles */
+.dm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dm-tile { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; padding: 9px 10px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); font: inherit; text-align: left; min-width: 0; }
+.dm-tile.up { background: linear-gradient(160deg, var(--buy-soft), transparent 70%), var(--bg-elevated); border-color: rgba(16,185,129,.35); }
+.dm-tile.dn { background: linear-gradient(160deg, var(--sell-soft), transparent 70%), var(--bg-elevated); border-color: rgba(239,68,68,.35); }
+.dm-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dm-top .wl2-badge { width: 22px; height: 22px; font-size: .58rem; }
+.dm-name { font-weight: 800; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-px { font-size: .8rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.dm-pct { font-size: .95rem; font-weight: 800; }
+.dm-tile.up .dm-pct { color: var(--buy); } .dm-tile.dn .dm-pct { color: var(--sell); }
+/* Trend-change strip tiles glow like the signal chips */
+.trend-alert-banner { border-left: 4px solid #f59e0b; }
+
+#pane-dashboard > #dashSignalFeed { --acc: #22c55e; }
+/* Market Pulse: same content, less air (hub restyle 2026-09-24). */
+#marketPulse.card { padding: 12px 14px 10px 16px; }
+#marketPulse .mp-card-hint { display: none; }
+#marketPulse .mp-card-header { margin-bottom: 4px; }
+#marketPulse .mp-gauge-wrap { flex: 0 0 118px; max-width: 118px; }
+#marketPulse .gauge-sublabel { font-size: .56rem; }

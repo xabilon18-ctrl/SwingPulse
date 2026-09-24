@@ -1452,9 +1452,91 @@
     if (so) so.addEventListener('change', () => { wlUi.sort = so.value; wlSaveUi(); renderWatchlist(); });
   })();
 
+  // ── DASHBOARD AS A HUB (2026-09-24, user: "make the dashboard
+  // complementary" — both the new look and a summary of the other tabs).
+  // (1) Watchlist movers card; (2) long cards folded to a preview with
+  // "Show all", remembered per card; (3) the accent colours live in CSS.
+  const DASH_FOLD = { rotationCard: 430, sectorRadarCard: 320, leadersCard: 360, techThemesCard: 260,
+                      groupPulseCard: 280, volumePulseCard: 280, trackRecordCard: 280, compressionCard: 250,
+                      dashSignalFeed: 260 };
+  let dashOpen = {};
+  try { dashOpen = JSON.parse(localStorage.getItem('swingpulse-dash-open') || '{}') || {}; } catch (_) {}
+
+  function dashMovers() {
+    const card = document.getElementById('dashMoversCard'), box = document.getElementById('dashMovers');
+    if (!card || !box || !quotesData) { if (card) card.style.display = 'none'; return; }
+    const mine = [...new Set(wlStore.lists.flatMap(l => l.items).filter(x => !wlIsDiv(x)))];
+    const pool = mine.length ? mine : Object.keys(quotesData.q);
+    const byName = Object.fromEntries(allData.map(d => [d.instrument_name, d]));
+    const rows = pool.map(n => ({ n, x: wlQuote(n), d: byName[n] }))
+      .filter(r => r.x && r.x.pct != null && r.d)
+      .sort((a, b) => Math.abs(b.x.pct) - Math.abs(a.x.pct)).slice(0, 6);
+    if (!rows.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    card.querySelector('h3').textContent = mine.length ? 'Your watchlist movers' : 'Biggest movers';
+    box.innerHTML = `<div class="dm-grid">${rows.map(({ n, x, d }) => `
+      <button class="dm-tile ${x.pct >= 0 ? 'up' : 'dn'}" data-wl-row="${escText(n)}">
+        <span class="dm-top">${wlBadge(n, d.asset_class)}<span class="dm-name">${escText(n)}</span></span>
+        <span class="dm-px">${wlFmtPrice(x.p)}</span>
+        <span class="dm-pct">${wlFmtPct(x.pct)}</span>
+      </button>`).join('')}</div>`;
+  }
+
+  function dashFold() {
+    // The Signal Feed card has no id in the markup; name it, and give it a
+    // route to the tab it previews.
+    const feed = [...document.querySelectorAll('#pane-dashboard > .card')]
+      .find(c => !c.id && /Signal Feed/.test((c.querySelector('h3') || {}).textContent || ''));
+    if (feed) {
+      feed.id = 'dashSignalFeed';
+      const hd = feed.querySelector('.card-header');
+      if (hd && !hd.querySelector('.dash-link'))
+        hd.insertAdjacentHTML('beforeend', '<button class="dash-link" data-dash-go="scanner">Open Signals ›</button>');
+    }
+    Object.entries(DASH_FOLD).forEach(([id, h]) => {
+      const card = document.getElementById(id);
+      if (!card || card.style.display === 'none') return;
+      let btn = card.querySelector(':scope > .dash-more');
+      card.classList.remove('dash-folded');
+      const tall = card.scrollHeight > h + 80;
+      if (!tall) { if (btn) btn.remove(); return; }
+      card.style.setProperty('--fold-h', h + 'px');
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.className = 'dash-more';
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          dashOpen[id] = !dashOpen[id];
+          try { localStorage.setItem('swingpulse-dash-open', JSON.stringify(dashOpen)); } catch (_) {}
+          dashFold();
+        });
+        card.appendChild(btn);
+      }
+      const open = !!dashOpen[id];
+      card.classList.toggle('dash-folded', !open);
+      btn.textContent = open ? 'Show less ▴' : 'Show all ▾';
+    });
+  }
+
+  function dashHub() {
+    try { dashMovers(); } catch (_) {}
+    requestAnimationFrame(() => { try { dashFold(); } catch (_) {} });
+  }
+
+  (function dashWire() {
+    const pane = document.getElementById('pane-dashboard');
+    if (!pane) return;
+    pane.addEventListener('click', e => {
+      const t = e.target.closest('#dashMoversCard [data-wl-row]');
+      if (t) { e.stopPropagation(); return wlOpenSheet(t.dataset.wlRow); }
+      const g = e.target.closest('[data-dash-go]');
+      if (g) { e.stopPropagation(); return navigateToTab(g.dataset.dashGo); }
+    });
+  })();
+
   function renderCurrentTab() {
     const tab = currentTab;
-    if (tab === 'dashboard')   renderDashboard();
+    if (tab === 'dashboard')   { renderDashboard(); dashHub(); }
     else if (tab === 'scanner')  renderScanner();
     else if (tab === 'trends')   renderTrendsLazy();
     else if (tab === 'watchlist') renderWatchlist();
@@ -1918,6 +2000,7 @@
 
   function renderAll() {
     renderDashboard();
+    dashHub();
     renderScanner();
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit

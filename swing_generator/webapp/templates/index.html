@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=304">
+  <link rel="stylesheet" href="/static/css/style.css?v=307">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -205,6 +205,17 @@
       </div>
 
       <!-- Trend alert banner — B1/S1 reversals + B4/S4 anchor-MA bounces -->
+      <!-- Watchlist movers (2026-09-24): the Dashboard as a hub — the biggest
+           movers in the reader's own lists (all markets when there are none),
+           tapping through to the same sheet the Watchlist uses. -->
+      <div class="card" id="dashMoversCard" style="display:none">
+        <div class="card-header">
+          <h3>Watchlist movers</h3>
+          <button class="dash-link" data-dash-go="watchlist">Open Watchlist ›</button>
+        </div>
+        <div id="dashMovers"></div>
+      </div>
+
       <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
         <div class="trend-alert-header">
           <span class="trend-alert-icon">⚡</span>
@@ -859,6 +870,6 @@
 
 
 
-  <script src="/static/js/app.js?v=380"></script>
+  <script src="/static/js/app.js?v=382"></script>
 </body>
 </html>
