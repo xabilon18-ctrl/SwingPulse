@@ -8831,10 +8831,15 @@
       const my = yAtX(mx);
       handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
-      // Move handle on the midline, a step to the side of the edge handles so
-      // the three never sit on top of one another in a narrow channel.
+      // Move handle EXACTLY HALFWAY between the two end handles, on the
+      // midline (user, 2026-09-25: "i need it to be the halfway point between
+      // the adjustments"). It used to sit 130 units to the side. The width
+      // handles are on the EDGES at the same x, so they only collide in a
+      // channel too narrow to separate them — then, and only then, it steps
+      // aside. Clamped into the panel like the edge handles (mx).
       if (handles) {
-        const side = (mx + 130 <= L.x1 - 60) ? 130 : -130;
+        const tight = Math.min(Math.abs(dUp - dMid), Math.abs(dDn - dMid)) < 40;
+        const side = !tight ? 0 : (mx + 130 <= L.x1 - 60) ? 130 : -130;
         const mvx = mx + side;
         handles += reelMoveHandle(L, mvx, yAtX(mvx) + dMid, idx, isActive);
       }
