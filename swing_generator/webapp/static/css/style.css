@@ -7693,6 +7693,12 @@ body {
   padding: 10px 12px 12px;
   border-bottom: 1px solid var(--border);
 }
+/* ~800 cards live in the reel at once. Without containment ANY change inside
+   one card — even a button's label — re-laid-out all of them: 100-170ms a tap
+   on a laptop, several times that on a phone ("it responds slow to my
+   pressing", 2026-09-25). Each card is a fixed-size panel (height: 100%), so
+   its layout can be its own, and cards off screen are skipped entirely. */
+#chartReel .reel-card { contain: layout style; content-visibility: auto; }
 
 .reel-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 /* Two lines now: ticker + group, then the instrument's full name under it. */
@@ -8000,6 +8006,10 @@ body {
 .reel-capsule > .reel-act:last-child  { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .reel-capsule > .reel-act.on { position: relative; z-index: 1; }
 .reel-view-btn.on svg path { fill: currentColor; }
+/* Instant feedback the moment a finger lands (user: "it responds slow to my
+   pressing") — the capsule halves darken and dip before the tap is handled. */
+.reel-capsule > .reel-act { transition: transform .06s ease, background-color .06s ease; }
+.reel-capsule > .reel-act:active { transform: scale(.96); background: var(--bg-hover); }
 /* Back is the one header icon you reach for mid-browse — a shade stronger. */
 .reel-back-btn { color: var(--text-secondary); }
 /* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was

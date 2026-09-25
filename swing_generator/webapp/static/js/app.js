@@ -7896,7 +7896,7 @@
   function reelViewCapture(host) {
     const ctx = host && host._reelCtx;
     if (!ctx) return null;
-    const c = bundleLastClose(ctx.bundle), px = plotPixelHeight(host, ctx.L);
+    const c = bundleLastClose(ctx.bundle), px = ctx.plotPx || plotPixelHeight(host, ctx.L);
     if (!(c > 0) || !(px > 0)) return null;
     return {
       bars: reelWindowBars(ctx.bundle, ctx.name),
@@ -8439,7 +8439,11 @@
       if (tools) tools.hidden = reel.editing !== name;
       const btn  = card.querySelector('[data-act="channel"]');
       if (btn) {
-        btn.innerHTML = channelBtnHtml(name);
+        // Written only when it CHANGES (2026-09-25, "it responds slow to my
+        // pressing"): this runs over every card in the reel (~800) on each
+        // tap, and rewriting 800 buttons' HTML was most of a tap's cost.
+        const html = channelBtnHtml(name);
+        if (btn._html !== html) { btn.innerHTML = html; btn._html = html; }
         btn.classList.toggle('on', reel.editing === name);
       }
       reelSyncProps(card, name);
@@ -9602,7 +9606,9 @@
 
     // The pointer handlers need the exact geometry that was DRAWN, not a
     // recomputation that might drift from it, so it is stashed on the host.
-    host._reelCtx = { L, sc, bw, b, name, bundle };
+    // plotPx is read HERE, while layout is already clean: reading it later in a
+    // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
+    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L) };
 
     // Park the tool bar just above the trend strip and the date row.
     //
