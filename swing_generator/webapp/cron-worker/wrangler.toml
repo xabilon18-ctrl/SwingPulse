@@ -8,7 +8,7 @@
 #
 # Every 30 min, 05:00-23:00 SAST (UTC+2, no DST), Monday-Friday:
 #   03:00 .. 20:30 UTC on the hour and half hour, plus 21:00 UTC.
-# Weekends stay on GitHub's own once-a-day crypto cron.
+# Weekends: every 3 hours, 06:00-21:00 SAST (04:00 .. 19:00 UTC), Sat+Sun.
 #
 # Secret (set once, by hand — a fine-grained token for THIS repo only,
 # permission "Actions: Read and write"):
@@ -20,7 +20,7 @@ compatibility_date = "2025-01-01"
 [triggers]
 # Day NAMES, not numbers: Cloudflare counts 1 = SUNDAY, so "1-5" meant
 # Sun-Thu and Friday 2026-09-25 never fired.
-crons = ["0,30 3-20 * * MON-FRI", "0 21 * * MON-FRI"]
+crons = ["0,30 3-20 * * MON-FRI", "0 21 * * MON-FRI", "0 4,7,10,13,16,19 * * SAT,SUN"]
 
 [vars]
 REPO     = "xabilon18-ctrl/SwingPulse"

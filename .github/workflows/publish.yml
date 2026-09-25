@@ -3,15 +3,12 @@ name: SwingPulse Daily Publish
 on:
   # The stale banner does NOT need to be kept in sync: since app.js v231 it reads
   # summary.fetched_at against a flat 32h and knows nothing about this schedule.
-  schedule:
-    # WEEKDAYS are no longer scheduled here (2026-09-24). GitHub queues cron
-    # runs 2.5-5h late (measured Sep 2026), so the 30-minute cadence the user
-    # asked for — every :00 and :30, 05:00-23:00 SAST, Mon-Fri — is driven by
-    # a Cloudflare Cron Trigger (swing_generator/webapp/cron-worker) that calls
-    # workflow_dispatch on the minute. The repo went PUBLIC the same day, which
-    # is what makes 31 runs a day free (GitHub Free caps PRIVATE repos at
-    # 2,000 min/month). Weekends stay here: crypto only, once a day.
-    - cron: '0 8  * * 6,0'   # 10:00 SAST Sat+Sun — crypto trades 24/7
+  # NOT scheduled here at all since 2026-09-25. GitHub queues cron runs
+  # 2.5-5h late (measured Sep 2026), so every run is started by a Cloudflare
+  # Cron Trigger (swing_generator/webapp/cron-worker) calling
+  # workflow_dispatch on the minute: every 30 min 05:00-23:00 SAST Mon-Fri,
+  # every 3 hours 06:00-21:00 SAST Sat+Sun. The repo is PUBLIC, which is what
+  # makes that many runs free (GitHub Free caps PRIVATE repos at 2,000 min/mo).
 
   # Manual trigger
   workflow_dispatch:
