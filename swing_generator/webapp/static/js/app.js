@@ -8735,7 +8735,11 @@
   // on every exchange-traded instrument and midnight on 24h ones — labelled
   // "Tue 22"; the first day of a month is drawn at month weight and labelled
   // "Thu 1 Oct" so the month is never lost.
-  const REEL_TIME_GRID = { '15m': 'day', '10m': 'month', '1H': 'half', '4H': 'half',
+  //
+  // 15m is WEEKS (user, 2026-09-25: "the grid time lines are monday 00:00 to
+  // monday 00:00"): only the week-start lines of the day grid, so each gap is
+  // one trading week. Same evenly spaced construction, day lines dropped.
+  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -8926,10 +8930,11 @@
     // anything that does not trade Saturday (stocks, indices, commodities,
     // forex — their Sunday-evening bars count as Monday), 7 for crypto.
     // Future: every remaining day of the current week, then week starts only.
-    if (mode === 'day') {
+    if (mode === 'day' || mode === 'week') {
       const src = b._src || b, from = b._from || 0, sn = src.t.length;
       if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
-      return src._dayGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
+      return src._dayGrid.filter(l => mode === 'day' || l.week)
+        .map(l => Object.assign({}, l, { fi: l.fi - from }));
     }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
