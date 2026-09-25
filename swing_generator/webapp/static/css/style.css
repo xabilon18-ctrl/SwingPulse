@@ -8008,8 +8008,19 @@ body {
 .reel-view-btn.on svg path { fill: currentColor; }
 /* Instant feedback the moment a finger lands (user: "it responds slow to my
    pressing") — the capsule halves darken and dip before the tap is handled. */
-.reel-capsule > .reel-act { transition: transform .06s ease, background-color .06s ease; }
-.reel-capsule > .reel-act:active { transform: scale(.96); background: var(--bg-hover); }
+.reel-capsule > .reel-act {
+  /* Smooth press AND release (user, 2026-09-25): a quick ease-in dip on the
+     way down, then a soft spring back up, and colour changes (Save -> Saved,
+     Drawing -> Done) fade rather than snap. */
+  transition: transform .22s cubic-bezier(.34, 1.56, .64, 1),
+              background-color .22s ease, color .22s ease, border-color .22s ease;
+  will-change: transform;
+}
+.reel-capsule > .reel-act:active {
+  transform: scale(.93);
+  background: var(--bg-hover);
+  transition: transform .09s ease-out, background-color .09s ease-out;
+}
 /* Back is the one header icon you reach for mid-browse — a shade stronger. */
 .reel-back-btn { color: var(--text-secondary); }
 /* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was

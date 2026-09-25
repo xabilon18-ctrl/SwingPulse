@@ -730,6 +730,9 @@
     catch (_) { instChannels = {}; }
     try { channelMod = JSON.parse(localStorage.getItem(sk('sp-channels-mod')) || '{}') || {}; }
     catch (_) { channelMod = {}; }
+    // Saved chart views live in the user's own bucket too.
+    try { savedViews = JSON.parse(localStorage.getItem(sk('sp-views')) || '{}') || {}; }
+    catch (_) { savedViews = {}; }
     channelSnapAll();
     updateSyncBadge();
     // A device that has never synced this user needs the password once; after
@@ -7918,13 +7921,21 @@
     reelSetPan(name, v.pan, bundle);
     return true;
   }
-  // Price half: needs the plot's height, so after the layout.
+  // Price half: needs the plot's height, so after the layout. Returns true once
+  // applied. A chart painted before it has a size on screen — the reel builds
+  // while its tab is still hidden behind the Dashboard — measures 0 here, so
+  // the price half WAITS (viewPricePending) and is applied on the next paint.
+  // It used to be dropped, while the time half had already been applied and
+  // blocked any retry: "the save only saves the time scale but not the price".
+  const viewPricePending = new Set();
   function reelViewSeedPrice(name, bundle, host, L) {
     const v = savedViews[viewKey(name)];
+    if (!v) return true;
     const c = bundleLastClose(bundle), px = plotPixelHeight(host, L);
-    if (!v || !(c > 0) || !(px > 0)) return;
+    if (!(c > 0) || !(px > 0)) return false;
     const span = v.pctPerPx * c * px, mid = c * (1 + v.mid);
     if (isFinite(span) && span > 0) reel.lockY.set(name, { lo: mid - span / 2, hi: mid + span / 2 });
+    return true;
   }
   // The footer CAPSULE (user, 2026-09-25: "like a capsule half save half edit
   // and done"): one pill, Save on the left, the Drawing/Edit/Done button on
@@ -9339,7 +9350,14 @@
     const _future  = Math.max(0, -_pan);
     const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
     const L  = reelLayout(host);
-    if (_seeded) reelViewSeedPrice(item.instrument_name, bundle, host, L);
+    {
+      const nm = item.instrument_name;
+      if (_seeded) viewPricePending.add(nm);
+      if (viewPricePending.has(nm)) {
+        // A price window the reader set in the meantime wins over the saved one.
+        if (reel.lockY.has(nm) || reelViewSeedPrice(nm, bundle, host, L)) viewPricePending.delete(nm);
+      }
+    }
     // Price scale. It fits the visible slice, EXCEPT while this card is being
     // panned: then it is pinned to the bounds captured when the drag began, so
     // scrolling back through history does not re-fit the axis under the reader.
@@ -9780,7 +9798,11 @@
     const src = chartFullSourceCtx(name);
     // 15m with no scale of the reader's own: full screen fits its own plot
     // (reel15mPriceWindow), the same opening view as the card.
-    if (src && !(timeframe === '15m' && chartFullPrevLock === undefined)) {
+    // Nor when the card is still waiting to apply a SAVED price window: full
+    // screen applies it itself (reelViewSeedPrice on its own plot) rather than
+    // copying the card's un-applied default and marking the view done.
+    if (src && !viewPricePending.has(name)
+        && !(timeframe === '15m' && chartFullPrevLock === undefined)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
@@ -11200,7 +11222,13 @@
   function reelPaintVisible() {
     document.querySelectorAll('#chartReel .reel-card').forEach(c => {
       const r = c.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < window.innerHeight) reelPaint(+c.dataset.idx);
+      if (r.bottom > 0 && r.top < window.innerHeight) {
+        reelPaint(+c.dataset.idx);
+        // A card painted before it had a size (pre-painted off screen) is still
+        // waiting for its saved price window — now it is on screen, apply it.
+        const host = document.getElementById('reelChart-' + c.dataset.idx);
+        if (host && host._reelCtx && viewPricePending.has(c.dataset.name)) reelRepaint(host);
+      }
     });
   }
 
