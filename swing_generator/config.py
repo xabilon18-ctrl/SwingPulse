@@ -90,9 +90,13 @@ SIGNAL_LOOKBACK_WEEKLY = 12
 # trading days (~6 weeks), against Daily's 20 bars (~1 month) and Weekly's 12
 # (~3 months). Carrying Daily's 20 across would report a 3-month-old fire.
 SIGNAL_LOOKBACK_3D     = 10
-SIGNAL_LOOKBACK_5M     = 288   # one 24h day of 5m bars
-FIVE_MIN_SIGNAL_CODES      = ('B1', 'S1')
-FIVE_MIN_SIGNAL_LIVE_HOURS = 24
+SIGNAL_LOOKBACK_15M    = 96    # one 24h day of 15m bars
+FIFTEEN_MIN_SIGNAL_CODES      = ('B1', 'S1')
+FIFTEEN_MIN_SIGNAL_LIVE_HOURS = 24
+# 15m bars are RESAMPLED from the 5m download (2026-09-25, user: replaced the
+# 5m chart and signals). Three 5m bars make one 15m bar exactly; every session
+# open this app carries (xx:00 / xx:30 / xx:15) sits on a 15-minute boundary.
+FIFTEEN_MIN_RULE = '15min'
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -393,8 +397,8 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # so neither gets one. This used to be `if prefix`, which was the same thing
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
-# 5m (2026-09-24): a day holds up to 288 five-minute bars.
-INTRADAY_PREFIXES = {'m5_'}
+# 15m (2026-09-25, replaced 5m): a day holds up to 96 fifteen-minute bars.
+INTRADAY_PREFIXES = {'m15_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, context modifiers,
@@ -424,14 +428,15 @@ INTRADAY_PREFIXES = {'m5_'}
 # Daily, so tf_alignment went with it. _resample_3d/_resample_weekly and the
 # *_3D/*_WEEKLY constants stay for the 3D chart and backtest.py research runs.
 #
-# 5m signals ADDED 2026-09-24 (user): B1/S1 ONLY, primary crosses only (no
-# re-fires — the 5% / 10-calendar-day re-fire band is thousands of 5m bars), and
-# a fire stays "live" on the row for FIVE_MIN_SIGNAL_LIVE_HOURS so the Signals
-# tab can list it between runs ~2h apart. Not backtested: confidence is the
-# 'standard' fallback and the ledger does not record 5m fires.
+# 15m signals (2026-09-25, replaced the 5m ones added 2026-09-24 — user: "5 min
+# is ok but tricky"): B1/S1 ONLY, primary crosses only (no re-fires — the 5% /
+# 10-calendar-day re-fire band is hundreds of 15m bars), and a fire stays
+# "live" on the row for FIFTEEN_MIN_SIGNAL_LIVE_HOURS so the Signals
+# tab can list it between runs. Not backtested: confidence is the
+# 'standard' fallback and the ledger does not record 15m fires.
 TIMEFRAMES = (
-    ('5m', 'm5_'),
-    ('D',  ''),
+    ('15m', 'm15_'),
+    ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
 TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
@@ -502,8 +507,8 @@ OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry', 'asset_class',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
-    # ── 5m (B1/S1 only, see TIMEFRAMES) ──
-    *_tf_signal_columns('m5_'),
+    # ── 15m (B1/S1 only, see TIMEFRAMES) ──
+    *_tf_signal_columns('m15_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',

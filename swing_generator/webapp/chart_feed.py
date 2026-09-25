@@ -61,7 +61,7 @@ from data_fetcher import (h4_ticker, load_5m, FIVE_MIN_LEVEL_REF, _read_5m_raw, 
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d, _resample_10m,
-                  _m10_ma_periods, _frame_5m, _m5_ma_periods)
+                  _m10_ma_periods, _frame_5m, _frame_15m, _m15_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -75,10 +75,10 @@ MIN_RIBBON_LINES = 2
 # recent one; the rest is what panning back reaches. See build_10m.
 CARRY_MONTHS = 2
 
-# How far back the 5m bundle goes: TWO MONTHS (user, 2026-09-24: "2 months is
-# fine going back"). AAPL 49 KB gzipped, BTC 285 KB (the warm-up cap below trims
-# BTC to ~2 months less 9 days).
-CARRY_MONTHS_5M = 2
+# How far back the 15m bundle goes: TWO MONTHS (user, 2026-09-24, said of the 5m
+# chart it replaced: "2 months is fine going back"). The warm-up cap below trims
+# a 24h instrument by MA500's ~5 days.
+CARRY_MONTHS_15M = 2
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -107,9 +107,9 @@ BARS_BY_TF = {
     # instrument puts ~4,300 ten-minute bars in a calendar month against an
     # equity's ~815, and Yahoo's own 5m ceiling stops it at 8,599.
     '10m': 8800,
-    # 5m (2026-09-24, replaced 10m and 3D on the Charts tab): the same ceiling
-    # role — two calendar months of a 24/7 instrument is ~17,500 five-minute bars.
-    '5m': 18000,
+    # 15m (2026-09-25, replaced 5m on the Charts tab): the same ceiling role —
+    # two calendar months of a 24/7 instrument is ~5,900 fifteen-minute bars.
+    '15m': 6000,
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
@@ -389,14 +389,14 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
-def build_5m(cache_dir: str, ticker: str) -> dict | None:
-    """5-minute chart, straight from the instrument's own 5m cache.
+def build_15m(cache_dir: str, ticker: str) -> dict | None:
+    """15-minute chart, resampled from the instrument's 5m source (main._frame_15m).
 
-    Replaced the 10m and 3D charts on 2026-09-24 (user). Built exactly like
-    build_10m minus the resample: the ticker's OWN 5m file (never h4_ticker's
-    redirect), ribbon over the whole cache so MA500 is warm at the left edge,
-    CARRY_MONTHS_5M of calendar shipped, and the carry capped so the slowest MA
-    keeps its warm-up on a 24/7 instrument. See build_10m for the reasoning.
+    Replaced the 5m chart on 2026-09-25 (user: "5 min is ok but tricky"), which
+    had replaced 10m and 3D the day before. Ribbon over the whole cache so MA500
+    is warm at the left edge, CARRY_MONTHS_15M of calendar shipped, and the
+    carry capped so the slowest MA keeps its warm-up on a 24/7 instrument. See
+    build_10m for the reasoning.
     """
     # data_fetcher.load_5m: US indices draw their nearly-24h FUTURES, gold its
     # COMEX contract — each shifted to the cash/spot LEVEL the user trades.
@@ -404,17 +404,17 @@ def build_5m(cache_dir: str, ticker: str) -> dict | None:
     df_5m = load_5m(ticker)
     if df_5m is None or df_5m.empty:
         return None
-    five = _frame_5m(df_5m)
-    if len(five) < 2:
+    frame = _frame_15m(df_5m)
+    if len(frame) < 2:
         return None
-    periods = _m5_ma_periods(five)
+    periods = _m15_ma_periods(frame)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    cutoff  = five.index[-1] - pd.DateOffset(months=CARRY_MONTHS_5M)
-    n_carry = int((five.index > cutoff).sum()) or len(five)
-    warm_cap = len(five) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['5m'], max(warm_cap, 1))
-    return _bundle(five, periods, '%Y-%m-%d %H:%M', bars=bars)
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_15M)
+    n_carry = int((frame.index > cutoff).sum()) or len(frame)
+    warm_cap = len(frame) - max(periods)
+    bars = min(n_carry, BARS_BY_TF['15m'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
 def _quote_one(cache_dir: str, ticker: str) -> dict | None:
@@ -515,11 +515,11 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'5m': n, 'D': n, 'chunks': n_files}.
+    Returns {'15m': n, 'D': n, 'chunks': n_files}.
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
     the 4H chart restored 2026-09-17, then 4H and Weekly removed 2026-09-24
     and 3D kept as a CHART ONLY (its signals went). Later on 2026-09-24 the 10m
-    and 3D charts were replaced by 5m. build_4h/build_weekly/build_10m/build_3d
+    and 3D charts were replaced by 5m, and on 2026-09-25 5m by 15m. build_4h/build_weekly/build_10m/build_3d
     stay for local research; their published chunks sit on R2 unreferenced.
     """
     chart_dir = os.path.join(output_dir, 'chart')
@@ -530,9 +530,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'5m': 0, 'D': 0, 'chunks': 0}
+    stats = {'15m': 0, 'D': 0, 'chunks': 0}
 
-    for tf, builder in (('5m', build_5m), ('D', build_daily)):
+    for tf, builder in (('15m', build_15m), ('D', build_daily)):
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
 

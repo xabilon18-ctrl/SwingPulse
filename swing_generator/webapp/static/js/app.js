@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['5m']);   // 5m since 2026-09-24 (1H/4H removed 2026-09-11)
+  const INTRADAY_TFS = new Set(['15m']);  // 15m since 2026-09-25 (5m 09-24; 1H/4H removed 2026-09-11)
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -128,12 +128,13 @@
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
-    // 5m replaced the 10m and 3D charts on 2026-09-24 (user), and got B1/S1
-    // SIGNALS the same day (m5_ columns; B1/S1 only, a fire stays on the row
-    // for 24h — see config.TIMEFRAMES). Signals tab + Charts; Dashboard is Daily.
-    { code: '5m', prefix: 'm5_', label: '5m', tv: '5', bar: '5-minute bars', barShort: '25-bar' },
+    // 15m replaced 5m on 2026-09-25 (user: "5 min is ok but tricky"); 5m had
+    // replaced the 10m and 3D charts the day before. B1/S1 SIGNALS (m15_
+    // columns; a fire stays on the row for 24h — see config.TIMEFRAMES).
+    // Signals tab + Charts; Dashboard is Daily. Bars are resampled from 5m.
+    { code: '15m', prefix: 'm15_', label: '15m', tv: '15', bar: '15-minute bars', barShort: '25-bar' },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
-    // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m.
+    // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
     // stay in the store untouched — expandChannelStore keeps every key it finds.
   ];
@@ -147,7 +148,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['5m', 'D']);
+  const SIGNAL_TFS = new Set(['15m', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -259,6 +260,9 @@
           // chart has none yet", which is what seeds an untouched chart with two.
           if (list.length || Array.isArray(src)) per[tf] = list;
         }
+        // 5m became 15m (2026-09-25). A drawing is anchored in (date, price),
+        // so one made on the 5m chart sits in the same place on 15m.
+        if (per['5m'] && !per['15m']) per['15m'] = per['5m'].map(c => ({ ...c }));
         if (Object.keys(per).length) out[name] = per;
       }
     }
@@ -909,11 +913,11 @@
     return tfMeta().prefix + field;
   }
 
-  // A bar count as the reader's unit: days on Daily, TRADING time on 5m
-  // ("20m", "3h") — a 5m run of 4 bars is twenty minutes, not four days.
+  // A bar count as the reader's unit: days on Daily, TRADING time on 15m
+  // ("45m", "3h") — a 15m run of 4 bars is an hour, not four days.
   function barsLabel(n) {
-    if (timeframe !== '5m') return `${n}d`;
-    const mins = n * 5;
+    if (timeframe !== '15m') return `${n}d`;
+    const mins = n * 15;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
   }
 
@@ -7786,9 +7790,9 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '5m' || timeframe === '10m' || timeframe === '4H') {
+    if (timeframe === '15m' || timeframe === '10m' || timeframe === '4H') {
       if (bundle._defBars) return bundle._defBars;
-      const span = timeframe === '5m' ? [0, 7] : timeframe === '10m' ? [1, 0] : [12, 0];
+      const span = timeframe === '15m' ? [0, 7] : timeframe === '10m' ? [1, 0] : [12, 0];
       return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
@@ -8731,7 +8735,7 @@
   // on every exchange-traded instrument and midnight on 24h ones — labelled
   // "Tue 22"; the first day of a month is drawn at month weight and labelled
   // "Thu 1 Oct" so the month is never lost.
-  const REEL_TIME_GRID = { '5m': 'day', '10m': 'month', '1H': 'half', '4H': 'half',
+  const REEL_TIME_GRID = { '15m': 'day', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -8741,7 +8745,7 @@
   const REEL_FUTURE_WEEKS = 8;
 
   // Intraday timeframes: bar labels carry a time, end-stops show it.
-  const isIntradayTf = tf => tf === '5m' || tf === '10m';
+  const isIntradayTf = tf => tf === '15m' || tf === '10m';
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;

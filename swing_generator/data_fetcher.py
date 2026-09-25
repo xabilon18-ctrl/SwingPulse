@@ -292,6 +292,16 @@ def drop_unfinished_5m(df: pd.DataFrame) -> pd.DataFrame:
     return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=5) <= _utc_now()]
 
 
+def drop_unfinished_15m(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop trailing 15-minute bars whose window has not elapsed yet (Rule 10)."""
+    if df.empty:
+        return df
+    idx = df.index
+    if getattr(idx, 'tz', None) is not None:
+        idx = idx.tz_convert('UTC').tz_localize(None)
+    return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=15) <= _utc_now()]
+
+
 def heal_daily_gaps_from_hourly(daily: pd.DataFrame, hourly: pd.DataFrame) -> pd.DataFrame:
     """Rebuild whole daily bars Yahoo's daily feed simply omitted.
 
