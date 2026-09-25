@@ -6,7 +6,7 @@ on:
   schedule:
     # WEEKDAYS are no longer scheduled here (2026-09-24). GitHub queues cron
     # runs 2.5-5h late (measured Sep 2026), so the 30-minute cadence the user
-    # asked for — every :00 and :30, 08:00-23:00 SAST, Mon-Fri — is driven by
+    # asked for — every :00 and :30, 05:00-23:00 SAST, Mon-Fri — is driven by
     # a Cloudflare Cron Trigger (swing_generator/webapp/cron-worker) that calls
     # workflow_dispatch on the minute. The repo went PUBLIC the same day, which
     # is what makes 31 runs a day free (GitHub Free caps PRIVATE repos at

@@ -6,8 +6,8 @@
 # which starts within seconds. The workflow's concurrency group still stops two
 # runs overlapping.
 #
-# Every 30 min, 08:00-23:00 SAST (UTC+2, no DST), Monday-Friday:
-#   06:00 .. 20:30 UTC on the hour and half hour, plus 21:00 UTC.
+# Every 30 min, 05:00-23:00 SAST (UTC+2, no DST), Monday-Friday:
+#   03:00 .. 20:30 UTC on the hour and half hour, plus 21:00 UTC.
 # Weekends stay on GitHub's own once-a-day crypto cron.
 #
 # Secret (set once, by hand — a fine-grained token for THIS repo only,
@@ -20,7 +20,7 @@ compatibility_date = "2025-01-01"
 [triggers]
 # Day NAMES, not numbers: Cloudflare counts 1 = SUNDAY, so "1-5" meant
 # Sun-Thu and Friday 2026-09-25 never fired.
-crons = ["0,30 6-20 * * MON-FRI", "0 21 * * MON-FRI"]
+crons = ["0,30 3-20 * * MON-FRI", "0 21 * * MON-FRI"]
 
 [vars]
 REPO     = "xabilon18-ctrl/SwingPulse"

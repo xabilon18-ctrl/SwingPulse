@@ -80,7 +80,7 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
     if (url.pathname === '/live') return livePrices(url);
-    return new Response('swingpulse-cron: dispatches publish.yml every 30 min, 08:00-23:00 SAST, Mon-Fri\n',
+    return new Response('swingpulse-cron: dispatches publish.yml every 30 min, 05:00-23:00 SAST, Mon-Fri\n',
                         { headers: { 'content-type': 'text/plain' } });
   },
 };
