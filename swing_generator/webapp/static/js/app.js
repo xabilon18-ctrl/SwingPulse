@@ -7792,9 +7792,23 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '15m' || timeframe === '10m' || timeframe === '4H') {
+    if (timeframe === '15m') {
+      // 15m OPENS on the user's own view (2026-09-25, read off their ETHUSD
+      // screenshot): REEL_15M_VIEW.days of bars filling the left part of the
+      // plot, REEL_15M_VIEW.future of the width left empty for the future.
       if (bundle._defBars) return bundle._defBars;
-      const span = timeframe === '15m' ? [0, 7] : timeframe === '10m' ? [1, 0] : [12, 0];
+      const n = bundle.c.length;
+      if (n < 2) return n;
+      const bt = reelBarTimes(bundle);
+      const cut = bt[n - 1] - REEL_15M_VIEW.days * 86400000;
+      let k = n - 1;
+      while (k > 0 && bt[k - 1] >= cut) k--;
+      const data = Math.max(REEL_MIN_WINDOW_BARS, n - k);
+      return (bundle._defBars = Math.round(data / (1 - REEL_15M_VIEW.future)));
+    }
+    if (timeframe === '10m' || timeframe === '4H') {
+      if (bundle._defBars) return bundle._defBars;
+      const span = timeframe === '10m' ? [1, 0] : [12, 0];
       return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
@@ -7814,7 +7828,35 @@
     return reelDefaultBars(bundle);
   }
 
-  function reelPanOf(name) { return reel.pan.get(name) || 0; }
+  // THE 15m OPENING VIEW (user, 2026-09-25: "use this scale to make every
+  // 15min chart i flip through the same ... only when i flip and open ... but
+  // still adjustable"). Measured off the user's ETHUSD full-screen screenshot:
+  // 8⅓ days of bars, the last one ~76% of the way across (24% future), and a
+  // price window 21.1% of the price tall across the full-screen plot, which
+  // is 84% of the viewport in this layout (measured, 390x844). Price
+  // is centred ("placed somewhat in the middle"). Price per PIXEL is what is
+  // held constant, so the card and full screen agree and full screen's own
+  // keep-the-bar-shape rule carries it over unchanged. It is only the view a
+  // chart OPENS on: any drag or zoom takes over, double-tap comes back to it.
+  const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, pricePct: 0.211, plotOfScreen: 0.84 };
+  function reel15mPriceWindow(b, host, L) {
+    let c = null;
+    for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
+    if (!(c > 0)) return null;
+    const plotPx = plotPixelHeight(host, L);
+    const fullPx = (window.innerHeight || 800) * REEL_15M_VIEW.plotOfScreen;
+    if (!(plotPx > 0) || !(fullPx > 0)) return null;
+    const span = c * REEL_15M_VIEW.pricePct * (plotPx / fullPx);
+    return { lo: c - span / 2, hi: c + span / 2 };
+  }
+
+  // Unset = the timeframe's opening position: 0 (newest bar at the right
+  // edge), except 15m, which opens with REEL_15M_VIEW.future of blank space.
+  function reelPanOf(name, bundle) {
+    if (reel.pan.has(name)) return reel.pan.get(name);
+    if (timeframe === '15m' && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
+    return 0;
+  }
 
   // How far PAST the newest bar you may scroll, as a share of the window. The
   // empty space is the point: a channel is a projection, and you cannot read a
@@ -7831,8 +7873,9 @@
     const max  = Math.max(0, n - want);                    // back through history
     const min  = -Math.round(want * REEL_FUTURE_FRAC);     // forward into blank space
     const next = Math.min(Math.max(min, Math.round(v)), max);
-    if (next === reelPanOf(name)) return false;
-    if (next) reel.pan.set(name, next); else reel.pan.delete(name);
+    if (next === reelPanOf(name, bundle)) return false;
+    // Stored even when 0: on 15m, unset means the opening offset, not 0.
+    reel.pan.set(name, next);
     return true;
   }
 
@@ -9175,7 +9218,7 @@
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
     const _winBars = reelWindowBars(bundle, item.instrument_name);
-    const _pan     = reelPanOf(item.instrument_name);
+    const _pan     = reelPanOf(item.instrument_name, bundle);
     const _future  = Math.max(0, -_pan);
     const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
     const L  = reelLayout(host);
@@ -9184,7 +9227,8 @@
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
-    const sc = reelScale(b, L, reel.lockY.get(item.instrument_name));
+    const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
+      || (timeframe === '15m' ? reel15mPriceWindow(b, host, L) : null));
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -10393,7 +10437,7 @@
       } else {
         if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
         else                                                reel.tzoom.set(ctx.name, bars);
-        reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);
+        reelSetPan(ctx.name, reelPanOf(ctx.name, ctx.bundle), ctx.bundle);
         changed = true;
       }
     }
@@ -10461,7 +10505,7 @@
     // chart straight back to 520 bars — zooming all the way out undid itself.
     if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
     else                                                reel.tzoom.set(ctx.name, bars);
-    reelSetPan(ctx.name, reelPanOf(ctx.name), ctx.bundle);   // re-clamp, never widen
+    reelSetPan(ctx.name, reelPanOf(ctx.name, ctx.bundle), ctx.bundle);   // re-clamp, never widen
     return true;
   }
 
@@ -10610,7 +10654,7 @@
       if (pid !== null) return;
       pid = ev.pointerId;
       sx = ev.clientX; sy = ev.clientY;
-      startPan = reelPanOf(ctx.name);
+      startPan = reelPanOf(ctx.name, ctx.bundle);
       mode = null; handle = null;
       // Capture the price window as it stands right now. If this becomes a pan
       // that is the view we hold; if it turns out to be a scroll or a handle
@@ -10935,7 +10979,7 @@
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {
       const ctx = host._reelCtx;
-      if (!ctx || (!reelPanOf(ctx.name) && !reel.lockY.has(ctx.name) &&
+      if (!ctx || (!reel.pan.has(ctx.name) && !reel.lockY.has(ctx.name) &&
                    !reel.tzoom.has(ctx.name))) return;
       reel.pan.delete(ctx.name);
       reel.lockY.delete(ctx.name);
