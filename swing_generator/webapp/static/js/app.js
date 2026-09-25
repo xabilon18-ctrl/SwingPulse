@@ -8905,7 +8905,7 @@
       if (k >= dpw && !week) continue;       // past the current week: week starts only
       const fi = A + k * step;
       if (fi <= 0) continue;
-      lines.push({ fi, week, future: fi > sn - 1,
+      lines.push({ fi, week, future: fi > sn - 1, ms: d.getTime(),
                    label: reelDayLineLabel(d.toISOString(), month) });
     }
     return lines;
@@ -8930,11 +8930,32 @@
     // anything that does not trade Saturday (stocks, indices, commodities,
     // forex — their Sunday-evening bars count as Monday), 7 for crypto.
     // Future: every remaining day of the current week, then week starts only.
-    if (mode === 'day' || mode === 'week') {
+    if (mode === 'day') {
       const src = b._src || b, from = b._from || 0, sn = src.t.length;
       if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
-      return src._dayGrid.filter(l => mode === 'day' || l.week)
-        .map(l => Object.assign({}, l, { fi: l.fi - from }));
+      return src._dayGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
+    }
+    // ── The week grid (15m) ────────────────────────────────────────────
+    // The day grid's week starts only — Monday to Monday, evenly spaced, the
+    // future projected the same way. Every week is an ordinary grid line; the
+    // FIRST MONDAY OF EACH MONTH is the bold one and carries the month in its
+    // label (user, 2026-09-25: "make monthly bold on monday 00:00, the point is
+    // make them even"). So months stay on the even weekly rhythm rather than
+    // landing mid-week on the 1st.
+    if (mode === 'week') {
+      const src = b._src || b, from = b._from || 0;
+      if (!src._weekGrid) {
+        if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
+        let prevMonth = null;
+        src._weekGrid = src._dayGrid.filter(l => l.week).map(l => {
+          const d = new Date(l.ms), m = d.getUTCMonth();
+          const month = prevMonth !== null && m !== prevMonth;
+          prevMonth = m;
+          return Object.assign({}, l, { week: month, month: false,
+            label: reelDayLineLabel(d.toISOString(), month) });
+        });
+      }
+      return src._weekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
     }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
