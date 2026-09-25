@@ -6310,6 +6310,8 @@
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+        // Reverse the numbering: 10% at the top, 100% at the bottom (user, 2026-09-25).
+        + `<button class="reel-tool reel-tool-pct${d.reverse ? ' on' : ''}" data-act="draw-reverse" data-name="${name}" aria-pressed="${!!d.reverse}" aria-label="${d.reverse ? 'Number the percentages from the bottom' : 'Number the percentages from the top'}" title="Reverse %">%⇅</button>`
         // Stack a copy of the 10 lines above / below, or take one away.
         + `<span class="reel-stack" role="group" aria-label="Stack ladder">`
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="1" data-name="${name}" title="Build another block above" aria-label="Build another block above">+▲</button>`
@@ -8539,10 +8541,13 @@
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const j = ((k % SPAN) + SPAN) % SPAN;
       const key = j === 0;
-      // Every block reads 10%..100% from its own bottom; a divider is its
-      // lower block's 100% and its upper block's 10% — labelled from the
-      // original's side: 100% above the original, 10% at or below it.
-      const pctLbl = j !== 0 ? (j + 1) * 10 : (k > 0 ? 100 : 10);
+      // CONTINUOUS numbering (user, 2026-09-25: "when i stack it's a
+      // continuation of % and not a repeat even to negative numbers"): 10% per
+      // line all the way through — 110%, 120%... above the original, 0%, -10%...
+      // below it. REVERSED (d.reverse) counts from the top instead: the
+      // original's top line is 10% and its bottom 100%, and the stacks carry
+      // on the same way. This replaces the 2026-09-24 per-block 10..100%.
+      const pctLbl = d.reverse ? (LADDER_LINES - k) * 10 : (k + 1) * 10;
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 10% on line 1 up to 100%
@@ -11544,6 +11549,16 @@
           const dir = btn.dataset.dir === 'down' ? 'down' : 'up';
           const n = ladderStack(d, dir) + (Number(btn.dataset.d) || 0);
           if (n > 0) d[dir] = n; else delete d[dir];
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      if (btn.dataset.act === 'draw-reverse') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          if (d.reverse) delete d.reverse; else d.reverse = true;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
