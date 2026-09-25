@@ -7697,8 +7697,11 @@ body {
    one card — even a button's label — re-laid-out all of them: 100-170ms a tap
    on a laptop, several times that on a phone ("it responds slow to my
    pressing", 2026-09-25). Each card is a fixed-size panel (height: 100%), so
-   its layout can be its own, and cards off screen are skipped entirely. */
-#chartReel .reel-card { contain: layout style; content-visibility: auto; }
+   its layout can be its own.
+   NOT content-visibility: auto (v392-v394): with ~800 cards it made OPENING
+   the Charts tab take 5.5s instead of 0.8s (measured, headless Chrome) — the
+   "why is the app slow" regression. Containment alone keeps the fast taps. */
+#chartReel .reel-card { contain: layout style; }
 
 .reel-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 /* Two lines now: ticker + group, then the instrument's full name under it. */
