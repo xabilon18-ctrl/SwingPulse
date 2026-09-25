@@ -6335,6 +6335,8 @@
 
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
+  // Bookmark — "save this view". Filled (CSS .on) when the chart has one.
+  const VIEW_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 
   function shareBtn(name) {
@@ -7800,7 +7802,15 @@
       const n = bundle.c.length;
       if (n < 2) return n;
       const bt = reelBarTimes(bundle);
-      const cut = bt[n - 1] - REEL_15M_VIEW.days * 86400000;
+      // Stocks and cash indices (a session a day) open on a FULL CALENDAR
+      // MONTH (user: "for stock is full month view"); round-the-clock markets
+      // on 8⅓ days. Either way that is ~550-800 bars, so a candle is about as
+      // wide on both.
+      const days = reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
+      const last = new Date(bt[n - 1]);
+      const cut = days != null ? bt[n - 1] - days * 86400000
+        : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - 1, last.getUTCDate(),
+                   last.getUTCHours(), last.getUTCMinutes());
       let k = n - 1;
       while (k > 0 && bt[k - 1] >= cut) k--;
       const data = Math.max(REEL_MIN_WINDOW_BARS, n - k);
@@ -7830,24 +7840,113 @@
 
   // THE 15m OPENING VIEW (user, 2026-09-25: "use this scale to make every
   // 15min chart i flip through the same ... only when i flip and open ... but
-  // still adjustable"). Measured off the user's ETHUSD full-screen screenshot:
-  // 8⅓ days of bars, the last one ~76% of the way across (24% future), and a
-  // price window 21.1% of the price tall across the full-screen plot, which
-  // is 84% of the viewport in this layout (measured, 390x844). Price
-  // is centred ("placed somewhat in the middle"). Price per PIXEL is what is
-  // held constant, so the card and full screen agree and full screen's own
-  // keep-the-bar-shape rule carries it over unchanged. It is only the view a
-  // chart OPENS on: any drag or zoom takes over, double-tap comes back to it.
-  const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, pricePct: 0.211, plotOfScreen: 0.84 };
-  function reel15mPriceWindow(b, host, L) {
-    let c = null;
+  // still adjustable"), from the user's ETHUSD full-screen screenshot: 8⅓ days
+  // of bars (a full month on stocks, see reelDefaultBars), the last one ~76%
+  // of the way across (24% future).
+  // PRICE fits the chart's OWN bars (a fixed 21% of price was "only right for
+  // crypto" — a stock's week is a flat line in it): centred on the latest
+  // close ("placed somewhat in the middle") and tall enough that the furthest
+  // bar in view reaches `fill` of the way to the edge — ETH's screenshot had
+  // its bars across ~85% of the plot. Card and full screen each fit their own
+  // plot. Only the view a chart OPENS on: any drag or zoom takes over, and
+  // double-tap comes back to it.
+  const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, fill: 0.85 };
+  // Round the clock (crypto, forex, futures: up to 96 bars a UTC day) or a
+  // session a day (stocks, cash indices: 20-34). Measured off the bundle.
+  function reel15mIs24h(bundle) {
+    if (bundle._is24h != null) return bundle._is24h;
+    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
+    return (bundle._is24h = bundle.t.length / days > 60);
+  }
+  function reel15mPriceWindow(b) {
+    let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
-    const plotPx = plotPixelHeight(host, L);
-    const fullPx = (window.innerHeight || 800) * REEL_15M_VIEW.plotOfScreen;
-    if (!(plotPx > 0) || !(fullPx > 0)) return null;
-    const span = c * REEL_15M_VIEW.pricePct * (plotPx / fullPx);
-    return { lo: c - span / 2, hi: c + span / 2 };
+    for (const v of b.l) if (v != null && v < lo) lo = v;
+    for (const v of b.h) if (v != null && v > hi) hi = v;
+    const dev = Math.max(hi - c, c - lo, c * 0.002);
+    const half = dev / REEL_15M_VIEW.fill;
+    return { lo: c - half, hi: c + half };
+  }
+
+  // ── SAVED VIEWS (user, 2026-09-25: "can the view that i save be the one
+  // used for that chart when i open it again") ──────────────────────────
+  // One per instrument AND timeframe, on this device only (localStorage). A
+  // view is kept RELATIVE TO THE LATEST BAR, not as dates and prices, so it
+  // opens on today's candles framed the way it was saved: `bars` (time zoom),
+  // `pan` (bars back from the newest; negative = blank future on the right),
+  // `pctPerPx` (price zoom as a share of the close per plot pixel, so a card
+  // and full screen agree) and `mid` (where the close sits: the window's
+  // centre as a share of the close above/below it). Saved only by the button;
+  // double-tap returns to it; pressing the button on an unchanged saved view
+  // forgets it.
+  const VIEW_STORE = 'sp-views';
+  let savedViews = (() => {
+    try { return JSON.parse(localStorage.getItem(sk(VIEW_STORE)) || '{}') || {}; }
+    catch (_) { return {}; }
+  })();
+  const viewKey = name => name + '|' + timeframe;
+  function viewStoreSave() {
+    try { localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews)); } catch (_) {}
+  }
+  function bundleLastClose(bundle) {
+    for (let i = bundle.c.length - 1; i >= 0; i--) if (bundle.c[i] > 0) return bundle.c[i];
+    return null;
+  }
+  function reelViewCapture(host) {
+    const ctx = host && host._reelCtx;
+    if (!ctx) return null;
+    const c = bundleLastClose(ctx.bundle), px = plotPixelHeight(host, ctx.L);
+    if (!(c > 0) || !(px > 0)) return null;
+    return {
+      bars: reelWindowBars(ctx.bundle, ctx.name),
+      pan:  reelPanOf(ctx.name, ctx.bundle),
+      pctPerPx: (ctx.sc.hi - ctx.sc.lo) / c / px,
+      mid: ((ctx.sc.hi + ctx.sc.lo) / 2 - c) / c,
+    };
+  }
+  const viewSame = (a, b) => a && b && a.bars === b.bars && a.pan === b.pan
+    && Math.abs(a.pctPerPx - b.pctPerPx) <= b.pctPerPx * 0.01
+    && Math.abs(a.mid - b.mid) <= 0.001;
+  // Time half: before the slice is cut. Only when the chart has no view of the
+  // reader's own this session — the saved view is where it OPENS.
+  function reelViewSeedTime(name, bundle) {
+    const v = savedViews[viewKey(name)];
+    if (!v || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
+    reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, bundle.c.length)));
+    reel.pan.set(name, 0);
+    reelSetPan(name, v.pan, bundle);
+    return true;
+  }
+  // Price half: needs the plot's height, so after the layout.
+  function reelViewSeedPrice(name, bundle, host, L) {
+    const v = savedViews[viewKey(name)];
+    const c = bundleLastClose(bundle), px = plotPixelHeight(host, L);
+    if (!v || !(c > 0) || !(px > 0)) return;
+    const span = v.pctPerPx * c * px, mid = c * (1 + v.mid);
+    if (isFinite(span) && span > 0) reel.lockY.set(name, { lo: mid - span / 2, hi: mid + span / 2 });
+  }
+  function reelViewBtnSync(name) {
+    const on = !!savedViews[viewKey(name)];
+    document.querySelectorAll(`.reel-view-btn[data-name="${CSS.escape(name)}"]`).forEach(b => {
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+      b.title = on ? 'View saved — tap again to forget it' : 'Save this view';
+    });
+  }
+  function reelViewBtnHtml(name) {
+    const on = !!savedViews[viewKey(name)];
+    return `<button class="reel-share-btn reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${on ? 'View saved — tap again to forget it' : 'Save this view'}">${VIEW_ICON}</button>`;
+  }
+  function reelViewToggle(name, host) {
+    const k = viewKey(name), cur = reelViewCapture(host);
+    if (savedViews[k] && (!cur || viewSame(cur, savedViews[k]))) {
+      delete savedViews[k];
+    } else if (cur) {
+      savedViews[k] = cur;
+    } else return;
+    viewStoreSave();
+    reelViewBtnSync(name);
   }
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
@@ -9217,18 +9316,20 @@
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
+    const _seeded  = reelViewSeedTime(item.instrument_name, bundle);
     const _winBars = reelWindowBars(bundle, item.instrument_name);
     const _pan     = reelPanOf(item.instrument_name, bundle);
     const _future  = Math.max(0, -_pan);
     const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
     const L  = reelLayout(host);
+    if (_seeded) reelViewSeedPrice(item.instrument_name, bundle, host, L);
     // Price scale. It fits the visible slice, EXCEPT while this card is being
     // panned: then it is pinned to the bounds captured when the drag began, so
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
     const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
-      || (timeframe === '15m' ? reel15mPriceWindow(b, host, L) : null));
+      || (timeframe === '15m' ? reel15mPriceWindow(b) : null));
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -9658,7 +9759,9 @@
     // new room on showing MORE chart above and below.
     chartFullPrevLock = reel.lockY.has(name) ? reel.lockY.get(name) : undefined;
     const src = chartFullSourceCtx(name);
-    if (src) {
+    // 15m with no scale of the reader's own: full screen fits its own plot
+    // (reel15mPriceWindow), the same opening view as the card.
+    if (src && !(timeframe === '15m' && chartFullPrevLock === undefined)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
@@ -9804,6 +9907,7 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
+        ${reelViewBtnHtml(name)}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -9902,6 +10006,7 @@
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
           ${chartBackBtnHtml()}
+          ${reelViewBtnHtml(name)}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
@@ -11563,6 +11668,7 @@
       if (btn.dataset.act === 'chart-back')    { chartGoBack(); return true; }
       if (btn.dataset.act === 'chart-expand')  { chartFullOpen(name); return true; }
       if (btn.dataset.act === 'chart-share')   { shareChartImage(name, chHost); return true; }
+      if (btn.dataset.act === 'chart-view-save') { reelViewToggle(name, chHost); return true; }
       // Anything that CHANGES this chart's drawings commits its seeds first —
       // the two channels a chart opens with are not in the store until then, so
       // without this Delete quietly did nothing (clearChannelFor returns early

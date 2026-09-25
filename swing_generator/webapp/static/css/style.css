@@ -7986,6 +7986,9 @@ body {
 .reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
 .reel-share-btn svg { display: block; }
 .reel-back-btn[hidden] { display: none; }
+/* Save-view bookmark: filled in the accent colour once this chart has a saved view. */
+.reel-view-btn.on { color: var(--accent); }
+.reel-view-btn.on svg path { fill: currentColor; }
 /* Back is the one header icon you reach for mid-browse — a shade stronger. */
 .reel-back-btn { color: var(--text-secondary); }
 /* Reads as a word, not a glyph: a bare "+" 33px wide among text buttons was
