@@ -7926,17 +7926,25 @@
     const span = v.pctPerPx * c * px, mid = c * (1 + v.mid);
     if (isFinite(span) && span > 0) reel.lockY.set(name, { lo: mid - span / 2, hi: mid + span / 2 });
   }
+  // The footer CAPSULE (user, 2026-09-25: "like a capsule half save half edit
+  // and done"): one pill, Save on the left, the Drawing/Edit/Done button on
+  // the right. Save reads "Saved" (accent) while this chart has a saved view.
+  const viewBtnInner = on => VIEW_ICON + `<span>${on ? 'Saved' : 'Save'}</span>`;
   function reelViewBtnSync(name) {
     const on = !!savedViews[viewKey(name)];
     document.querySelectorAll(`.reel-view-btn[data-name="${CSS.escape(name)}"]`).forEach(b => {
       b.classList.toggle('on', on);
+      b.innerHTML = viewBtnInner(on);
       b.setAttribute('aria-pressed', String(on));
       b.title = on ? 'View saved — tap again to forget it' : 'Save this view';
     });
   }
-  function reelViewBtnHtml(name) {
+  function reelCapsuleHtml(name) {
     const on = !!savedViews[viewKey(name)];
-    return `<button class="reel-share-btn reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${on ? 'View saved — tap again to forget it' : 'Save this view'}">${VIEW_ICON}</button>`;
+    return `<span class="reel-capsule">`
+      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${on ? 'View saved — tap again to forget it' : 'Save this view'}">${viewBtnInner(on)}</button>`
+      + `<button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>`
+      + `</span>`;
   }
   function reelViewToggle(name, host) {
     const k = viewKey(name), cur = reelViewCapture(host);
@@ -9907,7 +9915,6 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
-        ${reelViewBtnHtml(name)}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -9916,7 +9923,7 @@
       <footer class="reel-foot">
         <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
-          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>
+          ${reelCapsuleHtml(name)}
         </div>
         ${steps ? `<div class="cf-steps">${steps}</div>` : ''}
       </footer>`;
@@ -10006,7 +10013,6 @@
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
           ${chartBackBtnHtml()}
-          ${reelViewBtnHtml(name)}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
@@ -10020,7 +10026,7 @@
       <footer class="reel-foot">
         <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
         <div class="reel-foot-actions">
-          <button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>
+          ${reelCapsuleHtml(name)}
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
           <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
         </div>

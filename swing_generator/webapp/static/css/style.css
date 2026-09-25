@@ -7986,8 +7986,19 @@ body {
 .reel-share-btn:hover, .reel-share-btn:active { color: var(--accent); }
 .reel-share-btn svg { display: block; }
 .reel-back-btn[hidden] { display: none; }
-/* Save-view bookmark: filled in the accent colour once this chart has a saved view. */
-.reel-view-btn.on { color: var(--accent); }
+/* The footer capsule: Save | Edit/Done as ONE pill split down the middle
+   (user, 2026-09-25). The halves share a border; each keeps its own .on. */
+.reel-capsule { display: inline-flex; align-items: stretch; }
+/* The capsule added a fifth button to the card footer, which pushed
+   TradingView 23px past a 375px screen (measured). Tighter padding and gaps
+   in the card footer only; full screen has room. */
+.reel-card:not(#chartFull) .reel-foot { gap: 6px; }
+.reel-card:not(#chartFull) .reel-foot-actions { gap: 4px; }
+.reel-card:not(#chartFull) .reel-foot .reel-act { padding: 6px 7px; }
+.reel-card:not(#chartFull) .reel-foot .reel-act-ch { gap: 4px; }
+.reel-capsule > .reel-act:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.reel-capsule > .reel-act:last-child  { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.reel-capsule > .reel-act.on { position: relative; z-index: 1; }
 .reel-view-btn.on svg path { fill: currentColor; }
 /* Back is the one header icon you reach for mid-browse — a shade stronger. */
 .reel-back-btn { color: var(--text-secondary); }
@@ -9071,6 +9082,18 @@ body {
   color: var(--text-primary); font-size: .95rem; font-weight: 800; letter-spacing: .02em;
 }
 #chartFull .reel-act-ch.on { background: var(--bg-hover); border-color: var(--border-active); }
+#chartFull .reel-capsule > .reel-act:first-child { border-radius: 999px 0 0 999px; }
+#chartFull .reel-capsule > .reel-act:last-child  { border-radius: 0 999px 999px 0; }
+#chartFull .reel-view-btn.on { color: var(--accent); }
+/* Full screen keeps ONE footer row (timeframe · capsule · ‹ n/N ›): the two
+   halves together are sized to what the single Edit pill used to take, give
+   or take — 207px of full-size capsule wrapped the steppers onto a second row
+   at 375px (measured). */
+#chartFull .reel-capsule > .reel-act { padding: 0 8px; font-size: .85rem; gap: 5px; }
+#chartFull .reel-foot { gap: 6px; }
+#chartFull .reel-tf-tag { padding: 4px 9px; }
+#chartFull .cf-steps { gap: 4px; }
+#chartFull .cf-step { width: 32px; }
 
 .cf-head {
   display: flex; align-items: center; gap: 10px;
