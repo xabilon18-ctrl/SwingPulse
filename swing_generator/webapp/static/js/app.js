@@ -10146,9 +10146,43 @@
 
   // ── Lazy paint ───────────────────────────────────────────────────────
 
+  // Build the real card in place of its shell (see buildReel). Returns the card.
+  function reelFill(idx) {
+    const host = document.getElementById('chartReel');
+    const el = host && host.children[idx];
+    if (!el || !el.classList.contains('reel-shell')) return el;
+    const item = reel.list[idx];
+    if (!item) return el;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = reelCardHtml(item, idx).trim();
+    const card = tpl.content.firstElementChild;
+    if (!card) return el;
+    if (reel.io) { reel.io.unobserve(el); reel.io.observe(card); }
+    el.replaceWith(card);
+    return card;
+  }
+  // Back to an empty shell — for cards far from the screen. The card being
+  // drawn on, and the one open full screen, are never emptied.
+  const REEL_KEEP_BUILT = 12;
+  function reelEmpty(idx) {
+    const host = document.getElementById('chartReel');
+    const el = host && host.children[idx];
+    if (!el || el.classList.contains('reel-shell')) return;
+    const name = el.dataset.name;
+    if (reel.editing === name || chartFullName === name) return;
+    const shell = document.createElement('article');
+    shell.className = 'reel-card reel-shell';
+    shell.dataset.name = name;
+    shell.dataset.idx = String(idx);
+    if (reel.io) { reel.io.unobserve(el); reel.io.observe(shell); }
+    el.replaceWith(shell);
+    reel.drawn.delete(idx);
+  }
+
   async function reelPaint(idx) {
     const item = reel.list[idx];
     if (!item) return;
+    reelFill(idx);
     const host = document.getElementById('reelChart-' + idx);
     if (!host || host.dataset.painted === timeframe) return;
 
@@ -11141,15 +11175,12 @@
         const idx = +e.target.dataset.idx;
         if (e.isIntersecting) {
           reelPaint(idx);
-        } else if (reel.drawn.size > 24) {
-          // Keep the DOM light on a 700-card reel: drop the SVG of cards well
-          // out of view. The shell keeps its height, so scroll position holds.
-          const host = document.getElementById('reelChart-' + idx);
-          if (host && host.dataset.painted && reel.drawn.has(idx)) {
-            host.innerHTML = '<div class="reel-skel"><span></span></div>';
-            delete host.dataset.painted;
-            reel.drawn.delete(idx);
-          }
+        } else if (!e.target.classList.contains('reel-shell')
+                   && document.querySelectorAll('#chartReel .reel-card:not(.reel-shell)').length > REEL_KEEP_BUILT) {
+          // Keep the DOM light on an 800-card reel: cards well out of view go
+          // back to empty shells. The shell keeps its height, so scroll
+          // position holds.
+          reelEmpty(idx);
         }
       }
     }, { root: null, rootMargin: '120% 0px', threshold: 0 });
@@ -11195,7 +11226,14 @@
     }
     if (empty) empty.style.display = 'none';
 
-    host.innerHTML = reel.list.map(reelCardHtml).join('');
+    // SHELLS, not cards (2026-09-25, "why is the app slow"): an empty article
+    // per instrument keeps the scroll height, the snap points and the
+    // data-name/data-idx every lookup uses; the ~85-element card is built only
+    // when it comes near the screen (reelFill) and emptied again far away.
+    // Building all ~800 up front was ~70k elements, 0.84s to open the tab and
+    // 0.6s of layout on every flip, measured.
+    host.innerHTML = reel.list.map((it, i) =>
+      `<article class="reel-card reel-shell" data-name="${it.instrument_name}" data-idx="${i}"></article>`).join('');
     reelObserve();
     // Paint what is already on screen directly. IntersectionObserver is
     // supposed to deliver an initial callback for every observed target, but
