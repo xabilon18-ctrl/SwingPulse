@@ -18,7 +18,9 @@ main               = "src/index.js"
 compatibility_date = "2025-01-01"
 
 [triggers]
-crons = ["0,30 6-20 * * 1-5", "0 21 * * 1-5"]
+# Day NAMES, not numbers: Cloudflare counts 1 = SUNDAY, so "1-5" meant
+# Sun-Thu and Friday 2026-09-25 never fired.
+crons = ["0,30 6-20 * * MON-FRI", "0 21 * * MON-FRI"]
 
 [vars]
 REPO     = "xabilon18-ctrl/SwingPulse"
