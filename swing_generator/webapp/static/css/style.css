@@ -9611,3 +9611,15 @@ body.chart-full-open { overflow: hidden; }
   #chartFull .cf-steps { gap: 3px; }
   #chartFull .cf-step { width: 28px; }
 }
+
+/* Daily-MA cross markers on 15m +D (2026-09-26): hollow amber ring = price
+   closing in on a Daily MA; filled ▲/▼ = crossed it and held an hour. */
+.reel-xm { stroke: #fff; stroke-width: 2.5; paint-order: stroke; }
+.reel-xm.up { fill: #059669; }
+.reel-xm.dn { fill: #dc2626; }
+.reel-xm-pre { fill: rgba(217,119,6,.12); stroke: #d97706; stroke-width: 3.5; }
+.reel-xm-lbl { font-size: 15px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.reel-xm-lbl.up { fill: #047857; }
+.reel-xm-lbl.dn { fill: #b91c1c; }
+.reel-xm-lbl.pre { fill: #b45309; }
+.reel-xm-g, .reel-xm-g * { pointer-events: none; }

@@ -7862,11 +7862,118 @@
       ? reelChannelsSvg(list, b, L, sc, bw, false, -1).replace(/ data-(ci|h)="[^"]*"/g, '')
       : '';
 
+    // ── Daily-MA cross markers (15m under a Daily overlay) ──
+    let marks = '';
+    if (timeframe === '15m' && otf === 'D') {
+      const all = ovCrossMarks(ob, src, ot, mi, ovDur);
+      for (const m of all) {
+        if (m.i < from - 1 || m.i > from + (b.c ? b.c.length : 0)) continue;
+        const x = L.x0 + (m.i - from + 0.5) * bw;
+        if (x < L.x0 || x > L.x1) continue;
+        const y = sc.y(m.v);
+        if (!(y > L.py0 + 6 && y < L.py1 - 6)) continue;
+        const X = x.toFixed(1), Y = y.toFixed(1);
+        if (m.kind === 'after') {
+          const up = m.dir === 'up', s2 = 13;
+          const d = up ? `M${X} ${(y - s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}Z`
+                       : `M${X} ${(y + s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}Z`;
+          marks += `<path d="${d}" class="reel-xm ${up ? 'up' : 'dn'}"/>` +
+            `<text x="${X}" y="${(up ? y + 30 : y - 20).toFixed(1)}" class="reel-xm-lbl ${up ? 'up' : 'dn'}" text-anchor="middle">D${ob.p[m.k]}</text>`;
+        } else {
+          marks += `<circle cx="${X}" cy="${Y}" r="10" class="reel-xm-pre"/>` +
+            `<text x="${X}" y="${(y - 16).toFixed(1)}" class="reel-xm-lbl pre" text-anchor="middle">D${ob.p[m.k]}</text>`;
+        }
+      }
+    }
+
     return {
       under: `<g class="reel-ov" ${ovLayerStyle(otf, 'ma')}>${ribbon}${labels}</g>` +
              `<g class="reel-ov" ${ovLayerStyle(otf, 'bars')}>${bars}</g>`,
-      draw:  drawn ? `<g class="reel-ov reel-ov-draw" ${ovLayerStyle(otf, 'draw')}>${drawn}</g>` : '',
+      draw:  (drawn ? `<g class="reel-ov reel-ov-draw" ${ovLayerStyle(otf, 'draw')}>${drawn}</g>` : '') +
+             (marks ? `<g class="reel-ov reel-xm-g" ${ovLayerStyle(otf, 'ma')}>${marks}</g>` : ''),
     };
+  }
+
+  // DAILY-MA CROSS MARKERS (user, 2026-09-26, from six circled 15m +D charts:
+  // "15 min indications given just before the MAs are crossed and once after
+  // ... after crossing any of the daily MAs"). Per Daily MA (50/250/500):
+  //   pre   — 15m close within XM_NEAR daily ATRs of the Daily MA and closing
+  //           in (farther away 4 bars ago); once per approach, re-armed when
+  //           price moves XM_REARM ATRs away.
+  //   after — 15m close changes side of the Daily MA and the next XM_HOLD
+  //           closes stay on the new side (1 hour); stamped at the confirming
+  //           bar. At most one per MA per direction per day.
+  // The Daily MA is the last COMPLETED daily bar's value — what is known
+  // during the day, no look-ahead. Measured off the whole 15m bundle, cached.
+  const XM_NEAR = 0.25, XM_REARM = 0.5, XM_HOLD = 4;
+  function ovCrossMarks(ob, src, ot, mi, ovDur) {
+    if (src._xm && src._xm.ob === ob) return src._xm.list;
+    const out = [];
+    const on = ot.length, bt = reelBarTimes(src), n = bt.length, C = src.c || [];
+    // Full daily MA series (the bundle's ribbon may be decimated) + ATR(14).
+    const dm = ob.m.map(series => {
+      const full = new Array(on).fill(null);
+      for (let j = 0; j < series.length; j++) {
+        if (series[j] == null) continue;
+        full[mi[j]] = series[j];
+        const j2 = j + 1;
+        if (j2 < series.length && series[j2] != null) {
+          const a = mi[j], z = mi[j2];
+          for (let q = a + 1; q < z; q++) full[q] = series[j] + (series[j2] - series[j]) * (q - a) / (z - a);
+        }
+      }
+      return full;
+    });
+    const atr = new Array(on).fill(null);
+    { let sum = 0, cnt = 0; const tr = [];
+      for (let i = 0; i < on; i++) {
+        const h = ob.h[i], l = ob.l[i], pc = i ? ob.c[i - 1] : null;
+        if (h == null || l == null) { tr.push(null); continue; }
+        tr.push(pc == null ? h - l : Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+        const w = tr.slice(-14).filter(v => v != null);
+        atr[i] = w.length ? w.reduce((a, v) => a + v, 0) / w.length : null;
+      } }
+    // Completed daily index for each 15m bar.
+    const di = new Array(n).fill(-1);
+    for (let i = 0, d = -1; i < n; i++) {
+      while (d + 1 < on && ot[d + 1] + ovDur <= bt[i]) d++;
+      di[i] = d;
+    }
+    for (let k = 0; k < dm.length; k++) {
+      const lv = i => (di[i] >= 0 ? dm[k][di[i]] : null);
+      const at = i => (di[i] >= 0 ? atr[di[i]] : null);
+      let side = 0, armed = true;
+      const seen = new Set();
+      for (let i = 0; i < n; i++) {
+        const c = C[i], D = lv(i), A = at(i);
+        if (c == null || D == null || !A) continue;
+        const s = c >= D ? 1 : -1, dist = Math.abs(c - D) / A;
+        if (!side) { side = s; continue; }
+        if (s !== side) {
+          let ok = i + XM_HOLD < n;
+          for (let q = i + 1; ok && q <= i + XM_HOLD; q++) {
+            const cq = C[q], Dq = lv(q);
+            if (cq == null || Dq == null || (cq >= Dq ? 1 : -1) !== s) ok = false;
+          }
+          if (!ok) continue;                       // a poke through, not a cross
+          const j = i + XM_HOLD, dir = s > 0 ? 'up' : 'dn';
+          const key = dir + new Date(bt[j]).toISOString().slice(0, 10);
+          if (!seen.has(key)) { seen.add(key); out.push({ kind: 'after', k, i: j, v: lv(j), dir }); }
+          side = s; armed = false; i = j;
+          continue;
+        }
+        if (dist > XM_REARM) { armed = true; continue; }
+        if (armed && dist <= XM_NEAR && i >= 4) {
+          const c4 = C[i - 4], D4 = lv(i - 4), A4 = at(i - 4);
+          if (c4 != null && D4 != null && A4 && Math.abs(c4 - D4) / A4 > dist) {
+            out.push({ kind: 'pre', k, i, v: D, dir: side > 0 ? 'dn' : 'up' });
+            armed = false;
+          }
+        }
+      }
+    }
+    src._xm = { ob, list: out };
+    return out;
   }
 
   // The timeframe pill's text: "15m + D" while the overlay is on.
