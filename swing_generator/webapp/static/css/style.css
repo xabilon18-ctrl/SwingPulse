@@ -7973,6 +7973,43 @@ body {
 }
 .reel-tf-opt:active, .reel-tf-opt:hover { background: var(--bg-hover); }
 .reel-tf-opt.on { color: var(--accent); font-weight: 800; background: var(--bg-hover); }
+/* ── Timeframe overlay (2026-09-26) ── the other chart timeframe drawn on the
+   same axes. Blue so it can never be read as this timeframe's own ink; its
+   ribbon keeps the slope colours but runs long-dashed with a period tag. */
+.reel-chart { --reel-ov-bar: #2563eb; }
+.reel-ov-box { stroke-width: 1.2; stroke-dasharray: 4 4; }
+/* Daily boxes over 15m: green closed up, red closed down — same light fill and
+   dashed outline the blue ones had (user, 2026-09-26). */
+.reel-ov-box.up { fill: rgba(16,185,129,.08); stroke: #10b981; }
+.reel-ov-box.dn { fill: rgba(239,68,68,.08);  stroke: #ef4444; }
+.reel-ov-tick.up { stroke: #059669; }
+.reel-ov-tick.dn { stroke: #dc2626; }
+.reel-ov-line.up { stroke: #059669; }
+.reel-focus-lbl { font-size: 16px; font-weight: 800; fill: #b45309; paint-order: stroke; stroke: #fff; stroke-width: 5px; }
+.reel-ov-line.dn { stroke: #dc2626; }
+.reel-ov-lbl { font-size: 15px; font-weight: 700; fill: #2563eb; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.reel-ov-draw, .reel-ov-draw * { pointer-events: none !important; }
+.reel-tf-tag { white-space: nowrap; }
+.reel-tf-plus { font-style: normal; font-weight: 700; font-size: .78em; color: #3b82f6; margin-left: 2px; }
+.reel-ov-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+.reel-ov-switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.reel-ov-switch.on { color: var(--text-primary); background: transparent; }
+.reel-ov-knob { flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: var(--border);
+  position: relative; transition: background .18s; }
+.reel-ov-knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: transform .18s; }
+.reel-ov-switch.on .reel-ov-knob { background: var(--accent); }
+.reel-ov-switch.on .reel-ov-knob::after { transform: translateX(14px); }
+.reel-ov-zoom { display: flex; flex-direction: column; gap: 1px; color: #3b82f6; }
+.reel-ov-zoom i { font-style: normal; font-size: .72rem; font-weight: 500; color: var(--text-muted); }
+.reel-ov-block { padding: 6px 12px 4px; }
+.reel-ov-title { font-size: .8rem; font-weight: 800; color: var(--accent); display: flex; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+.reel-ov-title span { font-weight: 600; color: var(--text-muted); font-size: .72rem; }
+.reel-ov-row { display: grid; grid-template-columns: 62px 1fr 38px; align-items: center; gap: 8px;
+  font-size: .76rem; color: var(--text-secondary); min-height: 30px; }
+.reel-ov-row input { width: 100%; accent-color: var(--accent); touch-action: pan-x; }
+.reel-ov-row b { font-weight: 700; text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.reel-tf-menu:has(.reel-ov-block) { min-width: 260px; max-height: min(78vh, 460px); overflow-y: auto; }
 .reel-foot-actions { margin-left: auto; display: flex; gap: 6px; }
 .reel-act {
   padding: 6px 10px; border-radius: var(--radius-sm);
@@ -8096,6 +8133,11 @@ body {
 /* The drawing the properties row is acting on reads heavier than the rest. */
 .reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }
 /* Bold horizontal / vertical line (2026-09-19): wins over the selected weight. */
+/* Circle tool (2026-09-26): a SOLID ring in the drawing's colour, like the
+   user's own circles on screenshots — the dotted drawing style would read as
+   another MA. */
+.reel-circle { fill: none; stroke: var(--reel-ch-color); stroke-width: 3.5; stroke-opacity: .95; }
+.reel-circle.is-bold { stroke-width: 7; }
 .reel-draw .reel-ch-edge.is-bold,
 .reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
@@ -9357,6 +9399,15 @@ body.chart-full-open { overflow: hidden; }
 .reel-tools-row .reel-tool[data-kind="vline"]  { --toy: #a855f7; --toy-edge: #7e22ce; }
 .reel-tools-row .reel-tool[data-kind="ladder"] { --toy: #ec4899; --toy-edge: #be185d; }
 .reel-tools-row .reel-tool[data-kind="entry"]  { --toy: #facc15; --toy-edge: #ca8a04; color: #3b2f00; }
+.reel-tools-row .reel-tool[data-kind="circle"] { --toy: #14b8a6; --toy-edge: #0f766e; }
+/* Seven tools plus undo/redo (the circle made seven, 2026-09-26) overflowed a
+   phone row onto a second line over the chart. Slimmer padding and margins on
+   narrow screens keep them on one row: ~36px per button, 332px in all. */
+@media (max-width: 440px) {
+  .reel-tools-row .reel-tool { padding: 8px 6px; }
+  .reel-tools-row { gap: 0; justify-content: space-between; }
+  .reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { margin: 0; }
+}
 .reel-tools-row .reel-hist {
   background: #e7e5e4; color: #292524; border-radius: 12px;
   box-shadow: 0 3px 0 #a8a29e; transform: translateY(-2px); margin: 0 2px;
@@ -9525,3 +9576,23 @@ body.chart-full-open { overflow: hidden; }
   background: #fbbf24; border-color: #fbbf24; color: #0c0c0b;
   box-shadow: 0 0 18px rgba(251, 191, 36, .45);
 }
+
+/* Add-to-watchlist picker from cards/charts (2026-09-26) — above full screen (#chartFull z 4000) */
+.wl2-pick { z-index: 5000; }
+.wl-mark.on { color: var(--accent); }
+.wl2-pick-row { display: flex; align-items: center; gap: 10px; text-align: left; }
+.wl2-pick-row.on { border-color: var(--accent); }
+.wl2-pick-tick { width: 18px; color: var(--accent); font-weight: 700; }
+.wl2-pick-name { flex: 1; }
+.wl2-pick-n { color: var(--text-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.wl2-pick-empty { color: var(--text-muted); font-size: .85rem; padding: 0 4px 6px; }
+
+/* Watchlist drag to reorder (2026-09-26) — the grip replaces the ▲▼ buttons */
+.wl2-body.wl2-editing { column-count: 1; }
+.wl2-grip { flex: none; width: 44px; height: 40px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
+.wl2-grip:active { cursor: grabbing; color: var(--accent); }
+.wl2-erow.wl2-lifted { background: var(--bg-card); box-shadow: 0 10px 28px rgba(0,0,0,.45); border: 1px solid var(--accent);
+  border-radius: 10px; pointer-events: none; transform: scale(1.02); }
+.wl2-lifted .wl2-grip { color: var(--accent); }
+.wl2-ph { border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-glow); margin: 2px 0; box-sizing: border-box; }

@@ -423,7 +423,7 @@
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
-    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -464,6 +464,9 @@
   }
 
   function addChannelFor(name, ch) {
+    // Drawn while the timeframes are overlaid, it belongs to BOTH charts (user,
+    // 2026-09-26: "the drawing should apply to individual charts as well").
+    if (ovOtherTf() && !ch.link) ch.link = drawLinkId();
     if (!instChannels[name]) instChannels[name] = {};
     if (!Array.isArray(instChannels[name][timeframe])) instChannels[name][timeframe] = [];
     instChannels[name][timeframe].push(ch);
@@ -1262,6 +1265,7 @@
     // a bar to rename, delete or move the whole list among the others.
     const cur = lists.find(l => l.id === wlUi.list);
     if (!cur) wlEdit = false;
+    body.classList.toggle('wl2-editing', !!(wlEdit && cur));
     if (wlEdit && cur) {
       const li = lists.indexOf(cur);
       const byName = Object.fromEntries(allData.map(d => [d.instrument_name, d]));
@@ -1273,20 +1277,18 @@
           <button class="wl2-ebtn wl2-danger" data-wl-dellist>Delete list</button>
         </div>`
         + (cur.items.length ? cur.items.map((n, i) => {
-          if (wlIsDiv(n)) return `<div class="wl2-erow wl2-ediv">
+          if (wlIsDiv(n)) return `<div class="wl2-erow wl2-ediv" data-n="${escText(n)}">
             <span class="wl2-names"><span class="wl2-divname">${escText(n.slice(1))}</span></span>
             <button class="wl2-mv" data-wl-rendiv="${escText(n)}" aria-label="Rename division">✎</button>
-            <button class="wl2-mv" data-wl-mv="-1" data-n="${escText(n)}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
-            <button class="wl2-mv" data-wl-mv="1" data-n="${escText(n)}" ${i === cur.items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
             <button class="wl2-mv wl2-x" data-wl-rmx="${escText(n)}" aria-label="Remove division">✕</button>
+            <span class="wl2-grip" aria-label="Drag to move">${WL_GRIP}</span>
           </div>`;
           const d = byName[n] || { asset_class: '' };
-          return `<div class="wl2-erow">
+          return `<div class="wl2-erow" data-n="${escText(n)}">
             ${wlBadge(n, d.asset_class)}
             <span class="wl2-names"><span class="wl2-sym">${escText(n)}</span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
-            <button class="wl2-mv" data-wl-mv="-1" data-n="${escText(n)}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
-            <button class="wl2-mv" data-wl-mv="1" data-n="${escText(n)}" ${i === cur.items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
             <button class="wl2-mv wl2-x" data-wl-rmx="${escText(n)}" aria-label="Remove">✕</button>
+            <span class="wl2-grip" aria-label="Drag to move">${WL_GRIP}</span>
           </div>`; }).join('')
         : `<div class="wl2-empty">This list is empty.</div>`);
       return;
@@ -1395,10 +1397,133 @@
     return l;
   }
 
+  // ADD FROM A CARD OR A CHART (2026-09-26, "an option to add from a card or
+  // chart"): a bookmark button on signal cards and chart headers opens a
+  // lists-only picker — tick a list to add, tick again to remove. The button is
+  // filled while the instrument sits in any list. Same store, same sync as the
+  // Watchlist tab's own sheet.
+  const WL_MARK_ICON = on => `<svg width="14" height="14" viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+  const wlInAny = name => wlStore.lists.some(l => l.items.includes(name));
+  // cls/act differ per host: cards go through window.SP (data-act="wlPick"),
+  // the chart reel through __reelBtnAct (data-act="wl-pick").
+  function wlMarkBtn(name, cls, act) {
+    const on = wlInAny(name);
+    return `<button class="${cls} wl-mark${on ? ' on' : ''}" data-act="${act}" data-arg="${escText(name)}" data-name="${escText(name)}" data-stop="1"`
+      + ` aria-label="${on ? 'In a watchlist — edit' : 'Add to watchlist'}" title="${on ? 'In a watchlist' : 'Add to watchlist'}">${WL_MARK_ICON(on)}</button>`;
+  }
+  function wlMarkRefresh(name) {
+    const on = wlInAny(name);
+    document.querySelectorAll('.wl-mark').forEach(b => {
+      if (b.dataset.name !== name) return;
+      b.classList.toggle('on', on);
+      b.innerHTML = WL_MARK_ICON(on);
+      b.setAttribute('aria-label', on ? 'In a watchlist — edit' : 'Add to watchlist');
+      b.title = on ? 'In a watchlist' : 'Add to watchlist';
+    });
+  }
+  function wlPick(name) {
+    wlCloseSheet();
+    const el = document.createElement('div');
+    el.className = 'wl2-sheet-wrap wl2-pick';
+    const paint = () => {
+      const lists = wlStore.lists;
+      el.innerHTML = `<div class="wl2-sheet" role="dialog" aria-label="Add ${escText(name)} to a watchlist">
+        <div class="wl2-sheet-hd"><b>${escText(name)}</b> <span>${escText(namesData[name] || '')}</span></div>
+        ${lists.length ? '' : '<div class="wl2-pick-empty">No lists yet — make one and it goes straight in.</div>'}
+        ${lists.map(l => { const on = l.items.includes(name);
+          return `<button class="wl2-act wl2-pick-row${on ? ' on' : ''}" data-wl-act="toggle" data-id="${escText(l.id)}" aria-pressed="${on}">
+            <span class="wl2-pick-tick">${on ? '✓' : ''}</span><span class="wl2-pick-name">${escText(l.name)}</span><span class="wl2-pick-n">${wlCount(l)}</span></button>`; }).join('')}
+        <button class="wl2-act" data-wl-act="addnew">＋ New list…</button>
+        <button class="wl2-act wl2-cancel" data-wl-act="close">Done</button>
+      </div>`;
+    };
+    paint();
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.target === el) return wlCloseSheet();
+      const b = e.target.closest('[data-wl-act]'); if (!b) return;
+      const act = b.dataset.wlAct;
+      if (act === 'toggle') {
+        const l = wlStore.lists.find(x => x.id === b.dataset.id); if (!l) return;
+        if (l.items.includes(name)) l.items = l.items.filter(n => n !== name); else l.items.push(name);
+        wlSave(); paint(); wlMarkRefresh(name);
+      } else if (act === 'addnew') {
+        const l = wlNewList(); if (l) { l.items.push(name); wlSave(); }
+        paint(); wlMarkRefresh(name);
+      } else if (act === 'close') wlCloseSheet();
+      if (currentTab === 'watchlist') renderWatchlist();
+    });
+    document.body.appendChild(el);
+  }
+
+  // DRAG TO REORDER (2026-09-26, "grab and put where i need to" — the ▲▼
+  // buttons moved a row one place per tap). Hold the grip on the right of an
+  // edit row and drag: the row lifts and follows the finger, a gap opens where
+  // it will land, and the screen scrolls when the finger nears the top or
+  // bottom edge. On release the list takes the on-screen order and saves once.
+  const WL_GRIP = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+  function wlScrollParent(el) {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      const oy = getComputedStyle(p).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    }
+    return document.scrollingElement;
+  }
+  function wlDragStart(e, grip) {
+    const row = grip.closest('.wl2-erow'), body = row && row.parentElement;
+    if (!row || !body) return;
+    e.preventDefault();
+    const list = wlStore.lists.find(l => l.id === wlUi.list); if (!list) return;
+    const r = row.getBoundingClientRect(), grabY = e.clientY - r.top;
+    const ph = document.createElement('div');
+    ph.className = 'wl2-ph'; ph.style.height = r.height + 'px';
+    row.after(ph);
+    Object.assign(row.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 900 });
+    row.classList.add('wl2-lifted');
+    const scroller = wlScrollParent(body);
+    let y = e.clientY, raf = 0;
+    const place = () => {
+      row.style.top = (y - grabY) + 'px';
+      // The gap goes before the first row whose middle is below the finger.
+      const others = [...body.querySelectorAll('.wl2-erow')].filter(x => x !== row);
+      const before = others.find(x => { const b = x.getBoundingClientRect(); return y < b.top + b.height / 2; });
+      if (before) { if (before.previousElementSibling !== ph) before.before(ph); }
+      else if (others.length && others[others.length - 1].nextElementSibling !== ph) others[others.length - 1].after(ph);
+    };
+    const tick = () => {
+      const vh = window.innerHeight, edge = 70;
+      const v = y < edge ? -Math.ceil((edge - y) / 6) : y > vh - edge ? Math.ceil((y - (vh - edge)) / 6) : 0;
+      if (v) { scroller.scrollTop += v; place(); }
+      raf = requestAnimationFrame(tick);
+    };
+    const move = ev => { y = ev.clientY; place(); };
+    const end = () => {
+      cancelAnimationFrame(raf);
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', end);
+      grip.removeEventListener('pointercancel', end);
+      ph.replaceWith(row);
+      row.removeAttribute('style'); row.classList.remove('wl2-lifted');
+      const order = [...body.querySelectorAll('.wl2-erow')].map(x => x.dataset.n);
+      if (order.length === list.items.length && order.some((n, i) => n !== list.items[i])) {
+        list.items = order; wlSave();
+      }
+    };
+    try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+    raf = requestAnimationFrame(tick);
+  }
+
   // Wiring (delegated, once).
   (function wlWire() {
     const pane = document.getElementById('pane-watchlist');
     if (!pane) return;
+    pane.addEventListener('pointerdown', e => {
+      const g = e.target.closest('.wl2-grip');
+      if (g && (e.button === 0 || e.pointerType !== 'mouse')) wlDragStart(e, g);
+    });
     pane.addEventListener('click', e => {
       const t = e.target;
       const row = t.closest('[data-wl-row]');
@@ -1709,7 +1834,7 @@
   }
 
   function cardActionsHtml(name) {
-    return `<div class="scanner-actions">${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}</div>`;
+    return `<div class="scanner-actions">${wlMarkBtn(name, 'share-btn', 'wlPick')}${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}</div>`;
   }
 
   // What is scheduled for this instrument, at chip density. ONE definition,
@@ -6248,6 +6373,7 @@
   const TOOL_VLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
+  const TOOL_CIRCLE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>`;
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
   const ICON_BACK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg>`;
   const ICON_UNDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>`;
@@ -6292,6 +6418,7 @@
           <button class="reel-tool" data-act="channel-add" data-kind="vline" data-name="${name}" title="Vertical line" aria-label="Add vertical line">${TOOL_VLINE}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="circle" data-name="${name}" title="Circle" aria-label="Circle an area">${TOOL_CIRCLE}</button>
         </div>
       </div>`;
   }
@@ -6331,6 +6458,7 @@
     return sw
       + `<span class="reel-props-sep"></span>`
       + pct + bold
+      + `<button class="reel-tool reel-tool-pct reel-tool-link${d.link ? ' on' : ''}" data-act="draw-link" data-name="${name}" aria-pressed="${!!d.link}" aria-label="${d.link ? 'Keep this drawing on this timeframe only' : 'Put this drawing on every timeframe'}" title="${d.link ? 'On all timeframes' : 'This timeframe only'}">${d.link ? 'All TFs' : '1 TF'}</button>`
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
@@ -7133,14 +7261,59 @@
   (function landFromQuery() {
     const q = new URLSearchParams(window.location.search);
     const open = q.get('open'), day = q.get('day');
+    // Chart deep link (2026-09-26): ?chart=US100&tf=15m&at=2026-09-16T14:45
+    // opens that chart centred on that moment with a marker line on it. Built
+    // so a list of setups can link straight to each one.
+    const chart = q.get('chart');
+    if (chart) {
+      history.replaceState({}, '', window.location.pathname);
+      openChartAt(chart, q.get('tf') || '', q.get('at') || '');
+      return;
+    }
     if (!open && !day) return;
     history.replaceState({}, '', window.location.pathname);
     setTimeout(() => openFromNotification(open || '', day || ''), 1200);
   })();
 
-  window.SP = { openModal, openTvPicker, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
+  // Open `name` on the Charts tab at timeframe `tf`, with `at` (a UTC time,
+  // "YYYY-MM-DDTHH:MM" or a date) in the middle of the window and marked. If the
+  // 15m chart does not reach back that far (it carries ~2 months), falls back to
+  // Daily so the moment is still shown.
+  async function openChartAt(name, tf, at) {
+    for (let i = 0; i < 40 && !allData.length; i++) await new Promise(r => setTimeout(r, 250));
+    if (!allData.some(d => d.instrument_name === name)) return;
+    const t = String(at || '').replace('T', ' ');
+    navigateToTab('charts');
+    let want = isTf(tf) && tabTfs('charts').includes(tf) ? tf : timeframe;
+    const ts = reelParseTs(t);
+    if (want !== 'D' && isFinite(ts)) {
+      const data = await reelLoadChunk(name, want);
+      const b = data && data[name];
+      const t0 = b && b.t.length ? reelParseTs(b.t[0]) : NaN;
+      if (!b || !(ts >= t0)) want = 'D';
+    }
+    if (want !== timeframe) setTimeframe(want, name);
+    const data = await reelLoadChunk(name, want);
+    const b = data && data[name];
+    if (b && isFinite(ts)) {
+      // Labelled in SAST (UTC+2, no DST) — the times the setup list is read in.
+      const sast = new Date(ts + 2 * 3600e3).toISOString();
+      reel.focusAt = { name, t, label: sast.slice(0, 10) + ' ' + sast.slice(11, 16) + ' SAST' };
+      const n  = b.c.length;
+      const fi = reelBarIndexForDate(b, t);
+      const w  = reelWindowBars(b, name);
+      if (fi != null) reelSetPan(name, (n - 1 - fi) - Math.round(w / 2), b);
+      reel.lockY.delete(name);
+    }
+    openChartFor(name);
+    const card = [...document.querySelectorAll('#chartReel .reel-card')].find(c => c.dataset.name === name);
+    const host = card && card.querySelector('.reel-chart');
+    if (host && host._reelCtx) reelRepaint(host);
+  }
+
+  window.SP = { openModal, openTvPicker, wlPick, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
                 calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar,
-                showSimilarCharts, clearSimilarCharts, openChartFor,
+                showSimilarCharts, clearSimilarCharts, openChartFor, openChartAt,
                 openRatesBoard };
 
   // ── Init ─────────────────────────────────────────────────────────────
@@ -7473,6 +7646,277 @@
     drawn:  new Set(),       // names whose SVG is currently in the DOM
     io:     null,
   };
+
+  // ── Timeframe overlay (2026-09-26) ─────────────────────────────────────
+  // The OTHER chart timeframe drawn on the same axes as the one shown: Daily
+  // bars, ribbon and drawings over a 15m chart, or 15m over a Daily one. The
+  // chart shown stays the one you edit; the overlay is read-only. Mapped by
+  // TIME, not by bar count, so both zoom and pan together with no second axis.
+  //
+  // Contrast is per TIMEFRAME, not per role (user: "each with their MAs and
+  // drawings controlled per time frame"): bars, ribbon and drawings each get an
+  // opacity, applied through CSS custom properties so a slider moves without a
+  // repaint. Device-only, like saved views.
+  const OV_TF_MS = { '15m': 15 * 60e3, 'D': 864e5 };
+  const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
+  // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
+  // grids") — the shown chart's calendar lines. Kept per timeframe with the
+  // others, but offered with or without the overlay, so it is not an OV_PART.
+  const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid']];
+  const tfOverlay = (() => {
+    const def = { on: false, layers: {} };
+    try {
+      const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {} };
+    } catch (_) {}
+    return def;
+  })();
+  function ovLayer(tf) {
+    const l = tfOverlay.layers[tf] || (tfOverlay.layers[tf] = {});
+    OV_ALL_PARTS.forEach(([k]) => { if (!(l[k] >= 0 && l[k] <= 100)) l[k] = 100; });
+    return l;
+  }
+  function ovSave() {
+    try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
+  }
+  // The timeframe drawn underneath — the chart timeframe that is not shown.
+  function ovOtherTf() {
+    if (!tfOverlay.on) return null;
+    return tabTfs('charts').find(t => t !== timeframe && OV_TF_MS[t]) || null;
+  }
+  function ovApplyVars() {
+    const st = document.documentElement.style;
+    tabTfs('charts').forEach(tf => {
+      const l = ovLayer(tf);
+      OV_ALL_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
+    });
+  }
+  ovApplyVars();
+  // A bundle already in the cache, or null — the synchronous read the renderer
+  // needs; reelPaint and chartFullOpen load it before painting.
+  function reelCachedBundle(name, tf) {
+    const idx = reel.index;
+    const cid = idx && idx.chunks ? idx.chunks[name] : undefined;
+    if (cid === undefined) return null;
+    const data = reel.chunks.get(tf + ':' + cid);
+    return (data && data[name]) || null;
+  }
+  function ovLayerStyle(tf, part) {
+    return `style="opacity:var(--ov-${tf}-${part},1)"`;
+  }
+
+  // The overlay timeframe's bars, ribbon and drawings, on the base chart's axes.
+  // Returns { under, draw }: `under` sits beneath the base price, `draw` above.
+  function reelOverlaySvg(ob, otf, b, L, sc, bw, name) {
+    const src  = b._src || b;
+    const from = b._from || 0;
+    const bt   = reelBarTimes(src);
+    const n    = bt.length;
+    const baseDur = OV_TF_MS[timeframe] || OV_TF_MS.D;
+    const ovDur   = OV_TF_MS[otf];
+    if (!n || !ovDur) return { under: '', draw: '' };
+
+    // x of an instant: the base bar it falls in, plus how far through that bar.
+    // A gap between base bars (a night, a weekend) is not stretched across — the
+    // fraction is capped at one bar, so an instant in the gap sits on the edge.
+    const xT = t => {
+      if (!isFinite(t) || t < bt[0]) return null;
+      let lo = 0, hi = n - 1;
+      if (t >= bt[hi]) lo = hi;
+      else while (hi - lo > 1) { const m = (lo + hi) >> 1; if (bt[m] <= t) lo = m; else hi = m; }
+      const step = lo < n - 1 ? Math.min(bt[lo + 1] - bt[lo], baseDur) : baseDur;
+      let frac = (t - bt[lo]) / (step || baseDur);
+      if (lo < n - 1) frac = Math.min(1, frac);
+      return L.x0 + (lo - from + frac) * bw;
+    };
+    const inView = x => x != null && x >= L.x0 - bw * 2 && x <= L.x1 + bw * 2;
+
+    const ot = reelBarTimes(ob);
+    const on = ot.length;
+
+    // ── Bars ── wide enough to read as bars: a range box with the open tick on
+    // its left edge and the close on its right (Daily over 15m). Too narrow —
+    // dozens of 15m bars inside one daily slot — they become a close line.
+    let bars = '';
+    const barPx = bw * ovDur / baseDur;
+    if (barPx >= 6) {
+      // Coloured by the bar's own direction (user, 2026-09-26: "make them green
+      // and red, same fade"): closed at or above its open = up.
+      const box = { up: [], dn: [] }, seg = { up: [], dn: [] };
+      for (let i = 0; i < on; i++) {
+        const t0 = ot[i];
+        const t1 = Math.min(i < on - 1 ? ot[i + 1] : t0 + ovDur, t0 + ovDur);
+        const xl = xT(t0), xr = xT(t1);
+        if (xl == null || xr == null || xr < L.x0 || xl > L.x1 || xr - xl < 2) continue;
+        const o = ob.o[i], h = ob.h[i], l = ob.l[i], c = ob.c[i];
+        if (c == null || h == null || l == null) continue;
+        const yh = sc.y(h), yl = sc.y(l), xm = (xl + xr) / 2;
+        const dir = (o == null || c >= o) ? 'up' : 'dn';
+        box[dir].push(`M${xl.toFixed(1)} ${yh.toFixed(1)}H${xr.toFixed(1)}V${yl.toFixed(1)}H${xl.toFixed(1)}Z`);
+        if (o != null) seg[dir].push(`M${xl.toFixed(1)} ${sc.y(o).toFixed(1)}H${xm.toFixed(1)}`);
+        seg[dir].push(`M${xm.toFixed(1)} ${sc.y(c).toFixed(1)}H${xr.toFixed(1)}`);
+      }
+      bars = ['up', 'dn'].map(dir => box[dir].length
+        ? `<path d="${box[dir].join('')}" class="reel-ov-box ${dir}"/>` +
+          `<path d="${seg[dir].join('')}" class="reel-ov-tick ${dir}" fill="none" stroke-width="3" stroke-linecap="round"/>`
+        : '').join('');
+    } else {
+      const pts = [];
+      let prevIn = false, pend = null;
+      for (let i = 0; i < on; i++) {
+        if (ob.c[i] == null) continue;
+        const x = xT(ot[i] + ovDur);
+        const pt = x == null ? null : x.toFixed(1) + ',' + sc.y(ob.c[i]).toFixed(1);
+        if (inView(x)) { if (!prevIn && pend) pts.push(pend); pts.push(pt); prevIn = true; }
+        else { if (prevIn && pt) { pts.push(pt); break; } pend = pt; }
+      }
+      // Green rising, red falling (user, 2026-09-26: "include in the 15"), in
+      // runs of one direction so a long line is a handful of polylines, not
+      // one element per bar. A run ends ON the turning point and the next one
+      // starts from it, so the line has no gaps where the colour changes.
+      if (pts.length >= 2) {
+        const yOf = p => +p.split(',')[1];
+        let run = [pts[0]], up = null;
+        const flush = () => {
+          if (run.length >= 2) bars += `<polyline points="${run.join(' ')}" class="reel-ov-line ${up ? 'up' : 'dn'}" fill="none" stroke-width="2.2" stroke-linejoin="round"/>`;
+        };
+        for (let i = 1; i < pts.length; i++) {
+          const dy = yOf(pts[i]) - yOf(pts[i - 1]);
+          const u = dy === 0 ? up : dy < 0;                 // SVG y grows downward
+          if (up === null || u === up) { run.push(pts[i]); up = u === null ? up : u; continue; }
+          flush(); run = [pts[i - 1], pts[i]]; up = u;
+        }
+        flush();
+      }
+    }
+
+    // ── Ribbon ── each MA at its bar's CLOSE time, slope-coloured like the
+    // base ribbon but long-dashed and thinner, with its period at the right end
+    // so a Daily MA50 is never read as the 15m one.
+    let ribbon = '', labels = '';
+    const lblYs = [];
+    const mi = ob.mi || ob.m[0].map((_, j) => Math.min(j * (ob.ms || 1), on - 1));
+    const tag = TF_BY_CODE[otf] ? (otf === 'D' ? 'D' : otf) : otf;
+    for (let k = ob.m.length - 1; k >= 0; k--) {
+      const series = ob.m[k];
+      const P = [];
+      for (let j = 0; j < series.length; j++) {
+        const v = series[j];
+        if (v == null) { P.push(null); continue; }
+        const x = xT(ot[mi[j]] + ovDur);
+        P.push(x == null ? null : { x, v });
+      }
+      // Keep the visible stretch plus one point either side, so the line runs
+      // to the edge instead of stopping short of it.
+      let a = -1, z = -1;
+      P.forEach((p, j) => { if (p && inView(p.x)) { if (a < 0) a = j; z = j; } });
+      if (a < 0) continue;
+      a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
+      let run = [], down = null, prev = null, lastVis = null;
+      const flush = () => {
+        if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="4.2" stroke-dasharray="14 9" stroke-linecap="round" stroke-opacity=".95"/>`;
+        run = [];
+      };
+      for (let j = a; j <= z; j++) {
+        const p = P[j];
+        if (!p) { flush(); prev = null; down = null; continue; }
+        const pt = p.x.toFixed(1) + ',' + sc.y(p.v).toFixed(1);
+        if (p.x <= L.x1) lastVis = p;
+        if (prev == null) { run = [pt]; prev = p.v; continue; }
+        const d = p.v < prev;
+        if (down === null) down = d;
+        else if (d !== down) { run.push(pt); flush(); run = [pt]; down = d; prev = p.v; continue; }
+        run.push(pt); prev = p.v;
+      }
+      flush();
+      if (lastVis) {
+        const y = sc.y(lastVis.v);
+        if (y > L.py0 + 10 && y < L.py1 - 4 && !lblYs.some(u => Math.abs(u - y) < 20) && lblYs.push(y)) labels +=
+          `<text x="${(Math.min(lastVis.x, L.x1) - 6).toFixed(1)}" y="${(y - 9).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${tag}${ob.p[k]}</text>`;
+      }
+    }
+
+    // ── Drawings ── that timeframe's own, read-only: anchored in (date,
+    // price), so they land in place on this axis. Hit targets are stripped so a
+    // tap can never select one of them in place of a drawing of this chart.
+    const per  = instChannels[name];
+    // A linked drawing is already on this chart as its own copy — drawing the
+    // overlay's copy too would stack two identical lines.
+    const own  = new Set(((per && per[timeframe]) || []).map(d => d && d.link).filter(Boolean));
+    const list = ((per && per[otf]) || []).filter(d => !(d && d.link && own.has(d.link)));
+    const drawn = list.length
+      ? reelChannelsSvg(list, b, L, sc, bw, false, -1).replace(/ data-(ci|h)="[^"]*"/g, '')
+      : '';
+
+    return {
+      under: `<g class="reel-ov" ${ovLayerStyle(otf, 'ma')}>${ribbon}${labels}</g>` +
+             `<g class="reel-ov" ${ovLayerStyle(otf, 'bars')}>${bars}</g>`,
+      draw:  drawn ? `<g class="reel-ov reel-ov-draw" ${ovLayerStyle(otf, 'draw')}>${drawn}</g>` : '',
+    };
+  }
+
+  // The timeframe pill's text: "15m + D" while the overlay is on.
+  function reelTfTagHtml() {
+    const o = ovOtherTf();
+    return `${tfMeta().label}${o ? `<i class="reel-tf-plus">+ ${o === 'D' ? 'Daily' : TF_BY_CODE[o].label}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
+  }
+
+  // The overlay part of the timeframe menu: the switch, then one block of
+  // sliders per timeframe while it is on.
+  function reelOvMenuHtml() {
+    const o = ovOtherTf();
+    const g = ovLayer(timeframe).grid;
+    let h = `<div class="reel-ov-sep"></div>
+      <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
+      <button class="reel-tf-opt reel-ov-switch${tfOverlay.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${tfOverlay.on}" data-act="ov-toggle">
+        <span>Overlay timeframes</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    if (!o) return h;
+    // The overlay is FINER than the chart (15m over Daily): its data covers only
+    // the last stretch of the window, so offer to frame exactly that stretch.
+    if (OV_TF_MS[o] < OV_TF_MS[timeframe]) {
+      h += `<button class="reel-tf-opt reel-ov-zoom" role="menuitem" data-act="ov-zoom">Zoom to ${TF_BY_CODE[o].label}<i>where both have data</i></button>`;
+    }
+    [timeframe, o].forEach(tf => {
+      const l = ovLayer(tf);
+      h += `<div class="reel-ov-block"><div class="reel-ov-title">${TF_BY_CODE[tf].label}<span>${tf === timeframe ? 'shown · editable' : 'overlay'}</span></div>` +
+        OV_PARTS.map(([k, lbl]) =>
+          `<label class="reel-ov-row"><span>${lbl}</span><input type="range" min="0" max="100" step="5" value="${l[k]}" data-ov-tf="${tf}" data-ov-part="${k}" aria-label="${TF_BY_CODE[tf].label} ${lbl} contrast"><b>${l[k]}%</b></label>`
+        ).join('') + '</div>';
+    });
+    return h;
+  }
+
+  // Frame the stretch where the finer overlay has data: from its first bar to
+  // the newest, a little padding either side. Rides the ordinary time-zoom and
+  // pan, so a drag or double-tap takes over from it as from any other zoom.
+  function ovZoomTo(host) {
+    const ctx = host && host._reelCtx;
+    const o = ovOtherTf();
+    const ob = ctx && o && reelCachedBundle(ctx.name, o);
+    if (!ob || !ob.t.length) return;
+    const src = ctx.bundle, n = src.c.length;
+    const fi = reelBarIndexForDate(src, ob.t[0]);
+    if (fi == null) return;
+    const bars = Math.max(REEL_MIN_WINDOW_BARS, Math.ceil((n - Math.max(0, fi)) * 1.08) + 2);
+    reel.tzoom.set(ctx.name, bars);
+    reelSetPan(ctx.name, 0, src);
+    reel.lockY.delete(ctx.name);
+    reelRepaint(host);
+  }
+
+  // Overlay switched on or off: every drawn chart repaints (loading the other
+  // timeframe first), and the pills say what they show.
+  async function ovRefresh() {
+    document.querySelectorAll('.reel-tf-tag').forEach(t => { t.innerHTML = reelTfTagHtml(); });
+    reelRepaintAll();
+    const full = chartFullEl();
+    const host = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+    if (host && host._reelCtx) {
+      const o = ovOtherTf();
+      if (o) await reelLoadChunk(chartFullName, o);
+      reelRepaint(host);
+    }
+  }
 
   // ── Data access ──────────────────────────────────────────────────────
 
@@ -8280,6 +8724,29 @@
   // Both start fitted to what is on screen, for the same reason the channel
   // does: the first drag should be an adjustment, not a construction.
 
+  // Circle (user, 2026-09-26: "there is no circling tool") — to ring an area of
+  // the chart the way the user marks setups on screenshots. Stored as the two
+  // opposite corners of its box, (t1,p1) and (t2,p2), exactly like a trend
+  // line, so drag, move, duplicate, undo, sync and the timeframe link all work
+  // unchanged. Anchored in (date, price), so it rings the same bars on every
+  // timeframe. Starts around the last fifth of the window.
+  function reelDefaultCircle(b) {
+    const n = b.c.length;
+    if (n < 8) return null;
+    // Small: a few bars near the right, not a quarter of the chart — on a
+    // two-year Daily view a wide default ringed most of the price history.
+    const i1 = Math.floor(n * 0.74), i2 = Math.max(i1 + 2, Math.floor(n * 0.82));
+    let lo = Infinity, hi = -Infinity;
+    for (let i = i1; i <= i2; i++) {
+      if (b.l[i] != null && b.l[i] < lo) lo = b.l[i];
+      if (b.h[i] != null && b.h[i] > hi) hi = b.h[i];
+    }
+    if (!isFinite(lo) || !isFinite(hi)) return null;
+    const pad = (hi - lo) * 0.15 || hi * 0.01;
+    return { kind: 'circle', t1: String(b.t[i1]), p1: hi + pad,
+                             t2: String(b.t[i2]), p2: lo - pad };
+  }
+
   function reelDefaultTrend(b) {
     const n = b.c.length;
     if (n < 8) return null;
@@ -8332,13 +8799,72 @@
   function reelDefaultDrawing(kind, b) {
     if (kind === 'entry') return reelDefaultEntry(b);
     if (kind === 'trend') return reelDefaultTrend(b);
+    if (kind === 'circle') return reelDefaultCircle(b);
     if (kind === 'hline') return reelDefaultHLine(b);
     if (kind === 'vline') return reelDefaultVLine(b);
     if (kind === 'ladder') return reelDefaultLadder(b);
     return reelDefaultChannel(b);
   }
 
+  // ── Linked drawings (2026-09-26) ─────────────────────────────────────
+  // Drawings are kept per (instrument, timeframe) — the user's 2026-09-08 call —
+  // but one carrying a `link` id lives on EVERY chart timeframe of its
+  // instrument as a copy with the same id. It is anchored in (date, price), so
+  // the copy sits in the same place. Any saved change to a linked drawing — a
+  // move, colour, lock, bold, delete, undo — is mirrored onto its copies here,
+  // at the one save every edit passes through. Each chart keeps its own edit
+  // time, so sync merges the copies like any other drawing.
+  function drawLinkId() {
+    return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+  function channelLinkSync() {
+    const tfs = tabTfs('charts');
+    // The charts THIS save changed, found against the last snapshot — fixed
+    // before anything is mirrored, so a copy just written is never read back as
+    // a source and fed the other way.
+    const changed = [];
+    for (const name of Object.keys(instChannels))
+      for (const tf of tfs) {
+        const cur = instChannels[name][tf];
+        const k = chKey(name, tf);
+        if ((cur ? JSON.stringify(cur) : undefined) !== channelSnap[k]) changed.push([name, tf, k]);
+      }
+    for (const [name, tf, k] of changed) {
+      const per  = instChannels[name];
+      const list = per[tf] || [];
+      // A duplicate carries its original's id; it is a new drawing, so it gets
+      // its own (and is copied across as one).
+      const now = new Set();
+      for (const d of list) if (d.link) {
+        if (now.has(d.link)) d.link = drawLinkId();
+        now.add(d.link);
+      }
+      const before = new Set();
+      try { (JSON.parse(channelSnap[k] || '[]') || []).forEach(d => d && d.link && before.add(d.link)); } catch (_) {}
+      for (const o of tfs) {
+        if (o === tf) continue;
+        let ol = per[o];
+        if (Array.isArray(ol)) {
+          // Deleted here (or unlinked here) → gone there too.
+          for (let i = ol.length - 1; i >= 0; i--)
+            if (ol[i] && ol[i].link && before.has(ol[i].link) && !now.has(ol[i].link)) ol.splice(i, 1);
+        }
+        for (const d of list) {
+          if (!d.link) continue;
+          const copy = JSON.parse(JSON.stringify(d));
+          if (!Array.isArray(ol)) ol = per[o] = [];
+          const j = ol.findIndex(x => x && x.link === d.link);
+          if (j < 0) { ol.push(copy); continue; }
+          // In place: a drag on that chart may be holding this object.
+          for (const key of Object.keys(ol[j])) delete ol[j][key];
+          Object.assign(ol[j], copy);
+        }
+      }
+    }
+  }
+
   function channelSave() {
+    channelLinkSync();
     channelStampChanges();
     try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
     syncPushDrawings();
@@ -8377,6 +8903,19 @@
     if (!ctx) return;
     const def = reelDefaultDrawing(kind || 'channel', ctx.b);
     if (!def) return;
+    // A new circle starts ROUND on screen, about a quarter of the plot tall,
+    // centred where the default put it — its price box alone came out as a
+    // thin oval on a two-year view.
+    if (def.kind === 'circle') {
+      const { sc, L, b: vb, bw } = ctx;
+      const i1 = reelBarIndexForDate(vb, def.t1), i2 = reelBarIndexForDate(vb, def.t2);
+      const mid = (def.p1 + def.p2) / 2, ci = (i1 + i2) / 2;
+      const hPx = (L.py1 - L.py0) * 0.25;
+      const dp = Math.abs(sc.inv(sc.y(mid) - hPx / 2) - mid);
+      const halfBars = Math.max(1.5, (hPx / 2) / bw);
+      const ta = reelDateForBarIndex(vb, ci - halfBars), tb = reelDateForBarIndex(vb, ci + halfBars);
+      if (isFinite(dp) && ta && tb) { def.p1 = mid + dp; def.p2 = mid - dp; def.t1 = ta; def.t2 = tb; }
+    }
     const n = channelsFor(name).length;
     if (n) {
       // Offset from whatever is already there — two drawings on the same pixels
@@ -8506,6 +9045,7 @@
   function reelDrawingSvg(d, b, L, sc, bw, editing, idx, isActive) {
     if (!d) return '';
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'circle') return reelCircleSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'vline') return reelVLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'ladder') return reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive);
@@ -8543,7 +9083,7 @@
   }
 
   const DRAW_DATE_KEYS  = ['t', 't1', 't2'];
-  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline']);
+  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline', 'circle']);
   const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p4'];
 
   // Write `orig` shifted by dBars and dP into `target`. Offsets that are not
@@ -8641,6 +9181,26 @@
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
     }
     return line + handles;
+  }
+
+  // The ellipse that fits the box between the two corners. Handles sit on the
+  // corners (drag one to reshape, the other stays put), the move handle in the
+  // middle. Tapping the ring selects it.
+  function reelCircleSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const i1 = reelBarIndexForDate(b, d.t1), i2 = reelBarIndexForDate(b, d.t2);
+    if (i1 == null || i2 == null) return '';
+    const xAt = fi => L.x0 + fi * bw + bw / 2;
+    const x1 = xAt(i1), x2 = xAt(i2), y1 = sc.y(d.p1), y2 = sc.y(d.p2);
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    const rx = Math.max(6, Math.abs(x2 - x1) / 2), ry = Math.max(6, Math.abs(y2 - y1) / 2);
+    const e = `cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}"`;
+    let out = `<ellipse ${e} fill="none" class="reel-ch reel-circle${d.bold ? ' is-bold' : ''}"/>` +
+              `<ellipse ${e} class="reel-ch-hit" data-di="${idx}"/>`;
+    if (editing && !d.locked) {
+      out += reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive)
+           + reelMoveHandle(L, cx, cy, idx, isActive);
+    }
+    return out;
   }
 
   // Horizontal price line — one price, spanning the panel. The label sits in
@@ -9086,8 +9646,20 @@
     return lines;
   }
 
-  function reelTimeGrid(b, tf) {
-    const mode = REEL_TIME_GRID[tf];
+  // The Daily grid FOLLOWS THE ZOOM (user, 2026-09-26: "where are the time
+  // grids?" — a Daily chart zoomed to six weeks, as the overlay's "Zoom to 15m"
+  // does, crossed no New Year and so drew no line at all). Years on the normal
+  // two-year view; month lines once the window is under ~a year; week lines,
+  // first Monday of each month bold, once it is under ~four months.
+  const REEL_D_MONTH_GRID_BARS = 260;
+  const REEL_D_WEEK_GRID_BARS  = 90;
+  function reelDailyGridMode(winBars) {
+    return winBars <= REEL_D_WEEK_GRID_BARS ? 'dweek'
+         : winBars <= REEL_D_MONTH_GRID_BARS ? 'month' : 'year';
+  }
+
+  function reelTimeGrid(b, tf, modeOverride) {
+    const mode = modeOverride || REEL_TIME_GRID[tf];
     const n = b.t ? b.t.length : 0;
     if (!mode || !n) return [];
 
@@ -9131,6 +9703,43 @@
         });
       }
       return src._weekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
+    }
+
+    // ── Week lines on DAILY bars (a zoomed-in Daily chart) ─────────────
+    // A line on the first bar of each trading week; the first week of a month
+    // is the bold one and names the month, as on 15m. Measured off the whole
+    // bundle so a pan cannot move a line; the next few weeks are projected into
+    // the blank space at the bundle's own daily spacing.
+    if (mode === 'dweek') {
+      const src = b._src || b, from = b._from || 0, sn = src.t.length;
+      if (!src._dweekGrid) {
+        const out = [];
+        let prevDow = null, prevMonth = null;
+        const push = (fi, d, future) => {
+          const m = d.getUTCMonth();
+          const month = prevMonth !== null && m !== prevMonth;
+          prevMonth = m;
+          out.push({ fi, week: month, future, label: reelDayLineLabel(d.toISOString(), month) });
+        };
+        for (let i = 0; i < sn; i++) {
+          const d = new Date(String(src.t[i]).slice(0, 10) + 'T00:00:00Z');
+          if (isNaN(d)) continue;
+          const dow = (d.getUTCDay() + 6) % 7;                  // Monday = 0
+          if (prevDow !== null && dow < prevDow) push(i, d, false);
+          prevDow = dow;
+        }
+        const last = new Date(String(src.t[sn - 1]).slice(0, 10) + 'T00:00:00Z');
+        if (!isNaN(last)) {
+          const mon = new Date(last.getTime() + ((7 - (last.getUTCDay() + 6) % 7) % 7 || 7) * 864e5);
+          for (let k = 0; k < REEL_FUTURE_WEEKS; k++) {
+            const d = new Date(mon.getTime() + k * 7 * 864e5);
+            const fi = reelBarIndexForDate(src, d.toISOString().slice(0, 10));
+            if (fi != null) push(fi, d, true);
+          }
+        }
+        src._dweekGrid = out;
+      }
+      return src._dweekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
     }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
@@ -9535,7 +10144,8 @@
     // The boundary lines carry their own labels; the window's own first and
     // last dates stay as end-stops so the axis is never blank on a range that
     // happens to cross no boundary at all.
-    const tg = reelTimeGrid(b, timeframe);
+    const tg = reelTimeGrid(b, timeframe,
+      timeframe === 'D' ? reelDailyGridMode(_winBars) : undefined);
     // Every boundary gets its LINE; labels are thinned so they cannot overlap.
     // On the slow timeframes a boundary is rare enough that this never fires,
     // but 10m crosses a session every ~39 bars, so zoomed out its labels would
@@ -9552,11 +10162,30 @@
     // character at the axis font size.
     const lblW = s => String(s).length * 14;
     const drawnLabels = [];
-    const timeGrid = tg.map(t => {
+    // Which lines get a label: the BOLD ones (a month start on a week grid, an
+    // administration year) claim their places first, then the ordinary lines
+    // fill the gaps — otherwise "Mon 31" could take the room "Mon 7 Sep" needed.
+    const keepLbl = new Set();
+    {
+      const placed = [];
+      const pick = strong => tg.forEach((t, i) => {
+        if (!t.label || !!(t.week || t.admin || t.month) !== strong) return;
+        const x = xOf(t.fi);
+        if (x < L.x0 || x > L.x1) return;
+        if ((x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1) return;
+        if (placed.some(px => Math.abs(px - x) < LABEL_MIN_GAP)) return;
+        placed.push(x); keepLbl.add(i);
+      });
+      pick(true); pick(false);
+    }
+    // Lines and their date labels are kept apart: the Grid contrast slider
+    // (--ov-<tf>-grid) fades the LINES only, so the dates stay readable.
+    let gridLbls = '';
+    const timeGrid = tg.map((t, ti) => {
       const x = xOf(t.fi);
       if (x < L.x0 || x > L.x1) return '';
-      const near = (x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1;
-      const room = (x - lastLabelX) >= LABEL_MIN_GAP;
+      const near = !keepLbl.has(ti);
+      const room = true;
       const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin'
                  : t.week  ? 'reel-tgrid reel-tgrid-week'
                  : t.month ? 'reel-tgrid reel-tgrid-month'
@@ -9567,8 +10196,8 @@
         lastLabelX = x;
         drawnLabels.push([x, lblW(text)]);
       }
-      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>` +
-             (label ? `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>` : '');
+      if (label) gridLbls += `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>`;
+      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>`;
     }).join('');
 
     // Once the calendar lines are labelled they ARE the axis, so the window's
@@ -9584,7 +10213,7 @@
     // only date was "Sep". It still earns its keep on the day grid: a 10m window
     // that crosses exactly one midnight keeps its end-stop times as well as the
     // day line.
-    const gridLabelCount = (timeGrid.match(/reel-tgrid-lbl/g) || []).length;
+    const gridLabelCount = (gridLbls.match(/reel-tgrid-lbl/g) || []).length;
     const hasGridLabels = gridLabelCount >= 2;
     // An end-stop that the ONE surviving grid label would print on top of is
     // dropped — the calendar line is the better reference, and two dates in the
@@ -9624,8 +10253,20 @@
     // Builds this chart's two default channels the first time it is painted, if
     // it has none of its own. Read-only — nothing is stored until an edit.
     channelSeedsFor(name, b);
-    const channel = reelChannelsSvg(channelsFor(name), b, L, sc, bw,
-                                    reel.editing === name, activeIdx(name));
+    const _editing = reel.editing === name;
+    const _ovTf = ovOtherTf();
+    const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
+    // With the overlay on, this timeframe's drawings take its own contrast too —
+    // except while they are being edited, when they must be seen.
+    const _hideOwn = _ovB && !_editing && ovLayer(timeframe).draw === 0;
+    let channel = _hideOwn ? '' : reelChannelsSvg(channelsFor(name), b, L, sc, bw,
+                                    _editing, activeIdx(name));
+    const ov = _ovB ? reelOverlaySvg(_ovB, _ovTf, b, L, sc, bw, name) : null;
+    if (ov) {
+      ribbon = `<g ${ovLayerStyle(timeframe, 'ma')}>${ribbon}</g>`;
+      if (channel && !_editing) channel = `<g ${ovLayerStyle(timeframe, 'draw')}>${channel}</g>`;
+    }
+    const barsOut = ov ? `<g ${ovLayerStyle(timeframe, 'bars')}>${bars}</g>` : bars;
 
     // The pointer handlers need the exact geometry that was DRAWN, not a
     // recomputation that might drift from it, so it is stashed on the host.
@@ -9678,6 +10319,20 @@
 
     const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
 
+    // The moment a deep link asked for (openChartAt): an amber vertical line
+    // with its time, so the setup is found at a glance. Cleared by double-tap.
+    let focus = '';
+    const fa = reel.focusAt;
+    if (fa && fa.name === name) {
+      const ffi = reelBarIndexForDate(b, fa.t);
+      if (ffi != null) {
+        const fx = xOf(ffi);
+        if (fx >= L.x0 && fx <= L.x1) focus =
+          `<line x1="${fx.toFixed(1)}" y1="${L.py0}" x2="${fx.toFixed(1)}" y2="${L.py1}" stroke="#f59e0b" stroke-width="3" stroke-opacity=".9"/>` +
+          `<text x="${(fx + 6).toFixed(1)}" y="${(L.py0 + 18).toFixed(1)}" class="reel-focus-lbl">${escText(fa.label)}</text>`;
+      }
+    }
+
     // Price, ribbon and drawings are clipped to the plot. A channel or trend
     // line is drawn edge to edge at its own slope, so a steep one used to run
     // straight down through the trend strip and the date labels — on screen and
@@ -9687,7 +10342,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      ${grid}${timeGrid}<g clip-path="url(#${plotClipId})">${ribbon}${bars}${channel}</g>${lastTag}${clipTag}${dates}${strip}
+      ${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -9716,7 +10371,29 @@
     menu.innerHTML = tabTfs('charts').map(code => {
       const on = code === timeframe;
       return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${name}">${TF_BY_CODE[code].label}</button>`;
-    }).join('');
+    }).join('') + `<div class="reel-ov-panel">${reelOvMenuHtml()}</div>`;
+    // Sliders move the layer's opacity live (CSS variables, no repaint); the
+    // release saves, and repaints only when a drawings layer crosses 0 — at 0
+    // this chart's own drawings leave the SVG so they cannot catch a tap.
+    menu.addEventListener('input', e => {
+      const r = e.target.closest('input[data-ov-tf]');
+      if (!r) return;
+      ovLayer(r.dataset.ovTf)[r.dataset.ovPart] = +r.value;
+      const out = r.parentElement.querySelector('b');
+      if (out) out.textContent = r.value + '%';
+      ovApplyVars();
+    });
+    menu.addEventListener('change', e => {
+      const r = e.target.closest('input[data-ov-tf]');
+      if (!r) return;
+      ovSave();
+      if (r.dataset.ovPart === 'draw') {
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const h = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (h && h._reelCtx) reelRepaint(h);
+      }
+    });
     foot.appendChild(menu);
     tag.setAttribute('aria-expanded', 'true');
   }
@@ -9784,6 +10461,7 @@
 
     const host = el.querySelector('.reel-chart');
     const data = await reelLoadChunk(name);
+    { const o = ovOtherTf(); if (o) await reelLoadChunk(name, o); }
     const bundle = data && data[name];
     if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
     host._reelItem = item;
@@ -9948,13 +10626,14 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
+        ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
       ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
-        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
+        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
         <div class="reel-foot-actions">
           ${reelCapsuleHtml(name)}
         </div>
@@ -10046,6 +10725,7 @@
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
           ${chartBackBtnHtml()}
+          ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
@@ -10057,7 +10737,7 @@
       ${reelToolbarHtml(name, _chEditing)}
 
       <footer class="reel-foot">
-        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${tfMeta().label}<i class="reel-tf-caret">▾</i></button>
+        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
         <div class="reel-foot-actions">
           ${reelCapsuleHtml(name)}
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
@@ -10184,10 +10864,12 @@
     if (!item) return;
     reelFill(idx);
     const host = document.getElementById('reelChart-' + idx);
-    if (!host || host.dataset.painted === timeframe) return;
+    const pkey = timeframe + (ovOtherTf() ? '+ov' : '');
+    if (!host || host.dataset.painted === pkey) return;
 
     const name = item.instrument_name;
     const data = await reelLoadChunk(name);
+    { const o = ovOtherTf(); if (o) await reelLoadChunk(name, o); }
 
     // The user may have scrolled far away, or flipped timeframe, while the
     // chunk was in flight — re-check before touching the DOM.
@@ -10197,11 +10879,11 @@
     const bundle = data && data[name];
     if (!bundle) {
       stillThere.innerHTML = '<div class="reel-nodata">No chart data for this instrument</div>';
-      stillThere.dataset.painted = timeframe;
+      stillThere.dataset.painted = pkey;
       return;
     }
     stillThere.innerHTML = reelChartSvg(bundle, item, stillThere);
-    stillThere.dataset.painted = timeframe;
+    stillThere.dataset.painted = pkey;
     stillThere._reelItem = item;
     reelWireChart(stillThere);
     reel.drawn.add(idx);
@@ -10235,6 +10917,9 @@
     'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity',
     'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
     'opacity', 'font-size', 'font-family', 'font-weight', 'text-anchor',
+    // The overlay's MA tags are haloed (white stroke painted UNDER the fill);
+    // without this the halo paints over the text and the tag vanishes.
+    'paint-order',
   ];
 
   function inlineSvgStyles(liveEl, cloneEl) {
@@ -10247,6 +10932,12 @@
       // with a channel came out with the inside of the channel blacked in.
       if (v && v !== 'normal') cloneEl.setAttribute(prop, v.trim());
     }
+    // The overlay layers carry their contrast as `style="opacity:var(--ov-…)"`.
+    // Inline style beats the attribute set above, and the picture has no :root
+    // to resolve the variable against — it fell back to 1 and every faded
+    // layer came out at full strength. Write the resolved number instead.
+    const st = cloneEl.getAttribute && cloneEl.getAttribute('style');
+    if (st && st.includes('var(--ov-')) cloneEl.style.opacity = cs.opacity;
     const lk = liveEl.children, ck = cloneEl.children;
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
@@ -11062,7 +11753,7 @@
       // solve back through, so the pointer's price IS the anchor price. Running
       // it through the channel branch read ch.up/ch.dn, which a trend does not
       // have, and wrote NaN into the anchor.
-      if (ch.kind === 'trend') {
+      if (ch.kind === 'trend' || ch.kind === 'circle') {
         const dt = reelDateForBarIndex(ctx.b, fi);
         if (dt) {
           if (handle === 'a') { ch.t1 = dt; ch.p1 = price; }
@@ -11162,6 +11853,7 @@
       reel.pan.delete(ctx.name);
       reel.lockY.delete(ctx.name);
       reel.tzoom.delete(ctx.name);
+      if (reel.focusAt && reel.focusAt.name === ctx.name) reel.focusAt = null;
       reelRepaint(host);
     });
   }
@@ -11744,6 +12436,24 @@
       const name = btn.dataset.name;
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
+      if (btn.dataset.act === 'ov-zoom') {
+        // Find the chart BEFORE closing the menu: the button lives in it, and a
+        // detached button has no card to look up.
+        const cardEl = btn.closest('.reel-card');
+        const host = cardEl && cardEl.querySelector('.reel-chart');
+        reelTfMenuClose();
+        ovZoomTo(host);
+        return true;
+      }
+      if (btn.dataset.act === 'ov-toggle') {
+        tfOverlay.on = !tfOverlay.on;
+        ovSave();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        ovRefresh();
+        return true;
+      }
+      if (btn.dataset.act === 'wl-pick') { wlPick(name); return true; }
       if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
       if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
       const cardEl = btn.closest('.reel-card');
@@ -11792,6 +12502,18 @@
         const d = activeChannel(name);
         if (d && d.kind === 'ladder') {
           if (d.reverse) delete d.reverse; else d.reverse = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      if (btn.dataset.act === 'draw-link') {
+        // On: the drawing is copied onto the instrument's other timeframes and
+        // kept in step. Off: the copies are removed; this one stays here.
+        const d = activeChannel(name);
+        if (d) {
+          if (d.link) delete d.link; else d.link = drawLinkId();
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
