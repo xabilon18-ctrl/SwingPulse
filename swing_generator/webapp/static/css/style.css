@@ -9596,3 +9596,18 @@ body.chart-full-open { overflow: hidden; }
   border-radius: 10px; pointer-events: none; transform: scale(1.02); }
 .wl2-lifted .wl2-grip { color: var(--accent); }
 .wl2-ph { border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-glow); margin: 2px 0; box-sizing: border-box; }
+
+/* Full-screen footer is ONE row, always (user, 2026-09-26: AVAV 15m +D put
+   ‹ 1/798 › on a second row and left an empty strip). Measured off the phone
+   screenshot at 390px: tag 87 + Save|Drawing 164 + ‹ 1/798 › 106 + gaps and
+   padding = ~389px, so it wrapped by a pixel or two. On phone widths the
+   capsule's icons go (the words stay, and "Saved" still says a view is saved),
+   the steppers tighten — ~50px back, enough for "Saved"/"Done" and a 3-digit
+   counter. */
+#chartFull .reel-foot { flex-wrap: nowrap; gap: 5px; }
+@media (max-width: 440px) {
+  #chartFull .reel-capsule > .reel-act svg { display: none; }
+  #chartFull .reel-tf-tag { padding: 4px 8px; }
+  #chartFull .cf-steps { gap: 3px; }
+  #chartFull .cf-step { width: 28px; }
+}
