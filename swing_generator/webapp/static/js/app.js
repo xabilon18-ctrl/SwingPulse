@@ -11971,7 +11971,15 @@
     }
     if (!reel.list.length) {
       host.innerHTML = '';
-      if (empty) empty.style.display = '';
+      if (empty) {
+        // A 15m marker filter on a feed published before the markers existed
+        // has nothing to select on — say so, instead of a bare "0 charts".
+        const evScope = ['m15sig', 'dxpre', 'dxafter'].includes(reel.scope);
+        empty.textContent = evScope && reel.index && !reel.index.ev15
+          ? 'The 15m markers are not in the published data yet — they arrive with the next data run.'
+          : 'Nothing matches those filters.';
+        empty.style.display = '';
+      }
       reelSyncNav();
       return;
     }
