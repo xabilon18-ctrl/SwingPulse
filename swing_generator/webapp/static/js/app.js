@@ -464,9 +464,9 @@
   }
 
   function addChannelFor(name, ch) {
-    // Drawn while the timeframes are overlaid, it belongs to BOTH charts (user,
-    // 2026-09-26: "the drawing should apply to individual charts as well").
-    if (ovOtherTf() && !ch.link) ch.link = drawLinkId();
+    // A drawing stays on the timeframe it was drawn on (user, 2026-09-26:
+    // "make sure the drawing and grids are not seen on the daily chart" —
+    // reverses the same day's auto-link of drawings made with the overlay on).
     if (!instChannels[name]) instChannels[name] = {};
     if (!Array.isArray(instChannels[name][timeframe])) instChannels[name][timeframe] = [];
     instChannels[name][timeframe].push(ch);
@@ -6471,7 +6471,6 @@
     return sw
       + `<span class="reel-props-sep"></span>`
       + pct + bold
-      + `<button class="reel-tool reel-tool-pct reel-tool-link${d.link ? ' on' : ''}" data-act="draw-link" data-name="${name}" aria-pressed="${!!d.link}" aria-label="${d.link ? 'Keep this drawing on this timeframe only' : 'Put this drawing on every timeframe'}" title="${d.link ? 'On all timeframes' : 'This timeframe only'}">${d.link ? 'All TFs' : '1 TF'}</button>`
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
@@ -7858,122 +7857,58 @@
     // overlay's copy too would stack two identical lines.
     const own  = new Set(((per && per[timeframe]) || []).map(d => d && d.link).filter(Boolean));
     const list = ((per && per[otf]) || []).filter(d => !(d && d.link && own.has(d.link)));
-    const drawn = list.length
+    const drawn = list.length && timeframe !== 'D'
       ? reelChannelsSvg(list, b, L, sc, bw, false, -1).replace(/ data-(ci|h)="[^"]*"/g, '')
       : '';
-
-    // ── Daily-MA cross markers (15m under a Daily overlay) ──
-    let marks = '';
-    if (timeframe === '15m' && otf === 'D') {
-      const all = ovCrossMarks(ob, src, ot, mi, ovDur);
-      for (const m of all) {
-        if (m.i < from - 1 || m.i > from + (b.c ? b.c.length : 0)) continue;
-        const x = L.x0 + (m.i - from + 0.5) * bw;
-        if (x < L.x0 || x > L.x1) continue;
-        const y = sc.y(m.v);
-        if (!(y > L.py0 + 6 && y < L.py1 - 6)) continue;
-        const X = x.toFixed(1), Y = y.toFixed(1);
-        if (m.kind === 'after') {
-          const up = m.dir === 'up', s2 = 13;
-          const d = up ? `M${X} ${(y - s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}Z`
-                       : `M${X} ${(y + s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}Z`;
-          marks += `<path d="${d}" class="reel-xm ${up ? 'up' : 'dn'}"/>` +
-            `<text x="${X}" y="${(up ? y + 30 : y - 20).toFixed(1)}" class="reel-xm-lbl ${up ? 'up' : 'dn'}" text-anchor="middle">D${ob.p[m.k]}</text>`;
-        } else {
-          marks += `<circle cx="${X}" cy="${Y}" r="10" class="reel-xm-pre"/>` +
-            `<text x="${X}" y="${(y - 16).toFixed(1)}" class="reel-xm-lbl pre" text-anchor="middle">D${ob.p[m.k]}</text>`;
-        }
-      }
-    }
 
     return {
       under: `<g class="reel-ov" ${ovLayerStyle(otf, 'ma')}>${ribbon}${labels}</g>` +
              `<g class="reel-ov" ${ovLayerStyle(otf, 'bars')}>${bars}</g>`,
-      draw:  (drawn ? `<g class="reel-ov reel-ov-draw" ${ovLayerStyle(otf, 'draw')}>${drawn}</g>` : '') +
-             (marks ? `<g class="reel-ov reel-xm-g" ${ovLayerStyle(otf, 'ma')}>${marks}</g>` : ''),
+      draw:  drawn ? `<g class="reel-ov reel-ov-draw" ${ovLayerStyle(otf, 'draw')}>${drawn}</g>` : '',
     };
   }
 
-  // DAILY-MA CROSS MARKERS (user, 2026-09-26, from six circled 15m +D charts:
-  // "15 min indications given just before the MAs are crossed and once after
-  // ... after crossing any of the daily MAs"). Per Daily MA (50/250/500):
-  //   pre   — 15m close within XM_NEAR daily ATRs of the Daily MA and closing
-  //           in (farther away 4 bars ago); once per approach, re-armed when
-  //           price moves XM_REARM ATRs away.
-  //   after — 15m close changes side of the Daily MA and the next XM_HOLD
-  //           closes stay on the new side (1 hour); stamped at the confirming
-  //           bar. At most one per MA per direction per day.
-  // The Daily MA is the last COMPLETED daily bar's value — what is known
-  // during the day, no look-ahead. Measured off the whole 15m bundle, cached.
-  const XM_NEAR = 0.25, XM_REARM = 0.5, XM_HOLD = 4;
-  function ovCrossMarks(ob, src, ot, mi, ovDur) {
-    if (src._xm && src._xm.ob === ob) return src._xm.list;
-    const out = [];
-    const on = ot.length, bt = reelBarTimes(src), n = bt.length, C = src.c || [];
-    // Full daily MA series (the bundle's ribbon may be decimated) + ATR(14).
-    const dm = ob.m.map(series => {
-      const full = new Array(on).fill(null);
-      for (let j = 0; j < series.length; j++) {
-        if (series[j] == null) continue;
-        full[mi[j]] = series[j];
-        const j2 = j + 1;
-        if (j2 < series.length && series[j2] != null) {
-          const a = mi[j], z = mi[j2];
-          for (let q = a + 1; q < z; q++) full[q] = series[j] + (series[j2] - series[j]) * (q - a) / (z - a);
-        }
-      }
-      return full;
-    });
-    const atr = new Array(on).fill(null);
-    { let sum = 0, cnt = 0; const tr = [];
-      for (let i = 0; i < on; i++) {
-        const h = ob.h[i], l = ob.l[i], pc = i ? ob.c[i - 1] : null;
-        if (h == null || l == null) { tr.push(null); continue; }
-        tr.push(pc == null ? h - l : Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
-        const w = tr.slice(-14).filter(v => v != null);
-        atr[i] = w.length ? w.reduce((a, v) => a + v, 0) / w.length : null;
-      } }
-    // Completed daily index for each 15m bar.
-    const di = new Array(n).fill(-1);
-    for (let i = 0, d = -1; i < n; i++) {
-      while (d + 1 < on && ot[d + 1] + ovDur <= bt[i]) d++;
-      di[i] = d;
-    }
-    for (let k = 0; k < dm.length; k++) {
-      const lv = i => (di[i] >= 0 ? dm[k][di[i]] : null);
-      const at = i => (di[i] >= 0 ? atr[di[i]] : null);
-      let side = 0, armed = true;
-      const seen = new Set();
-      for (let i = 0; i < n; i++) {
-        const c = C[i], D = lv(i), A = at(i);
-        if (c == null || D == null || !A) continue;
-        const s = c >= D ? 1 : -1, dist = Math.abs(c - D) / A;
-        if (!side) { side = s; continue; }
-        if (s !== side) {
-          let ok = i + XM_HOLD < n;
-          for (let q = i + 1; ok && q <= i + XM_HOLD; q++) {
-            const cq = C[q], Dq = lv(q);
-            if (cq == null || Dq == null || (cq >= Dq ? 1 : -1) !== s) ok = false;
-          }
-          if (!ok) continue;                       // a poke through, not a cross
-          const j = i + XM_HOLD, dir = s > 0 ? 'up' : 'dn';
-          const key = dir + new Date(bt[j]).toISOString().slice(0, 10);
-          if (!seen.has(key)) { seen.add(key); out.push({ kind: 'after', k, i: j, v: lv(j), dir }); }
-          side = s; armed = false; i = j;
-          continue;
-        }
-        if (dist > XM_REARM) { armed = true; continue; }
-        if (armed && dist <= XM_NEAR && i >= 4) {
-          const c4 = C[i - 4], D4 = lv(i - 4), A4 = at(i - 4);
-          if (c4 != null && D4 != null && A4 && Math.abs(c4 - D4) / A4 > dist) {
-            out.push({ kind: 'pre', k, i, v: D, dir: side > 0 ? 'dn' : 'up' });
-            armed = false;
-          }
-        }
+  // 15m MARKERS (user, 2026-09-26: circled 15m +D charts, "indications just
+  // before ... and once after crossing any of the daily MAs", and "B1 and S1
+  // in the chart ... for 15 and overlay 15"). Both lists are computed by the
+  // PIPELINE onto the 15m bundle (webapp/chart_feed.py: `xm` = Daily-MA cross
+  // marks, `sg` = 15m B1/S1 fires) — one definition, the same one the Charts
+  // filters select on. Drawn on every 15m chart, overlay on or off.
+  //   xm: [i, 'pre'|'after', 50|250|500, 'up'|'dn', dailyMaLevel]
+  //   sg: [i, 'B1'|'S1']
+  function reel15mMarksSvg(b, L, sc, bw) {
+    const src = b._src || b, from = b._from || 0, nv = b.c ? b.c.length : 0;
+    const xOf = i => L.x0 + (i - from + 0.5) * bw;
+    const inX = x => x >= L.x0 && x <= L.x1;
+    const inY = y => y > L.py0 + 6 && y < L.py1 - 6;
+    const tri = (x, y, up, s2) => up
+      ? `M${x.toFixed(1)} ${(y - s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}Z`
+      : `M${x.toFixed(1)} ${(y + s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}Z`;
+    let out = '';
+    for (const [i, kind, p, dir, v] of (src.xm || [])) {
+      if (i < from || i >= from + nv) continue;
+      const x = xOf(i), y = sc.y(v);
+      if (!inX(x) || !inY(y)) continue;
+      if (kind === 'after') {
+        const up = dir === 'up';
+        out += `<path d="${tri(x, y, up, 13)}" class="reel-xm ${up ? 'up' : 'dn'}"/>` +
+          `<text x="${x.toFixed(1)}" y="${(up ? y + 30 : y - 20).toFixed(1)}" class="reel-xm-lbl ${up ? 'up' : 'dn'}" text-anchor="middle">D${p}</text>`;
+      } else {
+        out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" class="reel-xm-pre"/>` +
+          `<text x="${x.toFixed(1)}" y="${(y - 16).toFixed(1)}" class="reel-xm-lbl pre" text-anchor="middle">D${p}</text>`;
       }
     }
-    src._xm = { ob, list: out };
-    return out;
+    // B1 under the bar's low, S1 over its high — a tag, not on a line.
+    for (const [i, code] of (src.sg || [])) {
+      if (i < from || i >= from + nv) continue;
+      const x = xOf(i), buy = code[0] === 'B';
+      if (!inX(x)) continue;
+      const y = sc.y(buy ? src.l[i] : src.h[i]) + (buy ? 20 : -20);
+      if (!inY(y)) continue;
+      out += `<path d="${tri(x, y, buy, 11)}" class="reel-sgm ${buy ? 'up' : 'dn'}"/>` +
+        `<text x="${x.toFixed(1)}" y="${(buy ? y + 30 : y - 18).toFixed(1)}" class="reel-sgm-lbl ${buy ? 'up' : 'dn'}" text-anchor="middle">${code}</text>`;
+    }
+    return out ? `<g class="reel-xm-g">${out}</g>` : '';
   }
 
   // The timeframe pill's text: "15m + D" while the overlay is on.
@@ -9156,6 +9091,10 @@
     // handles. The rest draw as plain lines that a tap selects, so dragging
     // near one drawing can never move another that happens to sit close by.
     return list.map((d, i) => {
+      // Daily shows Daily drawings only: a copy linked in from 15m (the
+      // 2026-09-26 "All TFs" drawings) is kept but not drawn here. Skipped in
+      // place so every other drawing keeps its index for taps and edits.
+      if (d && d.link && timeframe === 'D') return '';
       const sel = editing && i === activeI;
       return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
@@ -9769,18 +9708,6 @@
     return lines;
   }
 
-  // The Daily grid FOLLOWS THE ZOOM (user, 2026-09-26: "where are the time
-  // grids?" — a Daily chart zoomed to six weeks, as the overlay's "Zoom to 15m"
-  // does, crossed no New Year and so drew no line at all). Years on the normal
-  // two-year view; month lines once the window is under ~a year; week lines,
-  // first Monday of each month bold, once it is under ~four months.
-  const REEL_D_MONTH_GRID_BARS = 260;
-  const REEL_D_WEEK_GRID_BARS  = 90;
-  function reelDailyGridMode(winBars) {
-    return winBars <= REEL_D_WEEK_GRID_BARS ? 'dweek'
-         : winBars <= REEL_D_MONTH_GRID_BARS ? 'month' : 'year';
-  }
-
   function reelTimeGrid(b, tf, modeOverride) {
     const mode = modeOverride || REEL_TIME_GRID[tf];
     const n = b.t ? b.t.length : 0;
@@ -9826,43 +9753,6 @@
         });
       }
       return src._weekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
-    }
-
-    // ── Week lines on DAILY bars (a zoomed-in Daily chart) ─────────────
-    // A line on the first bar of each trading week; the first week of a month
-    // is the bold one and names the month, as on 15m. Measured off the whole
-    // bundle so a pan cannot move a line; the next few weeks are projected into
-    // the blank space at the bundle's own daily spacing.
-    if (mode === 'dweek') {
-      const src = b._src || b, from = b._from || 0, sn = src.t.length;
-      if (!src._dweekGrid) {
-        const out = [];
-        let prevDow = null, prevMonth = null;
-        const push = (fi, d, future) => {
-          const m = d.getUTCMonth();
-          const month = prevMonth !== null && m !== prevMonth;
-          prevMonth = m;
-          out.push({ fi, week: month, future, label: reelDayLineLabel(d.toISOString(), month) });
-        };
-        for (let i = 0; i < sn; i++) {
-          const d = new Date(String(src.t[i]).slice(0, 10) + 'T00:00:00Z');
-          if (isNaN(d)) continue;
-          const dow = (d.getUTCDay() + 6) % 7;                  // Monday = 0
-          if (prevDow !== null && dow < prevDow) push(i, d, false);
-          prevDow = dow;
-        }
-        const last = new Date(String(src.t[sn - 1]).slice(0, 10) + 'T00:00:00Z');
-        if (!isNaN(last)) {
-          const mon = new Date(last.getTime() + ((7 - (last.getUTCDay() + 6) % 7) % 7 || 7) * 864e5);
-          for (let k = 0; k < REEL_FUTURE_WEEKS; k++) {
-            const d = new Date(mon.getTime() + k * 7 * 864e5);
-            const fi = reelBarIndexForDate(src, d.toISOString().slice(0, 10));
-            if (fi != null) push(fi, d, true);
-          }
-        }
-        src._dweekGrid = out;
-      }
-      return src._dweekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
     }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
@@ -10267,8 +10157,9 @@
     // The boundary lines carry their own labels; the window's own first and
     // last dates stay as end-stops so the axis is never blank on a range that
     // happens to cross no boundary at all.
-    const tg = reelTimeGrid(b, timeframe,
-      timeframe === 'D' ? reelDailyGridMode(_winBars) : undefined);
+    // Daily keeps its own YEAR grid at every zoom (user, 2026-09-26: the week
+    // lines a zoomed Daily switched to read as the 15m grid on the Daily chart).
+    const tg = reelTimeGrid(b, timeframe);
     // Every boundary gets its LINE; labels are thinned so they cannot overlap.
     // On the slow timeframes a boundary is rare enough that this never fires,
     // but 10m crosses a session every ~39 bars, so zoomed out its labels would
@@ -10465,7 +10356,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      ${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      ${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -10926,6 +10817,23 @@
     // Same predicate the Signals sheet uses, so "near cross" cannot come to
     // mean two different things on two tabs.
     if (reel.stack !== 'all') rows = withRowTf(() => rows.filter(d => matchesStackFilter(d, reel.stack)));
+
+    // 15m marker scopes (2026-09-26): instruments with a 15m B1/S1, or a 15m
+    // mark at a Daily MA, on their last two trading dates — read from the chart
+    // index (`ev15`, built by chart_feed from the same marks the chart draws).
+    const EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
+    if (EV_KEY[reel.scope]) {
+      const ev = reel.index && reel.index.ev15;
+      if (!reel.index) {
+        reelLoadIndex().then(() => { if (currentTab === 'charts' && EV_KEY[reel.scope]) buildReel(); });
+        return [];
+      }
+      if (!ev) return [];
+      const k = EV_KEY[reel.scope];
+      // Newest event first — the one that just happened is the one to look at.
+      return rows.filter(d => ev[d.instrument_name] && ev[d.instrument_name][k])
+        .sort((a, b) => String(ev[b.instrument_name][k].slice(-1)[0]).localeCompare(String(ev[a.instrument_name][k].slice(-1)[0])));
+    }
 
     // Signal scopes and the signal sort read the signal timeframe: on a chart
     // view (10m), "Buys only" means a Daily buy.
@@ -12433,7 +12341,8 @@
       if (el) el.textContent = txt ? ' · ' + txt : '';
     };
     const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'watch' };
+                       sell: 'sells', watch: 'watch', m15sig: '15m B1/S1',
+                       dxpre: 'near D-MA', dxafter: 'crossed D-MA' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',

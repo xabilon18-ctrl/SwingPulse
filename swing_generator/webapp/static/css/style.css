@@ -9623,3 +9623,10 @@ body.chart-full-open { overflow: hidden; }
 .reel-xm-lbl.dn { fill: #b91c1c; }
 .reel-xm-lbl.pre { fill: #b45309; }
 .reel-xm-g, .reel-xm-g * { pointer-events: none; }
+/* 15m B1/S1 fires on the 15m chart (2026-09-26): under the low / over the high. */
+.reel-sgm { stroke: #fff; stroke-width: 2.5; paint-order: stroke; }
+.reel-sgm.up { fill: #10b981; }
+.reel-sgm.dn { fill: #ef4444; }
+.reel-sgm-lbl { font-size: 15px; font-weight: 900; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.reel-sgm-lbl.up { fill: #047857; }
+.reel-sgm-lbl.dn { fill: #b91c1c; }

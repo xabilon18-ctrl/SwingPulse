@@ -510,8 +510,125 @@ def _write_gz(path: str, payload: dict) -> None:
         f.write(raw)
 
 
+# ── 15m markers (2026-09-26) ──────────────────────────────────────────────
+# Daily-MA CROSS marks, computed from the published 15m and Daily BUNDLES —
+# the very arrays the app draws — so what the Charts filter selects on is what
+# the chart shows. Per Daily MA:
+#   pre   — 15m close within XM_NEAR daily ATRs of the Daily MA and closing in
+#           (farther away 4 bars ago); once per approach, re-armed at XM_REARM.
+#   after — 15m close changes side and the next XM_HOLD closes stay there
+#           (1 hour); stamped at the confirming bar; one per MA/direction/day.
+# The Daily MA is the last COMPLETED daily bar's value (no look-ahead).
+XM_NEAR, XM_REARM, XM_HOLD = 0.25, 0.5, 4
+_DAY_MS = 86_400_000
+
+
+def _ts_ms(v: str) -> int:
+    ts = pd.Timestamp(str(v)[:16])
+    return int(ts.value // 1_000_000)
+
+
+def cross_marks(b15: dict, bd: dict) -> list[dict]:
+    bt = [_ts_ms(t) for t in b15['t']]
+    ot = [_ts_ms(t) for t in bd['t']]
+    n, on, C = len(bt), len(ot), b15['c']
+    mi = bd.get('mi') or [min(j * (bd.get('ms') or 1), on - 1) for j in range(len(bd['m'][0]))]
+    dm = []
+    for series in bd['m']:
+        full = [None] * on
+        for j, v in enumerate(series):
+            if v is None:
+                continue
+            full[mi[j]] = v
+            if j + 1 < len(series) and series[j + 1] is not None:
+                a, z = mi[j], mi[j + 1]
+                for q in range(a + 1, z):
+                    full[q] = v + (series[j + 1] - v) * (q - a) / (z - a)
+        dm.append(full)
+    atr, tr = [None] * on, []
+    for i in range(on):
+        h, l = bd['h'][i], bd['l'][i]
+        pc = bd['c'][i - 1] if i else None
+        if h is None or l is None:
+            tr.append(None)
+            continue
+        tr.append(h - l if pc is None else max(h - l, abs(h - pc), abs(l - pc)))
+        w = [v for v in tr[-14:] if v is not None]
+        atr[i] = sum(w) / len(w) if w else None
+    di, d = [-1] * n, -1
+    for i in range(n):
+        while d + 1 < on and ot[d + 1] + _DAY_MS <= bt[i]:
+            d += 1
+        di[i] = d
+    out = []
+    for k in range(len(dm)):
+        lv = lambda i: dm[k][di[i]] if di[i] >= 0 else None      # noqa: E731
+        at = lambda i: atr[di[i]] if di[i] >= 0 else None        # noqa: E731
+        side, armed, seen, i = 0, True, set(), 0
+        while i < n:
+            c, D, A = C[i], lv(i), at(i)
+            if c is None or D is None or not A:
+                i += 1
+                continue
+            sg = 1 if c >= D else -1
+            dist = abs(c - D) / A
+            if not side:
+                side = sg
+                i += 1
+                continue
+            if sg != side:
+                ok = i + XM_HOLD < n
+                q = i + 1
+                while ok and q <= i + XM_HOLD:
+                    cq, dq = C[q], lv(q)
+                    if cq is None or dq is None or (1 if cq >= dq else -1) != sg:
+                        ok = False
+                    q += 1
+                if not ok:
+                    i += 1
+                    continue
+                j, dr = i + XM_HOLD, ('up' if sg > 0 else 'dn')
+                key = dr + str(b15['t'][j])[:10]
+                if key not in seen:
+                    seen.add(key)
+                    out.append({'kind': 'after', 'k': k, 'i': j, 'v': lv(j), 'dir': dr})
+                side, armed, i = sg, False, j + 1
+                continue
+            if dist > XM_REARM:
+                armed = True
+                i += 1
+                continue
+            if armed and dist <= XM_NEAR and i >= 4:
+                c4, d4, a4 = C[i - 4], lv(i - 4), at(i - 4)
+                if c4 is not None and d4 is not None and a4 and abs(c4 - d4) / a4 > dist:
+                    out.append({'kind': 'pre', 'k': k, 'i': i, 'v': D, 'dir': 'dn' if side > 0 else 'up'})
+                    armed = False
+            i += 1
+    return out
+
+
+def _attach_15m_marks(b15: dict, bd: dict | None, fires: list) -> dict:
+    """Put `sg` (B1/S1 fires) and `xm` (Daily-MA cross marks) on a 15m bundle
+    and return the instrument's RECENT events for the Charts filters: those on
+    the bundle's last two trading dates, so a weekend never empties the list."""
+    pos = {t: i for i, t in enumerate(b15['t'])}
+    b15['sg'] = [[pos[t], code] for t, code in (fires or []) if t in pos]
+    xm = cross_marks(b15, bd) if bd else []
+    b15['xm'] = [[m['i'], m['kind'], bd['p'][m['k']], m['dir'], _round(m['v'])] for m in xm]
+    dates = sorted({str(t)[:10] for t in b15['t']})
+    since = dates[-2] if len(dates) >= 2 else (dates[-1] if dates else '')
+    ev = {}
+    for i, code in b15['sg']:
+        if str(b15['t'][i])[:10] >= since:
+            ev['s'] = [code, b15['t'][i]]
+    for i, kind, p, dr, _v in b15['xm']:
+        if str(b15['t'][i])[:10] >= since:
+            ev['a' if kind == 'after' else 'p'] = [dr, p, b15['t'][i]]
+    return ev
+
+
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
-                     max_workers: int = 8) -> dict:
+                     max_workers: int = 8, fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
@@ -531,11 +648,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
     stats = {'15m': 0, 'D': 0, 'chunks': 0}
+    built: dict[str, dict[str, dict]] = {}
 
     for tf, builder in (('15m', build_15m), ('D', build_daily)):
-        tf_dir = os.path.join(chart_dir, tf)
-        os.makedirs(tf_dir, exist_ok=True)
-
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -552,7 +667,26 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                     bundles[name] = payload
 
         stats[tf] = len(bundles)
+        built[tf] = bundles
 
+    # 15m markers: B1/S1 from main's m15_fires.json, Daily-MA crosses from the
+    # two bundles. A failure here costs the markers, never the chart feed.
+    events: dict[str, dict] = {}
+    try:
+        fires = {}
+        if fires_path and os.path.exists(fires_path):
+            with open(fires_path) as fh:
+                fires = json.load(fh)
+        for name, b15 in built.get('15m', {}).items():
+            ev = _attach_15m_marks(b15, built.get('D', {}).get(name), fires.get(name))
+            if ev:
+                events[name] = ev
+    except Exception as exc:
+        print(f'  WARN 15m markers not built: {exc}')
+
+    for tf, bundles in built.items():
+        tf_dir = os.path.join(chart_dir, tf)
+        os.makedirs(tf_dir, exist_ok=True)
         grouped: dict[int, dict] = {}
         for name, payload in bundles.items():
             grouped.setdefault(chunk_of[name], {})[name] = payload
@@ -564,6 +698,6 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
-               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of})
+               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events})
 
     return stats

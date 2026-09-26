@@ -844,7 +844,12 @@ def _compute_15m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
     fr = fr[fr.index >= five.index[-1] - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
     fires = [(ts, r['primary_signal'], r.get('signal_confidence', '') or '',
               r.get('confirmation_status', '') or '') for ts, r in fr.iterrows()]
-    return data, fires
+    # EVERY B1/S1 in the frame, for the markers on the 15m chart (2026-09-26,
+    # user: "B1 and S1 in the chart"). Written to m15_fires.json and placed on
+    # the chart bundle's bars by chart_feed — one engine run, no second pass.
+    allf = five[five['primary_signal'].isin(FIFTEEN_MIN_SIGNAL_CODES)]['primary_signal']
+    all_fires = [[ts.strftime('%Y-%m-%d %H:%M'), code] for ts, code in allf.items()]
+    return data, fires, all_fires
 
 
 def _live_15m(state, now_utc: Optional[pd.Timestamp] = None) -> dict:
@@ -854,7 +859,7 @@ def _live_15m(state, now_utc: Optional[pd.Timestamp] = None) -> dict:
     m15_datetime describe the FIRE bar; the price fields stay the latest bar's."""
     if not state:
         return {}
-    data, fires = state
+    data, fires = state[0], state[1]
     data = dict(data)
     now = now_utc if now_utc is not None else pd.Timestamp.utcnow().tz_localize(None)
     live = [f for f in fires if f[0] >= now - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
@@ -1173,6 +1178,8 @@ def _process_worker(args: tuple) -> tuple:
         if not (hit_d and hit_5):
             _rowcache_save(ticker, rc)
         row = ({**row_d, **_live_15m(state)} if row_d else None)
+        if row is not None:
+            row['_m15_fires'] = list(state[2]) if state and len(state) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
@@ -1275,6 +1282,7 @@ def main():
 
     rows      = []
     all_trends = {}
+    m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
     no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
     done       = 0
@@ -1287,6 +1295,7 @@ def main():
             done += 1
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
+                m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
             else:
@@ -1327,6 +1336,9 @@ def main():
     with open(trends_path, 'w') as tf:
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
+    # 15m B1/S1 fire times for the chart markers (chart_feed reads this file).
+    with open(os.path.join(output_dir, 'm15_fires.json'), 'w') as ff:
+        json.dump(m15_fires, ff, separators=(',', ':'))
 
     # 5c. Live signal ledger — record today's fires, grade earlier ones
     from signal_ledger import update_ledger
