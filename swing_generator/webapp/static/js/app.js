@@ -33,7 +33,7 @@
   let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
-  let currentTab = 'dashboard';
+  let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
   let activeStatFilter = '';      // stat card rearrange filter
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
   let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
@@ -2154,6 +2154,7 @@
     // If the user is already on the trends tab (e.g. background refresh), render it now
     if (currentTab === 'trends') renderTrendsLazy();
     if (currentTab === 'charts') renderChartsLazy();
+    if (currentTab === 'watchlist') renderWatchlist();
   }
 
   function renderTrendsLazy() {
@@ -2212,6 +2213,10 @@
   navTabs.forEach(btn => {
     btn.addEventListener('click', () => doTabSwitch(btn));
   });
+  // Tab order Watchlist · Charts · Signals · Dashboard, opening on the
+  // Watchlist (user, 2026-09-26). Run the switch once so its side effects
+  // (timeframe, header, live prices) start from the opening tab, not the markup.
+  { const wb = document.querySelector('.nav-tab[data-tab="watchlist"]'); if (wb) doTabSwitch(wb); }
 
   // ── Gauge Info Tooltip ───────────────────────────────────────────────
   (function wireGaugeInfo() {

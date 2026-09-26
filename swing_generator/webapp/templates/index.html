@@ -111,7 +111,7 @@
   <main class="content">
 
     <!-- ========== DASHBOARD TAB ========== -->
-    <section class="tab-pane active" id="pane-dashboard">
+    <section class="tab-pane" id="pane-dashboard">
 
       <!-- ── Stale Data Warning Banner ── -->
       <div class="stale-banner" id="staleBanner" style="display:none">
@@ -594,7 +594,7 @@
 
     <!-- ========== TRENDS TAB ========== -->
     <!-- ===== WATCHLIST (2026-09-24, replaced Trends in the nav) ===== -->
-    <section class="tab-pane" id="pane-watchlist">
+    <section class="tab-pane active" id="pane-watchlist">
       <div class="wl2-head">
         <input type="text" id="wl2Search" class="search-input" placeholder="Search name, full name, group…" autocomplete="off">
         <div class="wl2-asof" id="wl2AsOf"></div>
@@ -813,21 +813,21 @@
 
   <!-- ===== BOTTOM TAB BAR (mobile) ===== -->
   <nav class="bottom-nav" id="bottomNav">
-    <button class="nav-tab active" data-tab="dashboard">
-      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
-      <span class="nav-tab-label">Dashboard</span>
-    </button>
-    <button class="nav-tab" data-tab="scanner">
-      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-      <span class="nav-tab-label">Signals</span>
-    </button>
-    <button class="nav-tab" data-tab="watchlist">
+    <button class="nav-tab active" data-tab="watchlist">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></span>
       <span class="nav-tab-label">Watchlist</span>
     </button>
     <button class="nav-tab" data-tab="charts">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="4" x2="6" y2="20"/><rect x="3.5" y="8" width="5" height="7" rx="1"/><line x1="14" y1="4" x2="14" y2="20"/><rect x="11.5" y="6" width="5" height="9" rx="1"/><line x1="21" y1="9" x2="21" y2="20"/></svg></span>
       <span class="nav-tab-label">Charts</span>
+    </button>
+    <button class="nav-tab" data-tab="scanner">
+      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+      <span class="nav-tab-label">Signals</span>
+    </button>
+    <button class="nav-tab" data-tab="dashboard">
+      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <span class="nav-tab-label">Dashboard</span>
     </button>
   </nav>
 
@@ -873,6 +873,6 @@
 
 
 
-  <script src="/static/js/app.js?v=411"></script>
+  <script src="/static/js/app.js?v=412"></script>
 </body>
 </html>
