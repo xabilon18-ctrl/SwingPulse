@@ -1353,7 +1353,20 @@
       });
     } else html = rows.map(rowHtml).join('');
     body.innerHTML = html;
+    wlShown = rows.map(d => d.instrument_name);
     if (wlLiveTimer) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
+  }
+
+  // The rows the Watchlist is showing, in its order — what the Charts reel
+  // steps through when a chart is opened from here.
+  let wlShown = [];
+  // Details opened from the Watchlist: its Chart button keeps the list too.
+  let wlModalFrom = null;
+  function wlShownSet() {
+    const cur = wlStore.lists.find(l => l.id === wlUi.list);
+    const cls = WL_CLASSES.find(c => c[0] === wlUi.cls);
+    const label = (cur ? cur.name : 'All markets') + (wlUi.cls !== 'all' && cls ? ' · ' + cls[1] : '');
+    return { label, names: wlShown.slice() };
   }
 
   // Action sheet for one row.
@@ -1379,8 +1392,8 @@
       if (e.target === el) return wlCloseSheet();
       const b = e.target.closest('[data-wl-act]'); if (!b) return;
       const act = b.dataset.wlAct, list = lists.find(l => l.id === b.dataset.id);
-      if (act === 'chart') { wlCloseSheet(); openChartFor(name); }
-      else if (act === 'details') { wlCloseSheet(); openModal(name); }
+      if (act === 'chart') { wlCloseSheet(); openChartFor(name, wlShownSet()); }
+      else if (act === 'details') { wlCloseSheet(); wlModalFrom = { name, set: wlShownSet() }; openModal(name); }
       else if (act === 'add' && list) { list.items.push(name); wlSave(); wlCloseSheet(); renderWatchlist(); }
       else if (act === 'rm' && list) { list.items = list.items.filter(n => n !== name); wlSave(); wlCloseSheet(); renderWatchlist(); }
       else if (act === 'addnew') { const l = wlNewList(); if (l) { l.items.push(name); wlSave(); } wlCloseSheet(); renderWatchlist(); }
@@ -7631,6 +7644,7 @@
     trend:  'all',
     stack:  'all',
     similarTo: '',          // instrument whose lookalikes the reel is showing
+    listSet: null,          // {label, names} — the watchlist the chart was opened from
     sort:   'signal',
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
@@ -7858,7 +7872,9 @@
   // The timeframe pill's text: "15m + D" while the overlay is on.
   function reelTfTagHtml() {
     const o = ovOtherTf();
-    return `${tfMeta().label}${o ? `<i class="reel-tf-plus">+ ${o === 'D' ? 'Daily' : TF_BY_CODE[o].label}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
+    // Compact overlay part ("15m +D"): the full "+ Daily" made the tag ~44px
+    // wider and wrapped the full-screen footer onto a second row (2026-09-26).
+    return `${tfMeta().label}${o ? `<i class="reel-tf-plus">+${o === 'D' ? 'D' : TF_BY_CODE[o].label}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
   }
 
   // The overlay part of the timeframe menu: the switch, then one block of
@@ -10498,7 +10514,23 @@
     chartFullOpenMid  = host._reelCtx ? (host._reelCtx.sc.hi + host._reelCtx.sc.lo) / 2 : 0;
     reelWireChart(host);
     chartFullSyncButtons();
+    // The chart box can change height AFTER this paint — the footer wrapping
+    // when its tag or buttons change width — and the tool bar's position and
+    // the SVG layout were measured for the old box, so the bar slid down over
+    // the date row (overlay on, 2026-09-26). Repaint when the box resizes.
+    chartFullRO.disconnect();
+    chartFullROh = 0;
+    chartFullRO.observe(host);
   }
+  let chartFullROh = 0;
+  const chartFullRO = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(ents => {
+        const host = ents[0] && ents[0].target, h = Math.round(ents[0].contentRect.height);
+        if (!host || !host.isConnected || h === chartFullROh) return;
+        const first = chartFullROh === 0; chartFullROh = h;
+        if (!first) requestAnimationFrame(() => reelRepaint(host));
+      })
+    : { observe() {}, disconnect() {} };
 
   // The card this was opened from, if it is still painted — the reference for
   // how big a bar was before the chart got a bigger box.
@@ -10765,6 +10797,13 @@
         if (d) out.push(d);
       });
       return out;
+    }
+    // Opened from the Watchlist (2026-09-26, "I should only scroll through the
+    // watchlist charts"): the reel is exactly the rows the Watchlist showed, in
+    // its order — same REPLACE-not-narrow rule as the lookalikes above.
+    if (reel.listSet) {
+      const by = new Map(rowsAll.map(d => [d.instrument_name, d]));
+      return reel.listSet.names.map(n => by.get(n)).filter(Boolean);
     }
     let rows = rowsAll;
 
@@ -12215,9 +12254,14 @@
   // Open the Charts tab ON this instrument. Clears any "lookalikes" filter
   // first — landing inside a comparison set you did not ask for is disorienting
   // — then rebuilds and scrolls the reel to the card.
-  function openChartFor(name) {
+  function openChartFor(name, listSet) {
     if (!name) return;
+    // data-act buttons call this as (arg, element) — only a real set counts.
+    if (!(listSet && Array.isArray(listSet.names))) listSet = null;
+    if (!listSet && wlModalFrom && wlModalFrom.name === name && currentTab === 'watchlist') listSet = wlModalFrom.set;
+    wlModalFrom = null;
     reel.similarTo = '';
+    reel.listSet = listSet && listSet.names && listSet.names.length ? listSet : null;
     closeModal();
     navigateToTab('charts');
     buildReel();
@@ -12245,6 +12289,7 @@
   function showSimilarCharts(name) {
     if (!name || !shapeNeighbours(name).length) return;
     reel.similarTo = name;
+    reel.listSet = null;
     closeModal();
     navigateToTab('charts');
     buildReel();
@@ -12255,8 +12300,8 @@
   }
 
   function clearSimilarCharts() {
-    if (!reel.similarTo) return;
-    reel.similarTo = '';
+    if (!reel.similarTo && !reel.listSet) return;
+    reel.similarTo = ''; reel.listSet = null;
     buildReel();
     const el = document.getElementById('chartReel');
     if (el) el.scrollTop = 0;
@@ -12268,8 +12313,10 @@
     const bar = document.getElementById('reelSimBar');
     const nm  = document.getElementById('reelSimName');
     if (!bar || !nm) return;
-    bar.hidden = !reel.similarTo;
-    if (reel.similarTo) nm.textContent = reel.similarTo;
+    bar.hidden = !reel.similarTo && !reel.listSet;
+    const txt = bar.querySelector('.reel-simbar-txt');
+    if (reel.listSet) { if (txt) txt.firstChild.textContent = 'Watchlist: '; nm.textContent = reel.listSet.label + ' · ' + reel.listSet.names.length; }
+    else if (reel.similarTo) { if (txt) txt.firstChild.textContent = 'Charts like '; nm.textContent = reel.similarTo; }
   }
 
   function reelSyncPills() {
@@ -12292,7 +12339,7 @@
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.stack !== 'all' || reel.similarTo ||
+                  reel.stack !== 'all' || reel.similarTo || reel.listSet ||
                   reel.sort !== 'signal' || reel.search || reel.range;
     const rst = document.getElementById('reelReset');
     if (rst) rst.style.display = dirty ? '' : 'none';
@@ -12403,7 +12450,7 @@
         // stack filter) and the compare mode. "Reset" that leaves a filter
         // applied is worse than no reset — you press it and still cannot see
         // the instrument you are looking for.
-        reel.stack = 'all'; reel.similarTo = '';
+        reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
         try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
         if (rbox) {
