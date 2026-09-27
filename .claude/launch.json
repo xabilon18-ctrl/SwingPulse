@@ -4,14 +4,30 @@
     {
       "name": "swingpulse",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["proxy.js"],
+      "runtimeArgs": [
+        "proxy.js"
+      ],
       "port": 5051
     },
     {
       "name": "swingpulse-flask",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["swing_generator/webapp/server.py"],
+      "runtimeArgs": [
+        "swing_generator/webapp/server.py"
+      ],
       "port": 5050
+    },
+    {
+      "name": "lotto-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5077",
+        "--directory",
+        "/Users/zabmbandze/Documents/lotto-group-sheet"
+      ],
+      "port": 5077
     }
   ]
 }

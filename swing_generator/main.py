@@ -1269,6 +1269,11 @@ def main():
     # only wants signals can skip it and its cost.
     parser.add_argument('--no-intraday', action='store_true',
                         help='Skip the 5m download (the 15m chart and signals will go stale)')
+    # A local test run must be able to stop short of the live upload: without
+    # this, `python3 main.py` IS a live data deploy (2026-09-09, and again
+    # 2026-09-27 while testing the 1H return).
+    parser.add_argument('--no-publish', action='store_true',
+                        help='Write local output only; do NOT upload to R2')
     args = parser.parse_args()
 
     run_date = (
@@ -1449,6 +1454,9 @@ def main():
     _RECOVER_MSG = ('           Data is generated and on disk — re-run the upload only '
                     '(no regeneration):\n'
                     f'           cd swing_generator && python3 webapp/publish.py --profile {PROFILE}')
+    if args.no_publish:
+        print('\n  --no-publish: local output only, nothing uploaded.')
+        return
     print('\n  Uploading data to R2 ...\n')
     try:
         import subprocess
