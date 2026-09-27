@@ -6481,7 +6481,13 @@
   // pink"). The toy colours stay in the palette, after black.
   const DRAW_COLORS = ['#14140f', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#f59e0b', '#ef4444'];
   const DRAW_COLORS_OK = new Set([...DRAW_COLORS, '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea']);
-  const drawColor = d => (d && DRAW_COLORS_OK.has(d.color)) ? d.color : DRAW_COLORS[0];
+  // ANY colour since 2026-09-27 (user: "an option to add and adjust color and
+  // the intensity of the drawing tools"): the palette stays as quick picks and a
+  // colour wheel sets any #rrggbb. Checked by shape, since it lands in markup.
+  const DRAW_HEX = /^#[0-9a-f]{6}$/i;
+  const drawColor = d => (d && (DRAW_COLORS_OK.has(d.color) || DRAW_HEX.test(d.color || ''))) ? d.color : DRAW_COLORS[0];
+  // Intensity: the drawing's opacity, 10–100%. Missing = full strength.
+  const drawAlpha = d => (d && d.alpha >= 10 && d.alpha <= 100) ? Math.round(d.alpha) : 100;
 
   // The Draw bar: a PROPERTIES row for the selected drawing above the four
   // tools. Card and full screen used to carry two hand-copied toolbars; one
@@ -6517,7 +6523,15 @@
     if (!d) return '';
     const cur = drawColor(d);
     const sw = DRAW_COLORS.map(c =>
-      `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('');
+      `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
+      // The colour wheel: any colour. Shows the drawing's colour once it is one
+      // the quick picks do not have.
+      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(cur) ? '' : ' on'}" title="Any colour" style="--sw:${cur}"><i></i>`
+      + `<input type="color" value="${cur}" data-act="draw-any-color" data-name="${name}" aria-label="Pick any colour"></label>`;
+    const alpha = drawAlpha(d);
+    const intensity = `<label class="reel-props-alpha"><span>Intensity</span>`
+      + `<input type="range" min="10" max="100" step="5" value="${alpha}" data-act="draw-alpha" data-name="${name}" aria-label="Drawing intensity">`
+      + `<b>${alpha}%</b></label>`;
     // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
@@ -6542,7 +6556,8 @@
       + pct + bold
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
-      + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`;
+      + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`
+      + intensity;
   }
 
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
@@ -7744,19 +7759,27 @@
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
   // others, but offered with or without the overlay, so it is not an OV_PART.
-  const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid']];
+  // Bands (user, 2026-09-27): every other gap between two grid lines shaded —
+  // line to line, skip one, line to line — with its own intensity. Off (0) by
+  // default; one colour for all timeframes.
+  const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid'], ['band', 'Bands']];
+  const OV_BAND_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#a855f7', '#9ca3af'];
+  const OV_BAND_MAX = 0.4;   // 100% intensity = 40% fill: bars still read through
   const tfOverlay = (() => {
     const def = { on: false, layers: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {} };
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, bandColor: j.bandColor };
     } catch (_) {}
     return def;
   })();
   function ovLayer(tf) {
     const l = tfOverlay.layers[tf] || (tfOverlay.layers[tf] = {});
-    OV_ALL_PARTS.forEach(([k]) => { if (!(l[k] >= 0 && l[k] <= 100)) l[k] = 100; });
+    OV_ALL_PARTS.forEach(([k]) => { if (!(l[k] >= 0 && l[k] <= 100)) l[k] = k === 'band' ? 0 : 100; });
     return l;
+  }
+  function ovBandColor() {
+    return OV_BAND_COLORS.includes(tfOverlay.bandColor) ? tfOverlay.bandColor : OV_BAND_COLORS[0];
   }
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
@@ -7770,8 +7793,9 @@
     const st = document.documentElement.style;
     tabTfs('charts').forEach(tf => {
       const l = ovLayer(tf);
-      OV_ALL_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
+      OV_ALL_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100 * (k === 'band' ? OV_BAND_MAX : 1))));
     });
+    st.setProperty('--ov-band-color', ovBandColor());
   }
   ovApplyVars();
   // A bundle already in the cache, or null — the synchronous read the renderer
@@ -7994,9 +8018,12 @@
   // sliders per timeframe while it is on.
   function reelOvMenuHtml() {
     const o = ovOtherTf();
-    const g = ovLayer(timeframe).grid;
+    const g = ovLayer(timeframe).grid, bd = ovLayer(timeframe).band, bc = ovBandColor();
     let h = `<div class="reel-ov-sep"></div>
-      <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
+      <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label>
+      <label class="reel-ov-row"><span>Bands</span><input type="range" min="0" max="100" step="5" value="${bd}" data-ov-tf="${timeframe}" data-ov-part="band" aria-label="${TF_BY_CODE[timeframe].label} grid band intensity"><b>${bd}%</b></label>
+      <div class="reel-ov-bandcols">${OV_BAND_COLORS.map(c =>
+        `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="ov-band-color" data-color="${c}" aria-label="Band colour" style="--sw:${c}"><i></i></button>`).join('')}</div></div>
       <button class="reel-tf-opt reel-ov-switch${tfOverlay.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${tfOverlay.on}" data-act="ov-toggle">
         <span>Overlay timeframes</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (!o) return h;
@@ -9183,7 +9210,8 @@
       // place so every other drawing keeps its index for taps and edits.
       if (d && d.link && timeframe === 'D') return '';
       const sel = editing && i === activeI;
-      return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}">`
+      const a = drawAlpha(d);
+      return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
     }).join('');
   }
@@ -9938,7 +9966,9 @@
         // "1 Sep" — or "2 Sep" when the 1st was not a trading day, because it
         // names the bar the line is on.
         const month = mode === 'month';
-        out.push({ fi: i, month, label: month ? reelMonthStartLabel(str) : String(y) });
+        // `par` = the line's calendar parity, so the grid bands stay on the same
+        // months/years while panning (this list is built per window).
+        out.push({ fi: i, month, par: month ? (y * 12 + m) % 2 : y % 2, label: month ? reelMonthStartLabel(str) : String(y) });
       }
       prev = { key };
     }
@@ -9969,7 +9999,7 @@
           const d  = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + k, 1));
           const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs - from;
           if (!isFinite(fi)) continue;
-          out.push({ fi, future: true, month: true, label: reelMonthStartLabel(d.toISOString()) });
+          out.push({ fi, future: true, month: true, par: (d.getUTCFullYear() * 12 + d.getUTCMonth() + 1) % 2, label: reelMonthStartLabel(d.toISOString()) });
         }
       }
     }
@@ -9981,7 +10011,7 @@
       const lastY = +String(src.t[sn - 1]).slice(0, 4);
       for (let y = lastY + 1; y <= lastY + REEL_FUTURE_YEARS; y++) {
         const fi = reelBarIndexForDate(b, y + '-01-01');
-        if (fi != null) out.push({ fi, label: String(y), future: true });
+        if (fi != null) out.push({ fi, label: String(y), future: true, par: y % 2 });
       }
       // US ADMINISTRATIONS on Daily (user, 2026-09-24): the YEAR LINE of each
       // administration's first year is drawn bold (.reel-tgrid-admin, the 5m
@@ -10321,6 +10351,22 @@
       return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>`;
     }).join('');
 
+    // Grid bands: shade line → next line, skip the next gap, shade the one after.
+    // A line with an even parity OPENS a band; the whole-bundle grids (day, week,
+    // half) number by position, which a pan cannot change. The gap before the
+    // first line / after the last is filled when a band runs through the edge.
+    let gridBands = '';
+    {
+      const lines = tg.map((t, i) => ({ x: xOf(t.fi), odd: ((t.par != null ? t.par : i) % 2) === 1 }))
+        .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
+      const band = (xa, xb) => {
+        const a = Math.max(L.x0, xa), z = Math.min(L.x1, xb);
+        if (z > a) gridBands += `<rect x="${a.toFixed(1)}" y="${L.py0}" width="${(z - a).toFixed(1)}" height="${L.py1 - L.py0}"/>`;
+      };
+      if (lines.length && lines[0].odd) band(L.x0, lines[0].x);
+      lines.forEach((l, i) => { if (!l.odd) band(l.x, i + 1 < lines.length ? lines[i + 1].x : L.x1); });
+    }
+
     // Once the calendar lines are labelled they ARE the axis, so the window's
     // own first/last dates are dropped — they sat on top of the year labels the
     // moment you panned, because the last bar is no longer at the right edge.
@@ -10463,7 +10509,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      ${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -12624,6 +12670,19 @@
         ovZoomTo(host);
         return true;
       }
+      if (btn.dataset.act === 'ov-band-color') {
+        if (!OV_BAND_COLORS.includes(btn.dataset.color)) return true;
+        tfOverlay.bandColor = btn.dataset.color;
+        // Picking a colour while the bands are off turns them on, so the tap
+        // shows something.
+        const l = ovLayer(timeframe);
+        if (!l.band) l.band = 40;
+        ovSave();
+        ovApplyVars();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        return true;
+      }
       if (btn.dataset.act === 'ov-toggle') {
         tfOverlay.on = !tfOverlay.on;
         ovSave();
@@ -12722,6 +12781,47 @@
       }
       return false;
     };
+
+    // Colour wheel + intensity slider on the selected drawing: live while
+    // dragging (no repaint), saved on release.
+    const drawInputHost = el => {
+      const card = el.closest('.reel-card');
+      return card && card.querySelector('.reel-chart');
+    };
+    document.addEventListener('input', e => {
+      const r = e.target.closest('input[data-act="draw-alpha"], input[data-act="draw-any-color"]');
+      if (!r) return;
+      const h = drawInputHost(r);
+      const g = h && h.querySelector('.reel-draw.is-sel');
+      if (r.dataset.act === 'draw-alpha') {
+        const out = r.parentElement.querySelector('b');
+        if (out) out.textContent = r.value + '%';
+        if (g) g.style.opacity = String(+r.value / 100);
+      } else if (DRAW_HEX.test(r.value)) {
+        if (g) g.style.setProperty('--reel-ch-color', r.value);
+        const sw = r.closest('.reel-swatch-any');
+        if (sw) sw.style.setProperty('--sw', r.value);
+      }
+    });
+    document.addEventListener('change', e => {
+      const r = e.target.closest('input[data-act="draw-alpha"], input[data-act="draw-any-color"]');
+      if (!r) return;
+      const name = r.dataset.name;
+      channelSeedCommit(name);
+      const d = activeChannel(name);
+      if (!d) return;
+      if (r.dataset.act === 'draw-alpha') {
+        const v = Math.round(+r.value);
+        if (v >= 100) delete d.alpha; else d.alpha = Math.max(10, v);
+      } else {
+        if (!DRAW_HEX.test(r.value)) return;
+        d.color = r.value.toLowerCase();
+      }
+      channelSave();
+      const h = drawInputHost(r);
+      if (h) reelRepaint(h);
+      reelSyncChannelButtons();
+    });
 
     // Card actions — delegated, so re-rendering the reel never orphans them.
     const host = document.getElementById('chartReel');

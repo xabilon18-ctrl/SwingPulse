@@ -9648,3 +9648,24 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 @media (max-width: 440px) {
   .reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 4px; margin: 0 1px; }
 }
+
+/* Drawing colour wheel + intensity (2026-09-27). The wheel is a rainbow ring
+   around the drawing's current colour; the real <input type=color> sits on top,
+   invisible, so a tap opens the system picker. */
+.reel-swatch-any { position: relative; display: inline-flex; padding: 4px; cursor: pointer; }
+.reel-swatch-any i {
+  display: block; width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle, var(--sw) 0 42%, transparent 44%),
+              conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ec4899, #ef4444);
+}
+.reel-swatch-any.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
+.reel-swatch-any input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.reel-props-alpha {
+  flex: 1 0 100%; display: grid; grid-template-columns: 70px 1fr 42px; align-items: center; gap: 8px;
+  padding: 2px 8px 0; font-size: .8rem; color: #333;
+}
+.reel-props-alpha input { width: 100%; accent-color: var(--reel-ch-color, #3b82f6); touch-action: pan-x; }
+.reel-props-alpha b { text-align: right; font-variant-numeric: tabular-nums; color: #111; }
+/* Grid band colour picks, under the Bands slider in the timeframe menu. */
+.reel-ov-bandcols { display: flex; gap: 2px; padding: 0 0 4px 70px; }
+.reel-ov-bandcols .reel-swatch { padding: 5px; }
