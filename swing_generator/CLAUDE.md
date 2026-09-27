@@ -326,6 +326,23 @@ set (`main.py _extract_row`); daily bars are unique by date.
 ---
 
 ## Frontend App Tabs
+
+**CURRENT (2026-09-27): Watchlist · Charts · Alerts · Market.** The list below it is HISTORY.
+- **Alerts** (pane `#pane-scanner`, container `#alertsPane`) — every chart marker (15m/1H/Daily
+  B1-S1, Daily-MA touches/crosses) newest first, the user's lists first, plus price at/through
+  lines they DREW (client-side, from `instChannels` + `wlQuote`). Data: `alerts.json` from
+  `webapp/alerts_feed.py`, built inside `chart_feed.build_chart_feed` off the finished bundles.
+  Alerts are timed at the bar they could first be KNOWN (a cross confirms `XM_HOLD` bars later)
+  — stamping on the crossing bar put the hold hour into the 1h result (77% vs 49% baseline).
+  The old scanner markup stays in the pane, hidden by CSS, so nothing that references it breaks.
+- **Market** (pane `#pane-dashboard`, container `#marketToday`) — Coming up (events.json filtered
+  to listed names + macro), Likely 10-day range + quiet/normal/wild (`market.json` from
+  `webapp/market_feed.py`, constants `EXPECTED_MOVE_*` in config.py fitted by
+  `research/expected_move_fit.py`), then the kept Dashboard cards: movers, sector rotation,
+  market ranking (+ "Open all in Charts"). Other old cards hidden by CSS, not deleted.
+- Nothing on either tab asks the user to enter anything (user, 2026-09-27: no journal).
+
+### History
 1. **Dashboard** — Market gauge, stat cards, signal feed, alignment summary
 2. **Scanner** — Instrument grid with filters: class (incl. **Rates**, see `browseClassOf`), group, sector, trend, alignment, confidence, signal codes, key levels, vol spikes, **scheduled events** (`#eventChip`)
 3. **Analyzed** — Instruments the user has technically analyzed (star = "I analyzed this") + alert sub-tabs (turning points, watch flags, key levels, vol). Pane id is still `pane-watchlist` and storage key is still `swingpulse-starred` — only the UI label changed.
