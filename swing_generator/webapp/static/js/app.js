@@ -10043,9 +10043,14 @@
         const parts = REEL_YEAR_PARTS_BY_TF[tf] || REEL_YEAR_PARTS;
         for (let k = 0; k < parts; k++) {
           const fi = a + k * (z - a) / parts;
-          // With twelve parts the 1 January line is the bold one.
-          out.push({ fi, label: reelYearPartLabel(y, k, parts), future: fi > lastFi, par: (y * parts + k) % 2,
-                     week: parts > 2 && k === 0 });
+          // Twelve parts (1H): light month lines, and every third one — the
+          // start of a quarter — bold and labelled "Q2 2026" (user, 2026-09-27:
+          // "the bold is marked every 3 months as q1"). Months read "May".
+          const q = parts === 12 && k % 3 === 0;
+          const label = parts !== 12 ? reelYearPartLabel(y, k, parts)
+            : q ? `Q${k / 3 + 1} ${y}`
+            : reelYearPartLabel(y, k, parts).split(' ')[0];
+          out.push({ fi, label, future: fi > lastFi, par: (y * parts + k) % 2, week: q });
         }
       }
       return out;
