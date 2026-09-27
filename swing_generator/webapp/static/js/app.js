@@ -10044,11 +10044,13 @@
         for (let k = 0; k < parts; k++) {
           const fi = a + k * (z - a) / parts;
           // Twelve parts (1H): light month lines, and every third one — the
-          // start of a quarter — bold and labelled "Q2 2026" (user, 2026-09-27:
-          // "the bold is marked every 3 months as q1"). Months read "May".
+          // quarter boundary — bold (user, 2026-09-27: "the bold is marked every
+          // 3 months as q1"). A bold line names the quarter it ENDS (user: "you
+          // named the end of sep q4 it's 3"): 1 Oct reads "Q3 2026", 1 Jan
+          // "Q4 2025". Months read "May".
           const q = parts === 12 && k % 3 === 0;
           const label = parts !== 12 ? reelYearPartLabel(y, k, parts)
-            : q ? `Q${k / 3 + 1} ${y}`
+            : q ? (k === 0 ? `Q4 ${y - 1}` : `Q${k / 3} ${y}`)
             : reelYearPartLabel(y, k, parts).split(' ')[0];
           out.push({ fi, label, future: fi > lastFi, par: (y * parts + k) % 2, week: q });
         }
