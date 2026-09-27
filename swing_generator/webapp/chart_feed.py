@@ -510,16 +510,20 @@ def _write_gz(path: str, payload: dict) -> None:
         f.write(raw)
 
 
-# ── 15m markers (2026-09-26) ──────────────────────────────────────────────
-# Daily-MA CROSS marks, computed from the published 15m and Daily BUNDLES —
-# the very arrays the app draws — so what the Charts filter selects on is what
-# the chart shows. Per Daily MA:
-#   pre   — 15m close within XM_NEAR daily ATRs of the Daily MA and closing in
-#           (farther away 4 bars ago); once per approach, re-armed at XM_REARM.
-#   after — 15m close changes side and the next XM_HOLD closes stay there
-#           (1 hour); stamped at the confirming bar; one per MA/direction/day.
+# ── 15m markers (2026-09-26, rules revised 2026-09-27) ───────────────────
+# Daily-MA marks, computed from the published 15m and Daily BUNDLES — the very
+# arrays the app draws — so what the Charts filter selects on is what the chart
+# shows. Per Daily MA (user, 2026-09-27: "when the price touches or crossed the
+# daily MAs then apply markers there as well including that one hour hold"):
+#   pre   — TOUCH: the 15m bar's high-low range reaches the Daily MA but the
+#           close does not cross and hold. On the touching bar. Once per test:
+#           re-armed when a close is XM_REARM daily ATRs away.
+#   after — CROSS: the 15m close changes side and the next XM_HOLD closes stay
+#           there (1 hour). Stamped on the CROSSING bar itself (it used to sit
+#           on the confirming bar, an hour to the right of the cross, which
+#           read as a random place). One per MA/direction/day.
 # The Daily MA is the last COMPLETED daily bar's value (no look-ahead).
-XM_NEAR, XM_REARM, XM_HOLD = 0.25, 0.5, 4
+XM_REARM, XM_HOLD = 0.5, 4
 _DAY_MS = 86_400_000
 
 
@@ -560,6 +564,7 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
         while d + 1 < on and ot[d + 1] + _DAY_MS <= bt[i]:
             d += 1
         di[i] = d
+    H, Lo = b15.get('h') or C, b15.get('l') or C
     out = []
     for k in range(len(dm)):
         lv = lambda i: dm[k][di[i]] if di[i] >= 0 else None      # noqa: E731
@@ -571,7 +576,6 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
                 i += 1
                 continue
             sg = 1 if c >= D else -1
-            dist = abs(c - D) / A
             if not side:
                 side = sg
                 i += 1
@@ -584,25 +588,21 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
                     if cq is None or dq is None or (1 if cq >= dq else -1) != sg:
                         ok = False
                     q += 1
-                if not ok:
-                    i += 1
+                if ok:
+                    dr = 'up' if sg > 0 else 'dn'
+                    key = dr + str(b15['t'][i])[:10]
+                    if key not in seen:
+                        seen.add(key)
+                        out.append({'kind': 'after', 'k': k, 'i': i, 'v': D, 'dir': dr})
+                    side, armed, i = sg, False, i + XM_HOLD + 1
                     continue
-                j, dr = i + XM_HOLD, ('up' if sg > 0 else 'dn')
-                key = dr + str(b15['t'][j])[:10]
-                if key not in seen:
-                    seen.add(key)
-                    out.append({'kind': 'after', 'k': k, 'i': j, 'v': lv(j), 'dir': dr})
-                side, armed, i = sg, False, j + 1
-                continue
-            if dist > XM_REARM:
+                # A close through the MA that did not hold an hour is a touch.
+            if abs(c - D) / A > XM_REARM:
                 armed = True
-                i += 1
-                continue
-            if armed and dist <= XM_NEAR and i >= 4:
-                c4, d4, a4 = C[i - 4], lv(i - 4), at(i - 4)
-                if c4 is not None and d4 is not None and a4 and abs(c4 - d4) / a4 > dist:
-                    out.append({'kind': 'pre', 'k': k, 'i': i, 'v': D, 'dir': 'dn' if side > 0 else 'up'})
-                    armed = False
+            h, l = H[i], Lo[i]
+            if armed and h is not None and l is not None and l <= D <= h:
+                out.append({'kind': 'pre', 'k': k, 'i': i, 'v': D, 'dir': 'dn' if side > 0 else 'up'})
+                armed = False
             i += 1
     return out
 

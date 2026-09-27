@@ -7944,6 +7944,8 @@
   // marks, `sg` = 15m B1/S1 fires) — one definition, the same one the Charts
   // filters select on. Drawn on every 15m chart, overlay on or off.
   //   xm: [i, 'pre'|'after', 50|250|500, 'up'|'dn', dailyMaLevel]
+  //   'pre' = the bar TOUCHED the Daily MA; 'after' = the bar that CROSSED it
+  //   and held an hour (2026-09-27; see chart_feed.cross_marks).
   //   sg: [i, 'B1'|'S1']
   function reel15mMarksSvg(b, L, sc, bw) {
     const src = b._src || b, from = b._from || 0, nv = b.c ? b.c.length : 0;
@@ -12456,7 +12458,7 @@
     };
     const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
                        sell: 'sells', watch: 'watch', m15sig: '15m B1/S1',
-                       dxpre: 'near D-MA', dxafter: 'crossed D-MA' };
+                       dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',

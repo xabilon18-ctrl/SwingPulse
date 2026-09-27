@@ -9614,8 +9614,8 @@ body.chart-full-open { overflow: hidden; }
   #chartFull .cf-step { width: 28px; }
 }
 
-/* Daily-MA cross markers on 15m +D (2026-09-26): hollow amber ring = price
-   closing in on a Daily MA; filled ▲/▼ = crossed it and held an hour. */
+/* Daily-MA markers on 15m (2026-09-26, revised 2026-09-27): amber ring = the
+   bar touched a Daily MA; filled ▲/▼ = the bar that crossed it and held an hour. */
 .reel-xm { stroke: #fff; stroke-width: 2.5; paint-order: stroke; }
 .reel-xm.up { fill: #059669; }
 .reel-xm.dn { fill: #dc2626; }
