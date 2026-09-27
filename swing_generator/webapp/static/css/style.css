@@ -9714,3 +9714,8 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-grid-switch.on .reel-ov-knob::after { transform: translateX(14px); }
 .reel-grid-switch span em { display: block; font-style: normal; font-size: .72rem; font-weight: 600; color: var(--accent); }
 .reel-grid-switch span { text-align: left; }
+/* Shape backgrounds (2026-09-27): under the lines, never catch a tap. */
+.reel-fill { stroke: none; pointer-events: none; }
+.reel-colorbtn i { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--sw) !important; }
+.reel-fill-switch, .reel-fill-switch.on { color: #111 !important; background: transparent !important; padding: 6px 8px !important; }
+.reel-fill-switch:not(.on) .reel-ov-knob { background: #cfcfca; }

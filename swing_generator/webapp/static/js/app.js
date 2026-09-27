@@ -424,6 +424,7 @@
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
+    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -6485,11 +6486,25 @@
   // the intensity of the drawing tools"): the palette stays as quick picks and a
   // colour wheel sets any #rrggbb. Checked by shape, since it lands in markup.
   const DRAW_HEX = /^#[0-9a-f]{6}$/i;
-  const drawColor = d => (d && (DRAW_COLORS_OK.has(d.color) || DRAW_HEX.test(d.color || ''))) ? d.color : DRAW_COLORS[0];
+  // LINES ARE ALWAYS BLACK (user, 2026-09-27). Colour lives in a shape's
+  // BACKGROUND now (DRAW_FILLABLE below); a colour stored on an older drawing is
+  // kept in the data but no longer drawn.
+  const drawColor = d => DRAW_COLORS[0];
   // Intensity: the drawing's opacity, 10–100%. Missing = full strength.
-  const DRAW_ALPHAS = [[25, 'Faint'], [50, 'Light'], [75, 'Medium'], [100, 'Full']];
+  // BACKGROUND of a shape (user, 2026-09-27: "for the tools it's not the lines
+  // but the background of the channel"): channels, circles, triangles and the
+  // 10-line ladder can be filled — on/off, a colour, an intensity. The lines
+  // keep their own colour.
+  const DRAW_FILLABLE = new Set(['channel', 'circle', 'triangle', 'ladder']);
+  const DRAW_FILL_STEPS = [[10, 'Faint'], [20, 'Light'], [35, 'Medium'], [50, 'Strong']];   // capped at 50%: the price must still show through
+  const drawFillColor = d => (d && DRAW_HEX.test(d.fill || '')) ? d.fill : drawColor(d);
+  const drawFillA = d => (d && DRAW_FILL_STEPS.some(([v]) => v === d.fillA)) ? d.fillA : 20;
+  // The fill's inline style, or '' when the shape has no background.
+  const drawFillStyle = d => (d && d.fillOn && DRAW_FILLABLE.has(d.kind))
+    ? `style="fill:${drawFillColor(d)};fill-opacity:${drawFillA(d) / 100}"` : '';
   let drawStyleOpen = false;
-  const drawAlpha = d => (d && d.alpha >= 10 && d.alpha <= 100) ? Math.round(d.alpha) : 100;
+  // Line intensity is retired with line colour: lines draw full-strength black.
+  const drawAlpha = d => 100;
 
   // The Draw bar: a PROPERTIES row for the selected drawing above the four
   // tools. Card and full screen used to carry two hand-copied toolbars; one
@@ -6529,20 +6544,30 @@
     // "not user friendly" and covered half the chart on a phone). It shows the
     // drawing's colour at its intensity; a tap opens the colour + intensity
     // panel under the row, a second tap closes it.
-    const sw = `<button class="reel-tool reel-colorbtn${drawStyleOpen ? ' on' : ''}" data-act="draw-style" data-name="${name}" aria-expanded="${drawStyleOpen}" aria-label="Colour and intensity" title="Colour" style="--sw:${cur}"><i style="opacity:${Math.max(.25, alpha / 100)}"></i></button>`;
-    const intensity = !drawStyleOpen ? '' : `<div class="reel-style-panel">`
-      + `<div class="reel-style-cols">`
-      + DRAW_COLORS.map(c =>
-        `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
-      // The colour wheel: any colour.
-      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(cur) ? '' : ' on'}" title="Any colour" style="--sw:${cur}"><i></i>`
-      + `<input type="color" value="${cur}" data-act="draw-any-color" data-name="${name}" aria-label="Pick any colour"></label>`
-      + `</div><div class="reel-style-alpha">`
-      // Four big buttons instead of a slider: each shows a line in this colour
-      // at that strength.
-      + DRAW_ALPHAS.map(([v, lbl]) =>
-        `<button class="reel-tool reel-alpha-btn${alpha === v ? ' on' : ''}" data-act="draw-alpha-set" data-v="${v}" data-name="${name}" aria-label="Intensity ${lbl}"><i style="background:${cur};opacity:${v / 100}"></i><span>${lbl}</span></button>`).join('')
-      + `</div></div>`;
+    const fillable = DRAW_FILLABLE.has(d.kind), fillOn = fillable && !!d.fillOn;
+    const fc = drawFillColor(d), fa = drawFillA(d);
+    // The button shows the shape: its line colour as a ring, its background
+    // (when on) inside.
+    const sw = !fillable ? '' : `<button class="reel-tool reel-colorbtn${drawStyleOpen ? ' on' : ''}" data-act="draw-style" data-name="${name}" aria-expanded="${drawStyleOpen}" aria-label="Background colour" title="Background" style="--sw:${fillOn ? fc : '#9ca3af'}"><i style="background:${fillOn ? fc : 'transparent'}"></i></button>`;
+    const dots = (act, sel, anyAct) => DRAW_COLORS.map(c =>
+        `<button class="reel-tool reel-swatch${c === sel ? ' on' : ''}" data-act="${act}" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
+      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(sel) ? '' : ' on'}" title="Any colour" style="--sw:${sel}"><i></i>`
+      + `<input type="color" value="${sel}" data-act="${anyAct}" data-name="${name}" aria-label="Pick any colour"></label>`;
+    let intensity = '';
+    if (drawStyleOpen && fillable) {
+      intensity = `<div class="reel-style-panel">`;
+      {
+        // Background: a switch first; colour + intensity only once it is on.
+        intensity += `<button class="reel-tool reel-grid-switch reel-fill-switch${fillOn ? ' on' : ''}" data-act="draw-fill-toggle" data-name="${name}" role="switch" aria-checked="${fillOn}"><span>Background</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+        if (fillOn) {
+          intensity += `<div class="reel-style-cols">${dots('draw-fill-color', fc, 'draw-any-fill')}</div>`
+            + `<div class="reel-style-alpha">` + DRAW_FILL_STEPS.map(([v, lbl]) =>
+              `<button class="reel-tool reel-alpha-btn${fa === v ? ' on' : ''}" data-act="draw-fill-a" data-v="${v}" data-name="${name}" aria-label="Background ${lbl}"><i style="background:${fc};opacity:${v / 100 + .1}"></i><span>${lbl}</span></button>`).join('')
+            + `</div>`;
+        }
+      }
+      intensity += `</div>`;
+    }
     // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
@@ -6562,8 +6587,7 @@
     const bold = DRAW_BOLDABLE.has(d.kind)
       ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
       : '';
-    return sw
-      + `<span class="reel-props-sep"></span>`
+    return (sw ? sw + `<span class="reel-props-sep"></span>` : '')
       + pct + bold
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
@@ -9394,7 +9418,9 @@
     const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
     const rx = Math.max(6, Math.abs(x2 - x1) / 2), ry = Math.max(6, Math.abs(y2 - y1) / 2);
     const e = `cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}"`;
-    let out = `<ellipse ${e} fill="none" class="reel-ch reel-circle${d.bold ? ' is-bold' : ''}"/>` +
+    const fs = drawFillStyle(d);
+    let out = (fs ? `<ellipse ${e} class="reel-fill" ${fs}/>` : '') +
+              `<ellipse ${e} fill="none" class="reel-ch reel-circle${d.bold ? ' is-bold' : ''}"/>` +
               `<ellipse ${e} class="reel-ch-hit" data-di="${idx}"/>`;
     if (editing && !d.locked) {
       out += reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive)
@@ -9412,7 +9438,9 @@
     const xs = is.map(i => L.x0 + i * bw + bw / 2), ys = [d.p1, d.p2, d.p3].map(p => sc.y(p));
     if (ys.some(y => !isFinite(y))) return '';
     const pts = xs.map((x, k) => `${x.toFixed(1)},${ys[k].toFixed(1)}`).join(' ');
-    let out = `<polygon points="${pts}" class="reel-ch reel-ch-edge reel-tri${d.bold ? ' is-bold' : ''}"/>` +
+    const fs = drawFillStyle(d);
+    let out = (fs ? `<polygon points="${pts}" class="reel-fill" ${fs}/>` : '') +
+              `<polygon points="${pts}" class="reel-ch reel-ch-edge reel-tri${d.bold ? ' is-bold' : ''}"/>` +
               `<polygon points="${pts}" class="reel-ch-hit" data-di="${idx}"/>`;
     if (editing && !d.locked) {
       out += reelHandle(L, xs[0], ys[0], 'a', idx, isActive) + reelHandle(L, xs[1], ys[1], 'b', idx, isActive)
@@ -9504,6 +9532,13 @@
       const above = Math.max(sc.y(d.p1 + kMin * step), sc.y(d.p1 + kMax * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">10 lines ${above ? '↑' : '↓'} off-scale</text>`;
     }
+    // Background: the whole span of the ladder, stacks included.
+    const lfs = drawFillStyle(d);
+    if (lfs) {
+      const ya = sc.y(d.p1 + kMin * step), yb = sc.y(d.p1 + kMax * step);
+      const top = Math.max(L.py0, Math.min(ya, yb)), bot = Math.min(L.py1, Math.max(ya, yb));
+      if (bot > top) out = `<rect x="${L.x0}" y="${top.toFixed(1)}" width="${L.x1 - L.x0}" height="${(bot - top).toFixed(1)}" class="reel-fill" ${lfs}/>` + out;
+    }
     let handles = '';
     if (editing && !d.locked) {
       const hx = L.x0 + (L.x1 - L.x0) * 0.35;
@@ -9589,7 +9624,9 @@
     const seg = (off, cls) =>
       `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
 
-    const band = `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`;
+    const band = drawFillStyle(ch)
+      ? `<polygon class="reel-fill" ${drawFillStyle(ch)} points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`
+      : `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`;
 
     let handles = '';
     if (editing && !ch.locked) {
@@ -12859,6 +12896,17 @@
         reelSyncChannelButtons();
         return true;
       }
+      if (btn.dataset.act === 'draw-fill-toggle' || btn.dataset.act === 'draw-fill-color' || btn.dataset.act === 'draw-fill-a') {
+        const d = activeChannel(name);
+        if (!d || !DRAW_FILLABLE.has(d.kind)) return true;
+        if (btn.dataset.act === 'draw-fill-toggle') { if (d.fillOn) delete d.fillOn; else d.fillOn = true; }
+        else if (btn.dataset.act === 'draw-fill-color') { if (!DRAW_COLORS.includes(btn.dataset.color)) return true; d.fill = btn.dataset.color; }
+        else { const v = +btn.dataset.v; if (!DRAW_FILL_STEPS.some(([a]) => a === v)) return true; d.fillA = v; }
+        channelSave();
+        if (chHost) reelRepaint(chHost);
+        reelSyncChannelButtons();
+        return true;
+      }
       if (btn.dataset.act === 'draw-alpha-set') {
         const d = activeChannel(name), v = +btn.dataset.v;
         if (d && DRAW_ALPHAS.some(([a]) => a === v)) {
@@ -12889,9 +12937,14 @@
       return card && card.querySelector('.reel-chart');
     };
     document.addEventListener('input', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"]');
       if (!r) return;
       const h = drawInputHost(r);
+      if (r.dataset.act === 'draw-any-fill') {
+        const fe = h && h.querySelector('.reel-draw.is-sel .reel-fill');
+        if (fe && DRAW_HEX.test(r.value)) fe.style.fill = r.value;
+        return;
+      }
       const g = h && h.querySelector('.reel-draw.is-sel');
       if (DRAW_HEX.test(r.value)) {
         if (g) g.style.setProperty('--reel-ch-color', r.value);
@@ -12900,13 +12953,14 @@
       }
     });
     document.addEventListener('change', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"]');
       if (!r) return;
       const name = r.dataset.name;
       channelSeedCommit(name);
       const d = activeChannel(name);
       if (!d || !DRAW_HEX.test(r.value)) return;
-      d.color = r.value.toLowerCase();
+      if (r.dataset.act === 'draw-any-fill') d.fill = r.value.toLowerCase();
+      else d.color = r.value.toLowerCase();
       channelSave();
       const h = drawInputHost(r);
       if (h) reelRepaint(h);
