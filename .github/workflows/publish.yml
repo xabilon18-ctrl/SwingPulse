@@ -7,7 +7,7 @@ on:
   # 2.5-5h late (measured Sep 2026), so every run is started by a Cloudflare
   # Cron Trigger (swing_generator/webapp/cron-worker) calling
   # workflow_dispatch on the minute: every 30 min 05:00-23:00 SAST Mon-Fri,
-  # every 3 hours 06:00-21:00 SAST Sat+Sun. The repo is PUBLIC, which is what
+  # every hour on the hour all day Sat+Sun. The repo is PUBLIC, which is what
   # makes that many runs free (GitHub Free caps PRIVATE repos at 2,000 min/mo).
 
   # Manual trigger
