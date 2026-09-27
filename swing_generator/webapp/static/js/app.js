@@ -9966,7 +9966,12 @@
           const d = new Date(l.ms), m = d.getUTCMonth();
           const month = prevMonth !== null && m !== prevMonth;
           prevMonth = m;
+          // `par` = the CALENDAR week's parity (weeks counted from Monday
+          // 5 Jan 1970), so the grid shading lands on the same weeks on every
+          // chart — crypto's 7-day bundle started its count elsewhere and
+          // shaded the opposite weeks (user, 2026-09-27).
           return Object.assign({}, l, { week: month, month: false,
+            par: ((Math.round((l.ms - Date.UTC(1970, 0, 5)) / (7 * 864e5)) % 2) + 2) % 2,
             label: reelDayLineLabel(d.toISOString(), month) });
         });
       }
@@ -10016,7 +10021,7 @@
         if (!isFinite(a) || !isFinite(z) || z <= a) continue;
         for (let k = 0; k < REEL_YEAR_PARTS; k++) {
           const fi = a + k * (z - a) / REEL_YEAR_PARTS;
-          out.push({ fi, label: reelYearPartLabel(y, k, REEL_YEAR_PARTS), future: fi > lastFi });
+          out.push({ fi, label: reelYearPartLabel(y, k, REEL_YEAR_PARTS), future: fi > lastFi, par: (y * REEL_YEAR_PARTS + k) % 2 });
         }
       }
       return out;
@@ -10028,9 +10033,9 @@
     // one, which is what puts the 2029 line out in the empty space.
     if (mode === 'admin') {
       return REEL_ADMIN_TERMS
-        .map(t => {
+        .map((t, ti) => {
           const fi = reelBarIndexForDate(b, t.date);
-          return fi == null ? null : { fi, label: t.label, admin: true };
+          return fi == null ? null : { fi, label: t.label, admin: true, par: ti % 2 };
         })
         .filter(Boolean);
     }
