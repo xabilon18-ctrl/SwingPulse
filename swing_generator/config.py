@@ -523,3 +523,18 @@ OUTPUT_COLUMNS = [
     'key_level_price', 'key_level_type', 'key_level_date',
     'key_level_touch_count', 'key_level_touched_today', 'key_levels_all',
 ]
+
+# ---------------------------------------------------------------------------
+# 10-day expected-move band — the Market tab (2026-09-27)
+# ---------------------------------------------------------------------------
+# log|ln(C[t+10]/C[t])| = a + b·log rv20 + c·log rv250 + d·atr_rank, where rv
+# = std of daily log returns (20 / 250 days) and atr_rank = ATR14's percentile
+# against its own last 252 values (0..1). Fitted by research/expected_move_fit.py
+# on 793 daily caches before 2022 (381k samples); BAND_K scale the fitted size
+# so 50% / 80% of 10-day moves fall inside. Tested on 2022-2026 (191k samples,
+# never seen by the fit): 47.8% / 77.5% inside, 76-79% in every ATR-rank
+# quintile (a plain sqrt(10)·rv20 band drifts 73% -> 87% and is 7% wider).
+# It predicts SIZE, not direction.
+EXPECTED_MOVE_BETA = (-0.1429, 0.2915, 0.5955, 0.1930)
+EXPECTED_MOVE_K    = {'50': 1.259, '80': 2.485}
+EXPECTED_MOVE_TEST_COVERAGE = {'50': 47.8, '80': 77.5}

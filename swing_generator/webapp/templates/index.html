@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=338">
+  <link rel="stylesheet" href="/static/css/style.css?v=339">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -132,7 +132,10 @@
            at all outranks what happens tomorrow. -->
       <div id="eventBanner"></div>
 
-      <div id="marketStateBanner"></div>
+      <!-- MARKET (2026-09-27): coming up + likely 10-day range, above the old
+         Dashboard cards that stay (movers, sectors, momentum ranking). -->
+    <div id="marketToday"></div>
+    <div id="marketStateBanner"></div>
 
       <!-- ── Market Pulse Card (gauge + breakdown) ── -->
       <div class="card mp-pulse-card" id="marketPulse">
@@ -323,6 +326,10 @@
 
     <!-- ========== SIGNALS TAB ========== -->
     <section class="tab-pane" id="pane-scanner">
+      <!-- ALERTS (2026-09-27): replaced the signal list. The old scanner markup
+           below stays in the page (hidden by style.css) so nothing that still
+           refers to it breaks. -->
+      <div id="alertsPane"></div>
       <!-- Header: count + view toggle -->
       <div class="sig-tab-header">
         <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
@@ -824,11 +831,11 @@
     </button>
     <button class="nav-tab" data-tab="scanner">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-      <span class="nav-tab-label">Signals</span>
+      <span class="nav-tab-label">Alerts</span>
     </button>
     <button class="nav-tab" data-tab="dashboard">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
-      <span class="nav-tab-label">Dashboard</span>
+      <span class="nav-tab-label">Market</span>
     </button>
   </nav>
 
@@ -874,6 +881,6 @@
 
 
 
-  <script src="/static/js/app.js?v=430"></script>
+  <script src="/static/js/app.js?v=431"></script>
 </body>
 </html>

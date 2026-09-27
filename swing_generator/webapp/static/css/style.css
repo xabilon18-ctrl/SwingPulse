@@ -9492,7 +9492,7 @@ body.chart-full-open { overflow: hidden; }
 /* ── Dashboard hub restyle (2026-09-24, preview) ─────────────────────────────
    Same language as the new signal cards: a coloured accent edge + soft tint
    per card, tighter padding, long cards folded to a preview. */
-#pane-dashboard > .card { --acc: var(--accent); border-left: 4px solid var(--acc);
+#pane-dashboard > .card, #marketToday > .card { --acc: var(--accent); border-left: 4px solid var(--acc);
   background: radial-gradient(130% 70% at 0% 0%, color-mix(in srgb, var(--acc) 11%, transparent), transparent 60%), var(--bg-card);
   padding: 14px 14px 12px; position: relative; overflow: hidden; }
 #pane-dashboard > #marketPulse      { --acc: var(--buy); }
@@ -9500,13 +9500,15 @@ body.chart-full-open { overflow: hidden; }
 #pane-dashboard > #rotationCard     { --acc: #a855f7; }
 #pane-dashboard > #sectorRadarCard  { --acc: #3b82f6; }
 #pane-dashboard > #leadersCard      { --acc: #f97316; }
+#marketToday > #mkComing { --acc: #3b82f6; }
+#marketToday > #mkRanges { --acc: var(--buy); }
 #pane-dashboard > #techThemesCard   { --acc: #ec4899; }
 #pane-dashboard > #groupPulseCard   { --acc: #14b8a6; }
 #pane-dashboard > #volumePulseCard  { --acc: #8b5cf6; }
 #pane-dashboard > #trackRecordCard  { --acc: #64748b; }
 #pane-dashboard > #compressionCard  { --acc: #6366f1; }
-#pane-dashboard > .card .card-header h3 { font-size: .8rem; letter-spacing: .09em; }
-#pane-dashboard > .card .card-header h3::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+#pane-dashboard > .card .card-header h3, #marketToday > .card .card-header h3 { font-size: .8rem; letter-spacing: .09em; }
+#pane-dashboard > .card .card-header h3::before, #marketToday > .card .card-header h3::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--acc); box-shadow: 0 0 8px var(--acc); margin-right: 8px; vertical-align: 1px; }
 .dash-link { background: none; border: 0; color: var(--acc, var(--accent)); font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer; }
 /* Folded long cards */
@@ -9742,3 +9744,78 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 .reel-chart ::selection { background: transparent; }
+
+/* ── ALERTS + MARKET tabs (2026-09-27) ─────────────────────────────────────
+   Alerts replaced the signal list, Market the old Dashboard. The old markup
+   stays in the page, hidden here, so no code that refers to it can break. */
+#pane-scanner > :not(#alertsPane) { display: none !important; }
+#pane-dashboard > #marketStateBanner, #pane-dashboard > #marketPulse,
+#pane-dashboard > #trendAlertBanner, #pane-dashboard > #sectorRadarCard,
+#pane-dashboard > #techThemesCard, #pane-dashboard > #groupPulseCard,
+#pane-dashboard > #volumePulseCard, #pane-dashboard > #trackRecordCard,
+#pane-dashboard > #compressionCard, #pane-dashboard > .card:not([id]),
+#pane-dashboard > #dashSignalFeed,
+#pane-dashboard > span { display: none !important; }
+
+#alertsPane { padding: 4px 12px 24px; }
+.al-head { padding: 6px 2px 8px; }
+.al-head h2 { margin: 0; font-size: 1.15rem; }
+.al-head span { display: block; font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
+.al-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
+.al-chip { border: 1px solid var(--border, rgba(255,255,255,.12)); background: transparent; color: var(--text-muted);
+  border-radius: 999px; padding: 5px 11px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.al-chip.on { background: var(--accent, #f5c451); color: #111; border-color: transparent; }
+.al-sep { width: 1px; height: 18px; background: var(--border, rgba(255,255,255,.15)); margin: 0 2px; }
+.al-day { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+  margin: 14px 2px 6px; font-weight: 700; }
+.al-row { display: block; width: 100%; text-align: left; background: var(--card-bg, rgba(255,255,255,.04));
+  border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 12px; padding: 9px 11px; margin: 0 0 6px;
+  color: inherit; cursor: pointer; font: inherit; }
+.al-row.al-line { border-left: 3px solid #a855f7; }
+.al-r1, .al-r2, .al-r3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.al-r2 { margin-top: 3px; font-size: .86rem; }
+.al-r3 { margin-top: 3px; font-size: .74rem; }
+.al-r3:empty { display: none; }
+.al-name { font-size: .95rem; }
+.al-list { font-style: normal; font-size: .68rem; padding: 1px 6px; border-radius: 6px;
+  background: rgba(59,130,246,.18); color: #93c5fd; }
+.al-when { margin-left: auto; font-size: .74rem; color: var(--text-muted); }
+.al-px { color: var(--text-muted); font-size: .78rem; }
+.al-up { color: var(--buy, #22c55e); }
+.al-dn { color: var(--sell, #ef4444); }
+.al-touch { color: #f59e0b; }
+.al-good { color: var(--buy, #22c55e); }
+.al-bad { color: var(--sell, #ef4444); }
+.al-empty { color: var(--text-muted); font-size: .85rem; padding: 12px 2px; }
+.al-link { background: none; border: 0; color: #60a5fa; font: inherit; font-size: .8rem; cursor: pointer; padding: 0; }
+.al-more { width: 100%; padding: 10px; border-radius: 10px; background: transparent; color: #60a5fa;
+  border: 1px dashed rgba(96,165,250,.4); font-weight: 600; margin: 4px 0; cursor: pointer; }
+.al-stats { margin: 18px 0 0; border-top: 1px solid var(--border, rgba(255,255,255,.1)); padding-top: 10px; }
+.al-stats summary { font-weight: 700; cursor: pointer; font-size: .9rem; }
+.al-stats p { font-size: .76rem; color: var(--text-muted); margin: 6px 0 8px; }
+.al-stats table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.al-stats th, .al-stats td { padding: 5px 4px; text-align: right; border-bottom: 1px solid rgba(255,255,255,.06); }
+.al-stats th:first-child { text-align: left; }
+.al-stats th i, .al-stats td i { display: block; font-style: normal; font-size: .68rem; color: var(--text-muted); font-weight: 400; }
+#marketToday .mk-card { margin-bottom: 12px; }
+.mk-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mk-h h3 { margin: 0; }
+.mk-note { font-size: .76rem; color: var(--text-muted); margin: 4px 0 10px; }
+.mk-day { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 10px 0 4px; font-weight: 700; }
+.mk-ev { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: .86rem; padding: 3px 0; }
+.mk-div { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 12px 0 4px; font-weight: 700; }
+.mk-row { display: grid; grid-template-columns: minmax(0, 38%) 1fr; gap: 10px; align-items: center; width: 100%;
+  padding: 8px 2px; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.06); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mk-n { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mk-n b { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-mood { font-style: normal; font-size: .66rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; align-self: flex-start; }
+.mk-mood.quiet { background: rgba(59,130,246,.18); color: #93c5fd; }
+.mk-mood.normal { background: rgba(156,163,175,.18); color: #d1d5db; }
+.mk-mood.wild { background: rgba(245,158,11,.2); color: #fbbf24; }
+.mk-band { display: flex; flex-direction: column; gap: 4px; }
+.mk-bar { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, rgba(239,68,68,.45), rgba(156,163,175,.35), rgba(34,197,94,.45)); }
+.mk-bar i { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.5); }
+.mk-lohi { display: flex; justify-content: space-between; font-size: .72rem; color: var(--text-muted); }
+.mk-lohi b { color: inherit; color: var(--text, #e5e7eb); }
+.mk-open20 { display: block; margin: 2px 0 8px; }
+.mk-also { margin: 10px 0 0; }

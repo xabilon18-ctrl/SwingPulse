@@ -1180,6 +1180,55 @@ def api_shape_similarity():
             return jsonify(json.load(fh))
 
 
+_alerts_memo: dict = {}
+
+
+@app.route('/api/alerts')
+def api_alerts():
+    """Alerts tab feed — built from the local chart bundles on demand (slow:
+    every bundle of every instrument; memoised for the server's life)."""
+    import alerts_feed
+    if 'v' in _alerts_memo:
+        return jsonify(_alerts_memo['v'])
+    # The last publish's file, when there is one — building from every bundle
+    # takes minutes.
+    pub = os.path.join(BASE_DIR, 'publish', 'data_ma500', 'alerts.json')
+    if os.path.exists(pub):
+        with open(pub, 'rb') as fh:
+            raw = fh.read()
+        if raw[:2] == b'\x1f\x8b':
+            raw = gzip.decompress(raw)
+        return app.response_class(raw, mimetype='application/json')
+    tm = get_ticker_map()
+    built = {}
+    for tf in ('15m', '1H', 'D'):
+        built[tf] = {}
+        for name, t in tm.items():
+            try:
+                b = _CHART_BUILDERS[tf](CACHE_DIR, t)
+            except Exception:
+                b = None
+            if b:
+                built[tf][name] = b
+    def _load(f):
+        p = os.path.join(OUTPUT_DIR, f)
+        return json.load(open(p)) if os.path.exists(p) else {}
+    fires15, fires1h = _load('m15_fires.json'), _load('h1_fires.json')
+    for tf, fires in (('15m', fires15), ('1H', fires1h)):
+        for name, b in built[tf].items():
+            chart_feed._attach_15m_marks(b, built['D'].get(name), fires.get(name),
+                                         hold=chart_feed.XM_HOLD_BY_TF[tf])
+    out = alerts_feed.build_alerts(built, _load('d_fires.json'))
+    _alerts_memo['v'] = out
+    return jsonify(out)
+
+
+@app.route('/api/market')
+def api_market():
+    import market_feed
+    return jsonify(market_feed.build_market(get_ticker_map()))
+
+
 @app.route('/api/rotation')
 def api_rotation():
     """Sector rotation wheel + market ranking, written by rotation.py."""

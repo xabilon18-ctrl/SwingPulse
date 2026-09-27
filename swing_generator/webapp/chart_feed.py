@@ -645,7 +645,8 @@ def _attach_15m_marks(b15: dict, bd: dict | None, fires: list, hold: int = XM_HO
 
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
-                     h1_fires_path: str | None = None) -> dict:
+                     h1_fires_path: str | None = None,
+                     d_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
@@ -713,6 +714,20 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                               hold=XM_HOLD_BY_TF['1H'])
     except Exception as exc:
         print(f'  WARN 1H markers not built: {exc}')
+
+    # Alerts tab (2026-09-27): every marker above as a listed alert, with what
+    # price did after it. A failure costs the Alerts tab, never the chart feed.
+    try:
+        from alerts_feed import build_alerts
+        d_fires = {}
+        if d_fires_path and os.path.exists(d_fires_path):
+            with open(d_fires_path) as fh:
+                d_fires = json.load(fh)
+        alerts = build_alerts(built, d_fires)
+        _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
+        stats['alerts'] = len(alerts['ev'])
+    except Exception as exc:
+        print(f'  WARN alerts.json not built: {exc}')
 
     for tf, bundles in built.items():
         tf_dir = os.path.join(chart_dir, tf)

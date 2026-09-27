@@ -1745,10 +1745,366 @@
     });
   })();
 
+  // ── ALERTS TAB (2026-09-27, replaced Signals) ────────────────────────────
+  // "What should I look at now" — every marker the Charts tab draws (15m / 1H /
+  // Daily B1-S1, Daily-MA touches and crosses) as a timeline, newest first, the
+  // reader's own lists first; plus price reaching a line the reader DREW. Built
+  // from alerts.json (webapp/alerts_feed.py) and the synced drawings — nothing
+  // is ever entered here. Each alert carries what price did after it, and the
+  // footer says how often alerts of each kind went their way against how often
+  // ANY bar did (the honest yardstick: these showed no edge in testing).
+  let alertsData = null;
+  let marketData = null;
+  const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
+  try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
+  alUi.more = 0;
+  const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
+  const AL_PAGE = 120;
+  const AL_TF_LBL = { '15m': '15m', '1H': '1H', 'D': 'Daily' };
+
+  // name -> first list it is in (for the tag), and the set of every listed name.
+  function alListIndex() {
+    const of = {};
+    (wlStore.lists || []).forEach(l => (l.items || []).forEach(x => {
+      if (!wlIsDiv(x) && !(x in of)) of[x] = l.name;
+    }));
+    return of;
+  }
+
+  function alWhen(ts) {
+    const ms = reelParseTs(ts);
+    if (!isFinite(ms)) return '';
+    const mins = (Date.now() - ms) / 60000;
+    if (mins < 60) return `${Math.max(1, Math.round(mins))}m ago`;
+    if (mins < 24 * 60) return `${Math.round(mins / 60)}h ago`;
+    return new Date(ms).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function alDayKey(ts) {
+    const ms = reelParseTs(ts);
+    if (!isFinite(ms)) return '';
+    const d = new Date(ms), today = new Date();
+    const k = x => x.toLocaleDateString('en-GB', { year: 'numeric', month: 'numeric', day: 'numeric' });
+    const y = new Date(today); y.setDate(y.getDate() - 1);
+    if (k(d) === k(today)) return 'Today';
+    if (k(d) === k(y)) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+
+  // Plain-English line for one alert.
+  function alText(kind, p, dir, tf) {
+    if (kind === 'B1') return `<b class="al-up">B1 buy</b> · ${AL_TF_LBL[tf]}`;
+    if (kind === 'S1') return `<b class="al-dn">S1 sell</b> · ${AL_TF_LBL[tf]}`;
+    if (kind === 'X')  return dir > 0 ? `<b class="al-up">Crossed up through D${p}</b> · held 1h`
+                                      : `<b class="al-dn">Crossed down through D${p}</b> · held 1h`;
+    return `<b class="al-touch">Touched D${p}</b> from ${dir > 0 ? 'above' : 'below'}`;
+  }
+
+  // Move since the alert, in its direction, from the latest price we have.
+  function alSince(name, px, dir) {
+    const q = wlQuote(name);
+    if (!q || !(px > 0)) return null;
+    return dir * (q.p / px - 1) * 100;
+  }
+
+  // ── Your drawn lines ── price at or through a line the reader drew. The
+  // level is the drawing's price at the LATEST bar of the timeframe it was drawn
+  // on (trend lines and channels slope, so their bundle is loaded for that);
+  // "crossed" = the previous close and the price now sit either side of it,
+  // "near" = within a quarter of a normal day's range (Daily ATR).
+  const AL_LINE_KINDS = new Set(['hline', 'entry', 'ladder', 'trend', 'channel']);
+  let alLinesCache = { key: '', rows: null };
+
+  function alLevelsOf(d, b) {
+    const out = [];
+    if (d.kind === 'hline') out.push([d.p, 'level']);
+    else if (d.kind === 'entry') out.push([d.p, 'entry mark']);
+    else if (d.kind === 'ladder') {
+      const step = (d.p4 - d.p1) / 3, SPAN = LADDER_LINES - 1;
+      if (isFinite(step) && step) {
+        const kMin = -SPAN * ladderStack(d, 'down'), kMax = SPAN * (1 + ladderStack(d, 'up'));
+        for (let k = kMin; k <= kMax; k++) out.push([d.p1 + k * step, `ladder ${d.reverse ? (LADDER_LINES - k) * 10 : (k + 1) * 10}%`]);
+      }
+    } else if ((d.kind === 'trend' || d.kind === 'channel') && b && b.c && b.c.length) {
+      const i1 = reelBarIndexForDate(b, d.t1), i2 = reelBarIndexForDate(b, d.t2);
+      if (i1 == null || i2 == null || Math.abs(i2 - i1) < 1e-6) return out;
+      const at = (b.c.length - 1 - i1) / (i2 - i1);
+      const spine = d.p1 + (d.p2 - d.p1) * at;
+      if (d.kind === 'trend') out.push([spine, 'trend line']);
+      else {
+        out.push([spine + d.up, 'channel top'], [spine + d.dn, 'channel bottom'],
+                 [spine + (d.up + d.dn) / 2, 'channel middle']);
+      }
+    }
+    return out.filter(([v]) => isFinite(v));
+  }
+
+  async function alLineAlerts() {
+    const key = JSON.stringify(Object.keys(instChannels).length) + ':' + (quotesData && quotesData.generated_at) + ':' + Object.keys(wlLive).length;
+    if (alLinesCache.key === key && alLinesCache.rows) return alLinesCache.rows;
+    const rows = [];
+    for (const [name, per] of Object.entries(instChannels || {})) {
+      const q = wlQuote(name);
+      const qq = quotesData && quotesData.q && quotesData.q[name];
+      if (!q || !qq) continue;
+      const item = allData.find(r => r.instrument_name === name);
+      const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
+      const seen = new Set();
+      for (const tf of ['15m', '1H', 'D']) {
+        const list = (per && per[tf]) || [];
+        if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
+        let b = null;
+        if (list.some(d => d && (d.kind === 'trend' || d.kind === 'channel'))) {
+          try { const data = await reelLoadChunk(name, tf); b = data && data[name]; } catch (_) { b = null; }
+        }
+        list.forEach(d => {
+          if (!d || !AL_LINE_KINDS.has(d.kind)) return;
+          if (d.link) { if (seen.has(d.link)) return; seen.add(d.link); }
+          let best = null;
+          for (const [lvl, what] of alLevelsOf(d, b)) {
+            const crossed = qq.pc != null && (qq.pc - lvl) * (q.p - lvl) < 0;
+            const dist = Math.abs(q.p - lvl);
+            if (!crossed && dist > atr * 0.25) continue;
+            const r = { name, tf, what, lvl, crossed, dist, up: q.p >= lvl };
+            if (!best || (r.crossed && !best.crossed) || (r.crossed === best.crossed && r.dist < best.dist)) best = r;
+          }
+          if (best) rows.push(best);
+        });
+      }
+    }
+    rows.sort((a, b) => (b.crossed - a.crossed) || (a.dist / a.lvl - b.dist / b.lvl));
+    alLinesCache = { key, rows };
+    return rows;
+  }
+
+  function alChipRow(group, opts, cur) {
+    return opts.map(([v, lbl]) =>
+      `<button class="al-chip${cur === v ? ' on' : ''}" data-al-${group}="${v}">${lbl}</button>`).join('');
+  }
+
+  async function renderAlerts() {
+    const host = document.getElementById('alertsPane');
+    if (!host) return;
+    const lists = alListIndex();
+    const hasLists = Object.keys(lists).length > 0;
+    const scope = hasLists ? alUi.scope : 'all';
+    const ev = (alertsData && alertsData.ev) || [];
+    const keep = e => (scope !== 'mine' || e[0] in lists)
+      && (alUi.tf === 'all' || e[1] === alUi.tf)
+      && (alUi.kind === 'all' || (alUi.kind === 'sig' ? (e[2] === 'B1' || e[2] === 'S1') : alUi.kind === 'ma' ? (e[2] === 'X' || e[2] === 'T') : false));
+    const shown = alUi.kind === 'lines' ? [] : ev.filter(keep);
+    const lim = AL_PAGE * (1 + alUi.more);
+
+    let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
+      <div class="al-chips">
+        ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
+        ${alChipRow('tf', [['all', 'All'], ['15m', '15m'], ['1H', '1H'], ['D', 'Daily']], alUi.tf)}
+      </div>
+      <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
+      <div id="alLines" class="al-lines"></div>`;
+    if (!alertsData) {
+      h += `<div class="al-empty">Alerts arrive with the next data run.</div>`;
+    } else if (alUi.kind !== 'lines') {
+      if (!shown.length) {
+        h += `<div class="al-empty">No alerts ${scope === 'mine' ? 'on your lists ' : ''}in the last few days${alUi.tf !== 'all' ? ' on ' + AL_TF_LBL[alUi.tf] : ''}.${scope === 'mine' ? ' <button class="al-link" data-al-scope="all">Show all instruments</button>' : ''}</div>`;
+      }
+      let day = '';
+      shown.slice(0, lim).forEach(e => {
+        const [name, tf, kind, p, dir, t, px, o1h, o1d, o1w] = e;
+        const dk = alDayKey(t);
+        if (dk !== day) { day = dk; h += `<div class="al-day">${escText(dk)}</div>`; }
+        const since = alSince(name, px, dir);
+        const outs = [['1h', o1h], ['1d', o1d], ['1w', o1w]].filter(([, v]) => v != null)
+          .map(([k, v]) => `<span class="${v > 0 ? 'al-good' : 'al-bad'}">${k} ${wlFmtPct(v)}</span>`).join('');
+        h += `<button class="al-row" data-al-open="${escText(name)}" data-al-tf="${tf}" data-al-at="${escText(t)}">
+          <span class="al-r1"><b class="al-name">${escText(name)}</b>${lists[name] ? `<i class="al-list">${escText(lists[name])}</i>` : ''}<span class="al-when">${alWhen(t)}</span></span>
+          <span class="al-r2">${alText(kind, p, dir, tf)} <span class="al-px">at ${wlFmtPrice(px)}</span></span>
+          <span class="al-r3">${since != null ? `<span class="${since > 0 ? 'al-good' : 'al-bad'}">since ${wlFmtPct(since)}</span>` : ''}${outs}</span>
+        </button>`;
+      });
+      if (shown.length > lim) h += `<button class="al-more" data-al-more="1">Show more (${shown.length - lim} left)</button>`;
+    }
+    h += alStatsHtml();
+    host.innerHTML = h;
+
+    // Drawn lines: needs bundles for sloped lines, so filled in after.
+    const box = document.getElementById('alLines');
+    if (!box) return;
+    if (alUi.kind !== 'all' && alUi.kind !== 'lines') return;
+    let rows = [];
+    try { rows = await alLineAlerts(); } catch (_) { rows = []; }
+    if (!document.body.contains(box)) return;
+    rows = rows.filter(r => (scope !== 'mine' || r.name in lists) && (alUi.tf === 'all' || r.tf === alUi.tf));
+    if (!rows.length) {
+      box.innerHTML = alUi.kind === 'lines'
+        ? `<div class="al-empty">Price is not at any line you drew${scope === 'mine' ? ' on your lists' : ''}. Lines, entry marks, ladders, trend lines and channels count.</div>` : '';
+      return;
+    }
+    box.innerHTML = `<div class="al-day">At your lines</div>` + rows.map(r =>
+      `<button class="al-row al-line" data-al-open="${escText(r.name)}" data-al-tf="${r.tf}" data-al-at="">
+        <span class="al-r1"><b class="al-name">${escText(r.name)}</b>${lists[r.name] ? `<i class="al-list">${escText(lists[r.name])}</i>` : ''}<span class="al-when">${AL_TF_LBL[r.tf]}</span></span>
+        <span class="al-r2">${r.crossed ? `<b class="${r.up ? 'al-up' : 'al-dn'}">Crossed ${r.up ? 'up through' : 'down through'} your ${escText(r.what)}</b> today`
+                                         : `<b class="al-touch">At your ${escText(r.what)}</b> · ${wlFmtPct((r.dist / r.lvl) * 100).replace(/^[+−]/, '')} away`}
+          <span class="al-px">line ${wlFmtPrice(r.lvl)}</span></span>
+      </button>`).join('');
+  }
+
+  // Follow-through record: how often alerts of each kind went their way, 1h /
+  // 1d / 1w later, against how often ANY bar of that timeframe moved that way.
+  function alStatsHtml() {
+    const st = alertsData && alertsData.stats;
+    if (!st) return '';
+    const rows = [['15m|B1', '15m B1'], ['15m|S1', '15m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'],
+                  ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'], ['15m|X', 'Daily-MA cross'], ['15m|T', 'Daily-MA touch']];
+    const cell = (s, h) => {
+      const v = s && s.h && s.h[h];
+      if (!v) return '<td>—</td>';
+      const edge = v[2] != null ? v[0] - v[2] : null;
+      return `<td><b class="${edge == null ? '' : edge >= 2 ? 'al-good' : edge <= -2 ? 'al-bad' : ''}">${Math.round(v[0])}%</b><i>${v[2] != null ? Math.round(v[2]) + '%' : ''}</i></td>`;
+    };
+    const body = rows.filter(([k]) => st[k]).map(([k, lbl]) =>
+      `<tr><th>${lbl}<i>${st[k].n.toLocaleString()}</i></th>${cell(st[k], '1h')}${cell(st[k], '1d')}${cell(st[k], '1w')}</tr>`).join('');
+    return `<details class="al-stats"><summary>How alerts followed through</summary>
+      <p>How often price went the alert's way afterwards (big number) against how often <em>any</em> bar did anyway (small). Green or red only when the gap is 2 points or more. Counted over every alert in the charts' history, automatically.</p>
+      <table><thead><tr><th></th><th>1 hour</th><th>1 day</th><th>1 week</th></tr></thead><tbody>${body}</tbody></table></details>`;
+  }
+
+  (function alWire() {
+    const pane = document.getElementById('pane-scanner');
+    if (!pane) return;
+    pane.addEventListener('click', e => {
+      const c = e.target.closest('[data-al-scope],[data-al-tf]:not(.al-row),[data-al-kind],[data-al-more]');
+      if (c && !c.classList.contains('al-row')) {
+        if (c.dataset.alScope) alUi.scope = c.dataset.alScope;
+        if (c.dataset.alTf && c.classList.contains('al-chip')) alUi.tf = c.dataset.alTf;
+        if (c.dataset.alKind) alUi.kind = c.dataset.alKind;
+        if (c.dataset.alMore) alUi.more++; else alUi.more = 0;
+        alSaveUi();
+        renderAlerts();
+        return;
+      }
+      const r = e.target.closest('.al-row');
+      if (r && r.dataset.alOpen) {
+        const at = r.dataset.alAt ? r.dataset.alAt.replace(' ', 'T') : '';
+        openChartAt(r.dataset.alOpen, r.dataset.alTf, at);
+      }
+    });
+  })();
+
+  // ── MARKET TAB (2026-09-27, replaced Dashboard) ──────────────────────────
+  // The conditions around the reader's lists, all automatic: what is coming up
+  // (economic calendar + earnings of listed names), how far each listed
+  // instrument is likely to move over 10 trading days (market.json — tested,
+  // right ~8 in 10 times), and whether it is quiet or wild right now. The
+  // movers, sector and momentum-ranking cards below are the old Dashboard's.
+  const mkUi = { list: '' };
+  try { Object.assign(mkUi, JSON.parse(localStorage.getItem('swingpulse-mk-ui') || '{}')); } catch (_) {}
+
+  function mkComingUp(lists) {
+    const evs = (eventsData && eventsData.events) || [];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = new Date(today); end.setDate(end.getDate() + 8);
+    const listed = new Set(Object.keys(lists));
+    const rows = evs.filter(e => {
+      const d = new Date(e.date + 'T00:00:00');
+      if (!(d >= today && d < end)) return false;
+      return e.type === 'macro' || e.type === 'fomc' || !e.instrument || listed.has(e.instrument);
+    });
+    const KIND = { earnings: 'Earnings', exdiv: 'Ex-dividend', macro: '', fomc: '' };
+    let h = '', day = '';
+    rows.slice(0, 40).forEach(e => {
+      const d = new Date(e.date + 'T00:00:00');
+      const dk = d.toDateString() === today.toDateString() ? 'Today'
+        : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      if (dk !== day) { day = dk; h += `<div class="mk-day">${escText(dk)}</div>`; }
+      const what = e.instrument ? `<b>${escText(e.instrument)}</b> ${KIND[e.type] || escText(e.type)}` : `<b>${escText(e.title || 'Rates decision')}</b>${e.time ? ` <span class="al-px">${escText(e.time)}</span>` : ''}`;
+      h += `<div class="mk-ev">${what}${e.instrument && lists[e.instrument] ? `<i class="al-list">${escText(lists[e.instrument])}</i>` : ''}</div>`;
+    });
+    if (!h) h = `<div class="al-empty">Nothing scheduled for your lists in the next week.</div>`;
+    // Everything else reporting this week, as one line — the names you might
+    // still want to know about without listing 60 rows.
+    const others = [...new Set(evs.filter(e => {
+      const d = new Date(e.date + 'T00:00:00');
+      return d >= today && d < end && e.type === 'earnings' && e.instrument && !listed.has(e.instrument);
+    }).map(e => e.instrument))];
+    if (others.length) h += `<p class="mk-note mk-also">Also reporting this week, not on your lists: ${others.slice(0, 15).map(escText).join(', ')}${others.length > 15 ? ` and ${others.length - 15} more` : ''}.</p>`;
+    return `<div class="card mk-card" id="mkComing"><div class="card-header mk-h"><h3>Coming up</h3><button class="al-link" data-mk-cal="1">Full calendar ›</button></div>
+      <p class="mk-note">Next 7 days: rates decisions, plus earnings and ex-dividend dates for names on your lists.</p>${h}</div>`;
+  }
+
+  function mkRanges(lists) {
+    const m = marketData && marketData.i;
+    if (!m) return `<div class="card mk-card" id="mkRanges"><div class="card-header mk-h"><h3>Likely 10-day range</h3></div><div class="al-empty">Arrives with the next data run.</div></div>`;
+    const L = (wlStore.lists || []);
+    const cur = L.find(l => l.id === mkUi.list || l.name === mkUi.list) || L[0] || null;
+    const names = cur ? cur.items : Object.keys(m).slice(0, 0);
+    const cov = marketData.model && marketData.model.coverage ? Math.round(marketData.model.coverage['80']) : 78;
+    const chips = L.map(l => `<button class="al-chip${cur && l.id === cur.id ? ' on' : ''}" data-mk-list="${escText(l.id)}">${escText(l.name)}</button>`).join('');
+    let rows = '';
+    (names || []).forEach(x => {
+      if (wlIsDiv(x)) { rows += `<div class="mk-div">${escText(x.slice(1).trim())}</div>`; return; }
+      const r = m[x];
+      if (!r) return;
+      const [close, lo, hi, p50, p80, rank] = r;
+      const q = wlQuote(x);
+      const px = q ? q.p : close;
+      const mood = rank < (marketData.model.quiet_below || 20) ? ['quiet', 'Quiet'] : rank > (marketData.model.wild_above || 80) ? ['wild', 'Wild'] : ['normal', 'Normal'];
+      // Where the price sits inside the band (0 = its low, 1 = its high).
+      const pos = hi > lo ? Math.min(1, Math.max(0, (px - lo) / (hi - lo))) : 0.5;
+      rows += `<button class="mk-row" data-mk-open="${escText(x)}">
+        <span class="mk-n"><b>${escText(x)}</b><i class="mk-mood ${mood[0]}">${mood[1]}</i></span>
+        <span class="mk-band"><span class="mk-bar"><i style="left:${(pos * 100).toFixed(1)}%"></i></span>
+          <span class="mk-lohi"><span>${wlFmtPrice(lo)}</span><b>±${p80.toFixed(1)}%</b><span>${wlFmtPrice(hi)}</span></span></span>
+      </button>`;
+    });
+    if (!cur) rows = `<div class="al-empty">Make a list on the Watchlist tab and its instruments show here.</div>`;
+    else if (!rows) rows = `<div class="al-empty">No range for this list's instruments yet.</div>`;
+    return `<div class="card mk-card" id="mkRanges"><div class="card-header mk-h"><h3>Likely 10-day range</h3></div>
+      <p class="mk-note">Where price has stayed 8 times in 10 over the next 10 trading days (tested on 2022–2026: ${cov}% inside). Size, not direction. The dot is today's price. <b>Quiet</b> / <b>Wild</b> = moving less / more than its usual year; quiet does not mean a breakout is coming.</p>
+      ${L.length > 1 ? `<div class="al-chips">${chips}</div>` : ''}${rows}</div>`;
+  }
+
+  function renderMarketToday() {
+    const host = document.getElementById('marketToday');
+    if (!host) return;
+    const lists = alListIndex();
+    host.innerHTML = mkComingUp(lists) + mkRanges(lists);
+    // Momentum 20 opens in Charts as a set, like a watchlist.
+    const lc = document.getElementById('leadersCard');
+    if (lc && rotationData && rotationData.leaders && !lc.querySelector('.mk-open20')) {
+      const hd = lc.querySelector('.card-header, h3');
+      const btn = document.createElement('button');
+      btn.className = 'al-link mk-open20';
+      btn.dataset.mkOpen20 = '1';
+      btn.textContent = 'Open all in Charts ›';
+      (hd && hd.parentNode === lc ? hd : lc.firstElementChild || lc).insertAdjacentElement('afterend', btn);
+    }
+  }
+
+  (function mkWire() {
+    const pane = document.getElementById('pane-dashboard');
+    if (!pane) return;
+    pane.addEventListener('click', e => {
+      const l = e.target.closest('[data-mk-list]');
+      if (l) { mkUi.list = l.dataset.mkList; try { localStorage.setItem('swingpulse-mk-ui', JSON.stringify(mkUi)); } catch (_) {} return renderMarketToday(); }
+      const o = e.target.closest('[data-mk-open]');
+      if (o) {
+        const cur = (wlStore.lists || []).find(x => x.id === mkUi.list) || (wlStore.lists || [])[0];
+        const names = cur ? cur.items.filter(x => !wlIsDiv(x)) : [];
+        return openChartFor(o.dataset.mkOpen, names.length ? { label: cur.name, names } : null);
+      }
+      if (e.target.closest('[data-mk-cal]')) return openCalendar();
+      if (e.target.closest('[data-mk-open20]')) {
+        const names = ((rotationData && rotationData.leaders && rotationData.leaders.list) || []).map(r => r.name)
+          .filter(n => allData.some(d => d.instrument_name === n));
+        if (names.length) openChartFor(names[0], { label: 'Momentum 20', names });
+      }
+    });
+  })();
+
   function renderCurrentTab() {
     const tab = currentTab;
-    if (tab === 'dashboard')   { renderDashboard(); dashHub(); }
-    else if (tab === 'scanner')  renderScanner();
+    if (tab === 'dashboard')   { renderDashboard(); dashHub(); renderMarketToday(); }
+    else if (tab === 'scanner')  { renderScanner(); renderAlerts(); }
     else if (tab === 'trends')   renderTrendsLazy();
     else if (tab === 'watchlist') renderWatchlist();
   }
@@ -2104,7 +2460,9 @@
   // segments (trends.json), so the switch sat there doing nothing — it now says
   // what timeframe you're actually looking at instead of offering a dead choice.
   const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
-                           watchlist: 'Latest prices · updated every run' };
+                           watchlist: 'Latest prices · updated every run',
+                           scanner: 'Alerts · 15m, 1H and Daily together',
+                           dashboard: 'Market · updated every run' };
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
   //
@@ -2213,6 +2571,8 @@
     renderDashboard();
     dashHub();
     renderScanner();
+    try { renderMarketToday(); } catch (_) {}
+    if (currentTab === 'scanner') renderAlerts();
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
     tabDirty.trends = true;
@@ -2256,7 +2616,7 @@
     // used there, the signal tabs theirs, and Trends is always Daily — it used
     // to only relabel itself "Daily" while every badge and price on it stayed 4H.
     const _wantTf = tab === 'charts' ? tfPrefs.charts
-                  : (tab === 'trends' || tab === 'dashboard' || tab === 'watchlist') ? 'D' : tfPrefs.signals;
+                  : (tab === 'trends' || tab === 'dashboard' || tab === 'watchlist' || tab === 'scanner') ? 'D' : tfPrefs.signals;
     if (_wantTf !== timeframe) applyTimeframe(_wantTf);
     syncTfButtons();
     // Start every tab at the top. The panes share the document's scroll
@@ -2274,6 +2634,8 @@
     if (tab === 'trends') renderTrendsLazy();
     if (tab === 'watchlist') { renderWatchlist(); wlLiveStart(); } else wlLiveStop();
     if (tab === 'charts') renderChartsLazy();
+    if (tab === 'scanner') renderAlerts();
+    if (tab === 'dashboard') renderMarketToday();
   }
 
   navTabs.forEach(btn => {
@@ -2617,7 +2979,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -2635,6 +2997,8 @@
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
         fetchJson('/api/quotes', null),
+        fetchJson('/api/alerts', null),
+        fetchJson('/api/market', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -2663,6 +3027,8 @@
       rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
       rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
       quotesData = (quotesRes && quotesRes.q) ? quotesRes : null;
+      alertsData = (alertsRes && Array.isArray(alertsRes.ev)) ? alertsRes : null;
+      marketData = (marketRes && marketRes.i) ? marketRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';

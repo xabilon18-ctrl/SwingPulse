@@ -990,7 +990,16 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         except Exception:
             m5_data = {}
 
+        # Daily B1/S1 fire dates for the Alerts tab (2026-09-27): the last ~5
+        # years, matching the Daily chart bundle. Popped off the row in main().
+        _d_fires = []
+        if 'primary_signal' in df.columns:
+            _fs = df['primary_signal'].tail(1300)
+            _fs = _fs[_fs.isin(('B1', 'S1'))]
+            _d_fires = [[str(pd.Timestamp(ts).date()), code] for ts, code in _fs.items()]
+
         row = {
+            '_d_fires':         _d_fires,
             'instrument_name':  inst_meta['name'],
             'group':            inst_meta.get('group', ''),
             'sector':           inst_meta.get('sector', ''),
@@ -1347,6 +1356,7 @@ def main():
     all_trends = {}
     m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
     h1_fires   = {}   # the same for the 1H chart
+    d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
     done       = 0
@@ -1361,6 +1371,7 @@ def main():
             if row:
                 m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
                 h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
+                d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
             else:
@@ -1406,6 +1417,8 @@ def main():
         json.dump(m15_fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'h1_fires.json'), 'w') as ff:
         json.dump(h1_fires, ff, separators=(',', ':'))
+    with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:
+        json.dump(d_fires, ff, separators=(',', ':'))
 
     # 5c. Live signal ledger — record today's fires, grade earlier ones
     from signal_ledger import update_ledger

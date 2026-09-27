@@ -609,6 +609,16 @@ def build_data(output_dir, src_signals_dir=None):
     except Exception as e:
         print(f'  WARN quotes.json not built: {e}')
 
+    # Market tab (2026-09-27): 10-day expected-move band + quiet/wild per
+    # instrument (market_feed). A failure costs that card, never the publish.
+    try:
+        from market_feed import build_market
+        _market = build_market(get_ticker_map())
+        _dump_json_gz(os.path.join(output_dir, 'market.json'), _market, separators=(',', ':'))
+        print(f'  Market: {len(_market["i"])} instruments')
+    except Exception as e:
+        print(f'  WARN market.json not built: {e}')
+
     # Chart reel feed — the app's only source of price history now. It also
     # feeds the volume sparklines, which used to read the per-instrument
     # `history/` dump that stopped being built when the modal's Lightweight
@@ -617,12 +627,13 @@ def build_data(output_dir, src_signals_dir=None):
         t_chart = time.time()
         cstats  = build_chart_feed(output_dir, CACHE_DIR, get_ticker_map(),
                                    fires_path=os.path.join(OUTPUT_DIR, 'm15_fires.json'),
-                                   h1_fires_path=os.path.join(OUTPUT_DIR, 'h1_fires.json'))
+                                   h1_fires_path=os.path.join(OUTPUT_DIR, 'h1_fires.json'),
+                                   d_fires_path=os.path.join(OUTPUT_DIR, 'd_fires.json'))
         # Report every timeframe the builder actually produced. Hard-coding D
         # and 4H here meant the 2026-09-02 run printed "798 daily / 798 4H"
         # while it had in fact written 160 weekly chunks too — a summary line
         # that under-reports is how a broken feed looks healthy.
-        _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k != 'chunks')
+        _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k not in ('chunks', 'alerts'))
         print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
     except Exception as e:
@@ -861,7 +872,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics',
-                  'rotation.json', 'rotation_paper.json', 'quotes.json']:
+                  'rotation.json', 'rotation_paper.json', 'quotes.json',
+                  'alerts.json', 'market.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -986,6 +998,8 @@ def build_ui():
     js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/quotes'",       f"'{base}/quotes.json'")
+    js = js.replace("'/api/alerts'",       f"'{base}/alerts.json'")
+    js = js.replace("'/api/market'",       f"'{base}/market.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
