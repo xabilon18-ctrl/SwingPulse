@@ -9351,8 +9351,8 @@
     return out;
   }
 
-  // Three corners joined by a solid outline, in the circle's style (a dotted
-  // one would read as another MA). A handle on each corner, the move handle at
+  // Three corners joined by the dotted drawing line, no fill (user,
+  // 2026-09-27: "no background for the triangle... line must be dotted"). A handle on each corner, the move handle at
   // the centre. Tapping an edge selects it.
   function reelTriangleSvg(d, b, L, sc, bw, editing, idx, isActive) {
     const is = [d.t1, d.t2, d.t3].map(t => reelBarIndexForDate(b, t));
@@ -9360,7 +9360,7 @@
     const xs = is.map(i => L.x0 + i * bw + bw / 2), ys = [d.p1, d.p2, d.p3].map(p => sc.y(p));
     if (ys.some(y => !isFinite(y))) return '';
     const pts = xs.map((x, k) => `${x.toFixed(1)},${ys[k].toFixed(1)}`).join(' ');
-    let out = `<polygon points="${pts}" class="reel-ch reel-tri${d.bold ? ' is-bold' : ''}"/>` +
+    let out = `<polygon points="${pts}" class="reel-ch reel-ch-edge reel-tri${d.bold ? ' is-bold' : ''}"/>` +
               `<polygon points="${pts}" class="reel-ch-hit" data-di="${idx}"/>`;
     if (editing && !d.locked) {
       out += reelHandle(L, xs[0], ys[0], 'a', idx, isActive) + reelHandle(L, xs[1], ys[1], 'b', idx, isActive)

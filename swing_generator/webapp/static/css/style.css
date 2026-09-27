@@ -8138,8 +8138,7 @@ body {
    another MA. */
 .reel-circle { fill: none; stroke: var(--reel-ch-color); stroke-width: 3.5; stroke-opacity: .95; }
 .reel-circle.is-bold { stroke-width: 7; }
-.reel-tri { fill: var(--reel-ch-color); fill-opacity: .06; stroke: var(--reel-ch-color); stroke-width: 3.5; stroke-opacity: .95; stroke-linejoin: round; }
-.reel-tri.is-bold { stroke-width: 7; }
+.reel-tri { fill: none; }
 .reel-draw .reel-ch-edge.is-bold,
 .reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
