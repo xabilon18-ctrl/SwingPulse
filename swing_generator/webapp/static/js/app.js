@@ -7776,14 +7776,15 @@
   const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid']];
   const OV_BAND_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#a855f7', '#9ca3af'];
   const OV_BAND_MAX = 0.4;   // 100% intensity = 40% fill: bars still read through
-  // ONE setting for every timeframe since 2026-09-27 — set per timeframe, bands
-  // switched on over Daily were simply absent on 15m ("not working").
+  // PER TIMEFRAME (user, 2026-09-27: "remember it's per time frame") — each
+  // timeframe has its own grid, so each keeps its own shading on/off, strength
+  // and colour. The menu names the timeframe it is setting.
   const GRID_BAND_STEPS = [[35, 'Light'], [65, 'Medium'], [100, 'Strong']];
   const tfOverlay = (() => {
     const def = { on: false, layers: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, bandColor: j.bandColor, band: j.band, bandOn: !!j.bandOn };
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {} };
     } catch (_) {}
     return def;
   })();
@@ -7794,13 +7795,15 @@
   }
   // Shading: on/off plus a strength that is kept while it is off, so switching
   // it back on returns to where it was. gridBand() = the strength in use (0 off).
-  function gridBandLevel() {
-    return GRID_BAND_STEPS.some(([v]) => v === tfOverlay.band) ? tfOverlay.band : 65;
+  function gridShade(tf) {
+    const all = tfOverlay.shade || (tfOverlay.shade = {});
+    const g = all[tf] || (all[tf] = {});
+    if (!GRID_BAND_STEPS.some(([v]) => v === g.lvl)) g.lvl = 65;
+    if (!OV_BAND_COLORS.includes(g.color)) g.color = OV_BAND_COLORS[0];
+    g.on = !!g.on;
+    return g;
   }
-  function gridBand() { return tfOverlay.bandOn ? gridBandLevel() : 0; }
-  function ovBandColor() {
-    return OV_BAND_COLORS.includes(tfOverlay.bandColor) ? tfOverlay.bandColor : OV_BAND_COLORS[0];
-  }
+  function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
   }
@@ -7815,9 +7818,9 @@
       const l = ovLayer(tf);
       OV_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
       st.setProperty(`--ov-${tf}-grid`, String(l.grid / 100));
-      st.setProperty(`--ov-${tf}-band`, String(gridBand() / 100 * OV_BAND_MAX));
+      st.setProperty(`--ov-${tf}-band`, String(gridBand(tf) / 100 * OV_BAND_MAX));
+      st.setProperty(`--ov-${tf}-band-color`, gridShade(tf).color);
     });
-    st.setProperty('--ov-band-color', ovBandColor());
   }
   ovApplyVars();
   // A bundle already in the cache, or null — the synchronous read the renderer
@@ -10528,7 +10531,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -10547,34 +10550,52 @@
     return `<button class="reel-share-btn reel-grid-btn${gridBand() ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
   function reelGridMenuHtml() {
-    const on = !!tfOverlay.bandOn, lvl = gridBandLevel(), bc = ovBandColor();
+    const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
     let h = `<button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
-        <span>Shade every other gap</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+        <span>Shade every other gap<em>${TF_BY_CODE[timeframe].label} chart</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (on) {
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === lvl ? ' on' : ''}" data-act="grid-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
         <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
           `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>`;
     }
-    return h + `<div class="reel-grid-note">All timeframes</div>`;
+    return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own</div>`;
   }
   function reelGridMenuClose() {
     document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
     document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
   }
   function reelGridMenuToggle(btn) {
-    const head = btn.parentElement;
-    const open = head && head.querySelector('.reel-grid-menu');
+    const open = document.querySelector('.reel-grid-menu');
+    const same = open && open._btn === btn;
     reelGridMenuClose();
-    if (!head || open) return;
+    if (same) return;
+    // Pinned to the SCREEN under the button (position: fixed). Hung off the
+    // header it opened below the bottom edge in full screen — the button looked
+    // dead (2026-09-27).
     const menu = document.createElement('div');
     menu.className = 'reel-grid-menu';
     menu.setAttribute('role', 'menu');
+    menu._btn = btn;
     menu.innerHTML = reelGridMenuHtml();
-    head.appendChild(menu);
+    // Inside the card / full-screen view so its clicks reach the same handler.
+    (btn.closest('.reel-card') || document.body).appendChild(menu);
+    reelGridMenuPlace(menu);
   }
+  function reelGridMenuPlace(menu) {
+    const r = menu._btn && menu._btn.getBoundingClientRect();
+    if (!r) return;
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    const left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w));
+    let top = r.bottom + 8;
+    if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+  }
+  // A scroll moves the button away from a fixed menu — close it.
+  window.addEventListener('scroll', () => { if (document.querySelector('.reel-grid-menu')) reelGridMenuClose(); }, { passive: true });
   document.addEventListener('click', e => {
     if (!document.querySelector('.reel-grid-menu')) return;
     if (e.target.closest('.reel-grid-menu, .reel-grid-btn')) return;
@@ -12735,15 +12756,16 @@
       }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
       if (btn.dataset.act === 'grid-set') {
-        const v = +btn.dataset.v, part = btn.dataset.part;
-        if (part === 'on') tfOverlay.bandOn = !tfOverlay.bandOn;
-        else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) tfOverlay.band = v;
-        else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) tfOverlay.bandColor = btn.dataset.color;
+        const v = +btn.dataset.v, part = btn.dataset.part, g = gridShade(timeframe);
+        if (part === 'on') g.on = !g.on;
+        else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) g.lvl = v;
+        else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) g.color = btn.dataset.color;
         else return true;
         ovSave();
         ovApplyVars();
         const menu = btn.closest('.reel-grid-menu');
-        if (menu) menu.innerHTML = reelGridMenuHtml();
+        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
         return true;
       }
       if (btn.dataset.act === 'ov-toggle') {

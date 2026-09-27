@@ -9687,7 +9687,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-head-meta { position: relative; }
 .reel-grid-btn.on { color: var(--accent); }
 .reel-grid-menu {
-  position: absolute; right: 0; top: calc(100% + 8px); z-index: 8; width: 260px;
+  position: fixed; z-index: 1000; width: 260px;
   padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,.4);
   display: flex; flex-direction: column; gap: 6px; text-align: left;
@@ -9712,3 +9712,5 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-grid-switch.on .reel-ov-knob { background: var(--accent); }
 .reel-grid-switch.on .reel-ov-knob::after { transform: translateX(14px); }
+.reel-grid-switch span em { display: block; font-style: normal; font-size: .72rem; font-weight: 600; color: var(--accent); }
+.reel-grid-switch span { text-align: left; }
