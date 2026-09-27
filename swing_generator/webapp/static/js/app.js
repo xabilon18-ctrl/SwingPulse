@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['15m']);  // 15m since 2026-09-25 (5m 09-24; 1H/4H removed 2026-09-11)
+  const INTRADAY_TFS = new Set(['15m', '1H']);  // 15m since 2026-09-25 (5m 09-24); 1H back 2026-09-27
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -133,6 +133,9 @@
     // columns; a fire stays on the row for 24h — see config.TIMEFRAMES).
     // Signals tab + Charts; Dashboard is Daily. Bars are resampled from 5m.
     { code: '15m', prefix: 'm15_', label: '15m', tv: '15', bar: '15-minute bars', barShort: '25-bar' },
+    // 1H back 2026-09-27 (user: the month view between the 15m's week and the
+    // Daily's year) with the 15m's B1/S1 rules — h1_ columns, hourly download.
+    { code: '1H',  prefix: 'h1_',  label: '1H',  tv: '60', bar: 'hourly bars',    barShort: '25-bar' },
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
@@ -148,7 +151,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['15m', 'D']);
+  const SIGNAL_TFS = new Set(['15m', '1H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -923,8 +926,8 @@
   // A bar count as the reader's unit: days on Daily, TRADING time on 15m
   // ("45m", "3h") — a 15m run of 4 bars is an hour, not four days.
   function barsLabel(n) {
-    if (timeframe !== '15m') return `${n}d`;
-    const mins = n * 15;
+    if (timeframe !== '15m' && timeframe !== '1H') return `${n}d`;
+    const mins = n * (timeframe === '1H' ? 60 : 15);
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
   }
 
@@ -7795,7 +7798,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '15m': 15 * 60e3, 'D': 864e5 };
+  const OV_TF_MS = { '15m': 15 * 60e3, '1H': 36e5, 'D': 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -7814,7 +7817,7 @@
     const def = { on: false, layers: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {} };
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, with: (j.with && typeof j.with === 'object') ? j.with : {} };
     } catch (_) {}
     return def;
   })();
@@ -7845,10 +7848,20 @@
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
   }
-  // The timeframe drawn underneath — the chart timeframe that is not shown.
+  // The timeframe drawn underneath. With three chart timeframes (1H back
+  // 2026-09-27) it is a CHOICE per shown timeframe, kept in tfOverlay.with;
+  // unset, Daily takes 1H (user: "the overlay option on the daily") and the
+  // intraday charts take Daily.
+  const OV_DEFAULT_WITH = { 'D': '1H', '1H': 'D', '15m': 'D' };
+  function ovChoices(tf) {
+    return tabTfs('charts').filter(t => t !== tf && OV_TF_MS[t]);
+  }
   function ovOtherTf() {
     if (!tfOverlay.on) return null;
-    return tabTfs('charts').find(t => t !== timeframe && OV_TF_MS[t]) || null;
+    const ch = ovChoices(timeframe);
+    const w = (tfOverlay.with || {})[timeframe];
+    if (ch.includes(w)) return w;
+    return ch.includes(OV_DEFAULT_WITH[timeframe]) ? OV_DEFAULT_WITH[timeframe] : (ch[0] || null);
   }
   function ovApplyVars() {
     const st = document.documentElement.style;
@@ -8093,6 +8106,9 @@
       <button class="reel-tf-opt reel-ov-switch${tfOverlay.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${tfOverlay.on}" data-act="ov-toggle">
         <span>Overlay timeframes</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (!o) return h;
+    // Which timeframe goes underneath (2026-09-27, three chart timeframes).
+    h += `<div class="reel-ov-block"><div class="reel-ov-row reel-ov-maw"><span>Overlay</span><div class="reel-ov-maw-btns">${ovChoices(timeframe).map(tf =>
+      `<button class="reel-tf-opt reel-ov-maw-btn${tf === o ? ' on' : ''}" data-act="ov-with" data-tf="${tf}">${TF_BY_CODE[tf].label}</button>`).join('')}</div></div></div>`;
     // The overlay is FINER than the chart (15m over Daily): its data covers only
     // the last stretch of the window, so offer to frame exactly that stretch.
     if (OV_TF_MS[o] < OV_TF_MS[timeframe]) {
@@ -8467,7 +8483,9 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '15m') {
+    if (timeframe === '15m' || timeframe === '1H') {
+      // 1H (2026-09-27) opens on a full calendar month on EVERY instrument —
+      // the month view it was brought back for — framed the 15m way.
       // 15m OPENS on the user's own view (2026-09-25, read off their ETHUSD
       // screenshot): REEL_15M_VIEW.days of bars filling the left part of the
       // plot, REEL_15M_VIEW.future of the width left empty for the future.
@@ -8479,7 +8497,7 @@
       // MONTH (user: "for stock is full month view"); round-the-clock markets
       // on 8⅓ days. Either way that is ~550-800 bars, so a candle is about as
       // wide on both.
-      const days = reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
+      const days = timeframe === '15m' && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
       const last = new Date(bt[n - 1]);
       const cut = days != null ? bt[n - 1] - days * 86400000
         : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - 1, last.getUTCDate(),
@@ -8642,7 +8660,7 @@
   // edge), except 15m, which opens with REEL_15M_VIEW.future of blank space.
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
-    if (timeframe === '15m' && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
+    if ((timeframe === '15m' || timeframe === '1H') && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
     return 0;
   }
 
@@ -9754,7 +9772,7 @@
   // 15m is WEEKS (user, 2026-09-25: "the grid time lines are monday 00:00 to
   // monday 00:00"): only the week-start lines of the day grid, so each gap is
   // one trading week. Same evenly spaced construction, day lines dropped.
-  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'half', '4H': 'half',
+  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'week', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -9764,7 +9782,7 @@
   const REEL_FUTURE_WEEKS = 8;
 
   // Intraday timeframes: bar labels carry a time, end-stops show it.
-  const isIntradayTf = tf => tf === '15m' || tf === '10m';
+  const isIntradayTf = tf => tf === '15m' || tf === '10m' || tf === '1H';
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
@@ -10211,7 +10229,7 @@
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
     const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
-      || (timeframe === '15m' ? reel15mPriceWindow(b) : null));
+      || (timeframe === '15m' || timeframe === '1H' ? reel15mPriceWindow(b) : null));
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -10600,7 +10618,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' || timeframe === '1H' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -10799,7 +10817,7 @@
     // screen applies it itself (reelViewSeedPrice on its own plot) rather than
     // copying the card's un-applied default and marking the view done.
     if (src && !viewPricePending.has(name)
-        && !(timeframe === '15m' && chartFullPrevLock === undefined)) {
+        && !((timeframe === '15m' || timeframe === '1H') && chartFullPrevLock === undefined)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
@@ -12858,6 +12876,16 @@
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
+      if (btn.dataset.act === 'ov-with') {
+        const tf = btn.dataset.tf;
+        if (!ovChoices(timeframe).includes(tf)) return true;
+        (tfOverlay.with || (tfOverlay.with = {}))[timeframe] = tf;
+        ovSave();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        ovRefresh();
         return true;
       }
       if (btn.dataset.act === 'ov-toggle') {

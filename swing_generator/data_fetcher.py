@@ -945,8 +945,8 @@ FIVE_MIN_LEVEL_REF = {
 FIVE_MIN_BASIS_WINDOW = '24h'
 
 
-def _read_5m_raw(ticker: str) -> pd.DataFrame | None:
-    path = _cache_path(ticker, suffix='5m')
+def _read_5m_raw(ticker: str, suffix: str = '5m') -> pd.DataFrame | None:
+    path = _cache_path(ticker, suffix=suffix)
     if not os.path.exists(path):
         return None
     df = pd.read_parquet(path)
@@ -1005,13 +1005,13 @@ FIVE_MIN_HOURS_LOOKBACK_DAYS = 14
 FIVE_MIN_FORCE_FETCH_HOURS   = 6
 
 
-def _may_have_traded_5m(ticker: str, now: pd.Timestamp) -> bool:
+def _may_have_traded_5m(ticker: str, now: pd.Timestamp, suffix: str = '5m') -> bool:
     """True if this instrument may have new 5m bars: its cache is missing or
     unreadable, not fetched for FIVE_MIN_FORCE_FETCH_HOURS, or it has traded in
     this (weekday, UTC hour) or the previous one at any point in the last two
     weeks. The previous hour catches the final bars of a session that closed
     since the last run."""
-    path = _cache_path(ticker, suffix='5m')
+    path = _cache_path(ticker, suffix=suffix)
     try:
         if not os.path.exists(path):
             return True
@@ -1029,3 +1029,75 @@ def _may_have_traded_5m(ticker: str, now: pd.Timestamp) -> bool:
         return False
     except Exception:
         return True
+
+
+# ── 1H (2026-09-27, user: "bring it back and apply the same signals as the
+# 15 min") ─────────────────────────────────────────────────────────────────
+# The hourly download returns for the 1H chart + 1H B1/S1 signals: the month
+# view between the 15m's week and the Daily's year. Yahoo keeps ~729 days of
+# 1h, so the full MA500 (~71 sessions of a US stock) is warm from the first
+# run, which the ~3 months of saved 5m history could not give.
+#
+# Same sources as the 15m so the two intraday charts show the same market: a
+# US index reads its futures contract, gold its COMEX contract (h4_ticker),
+# each shifted to the cash/spot LEVEL of FIVE_MIN_LEVEL_REF.
+
+def fetch_all_1h(instruments: list[dict], force_refresh: bool = False,
+                 max_age_hours: float | None = None) -> dict:
+    """Bring every instrument's hourly file up to date: its source (as the 5m
+    feed resolves it) plus its level reference. Same closed-market skip as
+    fetch_all_5m — a market that has not traded since the last bar has nothing
+    new to ask Yahoo for."""
+    by_t = {i['ticker']: i for i in instruments}
+    todo = [{**by_t.get(t, {'name': t}), 'ticker': t}
+            for t in five_min_fetch_list([i['ticker'] for i in instruments])]
+    total = len(todo)
+    if not force_refresh:
+        now = _utc_now()
+        todo = [i for i in todo if _may_have_traded_5m(i['ticker'], now, suffix='1h')]
+        if total - len(todo):
+            print(f'  1h: {total - len(todo)} instruments skipped — market closed since the last bar')
+    _fetch_all_parallel(
+        todo,
+        lambda t: fetch_hourly(t, force_refresh, max_age_hours=max_age_hours),
+        min_rows=200,
+        kind='1h ',
+    )
+    print(f'\n  1h data fetched for {len(todo)}/{total} instruments.\n')
+    return {}
+
+
+def load_1h(ticker: str) -> pd.DataFrame | None:
+    """The hourly OHLCV the 1H chart and 1H signals read: load_5m's rule on
+    the hourly files. The basis is matched by TIME, not by stamp — a cash
+    index's hourly bars sit on :30 (13:30, 14:30 …) and its futures' on :00,
+    so the reference close is the last one printed at or before each source
+    bar (within an hour), then the same 24h rolling median as the 5m."""
+    src = _read_5m_raw(h4_ticker(ticker), suffix='1h')
+    if src is None:
+        return None
+    ref_t = FIVE_MIN_LEVEL_REF.get(ticker)
+    if not ref_t:
+        return src
+    ref = _read_5m_raw(ref_t, suffix='1h')
+    if ref is None or 'Close' not in ref:
+        return src
+    r = ref['Close'].dropna()
+    r.index = r.index + pd.Timedelta(hours=1)          # a bar's close time
+    s = src['Close'].dropna()
+    at = pd.DataFrame({'t': s.index + pd.Timedelta(hours=1), 's': s.values})
+    rr = pd.DataFrame({'t': r.index, 'r': r.values})
+    m = pd.merge_asof(at, rr, on='t', direction='backward',
+                      tolerance=pd.Timedelta(hours=1)).dropna()
+    if len(m) < 6:
+        return src
+    diff = pd.Series((m['s'] - m['r']).values, index=m['t'] - pd.Timedelta(hours=1))
+    basis = diff.rolling(FIVE_MIN_BASIS_WINDOW, min_periods=4).median().dropna()
+    if basis.empty:
+        return src
+    b = basis.reindex(src.index.union(basis.index)).ffill().bfill().reindex(src.index)
+    out = src.copy()
+    for c in ('Open', 'High', 'Low', 'Close'):
+        if c in out:
+            out[c] = out[c] - b
+    return out

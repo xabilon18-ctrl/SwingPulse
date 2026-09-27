@@ -398,7 +398,8 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
 # 15m (2026-09-25, replaced 5m): a day holds up to 96 fifteen-minute bars.
-INTRADAY_PREFIXES = {'m15_'}
+# 1H (2026-09-27, back with the hourly download): up to 24 bars a day.
+INTRADAY_PREFIXES = {'m15_', 'h1_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, context modifiers,
@@ -434,8 +435,14 @@ INTRADAY_PREFIXES = {'m15_'}
 # "live" on the row for FIFTEEN_MIN_SIGNAL_LIVE_HOURS so the Signals
 # tab can list it between runs. Not backtested: confidence is the
 # 'standard' fallback and the ledger does not record 15m fires.
+#
+# 1H signals (2026-09-27, user: "bring it back and apply the same signals as
+# the 15 min"): the 15m rules exactly — B1/S1 only, no re-fires, live for
+# FIFTEEN_MIN_SIGNAL_LIVE_HOURS, 'standard' confidence, not in the ledger. The
+# 2026-09-11 finding above still stands: 1H B1/S1 have no measured edge.
 TIMEFRAMES = (
     ('15m', 'm15_'),
+    ('1H',  'h1_'),
     ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -509,6 +516,8 @@ OUTPUT_COLUMNS = [
     *_tf_signal_columns(''),
     # ── 15m (B1/S1 only, see TIMEFRAMES) ──
     *_tf_signal_columns('m15_'),
+    # ── 1H (B1/S1 only, same rules as 15m) ──
+    *_tf_signal_columns('h1_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',

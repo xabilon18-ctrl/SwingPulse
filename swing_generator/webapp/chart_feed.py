@@ -56,12 +56,13 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
-from data_fetcher import (h4_ticker, load_5m, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
+from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
                           scale_daily, SGX_FRONT)
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d, _resample_10m,
-                  _m10_ma_periods, _frame_5m, _frame_15m, _m15_ma_periods)
+                  _m10_ma_periods, _frame_5m, _frame_15m, _m15_ma_periods,
+                  _frame_1h, _m1h_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -79,6 +80,11 @@ CARRY_MONTHS = 2
 # chart it replaced: "2 months is fine going back"). The warm-up cap below trims
 # a 24h instrument by MA500's ~5 days.
 CARRY_MONTHS_15M = 2
+
+# The 1H bundle (2026-09-27): the chart opens on a month, and carries six so a
+# drag can reach back a season. ~4,400 bars on a 24/7 instrument (under the
+# BARS_BY_TF ceiling), ~880 on a US stock. The hourly cache holds ~2 years.
+CARRY_MONTHS_1H = 6
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -122,7 +128,8 @@ BARS_BY_TF = {
     # up yet — 167 null points of 374 on AAPL); the 520-bar opening window is
     # fully warm on every instrument. Gzipped bundle AAPL 8 -> 18 KB, BTC 10 -> 43.
     '4H': 2190,
-    '1H': 520,
+    # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
+    '1H': 4500,
 }
 
 # MONTHLY was REMOVED 2026-09-14 at the user's request, along with
@@ -255,18 +262,24 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     redirected by H4_SOURCE stores its hourly bars under the CONTRACT's name,
     and both intraday timeframes come out of that one file.
     """
-    src  = h4_ticker(ticker)
-    path = os.path.join(cache_dir, _cache_name(src, suffix='1h'))
-    if not os.path.exists(path):
+    # 2026-09-27: back on the Charts tab, built like build_15m — the 15m's
+    # sources and cash/spot level (data_fetcher.load_1h), EXACT 50/250/500,
+    # CARRY_MONTHS_1H of calendar, the carry capped so MA500 is warm at the
+    # left edge.
+    df_1h = load_1h(ticker)
+    if df_1h is None or df_1h.empty:
         return None
-    hourly = pd.read_parquet(path)
-    if hourly.empty:
+    frame = _frame_1h(df_1h)
+    if len(frame) < 2:
         return None
-    h1 = _h1_frame(hourly)
-    periods = _h1_ma_periods(h1, ticker)
+    periods = _m1h_ma_periods(frame)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(h1, periods, '%Y-%m-%d %H:%M', bars=BARS_BY_TF['1H'])
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_1H)
+    n_carry = int((frame.index > cutoff).sum()) or len(frame)
+    warm_cap = len(frame) - max(periods)
+    bars = min(n_carry, BARS_BY_TF['1H'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
 def build_weekly(cache_dir: str, ticker: str) -> dict | None:
@@ -523,7 +536,10 @@ def _write_gz(path: str, payload: dict) -> None:
 #           on the confirming bar, an hour to the right of the cross, which
 #           read as a random place). One per MA/direction/day.
 # The Daily MA is the last COMPLETED daily bar's value (no look-ahead).
+# XM_HOLD is in 15m bars (4 = one hour); the 1H chart holds one bar, the same
+# hour (XM_HOLD_BY_TF).
 XM_REARM, XM_HOLD = 0.5, 4
+XM_HOLD_BY_TF = {'15m': 4, '1H': 1}
 _DAY_MS = 86_400_000
 
 
@@ -532,7 +548,7 @@ def _ts_ms(v: str) -> int:
     return int(ts.value // 1_000_000)
 
 
-def cross_marks(b15: dict, bd: dict) -> list[dict]:
+def cross_marks(b15: dict, bd: dict, hold: int = XM_HOLD) -> list[dict]:
     bt = [_ts_ms(t) for t in b15['t']]
     ot = [_ts_ms(t) for t in bd['t']]
     n, on, C = len(bt), len(ot), b15['c']
@@ -581,9 +597,9 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
                 i += 1
                 continue
             if sg != side:
-                ok = i + XM_HOLD < n
+                ok = i + hold < n
                 q = i + 1
-                while ok and q <= i + XM_HOLD:
+                while ok and q <= i + hold:
                     cq, dq = C[q], lv(q)
                     if cq is None or dq is None or (1 if cq >= dq else -1) != sg:
                         ok = False
@@ -594,7 +610,7 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
                     if key not in seen:
                         seen.add(key)
                         out.append({'kind': 'after', 'k': k, 'i': i, 'v': D, 'dir': dr})
-                    side, armed, i = sg, False, i + XM_HOLD + 1
+                    side, armed, i = sg, False, i + hold + 1
                     continue
                 # A close through the MA that did not hold an hour is a touch.
             if abs(c - D) / A > XM_REARM:
@@ -607,13 +623,13 @@ def cross_marks(b15: dict, bd: dict) -> list[dict]:
     return out
 
 
-def _attach_15m_marks(b15: dict, bd: dict | None, fires: list) -> dict:
+def _attach_15m_marks(b15: dict, bd: dict | None, fires: list, hold: int = XM_HOLD) -> dict:
     """Put `sg` (B1/S1 fires) and `xm` (Daily-MA cross marks) on a 15m bundle
     and return the instrument's RECENT events for the Charts filters: those on
     the bundle's last two trading dates, so a weekend never empties the list."""
     pos = {t: i for i, t in enumerate(b15['t'])}
     b15['sg'] = [[pos[t], code] for t, code in (fires or []) if t in pos]
-    xm = cross_marks(b15, bd) if bd else []
+    xm = cross_marks(b15, bd, hold) if bd else []
     b15['xm'] = [[m['i'], m['kind'], bd['p'][m['k']], m['dir'], _round(m['v'])] for m in xm]
     dates = sorted({str(t)[:10] for t in b15['t']})
     since = dates[-2] if len(dates) >= 2 else (dates[-1] if dates else '')
@@ -628,11 +644,13 @@ def _attach_15m_marks(b15: dict, bd: dict | None, fires: list) -> dict:
 
 
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
-                     max_workers: int = 8, fires_path: str | None = None) -> dict:
+                     max_workers: int = 8, fires_path: str | None = None,
+                     h1_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'15m': n, 'D': n, 'chunks': n_files}.
+    Returns {'15m': n, '1H': n, 'D': n, 'chunks': n_files}.
+    1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
     the 4H chart restored 2026-09-17, then 4H and Weekly removed 2026-09-24
     and 3D kept as a CHART ONLY (its signals went). Later on 2026-09-24 the 10m
@@ -647,10 +665,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'15m': 0, 'D': 0, 'chunks': 0}
+    stats = {'15m': 0, '1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    for tf, builder in (('15m', build_15m), ('D', build_daily)):
+    for tf, builder in (('15m', build_15m), ('1H', build_1h), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -683,6 +701,18 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                 events[name] = ev
     except Exception as exc:
         print(f'  WARN 15m markers not built: {exc}')
+    # 1H markers (2026-09-27): the same B1/S1 + Daily-MA marks, from
+    # h1_fires.json, a cross holding one 1H bar (the same hour).
+    try:
+        fires = {}
+        if h1_fires_path and os.path.exists(h1_fires_path):
+            with open(h1_fires_path) as fh:
+                fires = json.load(fh)
+        for name, b1 in built.get('1H', {}).items():
+            _attach_15m_marks(b1, built.get('D', {}).get(name), fires.get(name),
+                              hold=XM_HOLD_BY_TF['1H'])
+    except Exception as exc:
+        print(f'  WARN 1H markers not built: {exc}')
 
     for tf, bundles in built.items():
         tf_dir = os.path.join(chart_dir, tf)
