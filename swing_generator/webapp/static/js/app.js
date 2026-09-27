@@ -424,7 +424,7 @@
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
-    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a',
+    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -6568,6 +6568,12 @@
       }
       intensity += `</div>`;
     }
+    // Channel line style: dotted (the default) or dashed (user, 2026-09-27).
+    const dashSvg = dash => `<svg width="26" height="10" viewBox="0 0 26 10"><line x1="2" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="${dash ? 'butt' : 'round'}" stroke-dasharray="${dash ? '7 4' : '0.1 5'}"/></svg>`;
+    const lineStyle = d.kind !== 'channel' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
+      + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
+      + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
+      + `</span>`;
     // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
@@ -6587,7 +6593,7 @@
     const bold = DRAW_BOLDABLE.has(d.kind)
       ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
       : '';
-    return (sw ? sw + `<span class="reel-props-sep"></span>` : '')
+    return ((sw || lineStyle) ? sw + lineStyle + `<span class="reel-props-sep"></span>` : '')
       + pct + bold
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
@@ -9684,9 +9690,9 @@
     // answer without hunting through the footer.
 
     return band
-      + seg(dUp,  'reel-ch reel-ch-edge')
-      + seg(dDn,  'reel-ch reel-ch-edge')
-      + seg(dMid, 'reel-ch reel-ch-mid')
+      + seg(dUp,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : ''))
+      + seg(dDn,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : ''))
+      + seg(dMid, 'reel-ch reel-ch-mid' + (ch.dash ? ' is-dash' : ''))
       // Tap targets over all three lines, so a channel can be made the active
       // drawing by touching any part of it rather than only its handles.
       + reelHitLine(XA, yA + dUp,  XB, yB + dUp,  idx)
@@ -12919,6 +12925,16 @@
         channelSave();
         if (chHost) reelRepaint(chHost);
         reelSyncChannelButtons();
+        return true;
+      }
+      if (btn.dataset.act === 'draw-dash') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'channel') {
+          if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
         return true;
       }
       if (btn.dataset.act === 'draw-alpha-set') {

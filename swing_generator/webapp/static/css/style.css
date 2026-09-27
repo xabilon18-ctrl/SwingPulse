@@ -9720,3 +9720,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-fill-switch, .reel-fill-switch.on { color: #111 !important; background: transparent !important; padding: 6px 8px !important; }
 .reel-fill-switch:not(.on) .reel-ov-knob { background: #cfcfca; }
 .reel-grid-swap { width: 100%; margin-top: 2px; }
+/* Channel line style (2026-09-27): dashed instead of the default dots. */
+.reel-draw .reel-ch-edge.is-dash, .reel-draw.is-sel .reel-ch-edge.is-dash { stroke-dasharray: 18 11; stroke-linecap: butt; }
+.reel-draw .reel-ch-mid.is-dash { stroke-dasharray: 10 10; stroke-linecap: butt; }
+.reel-dash-seg { display: inline-flex; margin-left: 4px; border: 1px solid rgba(0,0,0,.18); border-radius: 9px; overflow: hidden; }
+.reel-dash-btn { padding: 6px 7px !important; color: #555; border-radius: 0 !important; }
+.reel-dash-btn.on { background: rgba(0,0,0,.14); color: #000; }
+.reel-dash-btn svg { width: 26px !important; height: 10px !important; display: block; }
