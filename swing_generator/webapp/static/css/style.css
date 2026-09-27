@@ -9733,3 +9733,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-ov-maw-btn { padding: 7px 2px !important; font-size: .78rem !important; text-align: center !important; border: 1px solid var(--border) !important; }
 /* Overlay MA labels, more visible (2026-09-27): larger, heavier, thicker halo. */
 .reel-ov-lbl { font-size: 26px; font-weight: 900; fill: #1d4ed8; stroke: none; letter-spacing: .02em; }
+
+/* Nothing on a chart is text to copy (user, 2026-09-27: "the text below the
+   chart is selectable and always highlighted when i am working on the chart").
+   A drag, long-press or double-tap on the chart was selecting the SVG labels
+   (trend caption, dates, MA tags) and painting the iOS/desktop selection box. */
+.reel-chart, .reel-chart *, #chartFull .reel-chart, #chartFull svg, #chartFull svg * {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.reel-chart ::selection { background: transparent; }
