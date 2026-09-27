@@ -8005,13 +8005,9 @@
         // thickened line.
         const lift = 14 + 2.1 * ovMaW(otf);
         if (y > L.py0 + 26 && y < L.py1 - 4 && !lblYs.some(u => Math.abs(u - y) < 30) && lblYs.push(y)) labels +=
-          (() => {
-            // A solid blue tag with white text: reads over bars, ribbon and fills.
-            const txt = `${tag}${ob.p[k]}`, xr = Math.min(lastVis.x, L.x1) - 6;
-            const w = txt.length * 14 + 16, yb = y - lift + 7;
-            return `<rect x="${(xr - w).toFixed(1)}" y="${(yb - 27).toFixed(1)}" width="${w}" height="30" rx="7" class="reel-ov-lbl-bg"/>`
-              + `<text x="${(xr - 8).toFixed(1)}" y="${(y - lift).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${txt}</text>`;
-          })();
+          // Text only, no background (user, 2026-09-27) — made visible by size
+          // and weight instead.
+          `<text x="${(Math.min(lastVis.x, L.x1) - 6).toFixed(1)}" y="${(y - lift).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${tag}${ob.p[k]}</text>`;
       }
     }
 

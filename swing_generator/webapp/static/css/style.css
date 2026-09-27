@@ -9732,5 +9732,4 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-ov-maw-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .reel-ov-maw-btn { padding: 7px 2px !important; font-size: .78rem !important; text-align: center !important; border: 1px solid var(--border) !important; }
 /* Overlay MA labels, more visible (2026-09-27): larger, heavier, thicker halo. */
-.reel-ov-lbl { font-size: 22px; font-weight: 900; fill: #fff; stroke: none; letter-spacing: .02em; }
-.reel-ov-lbl-bg { fill: #1d4ed8; stroke: #fff; stroke-width: 2px; }
+.reel-ov-lbl { font-size: 26px; font-weight: 900; fill: #1d4ed8; stroke: none; letter-spacing: .02em; }
