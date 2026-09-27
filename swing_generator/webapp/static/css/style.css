@@ -9719,3 +9719,4 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-colorbtn i { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--sw) !important; }
 .reel-fill-switch, .reel-fill-switch.on { color: #111 !important; background: transparent !important; padding: 6px 8px !important; }
 .reel-fill-switch:not(.on) .reel-ov-knob { background: #cfcfca; }
+.reel-grid-swap { width: 100%; margin-top: 2px; }

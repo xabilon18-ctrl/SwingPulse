@@ -7825,6 +7825,7 @@
     if (!GRID_BAND_STEPS.some(([v]) => v === g.lvl)) g.lvl = 65;
     if (!OV_BAND_COLORS.includes(g.color)) g.color = OV_BAND_COLORS[0];
     g.on = !!g.on;
+    g.flip = !!g.flip;
     return g;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
@@ -10416,7 +10417,10 @@
     // first line / after the last is filled when a band runs through the edge.
     let gridBands = '';
     {
-      const lines = tg.map((t, i) => ({ x: xOf(t.fi), odd: ((t.par != null ? t.par : i) % 2) === 1 }))
+      // "Swap" (user, 2026-09-27: "a choice in where the highlight should be")
+      // moves the shading onto the gaps that were clear.
+      const flip = gridShade(timeframe).flip ? 1 : 0;
+      const lines = tg.map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
         const a = Math.max(L.x0, xa), z = Math.min(L.x1, xb);
@@ -10596,7 +10600,8 @@
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === lvl ? ' on' : ''}" data-act="grid-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
         <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
-          `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>`;
+          `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>
+        <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps</button>`;
     }
     return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own</div>`;
   }
@@ -12795,6 +12800,15 @@
       if (btn.dataset.act === 'grid-set') {
         const v = +btn.dataset.v, part = btn.dataset.part, g = gridShade(timeframe);
         if (part === 'on') g.on = !g.on;
+        else if (part === 'flip') {
+          g.flip = !g.flip;
+          // Which gaps are shaded is geometry, not a CSS variable: repaint.
+          ovSave();
+          reelRepaintVisible();
+          const full = chartFullEl();
+          const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+          if (fh && fh._reelCtx) reelRepaint(fh);
+        }
         else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) g.lvl = v;
         else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) g.color = btn.dataset.color;
         else return true;
