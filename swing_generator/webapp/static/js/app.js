@@ -9772,7 +9772,9 @@
   // 15m is WEEKS (user, 2026-09-25: "the grid time lines are monday 00:00 to
   // monday 00:00"): only the week-start lines of the day grid, so each gap is
   // one trading week. Same evenly spaced construction, day lines dropped.
-  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'week', '4H': 'half',
+  // 1H = the year cut into TWELVE equal parts (user, 2026-09-27: "1 year by
+  // 12 which means all months are even") — the 'half' construction below.
+  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -9786,6 +9788,7 @@
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
+  const REEL_YEAR_PARTS_BY_TF = { '1H': 12 };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
@@ -10037,9 +10040,12 @@
       for (let y = y0; y <= y1; y++) {
         const a = idxForMs(Date.UTC(y, 0, 1)), z = idxForMs(Date.UTC(y + 1, 0, 1));
         if (!isFinite(a) || !isFinite(z) || z <= a) continue;
-        for (let k = 0; k < REEL_YEAR_PARTS; k++) {
-          const fi = a + k * (z - a) / REEL_YEAR_PARTS;
-          out.push({ fi, label: reelYearPartLabel(y, k, REEL_YEAR_PARTS), future: fi > lastFi, par: (y * REEL_YEAR_PARTS + k) % 2 });
+        const parts = REEL_YEAR_PARTS_BY_TF[tf] || REEL_YEAR_PARTS;
+        for (let k = 0; k < parts; k++) {
+          const fi = a + k * (z - a) / parts;
+          // With twelve parts the 1 January line is the bold one.
+          out.push({ fi, label: reelYearPartLabel(y, k, parts), future: fi > lastFi, par: (y * parts + k) % 2,
+                     week: parts > 2 && k === 0 });
         }
       }
       return out;
