@@ -7814,7 +7814,7 @@
     const def = { on: false, layers: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {} };
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {} };
     } catch (_) {}
     return def;
   })();
@@ -7835,6 +7835,13 @@
     return g;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
+  // Overlay MA thickness (user, 2026-09-27: "make the daily MAs in the overlay
+  // thicker"), per overlay timeframe. A width multiplier on its ribbon.
+  const OV_MA_WIDTHS = [[1, 'Normal'], [1.7, 'Thick'], [2.5, 'Thicker']];
+  function ovMaW(tf) {
+    const w = (tfOverlay.maW || {})[tf];
+    return OV_MA_WIDTHS.some(([v]) => v === w) ? w : 1;
+  }
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
   }
@@ -7976,7 +7983,7 @@
       a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
       let run = [], down = null, prev = null, lastVis = null;
       const flush = () => {
-        if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="4.2" stroke-dasharray="14 9" stroke-linecap="round" stroke-opacity=".95"/>`;
+        if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="${(4.2 * ovMaW(otf)).toFixed(1)}" stroke-dasharray="${ovMaW(otf) > 1 ? '18 10' : '14 9'}" stroke-linecap="round" stroke-opacity=".95"/>`;
         run = [];
       };
       for (let j = a; j <= z; j++) {
@@ -7993,8 +8000,18 @@
       flush();
       if (lastVis) {
         const y = sc.y(lastVis.v);
-        if (y > L.py0 + 10 && y < L.py1 - 4 && !lblYs.some(u => Math.abs(u - y) < 20) && lblYs.push(y)) labels +=
-          `<text x="${(Math.min(lastVis.x, L.x1) - 6).toFixed(1)}" y="${(y - 9).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${tag}${ob.p[k]}</text>`;
+        // Bigger, heavier labels on a white halo (user, 2026-09-27: "the labels
+        // of the MAs on the overlay must be more visible"), lifted clear of a
+        // thickened line.
+        const lift = 14 + 2.1 * ovMaW(otf);
+        if (y > L.py0 + 26 && y < L.py1 - 4 && !lblYs.some(u => Math.abs(u - y) < 30) && lblYs.push(y)) labels +=
+          (() => {
+            // A solid blue tag with white text: reads over bars, ribbon and fills.
+            const txt = `${tag}${ob.p[k]}`, xr = Math.min(lastVis.x, L.x1) - 6;
+            const w = txt.length * 14 + 16, yb = y - lift + 7;
+            return `<rect x="${(xr - w).toFixed(1)}" y="${(yb - 27).toFixed(1)}" width="${w}" height="30" rx="7" class="reel-ov-lbl-bg"/>`
+              + `<text x="${(xr - 8).toFixed(1)}" y="${(y - lift).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${txt}</text>`;
+          })();
       }
     }
 
@@ -8090,7 +8107,11 @@
       h += `<div class="reel-ov-block"><div class="reel-ov-title">${TF_BY_CODE[tf].label}<span>${tf === timeframe ? 'shown · editable' : 'overlay'}</span></div>` +
         OV_PARTS.map(([k, lbl]) =>
           `<label class="reel-ov-row"><span>${lbl}</span><input type="range" min="0" max="100" step="5" value="${l[k]}" data-ov-tf="${tf}" data-ov-part="${k}" aria-label="${TF_BY_CODE[tf].label} ${lbl} contrast"><b>${l[k]}%</b></label>`
-        ).join('') + '</div>';
+        ).join('')
+        // The overlay's MAs get a thickness choice too.
+        + (tf === timeframe ? '' : `<div class="reel-ov-row reel-ov-maw"><span>MA width</span><div class="reel-ov-maw-btns">${OV_MA_WIDTHS.map(([v, lbl]) =>
+            `<button class="reel-tf-opt reel-ov-maw-btn${ovMaW(tf) === v ? ' on' : ''}" data-act="ov-maw" data-tf="${tf}" data-v="${v}">${lbl}</button>`).join('')}</div></div>`)
+        + '</div>';
     });
     return h;
   }
@@ -12823,6 +12844,19 @@
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
+        return true;
+      }
+      if (btn.dataset.act === 'ov-maw') {
+        const v = +btn.dataset.v, tf = btn.dataset.tf;
+        if (!OV_MA_WIDTHS.some(([a]) => a === v) || !isTf(tf)) return true;
+        (tfOverlay.maW || (tfOverlay.maW = {}))[tf] = v;
+        ovSave();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
       }
       if (btn.dataset.act === 'ov-toggle') {
