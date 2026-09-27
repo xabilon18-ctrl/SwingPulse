@@ -9649,23 +9649,66 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   .reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 4px; margin: 0 1px; }
 }
 
-/* Drawing colour wheel + intensity (2026-09-27). The wheel is a rainbow ring
-   around the drawing's current colour; the real <input type=color> sits on top,
-   invisible, so a tap opens the system picker. */
+/* Drawing colour + intensity (2026-09-27, simplified same day). One colour
+   button in the drawing's row; a tap opens the panel underneath: big colour dots
+   (+ a rainbow wheel for any colour) and four intensity buttons. */
+.reel-colorbtn { padding: 5px !important; }
+.reel-colorbtn i {
+  display: block; width: 26px; height: 26px; border-radius: 50%; background: var(--sw);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px rgba(0,0,0,.25);
+}
+.reel-colorbtn.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
+.reel-style-panel {
+  flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px;
+  padding: 6px 4px 2px; margin-top: 2px; border-top: 1px solid rgba(0,0,0,.1);
+}
+.reel-style-cols { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.reel-style-cols .reel-swatch { padding: 4px; }
+.reel-style-cols .reel-swatch i { width: 26px; height: 26px; }
+.reel-style-alpha { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.reel-alpha-btn {
+  display: flex !important; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 4px !important; border-radius: 10px; background: rgba(0,0,0,.05);
+  font-size: .75rem; font-weight: 700; color: #333;
+}
+.reel-alpha-btn i { display: block; width: 100%; max-width: 54px; height: 6px; border-radius: 3px; }
+.reel-alpha-btn.on { background: rgba(0,0,0,.14); box-shadow: inset 0 0 0 2px rgba(0,0,0,.55); color: #000; }
 .reel-swatch-any { position: relative; display: inline-flex; padding: 4px; cursor: pointer; }
 .reel-swatch-any i {
-  display: block; width: 22px; height: 22px; border-radius: 50%;
-  background: radial-gradient(circle, var(--sw) 0 42%, transparent 44%),
+  display: block; width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle, var(--sw) 0 38%, transparent 40%),
               conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ec4899, #ef4444);
 }
 .reel-swatch-any.on i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--sw); }
 .reel-swatch-any input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
-.reel-props-alpha {
-  flex: 1 0 100%; display: grid; grid-template-columns: 70px 1fr 42px; align-items: center; gap: 8px;
-  padding: 2px 8px 0; font-size: .8rem; color: #333;
+
+/* Grid menu (2026-09-27): Grid button in the chart header, opening a small
+   card of one-tap choices under it. */
+.reel-head-meta { position: relative; }
+.reel-grid-btn.on { color: var(--accent); }
+.reel-grid-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 8; width: 260px;
+  padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,.4);
+  display: flex; flex-direction: column; gap: 6px; text-align: left;
 }
-.reel-props-alpha input { width: 100%; accent-color: var(--reel-ch-color, #3b82f6); touch-action: pan-x; }
-.reel-props-alpha b { text-align: right; font-variant-numeric: tabular-nums; color: #111; }
-/* Grid band colour picks, under the Bands slider in the timeframe menu. */
-.reel-ov-bandcols { display: flex; gap: 2px; padding: 0 0 4px 70px; }
-.reel-ov-bandcols .reel-swatch { padding: 5px; }
+.reel-grid-title { font-size: .78rem; font-weight: 700; color: var(--text-secondary); margin-top: 2px; }
+.reel-grid-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.reel-grid-opt {
+  appearance: none; font-family: inherit; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--text-primary); border-radius: 8px;
+  padding: 9px 2px !important; font-size: .8rem; font-weight: 700;
+}
+.reel-grid-opt.on { background: var(--accent); border-color: var(--accent); color: #000; }
+.reel-grid-cols { display: flex; justify-content: space-between; }
+.reel-grid-cols .reel-swatch { padding: 4px; border: 0; background: transparent; cursor: pointer; }
+.reel-grid-cols .reel-swatch i { width: 26px; height: 26px; }
+.reel-grid-cols .reel-swatch.on i { box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--sw); }
+.reel-grid-note { font-size: .7rem; color: var(--text-muted); text-align: right; }
+.reel-grid-switch {
+  display: flex !important; align-items: center; justify-content: space-between; gap: 12px;
+  appearance: none; border: 0; background: transparent; font-family: inherit; cursor: pointer;
+  padding: 8px 2px !important; font-size: .9rem; font-weight: 700; color: var(--text-primary);
+}
+.reel-grid-switch.on .reel-ov-knob { background: var(--accent); }
+.reel-grid-switch.on .reel-ov-knob::after { transform: translateX(14px); }

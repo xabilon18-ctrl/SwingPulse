@@ -423,7 +423,7 @@
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
-    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -6487,6 +6487,8 @@
   const DRAW_HEX = /^#[0-9a-f]{6}$/i;
   const drawColor = d => (d && (DRAW_COLORS_OK.has(d.color) || DRAW_HEX.test(d.color || ''))) ? d.color : DRAW_COLORS[0];
   // Intensity: the drawing's opacity, 10–100%. Missing = full strength.
+  const DRAW_ALPHAS = [[25, 'Faint'], [50, 'Light'], [75, 'Medium'], [100, 'Full']];
+  let drawStyleOpen = false;
   const drawAlpha = d => (d && d.alpha >= 10 && d.alpha <= 100) ? Math.round(d.alpha) : 100;
 
   // The Draw bar: a PROPERTIES row for the selected drawing above the four
@@ -6522,16 +6524,25 @@
     const d = activeChannel(name);
     if (!d) return '';
     const cur = drawColor(d);
-    const sw = DRAW_COLORS.map(c =>
-      `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
-      // The colour wheel: any colour. Shows the drawing's colour once it is one
-      // the quick picks do not have.
-      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(cur) ? '' : ' on'}" title="Any colour" style="--sw:${cur}"><i></i>`
-      + `<input type="color" value="${cur}" data-act="draw-any-color" data-name="${name}" aria-label="Pick any colour"></label>`;
     const alpha = drawAlpha(d);
-    const intensity = `<label class="reel-props-alpha"><span>Intensity</span>`
-      + `<input type="range" min="10" max="100" step="5" value="${alpha}" data-act="draw-alpha" data-name="${name}" aria-label="Drawing intensity">`
-      + `<b>${alpha}%</b></label>`;
+    // ONE colour button (2026-09-27, user: the row of nine dots + a slider was
+    // "not user friendly" and covered half the chart on a phone). It shows the
+    // drawing's colour at its intensity; a tap opens the colour + intensity
+    // panel under the row, a second tap closes it.
+    const sw = `<button class="reel-tool reel-colorbtn${drawStyleOpen ? ' on' : ''}" data-act="draw-style" data-name="${name}" aria-expanded="${drawStyleOpen}" aria-label="Colour and intensity" title="Colour" style="--sw:${cur}"><i style="opacity:${Math.max(.25, alpha / 100)}"></i></button>`;
+    const intensity = !drawStyleOpen ? '' : `<div class="reel-style-panel">`
+      + `<div class="reel-style-cols">`
+      + DRAW_COLORS.map(c =>
+        `<button class="reel-tool reel-swatch${c === cur ? ' on' : ''}" data-act="draw-color" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
+      // The colour wheel: any colour.
+      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(cur) ? '' : ' on'}" title="Any colour" style="--sw:${cur}"><i></i>`
+      + `<input type="color" value="${cur}" data-act="draw-any-color" data-name="${name}" aria-label="Pick any colour"></label>`
+      + `</div><div class="reel-style-alpha">`
+      // Four big buttons instead of a slider: each shows a line in this colour
+      // at that strength.
+      + DRAW_ALPHAS.map(([v, lbl]) =>
+        `<button class="reel-tool reel-alpha-btn${alpha === v ? ' on' : ''}" data-act="draw-alpha-set" data-v="${v}" data-name="${name}" aria-label="Intensity ${lbl}"><i style="background:${cur};opacity:${v / 100}"></i><span>${lbl}</span></button>`).join('')
+      + `</div></div>`;
     // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
     // labels (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
@@ -7762,14 +7773,17 @@
   // Bands (user, 2026-09-27): every other gap between two grid lines shaded —
   // line to line, skip one, line to line — with its own intensity. Off (0) by
   // default; one colour for all timeframes.
-  const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid'], ['band', 'Bands']];
+  const OV_ALL_PARTS = [...OV_PARTS, ['grid', 'Grid']];
   const OV_BAND_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#a855f7', '#9ca3af'];
   const OV_BAND_MAX = 0.4;   // 100% intensity = 40% fill: bars still read through
+  // ONE setting for every timeframe since 2026-09-27 — set per timeframe, bands
+  // switched on over Daily were simply absent on 15m ("not working").
+  const GRID_BAND_STEPS = [[35, 'Light'], [65, 'Medium'], [100, 'Strong']];
   const tfOverlay = (() => {
     const def = { on: false, layers: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, bandColor: j.bandColor };
+      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, bandColor: j.bandColor, band: j.band, bandOn: !!j.bandOn };
     } catch (_) {}
     return def;
   })();
@@ -7778,6 +7792,12 @@
     OV_ALL_PARTS.forEach(([k]) => { if (!(l[k] >= 0 && l[k] <= 100)) l[k] = k === 'band' ? 0 : 100; });
     return l;
   }
+  // Shading: on/off plus a strength that is kept while it is off, so switching
+  // it back on returns to where it was. gridBand() = the strength in use (0 off).
+  function gridBandLevel() {
+    return GRID_BAND_STEPS.some(([v]) => v === tfOverlay.band) ? tfOverlay.band : 65;
+  }
+  function gridBand() { return tfOverlay.bandOn ? gridBandLevel() : 0; }
   function ovBandColor() {
     return OV_BAND_COLORS.includes(tfOverlay.bandColor) ? tfOverlay.bandColor : OV_BAND_COLORS[0];
   }
@@ -7793,7 +7813,9 @@
     const st = document.documentElement.style;
     tabTfs('charts').forEach(tf => {
       const l = ovLayer(tf);
-      OV_ALL_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100 * (k === 'band' ? OV_BAND_MAX : 1))));
+      OV_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
+      st.setProperty(`--ov-${tf}-grid`, String(l.grid / 100));
+      st.setProperty(`--ov-${tf}-band`, String(gridBand() / 100 * OV_BAND_MAX));
     });
     st.setProperty('--ov-band-color', ovBandColor());
   }
@@ -8018,12 +8040,9 @@
   // sliders per timeframe while it is on.
   function reelOvMenuHtml() {
     const o = ovOtherTf();
-    const g = ovLayer(timeframe).grid, bd = ovLayer(timeframe).band, bc = ovBandColor();
+    const g = ovLayer(timeframe).grid;
     let h = `<div class="reel-ov-sep"></div>
-      <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label>
-      <label class="reel-ov-row"><span>Bands</span><input type="range" min="0" max="100" step="5" value="${bd}" data-ov-tf="${timeframe}" data-ov-part="band" aria-label="${TF_BY_CODE[timeframe].label} grid band intensity"><b>${bd}%</b></label>
-      <div class="reel-ov-bandcols">${OV_BAND_COLORS.map(c =>
-        `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="ov-band-color" data-color="${c}" aria-label="Band colour" style="--sw:${c}"><i></i></button>`).join('')}</div></div>
+      <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
       <button class="reel-tf-opt reel-ov-switch${tfOverlay.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${tfOverlay.on}" data-act="ov-toggle">
         <span>Overlay timeframes</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (!o) return h;
@@ -10520,6 +10539,48 @@
   // stays open. The header toggle already kept the reel's place, but it is off
   // screen behind the full-screen view, so there was no way to flick one chart
   // from 10m to Weekly without closing it and finding it again.
+  // ── Grid menu (2026-09-27) ── a Grid button in every chart header: line
+  // strength, and shading of every other gap between grid lines, as big
+  // one-tap choices. Applies to all timeframes.
+  const GRID_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><rect x="15" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  function gridBtnHtml(name) {
+    return `<button class="reel-share-btn reel-grid-btn${gridBand() ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
+  }
+  function reelGridMenuHtml() {
+    const on = !!tfOverlay.bandOn, lvl = gridBandLevel(), bc = ovBandColor();
+    // The switch first; strength and colour appear only once it is on (user,
+    // 2026-09-27: "a matter of on and off, then adjust if on").
+    let h = `<button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
+        <span>Shade every other gap</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    if (on) {
+      h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
+          `<button class="reel-tool reel-grid-opt${v === lvl ? ' on' : ''}" data-act="grid-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
+        <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
+          `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>`;
+    }
+    return h + `<div class="reel-grid-note">All timeframes</div>`;
+  }
+  function reelGridMenuClose() {
+    document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
+    document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
+  }
+  function reelGridMenuToggle(btn) {
+    const head = btn.parentElement;
+    const open = head && head.querySelector('.reel-grid-menu');
+    reelGridMenuClose();
+    if (!head || open) return;
+    const menu = document.createElement('div');
+    menu.className = 'reel-grid-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = reelGridMenuHtml();
+    head.appendChild(menu);
+  }
+  document.addEventListener('click', e => {
+    if (!document.querySelector('.reel-grid-menu')) return;
+    if (e.target.closest('.reel-grid-menu, .reel-grid-btn')) return;
+    reelGridMenuClose();
+  }, true);
+
   function reelTfMenuClose() {
     document.querySelectorAll('.reel-tf-menu').forEach(m => m.remove());
     document.querySelectorAll('.reel-tf-tag[aria-expanded="true"]')
@@ -10810,6 +10871,7 @@
         </div>
         ${chartBackBtnHtml()}
         ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
+        ${gridBtnHtml(name)}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
@@ -10909,6 +10971,7 @@
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
           ${chartBackBtnHtml()}
           ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
+          ${gridBtnHtml(name)}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
           <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         </div>
@@ -12670,17 +12733,17 @@
         ovZoomTo(host);
         return true;
       }
-      if (btn.dataset.act === 'ov-band-color') {
-        if (!OV_BAND_COLORS.includes(btn.dataset.color)) return true;
-        tfOverlay.bandColor = btn.dataset.color;
-        // Picking a colour while the bands are off turns them on, so the tap
-        // shows something.
-        const l = ovLayer(timeframe);
-        if (!l.band) l.band = 40;
+      if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
+      if (btn.dataset.act === 'grid-set') {
+        const v = +btn.dataset.v, part = btn.dataset.part;
+        if (part === 'on') tfOverlay.bandOn = !tfOverlay.bandOn;
+        else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) tfOverlay.band = v;
+        else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) tfOverlay.bandColor = btn.dataset.color;
+        else return true;
         ovSave();
         ovApplyVars();
-        const panel = btn.closest('.reel-ov-panel');
-        if (panel) panel.innerHTML = reelOvMenuHtml();
+        const menu = btn.closest('.reel-grid-menu');
+        if (menu) menu.innerHTML = reelGridMenuHtml();
         return true;
       }
       if (btn.dataset.act === 'ov-toggle') {
@@ -12769,6 +12832,21 @@
         return true;
       }
       if (btn.dataset.act === 'draw-delete') { channelClear(name, chHost); return true; }
+      if (btn.dataset.act === 'draw-style') {
+        drawStyleOpen = !drawStyleOpen;
+        reelSyncChannelButtons();
+        return true;
+      }
+      if (btn.dataset.act === 'draw-alpha-set') {
+        const d = activeChannel(name), v = +btn.dataset.v;
+        if (d && DRAW_ALPHAS.some(([a]) => a === v)) {
+          if (v >= 100) delete d.alpha; else d.alpha = v;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
       if (btn.dataset.act === 'draw-color')  {
         const d = activeChannel(name);
         if (d && DRAW_COLORS.includes(btn.dataset.color)) {
@@ -12789,34 +12867,24 @@
       return card && card.querySelector('.reel-chart');
     };
     document.addEventListener('input', e => {
-      const r = e.target.closest('input[data-act="draw-alpha"], input[data-act="draw-any-color"]');
+      const r = e.target.closest('input[data-act="draw-any-color"]');
       if (!r) return;
       const h = drawInputHost(r);
       const g = h && h.querySelector('.reel-draw.is-sel');
-      if (r.dataset.act === 'draw-alpha') {
-        const out = r.parentElement.querySelector('b');
-        if (out) out.textContent = r.value + '%';
-        if (g) g.style.opacity = String(+r.value / 100);
-      } else if (DRAW_HEX.test(r.value)) {
+      if (DRAW_HEX.test(r.value)) {
         if (g) g.style.setProperty('--reel-ch-color', r.value);
         const sw = r.closest('.reel-swatch-any');
         if (sw) sw.style.setProperty('--sw', r.value);
       }
     });
     document.addEventListener('change', e => {
-      const r = e.target.closest('input[data-act="draw-alpha"], input[data-act="draw-any-color"]');
+      const r = e.target.closest('input[data-act="draw-any-color"]');
       if (!r) return;
       const name = r.dataset.name;
       channelSeedCommit(name);
       const d = activeChannel(name);
-      if (!d) return;
-      if (r.dataset.act === 'draw-alpha') {
-        const v = Math.round(+r.value);
-        if (v >= 100) delete d.alpha; else d.alpha = Math.max(10, v);
-      } else {
-        if (!DRAW_HEX.test(r.value)) return;
-        d.color = r.value.toLowerCase();
-      }
+      if (!d || !DRAW_HEX.test(r.value)) return;
+      d.color = r.value.toLowerCase();
       channelSave();
       const h = drawInputHost(r);
       if (h) reelRepaint(h);
