@@ -1211,6 +1211,68 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) wlLiveStop(); else if (currentTab === 'watchlist') wlLiveStart();
   });
+
+  // PULL DOWN TO UPDATE (user, 2026-09-27: "by pulling down the screen instead
+  // of waiting"). At the top of the Watchlist, drag down past WL_PULL_AT and
+  // let go: the rows are re-priced now and the 30s clock restarts from here.
+  // A strip opens above the list as you pull and holds "Updating…" until the
+  // prices land. Not while reordering a list (that drag is the grip's).
+  const WL_PULL_AT = 64, WL_PULL_MAX = 96;
+  async function wlRefreshNow() {
+    wlLiveStop();
+    while (wlLiveBusy) await new Promise(r => setTimeout(r, 100));
+    const before = wlLiveAt;
+    await wlPollLive();
+    if (currentTab === 'watchlist' && !document.hidden) wlLiveTimer = setInterval(wlPollLive, WL_LIVE_MS);
+    return wlLiveAt !== before;
+  }
+  (function wlPullWire() {
+    const pane = document.getElementById('pane-watchlist');
+    if (!pane) return;
+    const strip = document.createElement('div');
+    strip.className = 'wl-pull';
+    strip.innerHTML = '<span class="wl-pull-ico">↓</span><span class="wl-pull-txt"></span>';
+    pane.prepend(strip);
+    const ico = strip.firstChild, txt = strip.lastChild;
+    let y0 = null, x0 = 0, dist = 0, busy = false;
+    const show = (h, label, cls) => {
+      strip.style.height = h + 'px';
+      strip.className = 'wl-pull' + (cls ? ' ' + cls : '');
+      txt.textContent = label;
+    };
+    pane.addEventListener('touchstart', ev => {
+      if (busy || ev.touches.length !== 1 || (window.scrollY || 0) > 0) { y0 = null; return; }
+      if (pane.querySelector('.wl2-editing') || ev.target.closest('input, select, textarea')) { y0 = null; return; }
+      y0 = ev.touches[0].clientY; x0 = ev.touches[0].clientX; dist = 0;
+      strip.style.transition = 'none';
+    }, { passive: true });
+    pane.addEventListener('touchmove', ev => {
+      if (y0 == null) return;
+      const dy = ev.touches[0].clientY - y0, dx = ev.touches[0].clientX - x0;
+      if ((window.scrollY || 0) > 0 || (dist === 0 && Math.abs(dx) > Math.abs(dy))) { y0 = null; show(0, ''); return; }
+      dist = Math.max(0, Math.min(WL_PULL_MAX, dy * 0.5));
+      const ready = dist >= WL_PULL_AT;
+      ico.style.transform = `rotate(${ready ? 180 : 0}deg)`;
+      show(dist, ready ? 'Release to update prices' : 'Pull to update prices', ready ? 'is-ready' : '');
+    }, { passive: true });
+    const end = async () => {
+      if (y0 == null) return;
+      y0 = null;
+      strip.style.transition = '';
+      if (dist < WL_PULL_AT) { show(0, ''); return; }
+      busy = true;
+      ico.textContent = '↻'; ico.style.transform = '';
+      show(44, 'Updating prices…', 'is-busy');
+      let ok = false;
+      try { ok = await wlRefreshNow(); } catch (_) {}
+      show(44, ok ? 'Prices updated' : 'No new prices — try again', ok ? 'is-done' : '');
+      ico.textContent = ok ? '✓' : '↓';
+      setTimeout(() => { show(0, ''); ico.textContent = '↓'; busy = false; }, 900);
+    };
+    pane.addEventListener('touchend', end);
+    pane.addEventListener('touchcancel', end);
+  })();
+
   let wlScrollT = 0;
   window.addEventListener('scroll', () => {
     if (currentTab !== 'watchlist') return;
@@ -6392,6 +6454,7 @@
   const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
 
   const TOOL_CIRCLE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>`;
+  const TOOL_TRIANGLE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 4L21 19H3z"/></svg>`;
   const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
   const ICON_BACK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg>`;
   const ICON_UNDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>`;
@@ -6437,6 +6500,7 @@
           <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
           <button class="reel-tool" data-act="channel-add" data-kind="circle" data-name="${name}" title="Circle" aria-label="Circle an area">${TOOL_CIRCLE}</button>
+          <button class="reel-tool" data-act="channel-add" data-kind="triangle" data-name="${name}" title="Triangle" aria-label="Draw a triangle">${TOOL_TRIANGLE}</button>
         </div>
       </div>`;
   }
@@ -8810,6 +8874,21 @@
                              t2: String(b.t[i2]), p2: lo - pad };
   }
 
+  // Triangle (user, 2026-09-27: "add a triangle to the drawing tools"). Three
+  // free corners, (t1,p1) (t2,p2) (t3,p3), each dragged on its own — so it can
+  // mark a converging pattern or any three swing points. Anchored in (date,
+  // price) like the circle. Starts as a right-pointing wedge around the same
+  // few bars the circle uses: top-left on the highs, bottom-left on the lows,
+  // apex to the right at the middle.
+  function reelDefaultTriangle(b) {
+    const c = reelDefaultCircle(b);
+    if (!c) return null;
+    const i1 = reelBarIndexForDate(b, c.t1), i2 = reelBarIndexForDate(b, c.t2);
+    const t3 = i1 == null || i2 == null ? null : reelDateForBarIndex(b, i2 + (i2 - i1));
+    return { kind: 'triangle', t1: c.t1, p1: c.p1, t2: c.t1, p2: c.p2,
+                               t3: t3 || c.t2, p3: (c.p1 + c.p2) / 2 };
+  }
+
   function reelDefaultTrend(b) {
     const n = b.c.length;
     if (n < 8) return null;
@@ -8863,6 +8942,7 @@
     if (kind === 'entry') return reelDefaultEntry(b);
     if (kind === 'trend') return reelDefaultTrend(b);
     if (kind === 'circle') return reelDefaultCircle(b);
+    if (kind === 'triangle') return reelDefaultTriangle(b);
     if (kind === 'hline') return reelDefaultHLine(b);
     if (kind === 'vline') return reelDefaultVLine(b);
     if (kind === 'ladder') return reelDefaultLadder(b);
@@ -8991,7 +9071,7 @@
         if (dt) def.t = dt;
       }
       else if (def.kind === 'ladder') { def.p1 -= shift; def.p4 -= shift; }
-      else { def.p1 -= shift; def.p2 -= shift; }
+      else { def.p1 -= shift; def.p2 -= shift; if (typeof def.p3 === 'number') def.p3 -= shift; }
     }
     addChannelFor(name, def);
     reel.editing = name;
@@ -9113,6 +9193,7 @@
     if (!d) return '';
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'circle') return reelCircleSvg(d, b, L, sc, bw, editing, idx, isActive);
+    if (d.kind === 'triangle') return reelTriangleSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'hline') return reelHLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'vline') return reelVLineSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'ladder') return reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive);
@@ -9149,9 +9230,9 @@
     return { x: mx, y: ya + (yb - ya) * t };
   }
 
-  const DRAW_DATE_KEYS  = ['t', 't1', 't2'];
-  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline', 'circle']);
-  const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p4'];
+  const DRAW_DATE_KEYS  = ['t', 't1', 't2', 't3'];
+  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline', 'circle', 'triangle']);
+  const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p3', 'p4'];
 
   // Write `orig` shifted by dBars and dP into `target`. Offsets that are not
   // positions (a channel's up/dn) are left alone, which is what keeps the shape.
@@ -9266,6 +9347,25 @@
     if (editing && !d.locked) {
       out += reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive)
            + reelMoveHandle(L, cx, cy, idx, isActive);
+    }
+    return out;
+  }
+
+  // Three corners joined by a solid outline, in the circle's style (a dotted
+  // one would read as another MA). A handle on each corner, the move handle at
+  // the centre. Tapping an edge selects it.
+  function reelTriangleSvg(d, b, L, sc, bw, editing, idx, isActive) {
+    const is = [d.t1, d.t2, d.t3].map(t => reelBarIndexForDate(b, t));
+    if (is.some(i => i == null)) return '';
+    const xs = is.map(i => L.x0 + i * bw + bw / 2), ys = [d.p1, d.p2, d.p3].map(p => sc.y(p));
+    if (ys.some(y => !isFinite(y))) return '';
+    const pts = xs.map((x, k) => `${x.toFixed(1)},${ys[k].toFixed(1)}`).join(' ');
+    let out = `<polygon points="${pts}" class="reel-ch reel-tri${d.bold ? ' is-bold' : ''}"/>` +
+              `<polygon points="${pts}" class="reel-ch-hit" data-di="${idx}"/>`;
+    if (editing && !d.locked) {
+      out += reelHandle(L, xs[0], ys[0], 'a', idx, isActive) + reelHandle(L, xs[1], ys[1], 'b', idx, isActive)
+           + reelHandle(L, xs[2], ys[2], 'c', idx, isActive)
+           + reelMoveHandle(L, (xs[0] + xs[1] + xs[2]) / 3, (ys[0] + ys[1] + ys[2]) / 3, idx, isActive);
     }
     return out;
   }
@@ -11812,11 +11912,12 @@
       // solve back through, so the pointer's price IS the anchor price. Running
       // it through the channel branch read ch.up/ch.dn, which a trend does not
       // have, and wrote NaN into the anchor.
-      if (ch.kind === 'trend' || ch.kind === 'circle') {
+      if (ch.kind === 'trend' || ch.kind === 'circle' || ch.kind === 'triangle') {
         const dt = reelDateForBarIndex(ctx.b, fi);
         if (dt) {
-          if (handle === 'a') { ch.t1 = dt; ch.p1 = price; }
-          else                { ch.t2 = dt; ch.p2 = price; }
+          if (handle === 'a')      { ch.t1 = dt; ch.p1 = price; }
+          else if (handle === 'c') { ch.t3 = dt; ch.p3 = price; }
+          else                     { ch.t2 = dt; ch.p2 = price; }
         }
         schedule();
         return;

@@ -8138,6 +8138,8 @@ body {
    another MA. */
 .reel-circle { fill: none; stroke: var(--reel-ch-color); stroke-width: 3.5; stroke-opacity: .95; }
 .reel-circle.is-bold { stroke-width: 7; }
+.reel-tri { fill: var(--reel-ch-color); fill-opacity: .06; stroke: var(--reel-ch-color); stroke-width: 3.5; stroke-opacity: .95; stroke-linejoin: round; }
+.reel-tri.is-bold { stroke-width: 7; }
 .reel-draw .reel-ch-edge.is-bold,
 .reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
@@ -9400,6 +9402,7 @@ body.chart-full-open { overflow: hidden; }
 .reel-tools-row .reel-tool[data-kind="ladder"] { --toy: #ec4899; --toy-edge: #be185d; }
 .reel-tools-row .reel-tool[data-kind="entry"]  { --toy: #facc15; --toy-edge: #ca8a04; color: #3b2f00; }
 .reel-tools-row .reel-tool[data-kind="circle"] { --toy: #14b8a6; --toy-edge: #0f766e; }
+.reel-tools-row .reel-tool[data-kind="triangle"] { --toy: #ef4444; --toy-edge: #b91c1c; }
 /* Seven tools plus undo/redo (the circle made seven, 2026-09-26) overflowed a
    phone row onto a second line over the chart. Slimmer padding and margins on
    narrow screens keep them on one row: ~36px per button, 332px in all. */
@@ -9630,3 +9633,19 @@ body.chart-full-open { overflow: hidden; }
 .reel-sgm-lbl { font-size: 15px; font-weight: 900; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
 .reel-sgm-lbl.up { fill: #047857; }
 .reel-sgm-lbl.dn { fill: #b91c1c; }
+/* Pull down to update live prices on the Watchlist (2026-09-27). The strip
+   opens above the list as you pull; the arrow flips when a release will fire. */
+.wl-pull { height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: .8rem; font-weight: 600; color: var(--text-muted); transition: height .2s ease; }
+.wl-pull-ico { display: inline-block; transition: transform .15s; font-size: 1rem; }
+.wl-pull.is-ready { color: var(--accent); }
+.wl-pull.is-busy .wl-pull-ico { animation: wlPullSpin .8s linear infinite; }
+.wl-pull.is-done { color: var(--buy); }
+@keyframes wlPullSpin { to { transform: rotate(360deg); } }
+/* Android Chrome would otherwise reload the whole page on the same gesture. */
+html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
+/* Eight tools plus undo/redo (the triangle made eight, 2026-09-27): slimmer
+   buttons on phones so they still fit ONE row (~32px each, 325px in all). */
+@media (max-width: 440px) {
+  .reel-tools-row .reel-tool[data-act="channel-add"], .reel-tools-row .reel-hist { padding: 8px 4px; margin: 0 1px; }
+}
