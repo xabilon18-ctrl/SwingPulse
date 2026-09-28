@@ -258,11 +258,28 @@ def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
     ~5 years), then cut to the span the Daily bundle covers — plus the one
     period before it, so the line reaches the left edge. `t` is the period's
     label (a week's Friday, W-FRI; a month's last day); the client places each
-    point at the close of that day. The period in progress is not a bar yet
-    (the resamplers drop it), so the client holds the last closed value flat
-    to the right edge. A period the history cannot warm is left out.
+    point at the close of that day. The period in progress is added below
+    from the daily bars so far; the client holds the last value flat to the
+    newest intraday bar. A period the history cannot warm is left out.
     """
     weekly = resample(df)
+    # The period IN PROGRESS (user, 2026-09-28: "if the data is small we can
+    # add to get it right"): built from the daily bars already held — no extra
+    # Yahoo request — and appended as the last point, dated on the newest daily
+    # bar so the client places it there. Chart overlay only: the signal
+    # pipeline's own resamplers still drop it (a week is not a bar until it
+    # closes, Important Rule 10).
+    last_day = pd.Timestamp(df.index.max())
+    if getattr(last_day, 'tz', None) is not None:
+        last_day = last_day.tz_localize(None)
+    last_day = last_day.normalize()
+    closed_to = weekly.index.max() if len(weekly) else None
+    if closed_to is None or last_day > pd.Timestamp(closed_to).normalize():
+        idx = df.index.tz_localize(None) if getattr(df.index, 'tz', None) is not None else df.index
+        part = df['Close'][idx > (pd.Timestamp(closed_to) if closed_to is not None else pd.Timestamp.min)].dropna()
+        if len(part):
+            live = pd.DataFrame({'Close': [float(part.iloc[-1])]}, index=[last_day])
+            weekly = pd.concat([weekly[['Close']], live])
     periods = [p for p in periods if p <= len(weekly)]
     if not periods:
         return None

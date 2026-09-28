@@ -8180,10 +8180,10 @@
   // and colour. The menu names the timeframe it is setting.
   const GRID_BAND_STEPS = [[35, 'Light'], [65, 'Medium'], [100, 'Strong']];
   const tfOverlay = (() => {
-    const def = { on: false, layers: {} };
+    const def = { layers: {}, htf: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { on: !!j.on, layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+      if (j && typeof j === 'object') return { layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
     } catch (_) {}
     return def;
   })();
@@ -8214,17 +8214,32 @@
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
   }
-  // What the overlay draws (user, 2026-09-28: "make the overlay to only have
-  // MAs from the daily"): the Daily MAs on the intraday charts — no longer a
-  // choice of timeframe, and no 1H/15m overlay on Daily — plus, each switched
-  // on separately, the Weekly and Monthly MAs on every chart. Both of those
-  // come inside the Daily bundle, so they cost no extra fetch.
-  const OV_HTF = [['W', 'Weekly', '50 · 250 · 500'], ['M', 'Monthly', '50']];
-  function ovOtherTf() {
-    return tfOverlay.on && timeframe !== 'D' && tabTfs('charts').includes('D') ? 'D' : null;
+  // What the overlay draws (user, 2026-09-28): MOVING AVERAGES ONLY, from the
+  // higher timeframes, each one its own switch — "if i only want daily alone
+  // or weekly alone or them all i can switch on". The 15m and 1H offer Daily,
+  // Weekly and Monthly; the Daily chart offers Weekly and Monthly. The lines
+  // get thicker the further back the timeframe goes (Daily < Weekly <
+  // Monthly). Switches are kept PER SHOWN TIMEFRAME, so 1H can carry Daily
+  // while 15m carries Weekly. Weekly and Monthly ride inside the Daily bundle
+  // (chart_feed._htf_mas), so every switch costs at most the Daily chunk.
+  const OV_HTF_ALL = [['D', 'Daily', '50 · 250 · 500', 'thin'], ['W', 'Weekly', '50 · 250 · 500', 'thicker'], ['M', 'Monthly', '50', 'thickest']];
+  const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
+  function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
+  function ovSel() {
+    const all = tfOverlay.htf || (tfOverlay.htf = {});
+    // v432 stored one flat {W: true, M: true} for every chart — not a
+    // per-timeframe object, so it is dropped here rather than misread.
+    if (!all[timeframe] || typeof all[timeframe] !== 'object') all[timeframe] = {};
+    return all[timeframe];
   }
-  function ovHtfOn(tf) { return !!(tfOverlay.on && (tfOverlay.htf || {})[tf]); }
-  function ovAny() { return !!(ovOtherTf() || OV_HTF.some(([tf]) => ovHtfOn(tf))); }
+  function ovHtfOn(tf) { return !!ovSel()[tf] && ovHtfChoices().some(([t]) => t === tf); }
+  function ovAny() { return ovHtfChoices().some(([tf]) => ovHtfOn(tf)); }
+  // The bundle to load for the overlay: the Daily one on an intraday chart
+  // whenever any line is switched on (it carries Weekly and Monthly too); none
+  // on Daily, which carries its own.
+  function ovOtherTf() {
+    return timeframe !== 'D' && ovAny() ? 'D' : null;
+  }
   function ovApplyVars() {
     const st = document.documentElement.style;
     OV_HTF.forEach(([tf]) => st.setProperty(`--ov-${tf}-ma`, String(ovLayer(tf).ma / 100)));
@@ -8404,14 +8419,13 @@
   function reelTfTagHtml() {
     // Compact overlay part: the full "+ Daily" made the tag ~44px wider and
     // wrapped the full-screen footer onto a second row (2026-09-26).
-    const parts = [ovOtherTf(), ...OV_HTF.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => tf)].filter(Boolean);
+    const parts = OV_HTF_ALL.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => tf);
     return `${tfMeta().label}${parts.length ? `<i class="reel-tf-plus">+${parts.join('·')}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
   }
 
   // The overlay part of the timeframe menu: the switch, then the shown chart's
   // sliders, the Daily MAs (intraday charts), and a Weekly and a Monthly switch.
   function reelOvMenuHtml() {
-    const o = ovOtherTf();
     const g = ovLayer(timeframe).grid;
     const slider = (tf, k, lbl, name) => {
       const v = ovLayer(tf)[k];
@@ -8419,25 +8433,22 @@
     };
     let h = `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
-      <button class="reel-tf-opt reel-ov-switch${tfOverlay.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${tfOverlay.on}" data-act="ov-toggle">
-        <span>Overlay MAs</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
-    if (!tfOverlay.on) return h;
+      <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div></div>`;
+    // One switch per higher timeframe, thinnest first.
+    ovHtfChoices().forEach(([tf, name, periods, weight]) => {
+      const on = ovHtfOn(tf);
+      h += `<div class="reel-ov-block"><button class="reel-tf-opt reel-ov-switch reel-ov-htf${on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${on}" data-act="ov-htf" data-tf="${tf}">
+          <span>${name}<i>${periods} · ${weight}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
+        (on ? slider(tf, 'ma', 'MAs', name) : '') + '</div>';
+    });
+    if (!ovAny()) return h;
+    // One width for the whole overlay: it scales all three together, so the
+    // Daily < Weekly < Monthly order always holds.
+    h += `<div class="reel-ov-block"><div class="reel-ov-row reel-ov-maw"><span>Width</span><div class="reel-ov-maw-btns">${OV_MA_WIDTHS.map(([v, lbl]) =>
+      `<button class="reel-tf-opt reel-ov-maw-btn${ovMaW('D') === v ? ' on' : ''}" data-act="ov-maw" data-tf="D" data-v="${v}">${lbl}</button>`).join('')}</div></div></div>`;
     const shown = TF_BY_CODE[timeframe].label;
     h += `<div class="reel-ov-block"><div class="reel-ov-title">${shown}<span>shown · editable</span></div>` +
       OV_PARTS.map(([k, lbl]) => slider(timeframe, k, lbl, shown)).join('') + '</div>';
-    if (o) {
-      h += `<div class="reel-ov-block"><div class="reel-ov-title">Daily MAs<span>overlay</span></div>` +
-        slider('D', 'ma', 'MAs', 'Daily') +
-        `<div class="reel-ov-row reel-ov-maw"><span>MA width</span><div class="reel-ov-maw-btns">${OV_MA_WIDTHS.map(([v, lbl]) =>
-          `<button class="reel-tf-opt reel-ov-maw-btn${ovMaW('D') === v ? ' on' : ''}" data-act="ov-maw" data-tf="D" data-v="${v}">${lbl}</button>`).join('')}</div></div></div>`;
-    }
-    // Weekly thicker than Daily, Monthly thickest (user, 2026-09-28).
-    OV_HTF.forEach(([tf, name, periods]) => {
-      const on = ovHtfOn(tf);
-      h += `<div class="reel-ov-block"><button class="reel-tf-opt reel-ov-switch reel-ov-htf${on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${on}" data-act="ov-htf" data-tf="${tf}">
-          <span>${name} MAs<i>${periods}${tf === 'W' ? ' · thicker' : ' · thickest'}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
-        (on ? slider(tf, 'ma', 'MAs', name) : '') + '</div>';
-    });
     return h;
   }
 
@@ -10841,13 +10852,13 @@
     const _ovTf = ovOtherTf();
     const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
     const _htf  = timeframe === 'D' ? (b._src || b) : _ovB;
-    const _ovOn = !!_ovB || OV_HTF.some(([tf]) => ovHtfOn(tf));
+    const _ovOn = !!_htf && ovAny();
     // With the overlay on, this timeframe's drawings take its own contrast too —
     // except while they are being edited, when they must be seen.
     const _hideOwn = _ovOn && !_editing && ovLayer(timeframe).draw === 0;
     let channel = _hideOwn ? '' : reelChannelsSvg(channelsFor(name), b, L, sc, bw,
                                     _editing, activeIdx(name));
-    const ov = _ovOn ? reelOverlaySvg(_ovB, _htf, b, L, sc, bw) : null;
+    const ov = _ovOn ? reelOverlaySvg(ovHtfOn('D') ? _ovB : null, _htf, b, L, sc, bw) : null;
     if (ov) {
       ribbon = `<g ${ovLayerStyle(timeframe, 'ma')}>${ribbon}</g>`;
       if (channel && !_editing) channel = `<g ${ovLayerStyle(timeframe, 'draw')}>${channel}</g>`;
@@ -11553,7 +11564,7 @@
     if (!item) return;
     reelFill(idx);
     const host = document.getElementById('reelChart-' + idx);
-    const pkey = timeframe + (ovOtherTf() ? '+ov' : '') + OV_HTF.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => '+' + tf).join('');
+    const pkey = timeframe + OV_HTF_ALL.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => '+' + tf).join('');
     if (!host || host.dataset.painted === pkey) return;
 
     const name = item.instrument_name;
@@ -13181,17 +13192,9 @@
       }
       if (btn.dataset.act === 'ov-htf') {
         const tf = btn.dataset.tf;
-        if (!OV_HTF.some(([t]) => t === tf)) return true;
-        const all = tfOverlay.htf || (tfOverlay.htf = {});
-        all[tf] = !all[tf];
-        ovSave();
-        const panel = btn.closest('.reel-ov-panel');
-        if (panel) panel.innerHTML = reelOvMenuHtml();
-        ovRefresh();
-        return true;
-      }
-      if (btn.dataset.act === 'ov-toggle') {
-        tfOverlay.on = !tfOverlay.on;
+        if (!ovHtfChoices().some(([t]) => t === tf)) return true;
+        const sel = ovSel();
+        sel[tf] = !sel[tf];
         ovSave();
         const panel = btn.closest('.reel-ov-panel');
         if (panel) panel.innerHTML = reelOvMenuHtml();
