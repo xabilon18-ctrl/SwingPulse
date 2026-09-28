@@ -10169,7 +10169,11 @@
   // one trading week. Same evenly spaced construction, day lines dropped.
   // 1H = the year cut into TWELVE equal parts (user, 2026-09-27: "1 year by
   // 12 which means all months are even") — the 'half' construction below.
-  const REEL_TIME_GRID = { '15m': 'week', '10m': 'month', '1H': 'half', '4H': 'half',
+  // 2026-09-28 (user: "make the grid distance month by month instead of
+  // Monday to Monday ... even, with the quarterly bolded and not double lines;
+  // and the hourly quarter to quarter with the year bolded, all even"):
+  // 15m = MONTHS (quarter bold), 1H = QUARTERS (year bold) — the 'even' grid.
+  const REEL_TIME_GRID = { '15m': 'even', '10m': 'month', '1H': 'even', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -10184,6 +10188,10 @@
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
   const REEL_YEAR_PARTS_BY_TF = { '1H': 12 };
+  // The 'even' grid: how many calendar months one gap is, and every how many
+  // gaps a line is bold. 15m: a month, bold each quarter. 1H: a quarter, bold
+  // each year.
+  const REEL_EVEN_GRID = { '15m': { months: 1, bold: 3 }, '1H': { months: 3, bold: 4 } };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
@@ -10392,6 +10400,59 @@
         });
       }
       return src._weekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
+    }
+
+    // ── The even grid (15m months, 1H quarters) ──────────────────────
+    // Every gap the SAME number of bars, by construction: one step = the
+    // calendar length of the unit (a month = 365.25/12 days, a quarter three of
+    // those) divided by the bundle's average ms per bar (nights and weekends
+    // included, measured over the whole bundle). The grid is pinned on the
+    // newest real unit start the data holds — that line sits exactly on its
+    // bar — and every other line is a whole number of steps from it, past and
+    // future. So lines stay within a day or so of the real 1st while every gap
+    // is identical. One line per position: a bold line REPLACES the plain one,
+    // never sits beside it. Labels: a month line names the month it starts
+    // ("Oct"); a bold quarter line names the quarter it ENDS ("Q3 2026", the
+    // user's rule from 2026-09-27); a bold year line names the new year.
+    if (mode === 'even') {
+      const src = b._src || b, from = b._from || 0, sn = src.t.length;
+      if (sn < 2) return [];
+      if (!src._evenGrid) {
+        const cfg = REEL_EVEN_GRID[tf] || REEL_EVEN_GRID['15m'];
+        const bt = reelBarTimes(src);
+        const perMs = (bt[sn - 1] - bt[0]) / (sn - 1);
+        if (!(perMs > 0)) return [];
+        const step = cfg.months * (365.25 / 12) * 864e5 / perMs;
+        // Newest unit start inside the data: months counted from year 0.
+        const last = new Date(bt[sn - 1]);
+        let u = Math.floor((last.getUTCFullYear() * 12 + last.getUTCMonth()) / cfg.months) * cfg.months;
+        let anchor = null;
+        for (let tries = 0; tries < 24 && anchor == null; tries++, u -= cfg.months) {
+          const ms = Date.UTC(Math.floor(u / 12), u % 12, 1);
+          if (ms <= bt[0]) break;
+          let lo = 0, hi = sn - 1;
+          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] < ms) lo = mid; else hi = mid; }
+          anchor = { fi: bt[lo] >= ms ? lo : hi, u };
+        }
+        if (!anchor) anchor = { fi: (Date.UTC(Math.floor(u / 12), u % 12, 1) - bt[0]) / perMs, u };
+        const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const lines = [];
+        const kMin = Math.floor(-anchor.fi / step) - 1;
+        const kMax = Math.ceil((2 * sn - anchor.fi) / step);   // a window of blank future
+        for (let k = kMin; k <= kMax; k++) {
+          const um = anchor.u + k * cfg.months;               // month count of this line
+          const y = Math.floor(um / 12), m = ((um % 12) + 12) % 12;
+          const unitNo = Math.floor(um / cfg.months);
+          const bold = unitNo % cfg.bold === 0;
+          let label;
+          if (cfg.months === 1) label = bold ? (m === 0 ? `Q4 ${y - 1}` : `Q${m / 3} ${y}`) : MON[m];
+          else label = bold ? String(y) : `Q${m / 3} ${y}`;
+          lines.push({ fi: anchor.fi + k * step, label, week: bold, par: ((unitNo % 2) + 2) % 2 });
+        }
+        src._evenGrid = lines;
+      }
+      const lastFi = (sn - 1) - from;
+      return src._evenGrid.map(l => Object.assign({}, l, { fi: l.fi - from, future: l.fi - from > lastFi }));
     }
 
     // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
