@@ -9734,7 +9734,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-ov-maw-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .reel-ov-maw-btn { padding: 7px 2px !important; font-size: .78rem !important; text-align: center !important; border: 1px solid var(--border) !important; }
 /* Overlay MA labels, more visible (2026-09-27): larger, heavier, thicker halo. */
-.reel-ov-lbl { font-size: 26px; font-weight: 900; fill: #1d4ed8; stroke: none; letter-spacing: .02em; }
+.reel-ov-lbl { font-size: 26px; font-weight: 400; fill: #111; stroke: none; letter-spacing: .02em; }   /* not bold, black (user, 2026-09-28) */
 
 /* Nothing on a chart is text to copy (user, 2026-09-27: "the text below the
    chart is selectable and always highlighted when i am working on the chart").
