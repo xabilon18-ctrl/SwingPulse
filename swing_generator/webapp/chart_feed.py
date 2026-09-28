@@ -60,7 +60,7 @@ from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read
                           scale_daily, SGX_FRONT)
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
-                  _resample_weekly, _resample_3d, _resample_10m,
+                  _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
                   _m10_ma_periods, _frame_5m, _frame_15m, _m15_ma_periods,
                   _frame_1h, _m1h_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
@@ -235,7 +235,49 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
-    return _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'])
+    out = _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'])
+    if out:
+        # Higher-timeframe MA lines for the overlay: Weekly 50/250/500 and
+        # Monthly 50 only (user, 2026-09-28: "the monthly with a 50MA thicker
+        # than them all"; a Monthly 250/500 is ~21/42 years, never warm).
+        for key, resample, periods in (('w', _resample_weekly, MA_PERIODS),
+                                       ('mo', _resample_monthly, [50])):
+            ma = _htf_mas(df, out['t'][0], resample, periods)
+            if ma:
+                out[key] = ma
+    return out
+
+
+def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
+    """Weekly / Monthly MA lines for the chart overlay (user, 2026-09-28:
+    "include the option to include the weekly ... make the weekly MAs thicker").
+
+    Only the MA lines ride along, never the bars: the overlay draws MAs only.
+    They are rolled over the WHOLE daily cache resampled to closed periods
+    (MA500 weekly = ~9.6 years, Monthly MA50 = ~4.2, against the Daily bundle's
+    ~5 years), then cut to the span the Daily bundle covers — plus the one
+    period before it, so the line reaches the left edge. `t` is the period's
+    label (a week's Friday, W-FRI; a month's last day); the client places each
+    point at the close of that day. The period in progress is not a bar yet
+    (the resamplers drop it), so the client holds the last closed value flat
+    to the right edge. A period the history cannot warm is left out.
+    """
+    weekly = resample(df)
+    periods = [p for p in periods if p <= len(weekly)]
+    if not periods:
+        return None
+    mas = _ma_frame(weekly, periods)
+    keep = weekly.index >= pd.Timestamp(since)
+    if not keep.any():
+        return None
+    first = keep.argmax()
+    if first > 0:
+        keep[first - 1] = True
+    return {
+        't': [d.strftime('%Y-%m-%d') for d in weekly.index[keep]],
+        'p': periods,
+        'm': [[_round(v) for v in mas[p][keep]] for p in periods],
+    }
 
 
 def build_4h(cache_dir: str, ticker: str) -> dict | None:

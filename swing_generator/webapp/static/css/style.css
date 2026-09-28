@@ -8000,8 +8000,8 @@ body {
   border-radius: 50%; background: #fff; transition: transform .18s; }
 .reel-ov-switch.on .reel-ov-knob { background: var(--accent); }
 .reel-ov-switch.on .reel-ov-knob::after { transform: translateX(14px); }
-.reel-ov-zoom { display: flex; flex-direction: column; gap: 1px; color: #3b82f6; }
-.reel-ov-zoom i { font-style: normal; font-size: .72rem; font-weight: 500; color: var(--text-muted); }
+.reel-ov-htf { width: 100%; padding-left: 0 !important; padding-right: 0 !important; }
+.reel-ov-htf span i { display: block; font-style: normal; font-size: .72rem; font-weight: 500; color: var(--text-muted); }
 .reel-ov-block { padding: 6px 12px 4px; }
 .reel-ov-title { font-size: .8rem; font-weight: 800; color: var(--accent); display: flex; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
 .reel-ov-title span { font-weight: 600; color: var(--text-muted); font-size: .72rem; }
