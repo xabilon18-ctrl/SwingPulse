@@ -9829,4 +9829,3 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-ov-set { flex: 0 0 auto; font: inherit; font-size: .7rem; font-weight: 700; line-height: 1; padding: 5px 8px; border-radius: 999px;
   border: 1px solid var(--border); background: transparent; color: var(--text-secondary, var(--text-muted)); cursor: pointer; }
 .reel-ov-set.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.reel-ov-set-cap { font-size: .68rem; color: var(--text-muted); padding: 0 2px 2px 70px; font-variant-numeric: tabular-nums; }
