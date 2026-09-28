@@ -8233,7 +8233,6 @@
     const all = tfOverlay.rib || (tfOverlay.rib = {});
     const g = all[tf] || (all[tf] = {});
     if (!GRID_BAND_STEPS.some(([v]) => v === g.lvl)) g.lvl = 35;
-    if (!OV_BAND_COLORS.includes(g.color)) g.color = OV_BAND_COLORS[0];
     g.on = !!g.on;
     return g;
   }
@@ -8300,7 +8299,6 @@
       st.setProperty(`--ov-${tf}-band`, String(gridBand(tf) / 100 * OV_BAND_MAX));
       st.setProperty(`--ov-${tf}-band-color`, gridShade(tf).color);
       st.setProperty(`--ov-${tf}-rib`, String(ribShade(tf).lvl / 100 * RIB_MAX));
-      st.setProperty(`--ov-${tf}-rib-color`, ribShade(tf).color);
     });
   }
   ovApplyVars();
@@ -10746,11 +10744,16 @@
     // three MAs at each sample, one polygon per unbroken stretch. Colour and
     // strength are CSS variables (no repaint); on/off is geometry.
     let ribFill = '';
+    // Green where the fast MA is above the slow one (uptrend), red below
+    // (user, 2026-09-28: "instead of many colours, red for down and green for
+    // up"). A run ends ON the sample where they cross and the next starts from
+    // it, so the band has no gap where the colour changes.
     if (nMa >= 2 && ribShade(timeframe).on) {
-      const segs = [];
-      let up = [], dn = [];
-      const cut = () => { if (up.length >= 2) segs.push(up.join(' ') + ' ' + dn.reverse().join(' ')); up = []; dn = []; };
-      for (let j = 0; j < b.m[0].length; j++) {
+      const segs = { up: [], dn: [] };
+      let up = [], dn = [], dir = null;
+      const cut = () => { if (up.length >= 2) segs[dir].push(up.join(' ') + ' ' + dn.slice().reverse().join(' ')); up = []; dn = []; };
+      const fast = b.m[0], slow = b.m[nMa - 1];
+      for (let j = 0; j < fast.length; j++) {
         let hi = -Infinity, lo = Infinity, ok = true;
         for (let k = 0; k < nMa; k++) {
           const v = b.m[k][j];
@@ -10758,13 +10761,22 @@
           if (v > hi) hi = v;
           if (v < lo) lo = v;
         }
-        if (!ok) { cut(); continue; }
+        if (!ok) { cut(); dir = null; continue; }
         const x = xOf(mIdx[j]).toFixed(1);
-        up.push(x + ',' + sc.y(hi).toFixed(1));
-        dn.push(x + ',' + sc.y(lo).toFixed(1));
+        const pu = x + ',' + sc.y(hi).toFixed(1), pd = x + ',' + sc.y(lo).toFixed(1);
+        const d = fast[j] >= slow[j] ? 'up' : 'dn';
+        if (dir !== null && d !== dir) {
+          up.push(pu); dn.push(pd); cut();
+          up = [pu]; dn = [pd]; dir = d;
+          continue;
+        }
+        dir = d; up.push(pu); dn.push(pd);
       }
       cut();
-      if (segs.length) ribFill = `<g class="reel-rib-g" style="fill:var(--ov-${timeframe}-rib-color,#3b82f6);opacity:var(--ov-${timeframe}-rib,0)">${segs.map(pts => `<polygon points="${pts}"/>`).join('')}</g>`;
+      const poly = list => list.map(pts => `<polygon points="${pts}"/>`).join('');
+      if (segs.up.length || segs.dn.length) ribFill = `<g class="reel-rib-g" style="opacity:var(--ov-${timeframe}-rib,0)">` +
+        (segs.up.length ? `<g class="reel-rib up">${poly(segs.up)}</g>` : '') +
+        (segs.dn.length ? `<g class="reel-rib dn">${poly(segs.dn)}</g>` : '') + '</g>';
     }
 
     // ── OHLC bars ──
@@ -11089,12 +11101,10 @@
     const r = ribShade(timeframe);
     h += `<div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${r.on ? ' on' : ''}" data-act="rib-set" data-part="on" role="menuitemcheckbox" aria-checked="${r.on}">
-        <span>Shade between the 3 MAs<em>50 · 250 · 500 band</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+        <span>Shade between the 3 MAs<em>green up · red down</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (r.on) {
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
-          `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
-        <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
-          `<button class="reel-tool reel-swatch${c === r.color ? ' on' : ''}" data-act="rib-set" data-part="color" data-color="${c}" aria-label="MA shade colour" style="--sw:${c}"><i></i></button>`).join('')}</div>`;
+          `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
     return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own</div>`;
   }
@@ -13332,7 +13342,6 @@
         const v = +btn.dataset.v, part = btn.dataset.part, r = ribShade(timeframe);
         if (part === 'on') r.on = !r.on;
         else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) r.lvl = v;
-        else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) r.color = btn.dataset.color;
         else return true;
         ovSave();
         ovApplyVars();

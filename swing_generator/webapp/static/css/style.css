@@ -9832,3 +9832,5 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 
 /* Ribbon shade section in the grid menu (2026-09-28) */
 .reel-grid-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.reel-rib.up { fill: #22c55e; }
+.reel-rib.dn { fill: #ef4444; }
