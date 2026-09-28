@@ -8186,7 +8186,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8224,6 +8224,19 @@
     return g;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
+  // Ribbon shade (user, 2026-09-28: "a shade within the trend MAs, the 3 MAs
+  // that move with price, with an option to change colour and intensity ...
+  // on 15, 1h and daily"): the band from the highest to the lowest of the
+  // chart's own three MAs, per timeframe like the grid shading. Off by default.
+  const RIB_MAX = 0.35;       // Strong = 35% fill: the bars still read through
+  function ribShade(tf) {
+    const all = tfOverlay.rib || (tfOverlay.rib = {});
+    const g = all[tf] || (all[tf] = {});
+    if (!GRID_BAND_STEPS.some(([v]) => v === g.lvl)) g.lvl = 35;
+    if (!OV_BAND_COLORS.includes(g.color)) g.color = OV_BAND_COLORS[0];
+    g.on = !!g.on;
+    return g;
+  }
   // Overlay MA thickness (user, 2026-09-27: "make the daily MAs in the overlay
   // thicker"), per overlay timeframe. A width multiplier on its ribbon.
   const OV_MA_WIDTHS = [[1, 'Normal'], [1.7, 'Thick'], [2.5, 'Thicker']];
@@ -8286,6 +8299,8 @@
       st.setProperty(`--ov-${tf}-grid`, String(l.grid / 100));
       st.setProperty(`--ov-${tf}-band`, String(gridBand(tf) / 100 * OV_BAND_MAX));
       st.setProperty(`--ov-${tf}-band-color`, gridShade(tf).color);
+      st.setProperty(`--ov-${tf}-rib`, String(ribShade(tf).lvl / 100 * RIB_MAX));
+      st.setProperty(`--ov-${tf}-rib-color`, ribShade(tf).color);
     });
   }
   ovApplyVars();
@@ -10727,6 +10742,31 @@
       flush();
     }
 
+    // ── Ribbon shade ── the band between the highest and the lowest of the
+    // three MAs at each sample, one polygon per unbroken stretch. Colour and
+    // strength are CSS variables (no repaint); on/off is geometry.
+    let ribFill = '';
+    if (nMa >= 2 && ribShade(timeframe).on) {
+      const segs = [];
+      let up = [], dn = [];
+      const cut = () => { if (up.length >= 2) segs.push(up.join(' ') + ' ' + dn.reverse().join(' ')); up = []; dn = []; };
+      for (let j = 0; j < b.m[0].length; j++) {
+        let hi = -Infinity, lo = Infinity, ok = true;
+        for (let k = 0; k < nMa; k++) {
+          const v = b.m[k][j];
+          if (v == null) { ok = false; break; }
+          if (v > hi) hi = v;
+          if (v < lo) lo = v;
+        }
+        if (!ok) { cut(); continue; }
+        const x = xOf(mIdx[j]).toFixed(1);
+        up.push(x + ',' + sc.y(hi).toFixed(1));
+        dn.push(x + ',' + sc.y(lo).toFixed(1));
+      }
+      cut();
+      if (segs.length) ribFill = `<g class="reel-rib-g" style="fill:var(--ov-${timeframe}-rib-color,#3b82f6);opacity:var(--ov-${timeframe}-rib,0)">${segs.map(pts => `<polygon points="${pts}"/>`).join('')}</g>`;
+    }
+
     // ── OHLC bars ──
     // One neutral colour. Direction is the ribbon's job here, not the bars'.
     // Price has to stay findable against the ribbon, so the bars keep a
@@ -11015,7 +11055,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' || timeframe === '1H' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${timeframe === '15m' || timeframe === '1H' ? reel15mMarksSvg(b, L, sc, bw) : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -11031,7 +11071,7 @@
   // one-tap choices. Applies to all timeframes.
   const GRID_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><rect x="15" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
   function gridBtnHtml(name) {
-    return `<button class="reel-share-btn reel-grid-btn${gridBand() ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
+    return `<button class="reel-share-btn reel-grid-btn${gridBand() || ribShade(timeframe).on ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
   function reelGridMenuHtml() {
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
@@ -11046,11 +11086,21 @@
           `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>
         <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps</button>`;
     }
+    const r = ribShade(timeframe);
+    h += `<div class="reel-grid-sep"></div>
+      <button class="reel-tool reel-grid-switch${r.on ? ' on' : ''}" data-act="rib-set" data-part="on" role="menuitemcheckbox" aria-checked="${r.on}">
+        <span>Shade between the 3 MAs<em>50 · 250 · 500 band</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    if (r.on) {
+      h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
+          `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
+        <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
+          `<button class="reel-tool reel-swatch${c === r.color ? ' on' : ''}" data-act="rib-set" data-part="color" data-color="${c}" aria-label="MA shade colour" style="--sw:${c}"><i></i></button>`).join('')}</div>`;
+    }
     return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own</div>`;
   }
   function reelGridMenuClose() {
     document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
-    document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
+    document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
   }
   function reelGridMenuToggle(btn) {
     const open = document.querySelector('.reel-grid-menu');
@@ -11743,7 +11793,10 @@
     // to resolve the variable against — it fell back to 1 and every faded
     // layer came out at full strength. Write the resolved number instead.
     const st = cloneEl.getAttribute && cloneEl.getAttribute('style');
-    if (st && st.includes('var(--ov-')) cloneEl.style.opacity = cs.opacity;
+    if (st && st.includes('var(--ov-')) {
+      cloneEl.style.opacity = cs.opacity;
+      if (st.includes('fill:var(')) cloneEl.style.fill = cs.fill;   // shade colours
+    }
     const lk = liveEl.children, ck = cloneEl.children;
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
@@ -13275,6 +13328,26 @@
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
+      if (btn.dataset.act === 'rib-set') {
+        const v = +btn.dataset.v, part = btn.dataset.part, r = ribShade(timeframe);
+        if (part === 'on') r.on = !r.on;
+        else if (part === 'band' && GRID_BAND_STEPS.some(([a]) => a === v)) r.lvl = v;
+        else if (part === 'color' && OV_BAND_COLORS.includes(btn.dataset.color)) r.color = btn.dataset.color;
+        else return true;
+        ovSave();
+        ovApplyVars();
+        if (part === 'on') {
+          // The band is geometry: switching it repaints; colour/strength don't.
+          reelRepaintVisible();
+          const full = chartFullEl();
+          const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+          if (fh && fh._reelCtx) reelRepaint(fh);
+        }
+        const menu = btn.closest('.reel-grid-menu');
+        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+        return true;
+      }
       if (btn.dataset.act === 'grid-set') {
         const v = +btn.dataset.v, part = btn.dataset.part, g = gridShade(timeframe);
         if (part === 'on') g.on = !g.on;
@@ -13294,7 +13367,7 @@
         ovApplyVars();
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
-        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand()));
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
         return true;
       }
       if (btn.dataset.act === 'ov-maw') {
