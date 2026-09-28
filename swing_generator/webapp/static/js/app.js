@@ -8360,7 +8360,7 @@
         P.forEach((p, j) => { if (p && inView(p.x)) { if (a < 0) a = j; z = j; } });
         if (a < 0) continue;
         a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
-        let run = [], down = null, prev = null, lastVis = null;
+        let run = [], down = null, prev = null, before = null, firstVis = null;
         const flush = () => {
           if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
           run = [];
@@ -8369,7 +8369,8 @@
           const p = P[j];
           if (!p) { flush(); prev = null; down = null; continue; }
           const pt = p.x.toFixed(1) + ',' + sc.y(p.v).toFixed(1);
-          if (p.x <= L.x1) lastVis = p;
+          if (p.x < L.x0) before = p;
+          else if (!firstVis && p.x <= L.x1) firstVis = p;
           if (prev == null) { run = [pt]; prev = p.v; continue; }
           const d = p.v < prev;
           if (down === null) down = d;
@@ -8377,13 +8378,21 @@
           run.push(pt); prev = p.v;
         }
         flush();
-        if (lastVis) {
-          const y = sc.y(lastVis.v);
+        // Label at the FAR LEFT (user, 2026-09-28: "keep the MA labels to the
+        // far left like how price is on the right"): where the line crosses
+        // the left edge, or where it starts if it starts inside the chart.
+        if (firstVis) {
+          let v = firstVis.v, x = firstVis.x;
+          if (before && firstVis.x > before.x) {
+            v = before.v + (firstVis.v - before.v) * (L.x0 - before.x) / (firstVis.x - before.x);
+            x = L.x0;
+          }
+          const y = sc.y(v);
           // Plain text, no background (user, 2026-09-27), lifted clear of the
           // line by its own thickness.
           const lift = 12 + width / 2;
           if (y > L.py0 + 26 && y < L.py1 - 4 && !lblYs.some(u => Math.abs(u - y) < 30) && lblYs.push(y)) labels +=
-            `<text x="${(Math.min(lastVis.x, L.x1) - 6).toFixed(1)}" y="${(y - lift).toFixed(1)}" class="reel-ov-lbl" text-anchor="end">${tag}${periods[k]}</text>`;
+            `<text x="${(x + 6).toFixed(1)}" y="${(y - lift).toFixed(1)}" class="reel-ov-lbl" text-anchor="start">${tag}${periods[k]}</text>`;
         }
       }
       return ribbon + labels;
