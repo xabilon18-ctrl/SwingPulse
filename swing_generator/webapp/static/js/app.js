@@ -8136,6 +8136,8 @@
     cat:    '',
     trend:  'all',
     stack:  'all',
+    near:   'all',      // Near MA filter: 'all' | 'D' | 'W' | 'M' | 'any'
+    nearWithin: 0.5,    // in 14-day ATRs (a day's range)
     similarTo: '',          // instrument whose lookalikes the reel is showing
     listSet: null,          // {label, names} — the watchlist the chart was opened from
     sort:   'signal',
@@ -8180,10 +8182,28 @@
   // and colour. The menu names the timeframe it is setting.
   const GRID_BAND_STEPS = [[35, 'Light'], [65, 'Medium'], [100, 'Strong']];
   const tfOverlay = (() => {
-    const def = { layers: {}, htf: {} };
+    const def = { v: 2, layers: {}, htf: {} };
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
-      if (j && typeof j === 'object') return { layers: j.layers || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+      if (j && typeof j === 'object') {
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+        // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
+        // vanish when i turn on the weekly and monthly overlays"). Until now a
+        // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
+        // chart's own candles AND, from 15m/1H, the old Daily range boxes —
+        // so hiding those boxes left the Daily candles at 0 the moment any
+        // overlay drew on Daily. Overlay lines now have their own layers
+        // (oD/oW/oM); the old bar fades belonged to the boxes, so they reset.
+        if (o.v !== 2) {
+          const keep = {};
+          ['W', 'M'].forEach(tf => { const l = o.layers[tf]; if (l && l.ma >= 0) keep['o' + tf] = { ma: l.ma }; });
+          Object.values(o.layers).forEach(l => { if (l && typeof l === 'object') { l.bars = 100; l.draw = 100; l.ma = 100; } });
+          Object.assign(o.layers, keep);
+          o.v = 2;
+          try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(o)); } catch (_) {}
+        }
+        return o;
+      }
     } catch (_) {}
     return def;
   })();
@@ -8222,7 +8242,18 @@
   // Monthly). Switches are kept PER SHOWN TIMEFRAME, so 1H can carry Daily
   // while 15m carries Weekly. Weekly and Monthly ride inside the Daily bundle
   // (chart_feed._htf_mas), so every switch costs at most the Daily chunk.
-  const OV_HTF_ALL = [['D', 'Daily', '50 · 250 · 500', 'thin'], ['W', 'Weekly', '50 · 250 · 500', 'thicker'], ['M', 'Monthly', '50', 'thickest']];
+  const OV_HTF_ALL = [['D', 'Daily', '', 'thin'], ['W', 'Weekly', '', 'thicker'], ['M', 'Monthly', '', 'thickest']];
+  // Overlay MA SETS (user, 2026-09-28: "another profile for the overlay ...
+  // 50, 100, 200, 300 and 500 ... only for the overlay"). One choice for every
+  // chart timeframe; the chart's own ribbon stays 50/250/500 regardless.
+  // Monthly draws only what its history can warm (250/500 = 21/42 years; 300
+  // rarely), so its list is shorter.
+  const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500] };
+  function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
+  function ovPeriods() { return OV_SETS[ovSet()]; }
+  function ovPeriodsTxt(tf) {
+    return ovPeriods().filter(p => tf !== 'M' || p <= 300).filter(p => tf !== 'M' || ovSet() === 'wide' || p === 50).join(' · ');
+  }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
   function ovSel() {
@@ -8242,7 +8273,7 @@
   }
   function ovApplyVars() {
     const st = document.documentElement.style;
-    OV_HTF.forEach(([tf]) => st.setProperty(`--ov-${tf}-ma`, String(ovLayer(tf).ma / 100)));
+    OV_HTF_ALL.forEach(([tf]) => st.setProperty(`--ov-o${tf}-ma`, String(ovLayer('o' + tf).ma / 100)));
     tabTfs('charts').forEach(tf => {
       const l = ovLayer(tf);
       OV_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
@@ -8360,14 +8391,42 @@
       const h = htf && ovHtfOn(tf) && htf[key];
       if (!h || !h.m || !h.m.length) return;
       const ht = h._bt || (h._bt = h.t.map(reelParseTs));
-      under += `<g class="reel-ov" ${ovLayerStyle(tf, 'ma')}>${ribbonSvg(ht, null, h.p, h.m, tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}</g>`;
+      const want = ovPeriods();
+      const ks = h.p.map((p, k) => want.includes(p) ? k : -1).filter(k => k >= 0);
+      if (!ks.length) return;
+      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}</g>`;
     });
     if (ob && ob.m && ob.m.length) {
       const ot = reelBarTimes(ob);
       const mi = ob.mi || ob.m[0].map((_, j) => Math.min(j * (ob.ms || 1), ot.length - 1));
-      under += `<g class="reel-ov" ${ovLayerStyle('D', 'ma')}>${ribbonSvg(ot, mi, ob.p, ob.m, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}</g>`;
+      // A period the bundle does not ship (100/200/300) is rolled here from
+      // its own closes, sampled at the same points as the shipped lines.
+      const ps = [], ms = [];
+      ovPeriods().forEach(p => {
+        const k = ob.p.indexOf(p);
+        if (k >= 0) { ps.push(p); ms.push(ob.m[k]); return; }
+        const cm = ob._cma || (ob._cma = {});
+        if (!cm[p]) cm[p] = reelRollingAt(ob.c, p, mi);
+        if (cm[p].some(v => v != null)) { ps.push(p); ms.push(cm[p]); }
+      });
+      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}</g>`;
     }
     return { under, draw: '' };
+  }
+
+  // Simple moving average of `c` over `p` bars, read at the bar indices `at`.
+  function reelRollingAt(c, p, at) {
+    const pre = [0];
+    let bad = [0];
+    for (let i = 0; i < c.length; i++) {
+      pre.push(pre[i] + (c[i] == null ? 0 : c[i]));
+      bad.push(bad[i] + (c[i] == null ? 1 : 0));
+    }
+    return at.map(i => {
+      if (i + 1 < p) return null;
+      if (bad[i + 1] - bad[i + 1 - p]) return null;
+      return (pre[i + 1] - pre[i + 1 - p]) / p;
+    });
   }
 
   // 15m MARKERS (user, 2026-09-26: circled 15m +D charts, "indications just
@@ -8433,13 +8492,15 @@
     };
     let h = `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
-      <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div></div>`;
+      <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
+        <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-maw-btns reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
+          `<button class="reel-tf-opt reel-ov-maw-btn${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}">${ps.join(' · ')}</button>`).join('')}</div></div></div>`;
     // One switch per higher timeframe, thinnest first.
     ovHtfChoices().forEach(([tf, name, periods, weight]) => {
       const on = ovHtfOn(tf);
       h += `<div class="reel-ov-block"><button class="reel-tf-opt reel-ov-switch reel-ov-htf${on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${on}" data-act="ov-htf" data-tf="${tf}">
-          <span>${name}<i>${periods} · ${weight}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
-        (on ? slider(tf, 'ma', 'MAs', name) : '') + '</div>';
+          <span>${name}<i>${ovPeriodsTxt(tf)} · ${weight}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
+        (on ? slider('o' + tf, 'ma', 'MAs', name) : '') + '</div>';
     });
     if (!ovAny()) return h;
     // One width for the whole overlay: it scales all three together, so the
@@ -11399,6 +11460,7 @@
           ${simPct(name)}
           ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+          ${(() => { const h = reelNearHit(name); return h ? `<span class="reel-near" title="${Math.abs(h.atr)} of a day's range ${h.atr >= 0 ? 'above' : 'below'} the ${h.key}">${h.key} ${h.pct >= 0 ? '+' : ''}${h.pct.toFixed(2)}%</span>` : ''; })()}
           ${chartBackBtnHtml()}
           ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
           ${gridBtnHtml(name)}
@@ -11463,6 +11525,14 @@
     // Same predicate the Signals sheet uses, so "near cross" cannot come to
     // mean two different things on two tabs.
     if (reel.stack !== 'all') rows = withRowTf(() => rows.filter(d => matchesStackFilter(d, reel.stack)));
+    // Near MA (2026-09-28): needs the chart index, like the 15m scopes below.
+    if (reel.near !== 'all') {
+      if (!reel.index) {
+        reelLoadIndex().then(() => { if (currentTab === 'charts' && reel.near !== 'all') buildReel(); });
+        return [];
+      }
+      rows = rows.filter(d => reelNearHit(d.instrument_name));
+    }
 
     // 15m marker scopes (2026-09-26): instruments with a 15m B1/S1, or a 15m
     // mark at a Daily MA, on their last two trading dates — read from the chart
@@ -11521,7 +11591,28 @@
         a.instrument_name.localeCompare(b.instrument_name));
     }
     });
+    // Near MA: nearest first, whatever the Sort pill says — the point of the
+    // filter is the one sitting on the line.
+    if (reel.near !== 'all') {
+      sorted.sort((a, b) => Math.abs(reelNearHit(a.instrument_name).atr) - Math.abs(reelNearHit(b.instrument_name).atr));
+    }
     return sorted;
+  }
+
+  // The nearest MA of the chosen kind within reach, or null:
+  // { key: 'W250', atr: signed ATRs (+ = price above), pct }.
+  function reelNearHit(name) {
+    const near = reel.index && reel.index.near;
+    const all = near && near[name];
+    if (!all || reel.near === 'all') return null;
+    let best = null;
+    for (const [key, [atr, pct]] of Object.entries(all)) {
+      if (reel.near !== 'any' && key[0] !== reel.near) continue;
+      if (!ovPeriods().includes(+key.slice(1))) continue;   // the overlay's MA set
+      if (Math.abs(atr) > reel.nearWithin) continue;
+      if (!best || Math.abs(atr) < Math.abs(best.atr)) best = { key, atr, pct };
+    }
+    return best;
   }
 
   // ── Lazy paint ───────────────────────────────────────────────────────
@@ -13003,6 +13094,8 @@
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
                        near: 'near cross', fresh: 'just flipped' };
     set('reelPillStack', stackLbl[reel.stack] || '');
+    const nearLbl = { D: 'Daily', W: 'Weekly', M: 'Monthly', any: 'D/W/M' };
+    set('reelPillNear', nearLbl[reel.near] ? nearLbl[reel.near] + (reel.nearWithin === 1 ? ' · 1 day' : ' · ½ day') : '');
     const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
     set('reelPillSort', sortLbl[reel.sort] || '');
     set('reelPillRange', reel.range ? reel.range + ' bars' : '');
@@ -13010,7 +13103,7 @@
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.stack !== 'all' || reel.similarTo || reel.listSet ||
+                  reel.stack !== 'all' || reel.near !== 'all' || reel.similarTo || reel.listSet ||
                   reel.sort !== 'signal' || reel.search || reel.range;
     const rst = document.getElementById('reelReset');
     if (rst) rst.style.display = dirty ? '' : 'none';
@@ -13064,6 +13157,17 @@
     optGroup('reelScopeOpts', 'scope', 'scope');
     optGroup('reelTrendOpts', 'trend', 'trend');
     optGroup('reelStackOpts', 'stack', 'stack');
+    optGroup('reelNearOpts',  'near',  'near');
+    const within = document.getElementById('reelNearWithin');
+    if (within) {
+      within.addEventListener('click', e => {
+        const chip = e.target.closest('[data-within]');
+        if (!chip) return;
+        within.querySelectorAll('[data-within]').forEach(c => c.classList.toggle('active', c === chip));
+        reel.nearWithin = +chip.dataset.within;
+        if (reel.near !== 'all') buildReel(); else reelSyncPills();
+      });
+    }
     optGroup('reelSortOpts',  'sort',  'sort');
 
     // Range is the only filter that changes nothing about WHICH instruments
@@ -13122,6 +13226,7 @@
         // applied is worse than no reset — you press it and still cannot see
         // the instrument you are looking for.
         reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
+        reel.near = 'all';
         try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
         if (rbox) {
@@ -13132,11 +13237,11 @@
         if (search) search.value = '';
         if (clear) clear.style.display = 'none';
         document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
-        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelStackOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
+        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
           const box = document.getElementById(id);
           if (!box) return;
           box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-stack="${def}"],[data-sort="${def}"]`);
+          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"]`);
           if (d) d.classList.add('active');
         });
         buildReel();
@@ -13188,6 +13293,19 @@
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
+      if (btn.dataset.act === 'ov-set') {
+        if (!OV_SETS[btn.dataset.v]) return true;
+        tfOverlay.set = btn.dataset.v;
+        ovSave();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
+        if (reel.near !== 'all' && currentTab === 'charts') buildReel();
         return true;
       }
       if (btn.dataset.act === 'ov-htf') {

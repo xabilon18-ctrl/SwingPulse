@@ -240,12 +240,20 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
         # Higher-timeframe MA lines for the overlay: Weekly 50/250/500 and
         # Monthly 50 only (user, 2026-09-28: "the monthly with a 50MA thicker
         # than them all"; a Monthly 250/500 is ~21/42 years, never warm).
-        for key, resample, periods in (('w', _resample_weekly, MA_PERIODS),
-                                       ('mo', _resample_monthly, [50])):
+        # Carries BOTH overlay MA sets (user, 2026-09-28: "another profile for
+        # the overlay ... 50, 100, 200, 300 and 500"); the client draws the
+        # set chosen. A period the history cannot warm is dropped by
+        # _htf_mas (Monthly 500 = ~42 years, never; 300 = 25, rarely).
+        for key, resample, periods in (('w', _resample_weekly, OVERLAY_MA_PERIODS),
+                                       ('mo', _resample_monthly, OVERLAY_MA_PERIODS)):
             ma = _htf_mas(df, out['t'][0], resample, periods)
             if ma:
                 out[key] = ma
     return out
+
+
+# Every period either overlay MA set uses: 50/250/500 and 50/100/200/300/500.
+OVERLAY_MA_PERIODS = [50, 100, 200, 250, 300, 500]
 
 
 def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
@@ -702,6 +710,63 @@ def _attach_15m_marks(b15: dict, bd: dict | None, fires: list, hold: int = XM_HO
     return ev
 
 
+NEAR_ATR_N = 14
+NEAR_KEEP_ATR = 3
+
+
+def near_ma(bd: dict) -> dict | None:
+    """How far the latest Daily close sits from each Daily, Weekly and Monthly
+    MA (user, 2026-09-28: "an option to see which are close to daily weekly
+    and monthly MAs"), for the Charts "Near MA" filter.
+
+    {'D50': [atr_units, pct], 'W250': [...], 'M50': [...]} — signed, + = price
+    ABOVE the MA. ATR units (14-day average true range) so "close" means the
+    same on a currency and on bitcoin; pct is only for the label. Read off the
+    Daily bundle the charts already draw (Weekly/Monthly incl. the period in
+    progress), so the filter and the lines on screen cannot disagree.
+    """
+    h, l, c = bd.get('h') or [], bd.get('l') or [], bd.get('c') or []
+    n = len(c)
+    if n < NEAR_ATR_N + 1 or c[-1] is None:
+        return None
+    trs = []
+    for i in range(n - NEAR_ATR_N, n):
+        if None in (h[i], l[i], c[i - 1]):
+            continue
+        trs.append(max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1])))
+    atr = sum(trs) / len(trs) if trs else 0
+    close = c[-1]
+    if not atr or not close:
+        return None
+    out = {}
+    # Daily 100/200/300 are not shipped as lines (the app rolls them from the
+    # bundle's closes); rolled here the same way for the filter.
+    extra = [p for p in OVERLAY_MA_PERIODS if p not in (bd.get('p') or []) and p <= n]
+    dx = {'p': extra, 'm': [[sum(c[-p:]) / p] if None not in c[-p:] else [None] for p in extra]}
+    for tag, blk in (('D', bd), ('D', dx), ('W', bd.get('w')), ('M', bd.get('mo'))):
+        if not blk:
+            continue
+        for p, series in zip(blk.get('p') or [], blk.get('m') or []):
+            v = next((x for x in reversed(series) if x is not None), None) if series else None
+            # Only the near ones ship (the filter's widest reach is 1 ATR; 3
+            # leaves headroom) — every MA of every instrument was 37 KB gz.
+            if v and abs(close - v) <= NEAR_KEEP_ATR * atr:
+                out[f'{tag}{p}'] = [round((close - v) / atr, 2), round((close - v) / v * 100, 2)]
+    return out or None
+
+
+def near_ma_map(daily: dict) -> dict:
+    out = {}
+    for name, bd in daily.items():
+        try:
+            d = near_ma(bd)
+        except Exception:
+            d = None
+        if d:
+            out[name] = d
+    return out
+
+
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
                      h1_fires_path: str | None = None,
@@ -802,6 +867,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
-               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events})
+               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
+               'near': near_ma_map(built.get('D', {}))})
 
     return stats

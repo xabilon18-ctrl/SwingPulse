@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=341">
+  <link rel="stylesheet" href="/static/css/style.css?v=343">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -777,6 +777,27 @@
             </div>
           </details>
 
+          <!-- Near MA (2026-09-28): price within half a day's / one day's range
+               (14-day ATR) of a Daily, Weekly or Monthly MA, nearest first.
+               Read from chart/index.json `near`, built by chart_feed.near_ma. -->
+          <details class="filter-pill" id="reelPillNear">
+            <summary>Near MA<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <div class="filter-pop">
+              <div class="reel-opts" id="reelNearOpts">
+                <button class="reel-opt active" data-near="all">Any</button>
+                <button class="reel-opt" data-near="D">Daily MA<i>overlay MA set</i></button>
+                <button class="reel-opt" data-near="W">Weekly MA<i>overlay MA set</i></button>
+                <button class="reel-opt" data-near="M">Monthly MA<i>overlay MA set</i></button>
+                <button class="reel-opt" data-near="any">Daily, Weekly or Monthly</button>
+              </div>
+              <div class="reel-near-within" id="reelNearWithin">
+                <span>Within</span>
+                <button class="s-cat-chip active" data-within="0.5">½ day's range</button>
+                <button class="s-cat-chip" data-within="1">1 day's range</button>
+              </div>
+            </div>
+          </details>
+
           <details class="filter-pill" id="reelPillRange">
             <summary>Range<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
             <div class="filter-pop">
@@ -881,6 +902,6 @@
 
 
 
-  <script src="/static/js/app.js?v=433"></script>
+  <script src="/static/js/app.js?v=435"></script>
 </body>
 </html>

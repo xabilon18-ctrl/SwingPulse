@@ -1072,7 +1072,28 @@ def api_chart_index():
         'chunk_size': chart_feed.CHUNK_SIZE,
         'bars': chart_feed.BARS,
         'chunks': _chart_chunk_map(),
+        'near': _near_map_local(),
     })
+
+
+_near_cache: dict = {}
+
+
+def _near_map_local() -> dict:
+    """Local dev only: the published index gets `near` from build_chart_feed.
+    Built once per server run (every Daily bundle, ~1 min), then cached."""
+    if 'v' not in _near_cache:
+        tm = get_ticker_map()
+        daily = {}
+        for name, tk in tm.items():
+            try:
+                bd = chart_feed.build_daily(CACHE_DIR, tk)
+            except Exception:
+                bd = None
+            if bd:
+                daily[name] = bd
+        _near_cache['v'] = chart_feed.near_ma_map(daily)
+    return _near_cache['v']
 
 
 @app.route('/api/chart/<tf>/<int:cid>')

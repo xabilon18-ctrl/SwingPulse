@@ -9819,3 +9819,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .mk-lohi b { color: inherit; color: var(--text, #e5e7eb); }
 .mk-open20 { display: block; margin: 2px 0 8px; }
 .mk-also { margin: 10px 0 0; }
+
+/* Near MA filter (2026-09-28) */
+.reel-near-within { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 4px 2px; border-top: 1px solid var(--border); margin-top: 6px; }
+.reel-near-within span { font-size: .74rem; font-weight: 600; color: var(--text-muted); margin-right: 2px; }
+.reel-near { font-size: .72rem; font-weight: 800; color: #1d4ed8; background: rgba(59,130,246,.12); border-radius: 999px; padding: 2px 7px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reel-ov-sets { grid-template-columns: 1fr 1.5fr; }
+.reel-ov-sets .reel-ov-maw-btn { font-size: .72rem !important; white-space: nowrap; }
