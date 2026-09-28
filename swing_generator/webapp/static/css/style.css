@@ -9824,5 +9824,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-near-within { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 4px 2px; border-top: 1px solid var(--border); margin-top: 6px; }
 .reel-near-within span { font-size: .74rem; font-weight: 600; color: var(--text-muted); margin-right: 2px; }
 .reel-near { font-size: .72rem; font-weight: 800; color: #1d4ed8; background: rgba(59,130,246,.12); border-radius: 999px; padding: 2px 7px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.reel-ov-sets { grid-template-columns: 1fr 1.5fr; }
-.reel-ov-sets .reel-ov-maw-btn { font-size: .72rem !important; white-space: nowrap; }
+/* MA set: three small buttons (user, 2026-09-28: "make the profile buttons small") */
+.reel-ov-sets { display: flex; gap: 4px; }
+.reel-ov-set { flex: 0 0 auto; font: inherit; font-size: .7rem; font-weight: 700; line-height: 1; padding: 5px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: transparent; color: var(--text-secondary, var(--text-muted)); cursor: pointer; }
+.reel-ov-set.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.reel-ov-set-cap { font-size: .68rem; color: var(--text-muted); padding: 0 2px 2px 70px; font-variant-numeric: tabular-nums; }

@@ -8248,11 +8248,17 @@
   // chart timeframe; the chart's own ribbon stays 50/250/500 regardless.
   // Monthly draws only what its history can warm (250/500 = 21/42 years; 300
   // rarely), so its list is shorter.
-  const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500] };
+  // Third set (user, 2026-09-28: "one that goes up by 50 all the way to 500").
+  // Buttons are named by how many lines they draw ("find a shorter name").
+  const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500],
+                    step: [50, 100, 150, 200, 250, 300, 350, 400, 450, 500] };
+  const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '10 MA' };
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
   function ovPeriods() { return OV_SETS[ovSet()]; }
+  // Monthly lists only what history can warm (a Monthly 250 is ~21 years).
   function ovPeriodsTxt(tf) {
-    return ovPeriods().filter(p => tf !== 'M' || p <= 300).filter(p => tf !== 'M' || ovSet() === 'wide' || p === 50).join(' · ');
+    const ps = ovPeriods().filter(p => tf !== 'M' || p <= 200);
+    return ovSet() === 'step' ? `every 50 to ${ps[ps.length - 1]}` : ps.join(' · ');
   }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
@@ -8493,8 +8499,9 @@
     let h = `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
       <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
-        <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-maw-btns reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
-          `<button class="reel-tf-opt reel-ov-maw-btn${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}">${ps.join(' · ')}</button>`).join('')}</div></div></div>`;
+        <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
+          `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div>
+        <div class="reel-ov-set-cap">${ovPeriods().join(' · ')}</div></div>`;
     // One switch per higher timeframe, thinnest first.
     ovHtfChoices().forEach(([tf, name, periods, weight]) => {
       const on = ovHtfOn(tf);
@@ -13254,7 +13261,7 @@
     window.__reelBtnAct = function (e) {
       // .reel-share-btn lives in the card HEADER, so it is matched here too —
       // it is not a .reel-act and closest('.reel-act') silently skipped it.
-      const btn = e.target.closest('.reel-act, .reel-share-btn, .reel-tool, .reel-tf-tag, .reel-tf-opt');
+      const btn = e.target.closest('.reel-act, .reel-share-btn, .reel-tool, .reel-tf-tag, .reel-tf-opt, .reel-ov-set');
       if (!btn) return false;
       const name = btn.dataset.name;
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }

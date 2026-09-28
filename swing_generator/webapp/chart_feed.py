@@ -252,8 +252,10 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     return out
 
 
-# Every period either overlay MA set uses: 50/250/500 and 50/100/200/300/500.
-OVERLAY_MA_PERIODS = [50, 100, 200, 250, 300, 500]
+# Every period any overlay MA set uses: 50/250/500, 50/100/200/300/500 and
+# every 50 from 50 to 500 (user, 2026-09-28: "one that goes up by 50 all the
+# way to 500").
+OVERLAY_MA_PERIODS = list(range(50, 501, 50))
 
 
 def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
@@ -301,7 +303,9 @@ def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
     return {
         't': [d.strftime('%Y-%m-%d') for d in weekly.index[keep]],
         'p': periods,
-        'm': [[_round(v) for v in mas[p][keep]] for p in periods],
+        # 5 significant figures: an MA line needs no more (7133.3, 0.71234),
+        # and ten Weekly lines at 6 cost ~9 KB gz more per chunk.
+        'm': [[_round(v, 5) for v in mas[p][keep]] for p in periods],
     }
 
 
