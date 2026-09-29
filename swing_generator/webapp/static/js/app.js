@@ -8195,7 +8195,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+        const o = { v: j.v, set: j.set, pct: !!j.pct, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8788,6 +8788,30 @@
     if (a >= 10)   return v.toFixed(2);
     if (a >= 0.1)  return v.toFixed(4);
     return v.toPrecision(4);
+  }
+
+  // PRICE AXIS IN % (user, 2026-09-29: "when i am in the charts allow me to
+  // see what price is in %"). Levels read as the distance from the latest
+  // close — the last price is 0%, +5% is five percent above it. One switch for
+  // every chart (Grid menu), kept on this device with the overlay settings.
+  // The last-price tag keeps the price itself, so the level still has a number.
+  const reelPctOn = () => !!tfOverlay.pct;
+  function reelLastClose(b) {
+    const src = b._src || b;
+    for (let i = src.c.length - 1; i >= 0; i--) if (src.c[i] != null) return src.c[i];
+    return null;
+  }
+  function reelFmtPct(p, step) {
+    const dp = step >= 1 || Math.abs(p) >= 10 ? (step >= 1 ? 0 : 1) : step >= 0.1 ? 1 : 2;
+    const r = +p.toFixed(dp);
+    return r === 0 ? '0%' : (r > 0 ? '+' : '−') + Math.abs(r).toFixed(dp) + '%';
+  }
+  // A level's label: the price, or its % from the last close in % mode.
+  function reelFmtLevel(v, b) {
+    const last = reelPctOn() && b ? reelLastClose(b) : null;
+    if (!(last > 0) || v == null) return reelFmtPrice(v);
+    const p = (v / last - 1) * 100;
+    return reelFmtPct(p, Math.abs(p) >= 10 ? 1 : 0.1);
   }
 
   // Round gridline levels — 1/2/5 x 10^n, the steps a price axis is read in.
@@ -9916,7 +9940,7 @@
     }
     const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
                + reelHitLine(L.x0, y, L.x1, y, idx);
-    const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtPrice(d.p)}</text>`;
+    const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtLevel(d.p, b)}</text>`;
     const handles = (editing && !d.locked)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
     return line + tag + handles;
@@ -10675,10 +10699,23 @@
     // panning or zooming made lines appear and disappear under the price —
     // movement that reads as the chart doing something when nothing happened.
     // The numbers still sit in the gutter, which is where a level is read.
-    const ticks = reelTicks(sc.lo, sc.hi, L.H > 700 ? 8 : 6);
-    const grid = ticks.map(v =>
-      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
-    ).join('');
+    const _want = L.H > 700 ? 8 : 6;
+    const _base = reelPctOn() ? reelLastClose(b) : null;
+    let grid;
+    if (_base > 0) {
+      // % mode: round steps of PERCENT (1, 2.5, 5 ...), not of price, so the
+      // labels read +5% / 0% / −5% and 0% sits exactly on the last price.
+      const pLo = (sc.lo / _base - 1) * 100, pHi = (sc.hi / _base - 1) * 100;
+      const pt = reelTicks(pLo, pHi, _want);
+      const step = pt.length > 1 ? pt[1] - pt[0] : 1;
+      grid = pt.map(p =>
+        `<text x="${L.gut}" y="${(sc.y(_base * (1 + p / 100)) + 6).toFixed(1)}" class="reel-axis">${reelFmtPct(Math.abs(p) < step / 1e6 ? 0 : p, step)}</text>`
+      ).join('');
+    } else {
+      grid = reelTicks(sc.lo, sc.hi, _want).map(v =>
+        `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
+      ).join('');
+    }
 
     // ── MA ribbon ──
     // Dotted, and each line coloured by its OWN slope: falling red, rising
@@ -11110,7 +11147,11 @@
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
-    let h = `<button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
+    const pc = reelPctOn();
+    let h = `<button class="reel-tool reel-grid-switch${pc ? ' on' : ''}" data-act="pct-set" role="menuitemcheckbox" aria-checked="${pc}">
+        <span>Price axis in %<em>distance from the last price · all charts</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>
+      <div class="reel-grid-sep"></div>
+      <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
         <span>Shade every other gap<em>${TF_BY_CODE[timeframe].label} chart</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     if (on) {
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
@@ -13376,6 +13417,17 @@
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+        return true;
+      }
+      if (btn.dataset.act === 'pct-set') {
+        tfOverlay.pct = !tfOverlay.pct;
+        ovSave();
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
+        const menu = btn.closest('.reel-grid-menu');
+        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
         return true;
       }
       if (btn.dataset.act === 'grid-set') {
