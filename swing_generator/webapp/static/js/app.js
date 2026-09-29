@@ -10513,10 +10513,16 @@
         .filter(Boolean);
     }
 
+    // Walked over the WHOLE bundle (b._src), not the visible slice, and mapped
+    // back with `from` (2026-09-29, user: "the 4 hour grid shade disappears
+    // when i move the chart back and forth"). On the slice, a window with no
+    // 1 January inside it had no lines at all, so the shading between the
+    // off-screen lines vanished while panning.
     const out  = [];
     let prev = null;
-    for (let i = 0; i < n; i++) {
-      const str = String(b.t[i]);
+    const _src = b._src || b, _from = b._from || 0;
+    for (let i = 0; i < _src.t.length; i++) {
+      const str = String(_src.t[i]);
       const y = +str.slice(0, 4), m = +str.slice(5, 7);
       if (!y || !m) continue;
       const key = mode === 'month' ? str.slice(0, 7) : String(y);
@@ -10529,7 +10535,7 @@
         const month = mode === 'month';
         // `par` = the line's calendar parity, so the grid bands stay on the same
         // months/years while panning (this list is built per window).
-        out.push({ fi: i, month, par: month ? (y * 12 + m) % 2 : y % 2, label: month ? reelMonthStartLabel(str) : String(y) });
+        out.push({ fi: i - _from, month, par: month ? (y * 12 + m) % 2 : y % 2, label: month ? reelMonthStartLabel(str) : String(y) });
       }
       prev = { key };
     }
