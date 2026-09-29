@@ -10218,7 +10218,10 @@
   // the new 30m the same as the 1h"). 4H (back 2026-09-29): the Daily's year
   // lines, administrations included (user: "make the same as the daily").
   // 15m (back 2026-09-29) keeps its old WEEK grid, first Monday of a month bold.
-  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'month', '1H': 'half', '4H': 'year',
+  // 4H since 2026-09-29 (later): the year cut into FOUR equal parts (user:
+  // "divide 12 by 3 into 4 equal parts ... make sure the q1, 2, 3 and 4 are
+  // even") — the 'half' construction, so every quarter is the same width.
+  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'month', '1H': 'half', '4H': 'half',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -10232,7 +10235,7 @@
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
-  const REEL_YEAR_PARTS_BY_TF = { '1H': 12, '30m': 12 };
+  const REEL_YEAR_PARTS_BY_TF = { '1H': 12, '30m': 12, '4H': 4 };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
@@ -10492,8 +10495,11 @@
           // 3 months as q1"). A bold line names the quarter it ENDS (user: "you
           // named the end of sep q4 it's 3"): 1 Oct reads "Q3 2026", 1 Jan
           // "Q4 2025". Months read "May".
-          const q = parts === 12 && k % 3 === 0;
-          const label = parts !== 12 ? reelYearPartLabel(y, k, parts)
+          // Four parts (4H): every line a quarter line named like the 1H's
+          // (the quarter it ENDS), 1 January bold.
+          const q = parts === 12 ? k % 3 === 0 : parts === 4 && k === 0;
+          const label = parts === 4 ? (k === 0 ? `Q4 ${y - 1}` : `Q${k} ${y}`)
+            : parts !== 12 ? reelYearPartLabel(y, k, parts)
             : q ? (k === 0 ? `Q4 ${y - 1}` : `Q${k / 3} ${y}`)
             : reelYearPartLabel(y, k, parts).split(' ')[0];
           out.push({ fi, label, future: fi > lastFi, par: (y * parts + k) % 2, week: q });
