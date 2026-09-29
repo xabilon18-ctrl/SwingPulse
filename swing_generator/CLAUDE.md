@@ -328,7 +328,7 @@ set (`main.py _extract_row`); daily bars are unique by date.
 ## Frontend App Tabs
 
 **CURRENT (2026-09-27): Watchlist · Charts · Alerts · Market.** The list below it is HISTORY.
-- **Alerts** (pane `#pane-scanner`, container `#alertsPane`) — every chart marker (15m/1H/Daily
+- **Alerts** (pane `#pane-scanner`, container `#alertsPane`) — every chart marker (30m/1H/4H/Daily
   B1-S1, Daily-MA touches/crosses) newest first, the user's lists first, plus price at/through
   lines they DREW (client-side, from `instChannels` + `wlQuote`). Data: `alerts.json` from
   `webapp/alerts_feed.py`, built inside `chart_feed.build_chart_feed` off the finished bundles.

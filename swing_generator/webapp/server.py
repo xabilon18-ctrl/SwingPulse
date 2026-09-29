@@ -1054,8 +1054,9 @@ _chart_chunk_cache: dict = {}
 
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
-    '15m': chart_feed.build_15m,
+    '30m': chart_feed.build_30m,
     '1H': chart_feed.build_1h,
+    '4H': chart_feed.build_4h_live,
     'D':  chart_feed.build_daily,
 }
 
@@ -1123,9 +1124,10 @@ def api_chart_chunk(tf: str, cid: int):
 
     # B1/S1 + Daily-MA markers on the intraday charts, as the publisher puts
     # them (chart_feed._attach_15m_marks) — so the dev server shows them too.
-    if tf in ('15m', '1H'):
+    if tf in ('30m', '1H', '4H'):
         try:
-            fp = os.path.join(OUTPUT_DIR, 'm15_fires.json' if tf == '15m' else 'h1_fires.json')
+            fp = os.path.join(OUTPUT_DIR, {'30m': 'm30_fires.json', '1H': 'h1_fires.json',
+                                           '4H': 'h4_fires.json'}[tf])
             fires = json.load(open(fp)) if os.path.exists(fp) else {}
             for name, b in data.items():
                 bd = chart_feed.build_daily(CACHE_DIR, tm[name])
@@ -1222,7 +1224,7 @@ def api_alerts():
         return app.response_class(raw, mimetype='application/json')
     tm = get_ticker_map()
     built = {}
-    for tf in ('15m', '1H', 'D'):
+    for tf in ('30m', '1H', '4H', 'D'):
         built[tf] = {}
         for name, t in tm.items():
             try:
@@ -1234,8 +1236,8 @@ def api_alerts():
     def _load(f):
         p = os.path.join(OUTPUT_DIR, f)
         return json.load(open(p)) if os.path.exists(p) else {}
-    fires15, fires1h = _load('m15_fires.json'), _load('h1_fires.json')
-    for tf, fires in (('15m', fires15), ('1H', fires1h)):
+    for tf, fires in (('30m', _load('m30_fires.json')), ('1H', _load('h1_fires.json')),
+                      ('4H', _load('h4_fires.json'))):
         for name, b in built[tf].items():
             chart_feed._attach_15m_marks(b, built['D'].get(name), fires.get(name),
                                          hold=chart_feed.XM_HOLD_BY_TF[tf])

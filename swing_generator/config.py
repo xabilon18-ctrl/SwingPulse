@@ -90,13 +90,13 @@ SIGNAL_LOOKBACK_WEEKLY = 12
 # trading days (~6 weeks), against Daily's 20 bars (~1 month) and Weekly's 12
 # (~3 months). Carrying Daily's 20 across would report a 3-month-old fire.
 SIGNAL_LOOKBACK_3D     = 10
-SIGNAL_LOOKBACK_15M    = 96    # one 24h day of 15m bars
+SIGNAL_LOOKBACK_30M    = 48    # one 24h day of 30m bars
 FIFTEEN_MIN_SIGNAL_CODES      = ('B1', 'S1')
 FIFTEEN_MIN_SIGNAL_LIVE_HOURS = 24
-# 15m bars are RESAMPLED from the 5m download (2026-09-25, user: replaced the
-# 5m chart and signals). Three 5m bars make one 15m bar exactly; every session
-# open this app carries (xx:00 / xx:30 / xx:15) sits on a 15-minute boundary.
-FIFTEEN_MIN_RULE = '15min'
+# 30m bars are RESAMPLED from the 5m download (2026-09-29, user: "replace 15
+# with 30m" — 15m had replaced 5m on 2026-09-25). Six 5m bars make one 30m bar.
+# A session opening on a quarter hour (xx:15/xx:45) starts with a short bar.
+THIRTY_MIN_RULE = '30min'
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -397,9 +397,10 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # so neither gets one. This used to be `if prefix`, which was the same thing
 # while 4H was the only prefixed timeframe and stopped being true the moment
 # Weekly arrived.
-# 15m (2026-09-25, replaced 5m): a day holds up to 96 fifteen-minute bars.
+# 30m (2026-09-29, replaced 15m): a day holds up to 48 thirty-minute bars.
 # 1H (2026-09-27, back with the hourly download): up to 24 bars a day.
-INTRADAY_PREFIXES = {'m15_', 'h1_'}
+# 4H (2026-09-29, back, resampled from the hourly download): up to 6 a day.
+INTRADAY_PREFIXES = {'m30_', 'h1_', 'h4_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, context modifiers,
@@ -440,9 +441,15 @@ INTRADAY_PREFIXES = {'m15_', 'h1_'}
 # the 15 min"): the 15m rules exactly — B1/S1 only, no re-fires, live for
 # FIFTEEN_MIN_SIGNAL_LIVE_HOURS, 'standard' confidence, not in the ledger. The
 # 2026-09-11 finding above still stands: 1H B1/S1 have no measured edge.
+#
+# 30m (2026-09-29) replaced 15m with the same rules, and 4H came back the same
+# day (user: "add the 4h") with them too: B1/S1 only, no re-fires, EXACT
+# 50/250/500 on session-anchored 4H bars (main._resample_4h) of the 1H feed.
+# The 2026-09-11 4H finding above is unchanged — the fires carry no edge.
 TIMEFRAMES = (
-    ('15m', 'm15_'),
+    ('30m', 'm30_'),
     ('1H',  'h1_'),
+    ('4H',  'h4_'),
     ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -514,10 +521,11 @@ OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry', 'asset_class',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
-    # ── 15m (B1/S1 only, see TIMEFRAMES) ──
-    *_tf_signal_columns('m15_'),
-    # ── 1H (B1/S1 only, same rules as 15m) ──
+    # ── 30m (B1/S1 only, see TIMEFRAMES) ──
+    *_tf_signal_columns('m30_'),
+    # ── 1H and 4H (B1/S1 only, same rules as 30m) ──
     *_tf_signal_columns('h1_'),
+    *_tf_signal_columns('h4_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',

@@ -34,8 +34,8 @@ import _active_config as config
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_15M,
-    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, FIFTEEN_MIN_RULE,
+    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_30M,
+    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
@@ -53,7 +53,7 @@ from instruments   import load_instruments, instruments_by_ticker, asset_class_o
 from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
-                           drop_unfinished_15m)
+                           drop_unfinished_30m)
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -554,14 +554,14 @@ def _frame_5m(df_5m: pd.DataFrame) -> pd.DataFrame:
     return drop_unfinished_5m(df)
 
 
-def _frame_15m(df_5m: pd.DataFrame) -> pd.DataFrame:
-    """The 15m CHART's and 15m SIGNALS' frame (2026-09-25, replaced 5m — user:
-    "5 min is ok but tricky"): the finished 5m bars resampled to 15 minutes.
+def _frame_30m(df_5m: pd.DataFrame) -> pd.DataFrame:
+    """The 30m CHART's and 30m SIGNALS' frame (2026-09-29, replaced 15m, which
+    had replaced 5m): the finished 5m bars resampled to 30 minutes.
 
-    Yahoo does serve 15m, but a second download would double the intraday cost
-    of every run and read a different feed from the one the quotes use. Three
-    5m bars make one 15m bar exactly. A bucket with fewer than three — a session
-    close off the quarter hour, a missing print — is a real short bar and kept,
+    Yahoo does serve 30m, but a second download would double the intraday cost
+    of every run and read a different feed from the one the quotes use. Six
+    5m bars make one 30m bar exactly. A bucket with fewer than six — a session
+    open or close off the half hour, a missing print — is a real short bar and kept,
     as the daily frame keeps a half session. Empty buckets (overnight, the
     weekend) are dropped, so the x axis is bar-indexed like every other chart.
     """
@@ -571,14 +571,14 @@ def _frame_15m(df_5m: pd.DataFrame) -> pd.DataFrame:
     agg = {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}
     if 'Volume' in five.columns:
         agg['Volume'] = 'sum'
-    fifteen = five.resample(FIFTEEN_MIN_RULE).agg(agg).dropna(subset=['Close'])
+    thirty = five.resample(THIRTY_MIN_RULE).agg(agg).dropna(subset=['Close'])
     # Important Rule 10: a bucket whose last 5m bar has not printed is still open.
-    return drop_unfinished_15m(fifteen)
+    return drop_unfinished_30m(thirty)
 
 
-def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """Ribbon periods for the 15m chart and 15m signals: EXACTLY MA_PERIODS
-    (50/250/500) on 15m bars — MA500 is ~19 sessions of a US stock, ~5.2 days
+def _m30_ma_periods(frame: pd.DataFrame) -> list[int]:
+    """Ribbon periods for the 30m chart and 30m signals: EXACTLY MA_PERIODS
+    (50/250/500) on 30m bars — MA500 is ~38 sessions of a US stock, ~10 days
     of a 24h instrument. Clipped only to the bars available. The rule came from
     the 5m chart this replaced:
 
@@ -807,10 +807,10 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h4)]
 
 
-def _compute_15m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
-    """The CACHEABLE half of the 15m pass: (row data, recent fires) — a pure
+def _compute_30m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
+    """The CACHEABLE half of the 30m pass: (row data, recent fires) — a pure
     function of the 5m bars, so an unchanged 5m file reuses it (see
-    _process_worker). Liveness is wall-clock and applied by _live_15m.
+    _process_worker). Liveness is wall-clock and applied by _live_intraday.
 
     Same engine as Daily (add_signals), with two differences, both because a
     5m bar is not a day:
@@ -823,7 +823,7 @@ def _compute_15m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
     """
     if df_5m is None or df_5m.empty:
         return None
-    return _intraday_state(_frame_15m(df_5m), 'm15_', '15m', SIGNAL_LOOKBACK_15M,
+    return _intraday_state(_frame_30m(df_5m), 'm30_', '30m', SIGNAL_LOOKBACK_30M,
                            asset_class, run_date)
 
 
@@ -843,7 +843,7 @@ def _m1h_ma_periods(frame: pd.DataFrame) -> list[int]:
 
 
 def _compute_1h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
-    """1H twin of _compute_15m_state: the same engine and rules on hourly bars."""
+    """1H twin of _compute_30m_state: the same engine and rules on hourly bars."""
     if df_1h is None or df_1h.empty:
         return None
     # tf '1h', not '1H': confidence_map.json still holds 48 '1H|' tiers measured
@@ -853,9 +853,32 @@ def _compute_1h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
                            asset_class, run_date)
 
 
+def _frame_4h(df_1h: pd.DataFrame) -> pd.DataFrame:
+    """The 4H chart's and 4H signals' frame (2026-09-29, user: "add the 4h"):
+    the 1H feed (data_fetcher.load_1h — same sources and cash/spot level as the
+    30m and 1H) grouped into 4-hour bars counted from each session's own open
+    (_resample_4h — see there for why not clock buckets)."""
+    return _resample_4h(_frame_1h(df_1h))
+
+
+def _m4h_ma_periods(frame: pd.DataFrame) -> list[int]:
+    """EXACTLY 50/250/500 on 4H bars, as on 30m and 1H. MA500 is ~250 sessions
+    of a US stock (2 bars/session), ~83 days of a 24h instrument."""
+    return [p for p in MA_PERIODS if p <= len(frame)]
+
+
+def _compute_4h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
+    """4H twin of _compute_30m_state. tf '4h', not '4H': confidence_map.json
+    holds '4H|' tiers from the retired re-firing 4H; these take 'standard'."""
+    if df_1h is None or df_1h.empty:
+        return None
+    return _intraday_state(_frame_4h(df_1h), 'h4_', '4h', SIGNAL_LOOKBACK_4H,
+                           asset_class, run_date)
+
+
 def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
                     asset_class: str, run_date: date):
-    """Shared body of the 15m and 1H passes — see _compute_15m_state."""
+    """Shared body of the 30m, 1H and 4H passes — see _compute_30m_state."""
     if five.empty:
         return None
     periods = [p for p in MA_PERIODS if p <= len(five)]
@@ -878,19 +901,19 @@ def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
     fr = fr[fr.index >= five.index[-1] - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
     fires = [(ts, r['primary_signal'], r.get('signal_confidence', '') or '',
               r.get('confirmation_status', '') or '') for ts, r in fr.iterrows()]
-    # EVERY B1/S1 in the frame, for the markers on the 15m chart (2026-09-26,
-    # user: "B1 and S1 in the chart"). Written to m15_fires.json and placed on
+    # EVERY B1/S1 in the frame, for the markers on the chart (2026-09-26,
+    # user: "B1 and S1 in the chart"). Written to m30_/h1_/h4_fires.json and placed on
     # the chart bundle's bars by chart_feed — one engine run, no second pass.
     allf = five[five['primary_signal'].isin(FIFTEEN_MIN_SIGNAL_CODES)]['primary_signal']
     all_fires = [[ts.strftime('%Y-%m-%d %H:%M'), code] for ts, code in allf.items()]
     return data, fires, all_fires
 
 
-def _live_15m(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 'm15_') -> dict:
+def _live_intraday(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 'm30_') -> dict:
     """Apply the wall-clock half: a fire stays LIVE for FIFTEEN_MIN_SIGNAL_LIVE_HOURS
     (runs are ~30 min apart, so "fired on the latest bar" would list almost
-    nothing). While live, m15_primary_signal / confidence / status and m15_date/
-    m15_datetime describe the FIRE bar; the price fields stay the latest bar's."""
+    nothing). While live, m30_primary_signal / confidence / status and m30_date/
+    m30_datetime describe the FIRE bar; the price fields stay the latest bar's."""
     if not state:
         return {}
     data, fires = state[0], state[1]
@@ -911,10 +934,10 @@ def _live_15m(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 'm15_
     return data
 
 
-def _process_15m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
+def _process_30m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
                  now_utc: Optional[pd.Timestamp] = None) -> dict:
-    """15m B1/S1 signals -> the m15_ columns of the row (empty dict if no data)."""
-    return _live_15m(_compute_15m_state(df_5m, asset_class, run_date), now_utc)
+    """30m B1/S1 signals -> the m30_ columns of the row (empty dict if no data)."""
+    return _live_intraday(_compute_30m_state(df_5m, asset_class, run_date), now_utc)
 
 
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
@@ -986,7 +1009,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # the instrument's Daily row. Normally passed df_5m=None: the worker
         # runs and caches the 5m half itself (_process_worker). ──
         try:
-            m5_data = _process_15m(df_5m, _asset_cls, run_date) if df_5m is not None else {}
+            m5_data = _process_30m(df_5m, _asset_cls, run_date) if df_5m is not None else {}
         except Exception:
             m5_data = {}
 
@@ -1179,8 +1202,8 @@ def _process_worker(args: tuple) -> tuple:
         from data_fetcher import scale_daily
         df = scale_daily(ticker, df)
 
-        # The 5m cache (downloaded before this pool starts) feeds the m15_
-        # signals (resampled, main._frame_15m). Missing or unreadable -> no 5m columns, Daily unaffected.
+        # The 5m cache (downloaded before this pool starts) feeds the m30_
+        # signals (resampled, main._frame_30m). Missing or unreadable -> no 5m columns, Daily unaffected.
         # data_fetcher.load_5m: the instrument's 5m source (a US index reads its
         # FUTURES contract — the cash index sleeps 20h a day) shifted to the
         # spot/cash LEVEL where FIVE_MIN_LEVEL_REF has a reference.
@@ -1189,7 +1212,7 @@ def _process_worker(args: tuple) -> tuple:
             df_5m = load_5m(ticker)
         except Exception:
             df_5m = None
-        # The hourly download (2026-09-27) feeds the h1_ signals the same way.
+        # The hourly download (2026-09-27) feeds the h1_ and h4_ signals the same way.
         try:
             from data_fetcher import load_1h
             df_1h = load_1h(ticker)
@@ -1213,16 +1236,17 @@ def _process_worker(args: tuple) -> tuple:
             row_d, trend_segs = process_instrument(ticker, df.copy(), inst_meta, run_date)
             rc.update(d_fp=d_fp, d_row=row_d, trends=trend_segs)
             hit_d = False
-        m15_fp = _fp('15m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
-        if rc.get('m15_fp') == m15_fp:
-            state, hit_5 = rc['m15_state'], True
+        m30_fp = _fp('30m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
+        if rc.get('m30_fp') == m30_fp:
+            state, hit_5 = rc['m30_state'], True
         else:
             try:
-                state = _compute_15m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
+                state = _compute_30m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
             except Exception:
                 state = None
-            rc.update(m15_fp=m15_fp, m15_state=state)
-            rc.pop('m5_fp', None); rc.pop('m5_state', None)
+            rc.update(m30_fp=m30_fp, m30_state=state)
+            for k in ('m5_fp', 'm5_state', 'm15_fp', 'm15_state'):
+                rc.pop(k, None)
             hit_5 = False
         h1_fp = _fp('1H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
         if rc.get('h1_fp') == h1_fp:
@@ -1234,23 +1258,38 @@ def _process_worker(args: tuple) -> tuple:
                 state_h1 = None
             rc.update(h1_fp=h1_fp, h1_state=state_h1)
             hit_h1 = False
-        if not (hit_d and hit_5 and hit_h1):
+        h4_fp = _fp('4H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
+        if rc.get('h4_fp') == h4_fp:
+            state_h4, hit_h4 = rc['h4_state'], True
+        else:
+            try:
+                state_h4 = _compute_4h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
+            except Exception:
+                state_h4 = None
+            rc.update(h4_fp=h4_fp, h4_state=state_h4)
+            hit_h4 = False
+        if not (hit_d and hit_5 and hit_h1 and hit_h4):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_15m(state), **_live_15m(state_h1, prefix='h1_')} if row_d else None)
+        row = ({**row_d, **_live_intraday(state), **_live_intraday(state_h1, prefix='h1_'),
+                **_live_intraday(state_h4, prefix='h4_')} if row_d else None)
         if row is not None:
-            row['_m15_fires'] = list(state[2]) if state and len(state) > 2 else []
+            row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
             row['_h1_fires'] = list(state_h1[2]) if state_h1 and len(state_h1) > 2 else []
+            row['_h4_fires'] = list(state_h4[2]) if state_h4 and len(state_h4) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
-            m5_primary = row.get('m15_primary_signal', '')
-            m5_tag    = f' 15m[{m5_primary}]' if m5_primary else ''
+            m5_primary = row.get('m30_primary_signal', '')
+            m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
             h1_primary = row.get('h1_primary_signal', '')
             h1_tag    = f' 1H[{h1_primary}]' if h1_primary else ''
-            reuse = ('' if not (hit_d or hit_5 or hit_h1) else
-                     ' (reused ' + '+'.join(x for x, h in (('D', hit_d), ('15m', hit_5), ('1H', hit_h1)) if h) + ')')
-            status_str = f'OK{d_tag}{m5_tag}{h1_tag}{reuse}'.strip()
+            h4_primary = row.get('h4_primary_signal', '')
+            h4_tag    = f' 4H[{h4_primary}]' if h4_primary else ''
+            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
+            reuse = ('' if not any(h for _, h in hits) else
+                     ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
+            status_str = f'OK{d_tag}{m5_tag}{h1_tag}{h4_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 
@@ -1277,7 +1316,7 @@ def main():
     # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
     # only wants signals can skip it and its cost.
     parser.add_argument('--no-intraday', action='store_true',
-                        help='Skip the 5m download (the 15m chart and signals will go stale)')
+                        help='Skip the 5m and 1h downloads (the 30m/1H/4H charts and signals will go stale)')
     # A local test run must be able to stop short of the live upload: without
     # this, `python3 main.py` IS a live data deploy (2026-09-09, and again
     # 2026-09-27 while testing the 1H return).
@@ -1325,7 +1364,7 @@ def main():
     _e2 = 0.0
     if not args.no_intraday:
         _t2 = _time.time()
-        print('  Fetching 5m market data (15m chart + signals) ...\n')
+        print('  Fetching 5m market data (30m chart + signals) ...\n')
         # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
         # which is the right gate for a daily bar and far too coarse for a
         # ten-minute one: three of the weekday cron landings sit less than an
@@ -1336,7 +1375,7 @@ def main():
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         # Hourly (2026-09-27): the 1H chart + 1H signals. Same freshness gate
         # and closed-market skip as the 5m.
-        print('  Fetching 1h market data (1H chart + signals) ...\n')
+        print('  Fetching 1h market data (1H + 4H charts and signals) ...\n')
         fetch_all_1h(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
@@ -1354,8 +1393,9 @@ def main():
 
     rows      = []
     all_trends = {}
-    m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
+    m30_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 30m chart markers
     h1_fires   = {}   # the same for the 1H chart
+    h4_fires   = {}   # and the 4H chart
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
@@ -1369,8 +1409,9 @@ def main():
             done += 1
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
-                m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
+                m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
                 h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
+                h4_fires[row['instrument_name']] = row.pop('_h4_fires', [])
                 d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
@@ -1412,11 +1453,11 @@ def main():
     with open(trends_path, 'w') as tf:
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
-    # 15m B1/S1 fire times for the chart markers (chart_feed reads this file).
-    with open(os.path.join(output_dir, 'm15_fires.json'), 'w') as ff:
-        json.dump(m15_fires, ff, separators=(',', ':'))
-    with open(os.path.join(output_dir, 'h1_fires.json'), 'w') as ff:
-        json.dump(h1_fires, ff, separators=(',', ':'))
+    # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
+    for fname, fires in (('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires),
+                         ('h4_fires.json', h4_fires)):
+        with open(os.path.join(output_dir, fname), 'w') as ff:
+            json.dump(fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:
         json.dump(d_fires, ff, separators=(',', ':'))
 

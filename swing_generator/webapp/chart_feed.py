@@ -61,8 +61,8 @@ from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
-                  _m10_ma_periods, _frame_5m, _frame_15m, _m15_ma_periods,
-                  _frame_1h, _m1h_ma_periods)
+                  _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods,
+                  _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -76,10 +76,11 @@ MIN_RIBBON_LINES = 2
 # recent one; the rest is what panning back reaches. See build_10m.
 CARRY_MONTHS = 2
 
-# How far back the 15m bundle goes: TWO MONTHS (user, 2026-09-24, said of the 5m
-# chart it replaced: "2 months is fine going back"). The warm-up cap below trims
-# a 24h instrument by MA500's ~5 days.
-CARRY_MONTHS_15M = 2
+# How far back the 30m bundle goes: TWO MONTHS (user, 2026-09-24, said of the 5m
+# chart it replaced: "2 months is fine going back"). The 5m download itself is
+# ~60 days deep, so the warm-up cap below trims a 24h instrument by MA500's
+# ~10 days and an equity by more (its MA500 is ~38 sessions).
+CARRY_MONTHS_30M = 2
 
 # The 1H bundle (2026-09-27): the chart opens on a month, and carries six so a
 # drag can reach back a season. ~4,400 bars on a 24/7 instrument (under the
@@ -113,9 +114,9 @@ BARS_BY_TF = {
     # instrument puts ~4,300 ten-minute bars in a calendar month against an
     # equity's ~815, and Yahoo's own 5m ceiling stops it at 8,599.
     '10m': 8800,
-    # 15m (2026-09-25, replaced 5m on the Charts tab): the same ceiling role —
-    # two calendar months of a 24/7 instrument is ~5,900 fifteen-minute bars.
-    '15m': 6000,
+    # 30m (2026-09-29, replaced 15m on the Charts tab): the same ceiling role —
+    # two calendar months of a 24/7 instrument is ~2,950 thirty-minute bars.
+    '30m': 3000,
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
@@ -127,7 +128,10 @@ BARS_BY_TF = {
     # Cost: the oldest ~500 bars of an equity carry no MA500 (it has not warmed
     # up yet — 167 null points of 374 on AAPL); the 520-bar opening window is
     # fully warm on every instrument. Gzipped bundle AAPL 8 -> 18 KB, BTC 10 -> 43.
-    '4H': 2190,
+    # (2026-09-29, 4H back on the Daily's year grid): raised to the whole
+    # ~2-year hourly cache past MA500's warm-up, so a 24h instrument shows
+    # more than one year line. ~3,900 bars on BTC, ~1,000 on a US equity.
+    '4H': 4400,
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
     '1H': 4500,
 }
@@ -353,6 +357,26 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
+def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
+    """4H chart (2026-09-29, user: "add the 4h"): the 1H chart's feed
+    (load_1h — same sources and cash/spot level) in session-anchored 4-hour
+    bars, EXACT 50/250/500. Carries everything the ~2-year hourly cache holds
+    past MA500's warm-up (BARS_BY_TF['4H'] ceiling). Replaces build_4h (clock
+    feed + session-scaled ribbon), which stays for research."""
+    df_1h = load_1h(ticker)
+    if df_1h is None or df_1h.empty:
+        return None
+    frame = _frame_4h(df_1h)
+    if len(frame) < 2:
+        return None
+    periods = _m4h_ma_periods(frame)
+    if len(periods) < MIN_RIBBON_LINES:
+        return None
+    warm_cap = len(frame) - max(periods)
+    bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
+
+
 def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     """Weekly chart from the same daily cache the daily chart reads.
 
@@ -473,12 +497,12 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
-def build_15m(cache_dir: str, ticker: str) -> dict | None:
-    """15-minute chart, resampled from the instrument's 5m source (main._frame_15m).
+def build_30m(cache_dir: str, ticker: str) -> dict | None:
+    """30-minute chart, resampled from the instrument's 5m source (main._frame_30m).
 
-    Replaced the 5m chart on 2026-09-25 (user: "5 min is ok but tricky"), which
-    had replaced 10m and 3D the day before. Ribbon over the whole cache so MA500
-    is warm at the left edge, CARRY_MONTHS_15M of calendar shipped, and the
+    Replaced the 15m chart on 2026-09-29, which had replaced 5m on 2026-09-25.
+    Ribbon over the whole cache so MA500
+    is warm at the left edge, CARRY_MONTHS_30M of calendar shipped, and the
     carry capped so the slowest MA keeps its warm-up on a 24/7 instrument. See
     build_10m for the reasoning.
     """
@@ -488,16 +512,16 @@ def build_15m(cache_dir: str, ticker: str) -> dict | None:
     df_5m = load_5m(ticker)
     if df_5m is None or df_5m.empty:
         return None
-    frame = _frame_15m(df_5m)
+    frame = _frame_30m(df_5m)
     if len(frame) < 2:
         return None
-    periods = _m15_ma_periods(frame)
+    periods = _m30_ma_periods(frame)
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_15M)
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_30M)
     n_carry = int((frame.index > cutoff).sum()) or len(frame)
     warm_cap = len(frame) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['15m'], max(warm_cap, 1))
+    bars = min(n_carry, BARS_BY_TF['30m'], max(warm_cap, 1))
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
@@ -594,8 +618,9 @@ def _write_gz(path: str, payload: dict) -> None:
         f.write(raw)
 
 
-# ── 15m markers (2026-09-26, rules revised 2026-09-27) ───────────────────
-# Daily-MA marks, computed from the published 15m and Daily BUNDLES — the very
+# ── Intraday markers (2026-09-26 on 15m, rules revised 2026-09-27; 30m and
+# 4H since 2026-09-29) ─────────────────────────────────────────────────────
+# Daily-MA marks, computed from the published intraday and Daily BUNDLES — the very
 # arrays the app draws — so what the Charts filter selects on is what the chart
 # shows. Per Daily MA (user, 2026-09-27: "when the price touches or crossed the
 # daily MAs then apply markers there as well including that one hour hold"):
@@ -607,10 +632,10 @@ def _write_gz(path: str, payload: dict) -> None:
 #           on the confirming bar, an hour to the right of the cross, which
 #           read as a random place). One per MA/direction/day.
 # The Daily MA is the last COMPLETED daily bar's value (no look-ahead).
-# XM_HOLD is in 15m bars (4 = one hour); the 1H chart holds one bar, the same
-# hour (XM_HOLD_BY_TF).
-XM_REARM, XM_HOLD = 0.5, 4
-XM_HOLD_BY_TF = {'15m': 4, '1H': 1}
+# XM_HOLD is in bars of the chart: one hour on 30m (2 bars) and 1H (1 bar);
+# on 4H one bar is the shortest hold there is (XM_HOLD_BY_TF).
+XM_REARM, XM_HOLD = 0.5, 2
+XM_HOLD_BY_TF = {'30m': 2, '1H': 1, '4H': 1}
 _DAY_MS = 86_400_000
 
 
@@ -774,11 +799,13 @@ def near_ma_map(daily: dict) -> dict:
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
                      h1_fires_path: str | None = None,
+                     h4_fires_path: str | None = None,
                      d_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'15m': n, '1H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'chunks': n_files}.
+    30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
     1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
     the 4H chart restored 2026-09-17, then 4H and Weekly removed 2026-09-24
@@ -794,10 +821,11 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'15m': 0, '1H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    for tf, builder in (('15m', build_15m), ('1H', build_1h), ('D', build_daily)):
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live),
+                        ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -816,7 +844,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         stats[tf] = len(bundles)
         built[tf] = bundles
 
-    # 15m markers: B1/S1 from main's m15_fires.json, Daily-MA crosses from the
+    # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
     # two bundles. A failure here costs the markers, never the chart feed.
     events: dict[str, dict] = {}
     try:
@@ -824,24 +852,26 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         if fires_path and os.path.exists(fires_path):
             with open(fires_path) as fh:
                 fires = json.load(fh)
-        for name, b15 in built.get('15m', {}).items():
-            ev = _attach_15m_marks(b15, built.get('D', {}).get(name), fires.get(name))
+        for name, b15 in built.get('30m', {}).items():
+            ev = _attach_15m_marks(b15, built.get('D', {}).get(name), fires.get(name),
+                                   hold=XM_HOLD_BY_TF['30m'])
             if ev:
                 events[name] = ev
     except Exception as exc:
-        print(f'  WARN 15m markers not built: {exc}')
-    # 1H markers (2026-09-27): the same B1/S1 + Daily-MA marks, from
-    # h1_fires.json, a cross holding one 1H bar (the same hour).
-    try:
-        fires = {}
-        if h1_fires_path and os.path.exists(h1_fires_path):
-            with open(h1_fires_path) as fh:
-                fires = json.load(fh)
-        for name, b1 in built.get('1H', {}).items():
-            _attach_15m_marks(b1, built.get('D', {}).get(name), fires.get(name),
-                              hold=XM_HOLD_BY_TF['1H'])
-    except Exception as exc:
-        print(f'  WARN 1H markers not built: {exc}')
+        print(f'  WARN 30m markers not built: {exc}')
+    # 1H (2026-09-27) and 4H (2026-09-29) markers: the same B1/S1 + Daily-MA
+    # marks, from h1_/h4_fires.json.
+    for tf, fpath in (('1H', h1_fires_path), ('4H', h4_fires_path)):
+        try:
+            fires = {}
+            if fpath and os.path.exists(fpath):
+                with open(fpath) as fh:
+                    fires = json.load(fh)
+            for name, b1 in built.get(tf, {}).items():
+                _attach_15m_marks(b1, built.get('D', {}).get(name), fires.get(name),
+                                  hold=XM_HOLD_BY_TF[tf])
+        except Exception as exc:
+            print(f'  WARN {tf} markers not built: {exc}')
 
     # Alerts tab (2026-09-27): every marker above as a listed alert, with what
     # price did after it. A failure costs the Alerts tab, never the chart feed.
