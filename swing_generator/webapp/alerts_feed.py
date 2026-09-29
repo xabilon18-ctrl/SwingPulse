@@ -74,7 +74,7 @@ def _events_for(name: str, bundles: dict, d_fires: list) -> list:
     """Every alert in this instrument's bundles: (tf, kind, period, dir, i, series)."""
     out = []
     b15, b1h, bd = bundles.get('30m'), bundles.get('1H'), bundles.get('D')
-    for tf, b in (('30m', b15), ('1H', b1h), ('4H', bundles.get('4H'))):
+    for tf, b in (('15m', bundles.get('15m')), ('30m', b15), ('1H', b1h), ('4H', bundles.get('4H'))):
         if not b:
             continue
         s = _Series(b, False)
@@ -134,12 +134,12 @@ def build_alerts(built: dict, d_fires: dict, now: datetime | None = None) -> dic
     """built = {'30m': {name: bundle}, '1H': {...}, '4H': {...}, 'D': {...}} with marks attached."""
     now = now or datetime.now(timezone.utc).replace(tzinfo=None)
     names = set()
-    for tf in ('30m', '1H', '4H', 'D'):
+    for tf in ('15m', '30m', '1H', '4H', 'D'):
         names |= set(built.get(tf, {}))
 
     ev, acc = [], {}
     base = {}   # (tf, h) -> [n_up, n_down, n]  over every bar: the "anyway" rate
-    for tf in ('30m', '1H', '4H', 'D'):
+    for tf in ('15m', '30m', '1H', '4H', 'D'):
         for b in built.get(tf, {}).values():
             s = _Series(b, tf == 'D')
             step = 1 if tf in ('D', '4H') else 4   # a sample of bars is plenty
@@ -154,7 +154,7 @@ def build_alerts(built: dict, d_fires: dict, now: datetime | None = None) -> dic
                     k[2] += 1
 
     for name in sorted(names):
-        bundles = {tf: built.get(tf, {}).get(name) for tf in ('30m', '1H', '4H', 'D')}
+        bundles = {tf: built.get(tf, {}).get(name) for tf in ('15m', '30m', '1H', '4H', 'D')}
         for tf, kind, p, dr, i, s in _events_for(name, bundles, d_fires.get(name) or []):
             moves = {h: _move(s, i, dr, dt) for h, dt in HORIZONS}
             a = acc.setdefault(f'{tf}|{kind}', {'n': 0, 'h': {h: [] for h, _ in HORIZONS}, 'dir': []})

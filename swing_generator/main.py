@@ -34,8 +34,8 @@ import _active_config as config
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_30M,
-    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE,
+    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_30M, SIGNAL_LOOKBACK_15M,
+    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE, FIFTEEN_MIN_RULE,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
     H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
@@ -53,7 +53,7 @@ from instruments   import load_instruments, instruments_by_ticker, asset_class_o
 from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
-                           drop_unfinished_30m)
+                           drop_unfinished_30m, drop_unfinished_15m)
 from indicators    import add_all_indicators
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -576,6 +576,24 @@ def _frame_30m(df_5m: pd.DataFrame) -> pd.DataFrame:
     return drop_unfinished_30m(thirty)
 
 
+def _frame_15m(df_5m: pd.DataFrame) -> pd.DataFrame:
+    """The 15m chart's and signals' frame (back 2026-09-29 beside 30m, user:
+    "bring back the 15min"): _frame_30m's rule at 15 minutes."""
+    five = _frame_5m(df_5m)
+    if five.empty:
+        return five
+    agg = {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}
+    if 'Volume' in five.columns:
+        agg['Volume'] = 'sum'
+    fifteen = five.resample(FIFTEEN_MIN_RULE).agg(agg).dropna(subset=['Close'])
+    return drop_unfinished_15m(fifteen)
+
+
+def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
+    """EXACTLY 50/250/500 on 15m bars, as on every intraday chart."""
+    return [p for p in MA_PERIODS if p <= len(frame)]
+
+
 def _m30_ma_periods(frame: pd.DataFrame) -> list[int]:
     """Ribbon periods for the 30m chart and 30m signals: EXACTLY MA_PERIODS
     (50/250/500) on 30m bars — MA500 is ~38 sessions of a US stock, ~10 days
@@ -824,6 +842,14 @@ def _compute_30m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
     if df_5m is None or df_5m.empty:
         return None
     return _intraday_state(_frame_30m(df_5m), 'm30_', '30m', SIGNAL_LOOKBACK_30M,
+                           asset_class, run_date)
+
+
+def _compute_15m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
+    """15m twin of _compute_30m_state (back 2026-09-29)."""
+    if df_5m is None or df_5m.empty:
+        return None
+    return _intraday_state(_frame_15m(df_5m), 'm15_', '15m', SIGNAL_LOOKBACK_15M,
                            asset_class, run_date)
 
 
@@ -1245,9 +1271,19 @@ def _process_worker(args: tuple) -> tuple:
             except Exception:
                 state = None
             rc.update(m30_fp=m30_fp, m30_state=state)
-            for k in ('m5_fp', 'm5_state', 'm15_fp', 'm15_state'):
+            for k in ('m5_fp', 'm5_state'):
                 rc.pop(k, None)
             hit_5 = False
+        m15_fp = _fp('15m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
+        if rc.get('m15_fp') == m15_fp:
+            state_15, hit_15 = rc['m15_state'], True
+        else:
+            try:
+                state_15 = _compute_15m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
+            except Exception:
+                state_15 = None
+            rc.update(m15_fp=m15_fp, m15_state=state_15)
+            hit_15 = False
         h1_fp = _fp('1H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
         if rc.get('h1_fp') == h1_fp:
             state_h1, hit_h1 = rc['h1_state'], True
@@ -1268,11 +1304,13 @@ def _process_worker(args: tuple) -> tuple:
                 state_h4 = None
             rc.update(h4_fp=h4_fp, h4_state=state_h4)
             hit_h4 = False
-        if not (hit_d and hit_5 and hit_h1 and hit_h4):
+        if not (hit_d and hit_15 and hit_5 and hit_h1 and hit_h4):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_intraday(state), **_live_intraday(state_h1, prefix='h1_'),
+        row = ({**row_d, **_live_intraday(state_15, prefix='m15_'), **_live_intraday(state),
+                **_live_intraday(state_h1, prefix='h1_'),
                 **_live_intraday(state_h4, prefix='h4_')} if row_d else None)
         if row is not None:
+            row['_m15_fires'] = list(state_15[2]) if state_15 and len(state_15) > 2 else []
             row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
             row['_h1_fires'] = list(state_h1[2]) if state_h1 and len(state_h1) > 2 else []
             row['_h4_fires'] = list(state_h4[2]) if state_h4 and len(state_h4) > 2 else []
@@ -1280,16 +1318,18 @@ def _process_worker(args: tuple) -> tuple:
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
+            m15_primary = row.get('m15_primary_signal', '')
+            m15_tag   = f' 15m[{m15_primary}]' if m15_primary else ''
             m5_primary = row.get('m30_primary_signal', '')
             m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
             h1_primary = row.get('h1_primary_signal', '')
             h1_tag    = f' 1H[{h1_primary}]' if h1_primary else ''
             h4_primary = row.get('h4_primary_signal', '')
             h4_tag    = f' 4H[{h4_primary}]' if h4_primary else ''
-            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
+            hits = (('D', hit_d), ('15m', hit_15), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
-            status_str = f'OK{d_tag}{m5_tag}{h1_tag}{h4_tag}{reuse}'.strip()
+            status_str = f'OK{d_tag}{m15_tag}{m5_tag}{h1_tag}{h4_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 
@@ -1393,7 +1433,8 @@ def main():
 
     rows      = []
     all_trends = {}
-    m30_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 30m chart markers
+    m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
+    m30_fires  = {}   # the same for 30m
     h1_fires   = {}   # the same for the 1H chart
     h4_fires   = {}   # and the 4H chart
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
@@ -1409,6 +1450,7 @@ def main():
             done += 1
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
+                m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
                 m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
                 h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
                 h4_fires[row['instrument_name']] = row.pop('_h4_fires', [])
@@ -1454,7 +1496,7 @@ def main():
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
     # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
-    for fname, fires in (('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires),
+    for fname, fires in (('m15_fires.json', m15_fires), ('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires),
                          ('h4_fires.json', h4_fires)):
         with open(os.path.join(output_dir, fname), 'w') as ff:
             json.dump(fires, ff, separators=(',', ':'))

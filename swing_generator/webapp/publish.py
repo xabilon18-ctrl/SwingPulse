@@ -629,6 +629,7 @@ def build_data(output_dir, src_signals_dir=None):
                                    fires_path=os.path.join(OUTPUT_DIR, 'm30_fires.json'),
                                    h1_fires_path=os.path.join(OUTPUT_DIR, 'h1_fires.json'),
                                    h4_fires_path=os.path.join(OUTPUT_DIR, 'h4_fires.json'),
+                                   m15_fires_path=os.path.join(OUTPUT_DIR, 'm15_fires.json'),
                                    d_fires_path=os.path.join(OUTPUT_DIR, 'd_fires.json'))
         # Report every timeframe the builder actually produced. Hard-coding D
         # and 4H here meant the 2026-09-02 run printed "798 daily / 798 4H"

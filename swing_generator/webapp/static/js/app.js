@@ -27,7 +27,8 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['30m', '1H', '4H']);  // 30m replaced 15m 2026-09-29; 1H back 09-27, 4H back 09-29
+  const INTRADAY_TFS = new Set(['15m', '30m', '1H', '4H']);  // 15m back beside 30m 2026-09-29
+  // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let tvMap = {};            // instrument_name → TradingView symbol
@@ -131,6 +132,8 @@
     // 30m replaced 15m on 2026-09-29 (user: "replace 15 with 30m"); 15m had
     // replaced 5m on 2026-09-25. B1/S1 SIGNALS (m30_ columns; a fire stays on
     // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
+    // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
+    { code: '15m', prefix: 'm15_', label: '15m', tv: '15', bar: '15-minute bars', barShort: '25-bar' },
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
     // 1H back 2026-09-27 (user: the month view between the 15m's week and the
     // Daily's year) with the same B1/S1 rules — h1_ columns, hourly download.
@@ -153,7 +156,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['30m', '1H', '4H', 'D']);
+  const SIGNAL_TFS = new Set(['15m', '30m', '1H', '4H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -930,7 +933,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '30m': 30, '1H': 60, '4H': 240 }[timeframe];
+    const per = { '15m': 15, '30m': 30, '1H': 60, '4H': 240 }[timeframe];
     if (!per) return `${n}d`;
     const mins = n * per;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
@@ -1763,10 +1766,9 @@
   const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
   alUi.more = 0;
-  if (alUi.tf === '15m') alUi.tf = '30m';   // 15m became 30m (2026-09-29)
   const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '30m': '30m', '1H': '1H', '4H': '4H', 'D': 'Daily' };
+  const AL_TF_LBL = { '15m': '15m', '30m': '30m', '1H': '1H', '4H': '4H', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -1855,7 +1857,7 @@
       const item = allData.find(r => r.instrument_name === name);
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
-      for (const tf of ['30m', '1H', '4H', 'D']) {
+      for (const tf of ['15m', '30m', '1H', '4H', 'D']) {
         const list = (per && per[tf]) || [];
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
@@ -1903,7 +1905,7 @@
     let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['30m', '30m'], ['1H', '1H'], ['4H', '4H'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['15m', '15m'], ['30m', '30m'], ['1H', '1H'], ['4H', '4H'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
       <div id="alLines" class="al-lines"></div>`;
@@ -1959,7 +1961,7 @@
   function alStatsHtml() {
     const st = alertsData && alertsData.stats;
     if (!st) return '';
-    const rows = [['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'],
+    const rows = [['15m|B1', '15m B1'], ['15m|S1', '15m S1'], ['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'],
                   ['4H|B1', '4H B1'], ['4H|S1', '4H S1'],
                   ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'], ['30m|X', 'Daily-MA cross'], ['30m|T', 'Daily-MA touch']];
     const cell = (s, h) => {
@@ -2551,10 +2553,8 @@
 
   // Restore the persisted timeframe before the first render
   try {
-    // 15m became 30m (2026-09-29): a saved 15m choice lands on 30m.
-    const _m15 = v => (v === '15m' ? '30m' : v);
-    const _savedTf = _m15(localStorage.getItem('swingpulse-tf'));
-    const _savedChartTf = _m15(localStorage.getItem('swingpulse-chart-tf'));
+    const _savedTf = localStorage.getItem('swingpulse-tf');
+    const _savedChartTf = localStorage.getItem('swingpulse-chart-tf');
     // A saved timeframe that no longer exists (1H/4H/3D/W/10m) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
     tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
@@ -8175,7 +8175,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '30m': 30 * 60e3, '1H': 36e5, '4H': 4 * 36e5, 'D': 864e5 };
+  const OV_TF_MS = { '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '4H': 4 * 36e5, 'D': 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -8921,7 +8921,7 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle) {
     const n = bundle.c.length;
-    if (timeframe === '30m' || timeframe === '1H') {
+    if (timeframe === '15m' || timeframe === '30m' || timeframe === '1H') {
       // 30m (2026-09-29) opens exactly as the 15m it replaced did.
       // 1H (2026-09-27) opens on a full calendar month on EVERY instrument —
       // the month view it was brought back for — framed the 15m way.
@@ -8936,7 +8936,7 @@
       // MONTH (user: "for stock is full month view"); round-the-clock markets
       // on 8⅓ days. Either way that is ~550-800 bars, so a candle is about as
       // wide on both.
-      const days = timeframe === '30m' && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
+      const days = (timeframe === '15m' || timeframe === '30m') && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
       const last = new Date(bt[n - 1]);
       const cut = days != null ? bt[n - 1] - days * 86400000
         : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - 1, last.getUTCDate(),
@@ -8986,7 +8986,8 @@
   function reel15mIs24h(bundle) {
     if (bundle._is24h != null) return bundle._is24h;
     const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
-    return (bundle._is24h = bundle.t.length / days > 30);
+    // 15m: up to 96 a day on 24h markets, 20-34 on stocks; 30m half that.
+    return (bundle._is24h = bundle.t.length / days > (timeframe === '15m' ? 60 : 30));
   }
   function reel15mPriceWindow(b) {
     let c = null, lo = Infinity, hi = -Infinity;
@@ -9099,7 +9100,7 @@
   // edge), except 15m, which opens with REEL_15M_VIEW.future of blank space.
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
-    if ((timeframe === '30m' || timeframe === '1H') && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
+    if ((timeframe === '15m' || timeframe === '30m' || timeframe === '1H') && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
     return 0;
   }
 
@@ -10216,7 +10217,8 @@
   // 30m (2026-09-29, replaced 15m): the 1H grid (user: "make the time grid for
   // the new 30m the same as the 1h"). 4H (back 2026-09-29): the Daily's year
   // lines, administrations included (user: "make the same as the daily").
-  const REEL_TIME_GRID = { '30m': 'half', '10m': 'month', '1H': 'half', '4H': 'year',
+  // 15m (back 2026-09-29) keeps its old WEEK grid, first Monday of a month bold.
+  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'month', '1H': 'half', '4H': 'year',
                            'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -10226,7 +10228,7 @@
   const REEL_FUTURE_WEEKS = 8;
 
   // Intraday timeframes: bar labels carry a time, end-stops show it.
-  const isIntradayTf = tf => tf === '30m' || tf === '10m' || tf === '1H';
+  const isIntradayTf = tf => tf === '15m' || tf === '30m' || tf === '10m' || tf === '1H';
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
@@ -10690,7 +10692,7 @@
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
     const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
-      || (timeframe === '30m' || timeframe === '1H' ? reel15mPriceWindow(b) : null));
+      || (timeframe === '15m' || timeframe === '30m' || timeframe === '1H' ? reel15mPriceWindow(b) : null));
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -11344,7 +11346,7 @@
     // screen applies it itself (reelViewSeedPrice on its own plot) rather than
     // copying the card's un-applied default and marking the view done.
     if (src && !viewPricePending.has(name)
-        && !((timeframe === '30m' || timeframe === '1H') && chartFullPrevLock === undefined)) {
+        && !((timeframe === '15m' || timeframe === '30m' || timeframe === '1H') && chartFullPrevLock === undefined)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {

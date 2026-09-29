@@ -90,6 +90,7 @@ SIGNAL_LOOKBACK_WEEKLY = 12
 # trading days (~6 weeks), against Daily's 20 bars (~1 month) and Weekly's 12
 # (~3 months). Carrying Daily's 20 across would report a 3-month-old fire.
 SIGNAL_LOOKBACK_3D     = 10
+SIGNAL_LOOKBACK_15M    = 96    # one 24h day of 15m bars
 SIGNAL_LOOKBACK_30M    = 48    # one 24h day of 30m bars
 FIFTEEN_MIN_SIGNAL_CODES      = ('B1', 'S1')
 FIFTEEN_MIN_SIGNAL_LIVE_HOURS = 24
@@ -97,6 +98,8 @@ FIFTEEN_MIN_SIGNAL_LIVE_HOURS = 24
 # with 30m" — 15m had replaced 5m on 2026-09-25). Six 5m bars make one 30m bar.
 # A session opening on a quarter hour (xx:15/xx:45) starts with a short bar.
 THIRTY_MIN_RULE = '30min'
+# 15m back beside 30m (2026-09-29, user: "bring back the 15min").
+FIFTEEN_MIN_RULE = '15min'
 
 # Dedup windows
 P3P4_DEDUP_WINDOW = 3
@@ -400,7 +403,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # 30m (2026-09-29, replaced 15m): a day holds up to 48 thirty-minute bars.
 # 1H (2026-09-27, back with the hourly download): up to 24 bars a day.
 # 4H (2026-09-29, back, resampled from the hourly download): up to 6 a day.
-INTRADAY_PREFIXES = {'m30_', 'h1_', 'h4_'}
+INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 
 # The timeframe table — ONE definition, ordered fast to slow. Every consumer
 # that loops over timeframes (column emission, context modifiers,
@@ -447,6 +450,7 @@ INTRADAY_PREFIXES = {'m30_', 'h1_', 'h4_'}
 # 50/250/500 on session-anchored 4H bars (main._resample_4h) of the 1H feed.
 # The 2026-09-11 4H finding above is unchanged — the fires carry no edge.
 TIMEFRAMES = (
+    ('15m', 'm15_'),   # back 2026-09-29, beside 30m, same rules
     ('30m', 'm30_'),
     ('1H',  'h1_'),
     ('4H',  'h4_'),
@@ -521,7 +525,8 @@ OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry', 'asset_class',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
-    # ── 30m (B1/S1 only, see TIMEFRAMES) ──
+    # ── 15m and 30m (B1/S1 only, see TIMEFRAMES) ──
+    *_tf_signal_columns('m15_'),
     *_tf_signal_columns('m30_'),
     # ── 1H and 4H (B1/S1 only, same rules as 30m) ──
     *_tf_signal_columns('h1_'),

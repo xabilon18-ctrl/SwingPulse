@@ -61,7 +61,7 @@ from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
-                  _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods,
+                  _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
                   _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
@@ -81,6 +81,7 @@ CARRY_MONTHS = 2
 # ~60 days deep, so the warm-up cap below trims a 24h instrument by MA500's
 # ~10 days and an equity by more (its MA500 is ~38 sessions).
 CARRY_MONTHS_30M = 2
+CARRY_MONTHS_15M = 2   # 15m back beside 30m, 2026-09-29
 
 # The 1H bundle (2026-09-27): the chart opens on a month, and carries six so a
 # drag can reach back a season. ~4,400 bars on a 24/7 instrument (under the
@@ -117,6 +118,7 @@ BARS_BY_TF = {
     # 30m (2026-09-29, replaced 15m on the Charts tab): the same ceiling role —
     # two calendar months of a 24/7 instrument is ~2,950 thirty-minute bars.
     '30m': 3000,
+    '15m': 6000,   # two months of a 24/7 instrument
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
@@ -497,6 +499,24 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
+def build_15m(cache_dir: str, ticker: str) -> dict | None:
+    """15-minute chart (back 2026-09-29 beside 30m): build_30m at 15 minutes."""
+    df_5m = load_5m(ticker)
+    if df_5m is None or df_5m.empty:
+        return None
+    frame = _frame_15m(df_5m)
+    if len(frame) < 2:
+        return None
+    periods = _m15_ma_periods(frame)
+    if len(periods) < MIN_RIBBON_LINES:
+        return None
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_15M)
+    n_carry = int((frame.index > cutoff).sum()) or len(frame)
+    warm_cap = len(frame) - max(periods)
+    bars = min(n_carry, BARS_BY_TF['15m'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
+
+
 def build_30m(cache_dir: str, ticker: str) -> dict | None:
     """30-minute chart, resampled from the instrument's 5m source (main._frame_30m).
 
@@ -635,7 +655,7 @@ def _write_gz(path: str, payload: dict) -> None:
 # XM_HOLD is in bars of the chart: one hour on 30m (2 bars) and 1H (1 bar);
 # on 4H one bar is the shortest hold there is (XM_HOLD_BY_TF).
 XM_REARM, XM_HOLD = 0.5, 2
-XM_HOLD_BY_TF = {'30m': 2, '1H': 1, '4H': 1}
+XM_HOLD_BY_TF = {'15m': 4, '30m': 2, '1H': 1, '4H': 1}
 _DAY_MS = 86_400_000
 
 
@@ -800,6 +820,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
                      h1_fires_path: str | None = None,
                      h4_fires_path: str | None = None,
+                     m15_fires_path: str | None = None,
                      d_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
@@ -821,10 +842,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'15m': 0, '30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live),
+    for tf, builder in (('15m', build_15m), ('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live),
                         ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
@@ -861,7 +882,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         print(f'  WARN 30m markers not built: {exc}')
     # 1H (2026-09-27) and 4H (2026-09-29) markers: the same B1/S1 + Daily-MA
     # marks, from h1_/h4_fires.json.
-    for tf, fpath in (('1H', h1_fires_path), ('4H', h4_fires_path)):
+    for tf, fpath in (('15m', m15_fires_path), ('1H', h1_fires_path), ('4H', h4_fires_path)):
         try:
             fires = {}
             if fpath and os.path.exists(fpath):
