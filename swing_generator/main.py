@@ -1268,42 +1268,28 @@ def _process_worker(args: tuple) -> tuple:
             for k in ('m5_fp', 'm5_state'):
                 rc.pop(k, None)
             hit_5 = False
-        m15_fp = _fp('15m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
-        if rc.get('m15_fp') == m15_fp:
-            state_15, hit_15 = rc['m15_state'], True
-        else:
-            try:
-                state_15 = _compute_15m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
-            except Exception:
-                state_15 = None
-            rc.update(m15_fp=m15_fp, m15_state=state_15)
-            hit_15 = False
-        # 1H and 4H signals removed 2026-09-30 (no hourly download any more).
-        # Their cached state is dropped from the row cache once.
-        stale_h = [k for k in ('h1_fp', 'h1_state', 'h4_fp', 'h4_state') if k in rc]
+        # 15m, 1H and 4H signals removed 2026-09-30 (user: "remove 1h and 4h",
+        # then "remove the 15 as well"). Their cached state is dropped once.
+        stale_h = [k for k in ('m15_fp', 'm15_state', 'h1_fp', 'h1_state', 'h4_fp', 'h4_state') if k in rc]
         for k in stale_h:
             rc.pop(k, None)
-        if stale_h or not (hit_d and hit_15 and hit_5):
+        if stale_h or not (hit_d and hit_5):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_intraday(state_15, prefix='m15_'), **_live_intraday(state)}
-               if row_d else None)
+        row = ({**row_d, **_live_intraday(state)} if row_d else None)
         if row is not None:
-            row['_m15_fires'] = list(state_15[2]) if state_15 and len(state_15) > 2 else []
             row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
-            m15_primary = row.get('m15_primary_signal', '')
-            m15_tag   = f' 15m[{m15_primary}]' if m15_primary else ''
             m5_primary = row.get('m30_primary_signal', '')
             m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
-            # 1H/4H gone 2026-09-30 — naming their hit flags here crashed every
-            # instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
-            hits = (('D', hit_d), ('15m', hit_15), ('30m', hit_5))
+            # 15m/1H/4H gone 2026-09-30 — naming their hit flags here crashed
+            # every instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
+            hits = (('D', hit_d), ('30m', hit_5))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
-            status_str = f'OK{d_tag}{m15_tag}{m5_tag}{reuse}'.strip()
+            status_str = f'OK{d_tag}{m5_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 
@@ -1403,7 +1389,6 @@ def main():
 
     rows      = []
     all_trends = {}
-    m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
     m30_fires  = {}   # the same for 30m
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
@@ -1418,7 +1403,6 @@ def main():
             done += 1
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
-                m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
                 m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
                 d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
@@ -1462,7 +1446,7 @@ def main():
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
     # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
-    for fname, fires in (('m15_fires.json', m15_fires), ('m30_fires.json', m30_fires)):
+    for fname, fires in (('m30_fires.json', m30_fires),):
         with open(os.path.join(output_dir, fname), 'w') as ff:
             json.dump(fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:

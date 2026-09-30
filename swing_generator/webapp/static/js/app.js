@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['15m', '30m']);  // 15m back beside 30m 2026-09-29
+  const INTRADAY_TFS = new Set(['30m']);  // 15m removed 2026-09-30
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -133,7 +133,7 @@
     // replaced 5m on 2026-09-25. B1/S1 SIGNALS (m30_ columns; a fire stays on
     // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
-    { code: '15m', prefix: 'm15_', label: '15m', tv: '15', bar: '15-minute bars', barShort: '25-bar' },
+    // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
     // 1H (back 2026-09-27) and 4H (back 2026-09-29) REMOVED 2026-09-30 (user:
     // "remove 1h and 4h") — charts, B1/S1 signals and the hourly download.
@@ -152,7 +152,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['15m', '30m', 'D']);
+  const SIGNAL_TFS = new Set(['30m', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1865,7 +1865,7 @@
       const item = allData.find(r => r.instrument_name === name);
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
-      for (const tf of ['15m', '30m', 'D']) {
+      for (const tf of ['30m', 'D']) {
         const list = (per && per[tf]) || [];
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
@@ -1914,7 +1914,7 @@
     let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['15m', '15m'], ['30m', '30m'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['30m', '30m'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
       <div id="alLines" class="al-lines"></div>`;
