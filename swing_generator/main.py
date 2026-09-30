@@ -1298,14 +1298,12 @@ def _process_worker(args: tuple) -> tuple:
             m15_tag   = f' 15m[{m15_primary}]' if m15_primary else ''
             m5_primary = row.get('m30_primary_signal', '')
             m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
-            h1_primary = row.get('h1_primary_signal', '')
-            h1_tag    = f' 1H[{h1_primary}]' if h1_primary else ''
-            h4_primary = row.get('h4_primary_signal', '')
-            h4_tag    = f' 4H[{h4_primary}]' if h4_primary else ''
-            hits = (('D', hit_d), ('15m', hit_15), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
+            # 1H/4H gone 2026-09-30 — naming their hit flags here crashed every
+            # instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
+            hits = (('D', hit_d), ('15m', hit_15), ('30m', hit_5))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
-            status_str = f'OK{d_tag}{m15_tag}{m5_tag}{h1_tag}{h4_tag}{reuse}'.strip()
+            status_str = f'OK{d_tag}{m15_tag}{m5_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 

@@ -9239,7 +9239,9 @@
   const viewBtnInner = on => VIEW_ICON + `<span>${on ? 'Saved' : 'Save'}</span>`;
   function reelViewBtnSync(name) {
     const on = !!savedViews[viewKey(name)];
-    document.querySelectorAll(`.reel-view-btn[data-name="${CSS.escape(name)}"]`).forEach(b => {
+    // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
+    // .reel-view-btn class, and matching on it relabelled them "Saved" (2026-09-30).
+    document.querySelectorAll(`.reel-view-btn[data-act="chart-view-save"][data-name="${CSS.escape(name)}"]`).forEach(b => {
       b.classList.toggle('on', on);
       b.innerHTML = viewBtnInner(on);
       b.setAttribute('aria-pressed', String(on));
