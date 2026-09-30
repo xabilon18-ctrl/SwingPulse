@@ -825,14 +825,11 @@ def near_ma_map(daily: dict) -> dict:
 
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
-                     h1_fires_path: str | None = None,
-                     h4_fires_path: str | None = None,
-                     m15_fires_path: str | None = None,
                      d_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, 'D': n, 'chunks': n_files}.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
     1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
@@ -888,19 +885,6 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                 events[name] = ev
     except Exception as exc:
         print(f'  WARN 30m markers not built: {exc}')
-    # 1H (2026-09-27) and 4H (2026-09-29) markers: the same B1/S1 + Daily-MA
-    # marks, from h1_/h4_fires.json.
-    for tf, fpath in ():
-        try:
-            fires = {}
-            if fpath and os.path.exists(fpath):
-                with open(fpath) as fh:
-                    fires = json.load(fh)
-            for name, b1 in built.get(tf, {}).items():
-                _attach_15m_marks(b1, built.get('D', {}).get(name), fires.get(name),
-                                  hold=XM_HOLD_BY_TF[tf])
-        except Exception as exc:
-            print(f'  WARN {tf} markers not built: {exc}')
 
     # Alerts tab (2026-09-27): every marker above as a listed alert, with what
     # price did after it. A failure costs the Alerts tab, never the chart feed.

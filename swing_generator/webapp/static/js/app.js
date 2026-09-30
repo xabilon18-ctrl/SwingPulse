@@ -1771,12 +1771,17 @@
   // ANY bar did (the honest yardstick: these showed no edge in testing).
   let alertsData = null;
   let marketData = null;
+  // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
+  // the 30 min ... and the daily as well, but for all others they go").
+  const AL_TFS = ['30m', 'D'];
   const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
   alUi.more = 0;
+  const alTfOk = () => { if (alUi.tf !== 'all' && !AL_TFS.includes(alUi.tf)) alUi.tf = 'all'; };
+  alTfOk();   // a saved 15m/1H/4H chip would otherwise match nothing
   const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '15m': '15m', '30m': '30m', '1H': '1H', '4H': '4H', 'D': 'Daily' };
+  const AL_TF_LBL = { '30m': '30m', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -1865,7 +1870,7 @@
       const item = allData.find(r => r.instrument_name === name);
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
-      for (const tf of ['30m', 'D']) {
+      for (const tf of AL_TFS) {
         const list = (per && per[tf]) || [];
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
@@ -1905,7 +1910,7 @@
     const scope = hasLists ? alUi.scope : 'all';
     const ev = (alertsData && alertsData.ev) || [];
     const keep = e => (scope !== 'mine' || e[0] in lists)
-      && isTf(e[1])   // an alert from a removed timeframe (1H/4H) has no chart
+      && AL_TFS.includes(e[1])
       && (alUi.tf === 'all' || e[1] === alUi.tf)
       && (alUi.kind === 'all' || (alUi.kind === 'sig' ? (e[2] === 'B1' || e[2] === 'S1') : alUi.kind === 'ma' ? (e[2] === 'X' || e[2] === 'T') : false));
     const shown = alUi.kind === 'lines' ? [] : ev.filter(keep);
@@ -1950,7 +1955,7 @@
     let rows = [];
     try { rows = await alLineAlerts(); } catch (_) { rows = []; }
     if (!document.body.contains(box)) return;
-    rows = rows.filter(r => (scope !== 'mine' || r.name in lists) && (alUi.tf === 'all' || r.tf === alUi.tf));
+    rows = rows.filter(r => (scope !== 'mine' || r.name in lists) && AL_TFS.includes(r.tf) && (alUi.tf === 'all' || r.tf === alUi.tf));
     if (!rows.length) {
       box.innerHTML = alUi.kind === 'lines'
         ? `<div class="al-empty">Price is not at any line you drew${scope === 'mine' ? ' on your lists' : ''}. Lines, entry marks, ladders, trend lines and channels count.</div>` : '';
@@ -1970,9 +1975,8 @@
   function alStatsHtml() {
     const st = alertsData && alertsData.stats;
     if (!st) return '';
-    const rows = [['15m|B1', '15m B1'], ['15m|S1', '15m S1'], ['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'],
-                  ['4H|B1', '4H B1'], ['4H|S1', '4H S1'],
-                  ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'], ['30m|X', 'Daily-MA cross'], ['30m|T', 'Daily-MA touch']];
+    const rows = [['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
+                  ['30m|X', 'Daily-MA cross'], ['30m|T', 'Daily-MA touch']];
     const cell = (s, h) => {
       const v = s && s.h && s.h[h];
       if (!v) return '<td>—</td>';
@@ -2479,7 +2483,7 @@
   // what timeframe you're actually looking at instead of offering a dead choice.
   const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
                            watchlist: 'Latest prices · updated every run',
-                           scanner: 'Alerts · 30m, 1H, 4H and Daily together',
+                           scanner: 'Alerts · 30m and Daily',
                            dashboard: 'Market · updated every run' };
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
@@ -4114,21 +4118,7 @@
     body.querySelectorAll('.gp-row[data-gp-key]').forEach(row => {
       row.addEventListener('click', () => {
         const key = row.dataset.gpKey;
-        if (gpViewMode === 'region') {
-          // Region click: toggle the region filter, clear any single-group filter
-          activeRegionFilter = (activeRegionFilter === key) ? '' : key;
-          const sel = document.getElementById('scannerGroupFilter');
-          if (sel) sel.value = 'all';
-        } else {
-          // Group click: toggle the group dropdown, clear any region filter
-          const sel = document.getElementById('scannerGroupFilter');
-          if (sel) sel.value = sel.value === key ? 'all' : key;
-          activeRegionFilter = '';
-        }
-        updateScannerCtxStrip?.();
-        navigateToTab('scanner');
-        buildScannerCards();
-        renderGroupPulse();
+        openChartsFiltered({ gp: { mode: gpViewMode === 'region' ? 'region' : 'group', key }, label: key });
       });
     });
 
@@ -4277,17 +4267,8 @@
     body.querySelectorAll('.vp-row[data-vp-key]').forEach(row => {
       row.addEventListener('click', () => {
         const key = row.dataset.vpKey;
-        if (vpMode === 'market') {
-          const sel = document.getElementById('scannerClassFilter');
-          if (sel) sel.value = key;
-        } else {
-          const inp = document.getElementById('scannerSearch');
-          if (inp) inp.value = key;
-          clearCatChip();
-        }
-        updateScannerCtxStrip?.();
-        navigateToTab('scanner');
-        buildScannerCards();
+        if (vpMode === 'market') openChartsFiltered({ cls: key, label: key });
+        else openChartsFiltered({ search: key });
       });
     });
   }
@@ -4523,23 +4504,10 @@
     if (more) more.addEventListener('click', () => { leadersShowAll = !leadersShowAll; renderLeaders(); });
   }
 
-  // Jump to Signals searched to a sector. Shared by the Sector Radar and the
-  // rotation wheel (it used to live inside renderSectorRadar).
+  // Open Charts searched to a sector. Shared by the Sector Radar and the
+  // rotation wheel.
   function srGoToSector(sector) {
-    const inp = document.getElementById('scannerSearch');
-    if (inp) inp.value = sector;
-    clearCatChip();
-    scannerSort = 'signal';
-    const sortSel = document.getElementById('scannerSort');
-    if (sortSel) sortSel.value = 'signal';
-    updateScannerCtxStrip?.();
-    navigateToTab('scanner');
-    buildScannerCards();
-    // Re-assert the top AFTER the cards exist. navigateToTab scrolls while the
-    // scanner still holds the previous card set; rebuilding changes the document
-    // height, and scroll anchoring can pull the viewport back down.
-    try { window.scrollTo({ top: 0, behavior: 'instant' }); }
-    catch (_) { document.scrollingElement.scrollTop = 0; }
+    openChartsFiltered({ search: sector });
   }
 
   function renderSectorRadar() {
@@ -4770,6 +4738,28 @@
         <span class="tci-label">${lbl}</span>
       </div>`;
     }).join('');
+  }
+
+  // The Market card's group / region of an instrument — one definition for the
+  // card's rows and the Charts filter a row tap opens.
+  function gpKeyOf(item, mode) {
+    const raw = item.group || 'Other';
+    return mode === 'region' ? (GP_REGION_MAP[raw] || 'Other') : (INDEX_GROUPS.has(raw) ? 'Indices' : raw);
+  }
+  // Market taps open CHARTS filtered (2026-09-30). They used to open the old
+  // scanner list inside the Alerts tab, which has not been shown since
+  // 2026-09-27 — every tap landed on unfiltered alerts. What was tapped shows
+  // in the Charts search box; typing there or Reset clears it.
+  function openChartsFiltered({ gp = null, cls = '', search = '', trend = 'all', label = '' } = {}) {
+    reel.similarTo = ''; reel.listSet = null;
+    reel.gp = gp; reel.cls = cls; reel.cat = ''; reel.trend = trend;
+    reel.search = (search || '').toLowerCase();
+    const inp = document.getElementById('reelSearch'), clr = document.getElementById('reelSearchClear');
+    if (inp) inp.value = label || search || cls || '';
+    if (clr) clr.style.display = inp && inp.value ? '' : 'none';
+    reelResetPan?.();
+    navigateToTab('charts');
+    buildReel();
   }
 
   // ── Tab navigation helper ─────────────────────────────────────────────
@@ -7752,16 +7742,7 @@
   function openRatesBoard() {
     const popup = document.getElementById('notifPopup');
     if (popup) popup.style.display = 'none';
-    const cls = document.getElementById('scannerClassFilter');
-    if (cls) cls.value = 'Rates';
-    const grp = document.getElementById('scannerGroupFilter');
-    if (grp) grp.value = 'all';
-    activeRegionFilter = '';
-    activeScannerFilter = 'all';
-    updateScannerCtxStrip?.();
-    updateFilterPills?.();
-    navigateToTab('scanner');
-    buildScannerCards();
+    openChartsFiltered({ cls: 'Rates', label: 'Rates' });
   }
 
   // Where a tapped notification lands. An instrument opens its card; a
@@ -7877,17 +7858,8 @@
       const row = e.target.closest('.mp-filter-row');
       if (!row) return;
       const trend = row.dataset.filterTrend;
-      const trendSel = document.getElementById('scannerTrendFilter');
-      if (!trendSel || !trend) return;
-      // Toggle: clicking the active trend resets it
-      trendSel.value = trendSel.value === trend ? 'all' : trend;
-
-      // Also keep heatmap filter in sync for when user scrolls back to dashboard
-      activeTrendFilter = trendSel.value !== 'all' ? trendSel.value : '';
-
-      updateScannerCtxStrip();
-      navigateToTab('scanner');
-      buildScannerCards();
+      if (!trend) return;
+      openChartsFiltered({ trend, label: trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral' });
     });
   }
 
@@ -11928,6 +11900,8 @@
     }
     let rows = rowsAll;
 
+    if (reel.gp)     rows = rows.filter(d => gpKeyOf(d, reel.gp.mode) === reel.gp.key);
+    if (reel.cls)    rows = rows.filter(d => browseClassOf(d) === reel.cls);
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
     // On a chartOnly timeframe (10m) the row carries NO prefixed columns at
@@ -13586,13 +13560,14 @@
     if (search) {
       search.addEventListener('input', debounce(() => {
         reel.search = search.value.trim().toLowerCase();
+        reel.gp = null; reel.cls = '';     // typing replaces a Market-tap filter
         if (clear) clear.style.display = reel.search ? '' : 'none';
         buildReel();
       }, 220));
     }
     if (clear) {
       clear.addEventListener('click', () => {
-        search.value = ''; reel.search = '';
+        search.value = ''; reel.search = ''; reel.gp = null; reel.cls = '';
         clear.style.display = 'none';
         buildReel();
       });
@@ -13684,7 +13659,7 @@
         // applied is worse than no reset — you press it and still cannot see
         // the instrument you are looking for.
         reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
-        reel.near = 'all';
+        reel.near = 'all'; reel.gp = null; reel.cls = '';
         try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
         if (rbox) {

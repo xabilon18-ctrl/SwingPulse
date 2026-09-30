@@ -50,7 +50,7 @@ from _active_config import (
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
+from data_fetcher  import (fetch_all, fetch_all_5m, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
                            drop_unfinished_30m, drop_unfinished_15m)
