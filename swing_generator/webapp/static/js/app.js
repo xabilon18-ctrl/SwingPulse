@@ -534,6 +534,13 @@
       if (drawingsChanged && !(remote.lastModified > localMod)) {
         try { reelRepaintVisible(); } catch (_) {}
       }
+      // This device holds a chart edited after the server's copy of it — a
+      // flush that never landed. Send it now rather than waiting for the next
+      // edit; this is what rescued the phone drawings stranded by the 64 KB
+      // keepalive cap. Costs a save only when something is actually missing.
+      const rMod = remote.channelsMod || {};
+      if (!syncDrawTimer && Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)))
+        syncPushNow();
       if (remote.lastModified > localMod) {
         syncApplyRemote(remote);
         // Full re-render so every tab (signals, scanner, watchlist) reflects synced data
@@ -556,9 +563,6 @@
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
     if (!syncToken()) return;
-    // Whatever this push carries includes every drawing, so the catch-up
-    // marker is spent here rather than in each caller.
-    try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
 
     // A pending drawing batch is covered by whatever this push sends — the
     // payload carries every drawing — so the timer is dropped rather than
@@ -587,14 +591,22 @@
                       lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
+    const body = JSON.stringify(payload);
     fetch(`${SYNC_WORKER}/sync?user=${syncUser}${clearing}`, {
       method:  'PUT',
       headers: syncHeaders({ 'Content-Type': 'application/json' }),
-      body:    JSON.stringify(payload),
+      body,
       // keepalive lets the request outlive the page it was fired from, which
-      // is the whole point of the flush on pagehide.
-      keepalive: !!quick,
+      // is the whole point of the flush on pagehide. But browsers REFUSE a
+      // keepalive body over 64 KB outright, and the drawings passed that on
+      // 2026-09-30 (~73 KB): every swipe-away flush failed silently and the
+      // phone's drawings never reached the laptop. Over the cap, send it as a
+      // normal request — iOS usually lets it finish, and if it doesn't the
+      // dirty marker (kept until the Worker says OK) resends it next time.
+      keepalive: !!quick && body.length < 60000,
     }).then(res => {
+      // Only a confirmed save spends the catch-up marker.
+      if (res.ok) try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
       if (res.status === 401) syncPasswordRejected();
       // 409 = the Worker refused a destructive write. Not an error the user
       // caused and not one they can fix, so it is logged, not surfaced.
