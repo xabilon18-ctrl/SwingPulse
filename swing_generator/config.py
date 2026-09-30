@@ -452,8 +452,8 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 TIMEFRAMES = (
     ('15m', 'm15_'),   # back 2026-09-29, beside 30m, same rules
     ('30m', 'm30_'),
-    ('1H',  'h1_'),
-    ('4H',  'h4_'),
+    # 1H and 4H removed 2026-09-30 (user: "remove 1h and 4h") — signals,
+    # charts and the hourly download. _compute_1h/_4h_state kept for research.
     ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -528,9 +528,6 @@ OUTPUT_COLUMNS = [
     # ── 15m and 30m (B1/S1 only, see TIMEFRAMES) ──
     *_tf_signal_columns('m15_'),
     *_tf_signal_columns('m30_'),
-    # ── 1H and 4H (B1/S1 only, same rules as 30m) ──
-    *_tf_signal_columns('h1_'),
-    *_tf_signal_columns('h4_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',

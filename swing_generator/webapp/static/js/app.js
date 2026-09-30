@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['15m', '30m', '1H', '4H']);  // 15m back beside 30m 2026-09-29
+  const INTRADAY_TFS = new Set(['15m', '30m']);  // 15m back beside 30m 2026-09-29
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -135,12 +135,8 @@
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     { code: '15m', prefix: 'm15_', label: '15m', tv: '15', bar: '15-minute bars', barShort: '25-bar' },
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
-    // 1H back 2026-09-27 (user: the month view between the 15m's week and the
-    // Daily's year) with the same B1/S1 rules — h1_ columns, hourly download.
-    { code: '1H',  prefix: 'h1_',  label: '1H',  tv: '60', bar: 'hourly bars',    barShort: '25-bar' },
-    // 4H back 2026-09-29 (user: "add the 4h"): 4-hour bars of the 1H feed,
-    // counted from each session's open, same B1/S1 rules — h4_ columns.
-    { code: '4H',  prefix: 'h4_',  label: '4H',  tv: '240', bar: '4-hour bars',   barShort: '25-bar' },
+    // 1H (back 2026-09-27) and 4H (back 2026-09-29) REMOVED 2026-09-30 (user:
+    // "remove 1h and 4h") — charts, B1/S1 signals and the hourly download.
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
@@ -156,7 +152,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['15m', '30m', '1H', '4H', 'D']);
+  const SIGNAL_TFS = new Set(['15m', '30m', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1869,7 +1865,7 @@
       const item = allData.find(r => r.instrument_name === name);
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
-      for (const tf of ['15m', '30m', '1H', '4H', 'D']) {
+      for (const tf of ['15m', '30m', 'D']) {
         const list = (per && per[tf]) || [];
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
@@ -1909,6 +1905,7 @@
     const scope = hasLists ? alUi.scope : 'all';
     const ev = (alertsData && alertsData.ev) || [];
     const keep = e => (scope !== 'mine' || e[0] in lists)
+      && isTf(e[1])   // an alert from a removed timeframe (1H/4H) has no chart
       && (alUi.tf === 'all' || e[1] === alUi.tf)
       && (alUi.kind === 'all' || (alUi.kind === 'sig' ? (e[2] === 'B1' || e[2] === 'S1') : alUi.kind === 'ma' ? (e[2] === 'X' || e[2] === 'T') : false));
     const shown = alUi.kind === 'lines' ? [] : ev.filter(keep);
@@ -1917,7 +1914,7 @@
     let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['15m', '15m'], ['30m', '30m'], ['1H', '1H'], ['4H', '4H'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['15m', '15m'], ['30m', '30m'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
       <div id="alLines" class="al-lines"></div>`;

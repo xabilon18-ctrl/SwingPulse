@@ -1238,12 +1238,6 @@ def _process_worker(args: tuple) -> tuple:
             df_5m = load_5m(ticker)
         except Exception:
             df_5m = None
-        # The hourly download (2026-09-27) feeds the h1_ and h4_ signals the same way.
-        try:
-            from data_fetcher import load_1h
-            df_1h = load_1h(ticker)
-        except Exception:
-            df_1h = None
 
         # ── Reuse what cannot have changed (2026-09-24, 30-minute runs) ──
         # Daily signals read FINISHED sessions only, so between two runs most
@@ -1284,36 +1278,18 @@ def _process_worker(args: tuple) -> tuple:
                 state_15 = None
             rc.update(m15_fp=m15_fp, m15_state=state_15)
             hit_15 = False
-        h1_fp = _fp('1H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
-        if rc.get('h1_fp') == h1_fp:
-            state_h1, hit_h1 = rc['h1_state'], True
-        else:
-            try:
-                state_h1 = _compute_1h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
-            except Exception:
-                state_h1 = None
-            rc.update(h1_fp=h1_fp, h1_state=state_h1)
-            hit_h1 = False
-        h4_fp = _fp('4H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
-        if rc.get('h4_fp') == h4_fp:
-            state_h4, hit_h4 = rc['h4_state'], True
-        else:
-            try:
-                state_h4 = _compute_4h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
-            except Exception:
-                state_h4 = None
-            rc.update(h4_fp=h4_fp, h4_state=state_h4)
-            hit_h4 = False
-        if not (hit_d and hit_15 and hit_5 and hit_h1 and hit_h4):
+        # 1H and 4H signals removed 2026-09-30 (no hourly download any more).
+        # Their cached state is dropped from the row cache once.
+        stale_h = [k for k in ('h1_fp', 'h1_state', 'h4_fp', 'h4_state') if k in rc]
+        for k in stale_h:
+            rc.pop(k, None)
+        if stale_h or not (hit_d and hit_15 and hit_5):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_intraday(state_15, prefix='m15_'), **_live_intraday(state),
-                **_live_intraday(state_h1, prefix='h1_'),
-                **_live_intraday(state_h4, prefix='h4_')} if row_d else None)
+        row = ({**row_d, **_live_intraday(state_15, prefix='m15_'), **_live_intraday(state)}
+               if row_d else None)
         if row is not None:
             row['_m15_fires'] = list(state_15[2]) if state_15 and len(state_15) > 2 else []
             row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
-            row['_h1_fires'] = list(state_h1[2]) if state_h1 and len(state_h1) > 2 else []
-            row['_h4_fires'] = list(state_h4[2]) if state_h4 and len(state_h4) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
@@ -1413,13 +1389,9 @@ def main():
         # §FIVE_MIN_MAX_AGE_HOURS.
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
-        # Hourly (2026-09-27): the 1H chart + 1H signals. Same freshness gate
-        # and closed-market skip as the 5m.
-        print('  Fetching 1h market data (1H + 4H charts and signals) ...\n')
-        fetch_all_1h(instruments, force_refresh=args.refresh,
-                     max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
+        # Hourly download (1H + 4H) stopped 2026-09-30 — both timeframes removed.
         _e2 = _time.time() - _t2
-        print(f'  Intraday data (5m + 1h): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
@@ -1435,8 +1407,6 @@ def main():
     all_trends = {}
     m15_fires  = {}   # name → [[ts, 'B1'|'S1'], ...] for the 15m chart markers
     m30_fires  = {}   # the same for 30m
-    h1_fires   = {}   # the same for the 1H chart
-    h4_fires   = {}   # and the 4H chart
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
@@ -1452,8 +1422,6 @@ def main():
             if row:
                 m15_fires[row['instrument_name']] = row.pop('_m15_fires', [])
                 m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
-                h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
-                h4_fires[row['instrument_name']] = row.pop('_h4_fires', [])
                 d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
@@ -1496,8 +1464,7 @@ def main():
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
     # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
-    for fname, fires in (('m15_fires.json', m15_fires), ('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires),
-                         ('h4_fires.json', h4_fires)):
+    for fname, fires in (('m15_fires.json', m15_fires), ('m30_fires.json', m30_fires)):
         with open(os.path.join(output_dir, fname), 'w') as ff:
             json.dump(fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:

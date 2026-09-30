@@ -849,11 +849,11 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'15m': 0, '30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'15m': 0, '30m': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    for tf, builder in (('15m', build_15m), ('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live),
-                        ('D', build_daily)):
+    # 1H and 4H charts removed 2026-09-30 (build_1h/build_4h_live kept).
+    for tf, builder in (('15m', build_15m), ('30m', build_30m), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -889,7 +889,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         print(f'  WARN 30m markers not built: {exc}')
     # 1H (2026-09-27) and 4H (2026-09-29) markers: the same B1/S1 + Daily-MA
     # marks, from h1_/h4_fires.json.
-    for tf, fpath in (('15m', m15_fires_path), ('1H', h1_fires_path), ('4H', h4_fires_path)):
+    for tf, fpath in (('15m', m15_fires_path),):
         try:
             fires = {}
             if fpath and os.path.exists(fpath):
