@@ -9858,3 +9858,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 /* Price-zero line (2026-09-30): fixed, bold, dashed; ladders never cross it. */
 .reel-zero { stroke: #111; stroke-width: 6; stroke-dasharray: 22 12; pointer-events: none; }
 .reel-zero-lbl { fill: #111; font-size: 26px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 6px; pointer-events: none; }
+
+/* Background strength slider (2026-09-30) — replaces Faint/Light/Medium/Strong. */
+.reel-fill-a { padding: 4px 6px 2px; }
+.reel-fill-a span, .reel-fill-a b { color: #222; font-weight: 700; font-size: .85rem; }
+.reel-fill-a b { min-width: 3.2em; text-align: right; }
+.reel-fill-a input { flex: 1; }

@@ -6885,7 +6885,11 @@
   const DRAW_FILLABLE = new Set(['channel', 'circle', 'triangle', 'ladder']);
   const DRAW_FILL_STEPS = [[10, 'Faint'], [20, 'Light'], [35, 'Medium'], [50, 'Strong']];   // capped at 50%: the price must still show through
   const drawFillColor = d => (d && DRAW_HEX.test(d.fill || '')) ? d.fill : drawColor(d);
-  const drawFillA = d => (d && DRAW_FILL_STEPS.some(([v]) => v === d.fillA)) ? d.fillA : 20;
+  // A SLIDER since 2026-09-30 (user: "this must be adjustable instead of
+  // these buttons"): any whole % from FILL_MIN to FILL_MAX. The old steps are
+  // all inside the range, so saved backgrounds keep their strength.
+  const FILL_MIN = 5, FILL_MAX = 50;
+  const drawFillA = d => (d && Number.isFinite(d.fillA) && d.fillA >= FILL_MIN && d.fillA <= FILL_MAX) ? Math.round(d.fillA) : 20;
   // The fill's inline style, or '' when the shape has no background.
   const drawFillStyle = d => (d && d.fillOn && DRAW_FILLABLE.has(d.kind))
     ? `style="fill:${drawFillColor(d)};fill-opacity:${drawFillA(d) / 100}"` : '';
@@ -6952,9 +6956,7 @@
         intensity += `<button class="reel-tool reel-grid-switch reel-fill-switch${fillOn ? ' on' : ''}" data-act="draw-fill-toggle" data-name="${name}" role="switch" aria-checked="${fillOn}"><span>Background</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
         if (fillOn) {
           intensity += `<div class="reel-style-cols">${dots('draw-fill-color', fc, 'draw-any-fill')}</div>`
-            + `<div class="reel-style-alpha">` + DRAW_FILL_STEPS.map(([v, lbl]) =>
-              `<button class="reel-tool reel-alpha-btn${fa === v ? ' on' : ''}" data-act="draw-fill-a" data-v="${v}" data-name="${name}" aria-label="Background ${lbl}"><i style="background:${fc};opacity:${v / 100 + .1}"></i><span>${lbl}</span></button>`).join('')
-            + `</div>`;
+            + `<label class="reel-ov-row reel-fill-a"><span>Strength</span><input type="range" min="${FILL_MIN}" max="${FILL_MAX}" step="1" value="${fa}" data-act="draw-fill-a" data-name="${name}" aria-label="Background strength" style="accent-color:${fc}"><b>${Math.round(fa / FILL_MAX * 100)}%</b></label>`;
         }
       }
       intensity += `</div>`;
@@ -13950,9 +13952,17 @@
       return card && card.querySelector('.reel-chart');
     };
     document.addEventListener('input', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-fill-a"]');
       if (!r) return;
       const h = drawInputHost(r);
+      // Background strength slider: live on the drawn shape, saved on release.
+      if (r.dataset.act === 'draw-fill-a') {
+        const v = Math.max(FILL_MIN, Math.min(FILL_MAX, +r.value));
+        (h ? h.querySelectorAll('.reel-draw.is-sel .reel-fill') : []).forEach(fe => { fe.style.fillOpacity = String(v / 100); });
+        const out = r.parentElement.querySelector('b');
+        if (out) out.textContent = Math.round(v / FILL_MAX * 100) + '%';
+        return;
+      }
       if (r.dataset.act === 'draw-any-fill') {
         const fe = h && h.querySelector('.reel-draw.is-sel .reel-fill');
         if (fe && DRAW_HEX.test(r.value)) fe.style.fill = r.value;
@@ -13966,11 +13976,19 @@
       }
     });
     document.addEventListener('change', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-fill-a"]');
       if (!r) return;
       const name = r.dataset.name;
       channelSeedCommit(name);
       const d = activeChannel(name);
+      if (r.dataset.act === 'draw-fill-a') {
+        if (!d || !DRAW_FILLABLE.has(d.kind)) return;
+        d.fillA = Math.max(FILL_MIN, Math.min(FILL_MAX, Math.round(+r.value)));
+        channelSave();
+        const h = drawInputHost(r);
+        if (h) reelRepaint(h);
+        return;
+      }
       if (!d || !DRAW_HEX.test(r.value)) return;
       if (r.dataset.act === 'draw-any-fill') d.fill = r.value.toLowerCase();
       else d.color = r.value.toLowerCase();
