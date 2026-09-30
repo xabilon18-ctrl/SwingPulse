@@ -12929,8 +12929,10 @@
       const list = channelsFor(ctx.name);
       const ch = list[chIdx] || activeChannel(ctx.name);
       if (!ch) return;
-      // The user placed this one now, whoever drew it first (provenance).
-      if (ch.kind === 'channel') { if (ch.seed) delete ch.seed; ch.ed = new Date().toISOString(); }
+      // The user placed this one now, whoever drew it first (provenance) —
+      // every kind since the 2026-09-30 fresh start, so Claude can read them all.
+      if (ch.seed) delete ch.seed;
+      ch.ed = new Date().toISOString();
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
 
