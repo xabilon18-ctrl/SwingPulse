@@ -10127,14 +10127,16 @@
       const tri = up
         ? `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}Z`
         : `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}Z`;
-      const ly = up ? ty + s2 * 1.4 + 22 : ty - s2 * 1.4 - 8;
+      // No ▲ / ▼ on the chart (user, 2026-09-30: "remove the buy and sell
+      // arrows from chart") — the coloured dot, line and word carry the side.
+      const ly = up ? y + 26 : y - 12;
       const lbl = `<text x="${x1.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" class="reel-view-lbl is-${side}">${up ? 'BUY' : 'SELL'}</text>`;
       const hitV = reelHitLine(xl, y, xr, y, idx);
       const hv = (editing && !d.locked)
         ? reelHandle(L, x1, y, 'e', idx, isActive)
           + (d.extR ? '' : reelHandle(L, x2, y, 'r', idx, isActive))
           + (d.extL || !d.t0 ? '' : reelHandle(L, xl, y, 'l', idx, isActive)) : '';
-      return vline + dot + `<path d="${tri}" class="reel-view-tri is-${side}"/>` + lbl + hitV + hv;
+      return vline + dot + lbl + hitV + hv;
     }
     const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
     const hit = reelHitLine(x1 - r, y, x2, y, idx);
