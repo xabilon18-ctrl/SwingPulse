@@ -432,7 +432,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'view-mark', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
+    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash',
   ]);
@@ -6975,8 +6975,13 @@
     const bold = DRAW_BOLDABLE.has(d.kind)
       ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
       : '';
+    // Buy/Sell markers: run the line to the chart's left / right edge.
+    const ext = d.kind === 'entry' && d.side
+      ? `<button class="reel-tool reel-tool-pct${d.extL ? ' on' : ''}" data-act="draw-ext" data-dir="L" data-name="${name}" aria-pressed="${!!d.extL}" aria-label="Extend the line left" title="Extend left">⟵</button>`
+        + `<button class="reel-tool reel-tool-pct${d.extR ? ' on' : ''}" data-act="draw-ext" data-dir="R" data-name="${name}" aria-pressed="${!!d.extR}" aria-label="Extend the line right" title="Extend right">⟶</button>`
+      : '';
     return ((sw || lineStyle) ? sw + lineStyle + `<span class="reel-props-sep"></span>` : '')
-      + pct + bold
+      + pct + ext + bold
       + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
       + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
       + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`
@@ -9525,8 +9530,12 @@
     let i = n - 1;
     while (i > 0 && b.c[i] == null) i--;
     if (b.c[i] == null) return null;
-    const t2 = reelDateForBarIndex(b, i + Math.max(4, Math.round(n * 0.06)));
-    return t2 ? { kind: 'entry', side, t: String(b.t[i]), p: b.c[i], t2,
+    // Centred on the EXACT price and bar it was pressed at (user, 2026-09-30:
+    // "a mid point in exact point price is when i press it"), a short line
+    // either side; ← / → in the props row run it to the chart's edge.
+    const len = Math.max(4, Math.round(vb.c.length * 0.06));
+    const t0 = reelDateForBarIndex(b, i - len), t2 = reelDateForBarIndex(b, i + len);
+    return t2 ? { kind: 'entry', side, t0, t: String(b.t[i]), p: b.c[i], t2,
                   made: new Date().toISOString().slice(0, 16), tf: timeframe } : null;
   }
 
@@ -9842,7 +9851,7 @@
     return { x: mx, y: ya + (yb - ya) * t };
   }
 
-  const DRAW_DATE_KEYS  = ['t', 't1', 't2', 't3'];
+  const DRAW_DATE_KEYS  = ['t0', 't', 't1', 't2', 't3'];
   const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline', 'circle', 'triangle']);
   const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p3', 'p4'];
 
@@ -10105,16 +10114,27 @@
     const r = d.bold ? 13 : 10;   // half-size of the ×
     const line = `<line x1="${x1.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}"/>`;
     if (side) {
-      // ▲ under the price for a buy, ▼ over it for a sell, with the word.
-      const up = side === 'buy', s2 = 16, ty = up ? y + 8 : y - 8;
+      // The line runs t0 → t2 through the anchor, or to the chart's edge on a
+      // side switched to extend; ▲ under the price for a buy, ▼ over it for a
+      // sell, its tip ON the anchor dot, with the word.
+      const i0 = d.t0 ? reelBarIndexForDate(b, d.t0) : i1;
+      const xl = d.extL ? L.x0 : Math.min(xAt(i0 == null ? i1 : i0), x1);
+      const xr = d.extR ? L.x1 : x2;
+      const lw = d.bold ? 5 : 3;
+      const vline = `<line x1="${xl.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xr.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}" style="stroke-width:${lw}"/>`;
+      const dot = `<circle cx="${x1.toFixed(1)}" cy="${y.toFixed(1)}" r="${d.bold ? 7 : 5}" class="reel-view-tri is-${side}"/>`;
+      const up = side === 'buy', s2 = d.bold ? 19 : 16, ty = up ? y + 6 : y - 6;
       const tri = up
         ? `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}Z`
         : `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}Z`;
       const ly = up ? ty + s2 * 1.4 + 22 : ty - s2 * 1.4 - 8;
       const lbl = `<text x="${x1.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" class="reel-view-lbl is-${side}">${up ? 'BUY' : 'SELL'}</text>`;
-      const hitV = reelHitLine(x1 - r, y, x2, y, idx);
-      const hv = (editing && !d.locked) ? reelHandle(L, x1, y, 'e', idx, isActive) + reelHandle(L, x2, y, 'r', idx, isActive) : '';
-      return line + `<path d="${tri}" class="reel-view-tri is-${side}"/>` + lbl + hitV + hv;
+      const hitV = reelHitLine(xl, y, xr, y, idx);
+      const hv = (editing && !d.locked)
+        ? reelHandle(L, x1, y, 'e', idx, isActive)
+          + (d.extR ? '' : reelHandle(L, x2, y, 'r', idx, isActive))
+          + (d.extL || !d.t0 ? '' : reelHandle(L, xl, y, 'l', idx, isActive)) : '';
+      return vline + dot + `<path d="${tri}" class="reel-view-tri is-${side}"/>` + lbl + hitV + hv;
     }
     const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
     const hit = reelHitLine(x1 - r, y, x2, y, idx);
@@ -12764,8 +12784,15 @@
           const to = Math.round(fi);
           const dt = reelDateForBarIndex(ctx.b, to);
           const dt2 = reelDateForBarIndex(ctx.b, to + (iR - iE));
-          if (dt && dt2) { ch.t = dt; ch.t2 = dt2; }
+          const iL = ch.t0 ? reelBarIndexForDate(ctx.b, ch.t0) : null;
+          if (dt && dt2) {
+            ch.t = dt; ch.t2 = dt2;
+            if (iL != null) { const dt0 = reelDateForBarIndex(ctx.b, to - (iE - iL)); if (dt0) ch.t0 = dt0; }
+          }
           ch.p = price;
+        } else if (handle === 'l') {
+          const dt0 = reelDateForBarIndex(ctx.b, Math.min(fi, iE - 1));
+          if (dt0) ch.t0 = dt0;
         } else if (handle === 'r') {
           const dt2 = reelDateForBarIndex(ctx.b, Math.max(fi, iE + 1));
           if (dt2) ch.t2 = dt2;
@@ -13618,6 +13645,16 @@
       if (btn.dataset.act === 'draw-undo') { drawHistoryStep(name, chHost, -1); return true; }
       if (btn.dataset.act === 'draw-redo') { drawHistoryStep(name, chHost, 1); return true; }
       if (btn.dataset.act === 'draw-dup')  { channelDuplicate(name, chHost); return true; }
+      if (btn.dataset.act === 'draw-ext') {
+        const d = activeChannel(name), k = btn.dataset.dir === 'L' ? 'extL' : 'extR';
+        if (d && d.kind === 'entry' && d.side) {
+          if (d[k]) delete d[k]; else d[k] = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
       if (btn.dataset.act === 'draw-bold') {
         const d = activeChannel(name);
         if (d && DRAW_BOLDABLE.has(d.kind)) {
