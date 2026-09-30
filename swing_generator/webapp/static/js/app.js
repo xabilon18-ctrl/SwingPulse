@@ -8354,14 +8354,20 @@
   const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500],
                     step: [100, 150, 200, 250, 300, 350, 400, 450, 500] };
   // 2026-09-30 (user: "remove the 50MA from the third overlay MAs"): the step
-  // set starts at 100, so it is nine lines.
+  // set starts at 100, nine lines. Then "100 and 150 ... on daily only": the
+  // DAILY overlay starts at 200 (seven lines); Weekly/Monthly keep all nine.
   const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '9 MA' };
+  const OV_STEP_SKIP_D = [100, 150];
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
-  function ovPeriods() { return OV_SETS[ovSet()]; }
+  function ovPeriods(tf) {
+    const ps = OV_SETS[ovSet()];
+    return tf === 'D' && ovSet() === 'step' ? ps.filter(p => !OV_STEP_SKIP_D.includes(p)) : ps;
+  }
   // Monthly lists only what history can warm (a Monthly 250 is ~21 years).
   function ovPeriodsTxt(tf) {
-    const ps = ovPeriods().filter(p => tf !== 'M' || p <= 200);
-    return ovSet() === 'step' ? `every 50, ${ps[0]} to ${ps[ps.length - 1]}` : ps.join(' · ');
+    const ps = ovPeriods(tf).filter(p => tf !== 'M' || p <= 200);
+    if (ovSet() !== 'step' || ps.length <= 3) return ps.join(' · ');
+    return `every 50, ${ps[0]} to ${ps[ps.length - 1]}`;
   }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
@@ -8576,7 +8582,7 @@
       // A period the bundle does not ship (100/200/300) is rolled here from
       // its own closes, sampled at the same points as the shipped lines.
       const ps = [], ms = [];
-      ovPeriods().forEach(p => {
+      ovPeriods('D').forEach(p => {
         const k = ob.p.indexOf(p);
         if (k >= 0) { ps.push(p); ms.push(ob.m[k]); return; }
         const cm = ob._cma || (ob._cma = {});
@@ -12022,7 +12028,7 @@
     let best = null;
     for (const [key, [atr, pct]] of Object.entries(all)) {
       if (reel.near !== 'any' && key[0] !== reel.near) continue;
-      if (!ovPeriods().includes(+key.slice(1))) continue;   // the overlay's MA set
+      if (!ovPeriods(key[0]).includes(+key.slice(1))) continue;   // the overlay's MA set
       if (Math.abs(atr) > reel.nearWithin) continue;
       if (!best || Math.abs(atr) < Math.abs(best.atr)) best = { key, atr, pct };
     }
