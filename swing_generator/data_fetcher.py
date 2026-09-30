@@ -20,7 +20,7 @@ import pandas as pd
 import yfinance as yf
 
 from _active_config import (HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED, H4_SOURCE,
-                            FIVE_MIN_PERIOD)
+                            FIVE_MIN_PERIOD, FIVE_MIN_KEEP_DAYS)
 
 
 def h4_ticker(ticker: str) -> str:
@@ -470,13 +470,16 @@ def _history_mismatch(existing: pd.DataFrame, probe: pd.DataFrame,
             f'(x{bad.iloc[-1]:.2f} on {str(bad.index[-1])[:10]}), likely a split')
 
 
-def _append_new_bars(path: str, new_df: pd.DataFrame) -> pd.DataFrame:
-    """Append new_df rows to the parquet file, deduplicate, and save."""
+def _append_new_bars(path: str, new_df: pd.DataFrame, keep_days: int | None = None) -> pd.DataFrame:
+    """Append new_df rows to the parquet file, deduplicate, and save.
+    `keep_days` trims anything older (the 5m cache only — see FIVE_MIN_KEEP_DAYS)."""
     existing = pd.read_parquet(path)
     combined = pd.concat([existing, new_df])
     combined = combined[~combined.index.duplicated(keep='last')]
     combined.sort_index(inplace=True)
     combined = _drop_priceless(combined)
+    if keep_days and len(combined):
+        combined = combined[combined.index >= combined.index[-1] - pd.Timedelta(days=keep_days)]
     combined.to_parquet(path)
     return combined
 
@@ -796,7 +799,10 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
             df.to_parquet(path)
             return df
 
-        return _append_new_bars(path, new_df)
+        # Yahoo serves only 60 days of 5m, so everything older exists only
+        # because this cache kept it — that is how the 30m chart reaches back
+        # up to 5 months (user, 2026-09-30). Capped so it cannot grow forever.
+        return _append_new_bars(path, new_df, keep_days=FIVE_MIN_KEEP_DAYS)
 
     except Exception as exc:
         print(f'    WARN [{ticker}] 5m incremental failed: {exc}')

@@ -80,7 +80,10 @@ CARRY_MONTHS = 2
 # chart it replaced: "2 months is fine going back"). The 5m download itself is
 # ~60 days deep, so the warm-up cap below trims a 24h instrument by MA500's
 # ~10 days and an equity by more (its MA500 is ~38 sessions).
-CARRY_MONTHS_30M = 2
+# 5 months, every instrument, since 2026-09-30 (user: "at least 3 months ...
+# for all instruments ... 5 months max"). Only what the 5m cache has kept can
+# be shown — Yahoo serves 60 days of 5m, so older bars build up run by run.
+CARRY_MONTHS_30M = 5
 CARRY_MONTHS_15M = 2   # 15m back beside 30m, 2026-09-29
 
 # The 1H bundle (2026-09-27): the chart opens on a month, and carries six so a
@@ -117,7 +120,7 @@ BARS_BY_TF = {
     '10m': 8800,
     # 30m (2026-09-29, replaced 15m on the Charts tab): the same ceiling role —
     # two calendar months of a 24/7 instrument is ~2,950 thirty-minute bars.
-    '30m': 3000,
+    '30m': 7400,   # 5 months of a 24/7 instrument (48 bars x ~153 days), 2026-09-30
     '15m': 6000,   # two months of a 24/7 instrument
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
@@ -547,8 +550,9 @@ def build_30m(cache_dir: str, ticker: str) -> dict | None:
         return None
     cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_30M)
     n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    warm_cap = len(frame) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['30m'], max(warm_cap, 1))
+    # No warm-up cap any more: the bars before MA500 has 500 behind it are
+    # shipped too, and the slow lines simply begin partway in (2026-09-30).
+    bars = min(n_carry, BARS_BY_TF['30m'])
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 

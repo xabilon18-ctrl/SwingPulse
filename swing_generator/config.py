@@ -312,6 +312,10 @@ NEW_TREND_PCT_3D = 0.05
 # 60 sessions is the ceiling on this timeframe, permanently — there is no
 # deeper 10m history to buy from this feed at any price.
 FIVE_MIN_PERIOD   = '60d'   # Yahoo's deepest 5m window (~60 sessions)
+# The 5m cache keeps what earlier runs downloaded, up to this many calendar
+# days: 5 months of 30m chart for every instrument (user, 2026-09-30, "5 months
+# max"). Yahoo still only serves 60 days — the rest is kept, never re-asked.
+FIVE_MIN_KEEP_DAYS = 155
 TEN_MIN_RULE      = '10min' # pandas resample rule; 5m -> 10m is exact
 
 # HOW OLD THE 5m CACHE MAY BE before a run re-downloads it. This has to be set
