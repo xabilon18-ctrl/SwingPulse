@@ -8945,7 +8945,9 @@
       const days = (timeframe === '15m' || timeframe === '30m') && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
       const last = new Date(bt[n - 1]);
       const cut = days != null ? bt[n - 1] - days * 86400000
-        : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - 1, last.getUTCDate(),
+        // 1H opens on TWO calendar months (user, 2026-09-30: "let's do 1h like
+        // this" — FRA40/IT40/NETH25/SPAIN35/SW20 screenshots, ~29 Jul to 29 Sep).
+        : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - (timeframe === '1H' ? 2 : 1), last.getUTCDate(),
                    last.getUTCHours(), last.getUTCMinutes());
       let k = n - 1;
       while (k > 0 && bt[k - 1] >= cut) k--;
