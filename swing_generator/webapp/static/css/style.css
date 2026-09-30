@@ -8129,6 +8129,18 @@ body {
 .reel-entry.is-bold { stroke-width: 6; }
 .reel-entry-x { stroke-opacity: .45; stroke-width: 3; }
 .reel-entry-x.is-bold { stroke-width: 5; }
+/* Buy / Sell view markers (2026-09-30): green buy, red sell. */
+.reel-entry.is-buy  { stroke: #16a34a; }
+.reel-entry.is-sell { stroke: #dc2626; }
+.reel-view-tri.is-buy  { fill: #16a34a; }
+.reel-view-tri.is-sell { fill: #dc2626; }
+.reel-view-lbl { font-size: 20px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
+.reel-view-lbl.is-buy  { fill: #15803d; }
+.reel-view-lbl.is-sell { fill: #b91c1c; }
+.reel-view-row { display: flex; gap: 8px; padding: 2px 4px 6px; }
+.reel-view-row .reel-view-btn { flex: 1; padding: 9px 0; border-radius: 12px; font-weight: 800; font-size: 15px; color: #fff; }
+.reel-view-row .reel-view-btn.is-buy  { background: #16a34a; box-shadow: 0 3px 0 #166534; }
+.reel-view-row .reel-view-btn.is-sell { background: #dc2626; box-shadow: 0 3px 0 #991b1b; }
 .reel-tool-pct { font: 800 20px/22px system-ui, -apple-system, "Segoe UI", sans-serif; min-width: 36px; color: #1a1a19; }
 /* The drawing the properties row is acting on reads heavier than the rest. */
 .reel-draw.is-sel .reel-ch-edge { stroke-width: 3.6; stroke-opacity: 1; }

@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=348">
+  <link rel="stylesheet" href="/static/css/style.css?v=349">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -722,6 +722,9 @@
             <div class="filter-pop">
               <div class="reel-opts" id="reelScopeOpts">
                 <button class="reel-opt active" data-scope="all">Everything</button>
+                <button class="reel-opt" data-scope="views">My Buy / Sell markers</button>
+                <button class="reel-opt" data-scope="views-buy">My Buy markers</button>
+                <button class="reel-opt" data-scope="views-sell">My Sell markers</button>
                 <button class="reel-opt" data-scope="today">Fired today</button>
                 <button class="reel-opt" data-scope="signal">Any open signal</button>
                 <button class="reel-opt" data-scope="buy">Buys only</button>
@@ -904,6 +907,6 @@
 
 
 
-  <script src="/static/js/app.js?v=452"></script>
+  <script src="/static/js/app.js?v=454"></script>
 </body>
 </html>

@@ -1825,7 +1825,7 @@
   function alLevelsOf(d, b) {
     const out = [];
     if (d.kind === 'hline') out.push([d.p, 'level']);
-    else if (d.kind === 'entry') out.push([d.p, 'entry mark']);
+    else if (d.kind === 'entry' && !d.side) out.push([d.p, 'entry mark']);
     else if (d.kind === 'ladder') {
       const step = (d.p4 - d.p1) / 3, SPAN = LADDER_LINES - 1;
       if (isFinite(step) && step) {
@@ -6890,6 +6890,10 @@
   function reelToolbarHtml(name, edit) {
     return `<div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
         <div class="reel-props" data-props${edit && channelsFor(name).length ? '' : ' hidden'}>${reelPropsHtml(name)}</div>
+        <div class="reel-view-row">
+          <button class="reel-tool reel-view-btn is-buy" data-act="channel-add" data-kind="buy" data-name="${name}" aria-label="Mark a buy">▲ Buy</button>
+          <button class="reel-tool reel-view-btn is-sell" data-act="channel-add" data-kind="sell" data-name="${name}" aria-label="Mark a sell">▼ Sell</button>
+        </div>
         <div class="reel-tools-row">
           <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
           <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
@@ -9507,7 +9511,24 @@
     return t2 ? { kind: 'entry', t: String(b.t[i]), p: b.c[i], t2 } : null;
   }
 
+  // BUY / SELL VIEW MARKERS (user, 2026-09-30: "give me the markers i can place
+  // for you to read so you can [check] my view ... green for buy and red for
+  // sell"). An entry mark with a `side`, dropped ON THE LATEST BAR at its close
+  // and stamped with when it was placed (`made`) and on which chart (`tf`), so
+  // a call made live can be told apart from one drawn back in history. Read
+  // from the synced drawings and graded by research/grade_views.py.
+  function reelDefaultView(b, side) {
+    const n = b.c.length;
+    let i = n - 1;
+    while (i > 0 && b.c[i] == null) i--;
+    if (b.c[i] == null) return null;
+    const t2 = reelDateForBarIndex(b, i + Math.max(4, Math.round(n * 0.06)));
+    return t2 ? { kind: 'entry', side, t: String(b.t[i]), p: b.c[i], t2,
+                  made: new Date().toISOString().slice(0, 16), tf: timeframe } : null;
+  }
+
   function reelDefaultDrawing(kind, b) {
+    if (kind === 'buy' || kind === 'sell') return reelDefaultView(b, kind);
     if (kind === 'entry') return reelDefaultEntry(b);
     if (kind === 'trend') return reelDefaultTrend(b);
     if (kind === 'circle') return reelDefaultCircle(b);
@@ -9629,7 +9650,7 @@
       if (isFinite(dp) && ta && tb) { def.p1 = mid + dp; def.p2 = mid - dp; def.t1 = ta; def.t2 = tb; }
     }
     const n = channelsFor(name).length;
-    if (n) {
+    if (n && !def.side) {
       // Offset from whatever is already there — two drawings on the same pixels
       // look like one and cannot be told apart to drag.
       const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
@@ -10058,9 +10079,22 @@
     const x1 = xAt(i1), x2 = Math.max(xAt(i2), x1 + 2);
     const y = sc.y(d.p);
     if (y < L.py0 - 20 || y > L.py1 + 20 || x2 < L.x0 || x1 > L.x1) return '';
-    const cls = 'reel-entry' + (d.bold ? ' is-bold' : '');
+    const side = d.side === 'buy' || d.side === 'sell' ? d.side : '';
+    const cls = 'reel-entry' + (d.bold ? ' is-bold' : '') + (side ? ' is-' + side : '');
     const r = d.bold ? 13 : 10;   // half-size of the ×
     const line = `<line x1="${x1.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}"/>`;
+    if (side) {
+      // ▲ under the price for a buy, ▼ over it for a sell, with the word.
+      const up = side === 'buy', s2 = 16, ty = up ? y + 8 : y - 8;
+      const tri = up
+        ? `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}Z`
+        : `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}Z`;
+      const ly = up ? ty + s2 * 1.4 + 22 : ty - s2 * 1.4 - 8;
+      const lbl = `<text x="${x1.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" class="reel-view-lbl is-${side}">${up ? 'BUY' : 'SELL'}</text>`;
+      const hitV = reelHitLine(x1 - r, y, x2, y, idx);
+      const hv = (editing && !d.locked) ? reelHandle(L, x1, y, 'e', idx, isActive) + reelHandle(L, x2, y, 'r', idx, isActive) : '';
+      return line + `<path d="${tri}" class="reel-view-tri is-${side}"/>` + lbl + hitV + hv;
+    }
     const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
     const hit = reelHitLine(x1 - r, y, x2, y, idx);
     let handles = '';
@@ -11699,6 +11733,25 @@
       rows = rows.filter(d => reelNearHit(d.instrument_name));
     }
 
+    // MY BUY / SELL MARKERS (user, 2026-09-30: "add a filter for all the
+    // markered charts"): every instrument carrying a Buy or Sell view marker on
+    // any timeframe, the most recently placed first.
+    if (reel.scope === 'views' || reel.scope === 'views-buy' || reel.scope === 'views-sell') {
+      const want = reel.scope === 'views' ? null : reel.scope.slice(6);
+      const latest = name => {
+        let best = '';
+        for (const list of Object.values(instChannels[name] || {}))
+          for (const d of Array.isArray(list) ? list : [])
+            if (d && d.side && (!want || d.side === want)) {
+              const k = String(d.made || d.t || '');
+              if (k > best || !best) best = k || '0';
+            }
+        return best;
+      };
+      return rows.map(d => [d, latest(d.instrument_name)]).filter(([, k]) => k)
+        .sort((a, b) => b[1].localeCompare(a[1])).map(([d]) => d);
+    }
+
     // 15m marker scopes (2026-09-26): instruments with a 15m B1/S1, or a 15m
     // mark at a Daily MA, on their last two trading dates — read from the chart
     // index (`ev15`, built by chart_feed from the same marks the chart draws).
@@ -13254,7 +13307,8 @@
       const el = document.querySelector('#' + id + ' .fp-val');
       if (el) el.textContent = txt ? ' · ' + txt : '';
     };
-    const scopeLbl = { all: '', today: 'today', signal: 'signals', buy: 'buys',
+    const scopeLbl = { views: 'my markers', 'views-buy': 'my buys', 'views-sell': 'my sells',
+                       all: '', today: 'today', signal: 'signals', buy: 'buys',
                        sell: 'sells', watch: 'watch', m15sig: '30m B1/S1',
                        dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
