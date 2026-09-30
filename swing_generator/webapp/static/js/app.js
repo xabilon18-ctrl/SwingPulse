@@ -432,7 +432,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
+    'channel-add', 'view-mark', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash',
   ]);
@@ -9517,7 +9517,10 @@
   // and stamped with when it was placed (`made`) and on which chart (`tf`), so
   // a call made live can be told apart from one drawn back in history. Read
   // from the synced drawings and graded by research/grade_views.py.
-  function reelDefaultView(b, side) {
+  function reelDefaultView(vb, side) {
+    // Always the NEWEST bar of the whole bundle, even when the chart is panned
+    // back — a view is a call about now.
+    const b = vb._src || vb;
     const n = b.c.length;
     let i = n - 1;
     while (i > 0 && b.c[i] == null) i--;
@@ -9525,6 +9528,24 @@
     const t2 = reelDateForBarIndex(b, i + Math.max(4, Math.round(n * 0.06)));
     return t2 ? { kind: 'entry', side, t: String(b.t[i]), p: b.c[i], t2,
                   made: new Date().toISOString().slice(0, 16), tf: timeframe } : null;
+  }
+
+  // One tap from the chart's top row (user, 2026-09-30: "place it there"): the
+  // marker is added without opening Draw mode; drag or delete it from Draw.
+  function viewMarkAdd(name, host, side) {
+    const ctx = host && host._reelCtx;
+    if (!ctx) return;
+    const def = reelDefaultView(ctx.b, side);
+    if (!def) return;
+    addChannelFor(name, def);
+    channelSave();
+    reelRepaint(host);
+    const card = document.querySelector(`#chartReel .reel-card[data-name="${CSS.escape(name)}"] .reel-chart`);
+    if (card && card !== host && card._reelCtx) reelRepaint(card);
+  }
+  function viewMarkBtns(name) {
+    return `<button class="reel-share-btn reel-vm is-buy" data-act="view-mark" data-side="buy" data-name="${name}" aria-label="Mark a buy" title="Buy">▲</button>`
+         + `<button class="reel-share-btn reel-vm is-sell" data-act="view-mark" data-side="sell" data-name="${name}" aria-label="Mark a sell" title="Sell">▼</button>`;
   }
 
   function reelDefaultDrawing(kind, b) {
@@ -11560,6 +11581,7 @@
           ${reelTrendlineHtml(item)}
         </div>
         ${chartBackBtnHtml()}
+        ${viewMarkBtns(name)}
         ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
         ${gridBtnHtml(name)}
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
@@ -11661,6 +11683,7 @@
           ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
           ${(() => { const h = reelNearHit(name); return h ? `<span class="reel-near" title="${Math.abs(h.atr)} of a day's range ${h.atr >= 0 ? 'above' : 'below'} the ${h.key}">${h.key} ${h.pct >= 0 ? '+' : ''}${h.pct.toFixed(2)}%</span>` : ''; })()}
           ${chartBackBtnHtml()}
+          ${viewMarkBtns(name)}
           ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
           ${gridBtnHtml(name)}
           <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
@@ -13590,6 +13613,7 @@
       if (DRAW_MUTATING_ACTS.has(btn.dataset.act)) channelSeedCommit(name);
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
+      if (btn.dataset.act === 'view-mark')     { viewMarkAdd(name, chHost, btn.dataset.side); return true; }
       if (btn.dataset.act === 'draw-lock')   { const d = activeChannel(name); if (d) channelSetLocked(name, !d.locked, chHost); return true; }
       if (btn.dataset.act === 'draw-undo') { drawHistoryStep(name, chHost, -1); return true; }
       if (btn.dataset.act === 'draw-redo') { drawHistoryStep(name, chHost, 1); return true; }

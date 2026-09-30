@@ -7719,6 +7719,10 @@ body {
   color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .reel-group { font-size: .68rem; color: var(--text-muted); white-space: nowrap; }
+/* The instrument name never truncates (2026-09-30, the ▲ ▼ buttons took header
+   room): the group label gives way first. */
+.reel-head-line .reel-name { flex-shrink: 0; }
+.reel-head-line .reel-group { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .reel-head-meta { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
 
 .reel-sig {
@@ -8137,6 +8141,10 @@ body {
 .reel-view-lbl { font-size: 20px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
 .reel-view-lbl.is-buy  { fill: #15803d; }
 .reel-view-lbl.is-sell { fill: #b91c1c; }
+.reel-share-btn.reel-vm { font-size: 15px; font-weight: 900; line-height: 1; padding: 2px 1px 2px 5px; }
+.reel-share-btn.reel-vm.is-buy  { color: #16a34a; }
+.reel-share-btn.reel-vm.is-sell { color: #dc2626; }
+.reel-share-btn.reel-vm:active { transform: scale(.85); }
 .reel-view-row { display: flex; gap: 8px; padding: 2px 4px 6px; }
 .reel-view-row .reel-view-btn { flex: 1; padding: 9px 0; border-radius: 12px; font-weight: 800; font-size: 15px; color: #fff; }
 .reel-view-row .reel-view-btn.is-buy  { background: #16a34a; box-shadow: 0 3px 0 #166534; }
