@@ -8942,7 +8942,10 @@
       // MONTH (user: "for stock is full month view"); round-the-clock markets
       // on 8⅓ days. Either way that is ~550-800 bars, so a candle is about as
       // wide on both.
-      const days = (timeframe === '15m' || timeframe === '30m') && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
+      // 30m opens on ~6½ WEEKS (47 days) on EVERY instrument (user, 2026-09-30:
+      // "same thing to 30m" — STX/TDY/TEL screenshots, 13 Aug to 29 Sep).
+      const days = timeframe === '30m' ? 47
+        : timeframe === '15m' && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
       const last = new Date(bt[n - 1]);
       const cut = days != null ? bt[n - 1] - days * 86400000
         // 1H opens on TWO calendar months (user, 2026-09-30: "let's do 1h like
