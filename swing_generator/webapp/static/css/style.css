@@ -7749,7 +7749,7 @@ body {
   border-radius: 8px;
   /* Bars were #f2f2f4 and the rising MA #b6bac6 — near-white and pale grey,
      both chosen for a dark panel and both invisible on this one. */
-  --reel-bar:   #14140f;
+  --reel-bar:   #000;      /* pure black since 2026-09-30 (user: "all bars blacker") */
   --reel-ma-up: #14140f;   /* rising MA; a FALLING one still takes --sell red */
   /* Drawings go dark for the same reason. They were white by choice on
      2026-09-11, and white on white cannot be seen at all. */

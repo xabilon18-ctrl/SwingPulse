@@ -9551,7 +9551,17 @@
   // manually"). Charts open with NO channels; the Drawing tools still add one
   // fitted to the window. The fitting code below is kept, unreached.
   const REEL_SEED_CHANNELS = false;
+  // PROVENANCE (2026-09-30, user: "read the way i place the channel ... you
+  // might get the logic and place for me"). Claude learns from the user's own
+  // channels only, so each one says where it came from: `seed: 1` = placed by
+  // this function and never moved; `made` = drawn by the user (ISO time);
+  // `ed` = the last time the user dragged it (a moved seed loses `seed`).
   function reelSeedChannels(b) {
+    const out = reelSeedChannelsRaw(b);
+    out.forEach(c => { if (c) c.seed = 1; });
+    return out;
+  }
+  function reelSeedChannelsRaw(b) {
     if (!REEL_SEED_CHANNELS) return [];
     const n = b && b.c ? b.c.length : 0;
     if (n < 24) return [];
@@ -9814,6 +9824,7 @@
     if (!ctx) return;
     const def = reelDefaultDrawing(kind || 'channel', ctx.b);
     if (!def) return;
+    if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
     // A new circle starts ROUND on screen, about a quarter of the plot tall,
     // centred where the default put it — its price box alone came out as a
     // thin oval on a two-year view.
@@ -11107,8 +11118,10 @@
     //
     // V and H (vertical/horizontal lineto) keep the path data short: a bar is
     // "M x yh V yl M x-t yo H x M x yc H x+t" and carries no attributes at all.
-    const tick = Math.max(1.1, Math.min(bw * 0.4, 4));
-    const bwid = Math.max(0.9, Math.min(bw * 0.24, 1.8));
+    // Minimums raised 2026-09-30 (user: "make sure that all bars are blacker"):
+    // at 0.9 a dense window drew hairlines that a phone anti-aliases to grey.
+    const tick = Math.max(1.6, Math.min(bw * 0.45, 4.5));
+    const bwid = Math.max(1.5, Math.min(bw * 0.3, 2.4));
     const seg = [];
     for (let i = 0; i < n; i++) {
       const o = b.o[i], h = b.h[i], l = b.l[i], c = b.c[i];
@@ -12916,6 +12929,8 @@
       const list = channelsFor(ctx.name);
       const ch = list[chIdx] || activeChannel(ctx.name);
       if (!ch) return;
+      // The user placed this one now, whoever drew it first (provenance).
+      if (ch.kind === 'channel') { if (ch.seed) delete ch.seed; ch.ed = new Date().toISOString(); }
       const price = ctx.sc.inv(pt.y);
       const fi    = (pt.x - ctx.L.x0 - ctx.bw / 2) / ctx.bw;
 
