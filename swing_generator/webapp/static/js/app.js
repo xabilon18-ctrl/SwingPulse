@@ -10267,7 +10267,7 @@
       const i0 = d.t0 ? reelBarIndexForDate(b, d.t0) : i1;
       const xl = d.extL ? L.x0 : Math.min(xAt(i0 == null ? i1 : i0), x1);
       const xr = d.extR ? L.x1 : x2;
-      const lw = d.bold ? 5 : 3;
+      const lw = d.bold ? 7 : 3;   // bold was 5 — "a bit thicker" (2026-09-30)
       const vline = `<line x1="${xl.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xr.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}" style="stroke-width:${lw}"/>`;
       const dot = `<circle cx="${x1.toFixed(1)}" cy="${y.toFixed(1)}" r="${d.bold ? 7 : 5}" class="reel-view-tri is-${side}"/>`;
       const up = side === 'buy', s2 = d.bold ? 19 : 16, ty = up ? y + 6 : y - 6;
@@ -12946,6 +12946,14 @@
             if (iL != null) { const dt0 = reelDateForBarIndex(ctx.b, to - (iE - iL)); if (dt0) ch.t0 = dt0; }
           }
           ch.p = price;
+        } else if (ch.side && (handle === 'l' || handle === 'r')) {
+          // Buy/Sell marker (user, 2026-09-30: "must adjust automatically and
+          // equally on the other side when i pull it to the right or left"):
+          // either end sets a half-length in bars, and both ends sit that far
+          // from the anchor, so the dot always stays in the middle.
+          const half = Math.max(1, Math.round(Math.abs(fi - iE)));
+          const dt0 = reelDateForBarIndex(ctx.b, iE - half), dt2 = reelDateForBarIndex(ctx.b, iE + half);
+          if (dt0 && dt2) { ch.t0 = dt0; ch.t2 = dt2; }
         } else if (handle === 'l') {
           const dt0 = reelDateForBarIndex(ctx.b, Math.min(fi, iE - 1));
           if (dt0) ch.t0 = dt0;
