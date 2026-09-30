@@ -1842,7 +1842,7 @@
       const step = (d.p4 - d.p1) / 3, SPAN = LADDER_LINES - 1;
       if (isFinite(step) && step) {
         const kMin = -SPAN * ladderStack(d, 'down'), kMax = SPAN * (1 + ladderStack(d, 'up'));
-        for (let k = kMin; k <= kMax; k++) out.push([d.p1 + k * step, `ladder ${d.reverse ? (LADDER_LINES - k) * 10 : (k + 1) * 10}%`]);
+        for (let k = kMin; k <= kMax; k++) if (d.p1 + k * step >= -1e-9) out.push([d.p1 + k * step, `ladder ${d.reverse ? (LADDER_LINES - k) * 10 : (k + 1) * 10}%`]);
       }
     } else if ((d.kind === 'trend' || d.kind === 'channel') && b && b.c && b.c.length) {
       const i1 = reelBarIndexForDate(b, d.t1), i2 = reelBarIndexForDate(b, d.t2);
@@ -10194,6 +10194,9 @@
     const kMax = SPAN * (1 + ladderStack(d, 'up'));
     for (let k = kMin; k <= kMax; k++) {
       const p = d.p1 + k * step, y = sc.y(p);
+      // Never below price 0 (user, 2026-09-30: "make sure the % lines do not
+      // go below it ever") — a stack reaching past zero simply stops there.
+      if (p < -1e-9) continue;
       if (y < L.py0 || y > L.py1) continue;
       // Block boundaries are the bold lines — the original's 10% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
@@ -10222,7 +10225,7 @@
     const lfs = drawFillStyle(d);
     if (lfs) {
       const ya = sc.y(d.p1 + kMin * step), yb = sc.y(d.p1 + kMax * step);
-      const top = Math.max(L.py0, Math.min(ya, yb)), bot = Math.min(L.py1, Math.max(ya, yb));
+      const top = Math.max(L.py0, Math.min(ya, yb)), bot = Math.min(L.py1, Math.max(ya, yb), sc.y(0));
       if (bot > top) out = `<rect x="${L.x0}" y="${top.toFixed(1)}" width="${L.x1 - L.x0}" height="${(bot - top).toFixed(1)}" class="reel-fill" ${lfs}/>` + out;
     }
     let handles = '';
@@ -11296,6 +11299,13 @@
       if (channel && !_editing) channel = `<g ${ovLayerStyle(timeframe, 'draw')}>${channel}</g>`;
     }
     const barsOut = ov ? `<g ${ovLayerStyle(timeframe, 'bars')}>${bars}</g>` : bars;
+    // PRICE ZERO (user, 2026-09-30: "a dashed bold line at 0 on all time
+    // frames that is unmovable"): part of the chart, not a drawing — no handle,
+    // no hit target, never stored. Only on screen when the scale reaches 0.
+    const y0 = sc.y(0);
+    const zeroLine = (y0 >= L.py0 && y0 <= L.py1)
+      ? `<line x1="${L.x0}" y1="${y0.toFixed(1)}" x2="${L.x1}" y2="${y0.toFixed(1)}" class="reel-zero"/>`
+        + `<text x="${(L.x1 - 6).toFixed(1)}" y="${(y0 - 8).toFixed(1)}" class="reel-zero-lbl" text-anchor="end">0</text>` : '';
 
     // The pointer handlers need the exact geometry that was DRAWN, not a
     // recomputation that might drift from it, so it is stashed on the host.
@@ -11371,7 +11381,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -12948,8 +12958,9 @@
       // Refuse a drag that would collapse them onto one price (they vanish).
       if (ch.kind === 'ladder') {
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
-        if (handle === 'l1' && Math.abs(ch.p4 - price) >= minGap) ch.p1 = price;
-        else if (handle === 'l4' && Math.abs(price - ch.p1) >= minGap) ch.p4 = price;
+        const pz = Math.max(0, price);   // the anchors never go below 0 either
+        if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
+        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = pz;
         schedule();
         return;
       }
@@ -13828,6 +13839,10 @@
         if (d && d.kind === 'ladder') {
           const dir = btn.dataset.dir === 'down' ? 'down' : 'up';
           const n = ladderStack(d, dir) + (Number(btn.dataset.d) || 0);
+          // A new block with every line below price 0 would draw nothing.
+          const SPAN = LADDER_LINES - 1, step = (d.p4 - d.p1) / 3;
+          const k0 = dir === 'up' ? SPAN * n : -SPAN * (n - 1), k1 = dir === 'up' ? SPAN * (n + 1) : -SPAN * n;
+          if (n > ladderStack(d, dir) && Math.max(d.p1 + k0 * step, d.p1 + k1 * step) <= 0) return true;
           if (n > 0) d[dir] = n; else delete d[dir];
           channelSave();
           if (chHost) reelRepaint(chHost);

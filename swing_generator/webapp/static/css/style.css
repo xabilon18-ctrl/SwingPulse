@@ -9854,3 +9854,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-grid-sep { height: 1px; background: var(--border); margin: 4px 0; }
 .reel-rib.up { fill: #22c55e; }
 .reel-rib.dn { fill: #ef4444; }
+
+/* Price-zero line (2026-09-30): fixed, bold, dashed; ladders never cross it. */
+.reel-zero { stroke: #111; stroke-width: 6; stroke-dasharray: 22 12; pointer-events: none; }
+.reel-zero-lbl { fill: #111; font-size: 26px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 6px; pointer-events: none; }
