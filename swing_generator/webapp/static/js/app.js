@@ -8956,7 +8956,9 @@
     }
     if (timeframe === '10m' || timeframe === '4H') {
       if (bundle._defBars) return bundle._defBars;
-      const span = timeframe === '10m' ? [1, 0] : [12, 0];
+      // 4H opens on FIVE calendar months (user, 2026-09-30: "let's do 4h like
+      // this" — SOYBEANS/SILVER/PLATINUM/PALLADIUM/OATMEAL, ~May to Sep).
+      const span = timeframe === '10m' ? [1, 0] : [5, 0];
       return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
