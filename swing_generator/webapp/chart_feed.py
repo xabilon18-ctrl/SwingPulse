@@ -312,6 +312,13 @@ def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
         # 5 significant figures: an MA line needs no more (7133.3, 0.71234),
         # and ten Weekly lines at 6 cost ~9 KB gz more per chunk.
         'm': [[_round(v, 5) for v in mas[p][keep]] for p in periods],
+        # PROJECTED MAs (user, 2026-09-30): the client runs each line forward
+        # assuming price holds at the last close, which needs the closes that
+        # will DROP OUT of each window — for an MA500, closes from ~10 years
+        # back that the bundle does not otherwise carry. So the last
+        # max(periods) period closes ride along, ending on the same period as
+        # `m` (the one in progress included).
+        'c': [_round(v, 5) for v in weekly['Close'].iloc[-max(periods):]],
     }
 
 

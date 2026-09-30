@@ -8216,7 +8216,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, pct: !!j.pct, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {} };
+        const o = { v: j.v, set: j.set, pct: !!j.pct, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8275,10 +8275,62 @@
   }
   // Overlay MA thickness (user, 2026-09-27: "make the daily MAs in the overlay
   // thicker"), per overlay timeframe. A width multiplier on its ribbon.
-  const OV_MA_WIDTHS = [[1, 'Normal'], [1.7, 'Thick'], [2.5, 'Thicker']];
+  // 2026-09-30 (user: "remove thicker and replace with lighter"): Light /
+  // Normal / Thick. A saved Thicker (2.5) reads as Thick.
+  const OV_MA_WIDTHS = [[0.6, 'Light'], [1, 'Normal'], [1.7, 'Thick']];
   function ovMaW(tf) {
     const w = (tfOverlay.maW || {})[tf];
+    if (w > 1.7) return 1.7;
     return OV_MA_WIDTHS.some(([v]) => v === w) ? w : 1;
+  }
+  // PROJECTED MAs (user, 2026-09-30: "a button that can add predicted MAs that
+  // can continue into the next time division depending on the time frame ...
+  // adjustable in terms of lightness and same size as light, normal and thick").
+  // Each overlay MA that is switched on is run forward ASSUMING PRICE HOLDS AT
+  // THE LAST CLOSE: every future period drops its oldest close and adds the
+  // last one, so this is where the line goes if nothing moves — arithmetic,
+  // not a forecast. It runs to the end of the NEXT grid division of the chart
+  // shown (15m: next week · 30m/1H: next month · 4H: next quarter · Daily:
+  // next year). Lightness is layer 'oP'; width has its own Light/Normal/Thick.
+  function ovProj() {
+    const g = tfOverlay.proj || (tfOverlay.proj = {});
+    g.on = !!g.on;
+    if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 1;
+    return g;
+  }
+  const OV_PROJ_DIV = { '15m': 'week', '30m': 'month', '1H': 'month', '4H': 'quarter', 'D': 'year' };
+  // The instant the NEXT division after the one holding `t` ends (UTC).
+  function ovProjEnd(t) {
+    const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
+    switch (OV_PROJ_DIV[timeframe]) {
+      case 'week': {
+        const day0 = Date.UTC(Y, M, d.getUTCDate());
+        return day0 + ((((8 - d.getUTCDay()) % 7) || 7) + 7) * 864e5;
+      }
+      case 'month':   return Date.UTC(Y, M + 2, 1);
+      case 'quarter': return Date.UTC(Y, (Math.floor(M / 3) + 2) * 3, 1);
+      default:        return Date.UTC(Y + 2, 0, 1);
+    }
+  }
+  // The MA of the last `p` closes of `c`, then one value per future period
+  // with price held at the last close, until `stop(k)` says the period is past
+  // the horizon. A close older than the data ends the line.
+  function ovProjVals(c, p, stop) {
+    const L = c ? c.length : 0;
+    if (L < p) return null;
+    const cl = c[L - 1];
+    let m = 0;
+    for (let i = L - p; i < L; i++) { if (c[i] == null) return null; m += c[i]; }
+    m /= p;
+    const out = [m];
+    for (let k = 1; k < 2000 && !stop(k); k++) {
+      const i = L - p + k - 1;
+      const drop = i < L ? c[i] : cl;
+      if (drop == null) break;
+      m += (cl - drop) / p;
+      out.push(m);
+    }
+    return out;
   }
   function ovSave() {
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
@@ -8300,14 +8352,16 @@
   // Third set (user, 2026-09-28: "one that goes up by 50 all the way to 500").
   // Buttons are named by how many lines they draw ("find a shorter name").
   const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500],
-                    step: [50, 100, 150, 200, 250, 300, 350, 400, 450, 500] };
-  const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '10 MA' };
+                    step: [100, 150, 200, 250, 300, 350, 400, 450, 500] };
+  // 2026-09-30 (user: "remove the 50MA from the third overlay MAs"): the step
+  // set starts at 100, so it is nine lines.
+  const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '9 MA' };
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
   function ovPeriods() { return OV_SETS[ovSet()]; }
   // Monthly lists only what history can warm (a Monthly 250 is ~21 years).
   function ovPeriodsTxt(tf) {
     const ps = ovPeriods().filter(p => tf !== 'M' || p <= 200);
-    return ovSet() === 'step' ? `every 50 to ${ps[ps.length - 1]}` : ps.join(' · ');
+    return ovSet() === 'step' ? `every 50, ${ps[0]} to ${ps[ps.length - 1]}` : ps.join(' · ');
   }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
@@ -8329,6 +8383,7 @@
   function ovApplyVars() {
     const st = document.documentElement.style;
     OV_HTF_ALL.forEach(([tf]) => st.setProperty(`--ov-o${tf}-ma`, String(ovLayer('o' + tf).ma / 100)));
+    st.setProperty('--ov-oP-ma', String(ovLayer('oP').ma / 100));
     tabTfs('charts').forEach(tf => {
       const l = ovLayer(tf);
       OV_PARTS.forEach(([k]) => st.setProperty(`--ov-${tf}-${k}`, String(l[k] / 100)));
@@ -8449,7 +8504,45 @@
     };
 
     const dW = 4.2 * ovMaW('D');
-    const wW = Math.max(10, dW * 1.8);
+    // Light scales the Weekly and Monthly down too — the 10px floor keeps
+    // Weekly clear of Daily at Normal and Thick only.
+    const wW = Math.max(10, dW * 1.8) * Math.min(1, ovMaW('D'));
+
+    // Projected lines (see ovProj). Future instants are placed at the chart's
+    // own average time per bar, nights and weekends included — the same rule
+    // the grid uses for its future lines, so a projection ends on its line.
+    const pj = ovProj();
+    const horizon = pj.on ? ovProjEnd(bt[n - 1]) : 0;
+    const avgMs = n > 1 ? Math.max(1, (bt[n - 1] - bt[0]) / (n - 1)) : baseDur;
+    const xF = t => t <= bt[n - 1] ? xT(t) : L.x0 + (n - 1 - from) * bw + (t - bt[n - 1]) / avgMs * bw;
+    // One projected line: from (x0, v0) through each future period's close.
+    const projSvg = (x0, vals, timeOf, width) => {
+      const pts = [[x0, vals[0]]];
+      for (let k = 1; k < vals.length; k++) {
+        const x = xF(timeOf(k));
+        if (x > pts[pts.length - 1][0]) pts.push([x, vals[k]]);
+      }
+      if (pts.length < 2 || pts[0][0] > L.x1 + bw) return '';
+      // Dots, round caps — clearly not the line it continues.
+      const dash = `${(width * 0.15).toFixed(1)} ${(width * 2).toFixed(1)}`;
+      let out = '', run = [], down = null;
+      const flush = () => {
+        if (run.length >= 2) out += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round"/>`;
+        run = [];
+      };
+      pts.forEach(([x, v], j) => {
+        const pt = x.toFixed(1) + ',' + sc.y(v).toFixed(1);
+        if (!j) { run = [pt]; return; }
+        const d = v < pts[j - 1][1] - 1e-12;
+        if (down === null) down = d;
+        else if (d !== down) { run.push(pt); flush(); run = [pt]; down = d; return; }
+        run.push(pt);
+      });
+      flush();
+      return out;
+    };
+    const projG = inner => inner ? `<g class="reel-ov-proj" ${ovLayerStyle('oP', 'ma')}>${inner}</g>` : '';
+    const lastXp = L.x0 + (n - from) * bw;
     let under = '';
     // Thickest first, so the thinner lines sit on top of it.
     [['M', 'mo', wW * 1.6], ['W', 'w', wW]].forEach(([tf, key, width]) => {
@@ -8459,7 +8552,23 @@
       const want = ovPeriods();
       const ks = h.p.map((p, k) => want.includes(p) ? k : -1).filter(k => k >= 0);
       if (!ks.length) return;
-      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}</g>`;
+      let proj = '';
+      if (pj.on && h.c && h.c.length) {
+        // Period k after the last one closes: a week on its Friday, a month
+        // on its last day — placed at that day's close, like the line itself.
+        const tl = ht[ht.length - 1], dl = new Date(tl);
+        const end = tf === 'W'
+          ? (k => tl + (((5 - dl.getUTCDay() + 7) % 7) + 7 * k) * 864e5 + 864e5)
+          : (k => Date.UTC(dl.getUTCFullYear(), dl.getUTCMonth() + 1 + k, 1));
+        const pw = (tf === 'W' ? 10 : 16) * pj.w;
+        ks.forEach(k => {
+          // vals[k] = the MA at the close of period k (0 = the one in
+          // progress); it is held flat from the newest bar to that close.
+          const vals = ovProjVals(h.c, h.p[k], j => end(j) > horizon);
+          if (vals) proj += projSvg(lastXp, [vals[0], ...vals], j => end(j - 1), pw);
+        });
+      }
+      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}${projG(proj)}</g>`;
     });
     if (ob && ob.m && ob.m.length) {
       const ot = reelBarTimes(ob);
@@ -8474,7 +8583,20 @@
         if (!cm[p]) cm[p] = reelRollingAt(ob.c, p, mi);
         if (cm[p].some(v => v != null)) { ps.push(p); ms.push(cm[p]); }
       });
-      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}</g>`;
+      let proj = '';
+      if (pj.on && ob.c && ot.length > 1) {
+        // A trading day's calendar length, from the last ~60 days (1.4 for a
+        // stock that skips weekends, 1 for crypto).
+        const tD = ot[ot.length - 1], a = Math.max(0, ot.length - 61);
+        const step = (tD - ot[a]) / Math.max(1, ot.length - 1 - a);
+        const at = k => tD + OV_TF_MS.D + k * step;
+        const x0 = xT(at(0));
+        ps.forEach(p => {
+          const vals = ovProjVals(ob.c, p, k => at(k) > horizon);
+          if (vals && x0 != null) proj += projSvg(x0, vals, k => at(k), 4.2 * pj.w);
+        });
+      }
+      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}${projG(proj)}</g>`;
     }
     return { under, draw: '' };
   }
@@ -8575,6 +8697,13 @@
     // Daily < Weekly < Monthly order always holds.
     h += `<div class="reel-ov-block"><div class="reel-ov-row reel-ov-maw"><span>Width</span><div class="reel-ov-maw-btns">${OV_MA_WIDTHS.map(([v, lbl]) =>
       `<button class="reel-tf-opt reel-ov-maw-btn${ovMaW('D') === v ? ' on' : ''}" data-act="ov-maw" data-tf="D" data-v="${v}">${lbl}</button>`).join('')}</div></div></div>`;
+    // Projected MAs: switch, then its own lightness and width.
+    const pj = ovProj();
+    h += `<div class="reel-ov-block"><button class="reel-tf-opt reel-ov-switch reel-ov-htf reel-ov-proj-sw${pj.on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${pj.on}" data-act="ov-proj">
+        <span>Projected MAs<i>price held · to end of next ${OV_PROJ_DIV[timeframe] || 'year'}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
+      (pj.on ? slider('oP', 'ma', 'Lightness', 'Projected MAs') +
+        `<div class="reel-ov-row reel-ov-maw"><span>Width</span><div class="reel-ov-maw-btns">${OV_MA_WIDTHS.map(([v, lbl]) =>
+          `<button class="reel-tf-opt reel-ov-maw-btn${pj.w === v ? ' on' : ''}" data-act="ov-pjw" data-v="${v}">${lbl}</button>`).join('')}</div></div>` : '') + '</div>';
     const shown = TF_BY_CODE[timeframe].label;
     h += `<div class="reel-ov-block"><div class="reel-ov-title">${shown}<span>shown · editable</span></div>` +
       OV_PARTS.map(([k, lbl]) => slider(timeframe, k, lbl, shown)).join('') + '</div>';
@@ -13596,6 +13725,21 @@
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+        return true;
+      }
+      if (btn.dataset.act === 'ov-proj' || btn.dataset.act === 'ov-pjw') {
+        const pj = ovProj();
+        if (btn.dataset.act === 'ov-proj') pj.on = !pj.on;
+        else if (OV_MA_WIDTHS.some(([a]) => a === +btn.dataset.v)) pj.w = +btn.dataset.v;
+        else return true;
+        ovSave();
+        ovApplyVars();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
       }
       if (btn.dataset.act === 'ov-maw') {
