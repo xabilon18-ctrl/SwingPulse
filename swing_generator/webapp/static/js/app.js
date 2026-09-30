@@ -8723,8 +8723,14 @@
   // 20-bar one — zoom the time scale in and the chart would hand more and more
   // of the panel to blank space, which is the opposite of zooming in. Windows
   // of 100 bars and up are unaffected.
+  // ONE FRAME FOR EVERY CHART (user, 2026-09-30, from their AAL 30m screenshot:
+  // "make all charts this standard flip through frame, not each time frame"):
+  // bars fill the plot, a thin 5% strip of future on the right, price fitted
+  // to the bars — the same on 15m, 30m, 1H, 4H and Daily. It was up to 10 bars
+  // (~1-2% on a long window) and the intraday charts opened with 24% of future
+  // and the price centred on the last close.
   function reelRightPadBars(winBars) {
-    return Math.min(REEL_RIGHT_PAD_BARS, Math.max(2, Math.round(winBars * 0.1)));
+    return Math.max(2, Math.round(winBars * 0.05));
   }
 
   function reelScale(b, L, locked) {
@@ -8944,7 +8950,7 @@
       let k = n - 1;
       while (k > 0 && bt[k - 1] >= cut) k--;
       const data = Math.max(REEL_MIN_WINDOW_BARS, n - k);
-      return (bundle._defBars = Math.round(data / (1 - REEL_15M_VIEW.future)));
+      return (bundle._defBars = data);   // no 24% future any more — see reelRightPadBars
     }
     if (timeframe === '10m' || timeframe === '4H') {
       if (bundle._defBars) return bundle._defBars;
@@ -9100,7 +9106,6 @@
   // edge), except 15m, which opens with REEL_15M_VIEW.future of blank space.
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
-    if ((timeframe === '15m' || timeframe === '30m' || timeframe === '1H') && bundle) return -Math.round(reelWindowBars(bundle, name) * REEL_15M_VIEW.future);
     return 0;
   }
 
@@ -10698,7 +10703,7 @@
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
     const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
-      || (timeframe === '15m' || timeframe === '30m' || timeframe === '1H' ? reel15mPriceWindow(b) : null));
+      || null);   // fitted to the bars on every timeframe (2026-09-30)
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -11352,7 +11357,7 @@
     // screen applies it itself (reelViewSeedPrice on its own plot) rather than
     // copying the card's un-applied default and marking the view done.
     if (src && !viewPricePending.has(name)
-        && !((timeframe === '15m' || timeframe === '30m' || timeframe === '1H') && chartFullPrevLock === undefined)) {
+        ) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
