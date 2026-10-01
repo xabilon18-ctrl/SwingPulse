@@ -50,7 +50,7 @@ from _active_config import (
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import load_instruments, instruments_by_ticker, asset_class_of
-from data_fetcher  import (fetch_all, fetch_all_5m, h4_ticker,
+from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
                            drop_unfinished_30m, drop_unfinished_15m)
@@ -440,8 +440,12 @@ def _consolidate_short_trends(segments: list[dict], df: pd.DataFrame) -> list[di
     return segments
 
 
-def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
+def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4) -> pd.DataFrame:
     """Resample hourly OHLCV to 4-hour bars, ANCHORED TO EACH SESSION'S OPEN.
+
+    `hours` (2026-10-01): the same construction at another bar length — the 2H
+    chart passes 2. A US equity is then 4 bars a session (09:30, 11:30, 13:30
+    and a half-hour 15:30 bar), as TradingView draws it.
 
     Four hourly bars counted from the session's own first bar — not a clock
     bucket running from midnight UTC, which is what this did until 2026-09-17.
@@ -489,7 +493,7 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     # different contents, purely from holes. An offset survives a hole — the bars
     # either side of it still land where they belong.
     base = pd.Series(idx, index=day).groupby(level=0).min().reindex(day).to_numpy()
-    off  = ((idx.to_numpy() - base) // np.timedelta64(4, 'h')).astype(int)
+    off  = ((idx.to_numpy() - base) // np.timedelta64(hours, 'h')).astype(int)
     key  = pd.MultiIndex.from_arrays([day, off])
     resampled = df_h.groupby(key).agg({
         'Open': 'first',
@@ -507,7 +511,15 @@ def _resample_4h(df_hourly: pd.DataFrame) -> pd.DataFrame:
     # Same rule as the daily timeframe: a bucket still being filled is not a
     # bar. Hourly caches are stored in UTC, so the window test needs no
     # per-exchange timetable. See data_fetcher §"Finished sessions only".
-    return drop_unfinished_4h(resampled)
+    if hours == 4:
+        return drop_unfinished_4h(resampled)
+    # Any other length: the same rule at its own window.
+    if resampled.empty:
+        return resampled
+    ix = pd.DatetimeIndex(resampled.index)
+    if ix.tz is not None:
+        ix = ix.tz_convert('UTC').tz_localize(None)
+    return resampled[ix + pd.Timedelta(hours=hours) <= pd.Timestamp.utcnow().tz_localize(None)]
 
 
 def _resample_10m(df_5m: pd.DataFrame) -> pd.DataFrame:
@@ -885,6 +897,19 @@ def _frame_4h(df_1h: pd.DataFrame) -> pd.DataFrame:
     30m and 1H) grouped into 4-hour bars counted from each session's own open
     (_resample_4h — see there for why not clock buckets)."""
     return _resample_4h(_frame_1h(df_1h))
+
+
+def _frame_2h(df_1h: pd.DataFrame) -> pd.DataFrame:
+    """The 2H chart's frame (2026-10-01, user: "add a 2h chart"): the 1H feed
+    in 2-hour bars counted from each session's own open (_resample_4h at
+    hours=2). Chart only — no 2H signals."""
+    return _resample_4h(_frame_1h(df_1h), hours=2)
+
+
+def _m2h_ma_periods(frame: pd.DataFrame) -> list[int]:
+    """EXACTLY 50/250/500 on 2H bars, as on 30m and 1H. MA500 is ~125 sessions
+    of a US stock (4 bars/session), ~42 days of a 24h instrument."""
+    return [p for p in MA_PERIODS if p <= len(frame)]
 
 
 def _m4h_ma_periods(frame: pd.DataFrame) -> list[int]:
@@ -1373,9 +1398,14 @@ def main():
         # §FIVE_MIN_MAX_AGE_HOURS.
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
-        # Hourly download (1H + 4H) stopped 2026-09-30 — both timeframes removed.
+        # Hourly download stopped 2026-09-30 (1H + 4H removed), BACK 2026-10-01
+        # for the 1H and 2H CHARTS only (user: "add a 2h chart ... and the 1h").
+        # No 1H/2H signals. Same freshness gate and closed-market skip as the 5m.
+        print('  Fetching 1h market data (1H + 2H charts) ...\n')
+        fetch_all_1h(instruments, force_refresh=args.refresh,
+                     max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
-        print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (5m + 1h): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()

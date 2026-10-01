@@ -62,7 +62,8 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
                   _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
-                  _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods)
+                  _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods,
+                  _frame_2h, _m2h_ma_periods)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -90,6 +91,11 @@ CARRY_MONTHS_15M = 2   # 15m back beside 30m, 2026-09-29
 # drag can reach back a season. ~4,400 bars on a 24/7 instrument (under the
 # BARS_BY_TF ceiling), ~880 on a US stock. The hourly cache holds ~2 years.
 CARRY_MONTHS_1H = 6
+
+# The 2H bundle (2026-10-01): a year of calendar, so the month/quarter grid
+# (the 30m's) has four quarters to show. ~4,300 bars on a 24/7 instrument,
+# ~1,000 on a US stock (12 vs 4 bars a day).
+CARRY_MONTHS_2H = 12
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -139,6 +145,8 @@ BARS_BY_TF = {
     '4H': 4400,
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
     '1H': 4500,
+    # 2H (2026-10-01): the ceiling on CARRY_MONTHS_2H of a 24/7 instrument.
+    '2H': 4400,
 }
 
 # MONTHLY was REMOVED 2026-09-14 at the user's request, along with
@@ -386,6 +394,26 @@ def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
         return None
     warm_cap = len(frame) - max(periods)
     bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
+
+
+def build_2h(cache_dir: str, ticker: str) -> dict | None:
+    """2H chart (2026-10-01, user: "add a 2h chart"): build_1h's feed in
+    session-anchored 2-hour bars (main._frame_2h), EXACT 50/250/500,
+    CARRY_MONTHS_2H of calendar, capped so MA500 is warm at the left edge."""
+    df_1h = load_1h(ticker)
+    if df_1h is None or df_1h.empty:
+        return None
+    frame = _frame_2h(df_1h)
+    if len(frame) < 2:
+        return None
+    periods = _m2h_ma_periods(frame)
+    if len(periods) < MIN_RIBBON_LINES:
+        return None
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_2H)
+    n_carry = int((frame.index > cutoff).sum()) or len(frame)
+    warm_cap = len(frame) - max(periods)
+    bars = min(n_carry, BARS_BY_TF['2H'], max(warm_cap, 1))
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
@@ -833,7 +861,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, '2H': n, 'D': n, 'chunks': n_files}.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
     1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
@@ -850,12 +878,13 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '2H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    # 1H and 4H charts removed 2026-09-30 (build_1h/build_4h_live kept).
-    # 15m removed 2026-09-30 too (build_15m kept).
-    for tf, builder in (('30m', build_30m), ('D', build_daily)):
+    # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
+    # 2026-09-30 too (build_15m kept). 1H back and 2H added 2026-10-01 as
+    # CHARTS ONLY — no signals, no markers, no alerts.
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -898,7 +927,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         if d_fires_path and os.path.exists(d_fires_path):
             with open(d_fires_path) as fh:
                 d_fires = json.load(fh)
-        alerts = build_alerts(built, d_fires)
+        # 30m + Daily only: the chart-only 1H/2H have no alerts (and would
+        # cost the base-rate pass over every bar for nothing).
+        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('30m', 'D')}, d_fires)
         _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
         stats['alerts'] = len(alerts['ev'])
     except Exception as exc:
