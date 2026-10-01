@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['30m', '1H', '2H']);  // 15m removed 2026-09-30; 1H + 2H charts 2026-10-01
+  const INTRADAY_TFS = new Set(['30m', '1H', '2H', '12H']);  // 15m removed 2026-09-30; 1H/2H/12H charts 2026-10-01
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -140,6 +140,10 @@
     // download; no signals, so the signal tabs never offer them.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar', chartOnly: true },
     { code: '2H', prefix: 'h2_', label: '2H', tv: '120', bar: '2-hour bars', barShort: '25-bar', chartOnly: true },
+    // 12H (2026-10-01, user: "add 12 built like the daily with the time grids"):
+    // chart only, the Daily's year grid and opening window. Stocks read their
+    // daily bars (one 12H bar a session); 24h markets two bars a day.
+    { code: '12H', prefix: 'h12_', label: '12H', tv: '720', bar: '12-hour bars', barShort: '25-bar', chartOnly: true },
     // 1H (back 2026-09-27) and 4H (back 2026-09-29) REMOVED 2026-09-30 (user:
     // "remove 1h and 4h") — charts, B1/S1 signals and the hourly download.
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
@@ -946,7 +950,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240 }[timeframe];
+    const per = { '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
     if (!per) return `${n}d`;
     const mins = n * per;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
@@ -8172,7 +8176,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, 'D': 864e5 };
+  const OV_TF_MS = { '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -8274,7 +8278,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 1;
     return g;
   }
-  const OV_PROJ_DIV = { '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', 'D': 'year' };
+  const OV_PROJ_DIV = { '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -10452,7 +10456,7 @@
   // even") — the 'half' construction, so every quarter is the same width.
   // 1H and 2H (2026-10-01): the 30m's grid (user: "have the time grid like the 30m").
   const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'month', '1H': 'half', '2H': 'half', '4H': 'half',
-                           'D': 'year', '3D': 'admin', 'W': 'admin' };
+                           '12H': 'year', 'D': 'year', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
   // remaining trading day of the CURRENT week, then only WEEK-START lines, this

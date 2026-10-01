@@ -63,7 +63,7 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
                   _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
                   _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods,
-                  _frame_2h, _m2h_ma_periods)
+                  _frame_2h, _m2h_ma_periods, _frame_12h)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -147,6 +147,9 @@ BARS_BY_TF = {
     '1H': 4500,
     # 2H (2026-10-01): the ceiling on CARRY_MONTHS_2H of a 24/7 instrument.
     '2H': 4400,
+    # 12H (2026-10-01): as deep as the Daily. A 24h market only reaches ~960
+    # bars past MA500's warm-up (the hourly cache is ~2 years).
+    '12H': 1300,
 }
 
 # MONTHLY was REMOVED 2026-09-14 at the user's request, along with
@@ -414,6 +417,40 @@ def build_2h(cache_dir: str, ticker: str) -> dict | None:
     n_carry = int((frame.index > cutoff).sum()) or len(frame)
     warm_cap = len(frame) - max(periods)
     bars = min(n_carry, BARS_BY_TF['2H'], max(warm_cap, 1))
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
+
+
+def build_12h(cache_dir: str, ticker: str) -> dict | None:
+    """12H chart (2026-10-01, user: "add 12 built like the daily with the time
+    grids"): the Daily's year grid and opening window, EXACT 50/250/500.
+
+    A market whose session is shorter than 12 hours (stocks, cash indices on
+    their own feed) has ONE 12-hour bar a session — the daily bar, exactly as
+    TradingView's 12H draws it — so those are read from the DAILY cache, which
+    carries years of history where the hourly cache has ~2 (MA500 alone needs
+    ~2 years of sessions). Round-the-clock markets get two session-anchored
+    bars a day from the hourly feed (main._frame_12h)."""
+    df_1h = load_1h(ticker)
+    if df_1h is None or df_1h.empty:
+        return None
+    frame = _frame_12h(df_1h)
+    if len(frame) < 2:
+        return None
+    per_day = frame.groupby(frame.index.normalize()).size().tail(60).median()
+    if per_day < 1.5:
+        path = os.path.join(cache_dir, _cache_name(ticker))
+        if not os.path.exists(path):
+            return None
+        df = scale_daily(ticker, pd.read_parquet(path))
+        periods = [p for p in MA_PERIODS if p <= len(df)]
+        if len(periods) < MIN_RIBBON_LINES:
+            return None
+        return _bundle(df, periods, '%Y-%m-%d', bars=BARS_BY_TF['12H'])
+    periods = [p for p in MA_PERIODS if p <= len(frame)]
+    if len(periods) < MIN_RIBBON_LINES:
+        return None
+    warm_cap = len(frame) - max(periods)
+    bars = min(len(frame), BARS_BY_TF['12H'], max(warm_cap, 1))
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
@@ -878,13 +915,14 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '2H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '2H': 0, '12H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
-    # 2026-09-30 too (build_15m kept). 1H back and 2H added 2026-10-01 as
+    # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
     # CHARTS ONLY — no signals, no markers, no alerts.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('D', build_daily)):
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('12H', build_12h),
+                        ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):

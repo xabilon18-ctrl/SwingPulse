@@ -906,6 +906,15 @@ def _frame_2h(df_1h: pd.DataFrame) -> pd.DataFrame:
     return _resample_4h(_frame_1h(df_1h), hours=2)
 
 
+def _frame_12h(df_1h: pd.DataFrame) -> pd.DataFrame:
+    """The 12H chart's frame (2026-10-01, user: "add 12 built like the daily"):
+    the 1H feed in 12-hour bars counted from each session's own open. A 24h
+    market is 2 bars a day; a market whose session is under 12 hours is ONE
+    bar a session — its daily bar — which is why chart_feed.build_12h draws
+    those from the daily cache instead (it holds years, the hourly ~2)."""
+    return _resample_4h(_frame_1h(df_1h), hours=12)
+
+
 def _m2h_ma_periods(frame: pd.DataFrame) -> list[int]:
     """EXACTLY 50/250/500 on 2H bars, as on 30m and 1H. MA500 is ~125 sessions
     of a US stock (4 bars/session), ~42 days of a 24h instrument."""

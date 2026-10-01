@@ -1059,6 +1059,7 @@ _CHART_BUILDERS = {
     '1H': chart_feed.build_1h,
     '4H': chart_feed.build_4h_live,
     '2H': chart_feed.build_2h,
+    '12H': chart_feed.build_12h,
     'D':  chart_feed.build_daily,
 }
 
