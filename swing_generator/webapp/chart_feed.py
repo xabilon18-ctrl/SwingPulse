@@ -581,15 +581,22 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
 def build_10m_live(cache_dir: str, ticker: str) -> dict | None:
     """10-minute chart (back 2026-10-03, user: "add 10 min to be divided by
     weekly"), built like build_30m: load_5m's sources and cash/spot level,
-    EXACT 50/250/500, CARRY_MONTHS_10M of calendar. Replaces build_10m (own
-    5m file, stretched periods), which stays for research."""
+    CARRY_MONTHS_10M of calendar. Replaces build_10m (own 5m file), which
+    stays for research.
+
+    Ribbon = main._m10_ma_periods (2026-10-03, user: "the 3 MAs are not good on
+    indices, crypto on 10 min chart"): exact 50/250/500 on anything that closes
+    overnight; on a round-the-clock market (crypto 144 bars/day, US index
+    futures, forex, gold ~97-103) the periods are stretched to the calendar
+    reach a US stock's get (MA500 ~18 days), e.g. BTC 266/1328/2656. At plain
+    50/250/500 a 24h MA500 is 3.5 days and the three lines lay on the price."""
     df_5m = load_5m(ticker)
     if df_5m is None or df_5m.empty:
         return None
     frame = _frame_10m_live(df_5m)
     if len(frame) < 2:
         return None
-    periods = [p for p in MA_PERIODS if p <= len(frame)]
+    periods = _m10_ma_periods(frame)
     if len(periods) < MIN_RIBBON_LINES:
         return None
     cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_10M)
