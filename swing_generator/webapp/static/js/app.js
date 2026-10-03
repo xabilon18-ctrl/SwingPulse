@@ -8342,14 +8342,19 @@
   const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '9 MA' };
   const OV_STEP_SKIP_D = [100, 150];
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
+  // 2026-10-03 (user: "add a monthly 50ma ... in the overlay"): the MONTHLY
+  // overlay keeps its 50 in the 9 MA set too — 50 · 100 · 150 · 200.
   function ovPeriods(tf) {
     const ps = OV_SETS[ovSet()];
-    return tf === 'D' && ovSet() === 'step' ? ps.filter(p => !OV_STEP_SKIP_D.includes(p)) : ps;
+    if (ovSet() !== 'step') return ps;
+    if (tf === 'D') return ps.filter(p => !OV_STEP_SKIP_D.includes(p));
+    if (tf === 'M') return [50, ...ps];
+    return ps;
   }
   // Monthly lists only what history can warm (a Monthly 250 is ~21 years).
   function ovPeriodsTxt(tf) {
     const ps = ovPeriods(tf).filter(p => tf !== 'M' || p <= 200);
-    if (ovSet() !== 'step' || ps.length <= 3) return ps.join(' · ');
+    if (ovSet() !== 'step' || ps.length <= 4) return ps.join(' · ');
     return `every 50, ${ps[0]} to ${ps[ps.length - 1]}`;
   }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
@@ -8538,7 +8543,7 @@
       const h = htf && ovHtfOn(tf) && htf[key];
       if (!h || !h.m || !h.m.length) return;
       const ht = h._bt || (h._bt = h.t.map(reelParseTs));
-      const want = ovPeriods();
+      const want = ovPeriods(tf);
       const ks = h.p.map((p, k) => want.includes(p) ? k : -1).filter(k => k >= 0);
       if (!ks.length) return;
       let proj = '';
