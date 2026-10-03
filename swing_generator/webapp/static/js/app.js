@@ -8281,7 +8281,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 1;
     return g;
   }
-  const OV_PROJ_DIV = { '10m': 'week', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
+  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -10464,11 +10464,13 @@
   // even") — the 'half' construction, so every quarter is the same width.
   // 1H and 2H (2026-10-01): the 30m's grid (user: "have the time grid like the 30m").
   // 10m (back 2026-10-03): the 15m's WEEK grid (user: "add 10 min to be
-  // divided by weekly") — Monday lines, first Monday of a month bold.
+  // divided by weekly"), then the same day the 30m's MONTH grid (user: "in the
+  // 10 min the grids line set to month to month") — the year in 12 equal
+  // parts, quarter lines bold.
   // Daily and 12H (2026-10-03): the TERM grid (user: "the time grids for daily
   // are currently year to year let's make it administration of 4 year
   // equally") — see reelTimeGrid's 'term' mode.
-  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'week', '1H': 'half', '2H': 'half', '4H': 'half',
+  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'half', '1H': 'half', '2H': 'half', '4H': 'half',
                            '12H': 'term', 'D': 'term', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
@@ -10482,7 +10484,7 @@
 
   // How many equal parts a 'half'-mode year is cut into.
   const REEL_YEAR_PARTS = 2;
-  const REEL_YEAR_PARTS_BY_TF = { '1H': 12, '2H': 12, '30m': 12, '4H': 4 };
+  const REEL_YEAR_PARTS_BY_TF = { '1H': 12, '2H': 12, '30m': 12, '10m': 12, '4H': 4 };
 
   // US administrations, by inauguration day. On the slow timeframes one screen
   // is four years (3D) to ten (W), and on that scale the calendar year is a
