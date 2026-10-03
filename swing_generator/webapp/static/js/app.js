@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['10m', '30m', '1H', '2H', '12H']);  // 15m removed 2026-09-30; 1H/2H/12H charts 2026-10-01
+  const INTRADAY_TFS = new Set(['30m']);  // 15m removed 2026-09-30; 10m/1H/2H/12H charts removed 2026-10-03
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -134,21 +134,10 @@
     // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
-    // 10m back 2026-10-03 (user: "add 10 min to be divided by weekly") — CHART
-    // ONLY, resampled from the 5m download like the 30m, on the week grid.
-    { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
-    // 1H back and 2H added 2026-10-01 (user: "add a 2h chart and have the time
-    // grid like the 30m ... and the 1 h") — CHARTS ONLY, from the hourly
-    // download; no signals, so the signal tabs never offer them.
-    { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar', chartOnly: true },
-    { code: '2H', prefix: 'h2_', label: '2H', tv: '120', bar: '2-hour bars', barShort: '25-bar', chartOnly: true },
-    // 12H (2026-10-01, user: "add 12 built like the daily with the time grids"):
-    // chart only, the Daily's year grid and opening window. Stocks read their
-    // daily bars (one 12H bar a session); 24h markets two bars a day.
-    { code: '12H', prefix: 'h12_', label: '12H', tv: '720', bar: '12-hour bars', barShort: '25-bar', chartOnly: true },
-    // 1H (back 2026-09-27) and 4H (back 2026-09-29) REMOVED 2026-09-30 (user:
-    // "remove 1h and 4h") — charts, B1/S1 signals and the hourly download.
+    // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
+    // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
+    // are left in place, unused; drawings saved on them stay in the store.
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
     // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts

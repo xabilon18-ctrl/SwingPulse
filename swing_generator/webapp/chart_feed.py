@@ -946,14 +946,15 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'10m': 0, '30m': 0, '1H': 0, '2H': 0, '12H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
     # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
-    # CHARTS ONLY — no signals, no markers, no alerts.
-    for tf, builder in (('10m', build_10m_live), ('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('12H', build_12h),
-                        ('D', build_daily)):
+    # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
+    # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
+    # build_10m_live/build_1h/build_2h/build_12h kept for research.
+    for tf, builder in (('30m', build_30m), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):

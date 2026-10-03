@@ -1422,14 +1422,11 @@ def main():
         # §FIVE_MIN_MAX_AGE_HOURS.
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
-        # Hourly download stopped 2026-09-30 (1H + 4H removed), BACK 2026-10-01
-        # for the 1H and 2H CHARTS only (user: "add a 2h chart ... and the 1h").
-        # No 1H/2H signals. Same freshness gate and closed-market skip as the 5m.
-        print('  Fetching 1h market data (1H + 2H charts) ...\n')
-        fetch_all_1h(instruments, force_refresh=args.refresh,
-                     max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
+        # Hourly download stopped 2026-09-30 (1H + 4H removed), back 2026-10-01
+        # for the 1H/2H/12H charts, STOPPED again 2026-10-03 (user: "remove 10m,
+        # 1h, 2h and 12h"). fetch_all_1h kept for research.
         _e2 = _time.time() - _t2
-        print(f'  Intraday data (5m + 1h): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
