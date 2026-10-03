@@ -44,6 +44,7 @@ from _active_config import (
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
+    THIRTY_MIN_BARS_PER_DAY_TARGET, THIRTY_MIN_NORMALIZE_ABOVE,
     FIVE_MIN_MAX_AGE_HOURS,
     FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
 )
@@ -622,20 +623,24 @@ def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
 
 
 def _m30_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """Ribbon periods for the 30m chart and 30m signals: EXACTLY MA_PERIODS
-    (50/250/500) on 30m bars — MA500 is ~38 sessions of a US stock, ~10 days
-    of a 24h instrument. Clipped only to the bars available. The rule came from
-    the 5m chart this replaced:
+    """Ribbon periods for the 30m CHART: 50/250/500 on anything exchange-traded,
+    scaled up on round-the-clock markets so MA500 reaches the calendar days it
+    reaches on a US stock (~55). _m10_ma_periods' rule at a third of the density.
 
-    The user's call (2026-09-24: "why the 5 min not following the 3 main MAs
-    to the T?"). Until then a round-the-clock instrument (crypto, forex,
-    commodities, the US index futures) had its periods stretched — 177/885/1770
-    on YM=F — so MA500 spanned the same calendar days as on an equity. That
-    matched nothing the user trades against; TradingView draws 50/250/500 on
-    every 5m chart, and so does this now. Cost, stated plainly: MA500 on a 24h
-    instrument covers ~1.7 days of 5m bars, against ~6.4 sessions on a US stock.
+    Until 2026-10-03 this was exactly 50/250/500 everywhere, carried over from
+    the user's 5m call ("follow the 3 main MAs to the T", 2026-09-24). On 30m
+    that left a 24h market's MA500 reaching ~10 days against a stock's ~54, and
+    the 24h chart opens on 8⅓ days, so the three lines lay on the price (user:
+    "too close to each other"). Measured bars/day, not asset class, decides.
+
+    The 30m SIGNALS do not read this: _intraday_state uses MA_PERIODS directly.
     """
-    return [p for p in MA_PERIODS if p <= len(frame)]
+    periods = MA_PERIODS
+    bpd = _m10_bars_per_calendar_day(frame)
+    if bpd > THIRTY_MIN_NORMALIZE_ABOVE and THIRTY_MIN_BARS_PER_DAY_TARGET > 0:
+        scale   = bpd / THIRTY_MIN_BARS_PER_DAY_TARGET
+        periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
+    return [p for p in periods if p <= len(frame)]
 
 def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
     """Resample finished daily bars to weekly, dropping the week in progress.

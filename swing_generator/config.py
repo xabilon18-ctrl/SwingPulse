@@ -379,6 +379,16 @@ TEN_MIN_NORMALIZE_ABOVE       = 45.0   # above this many bars/day, scale the rib
 FIVE_MIN_BARS_PER_DAY_TARGET  = 2 * TEN_MIN_BARS_PER_DAY_TARGET   # 54.2
 FIVE_MIN_NORMALIZE_ABOVE      = 2 * TEN_MIN_NORMALIZE_ABOVE       # 90.0
 
+# The 30m CHART (2026-10-03, user: "the 3 MAs on the 30m ... too close to each
+# other") gets the same normalisation at a third of the 10m density. Measured on
+# all 798 that day: exchange-traded 8.0 .. 12.4 bars/day (MA500 reaching 40-62
+# days), round-the-clock 25.6 .. 48.0 (MA500 reaching 10-20 days) — and a 24h
+# market OPENS on 8⅓ days, so its whole ribbon sat inside one screen of price.
+# A third of the 10m numbers puts MA500 at the same calendar reach on 10m and 30m
+# (BTC 266/1329/2659 on both). Chart only: the 30m alerts keep exact 50/250/500.
+THIRTY_MIN_BARS_PER_DAY_TARGET = TEN_MIN_BARS_PER_DAY_TARGET / 3   # 9.03
+THIRTY_MIN_NORMALIZE_ABOVE     = TEN_MIN_NORMALIZE_ABOVE / 3       # 15.0
+
 # NO SESSION SCALING, and that is deliberate. Bars per session measured across
 # all 37 instrument groups (2026-09-14, one ticker each, 37/37 returned data):
 #   Japan equity   34.0      US equity      38.8      European equity  51.0
