@@ -63,7 +63,7 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
                   _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
                   _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods,
-                  _frame_2h, _m2h_ma_periods, _frame_12h)
+                  _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -96,6 +96,10 @@ CARRY_MONTHS_1H = 6
 # (the 30m's) has four quarters to show. ~4,300 bars on a 24/7 instrument,
 # ~1,000 on a US stock (12 vs 4 bars a day).
 CARRY_MONTHS_2H = 12
+
+# The 10m bundle (back 2026-10-03, chart only, week grid): two months, so the
+# month the chart opens on has a month of panning behind it.
+CARRY_MONTHS_10M = 2
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -574,6 +578,26 @@ def build_10m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
+def build_10m_live(cache_dir: str, ticker: str) -> dict | None:
+    """10-minute chart (back 2026-10-03, user: "add 10 min to be divided by
+    weekly"), built like build_30m: load_5m's sources and cash/spot level,
+    EXACT 50/250/500, CARRY_MONTHS_10M of calendar. Replaces build_10m (own
+    5m file, stretched periods), which stays for research."""
+    df_5m = load_5m(ticker)
+    if df_5m is None or df_5m.empty:
+        return None
+    frame = _frame_10m_live(df_5m)
+    if len(frame) < 2:
+        return None
+    periods = [p for p in MA_PERIODS if p <= len(frame)]
+    if len(periods) < MIN_RIBBON_LINES:
+        return None
+    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_10M)
+    n_carry = int((frame.index > cutoff).sum()) or len(frame)
+    bars = min(n_carry, BARS_BY_TF['10m'])
+    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
+
+
 def build_15m(cache_dir: str, ticker: str) -> dict | None:
     """15-minute chart (back 2026-09-29 beside 30m): build_30m at 15 minutes."""
     df_5m = load_5m(ticker)
@@ -915,13 +939,13 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '2H': 0, '12H': 0, 'D': 0, 'chunks': 0}
+    stats = {'10m': 0, '30m': 0, '1H': 0, '2H': 0, '12H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
     # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
     # CHARTS ONLY — no signals, no markers, no alerts.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('12H', build_12h),
+    for tf, builder in (('10m', build_10m_live), ('30m', build_30m), ('1H', build_1h), ('2H', build_2h), ('12H', build_12h),
                         ('D', build_daily)):
         bundles: dict[str, dict] = {}
 

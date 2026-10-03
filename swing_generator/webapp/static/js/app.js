@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['30m', '1H', '2H', '12H']);  // 15m removed 2026-09-30; 1H/2H/12H charts 2026-10-01
+  const INTRADAY_TFS = new Set(['10m', '30m', '1H', '2H', '12H']);  // 15m removed 2026-09-30; 1H/2H/12H charts 2026-10-01
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -134,6 +134,9 @@
     // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
+    // 10m back 2026-10-03 (user: "add 10 min to be divided by weekly") — CHART
+    // ONLY, resampled from the 5m download like the 30m, on the week grid.
+    { code: '10m', prefix: 'm10_', label: '10m', tv: '10', bar: '10-minute bars', barShort: '25-bar', chartOnly: true },
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
     // 1H back and 2H added 2026-10-01 (user: "add a 2h chart and have the time
     // grid like the 30m ... and the 1 h") — CHARTS ONLY, from the hourly
@@ -950,7 +953,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
+    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
     if (!per) return `${n}d`;
     const mins = n * per;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
@@ -8176,7 +8179,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5 };
+  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -8278,7 +8281,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 1;
     return g;
   }
-  const OV_PROJ_DIV = { '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
+  const OV_PROJ_DIV = { '10m': 'week', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -10455,8 +10458,13 @@
   // "divide 12 by 3 into 4 equal parts ... make sure the q1, 2, 3 and 4 are
   // even") — the 'half' construction, so every quarter is the same width.
   // 1H and 2H (2026-10-01): the 30m's grid (user: "have the time grid like the 30m").
-  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'month', '1H': 'half', '2H': 'half', '4H': 'half',
-                           '12H': 'year', 'D': 'year', '3D': 'admin', 'W': 'admin' };
+  // 10m (back 2026-10-03): the 15m's WEEK grid (user: "add 10 min to be
+  // divided by weekly") — Monday lines, first Monday of a month bold.
+  // Daily and 12H (2026-10-03): the TERM grid (user: "the time grids for daily
+  // are currently year to year let's make it administration of 4 year
+  // equally") — see reelTimeGrid's 'term' mode.
+  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'week', '1H': 'half', '2H': 'half', '4H': 'half',
+                           '12H': 'term', 'D': 'term', '3D': 'admin', 'W': 'admin' };
 
   // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
   // remaining trading day of the CURRENT week, then only WEEK-START lines, this
@@ -10746,6 +10754,49 @@
     // weekend or a holiday and so are not a bar at all. reelBarIndexForDate
     // interpolates between the bars either side and extrapolates past the last
     // one, which is what puts the 2029 line out in the empty space.
+    // ── The term grid (Daily, 12H): AN ADMINISTRATION CUT INTO 4 EQUAL YEARS ──
+    // The 'half' construction one scale up (2026-10-03). Each US presidential
+    // term runs 1 January of its first year to 1 January four years on; the
+    // distance between those two boundaries is measured IN BARS and cut into
+    // four identical parts, so every year inside a term is the same width.
+    // The term line is bold and named ("2025 · Trump II"), the three year lines
+    // inside it light ("2026"). A term reaching past the last bar is projected
+    // at the whole bundle's average ms/bar, as the half grid does.
+    if (mode === 'term') {
+      const src = b._src || b, from = b._from || 0, sn = src.t.length;
+      if (sn < 2) return [];
+      const bt = reelBarTimes(src);
+      const perMs = (bt[sn - 1] - bt[0]) / (sn - 1);
+      if (!(perMs > 0)) return [];
+      const idxForMs = ms => {
+        if (ms <= bt[0])      return (ms - bt[0]) / perMs - from;
+        if (ms >= bt[sn - 1]) return (sn - 1) + (ms - bt[sn - 1]) / perMs - from;
+        let lo = 0, hi = sn - 1;
+        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= ms) lo = mid; else hi = mid; }
+        const span = bt[hi] - bt[lo];
+        return lo + (span ? (ms - bt[lo]) / span : 0) - from;
+      };
+      const names = {};
+      REEL_ADMIN_TERMS.forEach(t => { names[t.date.slice(0, 4)] = t.label.replace(' ends', ' end'); });
+      // Terms start in years ≡ 2025 (mod 4); walk every one the bundle touches.
+      const yFirst = new Date(bt[0]).getUTCFullYear();
+      let y0 = yFirst - ((((yFirst - 2025) % 4) + 4) % 4);
+      const yLast = new Date(bt[sn - 1]).getUTCFullYear();
+      const lastFi = (sn - 1) - from;
+      const out = [];
+      for (let y = y0; y <= yLast + REEL_FUTURE_YEARS; y += 4) {
+        const a = idxForMs(Date.UTC(y, 0, 1)), z = idxForMs(Date.UTC(y + 4, 0, 1));
+        if (!isFinite(a) || !isFinite(z) || z <= a) continue;
+        for (let k = 0; k < 4; k++) {
+          const fi = a + k * (z - a) / 4;
+          const yr = y + k;
+          const label = k === 0 ? (names[yr] ? `${yr} · ${names[yr]}` : String(yr)) : String(yr);
+          out.push({ fi, label, future: fi > lastFi, par: yr % 2, admin: k === 0 });
+        }
+      }
+      return out;
+    }
+
     if (mode === 'admin') {
       return REEL_ADMIN_TERMS
         .map((t, ti) => {

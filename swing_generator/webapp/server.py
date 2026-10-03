@@ -1054,6 +1054,7 @@ _chart_chunk_cache: dict = {}
 
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
+    '10m': chart_feed.build_10m_live,
     '15m': chart_feed.build_15m,
     '30m': chart_feed.build_30m,
     '1H': chart_feed.build_1h,

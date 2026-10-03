@@ -601,6 +601,21 @@ def _frame_15m(df_5m: pd.DataFrame) -> pd.DataFrame:
     return drop_unfinished_15m(fifteen)
 
 
+def _frame_10m_live(df_5m: pd.DataFrame) -> pd.DataFrame:
+    """The 10m chart's frame (back 2026-10-03, user: "add 10 min to be divided
+    by weekly"): _frame_30m's rule at 10 minutes, from load_5m's sources and
+    cash/spot level. NOT _resample_10m, the 2026-09-14 10m's frame, which read
+    each ticker's own 5m file (kept for research)."""
+    five = _frame_5m(df_5m)
+    if five.empty:
+        return five
+    agg = {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}
+    if 'Volume' in five.columns:
+        agg['Volume'] = 'sum'
+    ten = five.resample('10min').agg(agg).dropna(subset=['Close'])
+    return drop_unfinished_10m(ten)
+
+
 def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
     """EXACTLY 50/250/500 on 15m bars, as on every intraday chart."""
     return [p for p in MA_PERIODS if p <= len(frame)]
