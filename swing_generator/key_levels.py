@@ -20,6 +20,7 @@ Output per instrument (used in the daily row):
 
 import pandas as pd
 
+from indicators import price_decimals, round_price
 from _active_config import (
     PIVOT_LOOKBACK,
     KEY_LEVEL_TOUCH_TOLERANCE,
@@ -117,7 +118,7 @@ def find_key_levels(df: pd.DataFrame) -> pd.DataFrame:
     for date, row in df[pivot_high_mask].iterrows():
         price = float(row['High'])
         records.append({
-            'key_level_price':       round(price, 8),
+            'key_level_price':       round_price(price, 8, 8),
             'key_level_type':        'top',
             'key_level_date':        str(date.date()),
             'key_level_touch_count': _count_touches(df, price, KEY_LEVEL_TOUCH_TOLERANCE),
@@ -126,7 +127,7 @@ def find_key_levels(df: pd.DataFrame) -> pd.DataFrame:
     for date, row in df[pivot_low_mask].iterrows():
         price = float(row['Low'])
         records.append({
-            'key_level_price':       round(price, 8),
+            'key_level_price':       round_price(price, 8, 8),
             'key_level_type':        'bottom',
             'key_level_date':        str(date.date()),
             'key_level_touch_count': _count_touches(df, price, KEY_LEVEL_TOUCH_TOLERANCE),
@@ -201,13 +202,13 @@ def today_level_summary(
     all_parts = []
     for _, lvl in strongest.sort_values('key_level_price', ascending=False).iterrows():
         all_parts.append(
-            f"{lvl['key_level_type']}@{lvl['key_level_price']:.4f}"
+            f"{lvl['key_level_type']}@{lvl['key_level_price']:.{price_decimals(lvl['key_level_price'], 4, 4)}f}"
             f"[x{lvl['key_level_touch_count']}|{lvl['key_level_date']}]"
         )
     all_str = ' | '.join(all_parts)
 
     return {
-        'key_level_price':        round(float(primary['key_level_price']), 6),
+        'key_level_price':        round_price(primary['key_level_price']),
         'key_level_type':         primary['key_level_type'],
         'key_level_date':         primary['key_level_date'],
         'key_level_touch_count':  int(primary['key_level_touch_count']),

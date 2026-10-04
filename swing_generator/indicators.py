@@ -13,6 +13,33 @@ from _active_config import (MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMP
 
 
 # ---------------------------------------------------------------------------
+# Price rounding
+# ---------------------------------------------------------------------------
+
+def price_decimals(value, sig: int = 6, min_decimals: int = 6) -> int:
+    """Decimal places that keep `sig` significant figures, never fewer than
+    `min_decimals`.
+
+    A flat 6 decimals flattened sub-cent coins: SHIBUSDT's 30m close 5.78e-06
+    and MAs 5.72e-06 / 5.76e-06 / 5.79e-06 all became 0.000006, so the card read
+    "above all 3 MAs" on a chart sitting below its MA500 (2026-10-04). The
+    floor keeps large prices exactly as precise as before.
+    """
+    try:
+        f = abs(float(value))
+    except (TypeError, ValueError):
+        return min_decimals
+    if not np.isfinite(f) or f == 0:
+        return min_decimals
+    return max(min_decimals, sig - 1 - int(np.floor(np.log10(f))))
+
+
+def round_price(value, sig: int = 6, min_decimals: int = 6) -> float:
+    """round() with price_decimals() places."""
+    return round(float(value), price_decimals(value, sig, min_decimals))
+
+
+# ---------------------------------------------------------------------------
 # MA Ribbon
 # ---------------------------------------------------------------------------
 

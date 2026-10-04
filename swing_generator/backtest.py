@@ -37,7 +37,7 @@ from _active_config import (MA_PERIODS, OUTPUT_DIR,
                             REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
                             REFIRE_PCT_3D, NEW_TREND_PCT_3D)
 from data_fetcher import _cache_path, _drop_priceless, h4_ticker
-from indicators import add_all_indicators
+from indicators import add_all_indicators, round_price
 from instruments import load_instruments, asset_class_of
 from main import (_resample_4h, _h4_ma_periods, _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d)
@@ -207,8 +207,8 @@ def _build_outcome(entry_price, exit_price, risk, side, entry_date, exit_date,
     r_multiple = pnl_abs / risk if risk > 0 else 0
     return {
         'side': side,
-        'entry_price': round(entry_price, 6),
-        'exit_price':  round(exit_price, 6),
+        'entry_price': round_price(entry_price),
+        'exit_price':  round_price(exit_price),
         'entry_date':  str(entry_date.date()) if hasattr(entry_date, 'date') else str(entry_date),
         'exit_date':   str(exit_date.date())  if hasattr(exit_date,  'date') else str(exit_date),
         'bars_held':   int(bars_held),

@@ -54,7 +54,7 @@ from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
                            drop_unfinished_30m, drop_unfinished_15m)
-from indicators    import add_all_indicators
+from indicators    import add_all_indicators, price_decimals
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
 from output_writer import write_output
@@ -1161,14 +1161,19 @@ def _find_last_signal(target: pd.DataFrame, lookback: int = 20) -> dict:
     return empty
 
 
-def _fmt(value, decimals: int = 6) -> str:
-    """Format a numeric value as a string, handling NaN gracefully."""
+def _fmt(value, decimals: Optional[int] = None) -> str:
+    """Format a numeric value as a string, handling NaN gracefully.
+
+    No `decimals` = a price: 6 significant figures, never fewer than 6 decimals
+    (indicators.price_decimals), so a sub-cent coin keeps its digits."""
     if value is None:
         return ''
     try:
         import math
         if math.isnan(float(value)):
             return ''
+        if decimals is None:
+            decimals = price_decimals(value)
         if decimals == 0:
             return str(int(round(float(value))))
         return f'{float(value):.{decimals}f}'

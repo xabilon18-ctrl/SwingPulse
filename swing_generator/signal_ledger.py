@@ -30,6 +30,7 @@ from datetime import date as _date, datetime, timedelta
 import pandas as pd
 
 from _active_config import OUTPUT_DIR
+from indicators import round_price
 from instruments import load_instruments, asset_class_of
 
 LEDGER_PATH  = os.path.join(OUTPUT_DIR, 'signal_ledger.json')
@@ -379,7 +380,7 @@ def _grade_record(rec: dict, df: pd.DataFrame) -> bool:
         entry = float(df.iloc[entry_idx]['Open'])
         if entry > 0:
             entry *= (1 + SLIPPAGE_PCT) if side == 'long' else (1 - SLIPPAGE_PCT)
-            rec['entry'] = round(entry, 6)
+            rec['entry'] = round_price(entry)
             rec['entry_date'] = str(df.index[entry_idx].date())
             changed = True
 
