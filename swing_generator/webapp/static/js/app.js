@@ -1872,7 +1872,10 @@
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
       for (const tf of AL_TFS) {
-        const list = (per && per[tf]) || [];
+        // Auto-placed channels (seed, tools/place_channels.py) sit on ~every chart:
+        // left out, or Alerts loads every chunk and lists thousands of rule lines.
+        // A dragged one loses `seed` and alerts like any drawing of the user's.
+        const list = ((per && per[tf]) || []).filter(d => d && !d.seed);
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
         if (list.some(d => d && (d.kind === 'trend' || d.kind === 'channel'))) {
