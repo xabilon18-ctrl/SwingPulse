@@ -1799,6 +1799,13 @@
     const m = ct[tf] || ct.D;
     return m ? (m[name] || 'NEUTRAL') : null;
   }
+  // The bar the current trend's leg starts on (the same rule), for the label's age
+  // and the trend strip. Absent for NEUTRAL.
+  function channelSinceOf(name, tf) {
+    const s = channelTrend && channelTrend.since;
+    const m = s && (s[tf] || s.D);
+    return (m && m[name]) || null;
+  }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
   const AL_TFS = ['30m', 'D'];
@@ -3416,7 +3423,17 @@
     const close = parseFloat(item[pre + 'close']);
     if (!isFinite(close)) return null;
     let dir = '', age = '';
-    if (timeframe === 'D') {
+    // The user's channel read first (2026-10-04): the label on a chart must say what
+    // the trend filter and the counts say — they read channelTrendOf too. Without
+    // this a third of the charts sat under "Down" with a header reading "Uptrend".
+    const ct = channelTrendOf(item.instrument_name, timeframe);
+    if (ct) dir = ct === 'NEUTRAL' ? 'NEUTRAL' : ct;
+    const since = ct && ct !== 'NEUTRAL' ? channelSinceOf(item.instrument_name, timeframe) : null;
+    if (since) {
+      const days = Math.max(0, Math.round((Date.now() - Date.parse(String(since).replace(' ', 'T') + 'Z')) / 864e5));
+      age = `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'}`;
+    }
+    if (!ct && timeframe === 'D') {
       const seg = (trendsData[item.instrument_name] || [])[0];
       if (seg && (seg.direction === 'UPTREND' || seg.direction === 'DOWNTREND')) {
         dir = seg.direction;
@@ -3426,6 +3443,7 @@
     // No age off Daily: trend_run_days counts bars on the trend side of the
     // ribbon, not the latch's age, so a years-old weekly uptrend read "1 week".
     if (!dir) dir = item[pre + 'established_trend'] || '';
+    if (dir === 'NEUTRAL') dir = '';
     const mas = Object.keys(item)
       .filter(k => k.startsWith(pre + 'ma_') && /^\d+$/.test(k.slice(pre.length + 3)))
       .map(k => ({ p: +k.slice(pre.length + 3), v: parseFloat(item[k]) }))
@@ -3446,7 +3464,7 @@
       if (mas.length) now = !against ? `below all ${mas.length} MAs`
                           : above.length === mas.length ? `now above all ${mas.length} MAs` : `now above ${names(above)}`;
     } else {
-      head = 'No established trend';
+      head = channelTrend ? 'Neutral' : 'No established trend';
       if (mas.length) now = above.length === mas.length ? `above all ${mas.length} MAs`
                           : below.length === mas.length ? `below all ${mas.length} MAs`
                           : `above ${names(above)}`;
@@ -10941,16 +10959,29 @@
     const day = s => String(s).slice(0, 10);
     const longDate = d => new Date(d + 'T00:00:00Z')
       .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-    const segs = trendsData[item.instrument_name] || [];            // newest first
-    if (!segs.length) return '';
-    const dirAt = t => {
-      const d = day(t);
-      if (segs[0].end && d > segs[0].end) return segs[0].direction;
-      for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
-      return '';
-    };
-    const curDir = segs[0].direction;
-    const since  = segs[0].start;
+    // The user's channel read (2026-10-04) when it is loaded: the CURRENT trend, from
+    // the bar its leg starts on, on this chart's own timeframe — the same read as the
+    // label, the filter and the counts. NEUTRAL draws no strip. The old ribbon-segment
+    // history below is only the fallback for a payload without trend_channels.json.
+    const ctDir = channelTrendOf(item.instrument_name, timeframe);
+    let dirAt, curDir, since, ownTf = false;
+    if (ctDir) {
+      if (ctDir === 'NEUTRAL') return '';
+      const from = String(channelSinceOf(item.instrument_name, timeframe) || '');
+      curDir = ctDir; since = from.slice(0, 10); ownTf = true;
+      dirAt = t => (from && String(t) >= from ? ctDir : '');
+    } else {
+      const segs = trendsData[item.instrument_name] || [];          // newest first
+      if (!segs.length) return '';
+      dirAt = t => {
+        const d = day(t);
+        if (segs[0].end && d > segs[0].end) return segs[0].direction;
+        for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
+        return '';
+      };
+      curDir = segs[0].direction;
+      since  = segs[0].start;
+    }
     if (curDir !== 'UPTREND' && curDir !== 'DOWNTREND') return '';
 
     // Fast average at every bar. The ribbon ships sampled every b.ms bars, so
@@ -10985,7 +11016,7 @@
     }
     flush(n);
     if (!out) return '';
-    const word = (timeframe === 'D' ? '' : 'Daily ') + (curDir === 'UPTREND' ? 'uptrend' : 'downtrend');
+    const word = (timeframe === 'D' || ownTf ? '' : 'Daily ') + (curDir === 'UPTREND' ? 'uptrend' : 'downtrend');
     const legend = `lighter = ${curDir === 'UPTREND' ? 'below' : 'above'} MA${b.p[0]}`;
     const Word = word.charAt(0).toUpperCase() + word.slice(1);
     const text = since ? `${Word} since ${longDate(since)} · ${legend}` : legend;

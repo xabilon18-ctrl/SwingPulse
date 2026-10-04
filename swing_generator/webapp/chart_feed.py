@@ -1011,10 +1011,12 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # every trend count and filter follows the channels. A failure costs the file
     # (the app falls back to trend_direction), never the chart feed.
     try:
-        from channel_rule import classify
-        tc = {tf: {n: classify(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
+        from channel_rule import read as channel_read
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
+        tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
+        since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         _write_gz(os.path.join(output_dir, 'trend_channels.json'),
-                  {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc})
+                  {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since})
         stats['trend'] = {tf: sum(v != 'NEUTRAL' for v in m.values()) for tf, m in tc.items()}
     except Exception as exc:
         print(f'  WARN trend_channels.json not built: {exc}')

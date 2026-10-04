@@ -108,6 +108,18 @@ def classify(b: dict, tf: str | None = None) -> str:
     return 'DOWNTREND' if c['down'] else 'UPTREND'
 
 
+def read(b: dict, tf: str | None = None) -> tuple[str, str | None]:
+    """(UPTREND / DOWNTREND / NEUTRAL, the bar label the trend's leg starts on) —
+    classify() plus the date the chart strip and the trend label count from."""
+    try:
+        c = place(b, tf)
+    except Exception:
+        return 'NEUTRAL', None
+    if not trusted(c):
+        return 'NEUTRAL', None
+    return ('DOWNTREND' if c['down'] else 'UPTREND'), str(c['leg_start'])
+
+
 def trusted(c: dict | None) -> bool:
     """A channel worth drawing on --all: the same test classify() uses."""
     return bool(c) and c['price_on_trend_side'] and c['poke'] <= ALL_MAX_POKE and c['move'] >= MIN_MOVE
