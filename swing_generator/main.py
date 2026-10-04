@@ -44,7 +44,6 @@ from _active_config import (
     WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
     THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
-    THIRTY_MIN_BARS_PER_DAY_TARGET, THIRTY_MIN_NORMALIZE_ABOVE,
     FIVE_MIN_MAX_AGE_HOURS,
     FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
 )
@@ -623,24 +622,18 @@ def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
 
 
 def _m30_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """Ribbon periods for the 30m CHART: 50/250/500 on anything exchange-traded,
-    scaled up on round-the-clock markets so MA500 reaches the calendar days it
-    reaches on a US stock (~55). _m10_ma_periods' rule at a third of the density.
+    """Ribbon periods for the 30m chart: EXACTLY 50/250/500, as TradingView draws
+    them, on every instrument. Clipped only to the bars available.
 
-    Until 2026-10-03 this was exactly 50/250/500 everywhere, carried over from
-    the user's 5m call ("follow the 3 main MAs to the T", 2026-09-24). On 30m
-    that left a 24h market's MA500 reaching ~10 days against a stock's ~54, and
-    the 24h chart opens on 8⅓ days, so the three lines lay on the price (user:
-    "too close to each other"). Measured bars/day, not asset class, decides.
-
-    The 30m SIGNALS do not read this: _intraday_state uses MA_PERIODS directly.
+    2026-10-03 to 10-04 a round-the-clock market had its periods stretched
+    (THIRTY_MIN_* in config, US30 180/898/1797) after the user said the lines sat
+    "too close to each other". Reverted 2026-10-04 at the user's call — "first the
+    MAs correctness": compared with TradingView's CAPITALCOM:US30 30m the
+    stretched lines were simply different lines. On a 24h market MA500 is ~15
+    calendar days, against ~55 on a US stock; that is what TradingView shows too.
+    The 30m SIGNALS never read this: _intraday_state uses MA_PERIODS directly.
     """
-    periods = MA_PERIODS
-    bpd = _m10_bars_per_calendar_day(frame)
-    if bpd > THIRTY_MIN_NORMALIZE_ABOVE and THIRTY_MIN_BARS_PER_DAY_TARGET > 0:
-        scale   = bpd / THIRTY_MIN_BARS_PER_DAY_TARGET
-        periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
-    return [p for p in periods if p <= len(frame)]
+    return [p for p in MA_PERIODS if p <= len(frame)]
 
 def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
     """Resample finished daily bars to weekly, dropping the week in progress.

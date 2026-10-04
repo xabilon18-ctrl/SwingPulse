@@ -17,21 +17,32 @@ import numpy as np
 import pandas as pd
 
 GAP = 0.03            # trend-side edge sits this share of the width outside the slow line
-LEG_MIN = 0.2         # leg start searched between LEG_MIN and LEG_MAX x slow period bars back
+# Leg start is searched this many CALENDAR DAYS back, per timeframe — the user's own
+# legs: 30m 10-43 days on every kind of market, Daily ~310-540 days. Calendar days,
+# not multiples of the slow period: since 2026-10-04 the 30m MA500 is ~15 days on a
+# 24h market and ~55 on a stock, but the user's legs are the same length on both.
+LEG_DAYS = {'30m': (8, 50), 'D': (145, 650)}
+LEG_MIN = 0.2         # any other timeframe: between LEG_MIN and LEG_MAX x slow period bars back
 LEG_MAX = 0.9
 AUTO_COLOR = '#a855f7'
 # A chart whose price has crossed the slow line has no trend by rule 1: NEUTRAL, no channel.
 ALL_MAX_POKE = 0.5    # furthest close past the trend-side edge since the cross, in widths
 
 
-def _leg(b: dict, down: bool) -> dict | None:
+def _leg(b: dict, down: bool, tf: str | None = None) -> dict | None:
     C = np.array(b['c'], float); H = np.array(b['h'], float); L = np.array(b['l'], float)
     N = len(C)
     if len(b['p']) < 3:
         return None                                       # the slowest line has no history yet: no read
     slow = int(b['p'][-1])
     m = pd.Series(C).rolling(slow).mean().values          # == the slowest line the app draws
-    w0, w1 = max(0, N - 1 - int(LEG_MAX * slow)), N - 1 - int(LEG_MIN * slow)
+    if tf in LEG_DAYS:
+        ts = pd.to_datetime(b['t'])
+        lo_d, hi_d = LEG_DAYS[tf]
+        w0 = int(ts.searchsorted(ts[-1] - pd.Timedelta(days=hi_d)))
+        w1 = int(ts.searchsorted(ts[-1] - pd.Timedelta(days=lo_d), side='right')) - 1
+    else:
+        w0, w1 = max(0, N - 1 - int(LEG_MAX * slow)), N - 1 - int(LEG_MIN * slow)
     if w1 - w0 < 10:
         return None
     s0 = w0 + int(np.argmax(H[w0:w1]) if down else np.argmin(L[w0:w1]))
@@ -72,20 +83,20 @@ def _leg(b: dict, down: bool) -> dict | None:
     )
 
 
-def place(b: dict) -> dict | None:
+def place(b: dict, tf: str | None = None) -> dict | None:
     """The channel for one chart, or None. Picks the direction whose leg fits."""
-    cands = [c for c in (_leg(b, True), _leg(b, False)) if c]
+    cands = [c for c in (_leg(b, True, tf), _leg(b, False, tf)) if c]
     if not cands:
         return None
     cands.sort(key=lambda c: (not c['fallback'], c['price_on_trend_side'], -c['beyond'], c['move']), reverse=True)
     return cands[0]
 
 
-def classify(b: dict) -> str:
+def classify(b: dict, tf: str | None = None) -> str:
     """UPTREND / DOWNTREND / NEUTRAL by the user's rule: a trend is a chart the rule
     can put a channel on with price still on the trend side of the slow line."""
     try:
-        c = place(b)
+        c = place(b, tf)
     except Exception:
         return 'NEUTRAL'
     if not c or not c['price_on_trend_side'] or c['poke'] > ALL_MAX_POKE:

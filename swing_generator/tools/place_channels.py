@@ -57,7 +57,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-from channel_rule import GAP, LEG_MIN, LEG_MAX, AUTO_COLOR, ALL_MAX_POKE, place, trusted  # noqa: E402,F401
+from channel_rule import GAP, LEG_DAYS, LEG_MIN, LEG_MAX, AUTO_COLOR, ALL_MAX_POKE, place, trusted  # noqa: E402,F401
 R2 = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/chart'
 KV_NS = '567b56a128dd4aee9c861d7653846acb'
 WORKER_DIR = os.path.join(ROOT, 'webapp', 'sync-worker')
@@ -250,7 +250,7 @@ def main() -> None:
                 continue
             if has_own_channel(blob['channels'].get(name, {}).get(a.tf)):
                 continue                                          # never beside the user's own channel
-            c = place(b)
+            c = place(b, feed.tf)
             if c and scan_ok(c):
                 found[c['down']].append((name, c))
         for down in (False, True):
@@ -265,7 +265,7 @@ def main() -> None:
                 continue
             if has_own_channel(blob['channels'].get(name, {}).get(a.tf)):
                 continue
-            c = place(b)
+            c = place(b, feed.tf)
             if not c:
                 nofit.append(name)
             elif not trusted(c):
@@ -278,9 +278,9 @@ def main() -> None:
         b = feed.bundle(name)
         if not b:
             print(f'{name}: not in the {a.tf} feed'); continue
-        c = place(b)
+        c = place(b, feed.tf)
         if not c:
-            print(f'{name}: no leg fits the rule (no clear trend between {LEG_MIN}x and {LEG_MAX}x the slow period back)'); continue
+            print(f'{name}: no leg fits the rule (no clear trend in the leg window {LEG_DAYS.get(a.tf, (LEG_MIN, LEG_MAX))})'); continue
         rows.append((name, c))
 
     for name, c in (rows if len(rows) <= 40 else []):

@@ -1012,7 +1012,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import classify
-        tc = {tf: {n: classify(b) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
+        tc = {tf: {n: classify(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
         _write_gz(os.path.join(output_dir, 'trend_channels.json'),
                   {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc})
         stats['trend'] = {tf: sum(v != 'NEUTRAL' for v in m.values()) for tf, m in tc.items()}
