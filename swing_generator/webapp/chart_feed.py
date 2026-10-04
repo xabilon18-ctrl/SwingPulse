@@ -1005,6 +1005,20 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     except Exception as exc:
         print(f'  WARN alerts.json not built: {exc}')
 
+    # The user's trend read (2026-10-04: "this is how i see trends ... not any other
+    # way"): up / down / neutral per instrument per timeframe from channel_rule, the
+    # same rule that draws the auto channels. The app's effectiveTrend() reads it, so
+    # every trend count and filter follows the channels. A failure costs the file
+    # (the app falls back to trend_direction), never the chart feed.
+    try:
+        from channel_rule import classify
+        tc = {tf: {n: classify(b) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
+        _write_gz(os.path.join(output_dir, 'trend_channels.json'),
+                  {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc})
+        stats['trend'] = {tf: sum(v != 'NEUTRAL' for v in m.values()) for tf, m in tc.items()}
+    except Exception as exc:
+        print(f'  WARN trend_channels.json not built: {exc}')
+
     for tf, bundles in built.items():
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)

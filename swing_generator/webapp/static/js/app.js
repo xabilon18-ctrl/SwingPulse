@@ -1095,7 +1095,7 @@
           if (v && Array.isArray(v.lists)) return v; } catch (_) {}
     return { lists: [], mod: 0 };
   })();
-  const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group' };
+  const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
 
@@ -1340,6 +1340,16 @@
     document.getElementById('wl2Lists').innerHTML = pills.join('');
     document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
       `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
+    // Trend filter (2026-10-04, user: "include the filter in the first two tabs"):
+    // the user's channel read, on the timeframe picked here.
+    const trEl = document.getElementById('wl2Trend');
+    if (trEl) trEl.innerHTML = (channelTrend
+      ? [['30m', '30m'], ['D', 'Daily']].map(([k, l]) =>
+          `<button class="wl2-chip wl2-ttf${wlUi.ttf === k ? ' on' : ''}" data-wl-ttf="${k}">${l}</button>`).join('') +
+        '<span class="wl2-sep"></span>'
+      : '') +
+      [['all', 'Any trend'], ['UPTREND', '▲ Up'], ['DOWNTREND', '▼ Down'], ['NEUTRAL', '— Neutral']].map(([k, l]) =>
+        `<button class="wl2-chip${wlUi.trend === k ? ' on' : ''}" data-wl-trend="${k}">${l}</button>`).join('');
     const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
 
@@ -1381,6 +1391,8 @@
     let rows = allData.slice();
     if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
     if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
+    if (wlUi.trend && wlUi.trend !== 'all')
+      rows = rows.filter(d => (channelTrendOf(d.instrument_name, wlUi.ttf) || effectiveTrend(d)) === wlUi.trend);
     const q = wlUi.q.trim().toLowerCase();
     if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
       || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
@@ -1628,6 +1640,10 @@
       if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      const tp = t.closest('[data-wl-trend]');
+      if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
+      const ttp = t.closest('[data-wl-ttf]');
+      if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
       if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
       const l = wlStore.lists.find(x => x.id === wlUi.list);
@@ -1772,6 +1788,17 @@
   // ANY bar did (the honest yardstick: these showed no edge in testing).
   let alertsData = null;
   let marketData = null;
+  // The user's trend read (2026-10-04, "this is how i see trends ... not any
+  // other way"): UPTREND / DOWNTREND / NEUTRAL per instrument per timeframe from
+  // channel_rule.py — the rule that draws the auto channels. trend_channels.json,
+  // built with the chart feed. effectiveTrend() reads it first.
+  let channelTrend = null;
+  function channelTrendOf(name, tf) {
+    const ct = channelTrend && channelTrend.tf;
+    if (!ct) return null;
+    const m = ct[tf] || ct.D;
+    return m ? (m[name] || 'NEUTRAL') : null;
+  }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
   const AL_TFS = ['30m', 'D'];
@@ -2137,6 +2164,12 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   function effectiveTrend(item) {
+    // THE USER'S RULE FIRST (2026-10-04): trend = a channel the rule can draw with
+    // price still on the slow-line side; anything else is NEUTRAL. Every count and
+    // filter goes through here, so they all follow the channels. The ribbon read
+    // below is only the fallback for a payload without trend_channels.json.
+    const ct = channelTrendOf(item.instrument_name, timeframe);
+    if (ct) return ct;
     // Neutral oscillation (MA50 chopping + MA250 flattening = potential top/bottom)
     // takes priority: these are classified NEUTRAL regardless of the raw timeframe
     // trend, so they never double-count as Uptrend/Downtrend/Aligned Bull.
@@ -3005,7 +3038,7 @@
 
   async function loadAll() {
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -3025,6 +3058,7 @@
         fetchJson('/api/quotes', null),
         fetchJson('/api/alerts', null),
         fetchJson('/api/market', null),
+        fetchJson('/api/trend-channels', null),
       ]);
       allData = sigRes.data || [];
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
@@ -3055,6 +3089,7 @@
       quotesData = (quotesRes && quotesRes.q) ? quotesRes : null;
       alertsData = (alertsRes && Array.isArray(alertsRes.ev)) ? alertsRes : null;
       marketData = (marketRes && marketRes.i) ? marketRes : null;
+      channelTrend = (trendChRes && trendChRes.tf && trendChRes.tf.D) ? trendChRes : null;
 
       const dateStr = sumRes.date || '--';
       let timeStr = '';

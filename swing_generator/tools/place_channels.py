@@ -1,4 +1,5 @@
 """Place trend channels by THE USER'S RULE — and nothing else (2026-10-04).
+The rule itself lives in ../channel_rule.py (shared with the trend counts).
 
 User: "next time i ask to add the trend lines you use these rules and nothing
 else ... no matter the time frame". The rule was measured from the user's own
@@ -55,23 +56,20 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+from channel_rule import GAP, LEG_MIN, LEG_MAX, AUTO_COLOR, ALL_MAX_POKE, place, trusted  # noqa: E402,F401
 R2 = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/chart'
 KV_NS = '567b56a128dd4aee9c861d7653846acb'
 WORKER_DIR = os.path.join(ROOT, 'webapp', 'sync-worker')
 OUT_DIR = os.path.join(ROOT, 'research', 'out')
+AUTO_FIRST_RUN_MS = 1791127920000   # 2026-10-04 15:32 UTC, the first --all writes
 
-GAP = 0.03            # trend-side edge sits this share of the width outside the slow line
-LEG_MIN = 0.2         # leg start searched between LEG_MIN and LEG_MAX x slow period bars back
-LEG_MAX = 0.9
 EXTRAP_BARS = 250     # app.js REEL_EXTRAP_BARS
-AUTO_COLOR = '#a855f7'
 
 # --scan only: what counts as a clean example worth showing
 SCAN_MAX_BEYOND = 0.03   # share of closes (after the slow-line cross) on the wrong side of the edge
 SCAN_MAX_POKE = 0.15     # furthest close past the edge, in channel widths
 SCAN_MIN_MOVE = 0.3      # how far the channel travels over the leg, in widths
-# --all: a chart whose price has crossed the slow line has no trend by rule 1, so no channel
-ALL_MAX_POKE = 0.5       # furthest close past the trend-side edge since the cross, in widths
 
 
 # ---------------------------------------------------------------- data ----
@@ -125,61 +123,6 @@ def bar_index(bt: np.ndarray, label: str) -> float:
 
 
 # ---------------------------------------------------------------- rule ----
-
-def _leg(b: dict, down: bool) -> dict | None:
-    C = np.array(b['c'], float); H = np.array(b['h'], float); L = np.array(b['l'], float)
-    N = len(C)
-    slow = int(b['p'][-1])
-    m = pd.Series(C).rolling(slow).mean().values          # == the slowest line the app draws
-    w0, w1 = max(0, N - 1 - int(LEG_MAX * slow)), N - 1 - int(LEG_MIN * slow)
-    if w1 - w0 < 10:
-        return None
-    s0 = w0 + int(np.argmax(H[w0:w1]) if down else np.argmin(L[w0:w1]))
-    seg = np.arange(s0, N)
-    ok = seg[~np.isnan(m[seg])]
-    if len(ok) < 30:
-        return None
-    last = ok[-max(10, len(ok) // 3):]
-    ma_slope = np.polyfit(last, m[last], 1)[0]
-    px_slope = np.polyfit(seg, C[seg], 1)[0]
-    if (px_slope < 0) != down:
-        return None                                       # the price leg must go this way
-    fallback = (ma_slope < 0) != down                     # slow line flat/against: slope from price
-    slope = px_slope if fallback else ma_slope
-    i = np.arange(N)
-    edge = m[N - 1] + (i - (N - 1)) * slope               # through the slow line at the last bar
-    reach = (L[seg] - edge[seg]).min() if down else (H[seg] - edge[seg]).max()
-    if (reach < 0) != down or reach == 0:
-        return None
-    half = abs(reach)                                     # slow-line edge -> midline
-    mid = edge + reach                                    # pullbacks stop here
-    up_off = half * (1 + 2 * GAP)                         # edges pushed out by GAP x width (width = 2*half)
-    # quality, for --scan and for the warning on named instruments
-    sm = pd.Series(C).rolling(24, min_periods=1).mean().values
-    wrong = np.where((sm[seg] > m[seg]) if down else (sm[seg] < m[seg]))[0]
-    sc = seg[wrong[-1] + 1] if len(wrong) and wrong[-1] + 1 < len(seg) else s0
-    W = 2 * up_off
-    side = (C[sc:] - mid[sc:]) / up_off * (1 if down else -1)   # 1 = trend-side edge
-    t = b['t']
-    return dict(
-        down=down, slow=slow, fallback=bool(fallback), leg_start=t[s0], leg_bars=N - s0,
-        at_window_edge=bool(s0 - w0 < 0.05 * (w1 - w0)),
-        channel=dict(kind='channel', t1=t[s0], p1=float(mid[s0]), t2=t[N - 1], p2=float(mid[N - 1]),
-                     up=float(up_off), dn=float(-up_off), color=AUTO_COLOR, seed=1),
-        beyond=float(np.mean(side > 1.0)), poke=float(max(0.0, side.max() - 1.0)),
-        move=float(abs(slope) * (N - s0) / W),
-        price_on_trend_side=bool((C[-1] < m[-1]) if down else (C[-1] > m[-1])),
-    )
-
-
-def place(b: dict) -> dict | None:
-    """The channel for one chart, or None. Picks the direction whose leg fits."""
-    cands = [c for c in (_leg(b, True), _leg(b, False)) if c]
-    if not cands:
-        return None
-    cands.sort(key=lambda c: (not c['fallback'], c['price_on_trend_side'], -c['beyond'], c['move']), reverse=True)
-    return cands[0]
-
 
 def scan_ok(c: dict) -> bool:
     return (not c['fallback'] and c['price_on_trend_side'] and c['beyond'] <= SCAN_MAX_BEYOND
@@ -325,7 +268,7 @@ def main() -> None:
             c = place(b)
             if not c:
                 nofit.append(name)
-            elif not c['price_on_trend_side'] or c['poke'] > ALL_MAX_POKE:
+            elif not trusted(c):
                 broken.append(name)                               # price is through the slow line: no trend by the rule
             else:
                 rows.append((name, c))
@@ -361,20 +304,41 @@ def main() -> None:
     print('backup:', backup(a.user, blob, 'auto_channels'))
     now = int(time.time() * 1000)
     made = _dt.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z')
-    written, skipped = [], []
+    written, skipped, respected = [], [], []
+    # A chart the user edited after the last auto run, with no auto channel left on
+    # it, is a DELETION — their answer is "no trend here". Never put one back
+    # (Friday's relearn reads those). First runs: 2026-10-04 15:31/15:32 UTC.
+    placed_at = blob.setdefault('autoPlacedAt', {}).get(a.tf, AUTO_FIRST_RUN_MS)
     for name, c in rows:
         cur = blob['channels'].setdefault(name, {}).get(a.tf) or []
         if has_own_channel(cur) and not a.names:
             skipped.append(name); continue
+        mod = blob.get('channelsMod', {}).get(f'{name}|{a.tf}', 0)
+        if not a.names and mod > placed_at + 60_000 and not any(d.get('seed') for d in cur):
+            respected.append(name); continue
         ch = dict(c['channel'], made=made)
         blob['channels'][name][a.tf] = users_own(cur) + [ch]          # an older auto channel is replaced
         blob['channelsMod'][f'{name}|{a.tf}'] = now
         written.append(name)
+    stale = []
+    if a.all:                       # the auto set mirrors the rule: none left where it now reads NEUTRAL
+        keep = {n for n, _ in rows}
+        for name, per in blob['channels'].items():
+            cur = per.get(a.tf) or []
+            if name not in keep and name not in respected and any(d.get('seed') for d in cur):
+                per[a.tf] = users_own(cur)
+                blob['channelsMod'][f'{name}|{a.tf}'] = now
+                stale.append(name)
+        if stale:
+            print(f'removed {len(stale)} auto channels where the rule no longer finds a trend: {", ".join(stale[:30])}'
+                  + (' ...' if len(stale) > 30 else ''))
+    blob['autoPlacedAt'][a.tf] = now
     blob['lastModified'] = now
     kv_put(a.user, blob, 'auto_channels')
     back = kv_get(a.user)
     ok = [n for n in written if any(d.get('seed') for d in back['channels'][n][a.tf])]
-    print(f'written {len(ok)}/{len(written)} on {a.tf}: {", ".join(ok)}' + (f' | skipped (yours): {skipped}' if skipped else ''))
+    print(f'written {len(ok)}/{len(written)} on {a.tf}' + (f' | skipped (your channel): {len(skipped)}' if skipped else '')
+          + (f' | left alone (you deleted the auto one): {", ".join(respected)}' if respected else ''))
 
 
 if __name__ == '__main__':

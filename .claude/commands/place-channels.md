@@ -50,6 +50,10 @@ python3 tools/place_channels.py --clear-auto --tf D --apply
   app.js does, so a line lands where the preview shows it.
 - Backs up the user's sync data to `research/out/` before every write and reads back after.
 - Never touches a chart that carries a channel the USER drew; their markers/lines stay.
+- Never puts back an auto channel the user DELETED (chart edited after the last auto run
+  with no auto channel left) — that deletion means "no trend here" and Friday's relearn reads it.
+- The same rule (`channel_rule.py`) writes `trend_channels.json` on every data run: the app's
+  uptrend / downtrend / neutral counts and the Watchlist + Charts trend filters read it.
 - Auto channels are purple with `seed: 1`. A channel the user DRAGS loses `seed`, becomes
   theirs, and is never replaced — read those corrections to refine the rule (with the
   user's OK), never silently.

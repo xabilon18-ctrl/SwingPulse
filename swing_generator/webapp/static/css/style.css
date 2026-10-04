@@ -9347,6 +9347,10 @@ body.chart-full-open { overflow: hidden; }
 .wl2-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .wl2-classes { flex: 1; min-width: 0; }
 .wl2-sort { flex: none; width: auto; font-size: .8rem; padding: 6px 8px; }
+/* Trend row (2026-10-04): timeframe chips, a thin divider, then the user's trend read. */
+.wl2-trend { margin-top: 2px; }
+.wl2-sep { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--border); }
+.wl2-ttf { padding: 6px 10px; }
 .wl2-group { font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted);
   padding: 16px 2px 6px; border-bottom: 1px solid var(--border); }
 .wl2-row { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border);

@@ -1256,6 +1256,19 @@ def api_market():
     return jsonify(market_feed.build_market(get_ticker_map()))
 
 
+@app.route('/api/trend-channels')
+def api_trend_channels():
+    """The user's trend read per instrument (channel_rule), written by the chart feed."""
+    import json as _json, gzip as _gz
+    path = os.path.join(OUTPUT_DIR, 'trend_channels.json')
+    if not os.path.exists(path):
+        return jsonify({})
+    raw = open(path, 'rb').read()
+    if raw[:2] == b'\x1f\x8b':
+        raw = _gz.decompress(raw)
+    return jsonify(_json.loads(raw))
+
+
 @app.route('/api/rotation')
 def api_rotation():
     """Sector rotation wheel + market ranking, written by rotation.py."""

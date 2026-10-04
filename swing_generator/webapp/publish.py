@@ -632,7 +632,7 @@ def build_data(output_dir, src_signals_dir=None):
         # and 4H here meant the 2026-09-02 run printed "798 daily / 798 4H"
         # while it had in fact written 160 weekly chunks too — a summary line
         # that under-reports is how a broken feed looks healthy.
-        _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k not in ('chunks', 'alerts'))
+        _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k not in ('chunks', 'alerts', 'trend'))
         print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
     except Exception as e:
@@ -872,7 +872,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'instrument_flavours.json', 'status.json',
                   'events.json', 'events.ics',
                   'rotation.json', 'rotation_paper.json', 'quotes.json',
-                  'alerts.json', 'market.json']:
+                  'alerts.json', 'market.json', 'trend_channels.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -999,6 +999,7 @@ def build_ui():
     js = js.replace("'/api/quotes'",       f"'{base}/quotes.json'")
     js = js.replace("'/api/alerts'",       f"'{base}/alerts.json'")
     js = js.replace("'/api/market'",       f"'{base}/market.json'")
+    js = js.replace("'/api/trend-channels'", f"'{base}/trend_channels.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
     js = js.replace("'/api/ledger'",       f"'{base}/ledger_summary.json'")
     js = js.replace("'/api/names'",        f"'{base}/names.json'")
