@@ -218,6 +218,8 @@ def main() -> None:
     ap.add_argument('--tf', default='30m', help="chart timeframe: '30m' or 'D' (any timeframe the feed has)")
     ap.add_argument('--scan', type=int, default=0, help='pick the N cleanest uptrends and N cleanest downtrends')
     ap.add_argument('--all', action='store_true', help='every instrument the rule finds a leg on')
+    ap.add_argument('--replace-own', action='store_true',
+                    help="with NAMES: also remove the user's own CHANNELS on those charts (only when they asked)")
     ap.add_argument('--apply', action='store_true', help='write to the live app (otherwise preview only)')
     ap.add_argument('--clear-auto', action='store_true', help='remove every auto channel (seed) on --tf')
     ap.add_argument('--user', default='zabs')
@@ -279,6 +281,8 @@ def main() -> None:
         if not b:
             print(f'{name}: not in the {a.tf} feed'); continue
         c = place(b, feed.tf)
+        if c and not trusted(c):
+            print(f'{name}: NEUTRAL by the rule (price through the slow line, or the leg barely moves) — no channel'); continue
         if not c:
             print(f'{name}: no leg fits the rule (no clear trend in the leg window {LEG_DAYS.get(a.tf, (LEG_MIN, LEG_MAX))})'); continue
         rows.append((name, c))
@@ -317,7 +321,8 @@ def main() -> None:
         if not a.names and mod > placed_at + 60_000 and not any(d.get('seed') for d in cur):
             respected.append(name); continue
         ch = dict(c['channel'], made=made)
-        blob['channels'][name][a.tf] = users_own(cur) + [ch]          # an older auto channel is replaced
+        keep_own = [d for d in users_own(cur) if not (a.replace_own and a.names and d.get('kind', 'channel') == 'channel')]
+        blob['channels'][name][a.tf] = keep_own + [ch]                 # an older auto channel is replaced
         blob['channelsMod'][f'{name}|{a.tf}'] = now
         written.append(name)
     stale = []

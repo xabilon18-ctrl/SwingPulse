@@ -21,12 +21,16 @@ GAP = 0.03            # trend-side edge sits this share of the width outside the
 # legs: 30m 10-43 days on every kind of market, Daily ~310-540 days. Calendar days,
 # not multiples of the slow period: since 2026-10-04 the 30m MA500 is ~15 days on a
 # 24h market and ~55 on a stock, but the user's legs are the same length on both.
-LEG_DAYS = {'30m': (8, 50), 'D': (145, 650)}
+LEG_DAYS = {'30m': (10, 50), 'D': (145, 650)}   # 30m minimum = the user's shortest leg (10.2 days)
 LEG_MIN = 0.2         # any other timeframe: between LEG_MIN and LEG_MAX x slow period bars back
 LEG_MAX = 0.9
 AUTO_COLOR = '#a855f7'
 # A chart whose price has crossed the slow line has no trend by rule 1: NEUTRAL, no channel.
 ALL_MAX_POKE = 0.5    # furthest close past the trend-side edge since the cross, in widths
+# A trend has to TRAVEL: the user's flattest channel moves 0.13 of its own width over its
+# leg (median 0.43). Below this the chart is NEUTRAL — on crypto a 10-day MA500 flips on a
+# dip, and without this an 8-day pullback in an uptrend was drawn as a flat 'downtrend'.
+MIN_MOVE = 0.15
 
 
 def _leg(b: dict, down: bool, tf: str | None = None) -> dict | None:
@@ -99,11 +103,11 @@ def classify(b: dict, tf: str | None = None) -> str:
         c = place(b, tf)
     except Exception:
         return 'NEUTRAL'
-    if not c or not c['price_on_trend_side'] or c['poke'] > ALL_MAX_POKE:
+    if not trusted(c):
         return 'NEUTRAL'
     return 'DOWNTREND' if c['down'] else 'UPTREND'
 
 
 def trusted(c: dict | None) -> bool:
     """A channel worth drawing on --all: the same test classify() uses."""
-    return bool(c) and c['price_on_trend_side'] and c['poke'] <= ALL_MAX_POKE
+    return bool(c) and c['price_on_trend_side'] and c['poke'] <= ALL_MAX_POKE and c['move'] >= MIN_MOVE
