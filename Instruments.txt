@@ -1076,6 +1076,21 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 803  | ^TYX          | US30Y         | Rates         | Index                     | Treasury Yield 30Y
 
 ═══════════════════════════════════════════════════════════════════════════════
+  CURRENCY INDEX (8) — added 2026-10-05 (user: "create indices charts for the major 8")
+  SYNTHETIC: no Yahoo ticker. currency_index.py builds each one from the 28 major
+  pairs after every download (each currency vs the other 7, equal-weight, 100 on
+  2 Jan 2015) into the normal daily + 5m caches. Browsed under their own chip.
+═══════════════════════════════════════════════════════════════════════════════
+804  | CCY_USD       | USD_IDX       | Currency Index | Currency                  | US Dollar index vs 7 majors (equal-weight)
+805  | CCY_EUR       | EUR_IDX       | Currency Index | Currency                  | Euro index vs 7 majors (equal-weight)
+806  | CCY_GBP       | GBP_IDX       | Currency Index | Currency                  | British Pound index vs 7 majors (equal-weight)
+807  | CCY_JPY       | JPY_IDX       | Currency Index | Currency                  | Japanese Yen index vs 7 majors (equal-weight)
+808  | CCY_CHF       | CHF_IDX       | Currency Index | Currency                  | Swiss Franc index vs 7 majors (equal-weight)
+809  | CCY_CAD       | CAD_IDX       | Currency Index | Currency                  | Canadian Dollar index vs 7 majors (equal-weight)
+810  | CCY_AUD       | AUD_IDX       | Currency Index | Currency                  | Australian Dollar index vs 7 majors (equal-weight)
+811  | CCY_NZD       | NZD_IDX       | Currency Index | Currency                  | New Zealand Dollar index vs 7 majors (equal-weight)
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)

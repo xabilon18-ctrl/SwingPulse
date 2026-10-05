@@ -1123,7 +1123,7 @@
   }
 
   const WL_CLASSES = [['all', 'All'], ['Index', 'Indices'], ['Equity', 'Stocks'],
-                      ['Currency', 'Forex'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
+                      ['Currency', 'Forex'], ['CcyIndex', 'Ccy Index'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
   const WL_CLASS_COL = { Index: '#3b6fd8', Equity: '#6b5bd6', Currency: '#1f9d8b',
                          Commodity: '#c98a12', Crypto: '#d4602c' };
 
@@ -1390,7 +1390,10 @@
     // Rows.
     let rows = allData.slice();
     if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
-    if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
+    // 'CcyIndex' is a browse group (the 8 currency indices), not an asset class —
+    // they score as Index, so they also appear under Indices.
+    if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index');
+    else if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
     if (wlUi.trend && wlUi.trend !== 'all')
       rows = rows.filter(d => (channelTrendOf(d.instrument_name, wlUi.ttf) || effectiveTrend(d)) === wlUi.trend);
     const q = wlUi.q.trim().toLowerCase();
@@ -3252,6 +3255,8 @@
     // every other data-cat has an entry here and a chip whose term is absent
     // from this map reads as unsupported.
     'currency':     ['currency'],
+    // The 8 major currency indices (2026-10-05, currency_index.py): group 'Currency Index'.
+    'ccyindex':     ['currency index'],
     'us100':        ['us100'],
     'us30':         ['us30'],
     'us500':        ['us500'],

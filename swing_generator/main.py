@@ -1403,6 +1403,18 @@ def main():
     _e1 = _time.time() - _t1
     print(f'  Daily data: {int(_e1 // 60)}m {int(_e1 % 60):02d}s\n')
 
+    # The 8 major currency indices (2026-10-05): built from the 28 major pairs just
+    # downloaded, written into the daily cache like any instrument. A failure costs
+    # the eight indices, never the run.
+    try:
+        from currency_index import build_daily as _ccy_daily
+        from data_fetcher import _cache_path as _cp
+        _ccy = _ccy_daily(_cp)
+        data.update(_ccy)
+        print(f'  Currency indices (daily): {len(_ccy)}\n')
+    except Exception as _exc:
+        print(f'  WARN currency indices (daily) not built: {_exc}\n')
+
     # Hourly prices are NOT downloaded (again) since 2026-09-24: they fed only
     # the 4H chart, which was removed with 3-Day and Weekly. That was ~45s of
     # every CI run. The hourly parquet cache is left on disk for research.
@@ -1430,6 +1442,12 @@ def main():
         # 1h, 2h and 12h"). fetch_all_1h kept for research.
         _e2 = _time.time() - _t2
         print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+    try:
+        from currency_index import build_5m as _ccy_5m
+        from data_fetcher import _cache_path as _cp, _read_5m_raw as _r5
+        print(f'  Currency indices (5m): {_ccy_5m(_cp, _r5)}\n')
+    except Exception as _exc:
+        print(f'  WARN currency indices (5m) not built: {_exc}\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()

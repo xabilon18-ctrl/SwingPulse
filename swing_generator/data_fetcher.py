@@ -826,6 +826,9 @@ def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
     Returns dict ticker → DataFrame, skipping None / too-short results."""
     import concurrent.futures
 
+    # Synthetic instruments (currency_index.py: CCY_USD ...) have no Yahoo ticker —
+    # they are BUILT from the pairs after this download, never fetched.
+    instruments = [i for i in instruments if not str(i['ticker']).startswith('CCY_')]
     data  = {}
     total = len(instruments)
     done  = 0

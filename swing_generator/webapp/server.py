@@ -121,6 +121,14 @@ _TV_BY_NAME: dict[str, str] = {
     'UK100':    'CFI:UK100',
     'IT40':     'FOREXCOM:IT40',
     'US30':     'CAPITALCOM:US30',
+    'USD_IDX':  'TVC:DXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'EUR_IDX':  'TVC:EXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'GBP_IDX':  'TVC:BXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'JPY_IDX':  'TVC:JXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'CHF_IDX':  'TVC:SXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'CAD_IDX':  'TVC:CXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'AUD_IDX':  'TVC:AXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    'NZD_IDX':  'TVC:ZXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
     'FRA40':    'FX:FRA40',
     'NETH25':   'ICMARKETS:NETH25',
     'RUSSELL':  'CAPITALCOM:RTY',
