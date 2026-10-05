@@ -1015,8 +1015,15 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
-        _write_gz(os.path.join(output_dir, 'trend_channels.json'),
-                  {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since})
+        payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since}
+        # Currency focus (2026-10-05): the strongest vs weakest major currency index
+        # and the pairs their cross current runs through. A failure costs the card.
+        try:
+            from currency_index import focus as ccy_focus
+            payload['ccy'] = ccy_focus(built, rd, {t: n for n, t in ticker_map.items()})
+        except Exception as exc:
+            print(f'  WARN currency focus not built: {exc}')
+        _write_gz(os.path.join(output_dir, 'trend_channels.json'), payload)
         stats['trend'] = {tf: sum(v != 'NEUTRAL' for v in m.values()) for tf, m in tc.items()}
     except Exception as exc:
         print(f'  WARN trend_channels.json not built: {exc}')

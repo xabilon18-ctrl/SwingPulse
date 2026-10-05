@@ -128,3 +128,62 @@ def build_5m(cache_path, read_5m) -> int:
         f.index.name = 'date'
         f.to_parquet(cache_path(ticker_of(ccy), suffix='5m'))
     return len(frames)
+
+
+# ── Currency focus (2026-10-05, user: "make me focus on two going in the opposite
+# direction, then group the currency pairs affected by their cross current") ──
+LOOKBACK = {'30m': pd.Timedelta(days=5), 'D': 20}    # strength = index % change over this
+
+
+def focus(bundles: dict, reads: dict, name_of: dict) -> dict:
+    """Per timeframe: the 8 currencies ranked by strength with the user's channel
+    trend, the STRONGEST uptrend vs the WEAKEST downtrend, and the pairs their cross
+    current runs through:
+      main      the pair between the two
+      strong_vs the strong currency against every OTHER downtrend currency
+      weak_vs   every OTHER uptrend currency against the weak one
+    Each pair carries the trade direction implied by the two currencies and its own
+    channel trend, and `agree` when that pair's chart already trends that way.
+
+    bundles[tf][name] — chart bundles; reads[tf][name] — channel_rule.read() tuples;
+    name_of — Yahoo ticker -> display name (EURUSD=X -> EURUSD)."""
+    out = {}
+    for tf in ('30m', 'D'):
+        B, R = bundles.get(tf, {}), reads.get(tf, {})
+        rank = []
+        for c in MAJORS:
+            n = f'{c}_IDX'
+            b = B.get(n)
+            if not b or len(b['c']) < 30:
+                continue
+            C = b['c']
+            if tf == '30m':
+                t = pd.to_datetime(b['t'])
+                k = int(t.searchsorted(t[-1] - LOOKBACK[tf]))
+            else:
+                k = max(0, len(C) - 1 - LOOKBACK[tf])
+            lab, since = R.get(n, ('NEUTRAL', None))
+            rank.append({'ccy': c, 'trend': lab, 'since': since, 'chg': round(100 * (C[-1] / C[k] - 1), 2)})
+        if len(rank) < 2:
+            continue
+        rank.sort(key=lambda r: -r['chg'])
+        ups = [r for r in rank if r['trend'] == 'UPTREND']
+        downs = [r for r in rank if r['trend'] == 'DOWNTREND']
+        confirmed = bool(ups and downs)
+        S = max(ups, key=lambda r: r['chg'])['ccy'] if confirmed else rank[0]['ccy']
+        W = min(downs, key=lambda r: r['chg'])['ccy'] if confirmed else rank[-1]['ccy']
+
+        def pair(a, b):                    # trade a (strong side) against b (weak side)
+            t, inv = _pair(a, b)
+            name = name_of.get(t, t.replace('=X', ''))
+            d = 'sell' if inv else 'buy'
+            ptr = R.get(name, ('NEUTRAL', None))[0]
+            return {'pair': name, 'dir': d, 'trend': ptr, 'strong': a, 'weak': b,
+                    'agree': ptr == ('UPTREND' if d == 'buy' else 'DOWNTREND')}
+        out[tf] = {
+            'rank': rank, 'strong': S, 'weak': W, 'confirmed': confirmed,
+            'main': pair(S, W),
+            'strong_vs': [pair(S, r['ccy']) for r in downs if r['ccy'] != W] if confirmed else [],
+            'weak_vs': [pair(r['ccy'], W) for r in ups if r['ccy'] != S] if confirmed else [],
+        }
+    return out

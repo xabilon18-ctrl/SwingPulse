@@ -9868,3 +9868,21 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-fill-a span, .reel-fill-a b { color: #222; font-weight: 700; font-size: .85rem; }
 .reel-fill-a b { min-width: 3.2em; text-align: right; }
 .reel-fill-a input { flex: 1; }
+
+/* Currency focus card (2026-10-05) */
+.cf-tf { margin-left: auto; }
+.cf-rank { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.cf-ccy { font-size: .78rem; font-weight: 700; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-secondary); }
+.cf-ccy i { font-style: normal; font-weight: 500; margin-left: 4px; opacity: .8; }
+.cf-ccy.up { color: var(--buy); } .cf-ccy.dn { color: var(--sell); }
+.cf-ccy.pick { border-color: currentColor; background: color-mix(in srgb, currentColor 12%, transparent); }
+.cf-head { font-size: .95rem; margin: 4px 0 8px; }
+.cf-head .up { color: var(--buy); } .cf-head .dn { color: var(--sell); }
+.cf-gh { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 10px 0 4px; }
+.cf-row { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-top: 1px solid var(--border);
+  padding: 9px 2px; color: var(--text-primary); font: inherit; cursor: pointer; text-align: left; }
+.cf-row b { min-width: 70px; }
+.cf-dir { font-size: .72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
+.cf-dir.buy { color: var(--buy); border: 1px solid var(--buy); } .cf-dir.sell { color: var(--sell); border: 1px solid var(--sell); }
+.cf-own { margin-left: auto; font-size: .74rem; color: var(--text-muted); }
+.cf-own.ok { color: var(--text-secondary); }

@@ -2059,7 +2059,7 @@
   // instrument is likely to move over 10 trading days (market.json — tested,
   // right ~8 in 10 times), and whether it is quiet or wild right now. The
   // movers, sector and momentum-ranking cards below are the old Dashboard's.
-  const mkUi = { list: '' };
+  const mkUi = { list: '', ccyTf: 'D' };
   try { Object.assign(mkUi, JSON.parse(localStorage.getItem('swingpulse-mk-ui') || '{}')); } catch (_) {}
 
   function mkComingUp(lists) {
@@ -2126,11 +2126,52 @@
       ${L.length > 1 ? `<div class="al-chips">${chips}</div>` : ''}${rows}</div>`;
   }
 
+  // ── Currency focus (2026-10-05, user: "make me focus on two going in the opposite
+  // direction, then group the currency pairs affected by their cross current") ──
+  // From trend_channels.json `ccy` (currency_index.focus): the 8 major currency
+  // indices ranked, the strongest UPTREND vs the weakest DOWNTREND by the user's
+  // channel rule, and the pairs that cross current runs through.
+  function ccyFocusList(f) {
+    if (!f) return [];
+    const names = [f.strong + '_IDX', f.weak + '_IDX', f.main.pair]
+      .concat(f.strong_vs.map(p => p.pair), f.weak_vs.map(p => p.pair));
+    return [...new Set(names)].filter(n => allData.some(d => d.instrument_name === n));
+  }
+  function mkCcyFocus() {
+    const F = channelTrend && channelTrend.ccy;
+    if (!F || !(F.D || F['30m'])) return '';
+    const tf = F[mkUi.ccyTf] ? mkUi.ccyTf : (F.D ? 'D' : '30m');
+    const f = F[tf];
+    const g = t => t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
+    const cls = t => t === 'UPTREND' ? 'up' : t === 'DOWNTREND' ? 'dn' : 'neu';
+    const rank = f.rank.map(r => `<span class="cf-ccy ${cls(r.trend)}${r.ccy === f.strong || r.ccy === f.weak ? ' pick' : ''}">`
+      + `${g(r.trend)} ${r.ccy}<i>${r.chg > 0 ? '+' : ''}${r.chg.toFixed(2)}%</i></span>`).join('');
+    const row = p => `<button class="cf-row" data-ccy-open="${escText(p.pair)}">
+        <b>${escText(p.pair)}</b><span class="cf-dir ${p.dir}">${p.dir === 'buy' ? 'BUY' : 'SELL'}</span>
+        <span class="cf-own ${p.agree ? 'ok' : 'no'}">${p.agree ? '✓' : '✗'} own chart ${g(p.trend)} ${p.trend === 'NEUTRAL' ? 'neutral' : p.trend.toLowerCase()}</span>
+      </button>`;
+    const grp = (title, list) => list.length ? `<div class="cf-gh">${title}</div>${list.map(row).join('')}` : '';
+    const span = tf === 'D' ? '20 days' : '5 days';
+    const head = f.confirmed
+      ? `<b class="up">${f.strong} ▲</b> vs <b class="dn">${f.weak} ▼</b>`
+      : `No two currencies in opposite trends — strongest <b>${f.strong}</b> vs weakest <b>${f.weak}</b>`;
+    return `<div class="card mk-card" id="mkCcyFocus"><div class="card-header mk-h"><h3>Currency focus</h3>
+        <div class="al-chips cf-tf">${[['30m', '30m'], ['D', 'Daily']].filter(([k]) => F[k]).map(([k, l]) =>
+          `<button class="al-chip${k === tf ? ' on' : ''}" data-ccy-tf="${k}">${l}</button>`).join('')}</div></div>
+      <p class="mk-note">The 8 currency indices by your channel rule (▲ ▼ —), strongest first by their ${span} move. The two going opposite ways, and the pairs their cross current runs through.</p>
+      <div class="cf-rank">${rank}</div>
+      <div class="cf-head">${head}</div>
+      ${row(f.main)}
+      ${grp(`${f.strong} against the other weak currencies`, f.strong_vs)}
+      ${grp(`The other strong currencies against ${f.weak}`, f.weak_vs)}
+      <button class="al-link" data-ccy-all>Open all in Charts ›</button></div>`;
+  }
+
   function renderMarketToday() {
     const host = document.getElementById('marketToday');
     if (!host) return;
     const lists = alListIndex();
-    host.innerHTML = mkComingUp(lists) + mkRanges(lists);
+    host.innerHTML = mkCcyFocus() + mkComingUp(lists) + mkRanges(lists);
     // Momentum 20 opens in Charts as a set, like a watchlist.
     const lc = document.getElementById('leadersCard');
     if (lc && rotationData && rotationData.leaders && !lc.querySelector('.mk-open20')) {
@@ -2156,6 +2197,18 @@
         return openChartFor(o.dataset.mkOpen, names.length ? { label: cur.name, names } : null);
       }
       if (e.target.closest('[data-mk-cal]')) return openCalendar();
+      const ct = e.target.closest('[data-ccy-tf]');
+      if (ct) { mkUi.ccyTf = ct.dataset.ccyTf; try { localStorage.setItem('swingpulse-mk-ui', JSON.stringify(mkUi)); } catch (_) {} return renderMarketToday(); }
+      const co = e.target.closest('[data-ccy-open]'), ca = e.target.closest('[data-ccy-all]');
+      if (co || ca) {
+        const F = channelTrend && channelTrend.ccy;
+        const tf = F && F[mkUi.ccyTf] ? mkUi.ccyTf : 'D';
+        const names = ccyFocusList(F && F[tf]);
+        if (!names.length) return;
+        // The charts open on the timeframe the focus was read on.
+        const go = () => openChartFor(co ? co.dataset.ccyOpen : names[0], { label: 'Currency focus', names });
+        if (timeframe !== tf && typeof setTimeframe === 'function') { setTimeframe(tf); setTimeout(go, 50); } else go();
+      }
       if (e.target.closest('[data-mk-open20]')) {
         const names = ((rotationData && rotationData.leaders && rotationData.leaders.list) || []).map(r => r.name)
           .filter(n => allData.some(d => d.instrument_name === n));
