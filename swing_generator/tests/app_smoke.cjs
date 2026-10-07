@@ -13,6 +13,9 @@ const assert = require('node:assert/strict');
   let summaries = 0, chunks = 0, revision = 0;
   const live = process.env.SMOKE_LIVE === '1';
   if (!live) {
+    // Install before navigation so the app's interval is registered on this
+    // clock; installing after load leaves already-created real timers intact.
+    await page.clock.install();
     const dataDir = path.resolve(__dirname, '../webapp/publish/browser-data');
     await page.route('**/ma500/**', async route => {
       const url = new URL(route.request().url());
@@ -39,10 +42,12 @@ const assert = require('node:assert/strict');
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) {
     assert.ok(chunks > 0, '1H chart chunk was fetched');
-    await page.clock.install();
     const oldSummaries = summaries, oldChunks = chunks;
+    const refreshedSummary = page.waitForResponse(r => r.url().includes('/ma500/summary.json'));
+    const refreshedChart = page.waitForResponse(r => r.url().includes('/ma500/chart/1H/'));
     revision++;
     await page.clock.fastForward(30 * 60 * 1000 + 1000);
+    await Promise.all([refreshedSummary, refreshedChart]);
     await page.waitForFunction(() => document.querySelector('.reel-chart svg'));
     await page.waitForTimeout(1000);
     assert.ok(summaries > oldSummaries, 'visible app reloads datasets after 30 minutes');
