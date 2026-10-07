@@ -1,0 +1,78 @@
+name: Apply hourly channels by existing rules
+on:
+  push:
+    branches: [codex/hourly-channels-20261007]
+    paths: [.github/workflows/apply-hourly-channels.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: swingpulse-channel-placement
+  cancel-in-progress: false
+jobs:
+  channels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Check KV access before any writes
+        run: |
+          python - <<'PY'
+          import os, urllib.request, urllib.error, json
+          account = os.environ['CLOUDFLARE_ACCOUNT_ID']
+          token = os.environ['CLOUDFLARE_API_TOKEN']
+          url = f'https://api.cloudflare.com/client/v4/accounts/{account}/storage/kv/namespaces/567b56a128dd4aee9c861d7653846acb/values/zabs'
+          request = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          try:
+              with urllib.request.urlopen(request, timeout=30) as r:
+                  blob = json.load(r)
+          except urllib.error.HTTPError as e:
+              raise SystemExit(f'KV access blocked: HTTP {e.code}. No user data was changed.')
+          if not isinstance(blob.get('channels'), dict):
+              raise SystemExit('Expected drawing profile missing. Nothing changed.')
+          if not os.environ.get('SYNC_SECRET'):
+              raise SystemExit('Encrypted backup secret unavailable. Nothing changed.')
+          print('Existing drawing profile readable; no values or credentials logged.')
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing placement dependencies
+        run: |
+          pip install numpy pandas matplotlib
+          npm install -g wrangler@4.45.0
+      - name: Apply only 1H channels using the unchanged shared rule
+        working-directory: swing_generator
+        run: |
+          python tools/place_channels.py --all --tf 1H --user zabs --apply
+      - name: Encrypt drawing backups
+        if: always()
+        run: |
+          python - <<'PY'
+          import pathlib, subprocess, os
+          out = pathlib.Path('swing_generator/research/out')
+          for p in out.glob('zabs_backup_before_auto_channels_*.json'):
+              if not os.environ.get('SYNC_SECRET'):
+                  p.unlink()
+                  continue
+              subprocess.run(['openssl', 'enc', '-aes-256-cbc', '-pbkdf2', '-salt',
+                              '-in', str(p), '-out', str(p) + '.enc',
+                              '-pass', 'env:SYNC_SECRET'], check=True)
+              p.unlink()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: encrypted-hourly-channel-backup
+          path: swing_generator/research/out/*.json.enc
+          if-no-files-found: ignore
+          retention-days: 7
