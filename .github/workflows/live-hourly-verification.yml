@@ -1,0 +1,66 @@
+name: Verify live hourly charts
+on:
+  push:
+    branches: [codex/deployment-access-check-20261007]
+    paths: [.github/workflows/live-hourly-verification.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Identify any instrument without hourly chart data
+        run: |
+          python3 - <<'PY'
+          import gzip, json, urllib.request, time
+          base = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500'
+          def read(name):
+              req = urllib.request.Request(f'{base}/{name}?verify={time.time_ns()}', headers={'User-Agent':'SwingPulse-releasecheck/1.0'})
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  raw = r.read()
+              if raw[:2] == b'\x1f\x8b':
+                  raw = gzip.decompress(raw)
+              return json.loads(raw)
+          rows = read('signals.json')['data']
+          hourly = read('trend_channels.json')['tf']['1H']
+          missing = [r for r in rows if r['instrument_name'] not in hourly]
+          print(f'Hourly chart coverage: {len(hourly)}/{len(rows)}')
+          for r in missing:
+              print('Hourly data unavailable:', r['instrument_name'], 'close:', r.get('h1_close', ''), 'bar:', r.get('h1_datetime', ''))
+          PY
+      - name: Install browser verifier
+        run: |
+          npm install --no-save @playwright/test@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Wait for the visible hourly chart before taking its screenshot
+        env:
+          SMOKE_LIVE: '1'
+          SMOKE_URL: https://swingpulse200.pages.dev
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('swing_generator/tests/app_smoke.cjs')
+          s = p.read_text()
+          anchor = "  await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });"
+          check = """  await page.waitForFunction(() => Array.from(document.querySelectorAll('.reel-chart')).some(el => {
+              const r = el.getBoundingClientRect();
+              return r.bottom > 0 && r.top < innerHeight && el.querySelector('svg.reel-svg');
+            }), { timeout: 60000 });
+          """
+          assert anchor in s
+          p.write_text(s.replace(anchor, check + anchor))
+          PY
+          node swing_generator/tests/app_smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visible-hourly-live-chart
+          path: hourly-chart-mobile.png
+          retention-days: 3
