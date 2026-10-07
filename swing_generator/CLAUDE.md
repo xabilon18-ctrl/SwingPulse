@@ -4,6 +4,23 @@
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
 ## What is SwingPulse?
+
+**Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and
+Daily are active. Hourly uses the existing `_compute_1h_state` / `load_1h` path:
+exact MA50/250/500, completed hours only, primary crosses without re-fires,
+24-hour signal lifetime, standard confidence (not the retired `1H|` backtest
+tiers), no hourly entries in the Daily performance ledger. Hourly currency
+indices use the same baskets and daily base as the 5m indices. Daily and 30m
+signal rules are unchanged. App data refreshes every 30 minutes while visible
+and on foregrounding after that interval; a changed data timestamp invalidates
+the chart index and chunks too. UI JavaScript is v481.
+
+`.github/workflows/deploy-app.yml` validates the engine, hourly payload and mobile
+browser, then on `main` generates/validates data, uploads R2 and deploys the
+existing Direct Upload Pages project `swingpulse200`. It shares the data workflow's
+concurrency lock. Feature-branch runs deploy an isolated Pages preview only.
+Existing Cron Worker schedules are unchanged; no paid service is introduced.
+The historical timeframe removals and schedules below are superseded by this note.
 A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, currencies, US/global equities — the currency pairs were removed 2026-07-11 for worst-class backtest expectancy and RESTORED 2026-08-25 at the user's request, 57 pairs, #742-798). **Vocabulary: the asset class is called `Currency` everywhere** — group, sector, asset_class, Class chip and radar spoke all use that one word (renamed 2026-08-26; it had been a mix of Forex/FX/Currency/Currencies). The only `FX` left is TradingView's `FX:`/`FX_IDC:` exchange prefixes, which are their identifiers, not ours. using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.
 
 **Single active profile: MA500** (50, 250, 500 — 3 MAs)
@@ -896,3 +913,4 @@ Rules 2/4/5. Lightweight Charts is gone; modal charts are Chart.js now.
 (`.claude/hooks/check_version_bump.py`) warns when one is missed, because the query string is
 the only cache-buster: installed phones keep serving the old file until it changes, so a
 forgotten bump ships a fix nobody receives while looking deployed from this end.
+

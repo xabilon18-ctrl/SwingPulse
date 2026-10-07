@@ -1291,6 +1291,12 @@ def _process_worker(args: tuple) -> tuple:
         except Exception:
             df_5m = None
 
+        try:
+            from data_fetcher import load_1h
+            df_1h = load_1h(ticker)
+        except Exception:
+            df_1h = None
+
         # ── Reuse what cannot have changed (2026-09-24, 30-minute runs) ──
         # Daily signals read FINISHED sessions only, so between two runs most
         # instruments' daily frame is byte-identical and so is their row. Each
@@ -1320,16 +1326,28 @@ def _process_worker(args: tuple) -> tuple:
             for k in ('m5_fp', 'm5_state'):
                 rc.pop(k, None)
             hit_5 = False
-        # 15m, 1H and 4H signals removed 2026-09-30 (user: "remove 1h and 4h",
-        # then "remove the 15 as well"). Their cached state is dropped once.
-        stale_h = [k for k in ('m15_fp', 'm15_state', 'h1_fp', 'h1_state', 'h4_fp', 'h4_state') if k in rc]
+        h1_fp = _fp('1H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
+        if rc.get('h1_fp') == h1_fp:
+            h1_state, hit_h1 = rc['h1_state'], True
+        else:
+            # A broken hourly feed must never discard a valid Daily/30m row.
+            try:
+                h1_state = _compute_1h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
+            except Exception as exc:
+                print(f'  WARN {ticker} hourly signals unavailable: {exc}')
+                h1_state = None
+            rc.update(h1_fp=h1_fp, h1_state=h1_state)
+            hit_h1 = False
+        stale_h = [k for k in ('m15_fp', 'm15_state', 'h4_fp', 'h4_state') if k in rc]
         for k in stale_h:
             rc.pop(k, None)
-        if stale_h or not (hit_d and hit_5):
+        if stale_h or not (hit_d and hit_5 and hit_h1):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_intraday(state)} if row_d else None)
+        row = ({**row_d, **_live_intraday(state),
+                **_live_intraday(h1_state, prefix='h1_')} if row_d else None)
         if row is not None:
             row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
+            row['_h1_fires'] = list(h1_state[2]) if h1_state and len(h1_state) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
@@ -1338,7 +1356,7 @@ def _process_worker(args: tuple) -> tuple:
             m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
             # 15m/1H/4H gone 2026-09-30 — naming their hit flags here crashed
             # every instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
-            hits = (('D', hit_d), ('30m', hit_5))
+            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
             status_str = f'OK{d_tag}{m5_tag}{reuse}'.strip()
@@ -1437,17 +1455,25 @@ def main():
         # §FIVE_MIN_MAX_AGE_HOURS.
         fetch_all_5m(instruments, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
-        # Hourly download stopped 2026-09-30 (1H + 4H removed), back 2026-10-01
-        # for the 1H/2H/12H charts, STOPPED again 2026-10-03 (user: "remove 10m,
-        # 1h, 2h and 12h"). fetch_all_1h kept for research.
+        print('  Fetching hourly market data (1H chart + signals) ...\n')
+        # Refresh each scheduled run; the previous unfinished hour must be healed
+        # before it can become a signal bar. Closed-market skipping still applies.
+        fetch_all_1h(instruments, force_refresh=args.refresh,
+                     max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
-        print(f'  Intraday data (5m): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
+        print(f'  Intraday data (5m + 1h): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
     try:
         from currency_index import build_5m as _ccy_5m
         from data_fetcher import _cache_path as _cp, _read_5m_raw as _r5
         print(f'  Currency indices (5m): {_ccy_5m(_cp, _r5)}\n')
     except Exception as _exc:
         print(f'  WARN currency indices (5m) not built: {_exc}\n')
+    try:
+        from currency_index import build_1h as _ccy_1h
+        from data_fetcher import _cache_path as _cp, _read_5m_raw as _r5
+        print(f"  Currency indices (1h): {_ccy_1h(_cp, lambda t: _r5(t, suffix='1h'))}\n")
+    except Exception as _exc:
+        print(f'  WARN currency indices (1h) not built: {_exc}\n')
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
@@ -1462,6 +1488,7 @@ def main():
     rows      = []
     all_trends = {}
     m30_fires  = {}   # the same for 30m
+    h1_fires   = {}
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
     total      = len(worker_args)
@@ -1476,6 +1503,7 @@ def main():
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
                 m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
+                h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
                 d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
                 all_trends[row['instrument_name']] = trend_segs
@@ -1518,7 +1546,7 @@ def main():
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
     # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
-    for fname, fires in (('m30_fires.json', m30_fires),):
+    for fname, fires in (('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires)):
         with open(os.path.join(output_dir, fname), 'w') as ff:
             json.dump(fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:
@@ -1722,3 +1750,4 @@ def _print_summary(df: pd.DataFrame) -> None:
 
 if __name__ == '__main__':
     main()
+

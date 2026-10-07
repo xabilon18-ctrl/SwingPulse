@@ -117,16 +117,25 @@ def build_daily(cache_path) -> dict:
 
 def build_5m(cache_path, read_5m) -> int:
     """Write CCY_<X>_5m.parquet from the pairs' 5m caches, on the daily base."""
+    return _build_intraday(cache_path, read_5m, '5m', ffill_limit=6)
+
+
+def build_1h(cache_path, read_1h) -> int:
+    """Hourly indices use the same basket and daily base, without new sources."""
+    return _build_intraday(cache_path, read_1h, '1h', ffill_limit=3)
+
+
+def _build_intraday(cache_path, read, suffix, ffill_limit) -> int:
     bp = cache_path('CCY_BASE').replace('.parquet', '.json')
     if not os.path.exists(bp):
         return 0
     raw = pd.read_json(bp, typ='series')
     base = {tuple(k.split('|')): float(v) for k, v in raw.items()}
-    frames, _ = _build(read_5m, base=base, ffill_limit=6)
+    frames, _ = _build(read, base=base, ffill_limit=ffill_limit)
     for ccy, f in frames.items():
         f.index = f.index.tz_localize('UTC') if f.index.tz is None else f.index
         f.index.name = 'date'
-        f.to_parquet(cache_path(ticker_of(ccy), suffix='5m'))
+        f.to_parquet(cache_path(ticker_of(ccy), suffix=suffix))
     return len(frames)
 
 
@@ -187,3 +196,4 @@ def focus(bundles: dict, reads: dict, name_of: dict) -> dict:
             'weak_vs': [pair(r['ccy'], W) for r in ups if r['ccy'] != S] if confirmed else [],
         }
     return out
+

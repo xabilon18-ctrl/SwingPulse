@@ -1,3 +1,25 @@
+# Deployment and refresh update — 2026-10-07
+
+The live app remains https://swingpulse200.pages.dev. GitHub Actions
+`deploy-app.yml` deploys approved code on `main` to the existing Direct Upload
+Pages project; a native Git connection is not required. The existing token needs
+R2 Storage Edit and Cloudflare Pages Edit. No account upgrade is required.
+
+Charts and Alerts offer 30m, 1H and Daily. Hourly B1/S1 use MA50/250/500 on
+completed native hourly bars; markers and alerts come from the same engine pass.
+The UI refreshes data every 30 minutes while visible and after returning from a
+30-minute absence. A new dataset timestamp invalidates cached chart chunks.
+
+An extra hourly chunk set adds at most ~162 PUTs per data run for 806 instruments:
+about 526,000 total monthly PUTs at the current October schedule, before retries
+and other account usage, below R2's 1 million free Class A operations. Hourly
+downloads and cache size increase; standard public-repository Actions runners
+remain free. UI deploys happen on code changes, not every data cron run. Snapshot
+history is not added. Older deployment instructions below are historical.
+
+
+---
+
 # SwingPulse Dashboard — App Documentation
 
 ## Overview

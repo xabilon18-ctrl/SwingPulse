@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['30m']);  // 15m removed 2026-09-30; 10m/1H/2H/12H charts removed 2026-10-03
+  const INTRADAY_TFS = new Set(['30m', '1H']);
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -135,6 +135,7 @@
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
+    { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
@@ -153,7 +154,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['30m', 'D']);
+  const SIGNAL_TFS = new Set(['30m', '1H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1344,7 +1345,7 @@
     // the user's channel read, on the timeframe picked here.
     const trEl = document.getElementById('wl2Trend');
     if (trEl) trEl.innerHTML = (channelTrend
-      ? [['30m', '30m'], ['D', 'Daily']].map(([k, l]) =>
+      ? [['30m', '30m'], ['1H', '1H'], ['D', 'Daily']].map(([k, l]) =>
           `<button class="wl2-chip wl2-ttf${wlUi.ttf === k ? ' on' : ''}" data-wl-ttf="${k}">${l}</button>`).join('') +
         '<span class="wl2-sep"></span>'
       : '') +
@@ -1811,7 +1812,7 @@
   }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
-  const AL_TFS = ['30m', 'D'];
+  const AL_TFS = ['30m', '1H', 'D'];
   const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
   alUi.more = 0;
@@ -1819,7 +1820,7 @@
   alTfOk();   // a saved 15m/1H/4H chip would otherwise match nothing
   const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '30m': '30m', 'D': 'Daily' };
+  const AL_TF_LBL = { '30m': '30m', '1H': '1H', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -1960,7 +1961,7 @@
     let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['30m', '30m'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['30m', '30m'], ['1H', '1H'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
       <div id="alLines" class="al-lines"></div>`;
@@ -2016,7 +2017,7 @@
   function alStatsHtml() {
     const st = alertsData && alertsData.stats;
     if (!st) return '';
-    const rows = [['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
+    const rows = [['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
                   ['30m|X', 'Daily-MA cross'], ['30m|T', 'Daily-MA touch']];
     const cell = (s, h) => {
       const v = s && s.h && s.h[h];
@@ -2583,7 +2584,7 @@
   // what timeframe you're actually looking at instead of offering a dead choice.
   const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
                            watchlist: 'Latest prices · updated every run',
-                           scanner: 'Alerts · 30m and Daily',
+                           scanner: 'Alerts · 30m, 1H and Daily',
                            dashboard: 'Market · updated every run' };
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
@@ -3034,7 +3035,10 @@
   function fetchJson(url, fallback) {
     const opts = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
       ? { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) } : {};
-    return fetch(url, opts).then(r => r.json()).catch(() => fallback);
+    return fetch(url, { ...opts, cache: 'no-cache' }).then(r => {
+      if (!r.ok) throw new Error('Data request failed');
+      return r.json();
+    }).catch(() => fallback);
   }
 
   // Retry loop that runs only while the stale/failed banner is showing, so the
@@ -3099,7 +3103,11 @@
     btn.title = name ? `Daily — data from the ${name} run` : '';
   }
 
+  let _dataLoadInFlight = false;
+  let _lastDataRefreshAt = 0;
   async function loadAll() {
+    if (_dataLoadInFlight) return;
+    _dataLoadInFlight = true;
     try {
       const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
@@ -3123,7 +3131,12 @@
         fetchJson('/api/market', null),
         fetchJson('/api/trend-channels', null),
       ]);
-      allData = sigRes.data || [];
+      // Preserve the previous board during a transient failure instead of
+      // replacing it with an empty market that looks like a valid result.
+      if (!Array.isArray(sigRes.data) || !sigRes.data.length || !sumRes.fetched_at) {
+        throw new Error('Signal data unavailable');
+      }
+      allData = sigRes.data;
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
       summaryData = sumRes;
       // Before renderAll() below rebuilds the reel out of them. The chart
@@ -3255,11 +3268,14 @@
       }
 
       renderAll();
+      _lastDataRefreshAt = Date.now();
     } catch (e) {
       console.error('Failed to load data:', e);
       document.getElementById('dateBadge').textContent = 'Error loading data';
       const grid = document.getElementById('scannerGrid');
       if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
+    } finally {
+      _dataLoadInFlight = false;
     }
   }
 
@@ -8026,10 +8042,10 @@
   // Initial load — pull watchlist sync after data is ready
   loadAll().then(() => { if (syncUser) { syncPull(); syncCatchUpDrawings(); } });
 
-  // ── Auto-refresh every 4 hours (matches CI pipeline cadence) ────────
+  // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
   // Silently re-fetches all data in the background; if the page is hidden
   // we skip and let the next visibilitychange trigger a reload instead.
-  const AUTO_REFRESH_MS = 4 * 60 * 60 * 1000; // 4 hours
+  const AUTO_REFRESH_MS = 30 * 60 * 1000;
   setInterval(async () => {
     if (document.visibilityState === 'hidden') return; // skip while backgrounded
     await loadAll(); if (syncUser) await syncPull();
@@ -8086,6 +8102,7 @@
     if (document.visibilityState === 'hidden') { syncFlushDrawings(true); return; }
     if (document.visibilityState !== 'visible') return;
     checkForAppUpdate();          // reload if a newer build shipped while backgrounded
+    if (Date.now() - _lastDataRefreshAt >= AUTO_REFRESH_MS) loadAll();
     if (syncUser) syncPull();
   });
   window.addEventListener('pagehide', () => syncFlushDrawings(true));
@@ -12132,7 +12149,8 @@
     // index (`ev15`, built by chart_feed from the same marks the chart draws).
     const EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
     if (EV_KEY[reel.scope]) {
-      const ev = reel.index && reel.index.ev15;
+      const evTf = INTRADAY_TFS.has(timeframe) ? timeframe : '30m';
+      const ev = reel.index && (reel.index.events_by_tf?.[evTf] || (evTf === '30m' ? reel.index.ev15 : null));
       if (!reel.index) {
         reelLoadIndex().then(() => { if (currentTab === 'charts' && EV_KEY[reel.scope]) buildReel(); });
         return [];
@@ -13325,7 +13343,7 @@
         // has nothing to select on — say so, instead of a bare "0 charts".
         const evScope = ['m15sig', 'dxpre', 'dxafter'].includes(reel.scope);
         empty.textContent = evScope && reel.index && !reel.index.ev15
-          ? 'The 30m markers are not in the published data yet — they arrive with the next data run.'
+          ? 'Intraday markers are not in the published data yet — they arrive with the next data run.'
           : 'Nothing matches those filters.';
         empty.style.display = '';
       }
@@ -13704,7 +13722,7 @@
     };
     const scopeLbl = { views: 'my markers', 'views-buy': 'my buys', 'views-sell': 'my sells',
                        all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'watch', m15sig: '30m B1/S1',
+                       sell: 'sells', watch: 'watch', m15sig: 'Intraday B1/S1',
                        dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
     set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
@@ -14235,3 +14253,4 @@
   wireFilterPopClamp();
 
 })();
+
