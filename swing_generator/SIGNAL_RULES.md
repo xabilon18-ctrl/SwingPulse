@@ -4,6 +4,18 @@
 > Engine: `signals.py` · indicators: `indicators.py` · thresholds: `config.py`
 > Backtest/confidence: `backtest.py` → `confidence_map.json`
 
+## Active intraday rules (2026-10-07)
+
+30m and restored **1H** run the same existing intraday engine: MA50/250/500,
+B1/S1 primary full-ribbon crosses only, no re-fires, finished bars only and a
+24-hour wall-clock lifetime. Hourly bars come from the native Yahoo hourly cache
+through `load_1h`, preserving the existing source and cash/spot basis handling.
+1H charts, marker times and alerts use exactly those frames and fires. Short
+histories retain the existing clipped-ribbon policy. Hourly confidence is the
+standard fallback; historical session-scaled `1H|` scores are not applicable.
+This restoration changes no Daily/30m thresholds or backtest assumptions and
+does not add hourly trades to the Daily performance ledger.
+
 ---
 
 ## 1. Trend definitions
@@ -312,3 +324,4 @@ timeframes that are present rather than hard-coding 2, which quietly stopped mea
 **Removed features** (2026-07-09): watch_flag and potential_turning_point_flag were emitted
 as always-empty columns with dead UI — columns remain in the payload for compatibility but the
 Analyzed alert tabs and counters were stripped. Re-implement in signals.py if ever wanted.
+

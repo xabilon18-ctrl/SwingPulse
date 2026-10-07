@@ -39,6 +39,7 @@ jobs:
         run: |
           cd swing_generator
           python3 tests/golden_test.py
+          python3 tests/hourly_test.py
           # The FOMC calendar parser is regexes over someone else's HTML — the
           # most breakable thing in the pipeline, and it fails SILENTLY: zero
           # rows just reads as "no meetings scheduled". Offline, against a
@@ -63,3 +64,4 @@ jobs:
         run: |
           cd swing_generator
           python3 tools/shape_audit.py --only code
+

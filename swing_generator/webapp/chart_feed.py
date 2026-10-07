@@ -925,7 +925,8 @@ def near_ma_map(daily: dict) -> dict:
 
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
-                     d_fires_path: str | None = None) -> dict:
+                     d_fires_path: str | None = None,
+                     h1_fires_path: str | None = None) -> dict:
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
@@ -946,7 +947,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
@@ -954,7 +955,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
     # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
     # build_10m_live/build_1h/build_2h/build_12h kept for research.
-    for tf, builder in (('30m', build_30m), ('D', build_daily)):
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -976,6 +977,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
     # two bundles. A failure here costs the markers, never the chart feed.
     events: dict[str, dict] = {}
+    hourly_events: dict[str, dict] = {}
     try:
         fires = {}
         if fires_path and os.path.exists(fires_path):
@@ -989,6 +991,22 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     except Exception as exc:
         print(f'  WARN 30m markers not built: {exc}')
 
+    # Hourly markers use the exact fires computed by the signal worker.
+    # Daily-MA crosses can be drawn on 1H but alerts_feed avoids duplicating
+    # those alerts when the finer 30m bundle is available.
+    try:
+        h1_fires = {}
+        if h1_fires_path and os.path.exists(h1_fires_path):
+            with open(h1_fires_path) as fh:
+                h1_fires = json.load(fh)
+        for name, bundle in built.get('1H', {}).items():
+            ev = _attach_15m_marks(bundle, built.get('D', {}).get(name), h1_fires.get(name),
+                                   hold=XM_HOLD_BY_TF['1H'])
+            if ev:
+                hourly_events[name] = ev
+    except Exception as exc:
+        raise RuntimeError('Hourly chart markers could not be built') from exc
+
     # Alerts tab (2026-09-27): every marker above as a listed alert, with what
     # price did after it. A failure costs the Alerts tab, never the chart feed.
     try:
@@ -999,7 +1017,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                 d_fires = json.load(fh)
         # 30m + Daily only: the chart-only 1H/2H have no alerts (and would
         # cost the base-rate pass over every bar for nothing).
-        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('30m', 'D')}, d_fires)
+        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('30m', '1H', 'D')}, d_fires)
         _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
         stats['alerts'] = len(alerts['ev'])
     except Exception as exc:
@@ -1012,7 +1030,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import read as channel_read
-        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', 'D')}
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since}
@@ -1043,6 +1061,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
                'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
+               'events_by_tf': {'30m': events, '1H': hourly_events},
                'near': near_ma_map(built.get('D', {}))})
 
     return stats
+

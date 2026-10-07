@@ -627,7 +627,8 @@ def build_data(output_dir, src_signals_dir=None):
         t_chart = time.time()
         cstats  = build_chart_feed(output_dir, CACHE_DIR, get_ticker_map(),
                                    fires_path=os.path.join(OUTPUT_DIR, 'm30_fires.json'),
-                                   d_fires_path=os.path.join(OUTPUT_DIR, 'd_fires.json'))
+                                   d_fires_path=os.path.join(OUTPUT_DIR, 'd_fires.json'),
+                                   h1_fires_path=os.path.join(OUTPUT_DIR, 'h1_fires.json'))
         # Report every timeframe the builder actually produced. Hard-coding D
         # and 4H here meant the 2026-09-02 run printed "798 daily / 798 4H"
         # while it had in fact written 160 weekly chunks too — a summary line
@@ -1115,7 +1116,10 @@ def main():
         print('Building UI for Cloudflare Pages... [ma500]')
         ui_dir = build_ui()
         print(f'  Output: {ui_dir}')
-        deploy_ui_to_pages(ui_dir)
+        if args.build_only:
+            return
+        if not deploy_ui_to_pages(ui_dir):
+            sys.exit(1)
         return
 
     # ── Data build + R2 upload ────────────────────────────────────────────
@@ -1141,3 +1145,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
