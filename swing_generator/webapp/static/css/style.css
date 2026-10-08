@@ -7874,8 +7874,8 @@ body {
    after -month so a month start that is also a week start draws as a week. */
 /* Bolder again (user, 2026-09-24): 4 -> 6. The ladder's 10% and 100% lines
    use the SAME width and dash (.reel-ladder-key) — keep the two in step. */
-.reel-tgrid-week { stroke: #000000; stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
-.reel-tgrid-week + .reel-tgrid-lbl { font-weight: 700; }
+.reel-tgrid-quarter { stroke: #000000; stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
+.reel-tgrid-quarter + .reel-tgrid-lbl { font-weight: 700; }
 .reel-tgrid-lbl { opacity: 1; }
 /* Drag targets. Deliberately far bigger than they look — a 13-unit radius in
    a 1000-wide viewBox is roughly a 9 mm thumb target on a phone. */
@@ -9737,7 +9737,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-time-grid-label, .reel-time-grid-scope { font-size: .7rem; font-weight: 700; }
 .reel-time-grid-scope { grid-column: 2; grid-row: 1; color: var(--text-muted); text-align: right; }
-.reel-time-grid-options { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.reel-time-grid-options { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .reel-time-grid-opt {
   appearance: none; cursor: pointer; font-family: inherit; font-size: .78rem;
   font-weight: 800; border: 1px solid var(--border); border-radius: 7px;

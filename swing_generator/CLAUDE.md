@@ -3,6 +3,12 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-08 UI update: app.js v483 / style.css v357 remove W, keep ordinary
+year lines uniform, add permanent equal quarter markers on 30m/1H and equal
+four-year administration markers on Daily. The selected grid controls shading;
+permanent references remain across M/Q/H/Y choices. UI-only pushes skip market
+data regeneration while retaining code/browser and live validation.
+
 2026-10-08 UI release: app.js v482 / style.css v356 add the saved
 W/M/Q/H/Y switch inside the Grid menu of every chart and expanded chart. One selection per timeframe
 applies across its instruments; 52/12/4/2/1 equal year parts use a uniform

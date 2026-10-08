@@ -28,6 +28,38 @@ jobs:
       FETCH_MAX_AGE_HOURS: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Determine whether this release changes market data
+        id: scope
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          if os.environ['GITHUB_EVENT_NAME'] != 'push':
+              required = True
+          else:
+              before = os.environ.get('BEFORE_SHA', '')
+              if not before or set(before) == {'0'}:
+                  required = True
+              else:
+                  paths = subprocess.check_output(
+                      ['git', 'diff', '--name-only', before, os.environ['GITHUB_SHA']],
+                      text=True).splitlines()
+                  ui_paths = ('swing_generator/webapp/static/',
+                              'swing_generator/webapp/templates/',
+                              'swing_generator/tests/')
+                  required = any(path.startswith('swing_generator/')
+                                 and not path.startswith(ui_paths)
+                                 and not path.endswith('.md')
+                                 and path != 'swing_generator/tools/validate_hourly_release.py'
+                                 for path in paths)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'data_required={str(required).lower()}\n')
+          print('Market data rebuild required:', required)
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -64,7 +96,7 @@ jobs:
         if: github.ref != 'refs/heads/main'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch codex-1h-preview
       - name: Restore market cache for production release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -73,7 +105,7 @@ jobs:
           key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
           restore-keys: parquet-ma500-${{ runner.os }}-
       - name: Generate and validate production data before uploading
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
         working-directory: swing_generator
         run: |
           python3 main.py --profile ma500 --no-publish
@@ -81,7 +113,7 @@ jobs:
           python3 tools/validate_hourly_release.py
           python3 tools/shape_audit.py --snapshot "$(ls -t output_ma500/signals_????-??-??.csv | head -1)" --only data
       - name: Publish validated data to existing R2 bucket
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
         working-directory: swing_generator
         run: |
           python3 - <<'PY'

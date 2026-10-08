@@ -10551,14 +10551,13 @@
 
   // One equal grid for every chart in a timeframe, saved across app restarts.
   const GRID_DIVISIONS = [
-    { code: 'W', name: 'Week', parts: 52 },
     { code: 'M', name: 'Month', parts: 12 },
     { code: 'Q', name: 'Quarter', parts: 4 },
     { code: 'H', name: 'Half-year', parts: 2 },
     { code: 'Y', name: 'Year', parts: 1 },
   ];
   const GRID_DIVISION_KEY = 'swingpulse-grid-divisions';
-  const GRID_DIVISION_DEFAULTS = { '15m': 'W', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
+  const GRID_DIVISION_DEFAULTS = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
   const gridDivisions = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem(GRID_DIVISION_KEY) || '{}');
@@ -10643,9 +10642,36 @@
         const fi = anchor + ((y - year) * parts + k) * step - from;
         out.push({ fi, label: reelGridPartLabel(y, k, division.code),
           future: fi > n - 1 - from, par: ((y * parts + k) % 2 + 2) % 2,
-          week: k === 0, year: y, part: k, division: division.code });
+          year: y, part: k, division: division.code });
       }
     }
+    // Permanent reference lines share exactly the same equal-year geometry.
+    // They never alter the selected grid's alternating shading intervals.
+    const permanent = (fi, label, kind) => {
+      let line = out.find(l => Math.abs(l.fi - fi) < 1e-7);
+      if (!line) {
+        line = { fi, future: fi > n - 1 - from, fixedOnly: true };
+        out.push(line);
+      }
+      line[kind] = true;
+      line.label = label;
+    };
+    if (tf === '30m' || tf === '1H') {
+      for (let y = firstYear; y <= year + 4; y++) {
+        for (let k = 0; k < 4; k++) {
+          permanent(anchor + (y - year + k / 4) * yearBars - from,
+            `Q${k + 1}${k === 0 ? ' ' + y : ''}`, 'quarter');
+        }
+      }
+    } else if (tf === 'D') {
+      const administrations = { 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
+      for (let y = firstYear; y <= year + 4; y++) {
+        if (((y - 2025) % 4 + 4) % 4 !== 0) continue;
+        permanent(anchor + (y - year) * yearBars - from,
+          administrations[y] ? `${y} · ${administrations[y]}` : String(y), 'admin');
+      }
+    }
+    out.sort((a, b) => a.fi - b.fi);
     return out;
   }
 
@@ -11009,7 +11035,7 @@
     {
       const placed = [];
       const pick = strong => tg.forEach((t, i) => {
-        if (!t.label || !!(t.week || t.admin || t.month) !== strong) return;
+        if (!t.label || !!(t.quarter || t.admin || t.month) !== strong) return;
         const x = xOf(t.fi);
         if (x < L.x0 || x > L.x1) return;
         if ((x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1) return;
@@ -11027,7 +11053,7 @@
       const near = !keepLbl.has(ti);
       const room = true;
       const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin'
-                 : t.week  ? 'reel-tgrid reel-tgrid-week'
+                 : t.quarter ? 'reel-tgrid reel-tgrid-quarter'
                  : t.month ? 'reel-tgrid reel-tgrid-month'
                  : 'reel-tgrid';
       const label = (!near && room && !!t.label);
@@ -11049,7 +11075,7 @@
       // "Swap" (user, 2026-09-27: "a choice in where the highlight should be")
       // moves the shading onto the gaps that were clear.
       const flip = gridShade(timeframe).flip ? 1 : 0;
-      const lines = tg.map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
+      const lines = tg.filter(t => !t.fixedOnly).map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
         const a = Math.max(L.x0, xa), z = Math.min(L.x1, xb);

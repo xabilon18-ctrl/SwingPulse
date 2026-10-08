@@ -1,3 +1,15 @@
+# Permanent grid references — 2026-10-08
+
+Grid choices are M / Q / H / Y. Retired W preferences fall back to M.
+Ordinary year lines use the same style as the other grid lines. All 30m and 1H
+charts carry permanent bold quarter boundaries; Daily carries permanent bold
+four-year administration boundaries, aligned with the 2025 administration.
+Reference lines use the same equal-year bar geometry as the selected grid.
+Changing the grid does not remove them or alter the selected shading intervals.
+UI-only pushes run the same code and browser checks and deploy the Pages assets
+without regenerating or uploading unchanged market data. Engine and data changes
+still regenerate and validate production data before publishing.
+
 # Time grid switch — 2026-10-08
 
 The Grid menu on every chart, including expanded charts, has a W / M / Q / H / Y
