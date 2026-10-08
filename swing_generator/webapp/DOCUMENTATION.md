@@ -1,3 +1,13 @@
+# Time grid switch — 2026-10-08
+
+The Grid menu on every chart, including expanded charts, has a W / M / Q / H / Y
+time-grid switch. The selection applies to all instruments in the current timeframe and
+is saved in browser storage independently for each timeframe. W, M, Q, H and Y
+divide the year into 52, 12, 4, 2 and 1 equal parts. Spacing is measured from
+the whole chart bundle and stays equal across holidays, leap years, panning and
+projected future space. Labels identify equal year parts; they do not promise
+exact calendar week or month boundaries. Existing shading uses the selected grid.
+
 # Deployment and refresh update — 2026-10-07
 
 The live app remains https://swingpulse200.pages.dev. GitHub Actions

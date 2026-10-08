@@ -3,6 +3,13 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-08 UI release: app.js v482 / style.css v356 add the saved
+W/M/Q/H/Y switch inside the Grid menu of every chart and expanded chart. One selection per timeframe
+applies across its instruments; 52/12/4/2/1 equal year parts use a uniform
+whole-bundle bar spacing, including through year boundaries. Browser storage
+key: `swingpulse-grid-divisions`. The same release bounds price/data/chart
+requests and refreshes an expanded chart's bundle after a dataset reload.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

@@ -1157,6 +1157,7 @@
   // exchanges 15; a market with no print for an hour reads "closed".
   const WL_LIVE_URL = 'https://swingpulse-cron.xabilon18.workers.dev/live';
   const WL_LIVE_MS = 30000;
+  const WL_LIVE_TIMEOUT_MS = 12000;
   const wlLive = {};            // name -> { p, t (unix s) }
   let wlLiveTimer = 0, wlLiveAt = 0, wlLiveBusy = false;
 
@@ -1177,22 +1178,33 @@
       if (q.y) want.add(q.y); if (q.yc) want.add(q.yc); });
     if (!want.size) return;
     wlLiveBusy = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), WL_LIVE_TIMEOUT_MS);
     try {
-      const r = await fetch(WL_LIVE_URL + '?s=' + [...want].map(encodeURIComponent).join(','), { cache: 'no-store' });
-      const got = r.ok ? await r.json() : {};
+      const r = await fetch(WL_LIVE_URL + '?s=' + [...want].map(encodeURIComponent).join(','), { cache: 'no-store', signal: controller.signal });
+      if (!r.ok) throw new Error('Price feed unavailable');
+      const got = await r.json();
+      const valid = v => Array.isArray(v) && Number.isFinite(v[0]) && Number.isFinite(v[1]) && v[1] > 0;
+      let received = 0;
       names.forEach(n => {
         const q = quotesData.q[n]; if (!q) return;
         const c = [];
-        if (q.y && got[q.y]) c.push({ p: got[q.y][0] - (q.b || 0), t: got[q.y][1] });
-        if (q.yc && got[q.yc]) c.push({ p: got[q.yc][0], t: got[q.yc][1] });
+        if (q.y && valid(got && got[q.y])) c.push({ p: got[q.y][0] - (q.b || 0), t: got[q.y][1] });
+        if (q.yc && valid(got && got[q.yc])) c.push({ p: got[q.yc][0], t: got[q.yc][1] });
         if (!c.length) return;
         c.sort((a, b) => b.t - a.t);
         wlLive[n] = c[0];
+        received++;
       });
+      if (!received) throw new Error('No prices received');
       wlLiveAt = Date.now();
       wlPaintLive(names);
-    } catch (_) { /* offline or relay down: the run's prices stay */ }
-    finally { wlLiveBusy = false; }
+    } catch (_) {
+      wlPaintLive(names);
+      const a = document.getElementById('wl2AsOf');
+      if (a) a.textContent = 'Live prices unavailable · showing last available prices · retrying every 30s';
+    }
+    finally { clearTimeout(timeout); wlLiveBusy = false; }
   }
 
   function wlAgeTag(x) {
@@ -3033,12 +3045,12 @@
   // stalled proxy) can't block the whole Promise.all and blank the app.
   const FETCH_TIMEOUT_MS = 15000;
   function fetchJson(url, fallback) {
-    const opts = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
-      ? { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) } : {};
-    return fetch(url, { ...opts, cache: 'no-cache' }).then(r => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    return fetch(url, { signal: controller.signal, cache: 'no-cache' }).then(r => {
       if (!r.ok) throw new Error('Data request failed');
       return r.json();
-    }).catch(() => fallback);
+    }).catch(() => fallback).finally(() => clearTimeout(timeout));
   }
 
   // Retry loop that runs only while the stale/failed banner is showing, so the
@@ -3268,6 +3280,7 @@
       }
 
       renderAll();
+      await chartFullRefresh();
       _lastDataRefreshAt = Date.now();
     } catch (e) {
       console.error('Failed to load data:', e);
@@ -8917,8 +8930,7 @@
     // belongs to the previous one. Hand it to the caller that asked, but do not
     // re-seed the cache reelInvalidateCache has just emptied.
     const ver = reelDataVersion;
-    const p = fetch(reelChunkUrl(tf, cid))
-      .then(r => r.ok ? r.json() : null)
+    const p = fetchJson(reelChunkUrl(tf, cid), null)
       .then(j => {
         const data = (j && j.data) || {};
         if (ver === reelDataVersion) reel.chunks.set(key, data);
@@ -10537,483 +10549,106 @@
       + handles;
   }
 
-  // Vertical time lines. Calendar boundaries, not evenly-spaced ticks: a line
-  // every N bars tells you nothing, whereas "this is where 2025 started" is a
-  // fact you navigate by. Which boundary depends on how much calendar the
-  // timeframe shows — a year line on a 1H chart covering six weeks would never
-  // appear, and quarter lines on a Weekly chart covering ten years would be a
-  // picket fence. So: years on D, half-years on 1H / 4H, MONTHS on 10m.
-  //
-  // 10m is MONTHS, at the user's call (2026-09-14, and again 2026-09-19 over
-  // the day grid that replaced it on 09-17). Since 2026-09-19 the card opens on
-  // a whole calendar month (reelDefaultBars), so a month line is on screen at
-  // the 1st every time. Day lines are gone rather than kept faint underneath.
-  //
-  // The window's own first and last bars stay as end-stops (see the axis code)
-  // for a range that crosses no boundary at all — which on 10m is most windows,
-  // so on 10m the end-stops carry the day, the month and the time.
-  //
-  // Label collisions are handled in the caller, which is the only place that
-  // knows where a line lands in x.
-  //
-  // 3D and Weekly are OFF at the user's request (2026-09-08). Those charts span
-  // six and ten years, so a year line lands every few centimetres and the grid
-  // stops being a reference and starts being a fence across the price. A
-  // timeframe absent from this table draws no lines at all, and its window's
-  // first and last dates come back as the axis instead.
-  // 4H is HALVES since 2026-09-19 (user request): the year cut into two equal
-  // parts, where it was four. Same construction as before, one parameter.
-  //
-  // 5m is DAYS (user, 2026-09-24: "time gridlines dividing by daily on the 5
-  // min"). A line on the first bar of each new UTC day — which is each session
-  // on every exchange-traded instrument and midnight on 24h ones — labelled
-  // "Tue 22"; the first day of a month is drawn at month weight and labelled
-  // "Thu 1 Oct" so the month is never lost.
-  //
-  // 15m is WEEKS (user, 2026-09-25: "the grid time lines are monday 00:00 to
-  // monday 00:00"): only the week-start lines of the day grid, so each gap is
-  // one trading week. Same evenly spaced construction, day lines dropped.
-  // 1H = the year cut into TWELVE equal parts (user, 2026-09-27: "1 year by
-  // 12 which means all months are even") — the 'half' construction below.
-  // 30m (2026-09-29, replaced 15m): the 1H grid (user: "make the time grid for
-  // the new 30m the same as the 1h"). 4H (back 2026-09-29): the Daily's year
-  // lines, administrations included (user: "make the same as the daily").
-  // 15m (back 2026-09-29) keeps its old WEEK grid, first Monday of a month bold.
-  // 4H since 2026-09-29 (later): the year cut into FOUR equal parts (user:
-  // "divide 12 by 3 into 4 equal parts ... make sure the q1, 2, 3 and 4 are
-  // even") — the 'half' construction, so every quarter is the same width.
-  // 1H and 2H (2026-10-01): the 30m's grid (user: "have the time grid like the 30m").
-  // 10m (back 2026-10-03): the 15m's WEEK grid (user: "add 10 min to be
-  // divided by weekly"), then the same day the 30m's MONTH grid (user: "in the
-  // 10 min the grids line set to month to month") — the year in 12 equal
-  // parts, quarter lines bold.
-  // Daily and 12H (2026-10-03): the TERM grid (user: "the time grids for daily
-  // are currently year to year let's make it administration of 4 year
-  // equally") — see reelTimeGrid's 'term' mode.
-  const REEL_TIME_GRID = { '15m': 'week', '30m': 'half', '10m': 'half', '1H': 'half', '2H': 'half', '4H': 'half',
-                           '12H': 'term', 'D': 'term', '3D': 'admin', 'W': 'admin' };
-
-  // Future lines on the 5m grid (user, 2026-09-24): a DAY line for every
-  // remaining trading day of the CURRENT week, then only WEEK-START lines, this
-  // many weeks ahead. Past weeks come from the bundle itself (two months).
-  // An instrument with no weekend bars gets no Saturday/Sunday line.
-  const REEL_FUTURE_WEEKS = 8;
-
-  // Intraday timeframes: bar labels carry a time, end-stops show it.
-  const isIntradayTf = tf => tf === '15m' || tf === '30m' || tf === '10m' || tf === '1H' || tf === '2H';
-
-  // How many equal parts a 'half'-mode year is cut into.
-  const REEL_YEAR_PARTS = 2;
-  const REEL_YEAR_PARTS_BY_TF = { '1H': 12, '2H': 12, '30m': 12, '10m': 12, '4H': 4 };
-
-  // US administrations, by inauguration day. On the slow timeframes one screen
-  // is four years (3D) to ten (W), and on that scale the calendar year is a
-  // fence every few centimetres that marks nothing — which is why the year grid
-  // was taken off 3D and Weekly in the first place. A change of administration
-  // is a regime boundary a swing trader actually reads a chart against, so that
-  // is what those two get instead.
-  //
-  // The last entry is the END of the current term, not the start of a named
-  // one: who takes office in 2029 is not known, and a line that pretends to
-  // know would be worse than no line.
-  const REEL_ADMIN_TERMS = [
-    { date: '2017-01-20', label: 'Trump I' },
-    { date: '2021-01-20', label: 'Biden' },
-    { date: '2025-01-20', label: 'Trump II' },
-    { date: '2029-01-20', label: 'Trump II ends' },
+  // One equal grid for every chart in a timeframe, saved across app restarts.
+  const GRID_DIVISIONS = [
+    { code: 'W', name: 'Week', parts: 52 },
+    { code: 'M', name: 'Month', parts: 12 },
+    { code: 'Q', name: 'Quarter', parts: 4 },
+    { code: 'H', name: 'Half-year', parts: 2 },
+    { code: 'Y', name: 'Year', parts: 1 },
   ];
+  const GRID_DIVISION_KEY = 'swingpulse-grid-divisions';
+  const GRID_DIVISION_DEFAULTS = { '15m': 'W', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
+  const gridDivisions = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(GRID_DIVISION_KEY) || '{}');
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    } catch (_) { return {}; }
+  })();
+  function reelGridDivision(tf) {
+    const code = gridDivisions[tf] || GRID_DIVISION_DEFAULTS[tf] || 'Y';
+    return GRID_DIVISIONS.find(d => d.code === code)
+      || GRID_DIVISIONS.find(d => d.code === (GRID_DIVISION_DEFAULTS[tf] || 'Y'));
+  }
+  function reelSetGridDivision(tf, code) {
+    if (!TF_BY_CODE[tf] || !GRID_DIVISIONS.some(d => d.code === code)) return false;
+    gridDivisions[tf] = code;
+    try { localStorage.setItem(GRID_DIVISION_KEY, JSON.stringify(gridDivisions)); } catch (_) {}
+    return true;
+  }
+  function reelTimeGridSwitchHtml() {
+    const selected = reelGridDivision(timeframe).code;
+    return `<span class="reel-time-grid-label">Time grid</span><div class="reel-time-grid-options" role="group" aria-label="Time grid for all ${tfMeta().label} charts">`
+      + GRID_DIVISIONS.map(d => `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year" title="${d.name} · ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year">${d.code}</button>`).join('')
+      + `</div><span class="reel-time-grid-scope">${tfMeta().label}</span>`;
+  }
+  function reelTimeGridSwitch() {
+    return `<div class="reel-time-grid-switch">${reelTimeGridSwitchHtml()}</div>`;
+  }
 
-  // How many years past the last bar to keep drawing year lines for. The window
-  // holds empty space to the right and pans further into it, and a channel
-  // projected into that space is unreadable without a date against it.
-  const REEL_FUTURE_YEARS = 4;
-
-  // Same idea one scale down, for the 10m grid: how many MONTH boundaries past
-  // the last bar to project. Two, so the next month's line is there when the
-  // window is zoomed out far enough to reach it; the ones that land off the
-  // panel are dropped by the x-clamp. They sit at UTC midnight on the 1st,
-  // which on a session-bound instrument is a few bars before the session that
-  // opens the month — a date reference, not a bar that exists.
-  const REEL_FUTURE_MONTHS = 2;
-
-  // The axis end-stop: the window's own first and last bar, used when the grid
-  // crossed too few boundaries to be the axis by itself. A DATE alone is the
-  // right answer on every timeframe whose bar is a day or longer — and the wrong
-  // one on 10m, where 120 bars is under a day on a 24h instrument: both ends
-  // then read "2026-09-16" and the axis says nothing at all. Intraday gets the
-  // time, which is the part that actually varies inside such a window, and the
-  // month — with month-only grid lines the end-stops are usually the only date
-  // on a 10m chart ("Thu 17 Sept 14:30").
+  const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '4H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
     const str = String(ts);
     if (!isIntradayTf(timeframe)) return str.slice(0, 10);
     const hm = str.slice(11, 16);
     return hm ? reelDayLabel(str) + ' ' + hm : str.slice(0, 10);
   }
-
-  // "Jan 2026" / "Jul 2026" — a year-part line's label. The MONTH is the name,
-  // not "H2" or "Q3": the line marks one of the equal parts the year is cut
-  // into, and the month it starts on is the thing you read a date against.
-  function reelYearPartLabel(y, k, parts) {
-    const d = new Date(Date.UTC(y, k * 12 / parts, 1));
-    return isNaN(d) ? String(y)
-      : d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + ' ' + y;
-  }
-
-  // "1 Sep" — a month line's label, on the first bar the new month traded.
-  function reelMonthStartLabel(ts) {
-    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
-    return isNaN(d) ? String(ts).slice(0, 7)
-      : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  }
-
-  // "Tue 16 Sept" — the 10m end-stop's date. The weekday earns its width on an
-  // intraday chart: it is what tells you at a glance which gap is a weekend and
-  // which is just a night.
   function reelDayLabel(ts) {
     const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
     return isNaN(d) ? String(ts).slice(5, 10)
       : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
-
-  // Monday of the UTC week a 'YYYY-MM-DD' falls in — a 5m day line whose week
-  // differs from the previous line's is a WEEK START (bold dashed, user
-  // 2026-09-24), whether that first bar is Monday or a later day after a holiday.
-
-
-  // "Tue 22" — a 5m day line's label ("Thu 1 Oct" on the first of a month).
-  function reelDayLineLabel(ts, withMonth) {
-    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
-    if (isNaN(d)) return String(ts).slice(5, 10);
-    const o = { weekday: 'short', day: 'numeric', timeZone: 'UTC' };
-    if (withMonth) o.month = 'short';
-    return d.toLocaleDateString('en-GB', o);
+  function reelGridPartLabel(year, part, division) {
+    if (division === 'Y') return String(year);
+    if (division === 'M') return new Date(Date.UTC(year, part, 1))
+      .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
+    return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
   }
 
-  // Bundle-indexed, evenly spaced 5m day/week lines — see the 'day' mode note.
-  function reelEvenDayGrid(src) {
-    const sn = src.t.length;
-    if (sn < 2) return [];
-    const DAY = 86400000;
-    const dayMs = str => Date.parse(String(str).slice(0, 10) + 'T00:00:00Z');
-    let seven = false;
-    for (let i = 0; i < sn && !seven; i++) if (new Date(dayMs(src.t[i])).getUTCDay() === 6) seven = true;
-    const dpw = seven ? 7 : 5;
-    // Monday (ms) of the trading week a bar belongs to. On a 5-day instrument a
-    // Saturday/Sunday bar is the NEXT week's open.
-    const weekOf = str => {
-      const d = dayMs(str), wd = new Date(d).getUTCDay();
-      if (!seven && (wd === 0 || wd === 6)) return d + (wd === 0 ? 1 : 2) * DAY;
-      return d - ((wd + 6) % 7) * DAY;
+  function reelTimeGrid(b, tf) {
+    const src = b._src || b, from = b._from || 0;
+    const n = src.t ? src.t.length : 0;
+    if (n < 2) return [];
+    const bt = reelBarTimes(src);
+    const first = bt[0], last = bt[n - 1];
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) return [];
+    // Measure the whole bundle in fractional calendar years. A single year
+    // width is used everywhere: holidays and leap years cannot change a gap.
+    // Anchor January of the newest year to its bar position; division labels
+    // name equal year parts, not exact calendar-week/month start dates.
+    const yearAt = ms => {
+      const year = new Date(ms).getUTCFullYear();
+      const start = Date.UTC(year, 0, 1), end = Date.UTC(year + 1, 0, 1);
+      return year + (ms - start) / (end - start);
     };
-    const starts = [];                       // [bar index, week Monday ms]
-    let prev = null;
-    for (let i = 0; i < sn; i++) {
-      const w = weekOf(src.t[i]);
-      if (w !== prev) { if (prev !== null) starts.push([i, w]); prev = w; }
-    }
-    let A, monday, step;
-    if (starts.length >= 2) {
-      const [i0, w0] = starts[0], [i1, w1] = starts[starts.length - 1];
-      const weeks = Math.round((w1 - w0) / (7 * DAY));
-      step = (i1 - i0) / (weeks * dpw);
-      A = i1; monday = w1;
+    const yearBars = (n - 1) / (yearAt(last) - yearAt(first));
+    if (!Number.isFinite(yearBars) || yearBars <= 0) return [];
+    const year = new Date(last).getUTCFullYear();
+    const anchorMs = Date.UTC(year, 0, 1);
+    let anchor;
+    if (anchorMs <= first) {
+      anchor = (anchorMs - first) / ((last - first) / (n - 1));
     } else {
-      // Under two weeks of bars: average over the trading days present.
-      const days = new Set(src.t.map(t => String(t).slice(0, 10))).size || 1;
-      step = sn / days;
-      A = starts.length ? starts[0][0] : 0;
-      monday = starts.length ? starts[0][1] : weekOf(src.t[0]);
+      let lo = 0, hi = n - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= anchorMs) lo = mid; else hi = mid; }
+      const span = bt[hi] - bt[lo];
+      anchor = lo + (span ? (anchorMs - bt[lo]) / span : 0);
     }
-    if (!(step > 0)) return [];
-    // ANCHOR ON THE LATEST TRADING DAY'S FIRST BAR, not the week start, so the
-    // lines nearest "now" sit on the right day; the average step's drift then
-    // falls on the old weeks rather than on today. `monday` is that day's week.
-    {
-      const tradeDay = str => {
-        const d = dayMs(str), wd = new Date(d).getUTCDay();
-        return (!seven && (wd === 0 || wd === 6)) ? d + (wd === 0 ? 1 : 2) * DAY : d;
-      };
-      const lastDay = tradeDay(src.t[sn - 1]);
-      let i = sn - 1;
-      while (i > 0 && tradeDay(src.t[i - 1]) === lastDay) i--;
-      const dow = (new Date(lastDay).getUTCDay() + 6) % 7;   // Mon = 0
-      monday = lastDay - dow * DAY;
-      A = i - dow * step;                                    // where Monday falls
-    }
-    const dateOfK = k => {
-      const wk = Math.floor(k / dpw), dow = k - wk * dpw;
-      return new Date(monday + (wk * 7 + dow) * DAY);
-    };
-    const lines = [];
-    const kMin = Math.ceil(-A / step);
-    const kMax = dpw * (1 + REEL_FUTURE_WEEKS);
-    let lastMonth = null;
-    for (let k = kMin; k <= kMax; k++) {
-      const week = ((k % dpw) + dpw) % dpw === 0;
-      const d = dateOfK(k);
-      const month = lastMonth !== null && d.getUTCMonth() !== lastMonth;
-      lastMonth = d.getUTCMonth();
-      if (k >= dpw && !week) continue;       // past the current week: week starts only
-      const fi = A + k * step;
-      if (fi <= 0) continue;
-      lines.push({ fi, week, future: fi > sn - 1, ms: d.getTime(),
-                   label: reelDayLineLabel(d.toISOString(), month) });
-    }
-    return lines;
-  }
-
-  function reelTimeGrid(b, tf, modeOverride) {
-    const mode = modeOverride || REEL_TIME_GRID[tf];
-    const n = b.t ? b.t.length : 0;
-    if (!mode || !n) return [];
-
-    // ── The day grid (5m) ──────────────────────────────────────────────
-    // Measured off the WHOLE bundle so a pan cannot move a line, mapped back
-    // onto the drawn slice with `from`. Future days are projected at the
-    // bundle's average ms/bar (overnight gaps included) for the reason the
-    // month projection below explains.
-    // EVENLY SPACED (user, 2026-09-24: "your lines are not even"). A line on
-    // each day's first bar is uneven on a bar-indexed axis — days hold
-    // different bar counts (short Fridays, a commodity's Sunday-evening open).
-    // So one step = the bundle's average bars per TRADING DAY, measured between
-    // its first and last week starts, and every line past and future sits a
-    // whole number of steps from the current week's start: 5 per week for
-    // anything that does not trade Saturday (stocks, indices, commodities,
-    // forex — their Sunday-evening bars count as Monday), 7 for crypto.
-    // Future: every remaining day of the current week, then week starts only.
-    if (mode === 'day') {
-      const src = b._src || b, from = b._from || 0, sn = src.t.length;
-      if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
-      return src._dayGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
-    }
-    // ── The week grid (15m) ────────────────────────────────────────────
-    // The day grid's week starts only — Monday to Monday, evenly spaced, the
-    // future projected the same way. Every week is an ordinary grid line; the
-    // FIRST MONDAY OF EACH MONTH is the bold one and carries the month in its
-    // label (user, 2026-09-25: "make monthly bold on monday 00:00, the point is
-    // make them even"). So months stay on the even weekly rhythm rather than
-    // landing mid-week on the 1st.
-    if (mode === 'week') {
-      const src = b._src || b, from = b._from || 0;
-      if (!src._weekGrid) {
-        if (!src._dayGrid) src._dayGrid = reelEvenDayGrid(src);
-        let prevMonth = null;
-        src._weekGrid = src._dayGrid.filter(l => l.week).map(l => {
-          const d = new Date(l.ms), m = d.getUTCMonth();
-          const month = prevMonth !== null && m !== prevMonth;
-          prevMonth = m;
-          // `par` = the CALENDAR week's parity (weeks counted from Monday
-          // 5 Jan 1970), so the grid shading lands on the same weeks on every
-          // chart — crypto's 7-day bundle started its count elsewhere and
-          // shaded the opposite weeks (user, 2026-09-27).
-          return Object.assign({}, l, { week: month, month: false,
-            par: ((Math.round((l.ms - Date.UTC(1970, 0, 5)) / (7 * 864e5)) % 2) + 2) % 2,
-            label: reelDayLineLabel(d.toISOString(), month) });
-        });
+    const division = reelGridDivision(tf), parts = division.parts;
+    const step = yearBars / parts;
+    const firstYear = new Date(first).getUTCFullYear() - 1;
+    const out = [];
+    for (let y = firstYear; y <= year + 4; y++) {
+      for (let k = 0; k < parts; k++) {
+        const fi = anchor + ((y - year) * parts + k) * step - from;
+        out.push({ fi, label: reelGridPartLabel(y, k, division.code),
+          future: fi > n - 1 - from, par: ((y * parts + k) % 2 + 2) % 2,
+          week: k === 0, year: y, part: k, division: division.code });
       }
-      return src._weekGrid.map(l => Object.assign({}, l, { fi: l.fi - from }));
-    }
-
-    // ── The half grid: A YEAR CUT INTO EQUAL PARTS (REEL_YEAR_PARTS) ──────
-    // Two since 2026-09-19; it was four (quarters) from 2026-09-18.
-    // Not the calendar's quarters. Those cannot land evenly however the bars are
-    // fixed: Q1 is 90 days with three US market holidays in it and Q4 is 92 with
-    // two, so on a bar-indexed axis they differ by several percent and the eye
-    // reads that as a mistake. This takes the two year boundaries around each
-    // year, measures the distance between them IN BARS, and drops three lines at
-    // the exact quarter points of it — so every gap inside a year is identical by
-    // construction, and the year lines themselves still sit on 1 January.
-    //
-    // A line is therefore within a day or two of the calendar quarter rather than
-    // on it, which is the trade the user asked for (2026-09-18) and is why the
-    // labels name the MONTH the line falls in rather than claiming "Q2".
-    //
-    // Measured off the WHOLE bundle, not the visible slice, so panning cannot
-    // move a line; `from` maps it back onto the slice being drawn. The projection
-    // past the last bar uses the bundle's average ms/bar for the reason the day
-    // grid does — reelBarIndexForDate reads the last ten bars, which on a 4H
-    // frame are four hours apart, and would project as though the market never
-    // closed.
-    if (mode === 'half') {
-      const src = b._src || b, from = b._from || 0, sn = src.t.length;
-      if (sn < 2) return [];
-      const bt = reelBarTimes(src);
-      const perMs = (bt[sn - 1] - bt[0]) / (sn - 1);
-      if (!(perMs > 0)) return [];
-      const idxForMs = ms => {
-        if (ms <= bt[0])      return (ms - bt[0]) / perMs - from;
-        if (ms >= bt[sn - 1]) return (sn - 1) + (ms - bt[sn - 1]) / perMs - from;
-        let lo = 0, hi = sn - 1;
-        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= ms) lo = mid; else hi = mid; }
-        const span = bt[hi] - bt[lo];
-        return lo + (span ? (ms - bt[lo]) / span : 0) - from;
-      };
-      const y0 = new Date(bt[0]).getUTCFullYear();
-      const y1 = new Date(bt[sn - 1]).getUTCFullYear() + 1;   // +1 covers the blank space
-      const lastFi = (sn - 1) - from;
-      const out = [];
-      for (let y = y0; y <= y1; y++) {
-        const a = idxForMs(Date.UTC(y, 0, 1)), z = idxForMs(Date.UTC(y + 1, 0, 1));
-        if (!isFinite(a) || !isFinite(z) || z <= a) continue;
-        const parts = REEL_YEAR_PARTS_BY_TF[tf] || REEL_YEAR_PARTS;
-        for (let k = 0; k < parts; k++) {
-          const fi = a + k * (z - a) / parts;
-          // Twelve parts (1H): light month lines, and every third one — the
-          // quarter boundary — bold (user, 2026-09-27: "the bold is marked every
-          // 3 months as q1"). A bold line names the quarter it ENDS (user: "you
-          // named the end of sep q4 it's 3"): 1 Oct reads "Q3 2026", 1 Jan
-          // "Q4 2025". Months read "May".
-          // Four parts (4H): every line a quarter line named like the 1H's
-          // (the quarter it ENDS), 1 January bold.
-          const q = parts === 12 ? k % 3 === 0 : parts === 4 && k === 0;
-          const label = parts === 4 ? (k === 0 ? `Q4 ${y - 1}` : `Q${k} ${y}`)
-            : parts !== 12 ? reelYearPartLabel(y, k, parts)
-            : q ? (k === 0 ? `Q4 ${y - 1}` : `Q${k / 3} ${y}`)
-            : reelYearPartLabel(y, k, parts).split(' ')[0];
-          out.push({ fi, label, future: fi > lastFi, par: (y * parts + k) % 2, week: q });
-        }
-      }
-      return out;
-    }
-
-    // Administration boundaries are DATES, not bars — most of them fall on a
-    // weekend or a holiday and so are not a bar at all. reelBarIndexForDate
-    // interpolates between the bars either side and extrapolates past the last
-    // one, which is what puts the 2029 line out in the empty space.
-    // ── The term grid (Daily, 12H): AN ADMINISTRATION CUT INTO 4 EQUAL YEARS ──
-    // The 'half' construction one scale up (2026-10-03). Each US presidential
-    // term runs 1 January of its first year to 1 January four years on; the
-    // distance between those two boundaries is measured IN BARS and cut into
-    // four identical parts, so every year inside a term is the same width.
-    // The term line is bold and named ("2025 · Trump II"), the three year lines
-    // inside it light ("2026"). A term reaching past the last bar is projected
-    // at the whole bundle's average ms/bar, as the half grid does.
-    if (mode === 'term') {
-      const src = b._src || b, from = b._from || 0, sn = src.t.length;
-      if (sn < 2) return [];
-      const bt = reelBarTimes(src);
-      const perMs = (bt[sn - 1] - bt[0]) / (sn - 1);
-      if (!(perMs > 0)) return [];
-      const idxForMs = ms => {
-        if (ms <= bt[0])      return (ms - bt[0]) / perMs - from;
-        if (ms >= bt[sn - 1]) return (sn - 1) + (ms - bt[sn - 1]) / perMs - from;
-        let lo = 0, hi = sn - 1;
-        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= ms) lo = mid; else hi = mid; }
-        const span = bt[hi] - bt[lo];
-        return lo + (span ? (ms - bt[lo]) / span : 0) - from;
-      };
-      const names = {};
-      REEL_ADMIN_TERMS.forEach(t => { names[t.date.slice(0, 4)] = t.label.replace(' ends', ' end'); });
-      // Terms start in years ≡ 2025 (mod 4); walk every one the bundle touches.
-      const yFirst = new Date(bt[0]).getUTCFullYear();
-      let y0 = yFirst - ((((yFirst - 2025) % 4) + 4) % 4);
-      const yLast = new Date(bt[sn - 1]).getUTCFullYear();
-      const lastFi = (sn - 1) - from;
-      const out = [];
-      for (let y = y0; y <= yLast + REEL_FUTURE_YEARS; y += 4) {
-        const a = idxForMs(Date.UTC(y, 0, 1)), z = idxForMs(Date.UTC(y + 4, 0, 1));
-        if (!isFinite(a) || !isFinite(z) || z <= a) continue;
-        for (let k = 0; k < 4; k++) {
-          const fi = a + k * (z - a) / 4;
-          const yr = y + k;
-          const label = k === 0 ? (names[yr] ? `${yr} · ${names[yr]}` : String(yr)) : String(yr);
-          out.push({ fi, label, future: fi > lastFi, par: yr % 2, admin: k === 0 });
-        }
-      }
-      return out;
-    }
-
-    if (mode === 'admin') {
-      return REEL_ADMIN_TERMS
-        .map((t, ti) => {
-          const fi = reelBarIndexForDate(b, t.date);
-          return fi == null ? null : { fi, label: t.label, admin: true, par: ti % 2 };
-        })
-        .filter(Boolean);
-    }
-
-    // Walked over the WHOLE bundle (b._src), not the visible slice, and mapped
-    // back with `from` (2026-09-29, user: "the 4 hour grid shade disappears
-    // when i move the chart back and forth"). On the slice, a window with no
-    // 1 January inside it had no lines at all, so the shading between the
-    // off-screen lines vanished while panning.
-    const out  = [];
-    let prev = null;
-    const _src = b._src || b, _from = b._from || 0;
-    for (let i = 0; i < _src.t.length; i++) {
-      const str = String(_src.t[i]);
-      const y = +str.slice(0, 4), m = +str.slice(5, 7);
-      if (!y || !m) continue;
-      const key = mode === 'month' ? str.slice(0, 7) : String(y);
-      // The FIRST bar of the new period is the boundary. i===0 is skipped: the
-      // left edge is not a crossing, it is just where the window happens to start.
-      if (prev !== null && key !== prev.key) {
-        // A month line sits on the first bar the new month traded, labelled
-        // "1 Sep" — or "2 Sep" when the 1st was not a trading day, because it
-        // names the bar the line is on.
-        const month = mode === 'month';
-        // `par` = the line's calendar parity, so the grid bands stay on the same
-        // months/years while panning (this list is built per window).
-        out.push({ fi: i - _from, month, par: month ? (y * 12 + m) % 2 : y % 2, label: month ? reelMonthStartLabel(str) : String(y) });
-      }
-      prev = { key };
-    }
-
-    // The month the chart has not reached yet, projected into the blank space to
-    // the right (REEL_FUTURE_FRAC allows 0.9 of a window of it).
-    //
-    // NB this does NOT use reelBarIndexForDate. That extrapolates from the
-    // spacing of the LAST TEN BARS, which on an intraday frame is ten minutes
-    // apart — it therefore projects as though the market traded around the
-    // clock and put the next month boundary 2,343 bars past the last bar on
-    // AAPL, against a reachable 702. The line existed and could never be
-    // scrolled to. Averaged over the WHOLE bundle a bar is 53.3 minutes of
-    // calendar time on AAPL (overnight gaps and weekends included) and the same
-    // boundary lands 440 bars out, which is reachable — while on BTC, which
-    // really does trade around the clock, the two agree at 10.0 min/bar. That
-    // is the whole difference: a session-bound instrument's bars represent far
-    // more calendar time than their own spacing suggests.
-    // Both projections below measure off the WHOLE bundle (b._src), not the
-    // visible slice, so a pan cannot move a future line.
-    const src = b._src || b, from = b._from || 0, sn = src.t.length;
-    if (mode === 'month') {
-      const bt    = reelBarTimes(src);
-      const perMs = sn > 1 ? (bt[sn - 1] - bt[0]) / (sn - 1) : 0;
-      const last  = new Date(bt[sn - 1]);
-      if (perMs > 0 && !isNaN(last)) {
-        for (let k = 1; k <= REEL_FUTURE_MONTHS; k++) {
-          const d  = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + k, 1));
-          const fi = (sn - 1) + (d.getTime() - bt[sn - 1]) / perMs - from;
-          if (!isFinite(fi)) continue;
-          out.push({ fi, future: true, month: true, par: (d.getUTCFullYear() * 12 + d.getUTCMonth() + 1) % 2, label: reelMonthStartLabel(d.toISOString()) });
-        }
-      }
-    }
-
-    // Years the chart has not reached yet — 2027, 2028 and so on. There are no
-    // bars there, so these are projected from the spacing of the last ten and
-    // dropped by the x-clamp when they fall off the panel.
-    if (mode === 'year') {
-      const lastY = +String(src.t[sn - 1]).slice(0, 4);
-      for (let y = lastY + 1; y <= lastY + REEL_FUTURE_YEARS; y++) {
-        const fi = reelBarIndexForDate(b, y + '-01-01');
-        if (fi != null) out.push({ fi, label: String(y), future: true, par: y % 2 });
-      }
-      // US ADMINISTRATIONS on Daily (user, 2026-09-24): the YEAR LINE of each
-      // administration's first year is drawn bold (.reel-tgrid-admin, the 5m
-      // week line's weight) and named — "2025 · Trump II". Not a separate line
-      // on inauguration day: that sat three weeks from the 1 January line and
-      // read as a double line ("let line align with the other lines").
-      const admYear = {};
-      REEL_ADMIN_TERMS.forEach(t => { admYear[t.date.slice(0, 4)] = t.label; });
-      out.forEach(l => {
-        const name = admYear[l.label];
-        if (name) { l.admin = true; l.label = l.label + ' · ' + name.replace(' ends', ' end'); }
-      });
     }
     return out;
   }
+
 
   // ── Trend strip (2026-09-11, approved from the AVGO preview) ─────────────
   // A thin bar under the price: green while the established trend is up, red
@@ -11598,7 +11233,9 @@
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
     const pc = reelPctOn();
-    let h = `<button class="reel-tool reel-grid-switch${pc ? ' on' : ''}" data-act="pct-set" role="menuitemcheckbox" aria-checked="${pc}">
+    let h = `${reelTimeGridSwitch()}
+      <div class="reel-grid-sep"></div>
+      <button class="reel-tool reel-grid-switch${pc ? ' on' : ''}" data-act="pct-set" role="menuitemcheckbox" aria-checked="${pc}">
         <span>Price axis in %<em>distance from the last price · all charts</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
@@ -11740,6 +11377,27 @@
   let chartFullOpenMid  = 0;
 
   function chartFullEl() { return document.getElementById('chartFull'); }
+
+  // Expanded charts have their own host, outside the list renderAll rebuilds.
+  // Replace its bundle after a data refresh while retaining pan and price scale.
+  async function chartFullRefresh() {
+    const name = chartFullName;
+    const tf = timeframe;
+    const version = reelDataVersion;
+    const el = chartFullEl();
+    const host = el && el.querySelector('.reel-chart');
+    if (!name || !host) return;
+    const data = await reelLoadChunk(name, tf);
+    const other = ovOtherTf();
+    if (other) await reelLoadChunk(name, other);
+    if (chartFullName !== name || timeframe !== tf || reelDataVersion !== version
+        || chartFullEl()?.querySelector('.reel-chart') !== host) return;
+    const bundle = data && data[name];
+    if (!bundle) return;
+    host._reelItem = allData.find(d => d.instrument_name === name) || host._reelItem;
+    host.innerHTML = reelChartSvg(bundle, host._reelItem, host);
+    chartFullSyncButtons();
+  }
 
   async function chartFullOpen(name) {
     const item = (reel.list || []).find(d => d.instrument_name === name)
@@ -13896,6 +13554,18 @@
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
+      if (btn.dataset.act === 'time-grid-set') {
+        if (!reelSetGridDivision(timeframe, btn.dataset.division)) return true;
+        document.querySelectorAll('.reel-grid-menu').forEach(menu => {
+          menu.innerHTML = reelGridMenuHtml();
+          reelGridMenuPlace(menu);
+        });
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const host = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (host && host._reelCtx) reelRepaint(host);
+        return true;
+      }
       if (btn.dataset.act === 'rib-set') {
         const v = +btn.dataset.v, part = btn.dataset.part, r = ribShade(timeframe);
         if (part === 'on') r.on = !r.on;
@@ -14253,4 +13923,3 @@
   wireFilterPopClamp();
 
 })();
-

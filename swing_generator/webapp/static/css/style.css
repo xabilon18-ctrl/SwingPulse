@@ -9731,6 +9731,22 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-grid-cols .reel-swatch i { width: 26px; height: 26px; }
 .reel-grid-cols .reel-swatch.on i { box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--sw); }
 .reel-grid-note { font-size: .7rem; color: var(--text-muted); text-align: right; }
+.reel-time-grid-switch {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
+  padding: 4px 0; color: var(--text-primary);
+}
+.reel-time-grid-label, .reel-time-grid-scope { font-size: .7rem; font-weight: 700; }
+.reel-time-grid-scope { grid-column: 2; grid-row: 1; color: var(--text-muted); text-align: right; }
+.reel-time-grid-options { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.reel-time-grid-opt {
+  appearance: none; cursor: pointer; font-family: inherit; font-size: .78rem;
+  font-weight: 800; border: 1px solid var(--border); border-radius: 7px;
+  background: transparent; color: var(--text-primary); min-width: 36px; min-height: 40px;
+  padding: 4px 8px !important;
+}
+.reel-time-grid-opt.on { background: #fbbf24; border-color: #fbbf24; color: #161610; }
+.reel-time-grid-opt:focus-visible { outline: 2px solid #a16207; outline-offset: 2px; }
+.reel-time-grid-opt:hover { border-color: #a16207; }
 .reel-grid-switch {
   display: flex !important; align-items: center; justify-content: space-between; gap: 12px;
   appearance: none; border: 0; background: transparent; font-family: inherit; cursor: pointer;

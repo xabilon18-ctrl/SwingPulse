@@ -47,6 +47,9 @@ jobs:
           python3 tests/macro_events_test.py
           python3 tests/hourly_test.py
           node --check webapp/static/js/app.js
+          node tests/time_grid_test.cjs
+          node tests/price_refresh_test.cjs
+          node tests/chart_refresh_test.cjs
           node webapp/sync-worker/test/auth_test.mjs
       - name: Build UI and offline browser fixtures
         working-directory: swing_generator
