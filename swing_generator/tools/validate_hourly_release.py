@@ -2,6 +2,7 @@
 import argparse
 import gzip
 import json
+import re
 from pathlib import Path
 import sys
 import time
@@ -48,5 +49,7 @@ if args.live:
             f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
             headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=60) as response:
         html = response.read().decode()
-    assert 'id="tfBtn1H"' in html and 'app.js?v=481' in html, 'Live UI is still the previous build'
+    template = (ROOT / 'webapp' / 'templates' / 'index.html').read_text()
+    expected_asset = re.search(r'app\.js\?v=\d+', template).group(0)
+    assert 'id="tfBtn1H"' in html and expected_asset in html, 'Live UI is still the previous build'
 print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, B1/S1 markers, alerts and trend payloads')
