@@ -64,4 +64,4 @@ if args.live:
         assert time.monotonic() < deadline, 'Live UI is still the previous build'
         print('Waiting for the new Pages assets to reach the production URL', flush=True)
         time.sleep(5)
-print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, {len(trends['4H'])} four-hour charts, B1/S1 markers, alerts and trend payloads')
+print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, {len(trends["4H"])} four-hour charts, B1/S1 markers, alerts and trend payloads')

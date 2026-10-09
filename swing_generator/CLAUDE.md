@@ -27,6 +27,10 @@ include 4H on every regular publish; each timeframe saves its own equal grid.
 Initial release publishes validated 4H-only data from the hourly cache before
 exposing its controls. Active Charts timeframes: 1H / 4H / Daily.
 
+2026-10-09 UI update: app.js v486 / style.css v358 make 4H yearly references
+permanently bold dotted across every M/Q/H/Y grid choice. Year spacing remains
+equal. 1H quarter and Daily administration references remain in place.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

@@ -51,7 +51,11 @@ for (const division of ['M', 'Q', 'H', 'Y']) {
   const lines = c.reelTimeGrid(b, '4H');
   const gap = lines[1].fi - lines[0].fi;
   lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, '4H grid gaps must be equal'));
-  assert.ok(lines.every(l => !l.quarter && !l.admin), '4H ordinary lines stay uniform');
+  const years = lines.filter(l => l.annual);
+  assert.ok(years.length > 2, 'Yearly reference lines remain across every 4H grid choice');
+  const yearlyGap = years[1].fi - years[0].fi;
+  years.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - years[i + 1].fi - yearlyGap) < 1e-9, 'Permanent 4H years must be equal'));
+  assert.ok(lines.every(l => !l.quarter && !l.admin), '4H keeps its yearly references');
 }
 for (const tf of ['1H']) {
   for (const code of ['M', 'Q', 'H', 'Y']) {

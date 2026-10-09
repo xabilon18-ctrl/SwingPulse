@@ -16,6 +16,8 @@ import publish
 out = ROOT / 'webapp' / 'publish' / 'browser-data'
 out.mkdir(parents=True, exist_ok=True)
 h1 = hourly_frame()
+h4 = main._frame_4h(hourly_frame(12000))
+h4_bundle = chart_feed._bundle(h4, [50, 250, 500], '%Y-%m-%d %H:%M', bars=len(h4) - 500)
 d = h1.copy()
 d.index = pd.bdate_range(end=pd.Timestamp.utcnow().tz_localize(None).normalize() - pd.Timedelta(days=1), periods=len(d))
 m30 = h1.copy()
@@ -29,6 +31,7 @@ row.update(main._live_intraday(main._intraday_state(m30.tz_localize(None), 'm30_
 fires = out / 'h1-fires.json'
 fires.write_text(json.dumps({'TEST': h_state[2]}))
 with patch.object(chart_feed, 'load_1h', return_value=h1), \
+     patch.object(chart_feed, 'build_4h_live', return_value=h4_bundle), \
      patch.object(chart_feed, 'build_30m', return_value=chart_feed._bundle(m30, [50, 250, 500], '%Y-%m-%d %H:%M', bars=1000)), \
      patch.object(chart_feed, 'build_daily', return_value=chart_feed._bundle(d, [50, 250, 500], '%Y-%m-%d', bars=1000)):
     chart_feed.build_chart_feed(str(out), str(out), {'TEST': 'TEST'}, h1_fires_path=str(fires))

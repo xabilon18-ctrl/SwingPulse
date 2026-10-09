@@ -66,6 +66,14 @@ const assert = require('node:assert/strict');
   await page.locator('#tfBtn4H').click();
   await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
   await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
+  for (let i = 0; i < 2; i++) {
+    const grip = await page.locator('#chartReel .reel-tgrip').first().boundingBox();
+    await page.mouse.move(grip.x + 12, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width - 8, grip.y + grip.height / 2, { steps: 12 });
+    await page.mouse.up();
+  }
+  assert.ok(await page.locator('#chartReel .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   await page.locator('#chartReel [data-act="grid-menu"]').first().click();
   await page.locator('.reel-grid-menu [data-division="M"]').click();
   await page.locator('#chartReel [data-act="grid-menu"]').first().click();

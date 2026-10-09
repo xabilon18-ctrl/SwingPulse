@@ -10670,6 +10670,10 @@
             `Q${k + 1}${k === 0 ? ' ' + y : ''}`, 'quarter');
         }
       }
+    } else if (tf === '4H') {
+      for (let y = firstYear; y <= year + 4; y++) {
+        permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
+      }
     } else if (tf === 'D') {
       const administrations = { 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
       for (let y = firstYear; y <= year + 4; y++) {
@@ -11042,7 +11046,7 @@
     {
       const placed = [];
       const pick = strong => tg.forEach((t, i) => {
-        if (!t.label || !!(t.quarter || t.admin || t.month) !== strong) return;
+        if (!t.label || !!(t.annual || t.quarter || t.admin || t.month) !== strong) return;
         const x = xOf(t.fi);
         if (x < L.x0 || x > L.x1) return;
         if ((x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1) return;
@@ -11060,6 +11064,7 @@
       const near = !keepLbl.has(ti);
       const room = true;
       const cls  = t.admin ? 'reel-tgrid reel-tgrid-admin'
+                 : t.annual ? 'reel-tgrid reel-tgrid-year'
                  : t.quarter ? 'reel-tgrid reel-tgrid-quarter'
                  : t.month ? 'reel-tgrid reel-tgrid-month'
                  : 'reel-tgrid';

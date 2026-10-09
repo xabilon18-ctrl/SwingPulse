@@ -1,3 +1,10 @@
+# Permanent yearly references on 4H — 2026-10-09
+
+App v486 / CSS v358 permanently marks every equal yearly boundary on 4H with
+bold dotted lines and year labels. The yearly references remain across M/Q/H/Y
+choices. 1H keeps permanent equal quarter boundaries; Daily keeps permanent
+equal administration boundaries. All spans use the same equal-year geometry.
+
 # Restore 4H charts — 2026-10-09
 
 App v485 offers 1H / 4H / Daily on Charts; 30m remains removed. 4H uses
