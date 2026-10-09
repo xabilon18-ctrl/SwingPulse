@@ -1,3 +1,13 @@
+# Compact drawing toolbar — 2026-10-09
+
+App v487 / CSS v359 separates panel visibility from drawing mode. Choosing a
+drawing automatically collapses the panel to a small selected-tool strip with
+Undo, Expand and Done. Handles stay active while collapsed; Done ends editing.
+The expanded palette uses small Buy/Sell buttons and keeps common settings
+visible. More contains Background colour/strength, Duplicate, Delete and
+ladder-stack removal. Saved drawing data is unchanged. Browser regression
+checks cover collapse, handle dragging, Undo/Redo, More, narrow phones and Done.
+
 # Permanent yearly references on 4H — 2026-10-09
 
 App v486 / CSS v358 permanently marks every equal yearly boundary on 4H with

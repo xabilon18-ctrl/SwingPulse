@@ -31,6 +31,11 @@ exposing its controls. Active Charts timeframes: 1H / 4H / Daily.
 permanently bold dotted across every M/Q/H/Y grid choice. Year spacing remains
 equal. 1H quarter and Daily administration references remain in place.
 
+2026-10-09 UI update: app.js v487 / style.css v359 compact the drawing toolbar.
+Choosing a tool collapses it; selected drawing handles remain active. The strip
+keeps Undo, Expand and Done; More contains Background and less-used actions.
+Browser smoke tests exercise collapse, handle dragging, history and Done.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

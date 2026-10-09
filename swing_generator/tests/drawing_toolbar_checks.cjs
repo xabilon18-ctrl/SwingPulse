@@ -1,0 +1,48 @@
+const assert = require('node:assert/strict');
+
+// Exercise real delegated controls and chart handles in a mobile expanded chart.
+module.exports = async function checkDrawingToolbar(page, screenshots) {
+  const viewport = page.viewportSize();
+    await page.locator('#chartFull [data-act="channel"]').click();
+    const toolbar=page.locator('#chartFull .reel-toolbar');
+    await toolbar.locator('[data-kind="ladder"]').click();
+    assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));
+    assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')));
+    assert.ok(await page.locator('#chartFull [data-h]').count()>0,'Handles remain while collapsed');
+    const saved=()=>page.evaluate(()=>localStorage.getItem('sp-channels'));
+    const original=await saved();
+    if (screenshots) await page.screenshot({path:`${screenshots}/drawing-toolbar-collapsed-v487.png`});
+    const collapsedHeight=await toolbar.evaluate(el=>el.getBoundingClientRect().height);
+    await toolbar.locator('.reel-draw-fold').click();
+    assert.equal(await saved(),original,'Expand does not alter drawings');
+    assert.equal(await toolbar.locator('[data-kind="ladder"]').getAttribute('aria-pressed'),'true');
+    if (screenshots) await page.screenshot({path:`${screenshots}/drawing-toolbar-expanded-v487.png`});
+    const expandedHeight=await toolbar.evaluate(el=>el.getBoundingClientRect().height);
+    await toolbar.locator('[data-act="draw-more"]').click();
+    await toolbar.locator('[data-act="draw-fill-toggle"]').click();
+    assert.equal(await toolbar.locator('[data-act="draw-fill-toggle"]').getAttribute('aria-checked'),'true');
+    if (screenshots) await page.screenshot({path:`${screenshots}/drawing-toolbar-more-v487.png`});
+    await toolbar.locator('[data-act="draw-undo"]').click();
+    assert.equal(await toolbar.locator('[data-act="draw-fill-toggle"]').getAttribute('aria-checked'),'false');
+    await toolbar.locator('[data-act="draw-redo"]').click();
+    assert.equal(await toolbar.locator('[data-act="draw-fill-toggle"]').getAttribute('aria-checked'),'true');
+    await toolbar.locator('.reel-draw-fold').click();
+    const beforeDrag=await saved();
+    const handle=page.locator('#chartFull .reel-ch-grab').last();
+    const box=await handle.boundingBox();
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+    await page.mouse.down();
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2-35,{steps:8});
+    await page.mouse.up();
+    assert.notEqual(await saved(),beforeDrag,'Collapsed drawing handles can still be dragged');
+    await toolbar.locator('[data-act="draw-undo"]').click();
+    assert.equal(await saved(),beforeDrag,'Drag can be undone');
+    await page.setViewportSize({width:320,height:740});
+    await toolbar.locator('.reel-draw-fold').click();
+    assert.ok(await toolbar.evaluate(el=>el.getBoundingClientRect().left>=0&&el.getBoundingClientRect().right<=innerWidth),'Panel fits narrow phone');
+    await toolbar.locator('[data-act="draw-done"]').click();
+    assert.equal(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),false);
+    assert.equal(await toolbar.isVisible(),false);
+    await page.setViewportSize(viewport);
+    return {collapsedHeight, expandedHeight};
+};

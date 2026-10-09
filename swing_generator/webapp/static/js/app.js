@@ -7034,34 +7034,60 @@
   // The fill's inline style, or '' when the shape has no background.
   const drawFillStyle = d => (d && d.fillOn && DRAW_FILLABLE.has(d.kind))
     ? `style="fill:${drawFillColor(d)};fill-opacity:${drawFillA(d) / 100}"` : '';
-  let drawStyleOpen = false;
   // Line intensity is retired with line colour: lines draw full-strength black.
   const drawAlpha = d => 100;
 
-  // The Draw bar: a PROPERTIES row for the selected drawing above the four
-  // tools. Card and full screen used to carry two hand-copied toolbars; one
-  // builder now serves both.
+  // Toolbar visibility is independent of drawing mode and selection.
+  const drawToolsCollapsed = new Set(), drawMoreOpen = new Set();
+  const DRAW_TOOL_INFO = {
+    channel: ['Channel', TOOL_CHANNEL], trend: ['Trend line', TOOL_TREND],
+    hline: ['Horizontal', TOOL_HLINE], vline: ['Vertical', TOOL_VLINE],
+    ladder: ['Price ladder', TOOL_LADDER], entry: ['Entry', TOOL_ENTRY],
+    circle: ['Circle', TOOL_CIRCLE], triangle: ['Triangle', TOOL_TRIANGLE],
+    buy: ['Buy', '▲'], sell: ['Sell', '▼'],
+  };
+  function drawSelectedKind(name) {
+    const d = activeChannel(name);
+    return d ? (d.side || d.kind) : '';
+  }
+  function reelDrawStripHtml(name) {
+    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
+    const [label, icon] = DRAW_TOOL_INFO[drawSelectedKind(name)] || ['Drawing', TOOL_CHANNEL];
+    const toggle = collapsed ? 'Expand drawing tools' : 'Collapse drawing tools';
+    return `<button class="reel-tool reel-draw-current" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}">${icon}<span>${label}</span></button>
+      <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo drawing" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
+      <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo drawing" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
+      <button class="reel-tool reel-draw-fold" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}"/></svg></button>
+      <button class="reel-tool reel-draw-done" data-act="draw-done" data-name="${name}">Done</button>`;
+  }
   function reelToolbarHtml(name, edit) {
-    return `<div class="reel-toolbar" data-tools${edit ? '' : ' hidden'}>
+    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
+    const selected = drawSelectedKind(name);
+    return `<div class="reel-toolbar reel-draw-compact${collapsed ? ' is-collapsed' : ''}" data-tools${edit ? '' : ' hidden'}>
+      <div class="reel-draw-strip" data-draw-strip>${reelDrawStripHtml(name)}</div>
+      <div class="reel-draw-body" data-draw-body${collapsed ? ' hidden' : ''}>
+        <div class="reel-tools-row" role="group" aria-label="Drawing tools">${Object.entries(DRAW_TOOL_INFO).map(([kind, [label, icon]]) =>
+          `<button class="reel-tool${selected === kind ? ' is-selected' : ''}" data-act="channel-add" data-kind="${kind}" data-name="${name}" title="${label}" aria-label="Add ${label.toLowerCase()}" aria-pressed="${selected === kind}">${icon}</button>`).join('')}</div>
         <div class="reel-props" data-props${edit && channelsFor(name).length ? '' : ' hidden'}>${reelPropsHtml(name)}</div>
-        <div class="reel-view-row">
-          <button class="reel-tool reel-view-btn is-buy" data-act="channel-add" data-kind="buy" data-name="${name}" aria-label="Mark a buy">▲ Buy</button>
-          <button class="reel-tool reel-view-btn is-sell" data-act="channel-add" data-kind="sell" data-name="${name}" aria-label="Mark a sell">▼ Sell</button>
-        </div>
-        <div class="reel-tools-row">
-          <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
-          <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
-          <span class="reel-props-sep"></span>
-          <button class="reel-tool" data-act="channel-add" data-kind="channel" data-name="${name}" title="Channel" aria-label="Add channel">${TOOL_CHANNEL}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="trend" data-name="${name}" title="Trend line" aria-label="Add trend line">${TOOL_TREND}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="hline" data-name="${name}" title="Horizontal line" aria-label="Add horizontal line">${TOOL_HLINE}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="vline" data-name="${name}" title="Vertical line" aria-label="Add vertical line">${TOOL_VLINE}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="ladder" data-name="${name}" title="10 price lines" aria-label="Add 10 evenly spaced price lines">${TOOL_LADDER}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="entry" data-name="${name}" title="Entry" aria-label="Mark an entry">${TOOL_ENTRY}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="circle" data-name="${name}" title="Circle" aria-label="Circle an area">${TOOL_CIRCLE}</button>
-          <button class="reel-tool" data-act="channel-add" data-kind="triangle" data-name="${name}" title="Triangle" aria-label="Draw a triangle">${TOOL_TRIANGLE}</button>
-        </div>
-      </div>`;
+      </div>
+    </div>`;
+  }
+  function reelSyncToolbar(root, name) {
+    const toolbar = root && root.querySelector('[data-tools]');
+    if (!toolbar) return;
+    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
+    toolbar.classList.toggle('is-collapsed', collapsed);
+    const body = toolbar.querySelector('[data-draw-body]');
+    if (body) body.hidden = collapsed;
+    const strip = toolbar.querySelector('[data-draw-strip]');
+    const html = reelDrawStripHtml(name);
+    if (strip && strip._html !== html) { strip.innerHTML = html; strip._html = html; }
+    const selected = drawSelectedKind(name);
+    toolbar.querySelectorAll('[data-act="channel-add"]').forEach(button => {
+      const on = button.dataset.kind === selected;
+      button.classList.toggle('is-selected', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
   }
 
   function drawCanStep(name, dir) {
@@ -7074,23 +7100,16 @@
   function reelPropsHtml(name) {
     const d = activeChannel(name);
     if (!d) return '';
-    const cur = drawColor(d);
-    const alpha = drawAlpha(d);
-    // ONE colour button (2026-09-27, user: the row of nine dots + a slider was
-    // "not user friendly" and covered half the chart on a phone). It shows the
-    // drawing's colour at its intensity; a tap opens the colour + intensity
-    // panel under the row, a second tap closes it.
+    // Background controls and less-used actions live in More.
     const fillable = DRAW_FILLABLE.has(d.kind), fillOn = fillable && !!d.fillOn;
     const fc = drawFillColor(d), fa = drawFillA(d);
-    // The button shows the shape: its line colour as a ring, its background
-    // (when on) inside.
-    const sw = !fillable ? '' : `<button class="reel-tool reel-colorbtn${drawStyleOpen ? ' on' : ''}" data-act="draw-style" data-name="${name}" aria-expanded="${drawStyleOpen}" aria-label="Background colour" title="Background" style="--sw:${fillOn ? fc : '#9ca3af'}"><i style="background:${fillOn ? fc : 'transparent'}"></i></button>`;
     const dots = (act, sel, anyAct) => DRAW_COLORS.map(c =>
         `<button class="reel-tool reel-swatch${c === sel ? ' on' : ''}" data-act="${act}" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
       + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(sel) ? '' : ' on'}" title="Any colour" style="--sw:${sel}"><i></i>`
       + `<input type="color" value="${sel}" data-act="${anyAct}" data-name="${name}" aria-label="Pick any colour"></label>`;
     let intensity = '';
-    if (drawStyleOpen && fillable) {
+    const more = drawMoreOpen.has(chKey(name, timeframe));
+    if (more && fillable) {
       intensity = `<div class="reel-style-panel">`;
       {
         // Background: a switch first; colour + intensity only once it is on.
@@ -7117,9 +7136,7 @@
         // Stack a copy of the 10 lines above / below, or take one away.
         + `<span class="reel-stack" role="group" aria-label="Stack ladder">`
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="1" data-name="${name}" title="Build another block above" aria-label="Build another block above">+▲</button>`
-        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" title="Remove the top stack" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲${ladderStack(d, 'up') ? `<sup>${ladderStack(d, 'up')}</sup>` : ''}</button>`
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="1" data-name="${name}" title="Build another block below" aria-label="Build another block below">+▼</button>`
-        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" title="Remove the bottom stack" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼${ladderStack(d, 'down') ? `<sup>${ladderStack(d, 'down')}</sup>` : ''}</button>`
         + `</span>`
       : '';
     // A BOLD switch on entry markers (user, 2026-09-15) and on horizontal and
@@ -7132,12 +7149,16 @@
       ? `<button class="reel-tool reel-tool-pct${d.extL ? ' on' : ''}" data-act="draw-ext" data-dir="L" data-name="${name}" aria-pressed="${!!d.extL}" aria-label="Extend the line left" title="Extend left">⟵</button>`
         + `<button class="reel-tool reel-tool-pct${d.extR ? ' on' : ''}" data-act="draw-ext" data-dir="R" data-name="${name}" aria-pressed="${!!d.extR}" aria-label="Extend the line right" title="Extend right">⟶</button>`
       : '';
-    return ((sw || lineStyle) ? sw + lineStyle + `<span class="reel-props-sep"></span>` : '')
-      + pct + ext + bold
-      + `<button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate">${ICON_COPY}</button>`
-      + `<button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>`
-      + `<button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete">${ICON_TRASH}</button>`
-      + intensity;
+    const less = d.kind !== 'ladder' ? '' : `<span class="reel-stack" role="group" aria-label="Remove ladder stacks">`
+      + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
+      + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
+    return `<div class="reel-props-main">${lineStyle}${pct}${ext}${bold}
+      <button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>
+      <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
+    </div>${more ? `<div class="reel-draw-more"><div class="reel-draw-actions">${less}
+      <button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing">${ICON_COPY}<span>Duplicate</span></button>
+      <button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing">${ICON_TRASH}<span>Delete</span></button>
+    </div>${intensity}</div>` : ''}`;
   }
 
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
@@ -9937,7 +9958,11 @@
     // its own lock in the properties row, so this button only opens and closes
     // Draw mode and never changes a drawing.)
     if (reel.editing === name) { reel.editing = null; channelSave(); }
-    else reel.editing = name;
+    else {
+      reel.editing = name;
+      drawToolsCollapsed.delete(chKey(name, timeframe));
+      drawMoreOpen.delete(chKey(name, timeframe));
+    }
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
   }
@@ -9983,6 +10008,8 @@
     }
     addChannelFor(name, def);
     reel.editing = name;
+    drawToolsCollapsed.add(chKey(name, timeframe));
+    drawMoreOpen.delete(chKey(name, timeframe));
     channelSave();
     if (host) reelRepaint(host);
     reelSyncChannelButtons();
@@ -10057,6 +10084,7 @@
 
   // Rebuild the properties row for whichever drawing is selected now.
   function reelSyncProps(root, name) {
+    reelSyncToolbar(root, name);
     const u = root && root.querySelector('[data-act="draw-undo"]');
     const r = root && root.querySelector('[data-act="draw-redo"]');
     if (u) u.disabled = !drawCanStep(name, -1);
@@ -13725,6 +13753,23 @@
       // scratch and took both seeded channels off the chart. Opening Draw mode
       // is NOT in this list: looking at the tools changes nothing.
       if (DRAW_MUTATING_ACTS.has(btn.dataset.act)) channelSeedCommit(name);
+      if (btn.dataset.act === 'draw-tools-toggle') {
+        const key = chKey(name, timeframe);
+        if (drawToolsCollapsed.has(key)) drawToolsCollapsed.delete(key);
+        else { drawToolsCollapsed.add(key); drawMoreOpen.delete(key); }
+        reelSyncChannelButtons();
+        return true;
+      }
+      if (btn.dataset.act === 'draw-more') {
+        const key = chKey(name, timeframe);
+        if (drawMoreOpen.has(key)) drawMoreOpen.delete(key); else drawMoreOpen.add(key);
+        reelSyncChannelButtons();
+        return true;
+      }
+      if (btn.dataset.act === 'draw-done') {
+        if (reel.editing === name) channelToggleEdit(name, chHost);
+        return true;
+      }
       if (btn.dataset.act === 'channel')       { channelToggleEdit(name, chHost); return true; }
       if (btn.dataset.act === 'channel-add')   { channelAdd(name, chHost, btn.dataset.kind); return true; }
       if (btn.dataset.act === 'view-mark')     { viewMarkAdd(name, chHost, btn.dataset.side); return true; }
@@ -13801,11 +13846,6 @@
         return true;
       }
       if (btn.dataset.act === 'draw-delete') { channelClear(name, chHost); return true; }
-      if (btn.dataset.act === 'draw-style') {
-        drawStyleOpen = !drawStyleOpen;
-        reelSyncChannelButtons();
-        return true;
-      }
       if (btn.dataset.act === 'draw-fill-toggle' || btn.dataset.act === 'draw-fill-color' || btn.dataset.act === 'draw-fill-a') {
         const d = activeChannel(name);
         if (!d || !DRAW_FILLABLE.has(d.kind)) return true;
