@@ -75,7 +75,8 @@ const assert = require('node:assert/strict');
     await page.mouse.move(grip.x + grip.width - 8, grip.y + grip.height / 2, { steps: 12 });
     await page.mouse.up();
   }
-  await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'visible' });
+  await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'attached' });
+  assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '6px', 'Yearly stroke is bold');
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await page.locator('.reel-grid-menu [data-division="M"]').click();
