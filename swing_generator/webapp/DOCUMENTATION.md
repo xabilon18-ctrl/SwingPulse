@@ -1,3 +1,13 @@
+# Drawing strip lock and neutral toolbar — 2026-10-09
+
+App v488 / CSS v360 puts Lock/Unlock beside the selected tool in the collapsed
+and expanded strip. Lock affects only that drawing, preserves editing mode and
+panel visibility, and participates in Undo/Redo. Drawing tools, ladder controls
+and action buttons use neutral colours with a dark selected state. All tool
+and action icons share a crisp outline style; Buy/Sell use SVG markers. Background
+colour choices remain available under More. Mobile tests check locking,
+unlocking, handles, history and the monochrome palette.
+
 # Compact drawing toolbar — 2026-10-09
 
 App v487 / CSS v359 separates panel visibility from drawing mode. Choosing a

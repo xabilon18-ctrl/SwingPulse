@@ -36,6 +36,11 @@ Choosing a tool collapses it; selected drawing handles remain active. The strip
 keeps Undo, Expand and Done; More contains Background and less-used actions.
 Browser smoke tests exercise collapse, handle dragging, history and Done.
 
+2026-10-09 UI update: app.js v488 / style.css v360 add Lock/Unlock to the
+selected-tool strip and make drawing toolbar buttons monochrome. Lock keeps
+the panel collapsed and uses existing per-drawing save and history behavior.
+Drawing icons share a 24-unit outline style with distinct SVG Buy/Sell markers.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

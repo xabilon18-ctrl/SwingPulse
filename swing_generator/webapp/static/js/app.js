@@ -6975,23 +6975,25 @@
 
 
   // ── Share card ────────────────────────────────────────────────────────
-  // Tool glyphs — drawn rather than lettered so three of them fit a phone row.
-  const TOOL_CHANNEL = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="16" x2="21" y2="6"/><line x1="3" y1="21" x2="21" y2="11"/><line x1="3" y1="18.5" x2="21" y2="8.5" stroke-dasharray="2 3" opacity=".65"/></svg>`;
-  const TOOL_TREND   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="19" x2="21" y2="5"/><circle cx="4.5" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="19.5" cy="6" r="1.8" fill="currentColor" stroke="none"/></svg>`;
-  const TOOL_HLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
-  const TOOL_VLINE   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>`;
-  const TOOL_LADDER  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="21" y2="4" stroke-dasharray="1.5 3"/><line x1="3" y1="9.3" x2="21" y2="9.3" stroke-dasharray="1.5 3"/><line x1="3" y1="14.6" x2="21" y2="14.6" stroke-dasharray="1.5 3"/><line x1="3" y1="20" x2="21" y2="20" stroke-dasharray="1.5 3"/></svg>`;
-
-  const TOOL_CIRCLE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>`;
-  const TOOL_TRIANGLE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 4L21 19H3z"/></svg>`;
-  const TOOL_ENTRY  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="12" x2="22" y2="12"/><path d="M3 9l6 6M9 9l-6 6" opacity=".55"/></svg>`;
-  const ICON_BACK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg>`;
-  const ICON_UNDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>`;
-  const ICON_REDO   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>`;
-  const ICON_COPY   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`;
-  const ICON_LOCK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
-  const ICON_UNLOCK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
-  const ICON_TRASH  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 20 7"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>`;
+  // Shared outline style keeps every compact drawing icon clear and consistent.
+  const drawIcon = paths => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+  const TOOL_CHANNEL = drawIcon('<path d="M4 13l16-8M4 20l16-8"/><path d="M4 16.5l16-8" stroke-dasharray="2 3" opacity=".5"/>');
+  const TOOL_TREND = drawIcon('<path d="M6 18L18 6"/><circle cx="4.5" cy="19.5" r="2"/><circle cx="19.5" cy="4.5" r="2"/>');
+  const TOOL_HLINE = drawIcon('<path d="M4 12h16M4 9v6M20 9v6"/>');
+  const TOOL_VLINE = drawIcon('<path d="M12 4v16M9 4h6M9 20h6"/>');
+  const TOOL_LADDER = drawIcon('<path d="M5 4v16M5 4h15M5 9.3h12M5 14.7h15M5 20h12"/>');
+  const TOOL_CIRCLE = drawIcon('<circle cx="12" cy="12" r="8"/>');
+  const TOOL_TRIANGLE = drawIcon('<path d="M12 4l9 16H3z"/>');
+  const TOOL_ENTRY = drawIcon('<circle cx="6" cy="12" r="3"/><path d="M9 12h11M17 9l3 3-3 3"/>');
+  const TOOL_BUY = drawIcon('<path d="M12 4l7 9H5zM5 20h14"/>');
+  const TOOL_SELL = drawIcon('<path d="M12 20l7-9H5zM5 4h14"/>');
+  const ICON_BACK = drawIcon('<path d="M10 6l-6 6 6 6M4 12h11a5 5 0 0 1 5 5v1"/>');
+  const ICON_UNDO = drawIcon('<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>');
+  const ICON_REDO = drawIcon('<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>');
+  const ICON_COPY = drawIcon('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 15V6a2 2 0 0 1 2-2h9"/>');
+  const ICON_LOCK = drawIcon('<rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>');
+  const ICON_UNLOCK = drawIcon('<rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 7.5-2M12 14v3"/>');
+  const ICON_TRASH = drawIcon('<path d="M4 6h16M9 6V3h6v3M6 6l1 14h10l1-14M10 10v6M14 10v6"/>');
 
   // Colours a drawing can take (2026-09-15). All chosen to read on the WHITE
   // plot ground; the first is the default ink every drawing had before colour
@@ -7044,7 +7046,7 @@
     hline: ['Horizontal', TOOL_HLINE], vline: ['Vertical', TOOL_VLINE],
     ladder: ['Price ladder', TOOL_LADDER], entry: ['Entry', TOOL_ENTRY],
     circle: ['Circle', TOOL_CIRCLE], triangle: ['Triangle', TOOL_TRIANGLE],
-    buy: ['Buy', '▲'], sell: ['Sell', '▼'],
+    buy: ['Buy', TOOL_BUY], sell: ['Sell', TOOL_SELL],
   };
   function drawSelectedKind(name) {
     const d = activeChannel(name);
@@ -7054,7 +7056,10 @@
     const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
     const [label, icon] = DRAW_TOOL_INFO[drawSelectedKind(name)] || ['Drawing', TOOL_CHANNEL];
     const toggle = collapsed ? 'Expand drawing tools' : 'Collapse drawing tools';
+    const drawing = activeChannel(name), locked = !!(drawing && drawing.locked);
+    const lockLabel = locked ? 'Unlock this drawing' : 'Lock this drawing';
     return `<button class="reel-tool reel-draw-current" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}">${icon}<span>${label}</span></button>
+      <button class="reel-tool reel-draw-lock${locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${lockLabel}" title="${lockLabel}" aria-pressed="${locked}"${drawing ? '' : ' disabled'}>${locked ? ICON_LOCK : ICON_UNLOCK}</button>
       <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo drawing" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
       <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo drawing" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
       <button class="reel-tool reel-draw-fold" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}"/></svg></button>
@@ -7153,7 +7158,6 @@
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
     return `<div class="reel-props-main">${lineStyle}${pct}${ext}${bold}
-      <button class="reel-tool${d.locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${d.locked ? 'Unlock this drawing' : 'Lock this drawing'}" title="${d.locked ? 'Unlock' : 'Lock'}">${d.locked ? ICON_LOCK : ICON_UNLOCK}</button>
       <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
     </div>${more ? `<div class="reel-draw-more"><div class="reel-draw-actions">${less}
       <button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing">${ICON_COPY}<span>Duplicate</span></button>
