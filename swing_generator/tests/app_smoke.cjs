@@ -33,9 +33,19 @@ const assert = require('node:assert/strict');
       await route.fulfill({ contentType: 'application/json', body });
     });
   }
+  await page.addInitScript(() => {
+    localStorage.setItem('swingpulse-chart-tf', '30m');
+    localStorage.setItem('swingpulse-tf', '30m');
+    localStorage.setItem('swingpulse-wl-ui', JSON.stringify({ ttf: '30m' }));
+    localStorage.setItem('swingpulse-al-ui', JSON.stringify({ tf: '30m' }));
+    localStorage.setItem('swingpulse-mk-ui', JSON.stringify({ ccyTf: '30m' }));
+  });
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   await page.locator('.up-skip').click();
   await page.locator('.nav-tab[data-tab="charts"]').click();
+  assert.equal(await page.locator('[data-tf="30m"]').count(), 0, 'Removed timeframe has no global or chart control');
+  assert.equal(await page.locator('#tfBtn1H').getAttribute('aria-selected'), 'true', 'Saved 30m chart selection opens on 1H');
+  assert.equal(await page.evaluate(() => localStorage.getItem('swingpulse-chart-tf')), '1H');
   await page.locator('#tfBtn1H').click();
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
@@ -59,6 +69,9 @@ const assert = require('node:assert/strict');
     // Alert chips use a shared data-al-* handler; inspect their rendered text.
     assert.ok((await page.locator('#pane-scanner').innerText()).includes('1H'), 'Alerts offers 1H');
   });
+  assert.equal(await page.locator('[data-al-tf="30m"]').count(), 0);
+  await page.locator('.nav-tab[data-tab="watchlist"]').click();
+  assert.equal(await page.locator('[data-wl-ttf="30m"]').count(), 0);
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('PASS: mobile 1H chart, alerts, refresh and chart-cache invalidation');
   await browser.close();

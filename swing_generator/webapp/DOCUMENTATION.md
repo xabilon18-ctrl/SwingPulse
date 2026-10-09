@@ -1,3 +1,12 @@
+# Retire 30m timeframe — 2026-10-09
+
+App v484 offers 1H and Daily. 30m is removed from chart selectors, Watchlist
+trend filters, Alerts and Currency focus. Saved 30m selections open on 1H.
+Historical drawings, per-timeframe grid preferences and generated data stay
+stored. Permanent equal quarter markers remain on 1H; Daily retains equal
+four-year administration markers. Release validation retries the public UI
+version briefly while the Cloudflare production alias updates.
+
 # Permanent grid references — 2026-10-08
 
 Grid choices are M / Q / H / Y. Retired W preferences fall back to M.

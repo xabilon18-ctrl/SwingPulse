@@ -16,6 +16,11 @@ whole-bundle bar spacing, including through year boundaries. Browser storage
 key: `swingpulse-grid-divisions`. The same release bounds price/data/chart
 requests and refreshes an expanded chart's bundle after a dataset reload.
 
+2026-10-09 UI update: app.js v484 retires 30m across app controls, filters,
+alerts and currency focus. Saved 30m selections migrate to 1H. Only 1H and
+Daily are offered; historical market data and drawings remain stored.
+Quarter references stay permanent on 1H and administration references on Daily.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

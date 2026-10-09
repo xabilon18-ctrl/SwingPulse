@@ -45,11 +45,19 @@ assert bundle['p'] in ([50, 250], [50, 250, 500])
 assert bundle['t'] and 'sg' in bundle and 'xm' in bundle
 assert all(code in ('B1', 'S1') for _, code in bundle['sg'])
 if args.live:
-    with urllib.request.urlopen(urllib.request.Request(
-            f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
-            headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=60) as response:
-        html = response.read().decode()
     template = (ROOT / 'webapp' / 'templates' / 'index.html').read_text()
     expected_asset = re.search(r'app\.js\?v=\d+', template).group(0)
-    assert 'id="tfBtn1H"' in html and expected_asset in html, 'Live UI is still the previous build'
+    # Pages publication can finish before its production alias updates.
+    deadline = time.monotonic() + 60
+    while True:
+        with urllib.request.urlopen(urllib.request.Request(
+                f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
+                headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=20) as response:
+            html = response.read().decode()
+        if 'id="tfBtn1H"' in html and expected_asset in html:
+            assert 'id="tfBtn30m"' not in html, 'Retired 30m control remains live'
+            break
+        assert time.monotonic() < deadline, 'Live UI is still the previous build'
+        print('Waiting for the new Pages assets to reach the production URL', flush=True)
+        time.sleep(5)
 print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, B1/S1 markers, alerts and trend payloads')

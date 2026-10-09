@@ -27,7 +27,7 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['30m', '1H']);
+  const INTRADAY_TFS = new Set(['1H']);
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -134,7 +134,7 @@
     // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
-    { code: '30m', prefix: 'm30_', label: '30m', tv: '30', bar: '30-minute bars', barShort: '25-bar' },
+    // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
@@ -154,7 +154,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['30m', '1H', 'D']);
+  const SIGNAL_TFS = new Set(['1H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1099,6 +1099,7 @@
   const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
+  if (wlUi.ttf === '30m') wlUi.ttf = '1H';
 
   // DIVISIONS (2026-09-24): a list entry beginning with WL_DIV is a heading
   // inside the list ("European markets"), not an instrument — kept in the same
@@ -1357,7 +1358,7 @@
     // the user's channel read, on the timeframe picked here.
     const trEl = document.getElementById('wl2Trend');
     if (trEl) trEl.innerHTML = (channelTrend
-      ? [['30m', '30m'], ['1H', '1H'], ['D', 'Daily']].map(([k, l]) =>
+      ? [['1H', '1H'], ['D', 'Daily']].map(([k, l]) =>
           `<button class="wl2-chip wl2-ttf${wlUi.ttf === k ? ' on' : ''}" data-wl-ttf="${k}">${l}</button>`).join('') +
         '<span class="wl2-sep"></span>'
       : '') +
@@ -1824,15 +1825,16 @@
   }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
-  const AL_TFS = ['30m', '1H', 'D'];
+  const AL_TFS = ['1H', 'D'];
   const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
+  if (alUi.tf === '30m') alUi.tf = '1H';
   alUi.more = 0;
   const alTfOk = () => { if (alUi.tf !== 'all' && !AL_TFS.includes(alUi.tf)) alUi.tf = 'all'; };
   alTfOk();   // a saved 15m/1H/4H chip would otherwise match nothing
   const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '30m': '30m', '1H': '1H', 'D': 'Daily' };
+  const AL_TF_LBL = { '1H': '1H', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -1973,7 +1975,7 @@
     let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['30m', '30m'], ['1H', '1H'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['1H', '1H'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
       <div id="alLines" class="al-lines"></div>`;
@@ -2029,8 +2031,8 @@
   function alStatsHtml() {
     const st = alertsData && alertsData.stats;
     if (!st) return '';
-    const rows = [['30m|B1', '30m B1'], ['30m|S1', '30m S1'], ['1H|B1', '1H B1'], ['1H|S1', '1H S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
-                  ['30m|X', 'Daily-MA cross'], ['30m|T', 'Daily-MA touch']];
+    const rows = [['1H|B1', '1H B1'], ['1H|S1', '1H S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
+                  ['1H|X', 'Daily-MA cross'], ['1H|T', 'Daily-MA touch']];
     const cell = (s, h) => {
       const v = s && s.h && s.h[h];
       if (!v) return '<td>—</td>';
@@ -2074,6 +2076,7 @@
   // movers, sector and momentum-ranking cards below are the old Dashboard's.
   const mkUi = { list: '', ccyTf: 'D' };
   try { Object.assign(mkUi, JSON.parse(localStorage.getItem('swingpulse-mk-ui') || '{}')); } catch (_) {}
+  if (mkUi.ccyTf === '30m') mkUi.ccyTf = '1H';
 
   function mkComingUp(lists) {
     const evs = (eventsData && eventsData.events) || [];
@@ -2152,8 +2155,8 @@
   }
   function mkCcyFocus() {
     const F = channelTrend && channelTrend.ccy;
-    if (!F || !(F.D || F['30m'])) return '';
-    const tf = F[mkUi.ccyTf] ? mkUi.ccyTf : (F.D ? 'D' : '30m');
+    if (!F || !(F.D || F['1H'])) return '';
+    const tf = isTf(mkUi.ccyTf) && F[mkUi.ccyTf] ? mkUi.ccyTf : (F.D ? 'D' : '1H');
     const f = F[tf];
     const g = t => t === 'UPTREND' ? '▲' : t === 'DOWNTREND' ? '▼' : '—';
     const cls = t => t === 'UPTREND' ? 'up' : t === 'DOWNTREND' ? 'dn' : 'neu';
@@ -2169,7 +2172,7 @@
       ? `<b class="up">${f.strong} ▲</b> vs <b class="dn">${f.weak} ▼</b>`
       : `No two currencies in opposite trends — strongest <b>${f.strong}</b> vs weakest <b>${f.weak}</b>`;
     return `<div class="card mk-card" id="mkCcyFocus"><div class="card-header mk-h"><h3>Currency focus</h3>
-        <div class="al-chips cf-tf">${[['30m', '30m'], ['D', 'Daily']].filter(([k]) => F[k]).map(([k, l]) =>
+        <div class="al-chips cf-tf">${[['1H', '1H'], ['D', 'Daily']].filter(([k]) => F[k]).map(([k, l]) =>
           `<button class="al-chip${k === tf ? ' on' : ''}" data-ccy-tf="${k}">${l}</button>`).join('')}</div></div>
       <p class="mk-note">The 8 currency indices by your channel rule (▲ ▼ —), strongest first by their ${span} move. The two going opposite ways, and the pairs their cross current runs through.</p>
       <div class="cf-rank">${rank}</div>
@@ -2596,7 +2599,7 @@
   // what timeframe you're actually looking at instead of offering a dead choice.
   const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
                            watchlist: 'Latest prices · updated every run',
-                           scanner: 'Alerts · 30m, 1H and Daily',
+                           scanner: 'Alerts · 1H and Daily',
                            dashboard: 'Market · updated every run' };
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
@@ -2679,11 +2682,14 @@
 
   // Restore the persisted timeframe before the first render
   try {
-    const _savedTf = localStorage.getItem('swingpulse-tf');
-    const _savedChartTf = localStorage.getItem('swingpulse-chart-tf');
+    const migrateTf = tf => tf === '30m' ? '1H' : tf;
+    const _savedTf = migrateTf(localStorage.getItem('swingpulse-tf'));
+    const _savedChartTf = migrateTf(localStorage.getItem('swingpulse-chart-tf'));
     // A saved timeframe that no longer exists (1H/4H/3D/W/10m) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
     tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
+    localStorage.setItem('swingpulse-tf', tfPrefs.signals);
+    localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
   } catch (e) {}
   timeframe = 'D';   // the app opens on the Dashboard, which is Daily-only
 
@@ -10656,7 +10662,7 @@
       line[kind] = true;
       line.label = label;
     };
-    if (tf === '30m' || tf === '1H') {
+    if (tf === '1H') {
       for (let y = firstYear; y <= year + 4; y++) {
         for (let k = 0; k < 4; k++) {
           permanent(anchor + (y - year + k / 4) * yearBars - from,
@@ -11833,8 +11839,8 @@
     // index (`ev15`, built by chart_feed from the same marks the chart draws).
     const EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
     if (EV_KEY[reel.scope]) {
-      const evTf = INTRADAY_TFS.has(timeframe) ? timeframe : '30m';
-      const ev = reel.index && (reel.index.events_by_tf?.[evTf] || (evTf === '30m' ? reel.index.ev15 : null));
+      const evTf = INTRADAY_TFS.has(timeframe) ? timeframe : '1H';
+      const ev = reel.index && reel.index.events_by_tf?.[evTf];
       if (!reel.index) {
         reelLoadIndex().then(() => { if (currentTab === 'charts' && EV_KEY[reel.scope]) buildReel(); });
         return [];
