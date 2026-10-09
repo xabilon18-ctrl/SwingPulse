@@ -33,8 +33,12 @@ assert rows and all('h1_primary_signal' in r and 'h1_close' in r for r in rows)
 assert all(r['h1_primary_signal'] in ('', 'B1', 'S1') for r in rows)
 index = read('chart/index.json')
 trends = read('trend_channels.json')['tf']
-assert all(tf in trends for tf in ('30m', '1H', 'D'))
+assert all(tf in trends for tf in ('30m', '1H', '4H', 'D'))
 assert len(trends['1H']) >= len(rows) * 0.8, 'Hourly chart coverage below 80%; stopping release'
+assert len(trends['4H']) >= len(rows) * 0.8, '4H chart coverage below 80%; stopping release'
+four_name = next(iter(trends['4H']))
+four = read(f"chart/4H/{index['chunks'][four_name]}.json")['data'][four_name]
+assert four['p'] in ([50, 250], [50, 250, 500]) and len(four['t']) >= 2
 alerts = read('alerts.json')
 assert all(e[1] in ('30m', '1H', 'D') for e in alerts['ev'])
 name = next(iter(trends['1H']))
@@ -54,10 +58,10 @@ if args.live:
                 f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
                 headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=20) as response:
             html = response.read().decode()
-        if 'id="tfBtn1H"' in html and expected_asset in html:
+        if 'id="tfBtn1H"' in html and 'id="tfBtn4H"' in html and expected_asset in html:
             assert 'id="tfBtn30m"' not in html, 'Retired 30m control remains live'
             break
         assert time.monotonic() < deadline, 'Live UI is still the previous build'
         print('Waiting for the new Pages assets to reach the production URL', flush=True)
         time.sleep(5)
-print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, B1/S1 markers, alerts and trend payloads')
+print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, {len(trends['4H'])} four-hour charts, B1/S1 markers, alerts and trend payloads')

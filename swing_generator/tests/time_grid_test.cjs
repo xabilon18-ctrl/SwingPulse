@@ -8,7 +8,7 @@ const storage = new Map();
 const context = () => {
   const c = vm.createContext({
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
-    TF_BY_CODE: { '1H': {}, D: {} }, timeframe: '1H',
+    TF_BY_CODE: { '1H': {}, '4H': {}, D: {} }, timeframe: '1H',
     tfMeta: () => ({ label: '1H' }),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
   });
@@ -36,14 +36,23 @@ for (const [division, parts] of [['M', 12], ['Q', 4], ['H', 2], ['Y', 1]]) {
 }
 c.reelSetGridDivision('1H', 'Q');
 c.reelSetGridDivision('D', 'H');
+c.reelSetGridDivision('4H', 'M');
 const reloaded = context();
 assert.equal(reloaded.reelGridDivision('1H').code, 'Q');
 assert.equal(reloaded.reelGridDivision('D').code, 'H');
+assert.equal(reloaded.reelGridDivision('4H').code, 'M');
 assert.equal(reloaded.reelGridDivision('2H').code, 'M');
 assert.equal(reloaded.reelSetGridDivision('1H', 'invalid'), false);
 assert.equal(reloaded.reelTimeGrid({ t: [] }, '1H').length, 0);
 assert.equal(reloaded.reelTimeGrid({ t: ['invalid', 'invalid'] }, '1H').length, 0);
 assert.match(reloaded.reelTimeGridSwitchHtml(), /aria-pressed="true"/);
+for (const division of ['M', 'Q', 'H', 'Y']) {
+  c.reelSetGridDivision('4H', division);
+  const lines = c.reelTimeGrid(b, '4H');
+  const gap = lines[1].fi - lines[0].fi;
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, '4H grid gaps must be equal'));
+  assert.ok(lines.every(l => !l.quarter && !l.admin), '4H ordinary lines stay uniform');
+}
 for (const tf of ['1H']) {
   for (const code of ['M', 'Q', 'H', 'Y']) {
     c.reelSetGridDivision(tf, code);

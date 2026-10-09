@@ -136,6 +136,7 @@
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
+    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
@@ -1358,7 +1359,7 @@
     // the user's channel read, on the timeframe picked here.
     const trEl = document.getElementById('wl2Trend');
     if (trEl) trEl.innerHTML = (channelTrend
-      ? [['1H', '1H'], ['D', 'Daily']].map(([k, l]) =>
+      ? [['1H', '1H'], ['4H', '4H'], ['D', 'Daily']].map(([k, l]) =>
           `<button class="wl2-chip wl2-ttf${wlUi.ttf === k ? ' on' : ''}" data-wl-ttf="${k}">${l}</button>`).join('') +
         '<span class="wl2-sep"></span>'
       : '') +

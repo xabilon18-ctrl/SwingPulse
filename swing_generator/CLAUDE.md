@@ -21,6 +21,12 @@ alerts and currency focus. Saved 30m selections migrate to 1H. Only 1H and
 Daily are offered; historical market data and drawings remain stored.
 Quarter references stay permanent on 1H and administration references on Daily.
 
+2026-10-09 UI update: app.js v485 restores 4H as a chart timeframe from
+completed hourly-source four-hour bars. Chart feed and channel trends now
+include 4H on every regular publish; each timeframe saves its own equal grid.
+Initial release publishes validated 4H-only data from the hourly cache before
+exposing its controls. Active Charts timeframes: 1H / 4H / Daily.
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and

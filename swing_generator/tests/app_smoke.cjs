@@ -63,6 +63,13 @@ const assert = require('node:assert/strict');
     assert.ok(summaries > oldSummaries, 'visible app reloads datasets after 30 minutes');
     assert.ok(chunks > oldChunks, 'new dataset invalidates and reloads chart chunks');
   }
+  await page.locator('#tfBtn4H').click();
+  await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
+  await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
+  await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+  await page.locator('.reel-grid-menu [data-division="M"]').click();
+  await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+  await page.locator('#tfBtn1H').click();
   await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });
   await page.locator('.nav-tab[data-tab="scanner"]').click();
   await page.locator('[data-al-tf="1H"], [data-al-key="tf"][data-al-val="1H"]').first().waitFor({ timeout: 15000 }).catch(async () => {
@@ -73,6 +80,6 @@ const assert = require('node:assert/strict');
   await page.locator('.nav-tab[data-tab="watchlist"]').click();
   assert.equal(await page.locator('[data-wl-ttf="30m"]').count(), 0);
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log('PASS: mobile 1H chart, alerts, refresh and chart-cache invalidation');
+  console.log('PASS: mobile 1H/4H charts, removed 30m, alerts, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

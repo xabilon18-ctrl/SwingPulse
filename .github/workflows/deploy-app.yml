@@ -38,6 +38,7 @@ jobs:
           python3 - <<'PY'
           import os
           import subprocess
+          four_hour = False
           if os.environ['GITHUB_EVENT_NAME'] != 'push':
               required = True
           else:
@@ -51,13 +52,21 @@ jobs:
                   ui_paths = ('swing_generator/webapp/static/',
                               'swing_generator/webapp/templates/',
                               'swing_generator/tests/')
-                  required = any(path.startswith('swing_generator/')
+                  data_paths = [path for path in paths if path.startswith('swing_generator/')
+                                and not path.startswith(ui_paths)
+                                and not path.endswith('.md')
+                                and path != 'swing_generator/tools/validate_hourly_release.py']
+                  four_hour = ('swing_generator/tools/publish_four_hour.py' in data_paths
+                               and set(data_paths) <= {'swing_generator/tools/publish_four_hour.py',
+                                                      'swing_generator/webapp/chart_feed.py'})
+                  required = not four_hour and any(path.startswith('swing_generator/')
                                  and not path.startswith(ui_paths)
                                  and not path.endswith('.md')
                                  and path != 'swing_generator/tools/validate_hourly_release.py'
                                  for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'data_required={str(required).lower()}\n')
+              output.write(f'four_hour_required={str(four_hour).lower()}\n')
           print('Market data rebuild required:', required)
           PY
       - uses: actions/setup-python@v5
@@ -78,6 +87,7 @@ jobs:
           python3 tests/golden_test.py
           python3 tests/macro_events_test.py
           python3 tests/hourly_test.py
+          python3 tests/four_hour_test.py
           node --check webapp/static/js/app.js
           node tests/time_grid_test.cjs
           node tests/price_refresh_test.cjs
@@ -96,7 +106,7 @@ jobs:
         if: github.ref != 'refs/heads/main'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch codex-1h-preview
       - name: Restore market cache for production release
-        if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
+        if: github.ref == 'refs/heads/main' && (steps.scope.outputs.data_required == 'true' || steps.scope.outputs.four_hour_required == 'true')
         uses: actions/cache@v4
         with:
           path: |
@@ -125,6 +135,9 @@ jobs:
           print(f'{ok} files uploaded')
           PY
           python3 tools/health_check.py --max-age-hours 0.75
+      - name: Restore and verify 4H chart data before deploying the controls
+        if: github.ref == 'refs/heads/main' && steps.scope.outputs.four_hour_required == 'true'
+        run: python3 swing_generator/tools/publish_four_hour.py
       - name: Deploy UI to existing production Pages project
         if: github.ref == 'refs/heads/main'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch main
@@ -132,7 +145,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           SMOKE_LIVE: '1'
-          SMOKE_URL: https://swingpulse200.pages.dev
+          SMOKE_URL: https://swingpulse200.pages.dev/?release=${{ github.sha }}
         run: |
           python3 swing_generator/tools/validate_hourly_release.py --live
           node swing_generator/tests/app_smoke.cjs

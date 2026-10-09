@@ -947,7 +947,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
@@ -955,7 +955,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
     # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
     # build_10m_live/build_1h/build_2h/build_12h kept for research.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('D', build_daily)):
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live), ('D', build_daily)):
         bundles: dict[str, dict] = {}
 
         def _one(name):
@@ -1030,7 +1030,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import read as channel_read
-        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', 'D')}
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', '4H', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since}

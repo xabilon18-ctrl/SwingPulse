@@ -1,3 +1,19 @@
+# Restore 4H charts — 2026-10-09
+
+App v485 offers 1H / 4H / Daily on Charts; 30m remains removed. 4H uses
+completed, session-anchored four-hour OHLC bars from the existing hourly feed
+and exact MA50/250/500 where enough history exists. It is a chart timeframe;
+1H and Daily retain their existing signals and alerts. Watchlist trends include
+4H. Each timeframe keeps its own saved M/Q/H/Y grid selection; 4H defaults to Q.
+Regular data publications now regenerate the 4H chunks and channel trends.
+
+The first 4H release restores the hourly parquet cache and publishes only the
+new 4H chunks and a merged trend file, keeping the live index and other data.
+It validates coverage and cache freshness before upload, and reads every
+published 4H chunk before deploying controls. This targeted path applies only
+when publish_four_hour.py changes without other data-generation changes.
+Live browser validation uses a release query parameter to avoid alias cache lag.
+
 # Retire 30m timeframe — 2026-10-09
 
 App v484 offers 1H and Daily. 30m is removed from chart selectors, Watchlist
