@@ -2,11 +2,17 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const preferences = require('../webapp/static/js/modules/chart-preferences.js');
+const geometry = require('../webapp/static/js/modules/grid-geometry.js');
 const source = fs.readFileSync(path.join(__dirname, '../webapp/static/js/app.js'), 'utf8');
 const code = source.slice(source.indexOf('  // One equal grid for every chart'), source.indexOf('  // ── Trend strip'));
 const storage = new Map();
 const context = () => {
+  const disk = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
+  const modules = { chartPreferences: preferences, gridGeometry: geometry };
   const c = vm.createContext({
+    modules, window: { SwingPulseModules: modules },
+    chartPreferences: preferences.create({ storage: disk, key: () => 'test-chart-preferences' }),
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
     TF_BY_CODE: { '1H': {}, '4H': {}, D: {} }, timeframe: '1H',
     tfMeta: () => ({ label: '1H' }),
@@ -73,6 +79,7 @@ for (const code of ['M', 'Q', 'H', 'Y']) {
   assert.ok(refs.some(l => l.label === '2025 · Trump II'));
 }
 assert.equal(c.reelSetGridDivision('1H', 'W'), false);
+storage.delete('test-chart-preferences');
 storage.set('swingpulse-grid-divisions', JSON.stringify({'1H':'W'}));
 assert.equal(context().reelGridDivision('1H').code, 'M', 'Old weekly selections fall back to month');
 assert.ok(c.reelTimeGrid(b, '2H').every(l => !l.week && !l.quarter && !l.admin), 'Ordinary years must not be bold');

@@ -4,8 +4,12 @@
 
 (function () {
   'use strict';
+  const modules = window.SwingPulseModules;
+  const freshness = modules.freshness;
 
   // ── State ────────────────────────────────────────────────────────────
+  let savedWork = null, workBackupTimer = 0;
+  let syncLastSuccess = 0, syncPending = false, syncUnavailable = false;
   let allData = [];
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
@@ -119,6 +123,10 @@
     });
   }
   migrateUserData();
+  const chartPreferences = modules.chartPreferences.create({
+    storage: localStorage, key: () => sk('sp-chart-prefs'),
+    onChange: () => { syncPush(); scheduleWorkBackup(); },
+  });
 
   let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
   let charts = {};
@@ -347,7 +355,8 @@
   // whole-blob rule, applied to those charts alone.
   function channelMergeRemote(remote, remoteNewer) {
     wlMergeRemote(remote);
-    if (!remote || !remote.channels || typeof remote.channels !== 'object') return false;
+    const prefsChanged = chartPreferences.mergeRemote(remote && remote.chartPrefs);
+    if (!remote || !remote.channels || typeof remote.channels !== 'object') return prefsChanged;
     const rCh  = expandChannelStore(remote.channels);
     const rMod = (remote.channelsMod && typeof remote.channelsMod === 'object') ? remote.channelsMod : {};
     let editingName = null;
@@ -356,7 +365,7 @@
     for (const obj of [instChannels, rCh])
       for (const name of Object.keys(obj))
         for (const tf of Object.keys(obj[name] || {})) keys.add(chKey(name, tf));
-    let changed = false;
+    let changed = prefsChanged;
     for (const k of keys) {
       const cut = k.lastIndexOf('|');
       const name = k.slice(0, cut), tf = k.slice(cut + 1);
@@ -518,14 +527,12 @@
 
   async function syncPull() {
     if (!syncUser || !syncToken()) return;
-    const badge = document.getElementById('syncUserBadge');
+    const badge = document.getElementById('syncUserBadge'), user = syncUser;
     try {
-      const res = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`,
-                              { cache: 'no-store', headers: syncHeaders() });
-      if (res.status === 401) { syncPasswordRejected(); return; }
-      if (!res.ok) return;
-      const remote = await res.json();
-      if (!remote || !remote.lastModified) return;
+      const remote = await modules.dataClient.request(`${SYNC_WORKER}/sync?user=${user}`,
+                                                      { cache: 'no-store', headers: syncHeaders() });
+      if (syncUser !== user) return false;
+      if (!remote || !remote.lastModified) return true;
       const localMod = parseInt(localStorage.getItem(sk('sp-last-modified')) || '0');
       // Drawings merge chart by chart on EVERY pull, whatever the blob's own
       // timestamp says — see channelMergeRemote.
@@ -538,7 +545,7 @@
       // edit; this is what rescued the phone drawings stranded by the 64 KB
       // keepalive cap. Costs a save only when something is actually missing.
       const rMod = remote.channelsMod || {};
-      if (!syncDrawTimer && Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)))
+      if (!syncDrawTimer && (Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)) || chartPreferences.pending(remote.chartPrefs)))
         syncPushNow();
       if (remote.lastModified > localMod) {
         syncApplyRemote(remote);
@@ -546,8 +553,13 @@
         if (allData.length) renderAll();
         if (badge) { badge.title = `${syncUser} — synced just now`; }
       }
-    } catch (_) { /* offline — silent */
+      return true;
+    } catch (e) {
+      if (syncUser !== user) return false;
+      syncUnavailable = true; savedWork?.updateStatus();
+      if (e.status === 401) syncPasswordRejected();
       if (badge) badge.title = `${syncUser} — offline, sync pending`;
+      return false;
     }
   }
 
@@ -561,11 +573,12 @@
     // Always record locally — a device with no sync password still works, it
     // just keeps its stars to itself.
     localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
-    if (!syncToken()) return;
+    if (!syncToken()) return false;
+    const user = syncUser;
 
     // A pending drawing batch is covered by whatever this push sends — the
     // payload carries every drawing — so the timer is dropped rather than
-    // firing a second identical write 30 seconds later.
+    // firing a second identical write five minutes later.
     if (syncDrawTimer) { clearTimeout(syncDrawTimer); syncDrawTimer = 0; }
 
     // Read before writing, so drawings made on another device since this one
@@ -576,22 +589,29 @@
     // would take the write with it. The merge is what the next pull does
     // anyway, and the Worker merges by key on its side.
     if (!quick) try {
-      const got = await fetch(`${SYNC_WORKER}/sync?user=${syncUser}`,
-                              { cache: 'no-store', headers: syncHeaders() });
-      if (got.status === 401) { syncPasswordRejected(); return; }
-      if (got.ok && channelMergeRemote(await got.json(), false)) {
+      const remote = await modules.dataClient.request(`${SYNC_WORKER}/sync?user=${user}`,
+                                                      { cache: 'no-store', headers: syncHeaders() });
+      if (syncUser !== user) return false;
+      if (channelMergeRemote(remote, false)) {
         try { reelRepaintVisible(); } catch (_) {}
       }
-    } catch (_) { return; }
+    } catch (e) {
+      if (syncUser === user) {
+        syncUnavailable = true; savedWork?.updateStatus();
+        if (e.status === 401) syncPasswordRejected();
+      }
+      return false;
+    }
 
     const stars = [...userStarred];
     const payload = { notes: instrumentNotes, channels: instChannels,
-                      channelsMod: channelMod, watchlists: wlStore,
+                      channelsMod: channelMod, watchlists: wlStore, chartPrefs: chartPreferences.snapshot(),
                       lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
     const body = JSON.stringify(payload);
-    fetch(`${SYNC_WORKER}/sync?user=${syncUser}${clearing}`, {
+    const sentChanges = JSON.stringify(channelMod);
+    return modules.dataClient.request(`${SYNC_WORKER}/sync?user=${user}${clearing}`, {
       method:  'PUT',
       headers: syncHeaders({ 'Content-Type': 'application/json' }),
       body,
@@ -603,18 +623,27 @@
       // normal request — iOS usually lets it finish, and if it doesn't the
       // dirty marker (kept until the Worker says OK) resends it next time.
       keepalive: !!quick && body.length < 60000,
-    }).then(res => {
+    }).then(() => {
+      if (syncUser !== user) return false;
       // Only a confirmed save spends the catch-up marker.
-      if (res.ok) try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
-      if (res.status === 401) syncPasswordRejected();
-      // 409 = the Worker refused a destructive write. Not an error the user
-      // caused and not one they can fix, so it is logged, not surfaced.
-      else if (res.status === 409) console.warn('[sync] refused an empty starred list — server copy kept');
-    }).catch(() => { /* offline — silent */ });
+      syncLastSuccess = Date.now(); syncUnavailable = false;
+      syncPending = sentChanges !== JSON.stringify(channelMod) || JSON.stringify(payload.chartPrefs) !== JSON.stringify(chartPreferences.snapshot());
+      if (!syncPending) try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
+      savedWork?.updateStatus();
+      return true;
+    }).catch(e => {
+      if (syncUser === user) {
+        syncUnavailable = true; savedWork?.updateStatus();
+        if (e.status === 401) syncPasswordRejected();
+        else if (e.status === 409) console.warn('[sync] refused an empty starred list — server copy kept');
+      }
+      return false;
+    });
   }
 
   // Debounce pushes so rapid changes (e.g. starring several instruments) send one request
   function syncPush(intentional) {
+    syncPending = true; savedWork?.updateStatus();
     clearTimeout(syncPushTimer);
     syncPushTimer = setTimeout(() => syncPushNow(intentional), 800);
   }
@@ -630,21 +659,13 @@
   // would keep pushing the deadline back while you were still drawing and could
   // go a whole session without saving anything.
   //
-  // FOUR HOURS since 2026-09-22 (was 30 seconds), at the user's call, because
-  // they work on the phone only: iOS fires visibilitychange every time the app
-  // is swiped away, and the flushes below are what actually save there. The
-  // clock is now only the backstop for a session left open in the foreground
-  // for hours, so a phone session costs about one save when you leave Charts
-  // and one when you leave the app, instead of one every 30 seconds on top.
-  //
-  // Nothing is at risk while the clock runs: the drawing is already in
-  // localStorage (channelSave writes that synchronously), so this only delays
-  // when the OTHER device sees it — and the dirty marker below covers a reload,
-  // which throws the pending timer away.
-  const SYNC_DRAW_HOLD_MS = 4 * 60 * 60 * 1000;
+  // Five-minute batches keep another device reasonably current without a KV
+  // write for every drag. Done, Sync now and leaving the app flush sooner.
+  const SYNC_DRAW_HOLD_MS = 5 * 60 * 1000;
   const SYNC_DRAW_DIRTY   = 'sp-draw-dirty';
   let syncDrawTimer = 0;
   function syncPushDrawings() {
+    syncPending = true; savedWork?.updateStatus();
     try { localStorage.setItem(sk(SYNC_DRAW_DIRTY), '1'); } catch (_) {}
     if (syncDrawTimer) return;
     syncDrawTimer = setTimeout(() => { syncDrawTimer = 0; syncPushNow(); }, SYNC_DRAW_HOLD_MS);
@@ -755,6 +776,10 @@
     catch (_) { instChannels = {}; }
     try { channelMod = JSON.parse(localStorage.getItem(sk('sp-channels-mod')) || '{}') || {}; }
     catch (_) { channelMod = {}; }
+    chartPreferences.reload();
+    wlReloadForUser();
+    savedWork?.reset();
+    syncLastSuccess = 0; syncPending = false; syncUnavailable = false;
     // Saved chart views live in the user's own bucket too.
     try { savedViews = JSON.parse(localStorage.getItem(sk('sp-views')) || '{}') || {}; }
     catch (_) { savedViews = {}; }
@@ -1097,6 +1122,10 @@
           if (v && Array.isArray(v.lists)) return v; } catch (_) {}
     return { lists: [], mod: 0 };
   })();
+  function wlReloadForUser() {
+    try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null'); wlStore = v && Array.isArray(v.lists) ? v : { lists: [], mod: 0 }; }
+    catch (_) { wlStore = { lists: [], mod: 0 }; }
+  }
   const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
@@ -1110,6 +1139,7 @@
   const wlCount = l => l.items.filter(x => !wlIsDiv(x)).length;
 
   function wlSave() {
+    scheduleWorkBackup();
     wlStore.mod = Date.now();
     try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
     try { syncPush(); } catch (_) {}
@@ -1141,11 +1171,11 @@
     if (!q || q.p == null) return null;
     // A live print newer than the run's price wins (wlLive, polled below).
     const L = wlLive[name];
-    const runMs = Date.parse(String(q.t).replace(' ', 'T') + ':00Z');
-    const useLive = L && (!isFinite(runMs) || L.t * 1000 >= runMs);
+    const runMs = freshness.timestamp(q.t);
+    const useLive = L && (runMs == null || L.t * 1000 >= runMs);
     const p = useLive ? L.p : q.p;
     const ch = q.pc ? p - q.pc : null;
-    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, t: q.t,
+    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, t: useLive ? L.t : q.t,
              live: !!useLive, age: useLive ? (Date.now() / 1000 - L.t) / 60 : null };
   }
 
@@ -1159,10 +1189,14 @@
   // exchanges 15; a market with no print for an hour reads "closed".
   const WL_LIVE_URL = 'https://swingpulse-cron.xabilon18.workers.dev/live';
   const WL_LIVE_MS = 30000;
-  const WL_LIVE_TIMEOUT_MS = 12000;
-  const wlLive = {};            // name -> { p, t (unix s) }
-  let wlLiveTimer = 0, wlLiveAt = 0, wlLiveBusy = false;
-
+  let wlLiveAt = 0, wlLiveUnavailable = false;
+  const livePrices = modules.livePrices.create({
+    url: WL_LIVE_URL, getQuotes: () => quotesData, getVisibleNames: wlVisibleNames,
+    isActive: () => currentTab === 'watchlist' && !document.hidden,
+    onUpdate: (names, at) => { wlLiveAt = at; wlLiveUnavailable = false; wlPaintLive(names); },
+    onUnavailable: names => { wlLiveUnavailable = true; wlPaintLive(names); },
+  });
+  const wlLive = livePrices.quotes;
   function wlVisibleNames() {
     const h = window.innerHeight || 800;
     return [...document.querySelectorAll('#wl2Body .wl2-row')].filter(r => {
@@ -1170,50 +1204,21 @@
       return b.bottom > -h && b.top < 2 * h;
     }).map(r => r.dataset.wlRow).slice(0, 90);
   }
-
-  async function wlPollLive() {
-    if (wlLiveBusy || currentTab !== 'watchlist' || document.hidden || !quotesData) return;
-    const names = wlVisibleNames();
-    if (!names.length) return;
-    const want = new Set();
-    names.forEach(n => { const q = quotesData.q[n]; if (!q) return;
-      if (q.y) want.add(q.y); if (q.yc) want.add(q.yc); });
-    if (!want.size) return;
-    wlLiveBusy = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), WL_LIVE_TIMEOUT_MS);
-    try {
-      const r = await fetch(WL_LIVE_URL + '?s=' + [...want].map(encodeURIComponent).join(','), { cache: 'no-store', signal: controller.signal });
-      if (!r.ok) throw new Error('Price feed unavailable');
-      const got = await r.json();
-      const valid = v => Array.isArray(v) && Number.isFinite(v[0]) && Number.isFinite(v[1]) && v[1] > 0;
-      let received = 0;
-      names.forEach(n => {
-        const q = quotesData.q[n]; if (!q) return;
-        const c = [];
-        if (q.y && valid(got && got[q.y])) c.push({ p: got[q.y][0] - (q.b || 0), t: got[q.y][1] });
-        if (q.yc && valid(got && got[q.yc])) c.push({ p: got[q.yc][0], t: got[q.yc][1] });
-        if (!c.length) return;
-        c.sort((a, b) => b.t - a.t);
-        wlLive[n] = c[0];
-        received++;
-      });
-      if (!received) throw new Error('No prices received');
-      wlLiveAt = Date.now();
-      wlPaintLive(names);
-    } catch (_) {
-      wlPaintLive(names);
-      const a = document.getElementById('wl2AsOf');
-      if (a) a.textContent = 'Live prices unavailable · showing last available prices · retrying every 30s';
-    }
-    finally { clearTimeout(timeout); wlLiveBusy = false; }
+  async function wlPollLive() { return livePrices.poll(); }
+  function quoteInfo(name) {
+    const d = allData.find(row => row.instrument_name === name) || {};
+    const q = quotesData && quotesData.q && quotesData.q[name] || {};
+    return { assetClass: d.asset_class || '', symbol: q.yc || q.y || d.ticker || '' };
   }
-
-  function wlAgeTag(x) {
-    if (!x || !x.live) return '';
-    if (x.age > 60) return '<span class="wl2-tag closed">closed</span>';
-    if (x.age >= 8) return `<span class="wl2-tag">${Math.round(x.age)}m delayed</span>`;
-    return '<span class="wl2-tag live">live</span>';
+  function wlAsOfText() {
+    const data = freshness.dataset(summaryData.fetched_at, false);
+    const checked = wlLiveAt ? 'Quotes checked ' + freshness.time(wlLiveAt) : 'Quotes load with published data';
+    return (wlLiveUnavailable ? 'Quote feed unavailable · retrying every 30s' : checked) + ' · ' + data.label;
+  }
+  function wlAgeTag(x, name) {
+    if (!x) return '<span class="wl2-tag">No quote</span>';
+    const state = freshness.quote(x.t, quoteInfo(name));
+    return `<span class="wl2-tag quote-${state.state}" title="${escText(state.detail)}">${escText(state.label)}</span>`;
   }
 
   // Re-price rows in place — no re-render, so scroll position and taps survive.
@@ -1222,6 +1227,7 @@
       const row = document.querySelector(`#wl2Body .wl2-row[data-wl-row="${CSS.escape(n)}"]`);
       const x = wlQuote(n);
       if (!row || !x) return;
+      row.title = freshness.quote(x.t, quoteInfo(n)).detail;
       const pe = row.querySelector('.wl2-price'), ce = row.querySelector('.wl2-chg'), te = row.querySelector('.wl2-tagslot');
       const txt = wlFmtPrice(x.p);
       if (pe && pe.textContent !== txt) {
@@ -1232,18 +1238,15 @@
         ce.textContent = x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : '';
         ce.className = 'wl2-chg' + (x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '');
       }
-      if (te) te.innerHTML = wlAgeTag(x);
+      if (te) te.innerHTML = wlAgeTag(x, n);
     });
     const a = document.getElementById('wl2AsOf');
-    if (a && wlLiveAt) a.innerHTML = `<span class="wl2-livedot"></span>Live · updated ${new Date(wlLiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · change vs previous close`;
+    if (a) a.textContent = wlAsOfText();
+    refreshFreshnessLabels();
   }
 
-  function wlLiveStart() {
-    if (wlLiveTimer) return;
-    wlPollLive();
-    wlLiveTimer = setInterval(wlPollLive, WL_LIVE_MS);
-  }
-  function wlLiveStop() { if (wlLiveTimer) { clearInterval(wlLiveTimer); wlLiveTimer = 0; } }
+  function wlLiveStart() { livePrices.start(); }
+  function wlLiveStop() { livePrices.stop(); }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) wlLiveStop(); else if (currentTab === 'watchlist') wlLiveStart();
   });
@@ -1256,10 +1259,10 @@
   const WL_PULL_AT = 64, WL_PULL_MAX = 96;
   async function wlRefreshNow() {
     wlLiveStop();
-    while (wlLiveBusy) await new Promise(r => setTimeout(r, 100));
+    while (livePrices.busy) await new Promise(r => setTimeout(r, 100));
     const before = wlLiveAt;
     await wlPollLive();
-    if (currentTab === 'watchlist' && !document.hidden) wlLiveTimer = setInterval(wlPollLive, WL_LIVE_MS);
+    if (currentTab === 'watchlist' && !document.hidden) wlLiveStart();
     return wlLiveAt !== before;
   }
   (function wlPullWire() {
@@ -1335,14 +1338,8 @@
   function renderWatchlist() {
     const body = document.getElementById('wl2Body');
     if (!body) return;
-    // As-of line: when the prices were published, in the reader's time.
     const asOf = document.getElementById('wl2AsOf');
-    if (asOf) {
-      const g = quotesData && quotesData.generated_at ? new Date(quotesData.generated_at) : null;
-      asOf.textContent = g && !isNaN(g)
-        ? 'Prices from the ' + g.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' run · change vs previous close'
-        : 'Prices load with the next run';
-    }
+    if (asOf) asOf.textContent = wlAsOfText();
     // List pills: All markets + the reader's own lists + New.
     const lists = wlStore.lists;
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
@@ -1436,7 +1433,7 @@
       const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
       return `<button class="wl2-row" data-wl-row="${escText(n)}">
         ${wlBadge(n, d.asset_class)}
-        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
+        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
         <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
           <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span></span>
       </button>`;
@@ -1467,7 +1464,7 @@
     } else html = rows.map(rowHtml).join('');
     body.innerHTML = html;
     wlShown = rows.map(d => d.instrument_name);
-    if (wlLiveTimer) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
+    if (livePrices.running) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
   }
 
   // The rows the Watchlist is showing, in its order — what the Charts reel
@@ -3047,18 +3044,109 @@
     }
   });
 
+  function chartFreshnessHtml(name) {
+    return `<details class="reel-data-status" data-freshness-name="${escText(name)}"><summary>Chart times loading…</summary><div class="reel-freshness-detail"></div></details>`;
+  }
+  function updateChartFreshness(host, bundle, name) {
+    const box = host && host.parentElement && host.parentElement.querySelector('[data-freshness-name]');
+    if (!box || !bundle || !bundle.t || !bundle.t.length) return;
+    box._barTime = bundle.t[bundle.t.length - 1]; box._barTf = timeframe;
+    paintChartFreshness(box, name);
+  }
+  function paintChartFreshness(box, name) {
+    if (!box._barTime) return;
+    const bar = freshness.chart(box._barTime, box._barTf);
+    const data = freshness.dataset(summaryData.fetched_at, !!box._updateFailed);
+    const q = wlQuote(name), quote = q ? freshness.quote(q.t, quoteInfo(name)) : null;
+    box.querySelector('summary').textContent = 'Bar ' + bar.time + ' · ' + data.label;
+    box.querySelector('.reel-freshness-detail').innerHTML =
+      `<div><strong>${escText(bar.label)}</strong><span>${escText(bar.time)} · ${escText(bar.age)} (bar start)</span></div>` +
+      `<div><strong>Latest available quote${q ? ' · ' + escText(wlFmtPrice(q.p)) : ''}</strong><span>${quote ? escText(quote.label + ' · ' + quote.detail) : 'Quote unavailable'}</span></div>` +
+      `<div><strong>Published chart and signal data</strong><span>${escText(data.detail)}</span></div>` +
+      '<p>Quotes can change before a new completed bar is published.</p>';
+  }
+  let dataUpdateFailed = false;
+  function refreshFreshnessLabels(failed) {
+    if (typeof failed === 'boolean') dataUpdateFailed = failed;
+    const data = freshness.dataset(summaryData.fetched_at, dataUpdateFailed);
+    const line = document.getElementById('dataHealth');
+    if (line) { line.textContent = data.label + (data.state === 'stale' ? ' · Update overdue' : ''); line.title = data.detail; line.dataset.state = data.state; }
+    document.querySelectorAll('[data-freshness-name]').forEach(box => { box._updateFailed = dataUpdateFailed; paintChartFreshness(box, box.dataset.freshnessName); });
+  }
+  setInterval(() => { if (!document.hidden) refreshFreshnessLabels(); }, 60000);
+
+  function scheduleWorkBackup() {
+    if (workBackupTimer) return;
+    workBackupTimer = setTimeout(() => { workBackupTimer = 0; savedWork?.remember(); }, 2000);
+  }
+  function savedWorkStatus() {
+    if (!syncUser || !syncToken()) return 'Saved on this device · sign in to sync';
+    if (syncUnavailable) return 'Saved on this device · sync unavailable; retry with Sync now';
+    if (syncPending || localStorage.getItem(sk(SYNC_DRAW_DIRTY)) === '1') return 'Saved on this device · sync pending';
+    return syncLastSuccess ? 'Synced ' + freshness.time(syncLastSuccess) : 'Signed in · use Sync now to check saved work';
+  }
+  function captureSavedWork() {
+    return { channels: instChannels, channelsMod: channelMod, notes: instrumentNotes,
+      watchlists: wlStore, views: savedViews, grids: chartPreferences.snapshot(), overlay: tfOverlay };
+  }
+  async function restoreSavedWork(data) {
+    const now = Date.now(), previous = instChannels;
+    const nextChannels = expandChannelStore(data.channels), nextMods = { ...channelMod };
+    for (const name of Object.keys(previous)) for (const tf of Object.keys(previous[name] || {})) {
+      if (!nextChannels[name]) nextChannels[name] = {};
+      if (!Object.prototype.hasOwnProperty.call(nextChannels[name], tf)) nextChannels[name][tf] = [];
+    }
+    for (const name of Object.keys(nextChannels)) for (const tf of Object.keys(nextChannels[name])) {
+      const k = chKey(name, tf); nextMods[k] = Math.max(now, (+nextMods[k] || 0) + 1);
+    }
+    const nextLists = { ...data.watchlists, mod: now };
+    const writes = {
+      [sk('sp-channels')]: nextChannels, [sk('sp-channels-mod')]: nextMods,
+      [sk('sp-notes')]: data.notes, [sk(WL_KEY)]: nextLists,
+      [sk(VIEW_STORE)]: data.views, [sk('sp-overlay')]: data.overlay,
+      [sk('sp-chart-prefs')]: chartPreferences.previewRestore(data.grids),
+    };
+    const prior = Object.fromEntries(Object.keys(writes).map(k => [k, localStorage.getItem(k)]));
+    try { for (const [k, v] of Object.entries(writes)) localStorage.setItem(k, JSON.stringify(v)); }
+    catch (e) {
+      for (const [k, v] of Object.entries(prior)) try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) {}
+      throw new Error('Browser storage is full. Your current work was kept; download a backup before freeing space.');
+    }
+    instChannels = nextChannels; channelMod = nextMods;
+    instrumentNotes = data.notes; wlStore = nextLists; savedViews = data.views;
+    for (const k of Object.keys(tfOverlay)) delete tfOverlay[k];
+    Object.assign(tfOverlay, data.overlay); ovApplyVars(); chartPreferences.reload();
+    drawUndo.clear(); drawRedo.clear(); reel.editing = null; channelSnapAll();
+    try { localStorage.setItem(sk(SYNC_DRAW_DIRTY), '1'); } catch (_) {}
+    syncPending = true;
+    renderAll(); reelRepaintVisible(); await chartFullRefresh(); reelSyncChannelButtons();
+    savedWork?.remember(true);
+  }
+  async function syncSavedWorkNow() {
+    if (!syncUser || !syncToken()) throw new Error('Sign in with your sync password first.');
+    if (syncPushTimer) { clearTimeout(syncPushTimer); syncPushTimer = null; }
+    const pushed = await syncPushNow();
+    if (!pushed || syncUnavailable) throw new Error('Your work is saved on this device. Sync is unavailable; please retry.');
+    if (!await syncPull()) throw new Error('Your save reached the server, but checking other devices failed. Please retry.');
+  }
+  savedWork = modules.savedWork.create({
+    storage: localStorage, key: () => sk('sp-work-backups'), user: () => syncUser,
+    capture: captureSavedWork, restore: restoreSavedWork, syncStatus: savedWorkStatus,
+    syncNow: syncSavedWorkNow,
+    requestSync: async () => { if (syncUser && syncToken()) await syncSavedWorkNow(); },
+    previousCloud: async () => {
+      if (!syncUser || !syncToken()) throw new Error('Sign in with your sync password first.');
+      return modules.dataClient.request(`${SYNC_WORKER}/sync/backup?user=${syncUser}`, { headers: syncHeaders() });
+    },
+  });
+  document.getElementById('savedWorkBtn')?.addEventListener('click', () => savedWork.open());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) savedWork?.remember(true); });
+  setInterval(() => { if (!document.hidden && syncUser && syncToken() && !reel.editing) syncPull(); }, 60000);
+
   // ── Data Loading ─────────────────────────────────────────────────────
   // Fetch JSON with a hard timeout so one hung endpoint (flaky network,
   // stalled proxy) can't block the whole Promise.all and blank the app.
-  const FETCH_TIMEOUT_MS = 15000;
-  function fetchJson(url, fallback) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    return fetch(url, { signal: controller.signal, cache: 'no-cache' }).then(r => {
-      if (!r.ok) throw new Error('Data request failed');
-      return r.json();
-    }).catch(() => fallback).finally(() => clearTimeout(timeout));
-  }
+  function fetchJson(url, fallback) { return modules.dataClient.fetchJson(url, fallback); }
 
   // Retry loop that runs only while the stale/failed banner is showing, so the
   // warning resolves itself instead of lingering until the next 4-hourly
@@ -3231,7 +3319,7 @@
       // that fails is caught immediately and separately by status.json, which
       // the CI failure step flips to state:'failed'. Previously only the
       // service worker ever read that.
-      const STALE_AFTER_H = 32;
+      const dataFreshness = freshness.dataset(sumRes.fetched_at, statusRes.state === 'failed');
       const staleBanner = document.getElementById('staleBanner');
       const staleText   = document.getElementById('staleBannerText');
       let fetchedTime = null;
@@ -3248,10 +3336,10 @@
           msg = 'The last data update failed — signals may be out of date';
         } else if (fetchedTime !== null) {
           const ageH = (nowMs - fetchedTime) / 3600e3;
-          if (ageH > STALE_AFTER_H) {
+          if (dataFreshness.state === 'stale') {
             const n = Math.round(ageH);
             const ageStr = n < 48 ? `${n}h` : `${Math.round(n / 24)} days`;
-            msg = `Data is ${ageStr} old (${dateStr}) — no successful update in over a day`;
+            msg = `Data is ${ageStr} old — the scheduled update is overdue`;
           }
         } else if (dateStr !== '--') {
           // Fallback when fetched_at is missing: old calendar-date check
@@ -3288,9 +3376,12 @@
 
       renderAll();
       await chartFullRefresh();
+      refreshFreshnessLabels(statusRes.state === 'failed');
+      scheduleWorkBackup();
       _lastDataRefreshAt = Date.now();
     } catch (e) {
       console.error('Failed to load data:', e);
+      refreshFreshnessLabels(true);
       document.getElementById('dateBadge').textContent = 'Error loading data';
       const grid = document.getElementById('scannerGrid');
       if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
@@ -6503,6 +6594,7 @@
             else       delete instrumentNotes[name];
             localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
             syncPush();
+            scheduleWorkBackup();
             if (hint) { hint.textContent = 'Saved ✓'; hint.className = 'notes-save-hint saved'; }
             setTimeout(() => { if (hint) hint.textContent = ''; }, 1800);
           }, 500);
@@ -6975,25 +7067,7 @@
 
 
   // ── Share card ────────────────────────────────────────────────────────
-  // Shared outline style keeps every compact drawing icon clear and consistent.
-  const drawIcon = paths => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
-  const TOOL_CHANNEL = drawIcon('<path d="M4 13l16-8M4 20l16-8"/><path d="M4 16.5l16-8" stroke-dasharray="2 3" opacity=".5"/>');
-  const TOOL_TREND = drawIcon('<path d="M6 18L18 6"/><circle cx="4.5" cy="19.5" r="2"/><circle cx="19.5" cy="4.5" r="2"/>');
-  const TOOL_HLINE = drawIcon('<path d="M4 12h16M4 9v6M20 9v6"/>');
-  const TOOL_VLINE = drawIcon('<path d="M12 4v16M9 4h6M9 20h6"/>');
-  const TOOL_LADDER = drawIcon('<path d="M5 4v16M5 4h15M5 9.3h12M5 14.7h15M5 20h12"/>');
-  const TOOL_CIRCLE = drawIcon('<circle cx="12" cy="12" r="8"/>');
-  const TOOL_TRIANGLE = drawIcon('<path d="M12 4l9 16H3z"/>');
-  const TOOL_ENTRY = drawIcon('<circle cx="6" cy="12" r="3"/><path d="M9 12h11M17 9l3 3-3 3"/>');
-  const TOOL_BUY = drawIcon('<path d="M12 4l7 9H5zM5 20h14"/>');
-  const TOOL_SELL = drawIcon('<path d="M12 20l7-9H5zM5 4h14"/>');
-  const ICON_BACK = drawIcon('<path d="M10 6l-6 6 6 6M4 12h11a5 5 0 0 1 5 5v1"/>');
-  const ICON_UNDO = drawIcon('<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>');
-  const ICON_REDO = drawIcon('<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>');
-  const ICON_COPY = drawIcon('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 15V6a2 2 0 0 1 2-2h9"/>');
-  const ICON_LOCK = drawIcon('<rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>');
-  const ICON_UNLOCK = drawIcon('<rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 7.5-2M12 14v3"/>');
-  const ICON_TRASH = drawIcon('<path d="M4 6h16M9 6V3h6v3M6 6l1 14h10l1-14M10 10v6M14 10v6"/>');
+  const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = window.SwingPulseModules.drawingIcons;
 
   // Colours a drawing can take (2026-09-15). All chosen to read on the WHITE
   // plot ground; the first is the default ink every drawing had before colour
@@ -7039,131 +7113,21 @@
   // Line intensity is retired with line colour: lines draw full-strength black.
   const drawAlpha = d => 100;
 
-  // Toolbar visibility is independent of drawing mode and selection.
-  const drawToolsCollapsed = new Set(), drawMoreOpen = new Set();
-  const DRAW_TOOL_INFO = {
-    channel: ['Channel', TOOL_CHANNEL], trend: ['Trend line', TOOL_TREND],
-    hline: ['Horizontal', TOOL_HLINE], vline: ['Vertical', TOOL_VLINE],
-    ladder: ['Price ladder', TOOL_LADDER], entry: ['Entry', TOOL_ENTRY],
-    circle: ['Circle', TOOL_CIRCLE], triangle: ['Triangle', TOOL_TRIANGLE],
-    buy: ['Buy', TOOL_BUY], sell: ['Sell', TOOL_SELL],
-  };
-  function drawSelectedKind(name) {
-    const d = activeChannel(name);
-    return d ? (d.side || d.kind) : '';
-  }
-  function reelDrawStripHtml(name) {
-    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
-    const [label, icon] = DRAW_TOOL_INFO[drawSelectedKind(name)] || ['Drawing', TOOL_CHANNEL];
-    const toggle = collapsed ? 'Expand drawing tools' : 'Collapse drawing tools';
-    const drawing = activeChannel(name), locked = !!(drawing && drawing.locked);
-    const lockLabel = locked ? 'Unlock this drawing' : 'Lock this drawing';
-    return `<button class="reel-tool reel-draw-current" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}">${icon}<span>${label}</span></button>
-      <button class="reel-tool reel-draw-lock${locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${lockLabel}" title="${lockLabel}" aria-pressed="${locked}"${drawing ? '' : ' disabled'}>${locked ? ICON_LOCK : ICON_UNLOCK}</button>
-      <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo drawing" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
-      <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo drawing" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
-      <button class="reel-tool reel-draw-fold" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}"/></svg></button>
-      <button class="reel-tool reel-draw-done" data-act="draw-done" data-name="${name}">Done</button>`;
-  }
-  function reelToolbarHtml(name, edit) {
-    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
-    const selected = drawSelectedKind(name);
-    return `<div class="reel-toolbar reel-draw-compact${collapsed ? ' is-collapsed' : ''}" data-tools${edit ? '' : ' hidden'}>
-      <div class="reel-draw-strip" data-draw-strip>${reelDrawStripHtml(name)}</div>
-      <div class="reel-draw-body" data-draw-body${collapsed ? ' hidden' : ''}>
-        <div class="reel-tools-row" role="group" aria-label="Drawing tools">${Object.entries(DRAW_TOOL_INFO).map(([kind, [label, icon]]) =>
-          `<button class="reel-tool${selected === kind ? ' is-selected' : ''}" data-act="channel-add" data-kind="${kind}" data-name="${name}" title="${label}" aria-label="Add ${label.toLowerCase()}" aria-pressed="${selected === kind}">${icon}</button>`).join('')}</div>
-        <div class="reel-props" data-props${edit && channelsFor(name).length ? '' : ' hidden'}>${reelPropsHtml(name)}</div>
-      </div>
-    </div>`;
-  }
-  function reelSyncToolbar(root, name) {
-    const toolbar = root && root.querySelector('[data-tools]');
-    if (!toolbar) return;
-    const collapsed = drawToolsCollapsed.has(chKey(name, timeframe));
-    toolbar.classList.toggle('is-collapsed', collapsed);
-    const body = toolbar.querySelector('[data-draw-body]');
-    if (body) body.hidden = collapsed;
-    const strip = toolbar.querySelector('[data-draw-strip]');
-    const html = reelDrawStripHtml(name);
-    if (strip && strip._html !== html) { strip.innerHTML = html; strip._html = html; }
-    const selected = drawSelectedKind(name);
-    toolbar.querySelectorAll('[data-act="channel-add"]').forEach(button => {
-      const on = button.dataset.kind === selected;
-      button.classList.toggle('is-selected', on);
-      button.setAttribute('aria-pressed', String(on));
-    });
-  }
-
+  const DRAW_BOLDABLE = new Set(['entry', 'hline', 'vline', 'circle', 'triangle']);
+  const drawingToolbar = window.SwingPulseModules.drawingToolbar.create({
+    activeChannel, channelsFor, chKey, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack: (d, dir) => ladderStack(d, dir),
+    getTimeframe: () => timeframe, getEditing: () => reel.editing,
+  });
+  const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
+  function reelDrawStripHtml(name) { return drawingToolbar.stripHtml(name); }
+  function reelToolbarHtml(name, edit) { return drawingToolbar.html(name, edit); }
+  function reelSyncToolbar(root, name) { drawingToolbar.sync(root, name); }
+  function reelPropsHtml(name) { return drawingToolbar.propsHtml(name); }
   function drawCanStep(name, dir) {
     const st = (dir < 0 ? drawUndo : drawRedo).get(chKey(name, timeframe));
     return !!(st && st.length);
   }
 
-  // Properties of the ONE selected drawing — colour, lock, delete. Every button
-  // acts on that drawing only; tap another line to move the bar to it.
-  function reelPropsHtml(name) {
-    const d = activeChannel(name);
-    if (!d) return '';
-    // Background controls and less-used actions live in More.
-    const fillable = DRAW_FILLABLE.has(d.kind), fillOn = fillable && !!d.fillOn;
-    const fc = drawFillColor(d), fa = drawFillA(d);
-    const dots = (act, sel, anyAct) => DRAW_COLORS.map(c =>
-        `<button class="reel-tool reel-swatch${c === sel ? ' on' : ''}" data-act="${act}" data-color="${c}" data-name="${name}" aria-label="Colour" style="--sw:${c}"><i></i></button>`).join('')
-      + `<label class="reel-swatch reel-swatch-any${DRAW_COLORS.includes(sel) ? '' : ' on'}" title="Any colour" style="--sw:${sel}"><i></i>`
-      + `<input type="color" value="${sel}" data-act="${anyAct}" data-name="${name}" aria-label="Pick any colour"></label>`;
-    let intensity = '';
-    const more = drawMoreOpen.has(chKey(name, timeframe));
-    if (more && fillable) {
-      intensity = `<div class="reel-style-panel">`;
-      {
-        // Background: a switch first; colour + intensity only once it is on.
-        intensity += `<button class="reel-tool reel-grid-switch reel-fill-switch${fillOn ? ' on' : ''}" data-act="draw-fill-toggle" data-name="${name}" role="switch" aria-checked="${fillOn}"><span>Background</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
-        if (fillOn) {
-          intensity += `<div class="reel-style-cols">${dots('draw-fill-color', fc, 'draw-any-fill')}</div>`
-            + `<label class="reel-ov-row reel-fill-a"><span>Strength</span><input type="range" min="${FILL_MIN}" max="${FILL_MAX}" step="1" value="${fa}" data-act="draw-fill-a" data-name="${name}" aria-label="Background strength" style="accent-color:${fc}"><b>${Math.round(fa / FILL_MAX * 100)}%</b></label>`;
-        }
-      }
-      intensity += `</div>`;
-    }
-    // Channel line style: dotted (the default) or dashed (user, 2026-09-27).
-    const dashSvg = dash => `<svg width="26" height="10" viewBox="0 0 26 10"><line x1="2" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="${dash ? 'butt' : 'round'}" stroke-dasharray="${dash ? '7 4' : '0.1 5'}"/></svg>`;
-    const lineStyle = d.kind !== 'channel' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
-      + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
-      + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
-      + `</span>`;
-    // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
-    // labels (user, 2026-09-15). On = labels showing, the default.
-    const pct = d.kind === 'ladder'
-      ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
-        // Reverse the numbering: 10% at the top, 100% at the bottom (user, 2026-09-25).
-        + `<button class="reel-tool reel-tool-pct${d.reverse ? ' on' : ''}" data-act="draw-reverse" data-name="${name}" aria-pressed="${!!d.reverse}" aria-label="${d.reverse ? 'Number the percentages from the bottom' : 'Number the percentages from the top'}" title="Reverse %">%⇅</button>`
-        // Stack a copy of the 10 lines above / below, or take one away.
-        + `<span class="reel-stack" role="group" aria-label="Stack ladder">`
-        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="1" data-name="${name}" title="Build another block above" aria-label="Build another block above">+▲</button>`
-        + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="1" data-name="${name}" title="Build another block below" aria-label="Build another block below">+▼</button>`
-        + `</span>`
-      : '';
-    // A BOLD switch on entry markers (user, 2026-09-15) and on horizontal and
-    // vertical lines (user, 2026-09-19).
-    const bold = DRAW_BOLDABLE.has(d.kind)
-      ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
-      : '';
-    // Buy/Sell markers: run the line to the chart's left / right edge.
-    const ext = d.kind === 'entry' && d.side
-      ? `<button class="reel-tool reel-tool-pct${d.extL ? ' on' : ''}" data-act="draw-ext" data-dir="L" data-name="${name}" aria-pressed="${!!d.extL}" aria-label="Extend the line left" title="Extend left">⟵</button>`
-        + `<button class="reel-tool reel-tool-pct${d.extR ? ' on' : ''}" data-act="draw-ext" data-dir="R" data-name="${name}" aria-pressed="${!!d.extR}" aria-label="Extend the line right" title="Extend right">⟶</button>`
-      : '';
-    const less = d.kind !== 'ladder' ? '' : `<span class="reel-stack" role="group" aria-label="Remove ladder stacks">`
-      + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
-      + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
-    return `<div class="reel-props-main">${lineStyle}${pct}${ext}${bold}
-      <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
-    </div>${more ? `<div class="reel-draw-more"><div class="reel-draw-actions">${less}
-      <button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing">${ICON_COPY}<span>Duplicate</span></button>
-      <button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing">${ICON_TRASH}<span>Delete</span></button>
-    </div>${intensity}</div>` : ''}`;
-  }
 
   const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
@@ -8481,6 +8445,7 @@
     return out;
   }
   function ovSave() {
+    scheduleWorkBackup();
     try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
   }
   // What the overlay draws (user, 2026-09-28): MOVING AVERAGES ONLY, from the
@@ -9340,6 +9305,7 @@
   })();
   const viewKey = name => name + '|' + timeframe;
   function viewStoreSave() {
+    scheduleWorkBackup();
     try { localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews)); } catch (_) {}
   }
   function bundleLastClose(bundle) {
@@ -9939,6 +9905,7 @@
   }
 
   function channelSave() {
+    scheduleWorkBackup();
     channelLinkSync();
     channelStampChanges();
     try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
@@ -9961,7 +9928,7 @@
     // (The old "tap Unlock to edit" shortcut is gone: each drawing now carries
     // its own lock in the properties row, so this button only opens and closes
     // Draw mode and never changes a drawing.)
-    if (reel.editing === name) { reel.editing = null; channelSave(); }
+    if (reel.editing === name) { reel.editing = null; channelSave(); syncFlushDrawings(); }
     else {
       reel.editing = name;
       drawToolsCollapsed.delete(chKey(name, timeframe));
@@ -10172,7 +10139,6 @@
   }
 
   const DRAW_DATE_KEYS  = ['t0', 't', 't1', 't2', 't3'];
-  const DRAW_BOLDABLE   = new Set(['entry', 'hline', 'vline', 'circle', 'triangle']);
   const DRAW_PRICE_KEYS = ['p', 'p1', 'p2', 'p3', 'p4'];
 
   // Write `orig` shifted by dBars and dP into `target`. Offsets that are not
@@ -10589,30 +10555,10 @@
   }
 
   // One equal grid for every chart in a timeframe, saved across app restarts.
-  const GRID_DIVISIONS = [
-    { code: 'M', name: 'Month', parts: 12 },
-    { code: 'Q', name: 'Quarter', parts: 4 },
-    { code: 'H', name: 'Half-year', parts: 2 },
-    { code: 'Y', name: 'Year', parts: 1 },
-  ];
-  const GRID_DIVISION_KEY = 'swingpulse-grid-divisions';
-  const GRID_DIVISION_DEFAULTS = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
-  const gridDivisions = (() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(GRID_DIVISION_KEY) || '{}');
-      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
-    } catch (_) { return {}; }
-  })();
-  function reelGridDivision(tf) {
-    const code = gridDivisions[tf] || GRID_DIVISION_DEFAULTS[tf] || 'Y';
-    return GRID_DIVISIONS.find(d => d.code === code)
-      || GRID_DIVISIONS.find(d => d.code === (GRID_DIVISION_DEFAULTS[tf] || 'Y'));
-  }
+  const GRID_DIVISIONS = modules.chartPreferences.choices;
+  function reelGridDivision(tf) { return chartPreferences.division(tf); }
   function reelSetGridDivision(tf, code) {
-    if (!TF_BY_CODE[tf] || !GRID_DIVISIONS.some(d => d.code === code)) return false;
-    gridDivisions[tf] = code;
-    try { localStorage.setItem(GRID_DIVISION_KEY, JSON.stringify(gridDivisions)); } catch (_) {}
-    return true;
+    return !!TF_BY_CODE[tf] && chartPreferences.set(tf, code);
   }
   function reelTimeGridSwitchHtml() {
     const selected = reelGridDivision(timeframe).code;
@@ -10636,87 +10582,8 @@
     return isNaN(d) ? String(ts).slice(5, 10)
       : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
-  function reelGridPartLabel(year, part, division) {
-    if (division === 'Y') return String(year);
-    if (division === 'M') return new Date(Date.UTC(year, part, 1))
-      .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
-    return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
-  }
-
-  function reelTimeGrid(b, tf) {
-    const src = b._src || b, from = b._from || 0;
-    const n = src.t ? src.t.length : 0;
-    if (n < 2) return [];
-    const bt = reelBarTimes(src);
-    const first = bt[0], last = bt[n - 1];
-    if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) return [];
-    // Measure the whole bundle in fractional calendar years. A single year
-    // width is used everywhere: holidays and leap years cannot change a gap.
-    // Anchor January of the newest year to its bar position; division labels
-    // name equal year parts, not exact calendar-week/month start dates.
-    const yearAt = ms => {
-      const year = new Date(ms).getUTCFullYear();
-      const start = Date.UTC(year, 0, 1), end = Date.UTC(year + 1, 0, 1);
-      return year + (ms - start) / (end - start);
-    };
-    const yearBars = (n - 1) / (yearAt(last) - yearAt(first));
-    if (!Number.isFinite(yearBars) || yearBars <= 0) return [];
-    const year = new Date(last).getUTCFullYear();
-    const anchorMs = Date.UTC(year, 0, 1);
-    let anchor;
-    if (anchorMs <= first) {
-      anchor = (anchorMs - first) / ((last - first) / (n - 1));
-    } else {
-      let lo = 0, hi = n - 1;
-      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bt[mid] <= anchorMs) lo = mid; else hi = mid; }
-      const span = bt[hi] - bt[lo];
-      anchor = lo + (span ? (anchorMs - bt[lo]) / span : 0);
-    }
-    const division = reelGridDivision(tf), parts = division.parts;
-    const step = yearBars / parts;
-    const firstYear = new Date(first).getUTCFullYear() - 1;
-    const out = [];
-    for (let y = firstYear; y <= year + 4; y++) {
-      for (let k = 0; k < parts; k++) {
-        const fi = anchor + ((y - year) * parts + k) * step - from;
-        out.push({ fi, label: reelGridPartLabel(y, k, division.code),
-          future: fi > n - 1 - from, par: ((y * parts + k) % 2 + 2) % 2,
-          year: y, part: k, division: division.code });
-      }
-    }
-    // Permanent reference lines share exactly the same equal-year geometry.
-    // They never alter the selected grid's alternating shading intervals.
-    const permanent = (fi, label, kind) => {
-      let line = out.find(l => Math.abs(l.fi - fi) < 1e-7);
-      if (!line) {
-        line = { fi, future: fi > n - 1 - from, fixedOnly: true };
-        out.push(line);
-      }
-      line[kind] = true;
-      line.label = label;
-    };
-    if (tf === '1H') {
-      for (let y = firstYear; y <= year + 4; y++) {
-        for (let k = 0; k < 4; k++) {
-          permanent(anchor + (y - year + k / 4) * yearBars - from,
-            `Q${k + 1}${k === 0 ? ' ' + y : ''}`, 'quarter');
-        }
-      }
-    } else if (tf === '4H') {
-      for (let y = firstYear; y <= year + 4; y++) {
-        permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
-      }
-    } else if (tf === 'D') {
-      const administrations = { 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
-      for (let y = firstYear; y <= year + 4; y++) {
-        if (((y - 2025) % 4 + 4) % 4 !== 0) continue;
-        permanent(anchor + (y - year) * yearBars - from,
-          administrations[y] ? `${y} · ${administrations[y]}` : String(y), 'admin');
-      }
-    }
-    out.sort((a, b) => a.fi - b.fi);
-    return out;
-  }
+  function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
+  function reelTimeGrid(b, tf) { return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: reelGridDivision }); }
 
 
   // ── Trend strip (2026-09-11, approved from the AVGO preview) ─────────────
@@ -11211,6 +11078,7 @@
     // plotPx is read HERE, while layout is already clean: reading it later in a
     // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
     host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L) };
+    updateChartFreshness(host, bundle, name);
 
     // Park the tool bar just above the trend strip and the date row.
     //
@@ -11682,6 +11550,7 @@
         <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
       </header>
+      ${chartFreshnessHtml(name)}
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
       ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
@@ -11786,6 +11655,7 @@
         </div>
       </header>
 
+      ${chartFreshnessHtml(name)}
       <div class="reel-chart" id="reelChart-${i}">
         <div class="reel-skel"><span></span></div>
       </div>
@@ -13050,6 +12920,8 @@
     const h = Math.round(bar.getBoundingClientRect().height);
     if (h > 0) document.documentElement.style.setProperty('--reel-top', h + 'px');
   }
+  const topbarStack = document.querySelector('.topbar-stack');
+  if (topbarStack && typeof ResizeObserver !== 'undefined') new ResizeObserver(reelSyncTop).observe(topbarStack);
 
   function buildReel() {
     reelSyncTop();

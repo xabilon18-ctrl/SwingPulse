@@ -1,3 +1,43 @@
+# Freshness, saved-work recovery and focused modules — 2026-10-10
+
+App v489 / CSS v361.
+
+Charts disclose three separate times: latest completed bar (start time), latest
+available quote, and successful dataset publication. Watchlist quote labels show
+recent, delayed, missing, or known closed sessions. An old quote alone never
+establishes a closed market, and crypto is treated as continuously trading.
+Failed updates and overdue publication are visible. The Yahoo fetch schedule runs at five minutes past every hour, 24/7
+including weekends. Publication is marked overdue after 90 minutes without a
+successful update, allowing time for the hourly fetch, processing and upload.
+The deployment workflow updates the Cron Worker together with this release.
+
+Time-grid choices are per user and per timeframe, apply across instruments of
+that timeframe, and sync after sign-in. Each choice carries its own edit time;
+changing 1H cannot overwrite the 4H selection. Existing choices migrate from
+`swingpulse-grid-divisions` into namespaced `sp-chart-prefs`. Equal divisions and
+permanent reference lines are unchanged.
+
+The header's Saved work button opens Sync now, Download backup, Choose backup
+file, backup preview and Restore. The app keeps up to five local recovery copies
+and can preview the previous server copy. Restore keeps the current work first;
+invalid files cannot change saved work. Local storage writes roll back on failure.
+Drawings, notes, watchlists and grids sync; views and overlay settings are included
+in downloaded/local backups but remain device-local. Passwords and tokens never
+enter backups. A downloaded file survives clearing browser storage; local recovery
+copies do not. Offline sync keeps local work and clearly offers retry.
+
+Drawing sync batches now run every five minutes instead of four hours. Done,
+Sync now, leaving Charts or backgrounding flush sooner. The Worker merges drawings
+chart by chart, so an older device cannot replace a newer chart or resurrect a
+timestamped deletion. Its retained previous copy remains available for recovery.
+
+Price requests, freshness rules, quote polling, grid preferences/geometry, drawing
+icons/toolbar and saved-work recovery have separate modules. The app coordinator
+and chart renderer remain in app.js. The deployment workflow validates the modules
+and two-device browser behavior, and deploys changed Worker code before the UI.
+These changes preserve timeframe capabilities and market-data publication behavior;
+recommendations 3 and 4 remain for discussion.
+
 # Drawing strip lock and neutral toolbar — 2026-10-09
 
 App v488 / CSS v360 puts Lock/Unlock beside the selected tool in the collapsed
@@ -115,7 +155,10 @@ webapp/
 │   └── index.html         Single-page HTML shell (5 tab panes)
 ├── static/
 │   ├── css/style.css      Full theme system (dark/light), all component styles
-│   └── js/app.js          All client-side logic (IIFE, ~1050 lines)
+│   ├── js/app.js          App coordination and chart renderer
+│   └── js/modules/        Prices, freshness, grids, drawings and saved work
+├── sync-worker/
+│   └── src/               Authenticated API and per-chart saved-work merge
 └── publish/               Generated static site (gitignored)
     ├── index.html
     ├── static/             CSS + JS (with API URLs rewritten to static paths)

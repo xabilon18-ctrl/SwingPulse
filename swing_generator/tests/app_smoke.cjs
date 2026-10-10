@@ -82,7 +82,7 @@ const assert = require('node:assert/strict');
   await page.locator('.reel-grid-menu [data-division="M"]').click();
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await require('./drawing_toolbar_checks.cjs')(page);
-  await page.locator('#chartFull [data-act="chart-full-close"]').click();
+  await require('./saved_work_checks.cjs')(page);
   await page.locator('#tfBtn1H').click();
   await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });
   await page.locator('.nav-tab[data-tab="scanner"]').click();

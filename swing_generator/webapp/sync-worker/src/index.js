@@ -1,3 +1,5 @@
+import { mergeSavedWork } from './saved-work-store.js';
+
 /**
  * SwingPulse Sync Worker
  *
@@ -362,7 +364,7 @@ export default {
 
         // An absent key means "I am not speaking about stars" — a note edit
         // must never carry the starred list as collateral.
-        const merged = { ...prev, ...incoming };
+        const merged = mergeSavedWork(prev, incoming);
         if (nextStars === null) {
           merged.starred = prevStars;
         } else if (nextStars.length === 0 && prevStars.length > 0

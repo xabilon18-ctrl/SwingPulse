@@ -1,13 +1,13 @@
 name: SwingPulse Daily Publish
 
 on:
-  # The stale banner does NOT need to be kept in sync: since app.js v231 it reads
-  # summary.fetched_at against a flat 32h and knows nothing about this schedule.
+  # The app's freshness module warns after 90 minutes without a successful
+  # publication, allowing runtime headroom on the hourly schedule.
   # NOT scheduled here at all since 2026-09-25. GitHub queues cron runs
   # 2.5-5h late (measured Sep 2026), so every run is started by a Cloudflare
   # Cron Trigger (swing_generator/webapp/cron-worker) calling
-  # workflow_dispatch on the minute: every 30 min 05:00-23:00 SAST Mon-Fri,
-  # every hour on the hour all day Sat+Sun. The repo is PUBLIC, which is what
+  # workflow_dispatch at :05 every hour, 24/7 including weekends.
+  # The repo is PUBLIC, which is what
   # makes that many runs free (GitHub Free caps PRIVATE repos at 2,000 min/mo).
 
   # Manual trigger
@@ -24,8 +24,8 @@ on:
         type: boolean
         default: false
 
-# One publish at a time. Eight weekday runs land ~2h apart but GitHub's delay
-# varies by hours, so two can overlap — and two publishes writing the same R2
+# One publish at a time. Slow hourly or manual runs can overlap, and two
+# publishes writing the same R2
 # keys is how the ledger was clobbered 342→43 on 2026-07-10. A run that arrives
 # while one is in flight waits; if a third arrives, GitHub drops the older
 # waiting one, which is fine — the newer run publishes newer data.

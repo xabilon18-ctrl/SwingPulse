@@ -3,6 +3,37 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-10 release: app.js v489 / style.css v361.
+Quote timestamps, latest completed-bar timestamps (bar start), and successful
+dataset publication timestamps are shown separately. Regular-session status is
+only inferred for known equity/currency markets, never from an old quote alone.
+The Cloudflare schedule runs at :05 every hour, 24/7 including weekends.
+Dataset warnings use a 90-minute limit at all times; failed updates show immediately.
+These rules supersede the historical 32-hour notes below.
+
+Per-user grid choices now use `sp-chart-prefs__<user>`, independently timestamped
+per timeframe and merged with authenticated sync. Legacy browser-only choices
+migrate with timestamp zero so they cannot overwrite newer work. Drawings batch
+for five minutes (previously four hours); Done, Sync now, leaving Charts, or
+backgrounding flush sooner. Existing local save and dirty-marker retries remain.
+The Worker merges charts independently and retains its previous synced copy.
+
+Saved work offers JSON download, import preview, explicit restore, and five local
+recovery copies. Restore first saves the current work and writes local storage
+transactionally. Backups exclude authentication credentials. Drawings, notes,
+watchlists and grid choices sync; views and overlay settings are backed up but
+remain device-local. Items 3 (timeframe feature consistency) and 4 (atomic market
+dataset publication) have deliberately not been changed.
+
+Frontend modules live in `webapp/static/js/modules/`: data-client, freshness,
+live-prices, chart-preferences, grid-geometry, drawing-icons, drawing-toolbar and
+saved-work. They are loaded in order by the template before app.js. Keep static
+market-data URL strings in app.js for publish.py's existing rewrite. app.js still
+coordinates the app and chart renderer; this is a focused extraction, not a full
+rewrite. Sync merging is isolated in `sync-worker/src/saved-work-store.js`.
+Tests cover real two-device browser syncing, offline recovery, backup restore,
+toolbar interaction, equal grids, freshness rules and authenticated Worker routes.
+
 2026-10-08 UI update: app.js v483 / style.css v357 remove W, keep ordinary
 year lines uniform, add permanent equal quarter markers on 30m/1H and equal
 four-year administration markers on Daily. The selected grid controls shading;
@@ -80,9 +111,9 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Signal engine | Python (`main.py`) |
 | Web server (local dev) | Flask (`webapp/server.py`, port 5050) |
 | Frontend | Vanilla JS + Chart.js 4.5.1 (exact pin + SRI hash). *Lightweight Charts is NOT used — see Important Rule 2.* |
-| Utility helpers | *(none — `utils.js` was deleted in cfe4013; its helpers live in `app.js`)* |
+| Frontend modules | `static/js/modules/` — bounded requests, quote freshness/polling, per-user preferences, equal grid geometry, drawing icons/toolbar, saved-work backup UI |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | GitHub Actions (`publish.yml`) — cron **9×/day weekdays** (01:35, **07:05**, 09:35, 10:35, 13:05, 14:35, 15:35, 17:05, 18:05 UTC) + 1×/day weekends (08 UTC, crypto) + manual. Crons are set EARLY because GitHub queues them **2.8–4.9h** (measured 2026-09-15/16; later UTC hours queue less), so they land ~08:30, **~14:00**, 16:20, 17:10, 19:35, 20:20, 21:05, 22:05, 22:55 SAST. 3→8 runs on 2026-09-15, 9th (midday/European session) added 2026-09-17. |
+| CI pipeline | Cloudflare Cron Worker dispatches GitHub Actions `publish.yml`. Schedule: **hourly at :05, 24/7**, including weekends; manual runs remain available. See `webapp/cron-worker/wrangler.toml`. |
 | Repo | https://github.com/xabilon18-ctrl/SwingPulse — **the only one.** `xabilon18/SwingPulse` was the original prod repo until 2026-06-01 and is now retired: its publish workflow is disabled, it holds no commits this one lacks, and the local `prod` remote was removed 2026-08-27. Manual run: `gh workflow run publish.yml --repo xabilon18-ctrl/SwingPulse --ref main` |
 
 ---
@@ -104,8 +135,9 @@ swing_generator/
 │   ├── publish.py             # Build + deploy to R2/Pages (PROFILE='ma500', PAGES_PROJECT='swingpulse200')
 │   ├── templates/index.html   # SPA shell — bump BOTH ?v= strings on any UI change
 │   └── static/
-│       ├── js/app.js          # All frontend logic (v256)
-│       └── css/style.css      # All styles (v227; single dark theme)
+│       ├── js/app.js          # App coordinator and chart renderer (v489)
+│       ├── js/modules/        # Price, grids, drawing toolbar, saved work
+│       └── css/style.css      # App/component styles (v361)
 ├── macro_events.py            # FOMC (federalreserve.gov) + FRED release dates
 ├── tests/macro_events_test.py # Offline parser tests + tests/fixtures/fomc_calendar.html
 └── tools/refresh_fomc_fixture.py
