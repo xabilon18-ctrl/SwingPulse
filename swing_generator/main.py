@@ -440,7 +440,7 @@ def _consolidate_short_trends(segments: list[dict], df: pd.DataFrame) -> list[di
     return segments
 
 
-def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4) -> pd.DataFrame:
+def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4, *, completed_only: bool = True) -> pd.DataFrame:
     """Resample hourly OHLCV to 4-hour bars, ANCHORED TO EACH SESSION'S OPEN.
 
     `hours` (2026-10-01): the same construction at another bar length — the 2H
@@ -508,6 +508,10 @@ def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4) -> pd.DataFrame:
     first = pd.Series(idx, index=key).groupby(level=[0, 1]).first()
     resampled.index = pd.DatetimeIndex(first.reindex(resampled.index).to_numpy())
     resampled.index.name = df_hourly.index.name
+    # Only the chart preview requests the open bucket. Signal callers retain
+    # the default finished-period gate below.
+    if not completed_only:
+        return resampled
     # Same rule as the daily timeframe: a bucket still being filled is not a
     # bar. Hourly caches are stored in UTC, so the window test needs no
     # per-exchange timetable. See data_fetcher §"Finished sessions only".

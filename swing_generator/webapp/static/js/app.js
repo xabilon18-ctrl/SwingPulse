@@ -3055,19 +3055,20 @@
     const box = host && host.parentElement && host.parentElement.querySelector('[data-freshness-name]');
     if (!box || !bundle || !bundle.t || !bundle.t.length) return;
     box._barTime = bundle.t[bundle.t.length - 1]; box._barTf = timeframe;
+    box._forming = bundle.forming || null;
     paintChartFreshness(box, name);
   }
   function paintChartFreshness(box, name) {
     if (!box._barTime) return;
-    const bar = freshness.chart(box._barTime, box._barTf);
+    const bar = freshness.chart(box._barTime, box._barTf, Date.now(), box._forming);
     const data = freshness.dataset(summaryData.fetched_at, !!box._updateFailed);
     const q = wlQuote(name), quote = q ? freshness.quote(q.t, quoteInfo(name)) : null;
-    box.querySelector('summary').textContent = (bar.basis === 'local' ? 'Bar start ' + bar.time + ' local' : 'Bar ' + bar.time) + ' · ' + data.label;
+    box.querySelector('summary').textContent = (bar.state ? bar.state + ' · ' : '') + (bar.basis === 'local' ? 'Bar start ' + bar.time + ' local' : 'Bar ' + bar.time) + ' · ' + data.label;
     box.querySelector('.reel-freshness-detail').innerHTML =
       `<div><strong>${escText(bar.label)}</strong><span>${escText(bar.detailTime)} · ${escText(bar.age)}${bar.basis === 'local' ? ' (bar start, your local time)' : ' (market session date)'}</span></div>` +
       `<div><strong>Latest available quote${q ? ' · ' + escText(wlFmtPrice(q.p)) : ''}</strong><span>${quote ? escText(quote.label + ' · ' + quote.detail) : 'Quote unavailable'}</span></div>` +
       `<div><strong>Published chart and signal data</strong><span>${escText(data.detail)}</span></div>` +
-      '<p>Quotes can change before a new completed bar is published.</p>';
+      (bar.state ? '<p>Hourly snapshot. This candle can change; signals use completed candles.</p>' : '<p>Quotes can change before a new completed bar is published.</p>');
   }
   let dataUpdateFailed = false;
   function refreshFreshnessLabels(failed) {
@@ -10666,8 +10667,21 @@
     return out + `<text x="${L.x0 + 4}" y="${L.stripY - 5}" class="reel-strip-lbl">${text}</text>`;
   }
 
+  // Display-only append: published completed arrays and signal indices stay
+  // untouched. Repainting an already-expanded bundle must not append twice.
+  function reelDisplayBundle(bundle) {
+    const f = bundle.forming, n = bundle.t.length;
+    if (!f || !n || f.t <= bundle.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
+    const out = { ...bundle };
+    for (const key of ['t', 'o', 'h', 'l', 'c']) out[key] = [...bundle[key], f[key]];
+    out.mi = [...(bundle.mi || bundle.m[0].map((_, j) => Math.min(j * (bundle.ms || 1), n - 1))), n];
+    out.m = bundle.m.map((series, i) => [...series, f.m?.[i] ?? series[series.length - 1]]);
+    return out;
+  }
+
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
+    bundle = reelDisplayBundle(bundle);
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.

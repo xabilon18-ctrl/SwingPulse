@@ -3,6 +3,14 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-10 release: app.js v492 / style.css v364 / freshness.js v3.
+1H and 4H bundles carry a separate `forming` OHLC/MA snapshot from the existing
+hourly cache. The renderer appends it only for display and labels it Still forming
+(Awaiting final update after its close time). Completed arrays remain unchanged
+for signals, alerts and channel trends. No extra scheduled Yahoo fetches.
+The user approved the working LINKUSD preview for deployment. Golden engine,
+forming/closed-bar separation, refresh, local-time and equal-grid checks passed.
+
 2026-10-10 UI update: app.js v491 / style.css v363 / freshness.js v2. Intraday
 chart freshness and axis labels share the device's local timezone and say local.
 Daily bar labels retain their market-session date. Full-screen footer controls

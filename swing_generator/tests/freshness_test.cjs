@@ -18,6 +18,10 @@ for (const clock of [now,weekend,Date.parse('2026-10-12T01:00:00Z')]) {
 }
 assert.equal(f.dataset(now,true,now).state,'failed');
 assert.equal(f.chart('2026-10-09 10:00','4H',now).label,'Last completed 4H bar');
+const forming={t:'2026-10-10 12:00',closes_at:'2026-10-10T16:00:00Z'};
+assert.equal(f.chart(forming.t,'4H',Date.parse('2026-10-10T15:05Z'),forming).state,'Still forming');
+assert.equal(f.chart(forming.t,'4H',Date.parse('2026-10-10T16:05Z'),forming).state,'Awaiting final update','An old snapshot must never claim it is final');
+assert.equal(f.chart('2026-10-10 08:00','4H',now,forming).state,'');
 const previousZone=process.env.TZ;
 try {
   process.env.TZ='Africa/Johannesburg';

@@ -76,8 +76,11 @@
       ...(zone ? { timeZoneName: 'short' } : {}),
     });
   }
-  function chart(value, tf, now = Date.now()) {
-    return { label: 'Last completed ' + (tf === 'D' ? 'daily' : tf) + ' bar',
+  function chart(value, tf, now = Date.now(), forming = null) {
+    const provisional = !!forming && forming.t === value;
+    const end = provisional ? timestamp(forming.closes_at) : null;
+    const state = provisional ? (end != null && now >= end ? 'Awaiting final update' : 'Still forming') : '';
+    return { label: provisional ? tf + ' candle · ' + state : 'Last completed ' + (tf === 'D' ? 'daily' : tf) + ' bar', state,
       time: chartTime(value, tf), detailTime: chartTime(value, tf, false, true),
       basis: tf === 'D' ? 'session date' : 'local', age: ago(value, now) };
   }
