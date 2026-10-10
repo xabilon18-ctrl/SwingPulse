@@ -9097,8 +9097,9 @@ body {
   position: fixed; inset: 0; z-index: 4000;
   display: none; flex-direction: column;
   background: #ffffff;
+  --chart-bottom-inset: min(env(safe-area-inset-bottom, 0px), 20px);
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
-           env(safe-area-inset-bottom) env(safe-area-inset-left);
+           var(--chart-bottom-inset) env(safe-area-inset-left);
 }
 /* The chrome's colours are re-pointed on the header and footer ONLY, never on
    the whole overlay: .reel-chart is a child of it, and every mark the chart
@@ -9133,14 +9134,11 @@ body {
      the reel. */
   touch-action: none;
 }
-/* The home-bar inset is reserved ONCE, by #chartFull's own padding above. This
-   rule used to add `calc(6px + env(safe-area-inset-bottom))` on top of it, so on
-   a 34pt-inset iPhone the row sat 34pt higher than it should have — 75px of dead
-   white below the 3D / Drawing / ‹ › controls (measured against a simulated
-   34px inset; on a desktop browser both terms are 0 and the bug is invisible).
-   Plain 6px: the controls drop to the safe-area edge and the chart, which is
-   flex: 1, takes the 34pt back. */
-#chartFull .reel-foot  { padding: 6px 10px; }
+/* Cap the home-bar inset at 20pt without shrinking smaller landscape insets.
+   On a 34pt-inset iPhone,
+   controls finish 23pt above the edge, including the border: clear of the home
+   indicator, with 18pt returned to the chart. No-inset devices keep 3pt. */
+#chartFull .reel-foot  { padding: 6px 10px 2px; }
 /* Bigger again full screen — there is room, and this is the screen you read a
    chart on properly. */
 #chartFull .reel-tf-tag { font-size: .95rem; padding: 4px 12px; }

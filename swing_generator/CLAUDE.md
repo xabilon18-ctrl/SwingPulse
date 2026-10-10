@@ -3,6 +3,12 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-10 UI update: app.js v491 / style.css v363 / freshness.js v2. Intraday
+chart freshness and axis labels share the device's local timezone and say local.
+Daily bar labels retain their market-session date. Full-screen footer controls
+sit 18pt lower on an iPhone with a 34pt bottom inset, returning height to the
+chart while retaining clearance above the home indicator. Grid geometry is unchanged.
+
 2026-10-10 UI update: app.js v490 / style.css v362. The main header stays on one
 row on phones. The compact publication timestamp opens full freshness details;
 failed and overdue states remain visible. Screens with their own timeframe

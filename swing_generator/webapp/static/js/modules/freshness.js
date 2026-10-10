@@ -60,10 +60,28 @@
     const overdue = elapsed > 90 * 60000;
     return { state: overdue ? 'stale' : 'ok', label: 'Data updated ' + ago(value, now), detail: 'Last successful update ' + time(value, true) + (overdue ? ' · Update overdue' : '') };
   }
-  function chart(value, tf, now = Date.now()) {
-    return { label: 'Last completed ' + (tf === 'D' ? 'daily' : tf) + ' bar', time: time(value, true), age: ago(value, now) };
+  function chartTime(value, tf, weekday = false, zone = false) {
+    const ms = timestamp(value);
+    if (ms == null) return 'unavailable';
+    // Intraday feed timestamps are UTC instants; display them in the device's
+    // timezone. A daily bar is a market-session date, not midnight to convert.
+    const daily = tf === 'D' || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+    const d = new Date(ms);
+    const date = d.toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', ...(weekday ? { weekday: 'short' } : {}),
+      ...(daily ? { timeZone: 'UTC' } : {}),
+    });
+    return daily ? date : date + ' ' + d.toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      ...(zone ? { timeZoneName: 'short' } : {}),
+    });
   }
-  const api = Object.freeze({ timestamp, age, ago, time, session, quote, dataset, chart });
+  function chart(value, tf, now = Date.now()) {
+    return { label: 'Last completed ' + (tf === 'D' ? 'daily' : tf) + ' bar',
+      time: chartTime(value, tf), detailTime: chartTime(value, tf, false, true),
+      basis: tf === 'D' ? 'session date' : 'local', age: ago(value, now) };
+  }
+  const api = Object.freeze({ timestamp, age, ago, time, session, quote, dataset, chartTime, chart });
   (root.SwingPulseModules ||= {}).freshness = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -3062,9 +3062,9 @@
     const bar = freshness.chart(box._barTime, box._barTf);
     const data = freshness.dataset(summaryData.fetched_at, !!box._updateFailed);
     const q = wlQuote(name), quote = q ? freshness.quote(q.t, quoteInfo(name)) : null;
-    box.querySelector('summary').textContent = 'Bar ' + bar.time + ' · ' + data.label;
+    box.querySelector('summary').textContent = (bar.basis === 'local' ? 'Bar start ' + bar.time + ' local' : 'Bar ' + bar.time) + ' · ' + data.label;
     box.querySelector('.reel-freshness-detail').innerHTML =
-      `<div><strong>${escText(bar.label)}</strong><span>${escText(bar.time)} · ${escText(bar.age)} (bar start)</span></div>` +
+      `<div><strong>${escText(bar.label)}</strong><span>${escText(bar.detailTime)} · ${escText(bar.age)}${bar.basis === 'local' ? ' (bar start, your local time)' : ' (market session date)'}</span></div>` +
       `<div><strong>Latest available quote${q ? ' · ' + escText(wlFmtPrice(q.p)) : ''}</strong><span>${quote ? escText(quote.label + ' · ' + quote.detail) : 'Quote unavailable'}</span></div>` +
       `<div><strong>Published chart and signal data</strong><span>${escText(data.detail)}</span></div>` +
       '<p>Quotes can change before a new completed bar is published.</p>';
@@ -10576,15 +10576,8 @@
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '4H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
-    const str = String(ts);
-    if (!isIntradayTf(timeframe)) return str.slice(0, 10);
-    const hm = str.slice(11, 16);
-    return hm ? reelDayLabel(str) + ' ' + hm : str.slice(0, 10);
-  }
-  function reelDayLabel(ts) {
-    const d = new Date(String(ts).slice(0, 10) + 'T00:00:00Z');
-    return isNaN(d) ? String(ts).slice(5, 10)
-      : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
+    return freshness.chartTime(ts, timeframe, true) + ' local';
   }
   function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
   function reelTimeGrid(b, tf) { return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: reelGridDivision }); }
