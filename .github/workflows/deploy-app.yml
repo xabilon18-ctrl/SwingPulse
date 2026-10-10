@@ -71,6 +71,49 @@ jobs:
               output.write(f'four_hour_required={str(four_hour).lower()}\n')
           print('Market data rebuild required:', required)
           PY
+      - name: Check Cloudflare deployment access
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          from concurrent.futures import ThreadPoolExecutor
+          account = os.environ['CLOUDFLARE_ACCOUNT_ID']
+          headers = {'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN']}
+          endpoints = {
+              'token': '/user/tokens/verify',
+              'pages': f'/accounts/{account}/pages/projects/swingpulse200',
+              'subdomain': f'/accounts/{account}/workers/subdomain',
+              'sync service': f'/accounts/{account}/workers/services/swingpulse-sync',
+              'sync settings': f'/accounts/{account}/workers/scripts/swingpulse-sync/settings',
+              'cron service': f'/accounts/{account}/workers/services/swingpulse-cron',
+              'cron settings': f'/accounts/{account}/workers/scripts/swingpulse-cron/settings',
+          }
+          def check(item):
+              label, path = item
+              try:
+                  req = urllib.request.Request('https://api.cloudflare.com/client/v4' + path, headers=headers)
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      status, data = response.status, json.load(response)
+              except urllib.error.HTTPError as error:
+                  status, data = error.code, json.loads(error.read())
+              except Exception as error:
+                  return label, {'status': 'request failed', 'error': type(error).__name__}
+              report = {'status': status, 'success': data.get('success')}
+              report['errors'] = [{'code': e.get('code'), 'message': str(e.get('message', ''))[:200]} for e in data.get('errors', [])]
+              result = data.get('result') or {}
+              if label == 'token' and isinstance(result, dict):
+                  report['token_status'] = result.get('status')
+                  report['token_id_suffix'] = str(result.get('id', ''))[-8:]
+              if label == 'subdomain' and isinstance(result, dict):
+                  report['subdomain'] = result.get('subdomain')
+              return label, report
+          with ThreadPoolExecutor(max_workers=4) as pool:
+              results = dict(pool.map(check, endpoints.items()))
+          for label, report in results.items():
+              print(label + ': ' + json.dumps(report))
+          if not all(results[label].get('success') for label in ('sync service', 'cron service')):
+              raise SystemExit('Cloudflare Worker access check failed; no production deployment attempted.')
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
