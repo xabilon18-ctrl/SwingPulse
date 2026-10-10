@@ -39,8 +39,6 @@ jobs:
           import os
           import subprocess
           four_hour = False
-          sync_required = True
-          cron_required = True
           if os.environ['GITHUB_EVENT_NAME'] != 'push':
               required = True
           else:
@@ -56,12 +54,6 @@ jobs:
                               'swing_generator/tests/',
                               'swing_generator/webapp/sync-worker/',
                               'swing_generator/webapp/cron-worker/')
-                  sync_required = any(path.startswith('swing_generator/webapp/sync-worker/src/')
-                                      or path == 'swing_generator/webapp/sync-worker/wrangler.toml'
-                                      for path in paths)
-                  cron_required = any(path.startswith('swing_generator/webapp/cron-worker/src/')
-                                      or path == 'swing_generator/webapp/cron-worker/wrangler.toml'
-                                      for path in paths)
                   data_paths = [path for path in paths if path.startswith('swing_generator/')
                                 and not path.startswith(ui_paths)
                                 and not path.endswith('.md')
@@ -77,8 +69,6 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'data_required={str(required).lower()}\n')
               output.write(f'four_hour_required={str(four_hour).lower()}\n')
-              output.write(f'sync_required={str(sync_required).lower()}\n')
-              output.write(f'cron_required={str(cron_required).lower()}\n')
           print('Market data rebuild required:', required)
           PY
       - uses: actions/setup-python@v5
@@ -154,17 +144,19 @@ jobs:
       - name: Restore and verify 4H chart data before deploying the controls
         if: github.ref == 'refs/heads/main' && steps.scope.outputs.four_hour_required == 'true'
         run: python3 swing_generator/tools/publish_four_hour.py
+      # Deploy both services from this release even when an earlier commit
+      # failed before publishing them. Diffing only the last commit misses that.
       - name: Deploy saved-work sync changes
-        if: github.ref == 'refs/heads/main' && steps.scope.outputs.sync_required == 'true'
+        if: github.ref == 'refs/heads/main'
         working-directory: swing_generator/webapp/sync-worker
+        run: npx --yes wrangler@4.45.0 deploy
+      - name: Deploy hourly 24/7 data scheduler
+        if: github.ref == 'refs/heads/main'
+        working-directory: swing_generator/webapp/cron-worker
         run: npx --yes wrangler@4.45.0 deploy
       - name: Deploy UI to existing production Pages project
         if: github.ref == 'refs/heads/main'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch main
-      - name: Deploy hourly 24/7 data scheduler
-        if: github.ref == 'refs/heads/main' && steps.scope.outputs.cron_required == 'true'
-        working-directory: swing_generator/webapp/cron-worker
-        run: npx --yes wrangler@4.45.0 deploy
       - name: Verify the live app and hourly data
         if: github.ref == 'refs/heads/main'
         env:

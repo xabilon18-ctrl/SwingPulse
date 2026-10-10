@@ -34,7 +34,8 @@ timestamped deletion. Its retained previous copy remains available for recovery.
 Price requests, freshness rules, quote polling, grid preferences/geometry, drawing
 icons/toolbar and saved-work recovery have separate modules. The app coordinator
 and chart renderer remain in app.js. The deployment workflow validates the modules
-and two-device browser behavior, and deploys changed Worker code before the UI.
+and two-device browser behavior, and deploys both Workers before the UI so a
+previous failed release cannot leave either service behind.
 These changes preserve timeframe capabilities and market-data publication behavior;
 recommendations 3 and 4 remain for discussion.
 

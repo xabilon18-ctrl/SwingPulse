@@ -68,8 +68,16 @@ const assert = require('node:assert/strict');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
   for (let i = 0; i < 2; i++) {
-    await page.locator('#chartFull .reel-tgrip').waitFor({ state: 'visible' });
-    const grip = await page.locator('#chartFull .reel-tgrip').boundingBox();
+    // Repainting replaces the SVG node, so read visibility and coordinates
+    // together instead of racing waitFor() against a separate boundingBox().
+    const ready = await page.waitForFunction(() => {
+      const el = document.querySelector('#chartFull .reel-tgrip');
+      if (!el) return null;
+      const { x, y, width, height } = el.getBoundingClientRect();
+      return width > 0 && height > 0 ? { x, y, width, height } : null;
+    });
+    const grip = await ready.jsonValue();
+    await ready.dispose();
     await page.mouse.move(grip.x + 12, grip.y + grip.height / 2);
     await page.mouse.down();
     await page.mouse.move(grip.x + grip.width - 8, grip.y + grip.height / 2, { steps: 12 });
