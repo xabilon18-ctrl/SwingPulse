@@ -138,7 +138,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 66px;
+  height: 58px;
   padding: 0 18px;
   background: transparent;                     /* inherits the stack's frosted material */
   border-bottom: 1px solid rgba(255,255,255,.07);
@@ -208,19 +208,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Stand-in for the buttons on tabs the timeframe doesn't drive. Same padding
-   and line-height as .tf-switch-btn so the bar keeps its exact height (the
-   desktop .bottom-nav offset below is hard-synced to it). */
-.tf-switch-note {
-  display: none;
-  flex: 1 1 0;
-  padding: 12px 0;
-  font-size: 13px;
-  line-height: 14px;   /* == .tf-switch-btn's 14px/1 box, so the bar height is identical */
-  text-align: center;
-  color: var(--text-muted);
-  letter-spacing: .02em;
-}
+/* Only show a timeframe row on screens that use these controls. */
+.tf-locked .tf-switch-bar { display: none; }
 /* Sector Radar period tag — says which period the radar covers, because it is
    the one dashboard card that does not follow the timeframe switch. Neutral
    when it matches the tab; amber when it cannot (4H has no radar of its own). */
@@ -249,8 +238,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
    scores are HIDDEN where JavaScript still reads their value, not deleted. */
 .filter-pill[hidden], .sig-adv-label[hidden], .card[hidden], .mp-bd-row[hidden] { display: none !important; }
 .sig-honesty-note { margin: 0 16px 10px; font-size: .72rem; line-height: 1.4; color: var(--text-muted); }
-body.tf-locked .tf-switch-btn  { display: none; }
-body.tf-locked .tf-switch-note { display: block; }
 /* Desktop: the toggle spanned the full window — the largest thing on screen. */
 @media (min-width: 768px) {
   .tf-switch { max-width: 460px; margin: 0 auto; }
@@ -295,7 +282,13 @@ body.tf-locked .tf-switch-note { display: block; }
   42% { transform: scale(1.35); opacity: 1; }
 }
 
-.topbar-left, .topbar-center, .topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.topbar-left { flex: 1; }
+.topbar-right { flex: none; gap: 4px; }
+.topbar .icon-btn { flex: none; width: 44px; height: 44px; border: 0; background: transparent; box-shadow: none; }
+.topbar .icon-btn:hover { background: rgba(255,255,255,.06); }
+.topbar .sync-name { height: 44px; max-width: 100px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.topbar :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
 .profile-badge {
@@ -324,50 +317,39 @@ body.tf-locked .tf-switch-note { display: block; }
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpolyline points='2,14 7,8 11,12 18,5' stroke='white' stroke-width='2.5' fill='none'/%3E%3C/svg%3E") center/80% no-repeat;
 }
 
+.header-freshness { min-width: 0; }
 .date-badge {
-  font-size: .75rem;
-  font-weight: 700;
-  padding: 5px 12px;
-  background: rgba(251,191,36,.1);
-  color: #fbbf24;
-  border: 1px solid rgba(251,191,36,.2);
-  border-radius: 20px;
-  letter-spacing: .03em;
-  white-space: nowrap;
-  box-shadow: 0 0 10px rgba(251,191,36,.08);
+  display: flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 4px;
+  font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: var(--text-secondary); white-space: nowrap; cursor: pointer;
+  list-style: none; border-radius: 8px;
 }
+.date-badge::-webkit-details-marker { display: none; }
+.date-badge::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+.header-freshness[data-state="ok"] .date-badge::before { background: var(--buy); }
+.header-freshness[data-state="stale"] .date-badge { color: var(--accent); }
+.header-freshness[data-state="stale"] .date-badge::before { background: var(--accent); }
+.header-freshness[data-state="failed"] .date-badge { color: var(--sell); }
+.header-freshness[data-state="failed"] .date-badge::before { background: var(--sell); }
+.header-freshness[open] .date-badge { background: rgba(255,255,255,.06); }
 
-/* ── Topbar mobile: two-row layout ─────────────────────────────────── */
+/* One compact row, with room for every action on small phones. */
 @media (max-width: 600px) {
   .topbar {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 10px 14px 0;
-    gap: 0;
+    flex-wrap: nowrap; height: 56px; padding: 0 10px; gap: 4px;
   }
-  /* Row 1: left takes all space, right stays right */
-  .topbar-left  { order: 1; flex: 1; gap: 8px; padding-bottom: 8px; }
-  .topbar-right { order: 2; gap: 8px; padding-bottom: 8px; }
-  /* Row 2: tf-toggle spans full width */
-  .topbar-center {
-    order: 3;
-    width: 100%;
-    border-top: 1px solid var(--glass-border);
-    padding: 6px 0 8px;
-  }
-  .topbar-center .tf-toggle {
-    width: 100%;
-    border-radius: 10px;
-  }
-  .topbar-center .tf-btn {
-    flex: 1;
-    padding: 8px 0;
-    font-size: .82rem;
-    text-align: center;
-  }
+  .topbar-left { gap: 8px; }
+  .topbar-right { gap: 2px; }
+  .topbar .sync-name { width: 44px; padding: 0 3px; font-size: 12px; letter-spacing: 0; }
   .logo-text { display: none; }
-  .date-badge { font-size: .75rem; padding: 6px 10px; }
-  .icon-btn { width: 34px; height: 34px; }
+}
+@media (max-width: 360px) {
+  .topbar { padding: 0 8px; gap: 2px; }
+  .topbar-left { gap: 5px; }
+  .topbar-right { gap: 0; }
+  .topbar .icon-btn { width: 36px; }
+  .date-badge { font-size: 11px; gap: 5px; padding: 0 2px; }
 }
 
 /* Timeframe toggle (D / W) */
@@ -9981,7 +9963,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 
 /* Freshness disclosures and saved-work recovery. */
-.data-health { padding: 3px 12px; color: var(--text-muted); font: 500 11px/1.4 system-ui; border-bottom: 1px solid var(--border); background: var(--bg-base); }
+.data-health { position: absolute; top: calc(100% - 2px); left: 10px; width: max-content; max-width: calc(100vw - 20px); z-index: 2; padding: 12px 14px; color: var(--text-secondary); font: 500 12px/1.6 system-ui; white-space: pre-line; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); box-shadow: 0 8px 24px #0006; }
 .data-health[data-state="stale"], .data-health[data-state="failed"] { color: var(--sell); }
 .reel-data-status { position: relative; flex: 0 0 auto; margin: 0 10px 4px; font: 500 10px/1.5 system-ui; color: #656b73; }
 .reel-data-status summary { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 3px 0; }

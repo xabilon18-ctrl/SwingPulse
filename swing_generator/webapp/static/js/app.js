@@ -2592,13 +2592,9 @@
     });
   }
 
-  // Tabs the timeframe toggle does NOT drive. Trends is built from daily trend
-  // segments (trends.json), so the switch sat there doing nothing — it now says
-  // what timeframe you're actually looking at instead of offering a dead choice.
-  const TF_LOCKED_TABS = { trends: 'Daily · trend history is daily-only',
-                           watchlist: 'Latest prices · updated every run',
-                           scanner: 'Alerts · 1H and Daily',
-                           dashboard: 'Market · updated every run' };
+  // These screens have their own filters or use daily data. Keep their header
+  // to one row instead of reserving space for a non-interactive caption.
+  const TF_LOCKED_TABS = new Set(['trends', 'watchlist', 'scanner', 'dashboard']);
   // Point sectorRadarData at the active timeframe's payload, and say on the
   // card which period it covers.
   //
@@ -2630,10 +2626,7 @@
   }
 
   function syncTfLock() {
-    const note = TF_LOCKED_TABS[currentTab] || '';
-    document.body.classList.toggle('tf-locked', !!note);
-    const el = document.getElementById('tfSwitchNote');
-    if (el) el.textContent = note;
+    document.body.classList.toggle('tf-locked', TF_LOCKED_TABS.has(currentTab));
   }
 
   // A reader's choice: only timeframes this tab can show, remembered per side.
@@ -3043,6 +3036,17 @@
       _refreshBtn.classList.remove('spinning');
     }
   });
+  document.addEventListener('click', event => {
+    const disclosure = document.getElementById('headerFreshness');
+    if (disclosure?.open && !disclosure.contains(event.target)) disclosure.open = false;
+  });
+  document.addEventListener('keydown', event => {
+    const disclosure = document.getElementById('headerFreshness');
+    if (event.key === 'Escape' && disclosure?.open) {
+      disclosure.open = false;
+      document.getElementById('dateBadge').focus();
+    }
+  });
 
   function chartFreshnessHtml(name) {
     return `<details class="reel-data-status" data-freshness-name="${escText(name)}"><summary>Chart times loading…</summary><div class="reel-freshness-detail"></div></details>`;
@@ -3070,7 +3074,21 @@
     if (typeof failed === 'boolean') dataUpdateFailed = failed;
     const data = freshness.dataset(summaryData.fetched_at, dataUpdateFailed);
     const line = document.getElementById('dataHealth');
-    if (line) { line.textContent = data.label + (data.state === 'stale' ? ' · Update overdue' : ''); line.title = data.detail; line.dataset.state = data.state; }
+    const stamp = freshness.timestamp(summaryData.fetched_at);
+    const date = stamp == null ? null : new Date(stamp);
+    const fullTime = date ? date.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : '';
+    const detail = data.label + (data.state === 'stale' ? ' · Update overdue' : '') + (fullTime ? '\nLast successful update: ' + fullTime : '');
+    if (line) { line.textContent = detail; line.dataset.state = data.state; }
+    const badge = document.getElementById('dateBadge');
+    if (badge) {
+      badge.textContent = data.state === 'failed' ? 'Update failed' : date
+        ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : 'No update';
+      badge.title = detail;
+      badge.setAttribute('aria-label', detail + '. Show update details');
+    }
+    const disclosure = document.getElementById('headerFreshness');
+    if (disclosure) disclosure.dataset.state = data.state;
     document.querySelectorAll('[data-freshness-name]').forEach(box => { box._updateFailed = dataUpdateFailed; paintChartFreshness(box, box.dataset.freshnessName); });
   }
   setInterval(() => { if (!document.hidden) refreshFreshnessLabels(); }, 60000);
@@ -3274,19 +3292,6 @@
       marketData = (marketRes && marketRes.i) ? marketRes : null;
       channelTrend = (trendChRes && trendChRes.tf && trendChRes.tf.D) ? trendChRes : null;
 
-      const dateStr = sumRes.date || '--';
-      let timeStr = '';
-      if (sumRes.fetched_at) {
-        // Accept both "2026-07-02T19:54:00Z" (published) and "2026-07-02 19:54" (local dev)
-        const d = new Date(sumRes.fetched_at.includes('T') ? sumRes.fetched_at : sumRes.fetched_at.replace(' ', 'T'));
-        if (!isNaN(d.getTime())) {
-          // hour12 pinned so a device's 24-hour clock setting can't change the header format
-          timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-        } else {
-          timeStr = sumRes.fetched_at.split(' ')[1] || '';
-        }
-      }
-      document.getElementById('dateBadge').textContent = dateStr + (timeStr ? ' \u00B7 ' + timeStr : '');
       syncSessionLabel(sumRes.fetched_at);
 
       // Staleness warning: compare data AGE against the CI schedule, not the
@@ -3382,7 +3387,6 @@
     } catch (e) {
       console.error('Failed to load data:', e);
       refreshFreshnessLabels(true);
-      document.getElementById('dateBadge').textContent = 'Error loading data';
       const grid = document.getElementById('scannerGrid');
       if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
     } finally {

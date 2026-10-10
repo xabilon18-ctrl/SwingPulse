@@ -3,6 +3,12 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-10 UI update: app.js v490 / style.css v362. The main header stays on one
+row on phones. The compact publication timestamp opens full freshness details;
+failed and overdue states remain visible. Screens with their own timeframe
+filters no longer reserve a header row for static captions. Charts retain the
+global 1H / 4H / Daily switch. Refresh, calendar, backups and user remain accessible.
+
 2026-10-10 release: app.js v489 / style.css v361.
 Quote timestamps, latest completed-bar timestamps (bar start), and successful
 dataset publication timestamps are shown separately. Regular-session status is
