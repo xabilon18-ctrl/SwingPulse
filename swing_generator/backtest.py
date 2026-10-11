@@ -42,9 +42,10 @@ from instruments import load_instruments, asset_class_of
 from main import (_resample_4h, _h4_ma_periods, _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d)
 from signals import add_signals
+from workflow_signals import add_workflow_signals, RULE_VERSION
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIDENCE_MAP_PATH = os.path.join(BASE_DIR, 'confidence_map.json')
+CONFIDENCE_MAP_PATH = os.path.join(BASE_DIR, 'confidence_map_workflow.json')
 
 # ---------------------------------------------------------------------------
 # Trade simulation parameters
@@ -309,6 +310,7 @@ def _collect_trades(df: pd.DataFrame, tf: str, name: str, asset_class: str,
         outcome['instrument'] = name
         outcome['signal']     = sig
         outcome['tf']         = tf
+        outcome['rule_version'] = RULE_VERSION if tf in ('D', '4H') else 'legacy-research'
         outcome['class']      = asset_class
         outcome.update(_fire_context(df, i, ma_periods, other_trend, fire_tf=tf))
         trades.append(outcome)
@@ -322,56 +324,29 @@ def backtest_instrument(ticker: str, name: str, group: str,
     asset_class = asset_class_of(group)
     frames: dict[str, tuple] = {}
 
-    # ── DAILY — mirror main.py: full-ribbon indicators, clipped-ribbon signals ──
+    # Replay the same finished frames and MA500 rule as production.
     if tf_filter in (None, 'D'):
         path = _cache_path(ticker)
         if os.path.exists(path):
-            # Same guard as the live fetcher: a Yahoo bar with volume but NaN
-            # OHLC blanks every rolling MA in its window. Reading the cache raw
-            # would let one back into the replay and diverge from production.
-            df = _drop_priceless(pd.read_parquet(path))
-            if len(df) >= 250:
-                df = add_all_indicators(df)
-                df = _add_atr(df)
-                d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
-                # RIBBON GATE, lowered 3 -> 2 on 2026-09-09 with the ribbon cut to three
-                # lines. `p <= len(df)` clips the ribbon to available bars, so a
-                # short-history frame keeps only the fast lines. Under the 20-MA ribbon
-                # a frame with 300 bars still kept twelve periods and sailed past a
-                # `>= 3` gate; under [50, 250, 500] it keeps exactly two and the gate
-                # would have silently produced NO SIGNALS AT ALL. Measured over the
-                # 812-instrument cache: 141 instruments (17%) would have lost every
-                # Weekly signal and 53 every 3-Day signal. Two lines is a real, if
-                # shallow, ribbon — max() still gives an anchor and min() a fast edge —
-                # so it fires, exactly as a clipped 20-MA ribbon used to.
-                if len(d_ma_periods) >= 2:
-                    df = add_signals(df, ma_periods=d_ma_periods,
-                                     **TF_SIGNAL_PARAMS['D'])
-                    frames['D'] = (df, d_ma_periods)
+            from data_fetcher import scale_daily
+            from data_fetcher import drop_unfinished_daily
+            df = drop_unfinished_daily(scale_daily(ticker, _drop_priceless(pd.read_parquet(path))))
+            if len(df) >= 500:
+                df = add_workflow_signals(_add_atr(add_all_indicators(df)), tf='D')
+                frames['D'] = (df, [50, 250, 500])
 
-    # ── 4H — mirror main.py: resample hourly cache, clip ribbon ──
     if tf_filter in (None, '4H'):
-        # h4_ticker/_h4_ma_periods mirror main.py exactly — the 4H feed may come
-        # from a 24h contract (H4_SOURCE) and the ribbon may be session-scaled
-        # (H4_SESSION_NORMALIZE). Replaying the raw cache with raw MA_PERIODS
-        # would grade a different geometry than production fires on, and
-        # confidence_map.json would stop matching the live engine.
-        h_path = _cache_path(h4_ticker(ticker), suffix='1h')
-        if os.path.exists(h_path):
-            hourly = _drop_priceless(pd.read_parquet(h_path))
-            if len(hourly) >= 200:
-                h4 = _resample_4h(hourly)
-                h4_ma_periods = _h4_ma_periods(h4, ticker)
-                # Gate is 2, not 3 — see the ribbon-gate note at the Daily gate above.
-                if len(h4_ma_periods) >= 2:
-                    h4 = add_all_indicators(h4, ma_periods=h4_ma_periods)
-                    h4 = _add_atr(h4)
-                    h4 = add_signals(h4, ma_periods=h4_ma_periods,
-                                     **TF_SIGNAL_PARAMS['4H'])
-                    frames['4H'] = (h4, h4_ma_periods)
+        from data_fetcher import load_1h
+        from main import _frame_4h
+        hourly = load_1h(ticker)
+        if hourly is not None and not hourly.empty:
+            h4 = _frame_4h(hourly)
+            if len(h4) >= 500:
+                h4 = add_workflow_signals(_add_atr(add_all_indicators(h4)), tf='4H')
+                frames['4H'] = (h4, [50, 250, 500])
 
     # ── 1H — mirror main.py: the hourly cache itself, ribbon session-scaled ──
-    if tf_filter in (None, '1H'):
+    if tf_filter == '1H':
         h_path = _cache_path(h4_ticker(ticker), suffix='1h')
         if os.path.exists(h_path):
             hourly = _drop_priceless(pd.read_parquet(h_path))
@@ -390,7 +365,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
     # Same reasoning as Weekly below: built through the production helper so the
     # replay and the live run phase their bars identically, and the in-progress
     # group is dropped inside _resample_3d.
-    if tf_filter in (None, '3D'):
+    if tf_filter == '3D':
         path = _cache_path(ticker)
         if os.path.exists(path):
             d3src = _drop_priceless(pd.read_parquet(path))
@@ -408,7 +383,7 @@ def backtest_instrument(ticker: str, name: str, group: str,
     # Built from `frames['D']`'s source rather than re-read, so the replay and
     # production resample identically. The unfinished-week drop lives in
     # _resample_weekly, so a backtest never grades a part-formed bar either.
-    if tf_filter in (None, 'W'):
+    if tf_filter == 'W':
         path = _cache_path(ticker)
         if os.path.exists(path):
             wsrc = _drop_priceless(pd.read_parquet(path))
@@ -565,7 +540,7 @@ def aggregate(trades: list[dict], since: Optional[date]) -> dict:
             'time_stop_bars': TIME_STOP_BARS,
             'slippage_pct':   SLIPPAGE_PCT,
             'since':          str(since) if since else 'full history',
-            'engine':         'production-parity add_signals',
+            'engine':         RULE_VERSION if all(t.get('rule_version') == RULE_VERSION for t in trades) else 'legacy-research',
         },
         'sample_size_warning': overall['total_trades'] < 30,
         'generated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),

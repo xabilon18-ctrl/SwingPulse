@@ -32,6 +32,7 @@ import pandas as pd
 from _active_config import OUTPUT_DIR
 from indicators import round_price
 from instruments import load_instruments, asset_class_of
+from workflow_signals import RULE_VERSION
 
 LEDGER_PATH  = os.path.join(OUTPUT_DIR, 'signal_ledger.json')
 SUMMARY_PATH = os.path.join(OUTPUT_DIR, 'ledger_summary.json')
@@ -201,12 +202,14 @@ def _event_in_window(name: str, fire_date: str, tf: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # Recording fires
 # ---------------------------------------------------------------------------
-def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time=''):
+def _make_record(name, ticker, group, tf, code, conf, fire_date, fire_time='', rule_version=''):
     return {
         # Keyed by DATE, not fire_time: one fire per instrument/code/day, the
         # same dedup the ledger has always used. Keying on the timestamp would
         # mint a second id for fires already recorded before fire_time existed.
-        'id':          f'{fire_date}|{tf}|{name}|{code}',
+        'id':          (f'{rule_version}|{fire_time or fire_date}|{tf}|{name}|{code}'
+                        if rule_version else f'{fire_date}|{tf}|{name}|{code}'),
+        'rule_version': rule_version or 'legacy',
         'instrument':  name,
         'ticker':      ticker,
         'group':       group,
@@ -230,10 +233,16 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
     added = 0
     for tf, sig_col, conf_col, date_col, ts_col in (
         ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
+        ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date', 'h4_datetime'),
         # 4H stopped recording 2026-09-11 and Weekly 2026-09-24 (timeframes
         # removed). Older records of both stay, and open Weekly ones keep being
         # graded — _price_frame still resamples 'W'.
     ):
+        rule_version = str(row.get('signal_rule_version') or '').strip()
+        if rule_version != RULE_VERSION:
+            rule_version = ''
+        if tf == '4H' and not rule_version:
+            continue
         code = str(row.get(sig_col) or '').strip()
         fire_date = str(row.get(date_col) or '').strip()
         if not code or code.lower() == 'nan' or not fire_date:
@@ -246,7 +255,7 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
         rec = _make_record(row.get('instrument_name', ''), ticker,
                            str(row.get('group') or ''), tf, code,
                            str(row.get(conf_col) or '').strip(), fire_date,
-                           fire_time)
+                           fire_time, rule_version)
         existing = records.get(rec['id'])
         if existing is None:
             records[rec['id']] = rec
@@ -274,7 +283,7 @@ def record_fires(records: dict, output_df: pd.DataFrame) -> int:
 # ---------------------------------------------------------------------------
 # Grading
 # ---------------------------------------------------------------------------
-def _load_tf_frame(ticker: str, tf: str):
+def _load_tf_frame(ticker: str, tf: str, rule_version: str = ''):
     """Price frame with ATR for one ticker/timeframe, or None."""
     # Deferred imports — main.py imports this module, and backtest.py imports
     # main; importing backtest at module level would make the cycle bite.
@@ -284,11 +293,22 @@ def _load_tf_frame(ticker: str, tf: str):
     # Explicitly three-way. This used to be `if D / else 4H`, which was right
     # while those were the only timeframes and would have silently graded every
     # weekly fire against 4H bars the moment a third one existed.
-    if tf == 'D':
+    if rule_version == RULE_VERSION and tf == '4H':
+        from data_fetcher import load_1h
+        from main import _frame_4h
+        hourly = load_1h(ticker)
+        if hourly is None or hourly.empty:
+            return None
+        df = _frame_4h(hourly)
+    elif tf == 'D':
         path = _cache_path(ticker)
         if not os.path.exists(path):
             return None
         df = pd.read_parquet(path)
+        if rule_version == RULE_VERSION:
+            from data_fetcher import scale_daily
+            from data_fetcher import drop_unfinished_daily
+            df = drop_unfinished_daily(scale_daily(ticker, df))
     elif tf == 'W':
         path = _cache_path(ticker)
         if not os.path.exists(path):
@@ -326,6 +346,8 @@ def _fire_index(df: pd.DataFrame, rec: dict):
         pos = df.index.searchsorted(ts, side='left')
         if pos < len(df) and df.index[pos] == ts:
             return int(pos), True
+        if rec.get('rule_version') == RULE_VERSION:
+            return None, False
         # Timestamp not in this frame (cache rebuilt / resample boundary moved)
         # — fall through to the date-level match rather than dropping the fire.
 
@@ -430,11 +452,11 @@ def grade_open_records(records: dict) -> int:
 
     by_key: dict = {}
     for r in open_recs:
-        by_key.setdefault((r['ticker'], r['tf']), []).append(r)
+        by_key.setdefault((r['ticker'], r['tf'], r.get('rule_version', 'legacy')), []).append(r)
 
     changed = 0
-    for (ticker, tf), recs in by_key.items():
-        df = _load_tf_frame(ticker, tf)
+    for (ticker, tf, version), recs in by_key.items():
+        df = _load_tf_frame(ticker, tf, version)
         if df is None:
             continue
         for rec in recs:
@@ -489,7 +511,7 @@ def _bucket_stats(recs: list) -> dict:
 def write_summary(records: dict) -> dict:
     from backtest import TIME_STOP_BARS   # deferred — see _load_tf_frame
 
-    recs = list(records.values())
+    recs = [r for r in records.values() if r.get('rule_version') == RULE_VERSION]
     by_signal: dict = {}
     by_code: dict = {}
     for r in recs:
@@ -497,6 +519,8 @@ def write_summary(records: dict) -> dict:
         by_code.setdefault(r['code'], []).append(r)
 
     summary = {
+        'rule_version': RULE_VERSION,
+        'legacy_fires': len(records) - len(recs),
         'generated_at': _now(),
         'totals': {
             'fires':    len(recs),

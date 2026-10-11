@@ -657,6 +657,10 @@ def build_data(output_dir, src_signals_dir=None):
         traceback.print_exc()
         raise
 
+    # Every publisher (scheduled or manual) must validate the new workflow
+    # before the first upload; warnings cannot leave old alert files mixed in.
+    from tools.validate_workflow_release import validate as validate_workflow
+    validate_workflow(output_dir)
     return dt, fetched_at
 
 

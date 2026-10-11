@@ -94,10 +94,10 @@ const assert = require('node:assert/strict');
   await page.locator('#tfBtn1H').click();
   await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });
   await page.locator('.nav-tab[data-tab="scanner"]').click();
-  await page.locator('[data-al-tf="1H"], [data-al-key="tf"][data-al-val="1H"]').first().waitFor({ timeout: 15000 }).catch(async () => {
-    // Alert chips use a shared data-al-* handler; inspect their rendered text.
-    assert.ok((await page.locator('#pane-scanner').innerText()).includes('1H'), 'Alerts offers 1H');
-  });
+  await page.locator('.al-chips [data-al-tf="4H"]').waitFor();
+  await page.locator('.al-chips [data-al-tf="D"]').waitFor();
+  assert.equal(await page.locator('.al-chips [data-al-tf="1H"]').count(), 0, '1H is linked entry context, not a standalone signal stream');
+  assert.ok((await page.locator('#alertsPane').innerText()).includes('linked 1H entry detail'));
   assert.equal(await page.locator('[data-al-tf="30m"]').count(), 0);
   await page.locator('.nav-tab[data-tab="watchlist"]').click();
   assert.equal(await page.locator('[data-wl-ttf="30m"]').count(), 0);

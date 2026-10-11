@@ -9988,3 +9988,40 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .saved-work-panel [data-work-restore] { background: #20252b; color: #fff; }
 .saved-work-panel [data-work-message] { min-height: 18px; color: #46515e; }
 .saved-work-panel [data-work-history] { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; font: 400 12px system-ui; }
+/* Shared Daily main-trend context, with the chart's smaller direction separate. */
+.sp-trend-context { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; line-height:1.45; margin-top:4px; }
+.sp-trend-context b { font-weight:650; white-space:nowrap; }
+.sp-trend-context>span { color:#85858b; font-weight:450; }
+.sp-trend-context .up { color:#15996c; }
+.sp-trend-context .down { color:#e25454; }
+.sp-trend-context .flat { color:#85858b; }
+.sp-trend-context.compact { gap:6px; font-size:10px; margin-top:3px; }
+.sp-main-counts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:4px 14px 10px; }
+.sp-main-count { border:1px solid #7773; border-radius:12px; padding:12px 5px; background:transparent; color:inherit; font:inherit; text-align:center; cursor:pointer; }
+.sp-main-count>span { display:block; font-size:11px; }
+.sp-main-count>b { display:block; font-size:25px; line-height:1.6; }
+.sp-main-count>small { display:block; font-size:9px; color:#929298; }
+.sp-main-count[data-mk-main="UPTREND"]>b { color:#15996c; }
+.sp-main-count[data-mk-main="DOWNTREND"]>b { color:#e25454; }
+.sp-main-count:focus-visible { outline:2px solid #fbbf24; outline-offset:2px; }
+.sp-setup-card{display:flex;flex-direction:column;gap:9px;padding:16px;margin:10px 0;border:1px solid var(--border,#ddd);border-radius:16px;background:var(--bg-card,#fff)}
+.sp-setup-card>p{margin:0;font-size:13px}.sp-setup-card>small,.sp-entry-direction{font-size:12px;color:var(--text-muted,#757575)}
+.sp-setup-levels{display:flex;flex-wrap:wrap;gap:5px;font-size:11px}.sp-setup-levels>span{padding:4px 7px;background:rgba(127,127,127,.09);border-radius:6px}
+.sp-setup-actions{display:flex;gap:8px}.sp-setup-actions>.al-row{padding:9px;text-align:center;flex:1;border:1px solid var(--border,#ddd);border-radius:9px}
+
+/* Compact shared MA-cluster control and setup context. */
+.sp-cluster-filter{position:relative;margin:6px 0;font-size:12px;flex-shrink:0}
+.sp-cluster-filter summary{cursor:pointer;list-style:none;border:1px solid var(--border);border-radius:18px;padding:8px 12px;display:inline-block;color:var(--text-primary);background:var(--bg-card)}
+.sp-cluster-filter summary::after{content:' ▾';opacity:.55}
+.sp-cluster-pop{position:absolute;top:100%;left:0;z-index:80;width:min(310px,85vw);padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--bg-card);box-shadow:0 8px 24px #0003}
+.sp-cluster-pop small{display:block;line-height:1.5;opacity:.7;margin:8px 0}
+.sp-cluster-options{display:flex;flex-wrap:wrap;gap:6px}
+.sp-cluster-options button{font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:12px;background:transparent;color:inherit;cursor:pointer}
+.sp-cluster-options button.on{background:#ffca28;color:#161616;border-color:#ffca28}
+.sp-cluster-badge{display:block;font-size:10px;line-height:1.5;color:#807022;white-space:normal}
+.sp-cluster-badge>span{display:block;font-size:11px}
+.sp-cluster-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.sp-cluster-counts .sp-main-count{padding:8px 5px}
+.sp-cluster-row{display:block;width:100%;text-align:left;background:transparent;color:inherit;border:0;border-top:1px solid var(--border);padding:10px 0;cursor:pointer}
+.sp-cluster-market{padding:14px}
+#reelClusters .sp-cluster-filter{margin:0}
