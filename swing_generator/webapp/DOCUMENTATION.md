@@ -1,3 +1,44 @@
+# Daily main trend, 4H swings and MA clusters — prepared 2026-10-11
+
+App v493 / CSS v365. Prepared locally; publication is a separate step.
+
+Daily main trend means the completed Daily close relative to Daily MA500 across
+Watchlist, Charts, Alerts and Market. A new Daily close across that average
+confirms B1 (upward) or S1 (downward), with highest alert priority. Selecting 4H
+or 1H does not change the main-trend label or filter. The native 4H direction
+comes from its own completed close relative to its 500-bar average; a confirmed
+cross of D50 against the Daily direction also identifies an earlier minor swing.
+Moves with Daily are aligned; moves against Daily are minor trends. Both appear.
+MA order is a separate filter and does not define main trend.
+
+Alerts offers Daily and 4H, with linked 1H entry context. Completed crossings
+and same-side touch/rejection closes identify interactions with D50/250/500,
+W50/250/500 and M50. Weekly and Monthly levels receive the same consideration
+as Daily levels; the Daily reference alone names the main trend. W50 means
+50 weekly closes and M50 means 50 monthly closes. History too short for a
+level leaves it unavailable. Forming periods and projected overlay values
+never confirm these events.
+
+The MA-cluster filter is shared across all four tabs: any cluster, mixed
+timeframes, price nearby, 4H crossing or 4H rejection. At least two averages
+must fit within an adjustable total width of 0.25, 0.5 or 1 Daily ATR (14).
+Weekly/Monthly-only clusters qualify. Crossings must clear the whole zone;
+rejections touch it and close back on the prior side. Cards name the members,
+price range and interaction. These are descriptive setup rules, not a promise
+of profitable entries. There is no chosen minimum extension or risk/reward rule.
+
+The ledger separates `daily500-4h-v1` Daily/4H records from legacy records.
+Historical performance from the old rules is not evidence for this workflow.
+The new replay checks engine/feed agreement; it does not validate the returns
+of a complete cluster-based entry/exit strategy. Time grids and saved lines
+remain context without new automatic ranking weights. Pushes still announce
+data updates/calendar events, not individual buy/sell instructions.
+
+Full data builds run `tools/validate_workflow_release.py` before uploading.
+Deployment rebuilds signals, chart context and the ledger summary before the
+updated screens are published. UI-only deployment is not sufficient for this
+release. The hourly fetch schedule and stored user drawings/grids are retained.
+
 # Freshness, saved-work recovery and focused modules — 2026-10-10
 
 App v489 / CSS v361.

@@ -64,6 +64,8 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
                   _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods,
                   _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
+from trend_context_feed import frame_context, workflow_context, workflow_alerts
+from setup_context import reference_history, attach_setup_context
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -213,7 +215,7 @@ def _ma_frame(df: pd.DataFrame, periods: list[int]) -> dict[int, pd.Series]:
 
 
 def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
-            with_volume: bool = False, bars: int = BARS) -> dict | None:
+            with_volume: bool = False, bars: int = BARS, context_tf: str | None = None) -> dict | None:
     """Columnar OHLC + ribbon for the last `bars` rows of an indicator-ready df.
 
     The reel draws no volume — these charts are read as price against the
@@ -241,10 +243,18 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
         'h':  [_round(v) for v in tail['High']],
         'l':  [_round(v) for v in tail['Low']],
         'c':  [_round(v) for v in tail['Close']],
+        **({'context': frame_context(df, context_tf)} if context_tf else {}),
+        **({'analysis': {key: [_round(v, 12) for v in tail[col]]
+                        for key, col in [('c','Close'),('h','High'),('l','Low')]}}
+           if context_tf in ('1H', '4H') else {}),
         'p':  periods,
         'ms': MA_STRIDE,
         'mi': keep,
         'm':  [[_round(v) for v in mas[p].tail(bars).iloc[keep]] for p in periods],
+        # Signal calculations need each completed day's value. Interpolating
+        # the display ribbon between sampled points would read future days.
+        **({'am': [[_round(v, 12) for v in mas[p].tail(bars)] for p in periods]}
+           if context_tf == 'D' else {}),
         **({'v': [int(v) if pd.notna(v) and math.isfinite(v) else 0
                   for v in tail['Volume']]}
            if with_volume and 'Volume' in tail.columns else {}),
@@ -259,8 +269,9 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
-    out = _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'])
+    out = _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'], context_tf='D')
     if out:
+        out['references'] = reference_history(df)
         # Higher-timeframe MA lines for the overlay: Weekly 50/250/500 and
         # Monthly 50 only (user, 2026-09-28: "the monthly with a 50MA thicker
         # than them all"; a Monthly 250/500 is ~21/42 years, never warm).
@@ -416,7 +427,7 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     n_carry = int((frame.index > cutoff).sum()) or len(frame)
     warm_cap = len(frame) - max(periods)
     bars = min(n_carry, BARS_BY_TF['1H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars), df_1h, frame, 1)
+    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H'), df_1h, frame, 1)
 
 
 def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
@@ -436,7 +447,7 @@ def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
         return None
     warm_cap = len(frame) - max(periods)
     bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars), df_1h, frame, 4)
+    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='4H'), df_1h, frame, 4)
 
 
 def build_2h(cache_dir: str, ticker: str) -> dict | None:
@@ -812,7 +823,10 @@ def cross_marks(b15: dict, bd: dict, hold: int = XM_HOLD) -> list[dict]:
     n, on, C = len(bt), len(ot), b15['c']
     mi = bd.get('mi') or [min(j * (bd.get('ms') or 1), on - 1) for j in range(len(bd['m'][0]))]
     dm = []
-    for series in bd['m']:
+    for k, series in enumerate(bd['m']):
+        if bd.get('am') and k < len(bd['am']) and len(bd['am'][k]) == on:
+            dm.append(bd['am'][k])
+            continue
         full = [None] * on
         for j, v in enumerate(series):
             if v is None:
@@ -1042,6 +1056,19 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     except Exception as exc:
         raise RuntimeError('Hourly chart markers could not be built') from exc
 
+    attach_setup_context(built)
+    four_hour_events = {}
+    for tf in ('D', '4H'):
+        for name, bundle in built.get(tf, {}).items():
+            positions = {t: i for i, t in enumerate(bundle['t'])}
+            bundle['sg'] = [[positions[e['at']], e['code']] for e in bundle.get('context', {}).get('events', []) if e['at'] in positions]
+            if tf == '4H':
+                dates = sorted({str(t)[:10] for t in bundle['t']})
+                since = dates[-2] if len(dates) > 1 else dates[-1]
+                recent = [e for e in bundle.get('context', {}).get('events', []) if e['code'] in ('B1', 'S1') and e['at'][:10] >= since]
+                if recent:
+                    four_hour_events[name] = {'s': [recent[-1]['code'], recent[-1]['at']]}
+
     # Alerts tab (2026-09-27): every marker above as a listed alert, with what
     # price did after it. A failure costs the Alerts tab, never the chart feed.
     try:
@@ -1053,6 +1080,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         # 30m + Daily only: the chart-only 1H/2H have no alerts (and would
         # cost the base-rate pass over every bar for nothing).
         alerts = build_alerts({tf: built.get(tf, {}) for tf in ('30m', '1H', 'D')}, d_fires)
+        alerts.update(workflow_alerts(built))
         _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
         stats['alerts'] = len(alerts['ev'])
     except Exception as exc:
@@ -1068,7 +1096,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', '4H', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
-        payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since}
+        payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
         # Currency focus (2026-10-05): the strongest vs weakest major currency index
         # and the pairs their cross current runs through. A failure costs the card.
         try:
@@ -1082,6 +1110,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         print(f'  WARN trend_channels.json not built: {exc}')
 
     for tf, bundles in built.items():
+        # Full precision OHLC is only needed while building setup context.
+        # Keep phone downloads compact; display arrays remain unchanged.
+        for bundle in bundles.values():
+            bundle.pop('analysis', None)
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
         grouped: dict[int, dict] = {}
@@ -1096,7 +1128,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
                'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
-               'events_by_tf': {'30m': events, '1H': hourly_events},
+               'events_by_tf': {'30m': events, '1H': hourly_events, '4H': four_hour_events},
                'near': near_ma_map(built.get('D', {}))})
 
     return stats

@@ -3,6 +3,38 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-11 prepared release (not yet published): app.js v493 / style.css v365.
+The shared workflow is Daily main trend, 4H swing/setup, and linked 1H entry
+context. Main trend uses the completed Daily close against Daily MA500 on
+every tab; it does not follow the selected chart timeframe or MA order.
+`workflow_signals.py` defines `daily500-4h-v1`: Daily and 4H B1/S1 crossings
+plus compatible native pullbacks. Daily trend changes rank first. A confirmed
+4H D50 crossing can identify a minor swing before the native 4H MA500 crosses;
+an opposing Daily direction never automatically suppresses that setup.
+
+`webapp/setup_context.py` supplies causal completed D50/250/500, W50/250/500,
+and M50 references, distances and closed 4H/1H crossings or rejections.
+Weekly and Monthly periods have equal standing as setup levels. A cluster
+can consist of Weekly/Monthly levels without Daily. Cluster width is adjustable
+at 0.25, 0.5 or 1 Daily ATR (14); the whole zone must fit that width. Missing
+history is unavailable, never replaced with a shorter average. Display-only
+forming/projection values cannot confirm a signal. Grids and drawn lines stay
+available as context; no new automatic timing/line priority weights are implied.
+
+`webapp/trend_context_feed.py` and `trend-context.js` share the context across
+Watchlist, Charts, Alerts and Market. Prefer the latest full-precision Daily
+chart context over an older row summary. Signal ledger IDs and statistics carry
+the new rule version; legacy outcomes are excluded from new-rule performance.
+`backtest.py` defaults to the production Daily/4H workflow and writes its own
+confidence map. Run the workflow replay/tests when changing these rules.
+
+Every full `publish.build_data()` now runs `tools/validate_workflow_release.py`
+before upload. It requires new-version signal rows, matching completed context,
+4H reference coverage and versioned ledger statistics. The app-release workflow
+must rebuild/validate data before publishing the v493 screens. Hourly Yahoo
+fetches, forming-candle display, drawing/grid persistence and data-update/calendar
+push notifications remain as before; individual trade push alerts are not added.
+
 2026-10-10 release: app.js v492 / style.css v364 / freshness.js v3.
 1H and 4H bundles carry a separate `forming` OHLC/MA snapshot from the existing
 hourly cache. The renderer appends it only for display and labels it Still forming

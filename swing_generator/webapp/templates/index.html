@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=364">
+  <link rel="stylesheet" href="/static/css/style.css?v=365">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -147,8 +147,8 @@
         </div>
         <div class="gauge-tooltip" id="gaugeTooltip" style="display:none">
           <strong>Market Pulse Score (0–100)</strong><br>
-          Three components, computed on the active timeframe:<br>
-          • Trend balance — uptrends vs downtrends (0–50)<br>
+          Daily main-trend balance plus the selected signal timeframe:<br>
+          • Daily main-trend balance — uptrends vs downtrends (0–50)<br>
           • Signal direction — buy share of active B/S signals (0–30)<br>
           • Bonus — volume spikes (0–20)
         </div>
@@ -537,17 +537,17 @@
               <option value="all">All Sectors</option>
             </select>
           </label>
-          <label class="sig-adv-label">Trend
+          <label class="sig-adv-label">Main trend · Daily
             <select class="sig-adv-select" id="scannerTrendFilter">
-              <option value="all">All Trends</option>
+              <option value="all">All main trends</option>
               <option value="UPTREND">Uptrend</option>
               <option value="DOWNTREND">Downtrend</option>
-              <option value="NEUTRAL">Neutral</option>
+              <option value="NEUTRAL">Unavailable</option>
             </select>
           </label>
           <label class="sig-adv-label">MA Stack
             <select class="sig-adv-select" id="scannerStackFilter">
-              <option value="all">Any stack</option>
+              <option value="all">Any MA order</option>
               <option value="bull">Bull — 50 › 250 › 500</option>
               <option value="bear">Bear — 500 › 250 › 50</option>
               <option value="mixed">Mixed</option>
@@ -591,7 +591,7 @@
       <div class="signal-legend">
         <div class="sig-legend-group">
           <div class="sig-legend-title">Signal Types</div>
-          <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Price crossed all MAs (MA__SIG_SHORTEST__–MA__SIG_LONGEST__)</div>
+          <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Completed close crossed MA500. Daily confirms the main trend; 4H changes setup direction.</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B2/S2</span> <strong>Fast MA</strong> — Pullback recovery / rally rejection at MA__SIG_SHORTEST__</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B3/S3</span> <strong>Mid-ribbon</strong> — Bounce/rejection off MA__SIG_MID__</div>
           <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
@@ -617,6 +617,7 @@
         </select>
       </div>
       <div class="wl2-lists wl2-trend" id="wl2Trend"></div>
+      <div id="wl2Clusters"></div>
       <div id="wl2Body" class="wl2-body"></div>
     </section>
 
@@ -727,10 +728,10 @@
                 <button class="reel-opt" data-scope="signal">Any open signal</button>
                 <button class="reel-opt" data-scope="buy">Buys only</button>
                 <button class="reel-opt" data-scope="sell">Sells only</button>
-                <button class="reel-opt" data-scope="watch">Watch flagged</button>
-                <button class="reel-opt" data-scope="m15sig">Intraday B1 / S1 · last 2 sessions</button>
-                <button class="reel-opt" data-scope="dxpre">Intraday touched a Daily MA · last 2 sessions</button>
-                <button class="reel-opt" data-scope="dxafter">Intraday crossed a Daily MA · last 2 sessions</button>
+                <button class="reel-opt" data-scope="watch">Minor 4H swings</button>
+                <button class="reel-opt" data-scope="m15sig">4H B1 / S1 · last 2 sessions</button>
+                <button class="reel-opt" data-scope="dxpre">1H touched a Daily MA · last 2 sessions</button>
+                <button class="reel-opt" data-scope="dxafter">1H crossed a Daily MA · last 2 sessions</button>
               </div>
             </div>
           </details>
@@ -756,22 +757,31 @@
           </details>
 
           <details class="filter-pill" id="reelPillTrend">
-            <summary>Trend<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <summary>Main trend<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
             <div class="filter-pop">
               <div class="reel-opts" id="reelTrendOpts">
-                <button class="reel-opt active" data-trend="all">Any trend</button>
+                <button class="reel-opt active" data-trend="all">Any main trend</button>
                 <button class="reel-opt" data-trend="UPTREND">▲ Uptrend</button>
                 <button class="reel-opt" data-trend="DOWNTREND">▼ Downtrend</button>
-                <button class="reel-opt" data-trend="NEUTRAL">— Neutral</button>
+                <button class="reel-opt" data-trend="NEUTRAL">— Unavailable</button>
               </div>
             </div>
           </details>
+          <details class="filter-pill" id="reelPillRelation">
+            <summary>4H direction<span class="fp-val"></span></summary>
+            <div class="filter-pop"><div class="reel-opts" id="reelRelationOpts">
+              <button class="reel-opt active" data-relation="all">All 4H directions</button>
+              <button class="reel-opt" data-relation="aligned">Aligned with main trend</button>
+              <button class="reel-opt" data-relation="minor">Minor trend against main</button>
+            </div></div>
+          </details>
 
+          <div id="reelClusters"></div>
           <details class="filter-pill" id="reelPillStack">
-            <summary>Stack<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
+            <summary>MA order<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
             <div class="filter-pop">
               <div class="reel-opts" id="reelStackOpts">
-                <button class="reel-opt active" data-stack="all">Any stack</button>
+                <button class="reel-opt active" data-stack="all">Any MA order</button>
                 <button class="reel-opt" data-stack="bull">Bull — 50 › 250 › 500</button>
                 <button class="reel-opt" data-stack="bear">Bear — 500 › 250 › 50</button>
                 <button class="reel-opt" data-stack="mixed">Mixed</button>
@@ -908,13 +918,14 @@
 
   <script src="/static/js/modules/data-client.js?v=1"></script>
   <script src="/static/js/modules/freshness.js?v=3"></script>
+  <script src="/static/js/modules/trend-context.js?v=1"></script>
   <script src="/static/js/modules/live-prices.js?v=1"></script>
   <script src="/static/js/modules/chart-preferences.js?v=1"></script>
   <script src="/static/js/modules/drawing-icons.js?v=1"></script>
   <script src="/static/js/modules/drawing-toolbar.js?v=1"></script>
   <script src="/static/js/modules/grid-geometry.js?v=1"></script>
   <script src="/static/js/modules/saved-work.js?v=1"></script>
-  <script src="/static/js/app.js?v=492"></script>
+  <script src="/static/js/app.js?v=493"></script>
 </body>
 </html>
 

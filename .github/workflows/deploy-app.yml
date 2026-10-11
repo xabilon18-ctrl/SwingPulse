@@ -132,6 +132,10 @@ jobs:
           python3 tests/golden_test.py
           python3 tests/macro_events_test.py
           python3 tests/hourly_test.py
+          python3 tests/trend_context_feed_test.py
+          python3 tests/workflow_setup_test.py
+          node tests/trend_context_test.cjs
+          node tests/ma_clusters_test.cjs
           python3 tests/four_hour_test.py
           node --check webapp/static/js/app.js
           node tests/time_grid_test.cjs
@@ -170,6 +174,7 @@ jobs:
           python3 main.py --profile ma500 --no-publish
           python3 webapp/publish.py --build-only
           python3 tools/validate_hourly_release.py
+          python3 tools/validate_workflow_release.py
           python3 tools/shape_audit.py --snapshot "$(ls -t output_ma500/signals_????-??-??.csv | head -1)" --only data
       - name: Publish validated data to existing R2 bucket
         if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'

@@ -57,6 +57,7 @@ from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
 from indicators    import add_all_indicators, price_decimals
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
+from workflow_signals import add_workflow_signals, RULE_VERSION
 from output_writer import write_output
 
 # ---------------------------------------------------------------------------
@@ -949,8 +950,18 @@ def _compute_4h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
     holds '4H|' tiers from the retired re-firing 4H; these take 'standard'."""
     if df_1h is None or df_1h.empty:
         return None
-    return _intraday_state(_frame_4h(df_1h), 'h4_', '4h', SIGNAL_LOOKBACK_4H,
-                           asset_class, run_date)
+    frame = _frame_4h(df_1h)
+    if frame.empty:
+        return None
+    frame = add_workflow_signals(add_all_indicators(frame, ma_periods=[50, 250, 500]), tf='4H')
+    data, _ = _extract_row(frame, run_date, prefix='h4_', ma_periods=[50, 250, 500], signal_lookback=SIGNAL_LOOKBACK_4H)
+    if data is None:
+        return None
+    recent = frame[frame.primary_signal.ne('')]
+    recent = recent[recent.index >= frame.index[-1] - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
+    fires = [(stamp, row.primary_signal, row.signal_confidence, row.confirmation_status) for stamp, row in recent.iterrows()]
+    all_fires = [[stamp.strftime('%Y-%m-%d %H:%M'), code] for stamp, code in frame.loc[frame.primary_signal.ne(''), 'primary_signal'].items()]
+    return data, fires, all_fires
 
 
 def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
@@ -1043,10 +1054,9 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
         # Weekly signal and 53 every 3-Day signal. Two lines is a real, if
         # shallow, ribbon — max() still gives an anchor and min() a fast edge —
         # so it fires, exactly as a clipped 20-MA ribbon used to.
-        if len(d_ma_periods) >= 2:
-            df = add_signals(df, ma_periods=d_ma_periods,
-                             refire_pct=0.05, new_trend_pct=0.05,
-                             tf='D', asset_class=_asset_cls)
+        # An insufficient Daily MA500 history is unavailable, never a shorter
+        # average silently substituted as the main-trend anchor.
+        df = add_workflow_signals(df, tf='D')
 
         # ── TREND SEGMENTS (B1/S1 established_trend regimes — needs add_signals
         # to have run; falls back to ribbon trend_direction when it couldn't) ──
@@ -1099,6 +1109,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             _d_fires = [[str(pd.Timestamp(ts).date()), code] for ts, code in _fs.items()]
 
         row = {
+            'signal_rule_version': RULE_VERSION,
             '_d_fires':         _d_fires,
             'instrument_name':  inst_meta['name'],
             'group':            inst_meta.get('group', ''),
@@ -1196,7 +1207,7 @@ def _engine_hash() -> str:
     import hashlib
     h = hashlib.sha256()
     here = os.path.dirname(os.path.abspath(__file__))
-    for f in ('main.py', 'signals.py', 'indicators.py', 'key_levels.py', 'config.py',
+    for f in ('main.py', 'signals.py', 'workflow_signals.py', 'indicators.py', 'key_levels.py', 'config.py',
               '_active_config.py', 'instruments.py', 'data_fetcher.py', 'confidence_map.json'):
         try:
             with open(os.path.join(here, f), 'rb') as fh:
@@ -1342,13 +1353,25 @@ def _process_worker(args: tuple) -> tuple:
                 h1_state = None
             rc.update(h1_fp=h1_fp, h1_state=h1_state)
             hit_h1 = False
-        stale_h = [k for k in ('m15_fp', 'm15_state', 'h4_fp', 'h4_state') if k in rc]
+        h4_fp = _fp('4H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
+        if rc.get('h4_fp') == h4_fp:
+            h4_state, hit_h4 = rc['h4_state'], True
+        else:
+            try:
+                h4_state = _compute_4h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
+            except Exception as exc:
+                print(f'  WARN {ticker} 4H setups unavailable: {exc}')
+                h4_state = None
+            rc.update(h4_fp=h4_fp, h4_state=h4_state)
+            hit_h4 = False
+        stale_h = [k for k in ('m15_fp', 'm15_state') if k in rc]
         for k in stale_h:
             rc.pop(k, None)
-        if stale_h or not (hit_d and hit_5 and hit_h1):
+        if stale_h or not (hit_d and hit_5 and hit_h1 and hit_h4):
             _rowcache_save(ticker, rc)
         row = ({**row_d, **_live_intraday(state),
-                **_live_intraday(h1_state, prefix='h1_')} if row_d else None)
+                **_live_intraday(h1_state, prefix='h1_'),
+                **_live_intraday(h4_state, prefix='h4_')} if row_d else None)
         if row is not None:
             row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
             row['_h1_fires'] = list(h1_state[2]) if h1_state and len(h1_state) > 2 else []
@@ -1360,7 +1383,7 @@ def _process_worker(args: tuple) -> tuple:
             m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
             # 15m/1H/4H gone 2026-09-30 — naming their hit flags here crashed
             # every instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
-            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1))
+            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
             status_str = f'OK{d_tag}{m5_tag}{reuse}'.strip()

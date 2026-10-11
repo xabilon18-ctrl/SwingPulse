@@ -144,7 +144,7 @@
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
-    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
+    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
@@ -163,7 +163,7 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['1H', 'D']);
+  const SIGNAL_TFS = new Set(['4H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1126,7 +1126,7 @@
     try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null'); wlStore = v && Array.isArray(v.lists) ? v : { lists: [], mod: 0 }; }
     catch (_) { wlStore = { lists: [], mod: 0 }; }
   }
-  const wlUi = { list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
+  const wlUi = { cluster: 'all', list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
   if (wlUi.ttf === '30m') wlUi.ttf = '1H';
@@ -1352,16 +1352,16 @@
     document.getElementById('wl2Lists').innerHTML = pills.join('');
     document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
       `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
-    // Trend filter (2026-10-04, user: "include the filter in the first two tabs"):
-    // the user's channel read, on the timeframe picked here.
+    // Main trend is always Daily; smaller-timeframe context is separate.
     const trEl = document.getElementById('wl2Trend');
-    if (trEl) trEl.innerHTML = (channelTrend
-      ? [['1H', '1H'], ['4H', '4H'], ['D', 'Daily']].map(([k, l]) =>
-          `<button class="wl2-chip wl2-ttf${wlUi.ttf === k ? ' on' : ''}" data-wl-ttf="${k}">${l}</button>`).join('') +
-        '<span class="wl2-sep"></span>'
-      : '') +
-      [['all', 'Any trend'], ['UPTREND', '▲ Up'], ['DOWNTREND', '▼ Down'], ['NEUTRAL', '— Neutral']].map(([k, l]) =>
-        `<button class="wl2-chip${wlUi.trend === k ? ' on' : ''}" data-wl-trend="${k}">${l}</button>`).join('');
+    if (trEl) trEl.innerHTML =
+      [['all', 'Main: All'], ['UPTREND', 'Main ▲'], ['DOWNTREND', 'Main ▼'], ['NEUTRAL', 'Unavailable']].map(([k, l]) =>
+        `<button class="wl2-chip${wlUi.trend === k ? ' on' : ''}" data-wl-trend="${k}" title="Daily main trend">${l}</button>`).join('') +
+      '<span class="wl2-sep"></span>' +
+      [['all', '4H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']].map(([k, l]) =>
+        `<button class="wl2-chip${(wlUi.relation || 'all') === k ? ' on' : ''}" data-wl-relation="${k}">${l}</button>`).join('');
+    const clusters = document.getElementById('wl2Clusters');
+    if (clusters) clusters.innerHTML = clusterFilterHtml('watchlist', wlUi.cluster);
     const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
 
@@ -1407,7 +1407,10 @@
     if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index');
     else if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
     if (wlUi.trend && wlUi.trend !== 'all')
-      rows = rows.filter(d => (channelTrendOf(d.instrument_name, wlUi.ttf) || effectiveTrend(d)) === wlUi.trend);
+      rows = rows.filter(d => mainTrendOf(d) === wlUi.trend);
+    if (wlUi.relation && wlUi.relation !== 'all')
+      rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:wlUi.relation}));
+    rows = rows.filter(row => clusterMatches(row, wlUi.cluster));
     const q = wlUi.q.trim().toLowerCase();
     if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
       || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
@@ -1433,7 +1436,7 @@
       const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
       return `<button class="wl2-row" data-wl-row="${escText(n)}">
         ${wlBadge(n, d.asset_class)}
-        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span></span>
+        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span>${trendContextHtml(d, '4H', true)}${clusterBadgeHtml(d)}</span>
         <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
           <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span></span>
       </button>`;
@@ -1657,6 +1660,8 @@
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
       const tp = t.closest('[data-wl-trend]');
       if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
+      const rp = t.closest('[data-wl-relation]');
+      if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
       const ttp = t.closest('[data-wl-ttf]');
       if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
@@ -1809,30 +1814,28 @@
   // built with the chart feed. effectiveTrend() reads it first.
   let channelTrend = null;
   function channelTrendOf(name, tf) {
-    const ct = channelTrend && channelTrend.tf;
-    if (!ct) return null;
-    const m = ct[tf] || ct.D;
-    return m ? (m[name] || 'NEUTRAL') : null;
+    const row = allData.find(item => item.instrument_name === name);
+    return tf === 'D' ? mainTrendOf(row) : SPTrendContext.native(row, tf, channelTrend);
   }
   // The bar the current trend's leg starts on (the same rule), for the label's age
   // and the trend strip. Absent for NEUTRAL.
   function channelSinceOf(name, tf) {
-    const s = channelTrend && channelTrend.since;
-    const m = s && (s[tf] || s.D);
-    return (m && m[name]) || null;
+    const row = allData.find(item => item.instrument_name === name);
+    return SPTrendContext.snapshot(row, tf, channelTrend)?.since || null;
   }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
-  const AL_TFS = ['1H', 'D'];
-  const alUi = { scope: 'mine', tf: 'all', kind: 'all', more: 0 };
+  const AL_TFS = ['4H', 'D'];
+  const AL_LINE_TFS = ['1H', '4H', 'D'];
+  const alUi = { cluster: 'all', scope: 'mine', tf: 'all', kind: 'all', more: 0, main: 'all', relation: 'all' };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
-  if (alUi.tf === '30m') alUi.tf = '1H';
+  if (alUi.tf === '30m' || alUi.tf === '1H') alUi.tf = '4H';
   alUi.more = 0;
   const alTfOk = () => { if (alUi.tf !== 'all' && !AL_TFS.includes(alUi.tf)) alUi.tf = 'all'; };
   alTfOk();   // a saved 15m/1H/4H chip would otherwise match nothing
-  const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind })); } catch (_) {} };
+  const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind, main: alUi.main, relation: alUi.relation, cluster: alUi.cluster })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '1H': '1H', 'D': 'Daily' };
+  const AL_TF_LBL = { '1H': '1H entry', '4H': '4H setup', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -1864,8 +1867,9 @@
 
   // Plain-English line for one alert.
   function alText(kind, p, dir, tf) {
-    if (kind === 'B1') return `<b class="al-up">B1 buy</b> · ${AL_TF_LBL[tf]}`;
-    if (kind === 'S1') return `<b class="al-dn">S1 sell</b> · ${AL_TF_LBL[tf]}`;
+    if (kind === 'B1') return `<b class="al-up">B1 · ${tf === 'D' ? 'Main trend turns up' : '4H direction turns up'}</b>`;
+    if (kind === 'S1') return `<b class="al-dn">S1 · ${tf === 'D' ? 'Main trend turns down' : '4H direction turns down'}</b>`;
+    if (/^[BS][234]$/.test(kind)) return `<b class="${kind[0] === 'B' ? 'al-up' : 'al-dn'}">${kind} pullback</b> · ${AL_TF_LBL[tf]}`;
     if (kind === 'X')  return dir > 0 ? `<b class="al-up">Crossed up through D${p}</b> · held 1h`
                                       : `<b class="al-dn">Crossed down through D${p}</b> · held 1h`;
     return `<b class="al-touch">Touched D${p}</b> from ${dir > 0 ? 'above' : 'below'}`;
@@ -1921,7 +1925,7 @@
       const item = allData.find(r => r.instrument_name === name);
       const atr = item && +item.atr_pct > 0 ? q.p * +item.atr_pct / 100 : q.p * 0.003;
       const seen = new Set();
-      for (const tf of AL_TFS) {
+      for (const tf of AL_LINE_TFS) {
         // Auto-placed channels (seed, tools/place_channels.py) sit on ~every chart:
         // left out, or Alerts loads every chunk and lists thousands of rule lines.
         // A dragged one loses `seed` and alerts like any drawing of the user's.
@@ -1956,30 +1960,195 @@
       `<button class="al-chip${cur === v ? ' on' : ''}" data-al-${group}="${v}">${lbl}</button>`).join('');
   }
 
+  // Shared definition across all tabs, independent of chart zoom and price scale.
+  let clusterWidth = 0.25;
+  try { const saved=Number(localStorage.getItem('swingpulse-cluster-width')); if ([0.25,0.5,1].includes(saved)) clusterWidth=saved; } catch (_) {}
+  const CLUSTER_OPTIONS = [['all','All instruments'],['any','Has MA cluster'],['multi','Mixed timeframes'],['near','Price near cluster'],['crossed','4H crossed cluster'],['rejected','4H rejected cluster']];
+  function clusterMatches(row, mode) { return SPTrendContext.matchesCluster(row, channelTrend, mode, clusterWidth); }
+  function clusterFilterHtml(scope, mode) {
+    const label=CLUSTER_OPTIONS.find(([k])=>k===mode)?.[1] || 'All instruments';
+    return `<details class="sp-cluster-filter filter-pill"><summary>MA clusters${mode==='all'?'':' · '+label}</summary><div class="sp-cluster-pop filter-pop" data-cluster-scope="${scope}">
+      <div class="sp-cluster-options">${CLUSTER_OPTIONS.map(([k,l])=>`<button data-cluster-mode="${k}" class="${mode===k?'on':''}">${l}</button>`).join('')}</div>
+      <small>Maximum gap between the outer averages, compared with the usual daily range.</small>
+      <div class="sp-cluster-options">${[[0.25,'Tight · ¼ range'],[0.5,'Medium · ½ range'],[1,'Wide · 1 range']].map(([v,l])=>`<button data-cluster-width="${v}" class="${clusterWidth===v?'on':''}">${l}</button>`).join('')}</div>
+      <small>Daily 50/250/500 · Weekly 50/250/500 · Monthly 50. Completed periods only. Missing history is excluded.</small>
+    </div></details>`;
+  }
+  function clusterBadgeHtml(row, detailed=false) {
+    const found=SPTrendContext.clusters(row,channelTrend,clusterWidth), zone=found.zones[0];
+    if (!zone) return '';
+    const status={crossed:'4H crossed '+zone.side,rejected:'4H rejected '+(zone.side==='up'?'upward':'downward'),touched:'4H touched',near:'Price nearby',away:'Away from price'}[zone.state];
+    return `<span class="sp-cluster-badge" title="Confirmed higher-timeframe averages · ${escText(found.asOf)}">MA cluster · ${zone.members.map(m=>m.id).join(' + ')}${detailed?`<span>${wlFmtPrice(zone.lo)}–${wlFmtPrice(zone.hi)} · ${status}</span>`:''}</span>`;
+  }
+  function clusterMarketHtml() {
+    const covered=allData.filter(row=>SPTrendContext.clusters(row,channelTrend,clusterWidth).available).length;
+    const choices=[['any','With clusters'],['near','Near price'],['crossed','4H crossings'],['rejected','4H rejections']];
+    const counts=choices.map(([mode,label])=>`<button class="sp-main-count" data-cluster-open="${mode}"><span>${label}</span><b>${allData.filter(row=>clusterMatches(row,mode)).length}</b></button>`).join('');
+    const rows=allData.filter(row=>clusterMatches(row,mkUi.cluster));
+    return `<section class="card sp-cluster-market"><div class="card-header"><h3>Moving-average clusters</h3></div><div class="sp-cluster-counts">${counts}</div>
+      ${clusterFilterHtml('market',mkUi.cluster)}<p class="mk-note">Available for ${covered} of ${allData.length} instruments. Daily main trend stays separate.</p>
+      ${rows.slice(0,8).map(row=>`<button class="sp-cluster-row" data-cluster-instrument="${escText(row.instrument_name)}"><b>${escText(row.instrument_name)}</b>${trendContextHtml(row,'4H',true)}${clusterBadgeHtml(row,true)}</button>`).join('')}
+    </section>`;
+  }
+  function minorSwingCards(lists, scope) {
+    if (alUi.tf==='D' || !['all','ma'].includes(alUi.kind)) return '';
+    return allData.filter(row=>SPTrendContext.snapshot(row,'4H',channelTrend)?.setup?.minorOpportunity &&
+      (scope!=='mine'||row.instrument_name in lists) && clusterMatches(row,alUi.cluster) &&
+      SPTrendContext.matches(row,channelTrend,{main:alUi.main,relationship:alUi.relation})).slice(0,30).map(row=>{
+      const event=SPTrendContext.snapshot(row,'4H',channelTrend).setup.minorOpportunity;
+      return `<article class="sp-setup-card"><b>${escText(row.instrument_name)} · Minor ${event.direction==='UPTREND'?'buy':'sell'} setup</b>${setupContextHtml(row)}
+        <p>4H crossed Daily 50 ${event.direction==='UPTREND'?'upward':'downward'} · ${alWhen(event.at)}. Check the 1H entry and space to the next average.</p>
+        <button class="al-row" data-al-open="${escText(row.instrument_name)}" data-al-tf="1H" data-al-at="${escText(event.at)}">1H entry detail ›</button></article>`;
+    }).join('');
+  }
+  document.addEventListener('click', e=>{
+    const mode=e.target.closest('[data-cluster-mode]'), width=e.target.closest('[data-cluster-width]');
+    if (mode || width) {
+      const scope=(mode||width).closest('[data-cluster-scope]')?.dataset.clusterScope;
+      if (width) { clusterWidth=Number(width.dataset.clusterWidth); try { localStorage.setItem('swingpulse-cluster-width',String(clusterWidth)); } catch (_) {} }
+      if (mode) {
+        if (scope==='watchlist') { wlUi.cluster=mode.dataset.clusterMode; wlSaveUi(); }
+        if (scope==='charts') reel.cluster=mode.dataset.clusterMode;
+        if (scope==='alerts') { alUi.cluster=mode.dataset.clusterMode; alSaveUi(); }
+        if (scope==='market') { mkUi.cluster=mode.dataset.clusterMode; try { localStorage.setItem('swingpulse-mk-ui',JSON.stringify(mkUi)); } catch (_) {} }
+      }
+      renderWatchlist(); buildReel(); renderAlerts(); renderMarketToday();
+      return;
+    }
+    const open=e.target.closest('[data-cluster-open]'), instrument=e.target.closest('[data-cluster-instrument]');
+    if (open || instrument) {
+      const names=allData.filter(row=>clusterMatches(row,open?.dataset.clusterOpen||mkUi.cluster)).map(row=>row.instrument_name);
+      const name=instrument?.dataset.clusterInstrument||names[0];
+      if (name) openChartFor(name,{label:'MA clusters',names});
+    }
+  });
+
+  function mainTrendOf(item) { return SPTrendContext.daily(item, channelTrend); }
+  function trendContextHtml(item, tf = '4H', compact = false, prefix = 'Main') {
+    const c = SPTrendContext.context(item, channelTrend);
+    const main = `${prefix} ${SPTrendContext.glyph(c.main)} ${SPTrendContext.label(c.main)}`;
+    const dir = tf === '1H' ? c.h1 : c.h4;
+    const detail = tf === 'D' ? 'Daily · confirmed close' :
+      (dir === 'NEUTRAL' ? `${tf} direction unclear` : SPTrendContext.relationText(c.main, dir, tf));
+    const color = c.main === 'UPTREND' ? 'up' : c.main === 'DOWNTREND' ? 'down' : 'flat';
+    return `<span class="sp-trend-context${compact ? ' compact' : ''}" data-main-trend="${c.main}" title="Daily main trend as of ${escText(c.asOf || 'unavailable')}"><b class="${color}">${main}</b><span>${detail}</span></span>`;
+  }
+
+  function mainTrendMarketHtml() {
+    const options = [['UPTREND', 'Main uptrend'], ['DOWNTREND', 'Main downtrend'], ['NEUTRAL', 'Unavailable']];
+    const counts = options.map(([direction, label]) => {
+      const rows = allData.filter(row => mainTrendOf(row) === direction);
+      const aligned = rows.filter(row => SPTrendContext.context(row, channelTrend).h4Relation === 'aligned').length;
+      const minor = rows.filter(row => SPTrendContext.context(row, channelTrend).h4Relation === 'minor').length;
+      return `<button class="sp-main-count" data-mk-main="${direction}"><span>${label}</span><b>${rows.length}</b><small>${direction === 'NEUTRAL' ? 'Daily history needed' : `4H · ${aligned} aligned · ${minor} minor${rows.length - aligned - minor ? ' · ' + (rows.length - aligned - minor) + ' unavailable' : ''}`}</small></button>`;
+    }).join('');
+    return `<section class="card sp-main-summary"><div class="card-header"><h3>Daily main trends</h3></div><div class="sp-main-counts">${counts}</div><p class="mk-note">Daily sets the main trend. 4H shows the setup direction; 1H shows the entry detail.</p></section>`;
+  }
+
+  function workflowRowValues() {
+    if (!channelTrend?.workflow_version) return;
+    for (const row of allData) for (const tf of ['D', '4H']) {
+      const snapshot = SPTrendContext.snapshot(row, tf, channelTrend);
+      const prefix = tf === 'D' ? '' : 'h4_';
+      // Old full-ribbon B1/S1 must not be presented as Daily-500 reversals.
+      row[prefix + 'primary_signal'] = '';
+      row[prefix + 'signal_confidence'] = '';
+      if (!snapshot) continue;
+      const events = snapshot.events || [], last = events[events.length - 1];
+      if (tf === '4H') {
+        row.h4_close = snapshot.close;
+        row.h4_date = snapshot.asOf;
+        for (const [p, value] of Object.entries(snapshot.mas || {})) row['h4_ma_' + p] = value;
+      }
+      row[prefix + 'trend_direction'] = snapshot.direction;
+      row[prefix + 'last_signal'] = last?.code || '';
+      row[prefix + 'last_signal_date'] = last?.at || '';
+      row[prefix + 'last_signal_days_ago'] = last ? Math.max(0, (reelParseTs(snapshot.asOf) - reelParseTs(last.at)) / 864e5) : '';
+      if (last && last.at === snapshot.asOf) row[prefix + 'primary_signal'] = last.code;
+    }
+  }
+
+  function setupContextHtml(item) {
+    const c = SPTrendContext.context(item, channelTrend);
+    const h4 = SPTrendContext.snapshot(item, '4H', channelTrend);
+    const price = h4?.close;
+    const levels = h4?.setup?.levels || [50,250,500].map(p=>({id:'D'+p,value:item['ma_'+p]}));
+    const positions = levels.map(level => {
+      const value = Number(level.value);
+      if (!Number.isFinite(price) || !Number.isFinite(value) || !value) return '';
+      const distance = SPTrendContext.distance(price, value);
+      return `<span>${price >= value ? 'Above' : 'Below'} ${escText(level.id)} · ${Math.abs(distance).toFixed(1)}%</span>`;
+    }).filter(Boolean).join('');
+    return `${trendContextHtml(item, '4H', true)}${clusterBadgeHtml(item, true)}<span class="sp-setup-levels">${positions}</span>
+      <span class="sp-entry-direction">${SPTrendContext.relationText(c.main, c.h1, '1H')}</span>`;
+  }
+
+  function levelContextCards(lists, scope) {
+    if (alUi.tf==='D' || !['all','ma'].includes(alUi.kind)) return '';
+    const cards=[];
+    for (const row of allData) {
+      if (scope==='mine' && !(row.instrument_name in lists)) continue;
+      if (!clusterMatches(row,alUi.cluster) || !SPTrendContext.matches(row,channelTrend,{main:alUi.main,relationship:alUi.relation})) continue;
+      const setup=SPTrendContext.snapshot(row,'4H',channelTrend)?.setup;
+      if (!setup?.interactions?.length) continue;
+      const last=setup.interactions[setup.interactions.length-1];
+      const members=setup.interactions.filter(e=>e.at===last.at && e.kind===last.kind && e.direction===last.direction);
+      const name=row.instrument_name;
+      cards.push({at:last.at,html:`<article class="sp-setup-card"><b>${escText(name)}</b>${trendContextHtml(row,'4H',true,'Main now')}
+        <p>4H ${last.kind==='cross'?'closed across':'rejected'} ${members.map(e=>escText(e.reference)).join(' + ')} ${last.direction==='UPTREND'?'upward':'downward'}</p>
+        <small>${alWhen(last.at)} · Completed 4H candle</small>${clusterBadgeHtml(row,true)}
+        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="4H" data-al-at="${escText(last.at)}">4H level interaction</button>
+        <button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(last.at)}">1H entry detail ›</button></div></article>`});
+    }
+    cards.sort((a,b)=>b.at.localeCompare(a.at));
+    return cards.length ? '<div class="al-day">4H at Daily, Weekly and Monthly levels</div>'+cards.slice(0,24).map(c=>c.html).join('') : '';
+  }
+
+  function entryContextCards(lists, scope) {
+    if (alUi.tf === 'D' || !['all', 'ma'].includes(alUi.kind)) return '';
+    const entries = alertsData?.linked_entries || {};
+    const rows = allData.filter(row => entries[row.instrument_name]?.length && clusterMatches(row, alUi.cluster) &&
+      (scope !== 'mine' || row.instrument_name in lists) &&
+      SPTrendContext.matches(row, channelTrend, {main:alUi.main, relationship:alUi.relation}));
+    if (!rows.length) return '';
+    return '<div class="al-day">1H entry context · current 4H direction</div>' + rows.slice(0, 40).map(row => {
+      const name = row.instrument_name, entry = entries[name][0];
+      return `<article class="sp-setup-card"><b>${escText(name)}</b>${setupContextHtml(row)}
+        <p>1H ${entry.kind === 'cross' ? 'closed across' : entry.kind === 'rejection' ? 'rejected' : 'touched'} ${escText(entry.reference || 'D' + entry.period)} · ${wlFmtPrice(entry.level)}</p>
+        <small>${alWhen(entry.at)} · matches the current 4H direction</small>
+        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="4H" data-al-at="">4H setup</button>
+        <button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(entry.at)}">1H entry detail ›</button></div></article>`;
+    }).join('');
+  }
+
   async function renderAlerts() {
     const host = document.getElementById('alertsPane');
     if (!host) return;
     const lists = alListIndex();
     const hasLists = Object.keys(lists).length > 0;
     const scope = hasLists ? alUi.scope : 'all';
-    const ev = (alertsData && alertsData.ev) || [];
+    const ev = (alertsData && alertsData.workflow_ev) || [];
     const keep = e => (scope !== 'mine' || e[0] in lists)
+      && clusterMatches(allData.find(row => row.instrument_name === e[0]), alUi.cluster)
+      && SPTrendContext.matches(allData.find(row => row.instrument_name === e[0]), channelTrend, {main:alUi.main, relationship:alUi.relation})
       && AL_TFS.includes(e[1])
       && (alUi.tf === 'all' || e[1] === alUi.tf)
-      && (alUi.kind === 'all' || (alUi.kind === 'sig' ? (e[2] === 'B1' || e[2] === 'S1') : alUi.kind === 'ma' ? (e[2] === 'X' || e[2] === 'T') : false));
+      && (alUi.kind === 'all' || (alUi.kind === 'sig' ? /^[BS][1-4]$/.test(e[2]) : false));
     const shown = alUi.kind === 'lines' ? [] : ev.filter(keep);
     const lim = AL_PAGE * (1 + alUi.more);
 
-    let h = `<div class="al-head"><h2>Alerts</h2><span>Every marker the charts draw, newest first. Tap one to open its chart there.</span></div>
+    let h = `<div class="al-head"><h2>Alerts</h2><span>Daily main trend · 4H setups · linked 1H entry detail</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['1H', '1H'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['4H', '4H setups'], ['D', 'Daily']], alUi.tf)}
       </div>
-      <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'B1 · S1'], ['ma', 'Daily MAs'], ['lines', 'My lines']], alUi.kind)}</div>
-      <div id="alLines" class="al-lines"></div>`;
-    if (!alertsData) {
-      h += `<div class="al-empty">Alerts arrive with the next data run.</div>`;
-    } else if (alUi.kind !== 'lines') {
+      <div class="al-chips">${alChipRow('main', [['all', 'Main: All'], ['UPTREND', 'Main ▲'], ['DOWNTREND', 'Main ▼'], ['NEUTRAL', 'Unavailable']], alUi.main)}</div>
+      <div class="al-chips">${alChipRow('relation', [['all', '4H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']], alUi.relation)}</div>
+      <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'Signals & pullbacks'], ['ma', '1H entry context'], ['lines', 'My lines']], alUi.kind)}</div>
+      ${clusterFilterHtml('alerts', alUi.cluster)}<div id="alLines" class="al-lines"></div>`;
+    if (!alertsData?.workflow_version) {
+      h += `<div class="al-empty">Updated Daily and 4H alerts arrive with the next data run.</div>`;
+    } else if (alUi.kind !== 'lines' && alUi.kind !== 'ma') {
       if (!shown.length) {
         h += `<div class="al-empty">No alerts ${scope === 'mine' ? 'on your lists ' : ''}in the last few days${alUi.tf !== 'all' ? ' on ' + AL_TF_LBL[alUi.tf] : ''}.${scope === 'mine' ? ' <button class="al-link" data-al-scope="all">Show all instruments</button>' : ''}</div>`;
       }
@@ -1993,12 +2162,17 @@
           .map(([k, v]) => `<span class="${v > 0 ? 'al-good' : 'al-bad'}">${k} ${wlFmtPct(v)}</span>`).join('');
         h += `<button class="al-row" data-al-open="${escText(name)}" data-al-tf="${tf}" data-al-at="${escText(t)}">
           <span class="al-r1"><b class="al-name">${escText(name)}</b>${lists[name] ? `<i class="al-list">${escText(lists[name])}</i>` : ''}<span class="al-when">${alWhen(t)}</span></span>
+          ${trendContextHtml(allData.find(row => row.instrument_name === name), '4H', true, 'Main now')}
           <span class="al-r2">${alText(kind, p, dir, tf)} <span class="al-px">at ${wlFmtPrice(px)}</span></span>
           <span class="al-r3">${since != null ? `<span class="${since > 0 ? 'al-good' : 'al-bad'}">since ${wlFmtPct(since)}</span>` : ''}${outs}</span>
         </button>`;
       });
       if (shown.length > lim) h += `<button class="al-more" data-al-more="1">Show more (${shown.length - lim} left)</button>`;
     }
+    h += minorSwingCards(lists, scope);
+    h += levelContextCards(lists, scope);
+    h += entryContextCards(lists, scope);
+    if (alUi.kind === 'ma' && !entryContextCards(lists, scope) && !minorSwingCards(lists, scope) && !levelContextCards(lists, scope)) h += '<div class="al-empty">No recent setup or entry context matches these filters.</div>';
     h += alStatsHtml();
     host.innerHTML = h;
 
@@ -2009,13 +2183,14 @@
     let rows = [];
     try { rows = await alLineAlerts(); } catch (_) { rows = []; }
     if (!document.body.contains(box)) return;
-    rows = rows.filter(r => (scope !== 'mine' || r.name in lists) && AL_TFS.includes(r.tf) && (alUi.tf === 'all' || r.tf === alUi.tf));
+    rows = rows.filter(r => clusterMatches(allData.find(row => row.instrument_name === r.name), alUi.cluster) && (scope !== 'mine' || r.name in lists) && AL_LINE_TFS.includes(r.tf) && (alUi.tf === 'all' || r.tf === alUi.tf)
+      && SPTrendContext.matches(allData.find(row => row.instrument_name === r.name), channelTrend, {main:alUi.main, relationship:alUi.relation}));
     if (!rows.length) {
       box.innerHTML = alUi.kind === 'lines'
         ? `<div class="al-empty">Price is not at any line you drew${scope === 'mine' ? ' on your lists' : ''}. Lines, entry marks, ladders, trend lines and channels count.</div>` : '';
       return;
     }
-    box.innerHTML = `<div class="al-day">At your lines</div>` + rows.map(r =>
+    box.innerHTML = `<div class="al-day">Your lines · current quote context</div>` + rows.map(r =>
       `<button class="al-row al-line" data-al-open="${escText(r.name)}" data-al-tf="${r.tf}" data-al-at="">
         <span class="al-r1"><b class="al-name">${escText(r.name)}</b>${lists[r.name] ? `<i class="al-list">${escText(lists[r.name])}</i>` : ''}<span class="al-when">${AL_TF_LBL[r.tf]}</span></span>
         <span class="al-r2">${r.crossed ? `<b class="${r.up ? 'al-up' : 'al-dn'}">Crossed ${r.up ? 'up through' : 'down through'} your ${escText(r.what)}</b> today`
@@ -2027,6 +2202,8 @@
   // Follow-through record: how often alerts of each kind went their way, 1h /
   // 1d / 1w later, against how often ANY bar of that timeframe moved that way.
   function alStatsHtml() {
+    // The old percentages were measured on different signal rules.
+    if (alertsData?.workflow_version) return '';
     const st = alertsData && alertsData.stats;
     if (!st) return '';
     const rows = [['1H|B1', '1H B1'], ['1H|S1', '1H S1'], ['D|B1', 'Daily B1'], ['D|S1', 'Daily S1'],
@@ -2048,11 +2225,13 @@
     const pane = document.getElementById('pane-scanner');
     if (!pane) return;
     pane.addEventListener('click', e => {
-      const c = e.target.closest('[data-al-scope],[data-al-tf]:not(.al-row),[data-al-kind],[data-al-more]');
+      const c = e.target.closest('[data-al-scope],[data-al-tf]:not(.al-row),[data-al-kind],[data-al-more],[data-al-main],[data-al-relation]');
       if (c && !c.classList.contains('al-row')) {
         if (c.dataset.alScope) alUi.scope = c.dataset.alScope;
         if (c.dataset.alTf && c.classList.contains('al-chip')) alUi.tf = c.dataset.alTf;
         if (c.dataset.alKind) alUi.kind = c.dataset.alKind;
+        if (c.dataset.alMain) alUi.main = c.dataset.alMain;
+        if (c.dataset.alRelation) alUi.relation = c.dataset.alRelation;
         if (c.dataset.alMore) alUi.more++; else alUi.more = 0;
         alSaveUi();
         renderAlerts();
@@ -2072,7 +2251,7 @@
   // instrument is likely to move over 10 trading days (market.json — tested,
   // right ~8 in 10 times), and whether it is quiet or wild right now. The
   // movers, sector and momentum-ranking cards below are the old Dashboard's.
-  const mkUi = { list: '', ccyTf: 'D' };
+  const mkUi = { list: '', ccyTf: 'D', cluster: 'any' };
   try { Object.assign(mkUi, JSON.parse(localStorage.getItem('swingpulse-mk-ui') || '{}')); } catch (_) {}
   if (mkUi.ccyTf === '30m') mkUi.ccyTf = '1H';
 
@@ -2162,14 +2341,14 @@
       + `${g(r.trend)} ${r.ccy}<i>${r.chg > 0 ? '+' : ''}${r.chg.toFixed(2)}%</i></span>`).join('');
     const row = p => `<button class="cf-row" data-ccy-open="${escText(p.pair)}">
         <b>${escText(p.pair)}</b><span class="cf-dir ${p.dir}">${p.dir === 'buy' ? 'BUY' : 'SELL'}</span>
-        <span class="cf-own ${p.agree ? 'ok' : 'no'}">${p.agree ? '✓' : '✗'} own chart ${g(p.trend)} ${p.trend === 'NEUTRAL' ? 'neutral' : p.trend.toLowerCase()}</span>
+        <span class="cf-own ${p.agree ? 'ok' : 'no'}">${p.agree ? '✓' : '✗'} channel ${g(p.trend)} · Main ${SPTrendContext.label(mainTrendOf(allData.find(row => row.instrument_name === p.pair)))}</span>
       </button>`;
     const grp = (title, list) => list.length ? `<div class="cf-gh">${title}</div>${list.map(row).join('')}` : '';
     const span = tf === 'D' ? '20 days' : '5 days';
     const head = f.confirmed
       ? `<b class="up">${f.strong} ▲</b> vs <b class="dn">${f.weak} ▼</b>`
       : `No two currencies in opposite trends — strongest <b>${f.strong}</b> vs weakest <b>${f.weak}</b>`;
-    return `<div class="card mk-card" id="mkCcyFocus"><div class="card-header mk-h"><h3>Currency focus</h3>
+    return `<div class="card mk-card" id="mkCcyFocus"><div class="card-header mk-h"><h3>Currency strength &amp; channels</h3>
         <div class="al-chips cf-tf">${[['1H', '1H'], ['D', 'Daily']].filter(([k]) => F[k]).map(([k, l]) =>
           `<button class="al-chip${k === tf ? ' on' : ''}" data-ccy-tf="${k}">${l}</button>`).join('')}</div></div>
       <p class="mk-note">The 8 currency indices by your channel rule (▲ ▼ —), strongest first by their ${span} move. The two going opposite ways, and the pairs their cross current runs through.</p>
@@ -2185,7 +2364,7 @@
     const host = document.getElementById('marketToday');
     if (!host) return;
     const lists = alListIndex();
-    host.innerHTML = mkCcyFocus() + mkComingUp(lists) + mkRanges(lists);
+    host.innerHTML = mainTrendMarketHtml() + clusterMarketHtml() + mkCcyFocus() + mkComingUp(lists) + mkRanges(lists);
     // Momentum 20 opens in Charts as a set, like a watchlist.
     const lc = document.getElementById('leadersCard');
     if (lc && rotationData && rotationData.leaders && !lc.querySelector('.mk-open20')) {
@@ -2202,6 +2381,12 @@
     const pane = document.getElementById('pane-dashboard');
     if (!pane) return;
     pane.addEventListener('click', e => {
+      const main = e.target.closest('[data-mk-main]');
+      if (main) {
+        const names = allData.filter(row => mainTrendOf(row) === main.dataset.mkMain).map(row => row.instrument_name);
+        if (names.length) openChartFor(names[0], {label: `Daily main trend: ${SPTrendContext.label(main.dataset.mkMain)}`, names});
+        return;
+      }
       const l = e.target.closest('[data-mk-list]');
       if (l) { mkUi.list = l.dataset.mkList; try { localStorage.setItem('swingpulse-mk-ui', JSON.stringify(mkUi)); } catch (_) {} return renderMarketToday(); }
       const o = e.target.closest('[data-mk-open]');
@@ -2241,40 +2426,9 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   function effectiveTrend(item) {
-    // THE USER'S RULE FIRST (2026-10-04): trend = a channel the rule can draw with
-    // price still on the slow-line side; anything else is NEUTRAL. Every count and
-    // filter goes through here, so they all follow the channels. The ribbon read
-    // below is only the fallback for a payload without trend_channels.json.
-    const ct = channelTrendOf(item.instrument_name, timeframe);
-    if (ct) return ct;
-    // Neutral oscillation (MA50 chopping + MA250 flattening = potential top/bottom)
-    // takes priority: these are classified NEUTRAL regardless of the raw timeframe
-    // trend, so they never double-count as Uptrend/Downtrend/Aligned Bull.
-    //
-    // GATED TO DAILY (2026-09-02). The flag is computed from DAILY bars only —
-    // `ma_fast_cross_count >= 3` over the last 30 daily bars with a flat daily MA250
-    // slope (indicators.add_neutral_oscillation) — and there is no h4_ or w_
-    // counterpart. It was nonetheless applied on every timeframe, so a fortnight
-    // of day-to-day chop could overrule a 4H or Weekly ribbon read. On Weekly
-    // that is exactly backwards: a decade-scale ribbon exists to ignore daily
-    // noise, and 22 instruments were reading NEUTRAL on Weekly purely because
-    // their DAILY bars were choppy (508 UPTREND in the payload, 486 on screen).
-    // Measured on the 2026-09-02 run — 36 instruments carry the flag, and it was
-    // overriding 25 4H rows and 23 Weekly rows on top of its 16 legitimate Daily
-    // ones. Same discipline as moodApplies(): a read only applies on the
-    // timeframe it was measured on.
-    if (timeframe === 'D' && item.neutral_oscillation === 'yes') return 'NEUTRAL';
-    const td = item[f('trend_direction')] || '';
-    return (td === 'UPTREND' || td === 'DOWNTREND') ? td : 'NEUTRAL';
-    // NB there used to be a confirmation_status keyword fallback here, for
-    // "Neutral — transitioning (rising/declining ribbon)" statuses. signals.py
-    // stopped emitting those, so by 2026-07-30 the only strings it still caught
-    // were "Pullback below MA500 — uptrend intact" and "Rally above MA500 —
-    // downtrend intact" (57 rows on the 07-28 run). Those come from the
-    // in_uptrend/in_downtrend LATCH, which only clears on a full-ribbon B1/S1
-    // cross — so the fallback was quietly overriding the ribbon-position read
-    // in trend_direction with a regime flag that can be months stale. Trend
-    // direction is decided in indicators.add_trend; do not second-guess it here.
+    // Shared main-trend classification. Native 4H/1H directions are read
+    // separately by SPTrendContext and never replace the Daily main trend.
+    return mainTrendOf(item);
   }
 
   // ── Sector-mood conviction layer (VALIDATED 2026-07-22 on real backtested R,
@@ -3275,8 +3429,8 @@
       trendsData = trendsRes || {};
       explanationsData = explRes || {};
       namesData = namesRes || {};
-      backtestData = btRes;
-      ledgerData = ldgRes && ldgRes.totals ? ldgRes : null;
+      backtestData = btRes?.params?.engine === 'daily500-4h-v1' ? btRes : null;
+      ledgerData = ldgRes?.rule_version === 'daily500-4h-v1' && ldgRes.totals ? ldgRes : null;
       const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
       sectorRadarByTf = { D: _okRadar(srRes) };
       syncRadarTf();
@@ -3293,6 +3447,7 @@
       marketData = (marketRes && marketRes.i) ? marketRes : null;
       channelTrend = (trendChRes && trendChRes.tf && trendChRes.tf.D) ? trendChRes : null;
 
+      workflowRowValues();
       syncSessionLabel(sumRes.fetched_at);
 
       // Staleness warning: compare data AGE against the CI schedule, not the
@@ -3609,59 +3764,12 @@
   // 34–41% — so the "now" half is the half worth reading. On Daily the regime
   // comes from the Trends tab's own segments, so card and tab always agree.
   function trendSentence(item) {
-    const pre = tfMeta().prefix;
-    const close = parseFloat(item[pre + 'close']);
-    if (!isFinite(close)) return null;
-    let dir = '', age = '';
-    // The user's channel read first (2026-10-04): the label on a chart must say what
-    // the trend filter and the counts say — they read channelTrendOf too. Without
-    // this a third of the charts sat under "Down" with a header reading "Uptrend".
-    const ct = channelTrendOf(item.instrument_name, timeframe);
-    if (ct) dir = ct === 'NEUTRAL' ? 'NEUTRAL' : ct;
-    const since = ct && ct !== 'NEUTRAL' ? channelSinceOf(item.instrument_name, timeframe) : null;
-    if (since) {
-      const days = Math.max(0, Math.round((Date.now() - Date.parse(String(since).replace(' ', 'T') + 'Z')) / 864e5));
-      age = `${days.toLocaleString('en-US')} day${days === 1 ? '' : 's'}`;
-    }
-    if (!ct && timeframe === 'D') {
-      const seg = (trendsData[item.instrument_name] || [])[0];
-      if (seg && (seg.direction === 'UPTREND' || seg.direction === 'DOWNTREND')) {
-        dir = seg.direction;
-        age = `${Number(seg.days).toLocaleString('en-US')} days`;
-      }
-    }
-    // No age off Daily: trend_run_days counts bars on the trend side of the
-    // ribbon, not the latch's age, so a years-old weekly uptrend read "1 week".
-    if (!dir) dir = item[pre + 'established_trend'] || '';
-    if (dir === 'NEUTRAL') dir = '';
-    const mas = Object.keys(item)
-      .filter(k => k.startsWith(pre + 'ma_') && /^\d+$/.test(k.slice(pre.length + 3)))
-      .map(k => ({ p: +k.slice(pre.length + 3), v: parseFloat(item[k]) }))
-      .filter(m => isFinite(m.v))
-      .sort((a, b) => a.p - b.p);
-    const names = list => list.map(m => 'MA' + m.p).join(' & ');
-    const below = mas.filter(m => close < m.v);
-    const above = mas.filter(m => close >= m.v);
-    let head, now = '', against = false;
-    if (dir === 'UPTREND') {
-      head = 'Uptrend' + (age ? ' ' + age : '');
-      against = below.length > 0;
-      if (mas.length) now = !against ? `above all ${mas.length} MAs`
-                          : below.length === mas.length ? `now below all ${mas.length} MAs` : `now below ${names(below)}`;
-    } else if (dir === 'DOWNTREND') {
-      head = 'Downtrend' + (age ? ' ' + age : '');
-      against = above.length > 0;
-      if (mas.length) now = !against ? `below all ${mas.length} MAs`
-                          : above.length === mas.length ? `now above all ${mas.length} MAs` : `now above ${names(above)}`;
-    } else {
-      head = channelTrend ? 'Neutral' : 'No established trend';
-      if (mas.length) now = above.length === mas.length ? `above all ${mas.length} MAs`
-                          : below.length === mas.length ? `below all ${mas.length} MAs`
-                          : `above ${names(above)}`;
-    }
-    return { dir, against, head, now,
-             glyph: dir === 'UPTREND' ? '▲' : dir === 'DOWNTREND' ? '▼' : '—',
-             text: now ? `${head} · ${now}` : head };
+    const c = SPTrendContext.context(item, channelTrend);
+    const dir = c.main, head = 'Main trend ' + SPTrendContext.label(dir).toLowerCase();
+    const now = timeframe === 'D' ? 'Daily close vs Daily MA500' :
+      SPTrendContext.relationText(dir, timeframe === '1H' ? c.h1 : c.h4, timeframe);
+    return {dir, head, now, against: timeframe === '1H' ? c.h1Relation === 'minor' : c.h4Relation === 'minor',
+      glyph: SPTrendContext.glyph(dir), text: head + ' · ' + now};
   }
 
   // ── "Worth the cost?" (2026-09-11) ──────────────────────────────────────
@@ -3736,6 +3844,8 @@
   const STACK_FRESH_BARS = 10;    // bars — below this the flip is still news
 
   function stackRead(item) {
+    const measured = SPTrendContext.snapshot(item, timeframe, channelTrend)?.stack;
+    if (measured) return {...measured, tight: Number.isFinite(measured.gap) && measured.gap <= STACK_GAP_TIGHT, fresh: Number.isFinite(measured.flip) && measured.flip <= STACK_FRESH_BARS};
     const state = item[f('stack_state')] || '';
     if (!state) return null;
     const gapRaw  = item[f('stack_gap_pct')];
@@ -8282,6 +8392,8 @@
     scope:  'all',
     cat:    '',
     trend:  'all',
+    relation: 'all',
+    cluster: 'all',
     stack:  'all',
     near:   'all',      // Near MA filter: 'all' | 'D' | 'W' | 'M' | 'any'
     nearWithin: 0.5,    // in 14-day ATRs (a day's range)
@@ -11135,6 +11247,7 @@
     const tgripPct = (((L.H - L.py1) / L.H) * 100).toFixed(2);
 
     const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
+    const signalMarks = SIGNAL_TFS.has(timeframe) && bundle.context ? reel15mMarksSvg(b, L, sc, bw) : '';
 
     // The moment a deep link asked for (openChartAt): an amber vertical line
     // with its time, so the setup is found at a glance. Cleared by double-tap.
@@ -11159,7 +11272,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${signalMarks}${focus}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -11612,18 +11725,7 @@
   // The trend sentence for a chart header — the card and the full-screen view
   // share it, so "extended" never loses the writing the card has.
   function reelTrendlineHtml(item) {
-    // A chartOnly timeframe HAS no row, so the sentence must not render on one —
-    // asked of the flag, not only of the column. 10m is safe either way (no
-    // m10_ column has ever existed), but `h4_` columns were published until
-    // 2026-09-11 and still sit in older local output, so a column test alone
-    // brought a three-month-old 4H trend back onto the card in local dev while
-    // the live app showed nothing. The flag is the fact; the column is evidence.
-    const hasTfRow = !tfMeta().chartOnly
-      && item[f('close')] !== undefined && item[f('close')] !== '';
-    const ts = hasTfRow ? trendSentence(item) : null;
-    if (!ts) return '';
-    return `<span class="reel-trendline ${ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'down' : 'flat'}">${ts.glyph} ${ts.head}`
-      + `${ts.now ? ` <span class="reel-trendline-now${ts.against ? ' against' : ''}">· ${ts.now}</span>` : ''}</span>`;
+    return trendContextHtml(item, timeframe) + clusterBadgeHtml(item);
   }
 
   function reelCardHtml(item, i) {
@@ -11721,10 +11823,12 @@
     // effectiveTrend answers NEUTRAL for all 798, and picking Uptrend empties
     // the reel — a filter that silently matches nothing.
     const withRowTf = fn => (TF_BY_CODE[timeframe] || {}).chartOnly ? withSignalTf(fn) : fn();
-    if (reel.trend !== 'all') rows = withRowTf(() => rows.filter(d => effectiveTrend(d) === reel.trend));
+    if (reel.trend !== 'all') rows = rows.filter(d => mainTrendOf(d) === reel.trend);
+    rows = rows.filter(row => clusterMatches(row, reel.cluster));
+    if (reel.relation && reel.relation !== 'all') rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:reel.relation}));
     // Same predicate the Signals sheet uses, so "near cross" cannot come to
     // mean two different things on two tabs.
-    if (reel.stack !== 'all') rows = withRowTf(() => rows.filter(d => matchesStackFilter(d, reel.stack)));
+    if (reel.stack !== 'all') rows = rows.filter(d => matchesStackFilter(d, reel.stack));
     // Near MA (2026-09-28): needs the chart index, like the 15m scopes below.
     if (reel.near !== 'all') {
       if (!reel.index) {
@@ -11758,7 +11862,7 @@
     // index (`ev15`, built by chart_feed from the same marks the chart draws).
     const EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
     if (EV_KEY[reel.scope]) {
-      const evTf = INTRADAY_TFS.has(timeframe) ? timeframe : '1H';
+      const evTf = reel.scope === 'm15sig' ? '4H' : '1H';
       const ev = reel.index && reel.index.events_by_tf?.[evTf];
       if (!reel.index) {
         reelLoadIndex().then(() => { if (currentTab === 'charts' && EV_KEY[reel.scope]) buildReel(); });
@@ -11779,7 +11883,7 @@
       case 'signal':  rows = rows.filter(d => !!d[f('primary_signal')]); break;
       case 'buy':     rows = rows.filter(isBuy); break;
       case 'sell':    rows = rows.filter(isSell); break;
-      case 'watch':   rows = rows.filter(d => d[f('watch_flag')] === 'yes'); break;
+      case 'watch':   rows = rows.filter(d => SPTrendContext.context(d, channelTrend).h4Relation === 'minor'); break;
     }
     return rows;
     });
@@ -13327,19 +13431,22 @@
 
   function reelSyncPills() {
     reelSyncSimBar();
+    const clusterHost = document.getElementById('reelClusters');
+    if (clusterHost) clusterHost.innerHTML = clusterFilterHtml('charts', reel.cluster);
     const set = (id, txt) => {
       const el = document.querySelector('#' + id + ' .fp-val');
       if (el) el.textContent = txt ? ' · ' + txt : '';
     };
     const scopeLbl = { views: 'my markers', 'views-buy': 'my buys', 'views-sell': 'my sells',
                        all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'watch', m15sig: 'Intraday B1/S1',
+                       sell: 'sells', watch: 'minor swings', m15sig: '4H B1/S1',
                        dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
     set('reelPillScope', scopeLbl[reel.scope] || '');
-    set('reelPillTrend', reel.trend === 'all' ? '' : reel.trend.toLowerCase());
+    set('reelPillTrend', reel.trend === 'all' ? '' : SPTrendContext.label(reel.trend));
+    set('reelPillRelation', reel.relation === 'all' ? '' : reel.relation);
     const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
                        near: 'near cross', fresh: 'just flipped' };
-    set('reelPillStack', stackLbl[reel.stack] || '');
+    set('reelPillStack', tfMeta().label + (stackLbl[reel.stack] ? ' · ' + stackLbl[reel.stack] : ''));
     const nearLbl = { D: 'Daily', W: 'Weekly', M: 'Monthly', any: 'D/W/M' };
     set('reelPillNear', nearLbl[reel.near] ? nearLbl[reel.near] + (reel.nearWithin === 1 ? ' · 1 day' : ' · ½ day') : '');
     const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
@@ -13349,7 +13456,7 @@
     if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
 
     const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.stack !== 'all' || reel.near !== 'all' || reel.similarTo || reel.listSet ||
+                  reel.cluster !== 'all' || reel.relation !== 'all' || reel.stack !== 'all' || reel.near !== 'all' || reel.similarTo || reel.listSet ||
                   reel.sort !== 'signal' || reel.search || reel.range;
     const rst = document.getElementById('reelReset');
     if (rst) rst.style.display = dirty ? '' : 'none';
@@ -13403,6 +13510,7 @@
     };
     optGroup('reelScopeOpts', 'scope', 'scope');
     optGroup('reelTrendOpts', 'trend', 'trend');
+    optGroup('reelRelationOpts', 'relation', 'relation');
     optGroup('reelStackOpts', 'stack', 'stack');
     optGroup('reelNearOpts',  'near',  'near');
     const within = document.getElementById('reelNearWithin');
@@ -13472,7 +13580,7 @@
         // stack filter) and the compare mode. "Reset" that leaves a filter
         // applied is worse than no reset — you press it and still cannot see
         // the instrument you are looking for.
-        reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
+        reel.cluster = 'all'; reel.relation = 'all'; reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
         reel.near = 'all'; reel.gp = null; reel.cls = '';
         try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
@@ -13484,11 +13592,11 @@
         if (search) search.value = '';
         if (clear) clear.style.display = 'none';
         document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
-        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
+        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelRelationOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
           const box = document.getElementById(id);
           if (!box) return;
           box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"]`);
+          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-relation="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"]`);
           if (d) d.classList.add('active');
         });
         buildReel();

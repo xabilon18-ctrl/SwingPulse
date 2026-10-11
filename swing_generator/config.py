@@ -461,6 +461,7 @@ TIMEFRAMES = (
     ('30m', 'm30_'),
     # Restored 2026-10-07: hourly charts + B1/S1, using the existing intraday rules.
     ('1H',  'h1_'),
+    ('4H',  'h4_'),
     ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -529,12 +530,13 @@ CONF_TIER_ORDER = ['low', 'standard', 'high']
 
 # Column order for output
 OUTPUT_COLUMNS = [
-    'instrument_name', 'group', 'sector', 'industry', 'asset_class',
+    'instrument_name', 'group', 'sector', 'industry', 'asset_class', 'signal_rule_version',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
     # ── 15m and 30m (B1/S1 only, see TIMEFRAMES) ──
     *_tf_signal_columns('m30_'),
     *_tf_signal_columns('h1_'),
+    *_tf_signal_columns('h4_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',
