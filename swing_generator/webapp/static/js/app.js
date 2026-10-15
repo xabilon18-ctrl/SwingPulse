@@ -9097,12 +9097,11 @@
     };
   }
 
-  // How far the ribbon may stretch the price scale before we stop following
-  // it. Measured over the universe: the median instrument's ribbon widens the
-  // range 1.25x, but 15% go past 2x and the worst is 7.3x — at which point the
-  // bars are a 1-pixel smear and the chart has stopped being a chart. Past
-  // this cap the ribbon clips and an edge tag says how far off-panel it sits.
-  const RIBBON_SCALE_CAP = 2.2;
+  // Opening frames follow the user's saved-view reference: current price in
+  // the middle, enough room for the visible swing, and a little breathing
+  // room at its furthest edge. Distant averages may be off-screen; including
+  // every level would flatten the price action. Saved/manual bounds win.
+  const REEL_OPENING_PRICE_FILL = 0.85;
 
   // Empty bar-widths held back on the right, between the newest bar and the
   // price scale.
@@ -9153,19 +9152,9 @@
     }
     const hasMa = isFinite(mLo);
 
-    let lo = pLo, hi = pHi;
-    if (hasMa) {
-      lo = Math.min(lo, mLo);
-      hi = Math.max(hi, mHi);
-      if ((hi - lo) > pRange * RIBBON_SCALE_CAP) {
-        // Keep the bars legible, clip the ribbon, and centre the price.
-        const pad = pRange * (RIBBON_SCALE_CAP - 1) / 2;
-        lo = pLo - pad;
-        hi = pHi + pad;
-      }
-    }
-    const pad = (hi - lo) * 0.04;
-    lo -= pad; hi += pad;
+    const opening = reelOpeningPriceWindow(b);
+    const lo = opening ? opening.lo : pLo - pRange * 0.04;
+    const hi = opening ? opening.hi : pHi + pRange * 0.04;
 
     const span = (hi - lo) || 1;
     return {
@@ -9393,15 +9382,20 @@
     // 15m: up to 96 a day on 24h markets, 20-34 on stocks; 30m half that.
     return (bundle._is24h = bundle.t.length / days > (timeframe === '15m' ? 60 : 30));
   }
-  function reel15mPriceWindow(b) {
+  // Same relative frame on 1H, 4H and Daily, using each visible swing's actual
+  // range rather than a fixed percentage that flattens quieter instruments.
+  function reelOpeningPriceWindow(b) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
     const dev = Math.max(hi - c, c - lo, c * 0.002);
-    const half = dev / REEL_15M_VIEW.fill;
-    return { lo: c - half, hi: c + half };
+    const half = dev / REEL_OPENING_PRICE_FILL;
+    // A large fall (for example ETH Daily) can put the symmetric frame below
+    // zero. Trim that empty space when all visible prices are nonnegative.
+    // Keep genuine negative-price history and saved/manual bounds intact.
+    return { lo: lo >= 0 ? Math.max(0, c - half) : c - half, hi: c + half };
   }
 
   // ── SAVED VIEWS (user, 2026-09-25: "can the view that i save be the one
@@ -11492,21 +11486,16 @@
     if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
     host._reelItem = item;
 
-    // Keep the BARS' SHAPE. The panel is taller but no wider, so letting the
-    // price scale auto-fit again spreads the same price range over more pixels
-    // and every bar comes out tall and thin — the chart is distorted, not
-    // enlarged. Instead the price range is grown in proportion to the extra
-    // height, which holds price-per-pixel exactly where it was and spends the
-    // new room on showing MORE chart above and below.
+    // Automatic views fit the visible candles to the full-screen plot, just
+    // as they do on the card. Expanding an automatic price range in proportion
+    // to the extra height left the candles flat in a large empty frame.
+    // Only a saved or manually held scale keeps its chosen price-per-pixel.
     chartFullPrevLock = reel.lockY.has(name) ? reel.lockY.get(name) : undefined;
     const src = chartFullSourceCtx(name);
-    // 15m with no scale of the reader's own: full screen fits its own plot
-    // (reel15mPriceWindow), the same opening view as the card.
-    // Nor when the card is still waiting to apply a SAVED price window: full
+    // When the card is still waiting to apply a SAVED price window, full
     // screen applies it itself (reelViewSeedPrice on its own plot) rather than
     // copying the card's un-applied default and marking the view done.
-    if (src && !viewPricePending.has(name)
-        ) {
+    if (src && chartFullPrevLock && !viewPricePending.has(name)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
