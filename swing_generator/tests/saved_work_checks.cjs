@@ -5,7 +5,20 @@ module.exports=async function checkSavedWork(page, screenshots) {
   await full.locator('[data-freshness-name] summary').click();
   const detail=full.locator('.reel-freshness-detail');
   assert.ok((await detail.innerText()).includes('Latest available quote'));
-  assert.ok((await detail.innerText()).includes('Last completed 4H bar'));
+  // Live hourly snapshots may contain a still-forming 4H candle. Verify that
+  // the label agrees with the loaded candle instead of assuming a closed bar.
+  const candle=await full.locator('[data-freshness-name]').evaluate(box=>({
+    tf:box._barTf,at:box._barTime,forming:box._forming,
+  }));
+  assert.equal(candle.tf,'4H');
+  assert.ok(candle.at,'Chart freshness has a candle timestamp');
+  const candleLabel=await detail.locator('div > strong').first().innerText();
+  if(candle.forming && candle.forming.t===candle.at) {
+    assert.match(candleLabel,/^4H candle · (Still forming|Awaiting final update)$/,
+      'A provisional candle must not be labelled completed');
+  } else {
+    assert.equal(candleLabel,'Last completed 4H bar');
+  }
   assert.ok((await detail.innerText()).includes('Published chart and signal data'));
   if(screenshots)await page.screenshot({path:`${screenshots}/freshness-v489.png`});
   await full.locator('[data-freshness-name] summary').click();
