@@ -624,7 +624,9 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 492  | RKT.L         | RKT           | UK100         | Consumer Defensive        | Household Products
 493  | RTO.L         | RTO           | UK100         | Industrials               | Business Services
 494  | SGE.L         | SGE           | UK100         | Technology                | Software
-495  | SDR.L         | SDR           | UK100         | Financial Services        | Asset Management
+# SDR.L (SDR, former #495) retired from the active scan on 2026-10-15.
+# Schroders shares were delisted on 2026-10-02 after the Nuveen acquisition.
+# RNS 2867X: https://www.lse.co.uk/rns/de-listing-and-cancellation-of-trading-of-shares-jhwbkyey6xb7hkq.html
 496  | SGRO.L        | SGRO          | UK100         | Real Estate               | REIT
 497  | SN.L          | SN            | UK100         | Healthcare                | Medical Devices
 498  | SMIN.L        | SMIN          | UK100         | Industrials               | Engineering
