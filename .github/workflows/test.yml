@@ -44,6 +44,7 @@ jobs:
           python3 tests/workflow_setup_test.py
           node tests/trend_context_test.cjs
           node tests/ma_clusters_test.cjs
+          node tests/chart_framing_test.cjs
           # The FOMC calendar parser is regexes over someone else's HTML — the
           # most breakable thing in the pipeline, and it fails SILENTLY: zero
           # rows just reads as "no meetings scheduled". Offline, against a

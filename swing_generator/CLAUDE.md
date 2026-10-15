@@ -3,6 +3,13 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-15 prepared UI fix: app.js v494. Unsaved 1H/4H/Daily frames centre
+the latest visible close and fit the visible swing, without stretching to
+distant moving averages. Full-screen auto-fit uses its own plot; it no longer
+multiplies the automatic price range by the card-to-screen height ratio.
+Saved and manually adjusted frames retain their chosen price-per-pixel and
+position. Time windows, drawings, overlays, equal grids and signals are unchanged.
+
 2026-10-11 prepared release (not yet published): app.js v493 / style.css v365.
 The shared workflow is Daily main trend, 4H swing/setup, and linked 1H entry
 context. Main trend uses the completed Daily close against Daily MA500 on

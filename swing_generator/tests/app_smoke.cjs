@@ -102,6 +102,8 @@ const assert = require('node:assert/strict');
   await page.locator('.nav-tab[data-tab="watchlist"]').click();
   assert.equal(await page.locator('[data-wl-ttf="30m"]').count(), 0);
   assert.equal(errors.length, 0, errors.join('\n'));
+  if (!live) await require('./chart_framing_checks.cjs')(page);
+  assert.equal(errors.length, 0, errors.join('\n'));
   console.log('PASS: mobile 1H/4H charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

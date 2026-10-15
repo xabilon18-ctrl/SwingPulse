@@ -141,6 +141,7 @@ jobs:
           node tests/time_grid_test.cjs
           node tests/price_refresh_test.cjs
           node tests/chart_refresh_test.cjs
+          node tests/chart_framing_test.cjs
           node tests/freshness_test.cjs
           node tests/saved_work_test.cjs
           node webapp/sync-worker/test/auth_test.mjs
