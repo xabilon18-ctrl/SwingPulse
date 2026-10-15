@@ -7,6 +7,8 @@
 the latest visible close and fit the visible swing, without stretching to
 distant moving averages. Full-screen auto-fit uses its own plot; it no longer
 multiplies the automatic price range by the card-to-screen height ratio.
+For wholly nonnegative history, automatic framing stops at zero if centring
+a large decline would otherwise add empty negative-price space (ETH Daily).
 Saved and manually adjusted frames retain their chosen price-per-pixel and
 position. Time windows, drawings, overlays, equal grids and signals are unchanged.
 

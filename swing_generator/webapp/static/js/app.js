@@ -9392,7 +9392,10 @@
     for (const v of b.h) if (v != null && v > hi) hi = v;
     const dev = Math.max(hi - c, c - lo, c * 0.002);
     const half = dev / REEL_OPENING_PRICE_FILL;
-    return { lo: c - half, hi: c + half };
+    // A large fall (for example ETH Daily) can put the symmetric frame below
+    // zero. Trim that empty space when all visible prices are nonnegative.
+    // Keep genuine negative-price history and saved/manual bounds intact.
+    return { lo: lo >= 0 ? Math.max(0, c - half) : c - half, hi: c + half };
   }
 
   // ── SAVED VIEWS (user, 2026-09-25: "can the view that i save be the one

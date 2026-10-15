@@ -23,9 +23,17 @@ const saved = context.reelScale(bundle, full, {lo:7000, hi:10000});
 assert.equal(saved.lo, 7000, 'Saved/manual price bounds take precedence');
 assert.equal(saved.hi, 10000);
 assert.equal(saved.inv(saved.y(8123)), 8123, 'Drawing coordinates retain their price mapping');
+const fallen = {c:[4900,2360],l:[4800,1400],h:[5000,2400],m:[]};
+const positive = context.reelScale(fallen,full);
+assert.equal(positive.lo,0,'A large decline does not add negative-price space to positive history');
+assert.ok(positive.hi>5000,'Clamping the lower edge keeps the full swing visible');
+const negative = context.reelScale({c:[100,20],l:[-40,10],h:[110,30],m:[]},full);
+assert.ok(negative.lo < -40,'Genuine negative-price history remains visible');
+const savedNegative = context.reelScale(fallen,full,{lo:-100,hi:5500});
+assert.equal(savedNegative.lo,-100,'The automatic zero floor never changes a saved frame');
 for (const price of [0.00002, 100, 80000]) {
   const flat = context.reelScale({c:[price],l:[price],h:[price],m:[]},full);
   assert.ok(Number.isFinite(flat.span) && flat.span > 0, 'Flat/short history produces usable bounds');
   assert.equal(flat.y(price),350);
 }
-console.log('PASS: price-centred framing, distant MAs, saved bounds and flat-history fallback');
+console.log('PASS: price-centred framing, zero floor, distant MAs, saved bounds and flat-history fallback');

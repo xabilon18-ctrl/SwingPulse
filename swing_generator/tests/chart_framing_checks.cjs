@@ -28,7 +28,11 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const opened=await read(host);
     near(opened.lo,before.lo,tf+' automatic frame does not zoom out on expand');
     near(opened.hi,before.hi,tf+' automatic frame does not zoom out on expand');
-    near((opened.hi+opened.lo)/2,opened.last,tf+' opening price stays central');
+    if (opened.lo === 0) {
+      assert.ok(opened.hi >= 2*opened.last,tf+' large positive-price swings trim only the empty space below zero');
+    } else {
+      near((opened.hi+opened.lo)/2,opened.last,tf+' opening price stays central');
+    }
 
     // A real axis gesture and Save, followed by a timeframe round trip.
     const grip=await host.locator('.reel-ygrip').boundingBox();
