@@ -3,6 +3,11 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-15 prepared chart cleanup: app.js v496. Automatic buy/sell triangles,
+B/S labels and MA-cross annotations are no longer drawn over candles on chart
+cards, full-screen charts or exported chart images. Signal data remains available
+to Alerts and filters. User-placed drawings and buy/sell marks remain editable.
+
 2026-10-15 prepared compact chart header: app.js v495 / style.css v366.
 Full-screen charts use two short rows: ticker/timeframe and essential controls,
 then Daily main trend, the selected timeframe's direction and data update age.
