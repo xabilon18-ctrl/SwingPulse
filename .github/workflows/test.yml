@@ -42,6 +42,7 @@ jobs:
           python3 tests/hourly_test.py
           python3 tests/trend_context_feed_test.py
           python3 tests/workflow_setup_test.py
+          python3 tests/shape_audit_test.py
           node tests/trend_context_test.cjs
           node tests/ma_clusters_test.cjs
           node tests/chart_framing_test.cjs
@@ -55,7 +56,9 @@ jobs:
       # the class of bug where app.js tests a field for a word that field never
       # contains — the Market Pulse gauge sat on a constant for months that way,
       # and a second copy of the same mistake survived in shareCard() until
-      # 2026-08-17. Reads the live public payload for the vocabulary; an
+      # 2026-08-17. Confidence uses the generator's configured vocabulary;
+      # other fields use the live public payload. A rare but supported tier
+      # need not appear in every hourly snapshot. An
       # unreachable bucket fails the step rather than skipping quietly, which
       # is the same stance health_check.py takes and for the same reason.
       #
