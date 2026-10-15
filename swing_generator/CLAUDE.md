@@ -3,6 +3,15 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-15 prepared compact chart header: app.js v495 / style.css v366.
+Full-screen charts use two short rows: ticker/timeframe and essential controls,
+then Daily main trend, the selected timeframe's direction and data update age.
+The information row opens the full instrument name, MA-cluster levels and exact
+bar/quote/publication times over the chart without reducing the plot's height.
+Overdue and failed update warnings remain visible when collapsed. Previous-chart
+and sharing actions are under More; marking, bookmark, grids and Close stay direct.
+Saved framing, drawings, chart data and the hourly update schedule are unchanged.
+
 2026-10-15 prepared UI fix: app.js v494. Unsaved 1H/4H/Daily frames centre
 the latest visible close and fit the visible swing, without stretching to
 distant moving averages. Full-screen auto-fit uses its own plot; it no longer

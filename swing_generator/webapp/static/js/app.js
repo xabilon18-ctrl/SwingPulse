@@ -3193,8 +3193,17 @@
   document.addEventListener('click', event => {
     const disclosure = document.getElementById('headerFreshness');
     if (disclosure?.open && !disclosure.contains(event.target)) disclosure.open = false;
+    document.querySelectorAll('#chartFull .cf-info[open], #chartFull .cf-actions-more[open]').forEach(box => {
+      if (!box.contains(event.target)) box.open = false;
+    });
   });
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      document.querySelectorAll('#chartFull .cf-info[open], #chartFull .cf-actions-more[open]').forEach(box => {
+        box.open = false;
+        box.querySelector('summary').focus();
+      });
+    }
     const disclosure = document.getElementById('headerFreshness');
     if (event.key === 'Escape' && disclosure?.open) {
       disclosure.open = false;
@@ -3217,7 +3226,21 @@
     const bar = freshness.chart(box._barTime, box._barTf, Date.now(), box._forming);
     const data = freshness.dataset(summaryData.fetched_at, !!box._updateFailed);
     const q = wlQuote(name), quote = q ? freshness.quote(q.t, quoteInfo(name)) : null;
-    box.querySelector('summary').textContent = (bar.state ? bar.state + ' · ' : '') + (bar.basis === 'local' ? 'Bar start ' + bar.time + ' local' : 'Bar ' + bar.time) + ' · ' + data.label;
+    const fullLabel = (bar.state ? bar.state + ' · ' : '') + (bar.basis === 'local' ? 'Bar start ' + bar.time + ' local' : 'Bar ' + bar.time) + ' · ' + data.label;
+    const compact = box.querySelector('[data-compact-freshness]');
+    if (compact) {
+      compact.textContent = data.state === 'stale' ? 'Update overdue' : data.state === 'failed' ? 'Update failed' : data.state === 'unknown' ? 'Time unavailable' : data.label.replace(/^Data updated /, 'Updated ');
+      compact.dataset.state = data.state;
+      compact.title = fullLabel;
+      compact.setAttribute('aria-label', fullLabel);
+      const item = allData.find(row => row.instrument_name === name);
+      if (item) {
+        box.querySelector('.cf-info-trend').innerHTML = trendContextHtml(item, box._barTf, true);
+        box.querySelector('.cf-info-cluster').innerHTML = clusterBadgeHtml(item, true);
+      }
+    } else {
+      box.querySelector('summary').textContent = fullLabel;
+    }
     box.querySelector('.reel-freshness-detail').innerHTML =
       `<div><strong>${escText(bar.label)}</strong><span>${escText(bar.detailTime)} · ${escText(bar.age)}${bar.basis === 'local' ? ' (bar start, your local time)' : ' (market session date)'}</span></div>` +
       `<div><strong>Latest available quote${q ? ' · ' + escText(wlFmtPrice(q.p)) : ''}</strong><span>${quote ? escText(quote.label + ' · ' + quote.detail) : 'Quote unavailable'}</span></div>` +
@@ -11467,6 +11490,7 @@
       el.id = 'chartFull';
       document.body.appendChild(el);
       el.addEventListener('click', e => {
+        if (e.target.closest('[data-act]')) el.querySelectorAll('.cf-actions-more[open]').forEach(box => { box.open = false; });
         if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
         const step = e.target.closest('[data-act="chart-full-step"]');
         if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
@@ -11648,22 +11672,38 @@
       + `<button class="cf-step" data-act="chart-full-step" data-dir="1" aria-label="Next chart">›</button>`;
     return `
       <header class="cf-head">
+        <div class="cf-main-row">
         <div class="cf-title">
-          <div class="reel-head-line">
-            <span class="reel-name">${name}</span>
-            <span class="reel-group">${item.group || ''} · ${tfMeta().label}</span>
-          </div>
-          ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
-          ${reelTrendlineHtml(item)}
+          <span class="reel-name" title="${escText(name)}">${escText(name)}</span>
+          <span class="reel-group">${tfMeta().label}</span>
         </div>
-        ${chartBackBtnHtml()}
+        <div class="cf-actions">
         ${viewMarkBtns(name)}
         ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
         ${gridBtnHtml(name)}
-        <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
+        <details class="cf-actions-more">
+          <summary aria-label="More chart actions" title="More chart actions">···</summary>
+          <div class="cf-actions-menu">
+            ${chartBackBtnHtml('Previous chart')}
+            <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}<span>Share chart</span></button>
+          </div>
+        </details>
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
+        </div>
+        </div>
+        <details class="reel-data-status cf-info" data-freshness-name="${escText(name)}">
+          <summary title="Chart information: moving average clusters and candle times">
+            <span class="cf-info-trend">${trendContextHtml(item, timeframe, true)}</span>
+            <span class="cf-info-freshness" data-compact-freshness>Loading…</span>
+            <span class="cf-info-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="cf-info-panel">
+            <div class="cf-instrument-details"><strong>${escText(instName(name) || name)}</strong><span>${escText(item.group || '')} · ${tfMeta().label}</span></div>
+            <div class="cf-info-cluster">${clusterBadgeHtml(item, true)}</div>
+            <div class="reel-freshness-detail"></div>
+          </div>
+        </details>
       </header>
-      ${chartFreshnessHtml(name)}
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
       ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
@@ -13304,9 +13344,9 @@
     return e ? `${e.name} · ${(TF_BY_CODE[e.tf] || {}).label || e.tf}` : '';
   }
 
-  function chartBackBtnHtml() {
+  function chartBackBtnHtml(label = '') {
     const prev = chartHist.back[chartHist.back.length - 1];
-    return `<button class="reel-share-btn reel-back-btn" data-act="chart-back" aria-label="Back to previous chart"${prev ? ` title="Back to ${chartHistLabel(prev)}"` : ' hidden'}>${ICON_BACK}</button>`;
+    return `<button class="reel-share-btn reel-back-btn" data-act="chart-back" aria-label="Back to previous chart"${prev ? ` title="Back to ${chartHistLabel(prev)}"` : ' hidden'}>${ICON_BACK}${label ? `<span>${escText(label)}</span>` : ''}</button>`;
   }
 
   function chartHistSyncButtons() {
