@@ -1,11 +1,16 @@
 const assert = require('node:assert/strict');
 
 module.exports = async function checkChartFraming(page, name = 'TEST') {
-  const read = host => host.evaluate(h => {
+  const read = async host => {
+    // Full-screen layout and its ResizeObserver repaint finish on animation
+    // frames; a just-inserted SVG can still describe the previous plot height.
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    return host.evaluate(h => {
     const c = h._reelCtx, last = c.bundle.c.filter(v => v > 0).at(-1);
     return {lo:c.sc.lo, hi:c.sc.hi, px:c.plotPx, last, n:c.b.c.length,
       pctPerPx:c.sc.span/last/c.plotPx, mid:((c.sc.hi+c.sc.lo)/2-last)/last};
-  });
+    });
+  };
   const near = (a,b,label) => assert.ok(Math.abs(a-b) <= Math.max(Math.abs(b)*0.015,1e-9),label+': '+a+' vs '+b);
   await page.locator('.nav-tab[data-tab="charts"]').click();
   if (await page.locator('#reelReset').isVisible()) await page.locator('#reelReset').click();
@@ -35,6 +40,7 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await page.locator('#chartFull [data-act="chart-view-save"]').click();
     assert.equal(await page.locator('#chartFull [data-act="chart-view-save"]').getAttribute('aria-pressed'),'true');
     const stored=await page.evaluate(()=>localStorage.getItem('sp-views'));
+    const saved=JSON.parse(stored)[name+'|'+tf];
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
     await page.locator('#tfBtn'+(tf==='D'?'1H':'D')).click();
     await page.locator('#tfBtn'+tf).click();
@@ -42,8 +48,8 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await card.locator('[data-act="chart-expand"]').click();
     await host.locator('svg').waitFor();
     const restored=await read(host);
-    near(restored.pctPerPx,adjusted.pctPerPx,tf+' saved zoom restores');
-    near(restored.mid,adjusted.mid,tf+' saved vertical placement restores');
+    near(restored.pctPerPx,saved.pctPerPx,tf+' saved zoom restores');
+    near(restored.mid,saved.mid,tf+' saved vertical placement restores');
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),stored,'Viewing never rewrites saved frames');
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
   }
