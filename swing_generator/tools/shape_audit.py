@@ -62,6 +62,8 @@ import urllib.request
 # check could not see OUTPUT_COLUMNS at all.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from _active_config import CONF_TIER_ORDER
+
 R2_BASE = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500'
 
 # r2.dev 403s the default 'Python-urllib/3.x' — the same trap health_check.py
@@ -507,7 +509,7 @@ def check_ghost_reads(rows, js):
 
 
 def check_phantoms(rows, js):
-    """Front-end compares a column against a literal that never occurs in it.
+    """Front-end compares a column against an unsupported literal.
 
     THE GAUGE BUG. computeSummary() tested
     confirmation_status.includes('buy') against a vocabulary of "Uptrend -
@@ -515,16 +517,15 @@ def check_phantoms(rows, js):
     buy_count and sell_count were structurally 0 and a third of the Market
     Pulse formula sat on its no-signals fallback of 15 from the day it shipped.
 
-    Reported as FAIL: unlike a drift, there is no market condition under which
-    a predicate that matches nothing is correct.
-
-    Tested against the FIELD FAMILY — 'x' and 'h4_x' together — not the single
+    Tested against the FIELD FAMILY — all configured timeframes — not the single
     column. On 2026-08-13 only 33 rows carried a 4H signal and none of them
     happened to be 'standard', so a per-column test called
     h4_signal_confidence vs 'standard' a phantom. It is not: the predicate is
-    fine and the sample was small. A literal is only phantom when it matches
-    nowhere in the family, which is also what makes the daily and 4H halves of
-    one real bug report once instead of twice.
+    fine and the sample was small. The entire family can also legitimately
+    contain no 'high' signals today. For signal_confidence, use the generator's
+    configured vocabulary instead of inferring its contract from one snapshot.
+    Other fields still use the observed family; real predicates such as
+    confirmation_status.includes('buy') must continue to fail.
     """
     if not rows:
         return []
@@ -535,13 +536,22 @@ def check_phantoms(rows, js):
         if (base, lit) in seen:
             continue
         seen.add((base, lit))
-        family = [c for c in (base, 'h4_' + base) if c in cols]
+        family = [c for c in (base, *(pre + base for pre in TF_PREFIXES_NB)) if c in cols]
         vals = [v for c in family for v in _values(rows, c)]
+        configured = base == 'signal_confidence'
+        if configured:
+            vals = list(CONF_TIER_ORDER)
         if not vals:
             continue          # a dead column is check_degenerate's finding
         hay = [v.lower() for v in vals] if ci else vals
         needle = lit.lower() if ci else lit
         if not any(needle in v for v in hay):
+            if configured:
+                findings.append(('FAIL', 'phantom predicate',
+                                 f'app.js tests {"/".join(family)} against {lit!r}, '
+                                 f'which is not supported by the configured '
+                                 f'confidence tiers {vals}.'))
+                continue
             sample = sorted(set(vals))[:2]
             findings.append(('FAIL', 'phantom predicate',
                              f'app.js tests {"/".join(family)} against {lit!r}, '

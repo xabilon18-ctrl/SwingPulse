@@ -54,17 +54,21 @@ jobs:
                               'swing_generator/tests/',
                               'swing_generator/webapp/sync-worker/',
                               'swing_generator/webapp/cron-worker/')
+                  # These validators only read published data. Updating an
+                  # audit must not start an extra full Yahoo fetch/rebuild.
+                  validation_paths = ('swing_generator/tools/validate_hourly_release.py',
+                                      'swing_generator/tools/shape_audit.py')
                   data_paths = [path for path in paths if path.startswith('swing_generator/')
                                 and not path.startswith(ui_paths)
                                 and not path.endswith('.md')
-                                and path != 'swing_generator/tools/validate_hourly_release.py']
+                                and path not in validation_paths]
                   four_hour = ('swing_generator/tools/publish_four_hour.py' in data_paths
                                and set(data_paths) <= {'swing_generator/tools/publish_four_hour.py',
                                                       'swing_generator/webapp/chart_feed.py'})
                   required = not four_hour and any(path.startswith('swing_generator/')
                                  and not path.startswith(ui_paths)
                                  and not path.endswith('.md')
-                                 and path != 'swing_generator/tools/validate_hourly_release.py'
+                                 and path not in validation_paths
                                  for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'data_required={str(required).lower()}\n')
