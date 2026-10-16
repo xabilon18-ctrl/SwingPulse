@@ -33,7 +33,7 @@
     if (d.overlay != null && !object(d.overlay)) throw new Error('Invalid chart settings.');
     return JSON.parse(JSON.stringify({ format: FORMAT, version: 1, user: typeof value.user === 'string' ? value.user : '', savedAt: value.savedAt || '', data: {
       channels: d.channels, channelsMod: object(d.channelsMod) ? d.channelsMod : {}, notes: d.notes,
-      watchlists: d.watchlists, views: d.views || {}, grids: root.SwingPulseModules.chartPreferences.clean(d.grids), overlay: d.overlay || {},
+      watchlists: d.watchlists, views: d.views || {}, grids: root.SwingPulseModules.chartPreferences.migrate(d.grids), overlay: d.overlay || {},
     } }));
   }
   function parse(text) {
@@ -44,7 +44,8 @@
   function summary(backup) {
     let drawings = 0, charts = 0;
     for (const per of Object.values(backup.data.channels)) for (const list of Object.values(per)) { drawings += list.length; if (list.length) charts++; }
-    return { drawings, charts, watchlists: backup.data.watchlists.lists.length, notes: Object.keys(backup.data.notes).length, grids: Object.keys(backup.data.grids.grids).length };
+    const grids = Object.values(root.SwingPulseModules.chartPreferences.scopes).reduce((n, field) => n + Object.keys(backup.data.grids[field] || {}).length, 0);
+    return { drawings, charts, watchlists: backup.data.watchlists.lists.length, notes: Object.keys(backup.data.notes).length, grids };
   }
   function create({ storage, key, user, capture, restore, syncNow, previousCloud, syncStatus, requestSync }) {
     let panel, selected = null, backupAt = 0, lastFingerprint = '';

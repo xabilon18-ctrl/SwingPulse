@@ -2,9 +2,9 @@
 const object = v => v && typeof v === 'object' && !Array.isArray(v);
 const safeKey = k => !['__proto__', 'constructor', 'prototype'].includes(k);
 const stamp = v => Number.isFinite(v) && v >= 0 ? v : 0;
-function grids(value) {
+function grids(value, field) {
   const out = {};
-  for (const [tf, row] of Object.entries(object(value?.grids) ? value.grids : {})) {
+  for (const [tf, row] of Object.entries(object(value?.[field]) ? value[field] : {})) {
     if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y'].includes(row.division)) continue;
     if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
     out[tf] = { division: row.division, modifiedAt: row.modifiedAt };
@@ -13,9 +13,17 @@ function grids(value) {
 }
 export function mergeSavedWork(previous, incoming) {
   const merged = { ...previous, ...incoming };
-  const localGrids = grids(previous.chartPrefs), remoteGrids = grids(incoming.chartPrefs);
-  for (const [tf, row] of Object.entries(remoteGrids)) if (!localGrids[tf] || row.modifiedAt > localGrids[tf].modifiedAt) localGrids[tf] = row;
-  merged.chartPrefs = { version: 1, grids: localGrids };
+  merged.chartPrefs = { version: 2 };
+  for (const field of ['grids', 'stockGrids', 'indexGrids']) {
+    const localGrids = grids(previous.chartPrefs, field), remoteGrids = grids(incoming.chartPrefs, field);
+    if (field !== 'grids' && previous.chartPrefs?.version !== 2) {
+      for (const [tf, row] of Object.entries(grids(previous.chartPrefs, 'grids'))) {
+        if (!localGrids[tf]) localGrids[tf] = { division: row.division, modifiedAt: 0 };
+      }
+    }
+    for (const [tf, row] of Object.entries(remoteGrids)) if (!localGrids[tf] || row.modifiedAt > localGrids[tf].modifiedAt) localGrids[tf] = row;
+    merged.chartPrefs[field] = localGrids;
+  }
   const channels = JSON.parse(JSON.stringify(object(previous.channels) ? previous.channels : {}));
   const mods = { ...(object(previous.channelsMod) ? previous.channelsMod : {}) };
   const nextMods = object(incoming.channelsMod) ? incoming.channelsMod : {};

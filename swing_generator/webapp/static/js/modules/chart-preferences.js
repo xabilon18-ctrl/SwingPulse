@@ -1,46 +1,62 @@
-/* Per-user, per-timeframe chart choices; merge by each choice's edit time. */
+/* Per-user chart choices, independent by market group and timeframe. */
 (function (root) {
   'use strict';
   const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }];
   const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
+  const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids' };
   const valid = code => choices.some(c => c.code === code);
-  function clean(value) {
+  function cleanRows(value) {
     const grids = {};
-    for (const [tf, row] of Object.entries(value && value.grids || {})) {
+    for (const [tf, row] of Object.entries(value || {})) {
       if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !row || !valid(row.division)) continue;
       if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
       grids[tf] = { division: row.division, modifiedAt: row.modifiedAt };
     }
-    return { version: 1, grids };
+    return grids;
+  }
+  function clean(value) {
+    return { version: 2, ...Object.fromEntries(Object.values(scopes).map(field => [field, cleanRows(value?.[field])])) };
+  }
+  function migrate(value) {
+    const result = clean(value);
+    if (value?.version !== 2) {
+      // Keep the old appearance on upgrade, then stop the groups following
+      // one another. Untimed copies cannot replace a newer stock/index edit.
+      for (const field of ['stockGrids', 'indexGrids']) for (const [tf, row] of Object.entries(result.grids)) {
+        if (!result[field][tf]) result[field][tf] = { division: row.division, modifiedAt: 0 };
+      }
+    }
+    return result;
   }
   function merge(left, right) {
     const result = clean(left), incoming = clean(right);
-    for (const [tf, row] of Object.entries(incoming.grids)) {
-      const local = result.grids[tf];
+    for (const field of Object.values(scopes)) for (const [tf, row] of Object.entries(incoming[field])) {
+      const local = result[field][tf];
       // Legacy device choices have no edit time. Prefer the synced copy on a
       // tie so old browser-only choices converge without replacing real edits.
-      if (!local || row.modifiedAt > local.modifiedAt || row.modifiedAt === 0 && local.modifiedAt === 0) result.grids[tf] = row;
+      if (!local || row.modifiedAt > local.modifiedAt || row.modifiedAt === 0 && local.modifiedAt === 0) result[field][tf] = row;
     }
     return result;
   }
   function create({ storage, key, legacyKey = 'swingpulse-grid-divisions', now = Date.now, onChange = () => {} }) {
     let state;
     function reload() {
-      try { state = clean(JSON.parse(storage.getItem(key()) || 'null')); } catch (_) { state = clean(null); }
+      try { state = migrate(JSON.parse(storage.getItem(key()) || 'null')); } catch (_) { state = clean(null); }
       if (!Object.keys(state.grids).length && storage.getItem(key()) == null) {
         let legacy = {}; try { legacy = JSON.parse(storage.getItem(legacyKey) || '{}') || {}; } catch (_) {}
         for (const [tf, division] of Object.entries(legacy)) if (valid(division)) state.grids[tf] = { division, modifiedAt: 0 };
-        save();
+        state = migrate({ version: 1, grids: state.grids });
       }
+      save();
     }
     function save() { try { storage.setItem(key(), JSON.stringify(state)); } catch (_) {} }
     function snapshot() { return clean(state); }
-    function division(tf) { const code = state.grids[tf]?.division || defaults[tf] || 'Y'; return choices.find(c => c.code === code); }
-    function set(tf, code) {
-      if (!valid(code)) return false;
-      const old = state.grids[tf];
+    function division(tf, scope = 'other') { const code = state[scopes[scope] || 'grids'][tf]?.division || defaults[tf] || 'Y'; return choices.find(c => c.code === code); }
+    function set(tf, code, scope = 'other') {
+      if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
+      const rows = state[scopes[scope]], old = rows[tf];
       if (old && old.division === code) return true;
-      state.grids[tf] = { division: code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
+      rows[tf] = { division: code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
       save(); onChange(); return true;
     }
     function mergeRemote(remote) {
@@ -50,18 +66,18 @@
     }
     function pending(remote) {
       const other = clean(remote);
-      return Object.entries(state.grids).some(([tf, row]) => !other.grids[tf] || row.modifiedAt > other.grids[tf].modifiedAt);
+      return Object.values(scopes).some(field => Object.entries(state[field]).some(([tf, row]) => !other[field][tf] || row.modifiedAt > other[field][tf].modifiedAt));
     }
     function previewRestore(value) {
-      const next = snapshot(), backup = clean(value);
-      for (const [tf, row] of Object.entries(backup.grids)) next.grids[tf] = { division: row.division, modifiedAt: Math.max(now(), (next.grids[tf]?.modifiedAt || 0) + 1) };
+      const next = snapshot(), backup = migrate(value);
+      for (const field of Object.values(scopes)) for (const [tf, row] of Object.entries(backup[field])) next[field][tf] = { division: row.division, modifiedAt: Math.max(now(), (next[field][tf]?.modifiedAt || 0) + 1) };
       return next;
     }
     function restore(value) { state = previewRestore(value); save(); onChange(); }
     reload();
     return { reload, snapshot, division, set, mergeRemote, pending, restore, previewRestore };
   }
-  const api = Object.freeze({ choices, defaults, clean, merge, create });
+  const api = Object.freeze({ choices, defaults, scopes, clean, migrate, merge, create });
   (root.SwingPulseModules ||= {}).chartPreferences = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

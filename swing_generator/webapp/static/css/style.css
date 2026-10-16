@@ -9697,6 +9697,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-grid-btn.on { color: var(--accent); }
 .reel-grid-menu {
   position: fixed; z-index: 1000; width: 260px;
+  max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto;
   padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,.4);
   display: flex; flex-direction: column; gap: 6px; text-align: left;
@@ -9720,6 +9721,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-time-grid-label, .reel-time-grid-scope { font-size: .7rem; font-weight: 700; }
 .reel-time-grid-scope { grid-column: 2; grid-row: 1; color: var(--text-muted); text-align: right; }
+.reel-time-grid-note { grid-column: 1 / -1; font-size: .68rem; color: var(--text-secondary); }
 .reel-time-grid-options { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .reel-time-grid-opt {
   appearance: none; cursor: pointer; font-family: inherit; font-size: .78rem;
