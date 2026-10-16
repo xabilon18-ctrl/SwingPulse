@@ -8468,7 +8468,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, pct: !!j.pct, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -9200,29 +9200,8 @@
     return v.toPrecision(4);
   }
 
-  // PRICE AXIS IN % (user, 2026-09-29: "when i am in the charts allow me to
-  // see what price is in %"). Levels read as the distance from the latest
-  // close — the last price is 0%, +5% is five percent above it. One switch for
-  // every chart (Grid menu), kept on this device with the overlay settings.
-  // The last-price tag keeps the price itself, so the level still has a number.
-  const reelPctOn = () => !!tfOverlay.pct;
-  function reelLastClose(b) {
-    const src = b._src || b;
-    for (let i = src.c.length - 1; i >= 0; i--) if (src.c[i] != null) return src.c[i];
-    return null;
-  }
-  function reelFmtPct(p, step) {
-    const dp = step >= 1 || Math.abs(p) >= 10 ? (step >= 1 ? 0 : 1) : step >= 0.1 ? 1 : 2;
-    const r = +p.toFixed(dp);
-    return r === 0 ? '0%' : (r > 0 ? '+' : '−') + Math.abs(r).toFixed(dp) + '%';
-  }
-  // A level's label: the price, or its % from the last close in % mode.
-  function reelFmtLevel(v, b) {
-    const last = reelPctOn() && b ? reelLastClose(b) : null;
-    if (!(last > 0) || v == null) return reelFmtPrice(v);
-    const p = (v / last - 1) * 100;
-    return reelFmtPct(p, Math.abs(p) >= 10 ? 1 : 0.1);
-  }
+  // Chart levels always use price, including after restoring older settings.
+  function reelFmtLevel(v) { return reelFmtPrice(v); }
 
   // Round gridline levels — 1/2/5 x 10^n, the steps a price axis is read in.
   function reelTicks(lo, hi, want) {
@@ -10688,20 +10667,29 @@
       + handles;
   }
 
-  // One equal grid for every chart in a timeframe, saved across app restarts.
+  // One equal grid for every chart in a market group/timeframe, saved and synced.
   const GRID_DIVISIONS = modules.chartPreferences.choices;
-  function reelGridDivision(tf) { return chartPreferences.division(tf); }
-  function reelSetGridDivision(tf, code) {
-    return !!TF_BY_CODE[tf] && chartPreferences.set(tf, code);
+  const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', other: 'Other markets' };
+  function reelGridScope(item) {
+    if (!item) return 'other';
+    const kind = assetClassOf(item);
+    if (kind === 'Equity') return 'stocks';
+    if (kind === 'Index' && item.group !== 'Rates') return 'indices';
+    return 'other';
   }
-  function reelTimeGridSwitchHtml() {
-    const selected = reelGridDivision(timeframe).code;
-    return `<span class="reel-time-grid-label">Time grid</span><div class="reel-time-grid-options" role="group" aria-label="Time grid for all ${tfMeta().label} charts">`
-      + GRID_DIVISIONS.map(d => `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year" title="${d.name} · ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year">${d.code}</button>`).join('')
-      + `</div><span class="reel-time-grid-scope">${tfMeta().label}</span>`;
+  function reelGridDivision(tf, scope = 'other') { return chartPreferences.division(tf, scope); }
+  function reelSetGridDivision(tf, code, scope = 'other') {
+    return !!TF_BY_CODE[tf] && chartPreferences.set(tf, code, scope);
   }
-  function reelTimeGridSwitch() {
-    return `<div class="reel-time-grid-switch">${reelTimeGridSwitchHtml()}</div>`;
+  function reelTimeGridSwitchHtml(name) {
+    const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
+    const selected = reelGridDivision(timeframe, scope).code, label = GRID_SCOPE_LABELS[scope];
+    return `<span class="reel-time-grid-label">Time grid · ${label}</span><div class="reel-time-grid-options" role="group" aria-label="${label}: time grid for all ${tfMeta().label} charts">`
+      + GRID_DIVISIONS.map(d => `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year" title="${d.name} · ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year">${d.code}</button>`).join('')
+      + `</div><span class="reel-time-grid-scope">${tfMeta().label}</span><span class="reel-time-grid-note">Saved for ${label.toLowerCase()} · ${tfMeta().label} only</span>`;
+  }
+  function reelTimeGridSwitch(name) {
+    return `<div class="reel-time-grid-switch">${reelTimeGridSwitchHtml(name)}</div>`;
   }
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '4H', '12H'].includes(tf);
@@ -10710,7 +10698,10 @@
     return freshness.chartTime(ts, timeframe, true) + ' local';
   }
   function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
-  function reelTimeGrid(b, tf) { return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: reelGridDivision }); }
+  function reelTimeGrid(b, tf, item) {
+    const scope = reelGridScope(item);
+    return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => reelGridDivision(code, scope) });
+  }
 
 
   // ── Trend strip (2026-09-11, approved from the AVGO preview) ─────────────
@@ -10852,22 +10843,9 @@
     // movement that reads as the chart doing something when nothing happened.
     // The numbers still sit in the gutter, which is where a level is read.
     const _want = L.H > 700 ? 8 : 6;
-    const _base = reelPctOn() ? reelLastClose(b) : null;
-    let grid;
-    if (_base > 0) {
-      // % mode: round steps of PERCENT (1, 2.5, 5 ...), not of price, so the
-      // labels read +5% / 0% / −5% and 0% sits exactly on the last price.
-      const pLo = (sc.lo / _base - 1) * 100, pHi = (sc.hi / _base - 1) * 100;
-      const pt = reelTicks(pLo, pHi, _want);
-      const step = pt.length > 1 ? pt[1] - pt[0] : 1;
-      grid = pt.map(p =>
-        `<text x="${L.gut}" y="${(sc.y(_base * (1 + p / 100)) + 6).toFixed(1)}" class="reel-axis">${reelFmtPct(Math.abs(p) < step / 1e6 ? 0 : p, step)}</text>`
-      ).join('');
-    } else {
-      grid = reelTicks(sc.lo, sc.hi, _want).map(v =>
-        `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
-      ).join('');
-    }
+    const grid = reelTicks(sc.lo, sc.hi, _want).map(v =>
+      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
+    ).join('');
 
     // ── MA ribbon ──
     // Dotted, and each line coloured by its OWN slope: falling red, rising
@@ -11061,7 +11039,7 @@
     // happens to cross no boundary at all.
     // Daily keeps its own YEAR grid at every zoom (user, 2026-09-26: the week
     // lines a zoomed Daily switched to read as the 15m grid on the Daily chart).
-    const tg = reelTimeGrid(b, timeframe);
+    const tg = reelTimeGrid(b, timeframe, item);
     // Every boundary gets its LINE; labels are thinned so they cannot overlap.
     // On the slow timeframes a boundary is rare enough that this never fires,
     // but 10m crosses a session every ~39 bars, so zoomed out its labels would
@@ -11306,15 +11284,11 @@
   function gridBtnHtml(name) {
     return `<button class="reel-share-btn reel-grid-btn${gridBand() || ribShade(timeframe).on ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
-  function reelGridMenuHtml() {
+  function reelGridMenuHtml(name) {
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
-    const pc = reelPctOn();
-    let h = `${reelTimeGridSwitch()}
-      <div class="reel-grid-sep"></div>
-      <button class="reel-tool reel-grid-switch${pc ? ' on' : ''}" data-act="pct-set" role="menuitemcheckbox" aria-checked="${pc}">
-        <span>Price axis in %<em>distance from the last price · all charts</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>
+    let h = `${reelTimeGridSwitch(name)}
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
         <span>Shade every other gap<em>${TF_BY_CODE[timeframe].label} chart</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
@@ -11351,7 +11325,8 @@
     menu.className = 'reel-grid-menu';
     menu.setAttribute('role', 'menu');
     menu._btn = btn;
-    menu.innerHTML = reelGridMenuHtml();
+    menu._name = btn.dataset.name;
+    menu.innerHTML = reelGridMenuHtml(menu._name);
     // Inside the card / full-screen view so its clicks reach the same handler.
     (btn.closest('.reel-card') || document.body).appendChild(menu);
     reelGridMenuPlace(menu);
@@ -13644,9 +13619,9 @@
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
       if (btn.dataset.act === 'time-grid-set') {
-        if (!reelSetGridDivision(timeframe, btn.dataset.division)) return true;
+        if (!reelSetGridDivision(timeframe, btn.dataset.division, btn.dataset.gridScope)) return true;
         document.querySelectorAll('.reel-grid-menu').forEach(menu => {
-          menu.innerHTML = reelGridMenuHtml();
+          menu.innerHTML = reelGridMenuHtml(menu._name);
           reelGridMenuPlace(menu);
         });
         reelRepaintVisible();
@@ -13670,19 +13645,8 @@
           if (fh && fh._reelCtx) reelRepaint(fh);
         }
         const menu = btn.closest('.reel-grid-menu');
-        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
+        if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
-        return true;
-      }
-      if (btn.dataset.act === 'pct-set') {
-        tfOverlay.pct = !tfOverlay.pct;
-        ovSave();
-        reelRepaintVisible();
-        const full = chartFullEl();
-        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
-        if (fh && fh._reelCtx) reelRepaint(fh);
-        const menu = btn.closest('.reel-grid-menu');
-        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
         return true;
       }
       if (btn.dataset.act === 'grid-set') {
@@ -13703,7 +13667,7 @@
         ovSave();
         ovApplyVars();
         const menu = btn.closest('.reel-grid-menu');
-        if (menu) { menu.innerHTML = reelGridMenuHtml(); reelGridMenuPlace(menu); }
+        if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
         return true;
       }

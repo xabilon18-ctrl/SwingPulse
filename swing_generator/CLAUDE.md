@@ -3,6 +3,20 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-16 prepared market-specific time grids: app.js v497 / style.css v368,
+chart-preferences.js v2 / saved-work.js v2. Stocks (Equity), stock indices
+(Index excluding Rates), and other markets independently remember M/Q/H/Y for
+each timeframe. The chart's instrument selects the group in cards and full screen;
+the grid menu names that group. Existing choices are copied once on upgrade.
+Preference v2 keeps `grids` for other markets and adds `stockGrids`/`indexGrids`,
+with independent timestamps, sync merges and backup restore. Old clients cannot
+erase the new groups. Equal grid geometry and permanent reference lines remain.
+The percentage price-axis control and formatting are removed; old enabled
+settings are ignored. Numeric price labels remain. No market-data rebuild or
+additional Yahoo requests are needed; release the sync Worker with the UI.
+The grid menu uses a light chart-matching surface, subtle borders/shadow and
+neutral readable captions; amber remains the selected-control colour.
+
 2026-10-15 prepared chart cleanup: app.js v496. Automatic buy/sell triangles,
 B/S labels and MA-cross annotations are no longer drawn over candles on chart
 cards, full-screen charts or exported chart images. Signal data remains available

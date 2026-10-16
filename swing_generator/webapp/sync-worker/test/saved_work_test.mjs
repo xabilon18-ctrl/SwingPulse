@@ -18,4 +18,13 @@ async function put(body){return worker.fetch(new Request('https://worker/sync?us
 assert.equal((await put(old)).status,200);assert.equal((await put(incoming)).status,200);
 const stored=JSON.parse(disk.get('zabs'));assert.equal(stored.channels.B.D[0].p1,3);
 assert.equal(JSON.parse(disk.get('zabs:prev')).channels.A.D[0].p1,1);
+const stockEdit={chartPrefs:{version:2,stockGrids:{'4H':{division:'M',modifiedAt:300}}}};
+const indexEdit={chartPrefs:{version:2,indexGrids:{'4H':{division:'H',modifiedAt:400}}}};
+await put(stockEdit);await put(indexEdit);await put(incoming);
+const groups=JSON.parse(disk.get('zabs')).chartPrefs;
+assert.equal(groups.version,2);
+assert.equal(groups.stockGrids['4H'].division,'M','Legacy clients preserve newer stock choices');
+assert.equal(groups.indexGrids['4H'].division,'H','Independent index edits survive another device');
+assert.equal(groups.grids['4H'].division,'Q');
+assert.equal(mergeSavedWork({chartPrefs:groups},{chartPrefs:{stockGrids:{'4H':{division:'Y',modifiedAt:20}}}}).chartPrefs.stockGrids['4H'].division,'M');
 console.log('PASS: authenticated saved-work merging, newer charts and grids, deletion tombstones, retained server backup');

@@ -16,6 +16,8 @@ const context = () => {
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
     TF_BY_CODE: { '1H': {}, '4H': {}, D: {} }, timeframe: '1H',
     tfMeta: () => ({ label: '1H' }),
+    assetClassOf: item => item.asset_class,
+    instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
   });
   vm.runInContext(code, c);
@@ -83,4 +85,24 @@ storage.delete('test-chart-preferences');
 storage.set('swingpulse-grid-divisions', JSON.stringify({'1H':'W'}));
 assert.equal(context().reelGridDivision('1H').code, 'M', 'Old weekly selections fall back to month');
 assert.ok(c.reelTimeGrid(b, '2H').every(l => !l.week && !l.quarter && !l.admin), 'Ordinary years must not be bold');
+// Each chart supplies its own market group; one visible stock must not choose
+// the grid for neighbouring crypto/index charts or another timeframe.
+const stock={asset_class:'Equity'}, index={asset_class:'Index'}, crypto={asset_class:'Crypto'};
+c.reelSetGridDivision('4H','M','stocks');
+c.reelSetGridDivision('4H','H','indices');
+c.reelSetGridDivision('4H','Y','other');
+c.reelSetGridDivision('1H','Q','stocks');
+for(const [item,code,parts] of [[stock,'M',12],[index,'H',2],[crypto,'Y',1]]) {
+  const lines=c.reelTimeGrid(b,'4H',item).filter(l=>!l.fixedOnly);
+  assert.equal(lines.filter(l=>l.year===2024).length,parts);
+  assert.ok(lines.every(l=>l.division===code));
+  const gap=lines[1].fi-lines[0].fi;
+  lines.slice(2).forEach((l,i)=>assert.ok(Math.abs(l.fi-lines[i+1].fi-gap)<1e-9));
+}
+assert.equal(c.reelTimeGrid(b,'1H',stock).find(l=>!l.fixedOnly).division,'Q');
+assert.equal(c.reelGridScope({asset_class:'Index',group:'Rates'}),'other');
+assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
+assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
+assert.equal(context().reelGridDivision('4H','stocks').code,'M');
+assert.equal(context().reelGridDivision('4H','indices').code,'H');
 console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, saved choices and shading');

@@ -23,6 +23,10 @@ module.exports=async function checkSavedWork(page, screenshots) {
   if(screenshots)await page.screenshot({path:`${screenshots}/freshness-v489.png`});
   await full.locator('[data-freshness-name] summary').click();
   await full.locator('[data-act="grid-menu"]').click();
+  const scope=await page.locator('.reel-grid-menu [data-division="H"]').getAttribute('data-grid-scope');
+  const gridField={stocks:'stockGrids',indices:'indexGrids',other:'grids'}[scope];
+  assert.ok(gridField,'Grid menu identifies the chart market group');
+  assert.equal(await page.locator('[data-act="pct-set"]').count(),0);
   await page.locator('.reel-grid-menu [data-division="H"]').click();
   await full.locator('[data-act="grid-menu"]').click();
   await full.locator('[data-act="chart-full-close"]').click();
@@ -33,7 +37,7 @@ module.exports=async function checkSavedWork(page, screenshots) {
   const download=await downloadWait;
   const saved=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(saved.format,'SwingPulseBackup');
-  assert.equal(saved.data.grids.grids['4H'].division,'H');
+  assert.equal(saved.data.grids[gridField]['4H'].division,'H');
   assert.ok(!JSON.stringify(saved).includes('sync-token'));
   await panel.locator('[data-work-close]').click();
   await page.locator('#chartReel [data-act="grid-menu"]').first().click();
@@ -52,8 +56,8 @@ module.exports=async function checkSavedWork(page, screenshots) {
   await panel.locator('[data-work-restore]').click();
   await page.waitForFunction(()=>document.querySelector('[data-work-message]').textContent.includes('Restored on this device'));
   const restored=await page.evaluate(()=>JSON.parse(localStorage.getItem('sp-chart-prefs')));
-  assert.equal(restored.grids['4H'].division,'H');
-  assert.ok(restored.grids['4H'].modifiedAt>saved.data.grids.grids['4H'].modifiedAt,'Restored preference beats older copies on other devices');
+  assert.equal(restored[gridField]['4H'].division,'H');
+  assert.ok(restored[gridField]['4H'].modifiedAt>saved.data.grids[gridField]['4H'].modifiedAt,'Restored preference beats older copies on other devices');
   assert.deepEqual(JSON.parse(await getChannels()),saved.data.channels);
   assert.ok(await page.evaluate(()=>JSON.parse(localStorage.getItem('sp-work-backups')).length>=2),'Pre-restore work has a recovery copy');
   await panel.locator('[data-work-close]').click();
