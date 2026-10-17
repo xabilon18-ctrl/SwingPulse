@@ -1,0 +1,51 @@
+name: Backtest study (temporary)
+
+# TEMPORARY (2026-10-17). Runs backtest.py and research/workflow_edge_study.py
+# for the daily500-4h-v1 engine against the production parquet cache, which
+# exists only in this repo's Actions cache. Push-triggered on its own branch
+# only; nothing is published or deployed. Delete with the branch.
+on:
+  push:
+    branches: [claude/backtest-study]
+
+permissions:
+  contents: read
+
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r swing_generator/requirements.txt
+      # Restore only: the same paths and key prefix publish.yml saves, so the
+      # cache version matches. A branch may read the default branch's caches.
+      - name: Restore production parquet cache (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            swing_generator/cache_ma500
+            swing_generator/output_ma500/names_cache.json
+          key: parquet-ma500-${{ runner.os }}-none
+          restore-keys: parquet-ma500-${{ runner.os }}-
+          fail-on-cache-miss: true
+      - name: Cache contents
+        run: |
+          cd swing_generator/cache_ma500
+          echo "daily: $(ls *.parquet | grep -vc '_1h\|_5m')  hourly: $(ls | grep -c '_1h.parquet')"
+      - name: backtest.py (production engine, since 2016)
+        run: cd swing_generator && python3 backtest.py --since 2016-01-01 --workers 4
+      - name: Edge study (vs random entries, legacy engine, B1/S1 buffers)
+        run: cd swing_generator && python3 research/workflow_edge_study.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backtest-study
+          path: |
+            swing_generator/output_ma500/backtest_*.json
+            swing_generator/output_ma500/workflow_edge_study.json
+            swing_generator/confidence_map_workflow.json
