@@ -28,7 +28,12 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const opened=await read(host);
     near(opened.lo,before.lo,tf+' automatic frame does not zoom out on expand');
     near(opened.hi,before.hi,tf+' automatic frame does not zoom out on expand');
-    if (opened.lo === 0) {
+    if (tf === 'D') {
+      // TEST is a stock: Daily stocks open with 0 just above the bottom and
+      // the top at twice the highest high (reelStockView, 2026-10-17).
+      assert.ok(opened.lo < 0 && opened.lo > -0.1*opened.hi,tf+' stock Daily puts 0 just above the bottom');
+      assert.ok(opened.hi >= 2*opened.last,tf+' stock Daily top is twice the high');
+    } else if (opened.lo === 0) {
       assert.ok(opened.hi >= 2*opened.last,tf+' large positive-price swings trim only the empty space below zero');
     } else {
       near((opened.hi+opened.lo)/2,opened.last,tf+' opening price stays central');
