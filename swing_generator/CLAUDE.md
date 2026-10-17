@@ -3,6 +3,15 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 sync fix: app.js v498 + sync Worker. Notes now sync note by note
+on per-note timestamps (`notesMod`, deletion = stamp without text), merged on
+every pull and before every push, like drawings. Before, the newest WHOLE
+notes map won, so a device that had not pulled wiped another device's edit.
+Unstamped notes from older data or a cached older app keep the old rule only
+for themselves. Note edits set the unsent-work marker and are resent on start
+and on reconnect (`online`); the local sync mark moves only on a confirmed save.
+Release the sync Worker with this UI.
+
 2026-10-16 prepared market-specific time grids: app.js v497 / style.css v368,
 chart-preferences.js v2 / saved-work.js v2. Stocks (Equity), stock indices
 (Index excluding Rates), and other markets independently remember M/Q/H/Y for

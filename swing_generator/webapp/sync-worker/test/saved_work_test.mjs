@@ -27,4 +27,20 @@ assert.equal(groups.stockGrids['4H'].division,'M','Legacy clients preserve newer
 assert.equal(groups.indexGrids['4H'].division,'H','Independent index edits survive another device');
 assert.equal(groups.grids['4H'].division,'Q');
 assert.equal(mergeSavedWork({chartPrefs:groups},{chartPrefs:{stockGrids:{'4H':{division:'Y',modifiedAt:20}}}}).chartPrefs.stockGrids['4H'].division,'M');
+// Notes merge note by note (review finding 2026-10-17: a stale device wiped
+// another device's note edit because the newest whole notes map won).
+const n0={lastModified:100,notes:{A:'phone edit',B:'old'},notesMod:{A:200}};
+const laptop=mergeSavedWork(n0,{lastModified:300,notes:{A:'stale laptop copy',C:'laptop note'},notesMod:{A:150,C:290}});
+assert.equal(laptop.notes.A,'phone edit','A newer stamp on the server is never overwritten by an older one');
+assert.equal(laptop.notes.C,'laptop note');
+assert.equal(laptop.notes.B,'old','A note the device has not loaded is not a deletion');
+const gone=mergeSavedWork(laptop,{lastModified:310,notes:{},notesMod:{A:400}});
+assert.equal(gone.notes.A,undefined,'A stamped absence is a deletion');
+assert.equal(mergeSavedWork(gone,{lastModified:320,notes:{A:'resurrected'},notesMod:{A:390}}).notes.A,undefined,
+  'An older device cannot resurrect a deleted note');
+const legacy=mergeSavedWork(laptop,{lastModified:999,notes:{B:'legacy edit'}});
+assert.equal(legacy.notes.B,'legacy edit','A cached older app still saves unstamped notes');
+assert.equal(legacy.notes.A,'phone edit','but cannot erase stamped ones');
+assert.equal(mergeSavedWork(laptop,{lastModified:999}).notes.C,'laptop note','A save without notes keeps them');
+assert.ok(!Object.hasOwn(mergeSavedWork({},{notes:{constructor:'bad'},notesMod:{constructor:5}}).notes,'constructor'),'Prototype keys are refused');
 console.log('PASS: authenticated saved-work merging, newer charts and grids, deletion tombstones, retained server backup');
