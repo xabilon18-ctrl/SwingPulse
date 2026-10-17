@@ -9214,6 +9214,8 @@
   // every level would flatten the price action. Saved/manual bounds win.
   const REEL_OPENING_PRICE_FILL = 0.85;
   const REEL_OV_FIT_CAP = 2;   // see reelOpeningPriceWindow
+  const REEL_WIDE_PRICE_FILL = 0.55;   // 4H stocks, measured off RAND/PHIA/NN_NL
+  const REEL_ZERO_FIT_FOOT = 0.05;     // Daily stocks: 0 sits 5% of the top above the bottom
 
   // Empty bar-widths held back on the right, between the newest bar and the
   // price scale.
@@ -9234,7 +9236,7 @@
     return Math.max(2, Math.round(winBars * 0.05));
   }
 
-  function reelScale(b, L, locked, extra) {
+  function reelScale(b, L, locked, extra, fit) {
     // A locked scale is the price window the reader was already looking at when
     // they grabbed the chart. Panning must not re-fit the axis underneath them —
     // that is a vertical zoom, and it is what "the view should remain" rules out.
@@ -9264,7 +9266,7 @@
     }
     const hasMa = isFinite(mLo);
 
-    const opening = reelOpeningPriceWindow(b, extra);
+    const opening = reelOpeningPriceWindow(b, extra, fit);
     const lo = opening ? opening.lo : pLo - pRange * 0.04;
     const hi = opening ? opening.hi : pHi + pRange * 0.04;
 
@@ -9397,7 +9399,7 @@
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
   function reelDefaultBars(bundle, name) {
     const n = bundle.c.length;
-    const qv = name && reelQuarterView(bundle, name);
+    const qv = name && reelStockView(bundle, name);
     if (qv) return qv.bars;
     if (timeframe === '15m' || timeframe === '30m' || timeframe === '1H' || timeframe === '2H') {
       // 30m (2026-09-29) opens exactly as the 15m it replaced did.
@@ -9440,29 +9442,52 @@
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
-  // 1H STOCKS OPEN ON TWO QUARTERS (user, 2026-10-17, from their AME/AMD/
-  // AMBA/NXPI/NVDA full-screen screenshots: "for 1 hour make all stock charts
-  // look like this on open and flipping through"): the previous quarter's
-  // first bar at the left edge, the current quarter running into blank future
-  // up to the NEXT quarter line just inside the right edge — today (mid-Oct)
-  // that is 1 Jul to 1 Jan. The quarters are the grid's own permanent Q lines
-  // (gridGeometry.yearFrame), so the frame lands on them exactly and moves on
-  // by itself each quarter. The blank future is a default pan (reelPanOf), so
-  // zooming and panning work from it as from any other view. Price: see
-  // reelOverlayRange. Off with a Range pill; a saved view still wins.
-  function reelQuarterView(bundle, name) {
-    if (timeframe !== '1H' || reel.range) return null;
+  // STOCK OPENING VIEWS (user, 2026-10-17, from their full-screen
+  // screenshots: "make all stock charts look like this on open and flipping
+  // through"). Each frame runs between the grid's own permanent lines
+  // (gridGeometry.yearFrame), so it lands on them exactly and moves on by
+  // itself:
+  //   1H  — previous + current QUARTER (AME/AMD/AMBA/NXPI/NVDA): mid-Oct
+  //         opens 1 Jul to 1 Jan.
+  //   4H  — previous + current HALF-YEAR (RAND/PHIA/NN_NL): mid-Oct opens
+  //         1 Jan to 1 Jan; in March it is 1 Jul to 1 Jul.
+  //   D   — the current four-year TERM (BE/WKL): 2025 to 2029.
+  // The left edge is the first line, the right edge just past the closing
+  // line; the blank future is a default pan (reelPanOf), so zooming and
+  // panning work from it as from any other view. `fit` names the price rule
+  // for reelOpeningPriceWindow. Off with a Range pill; a saved view wins.
+  const REEL_STOCK_VIEW = {
+    '1H': { unit: 0.25, fit: 'ov' },     // bars + overlay MAs, capped
+    '4H': { unit: 0.5,  fit: 'wide' },   // bars at about half the height
+    'D':  { term: 4,    fit: 'zero' },   // 0 at the bottom, top 2x the high
+  };
+  function reelStockView(bundle, name) {
+    const spec = REEL_STOCK_VIEW[timeframe];
+    if (!spec || reel.range) return null;
     if (reelGridScope(instrumentByName(name)) !== 'stocks') return null;
-    if (bundle._qv !== undefined) return bundle._qv;
+    if (bundle._sv !== undefined) return bundle._sv;
     const fr = window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
-    if (!fr) return (bundle._qv = null);
-    const q = fr.yearBars / 4, last = fr.n - 1;
-    const k = Math.floor((last - fr.anchor) / q + 1e-9);
-    const from = Math.max(0, Math.floor(fr.anchor + (k - 1) * q));
-    const end = Math.ceil(fr.anchor + (k + 1) * q);
+    if (!fr) return (bundle._sv = null);
+    const last = fr.n - 1;
+    let start, endAt;
+    if (spec.term) {
+      // Terms start in 2025, 2029, ... — the Daily administration lines.
+      const year = new Date(reelBarTimes(bundle)[last]).getUTCFullYear();
+      const first = 2025 + spec.term * Math.floor((year - 2025) / spec.term);
+      start = fr.anchor + (first - year) * fr.yearBars;
+      endAt = start + spec.term * fr.yearBars;
+    } else {
+      const u = fr.yearBars * spec.unit;
+      const k = Math.floor((last - fr.anchor) / u + 1e-9);
+      start = fr.anchor + (k - 1) * u;
+      endAt = fr.anchor + (k + 1) * u;
+    }
+    const from = Math.max(0, Math.floor(start));
+    const end = Math.ceil(endAt);
     const future = Math.max(0, end - last);
     const bars = Math.max(REEL_MIN_WINDOW_BARS, end - from + 1);
-    return (bundle._qv = { bars, future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
+    return (bundle._sv = { bars, fit: spec.fit,
+      future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
   }
 
   // The highest and lowest switched-on Daily/Weekly/Monthly overlay MA inside
@@ -9551,15 +9576,23 @@
   // bars alone need, so the candles always keep at least half the height
   // they would have. A line further away is left off-screen and named in a
   // note (reelChartSvg).
-  function reelOpeningPriceWindow(b, extra) {
+  // `fit` is a stock opening view's price rule (reelStockView): 'zero' puts
+  // 0 just above the bottom and the top at twice the highest high (Daily —
+  // the candles in the lower half, room above for projections); 'wide'
+  // centres the close with the bars at about half the height (4H).
+  function reelOpeningPriceWindow(b, extra, fit) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
+    if (fit === 'zero' && lo >= 0) {
+      const top = 2 * hi;
+      return { lo: -REEL_ZERO_FIT_FOOT * top, hi: top };
+    }
     let dev = Math.max(hi - c, c - lo, c * 0.002);
     if (extra) dev = Math.min(Math.max(dev, extra.hi - c, c - extra.lo), dev * REEL_OV_FIT_CAP);
-    const half = dev / REEL_OPENING_PRICE_FILL;
+    const half = dev / (fit === 'wide' ? REEL_WIDE_PRICE_FILL : REEL_OPENING_PRICE_FILL);
     // A large fall (for example ETH Daily) can put the symmetric frame below
     // zero. Trim that empty space when all visible prices are nonnegative.
     // Keep genuine negative-price history and saved/manual bounds intact.
@@ -9666,11 +9699,11 @@
   }
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
-  // edge), except a 1H stock, which opens with the rest of the current
-  // quarter as blank space (reelQuarterView).
+  // edge), except a stock on 1H/4H/Daily, which opens with the rest of its
+  // frame as blank space (reelStockView).
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
-    const qv = bundle && reelQuarterView(bundle, name);
+    const qv = bundle && reelStockView(bundle, name);
     return qv ? -qv.future : 0;
   }
 
@@ -10992,13 +11025,15 @@
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
-    // A 1H stock's opening view also fits the overlay MAs (reelQuarterView);
-    // once the reader zooms or pans, the fit is the bars' alone again.
+    // A stock's opening view has its own price rule (reelStockView); 1H also
+    // fits the overlay MAs. Once the reader zooms or pans, the fit is the
+    // bars' alone again.
     const _nm = item.instrument_name;
-    const _ovFit = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) && reelQuarterView(bundle, _nm)
+    const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
+    const _ovFit = _sv && _sv.fit === 'ov'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D) : null;
     const sc = reelScale(b, L, reel.lockY.get(_nm)
-      || null, _ovFit);   // fitted to the bars on every timeframe (2026-09-30)
+      || null, _ovFit, _sv && _sv.fit);   // fitted to the bars on every timeframe (2026-09-30)
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;

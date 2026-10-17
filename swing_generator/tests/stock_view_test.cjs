@@ -1,4 +1,4 @@
-// 1H stocks open on the previous + current quarter (2026-10-17).
+// Stock opening views: 1H quarters, 4H half-years, Daily terms (2026-10-17).
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -16,7 +16,8 @@ const ctx = vm.createContext({
   instrumentByName: name => ({ STOCK: 'stocks', BTC: 'other', IDX: 'indices' }[name]),
   reelGridScope: scope => scope,
 });
-vm.runInContext(fn('reelQuarterView'), ctx);
+const block = source.slice(source.indexOf('  const REEL_STOCK_VIEW = {'), source.indexOf('  };\n', source.indexOf('  const REEL_STOCK_VIEW = {')) + 5);
+vm.runInContext(block.replace('const REEL_STOCK_VIEW', 'var REEL_STOCK_VIEW') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -29,7 +30,7 @@ const hourly = (from, to, hours) => {
 };
 const hours = [13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5];
 const b = hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours);
-const qv = ctx.reelQuarterView(b, 'STOCK');
+const qv = ctx.reelStockView(b, 'STOCK');
 const n = b.t.length, from = n - (qv.bars - qv.future);
 // The window opens at the start of Q3. The grid's quarters are equal parts of
 // the year, so the line can fall a day either side of the calendar 1 July.
@@ -45,19 +46,43 @@ assert.ok(qv.future > 0 && qv.future < qv.bars * 0.9);
 
 // Every day of the quarter maps to the same quarters: a new quarter moves the frame on.
 const jan = hourly(Date.UTC(2026, 6, 10), Date.UTC(2027, 0, 8), hours);
-const qj = ctx.reelQuarterView(jan, 'STOCK');
+const qj = ctx.reelStockView(jan, 'STOCK');
 assert.ok(near(jan.t[jan.t.length - (qj.bars - qj.future)], '2026-10-01'));
 
 // Only stocks, only 1H, only without a Range pill.
-assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'BTC'), null);
-assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'IDX'), null);
+assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'BTC'), null);
+assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'IDX'), null);
+ctx.timeframe = '15m';
+assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
+
+// 4H: previous + current half-year. Two bars a session, a year carried.
 ctx.timeframe = '4H';
-assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
+const h4 = hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [13.5, 17.5]);
+const v4 = ctx.reelStockView(h4, 'STOCK');
+const f4 = h4.t.length - (v4.bars - v4.future);
+assert.ok(near(h4.t[f4], '2026-01-01'), h4.t[f4]);
+const fr4 = geometry.yearFrame(h4, bt);
+assert.ok(Math.abs(f4 + v4.bars - 1 - (fr4.anchor + fr4.yearBars)) <= 1, 'ends on the 2027 line');
+// In March it is the second half of last year plus the first half of this one.
+const m4 = hourly(Date.UTC(2025, 2, 1), Date.UTC(2026, 2, 10), [13.5, 17.5]);
+const w4 = ctx.reelStockView(m4, 'STOCK');
+assert.ok(near(m4.t[m4.t.length - (w4.bars - w4.future)], '2025-07-01'));
+assert.equal(w4.fit, 'wide');
+
+// Daily: the current four-year term, 2025 to 2029.
+ctx.timeframe = 'D';
+const d = hourly(Date.UTC(2021, 0, 4), Date.UTC(2026, 9, 16), [0]);
+const vd = ctx.reelStockView(d, 'STOCK');
+const fd = d.t.length - (vd.bars - vd.future);
+assert.ok(near(d.t[fd], '2025-01-01'), d.t[fd]);
+const frd = geometry.yearFrame(d, bt);
+assert.ok(Math.abs(fd + vd.bars - 1 - (frd.anchor + 3 * frd.yearBars)) <= 1, 'ends on the 2029 line');
+assert.equal(vd.fit, 'zero');
 ctx.timeframe = '1H'; ctx.reel.range = 300;
-assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
+assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
-const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2 });
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05 });
 vm.runInContext(fn('reelOpeningPriceWindow'), pw);
 const bars = { c: [100], l: [95], h: [105] };
 const plain = pw.reelOpeningPriceWindow(bars);
@@ -66,4 +91,11 @@ const far = pw.reelOpeningPriceWindow(bars, { lo: 62, hi: 104 });
 assert.ok(close.lo < plain.lo && close.lo <= 92, 'a nearby MA is fitted');
 assert.ok(Math.abs((far.hi - far.lo) - 2 * (plain.hi - plain.lo)) < 1e-9, 'a far MA stops at the cap');
 assert.ok(far.lo > 62, 'the far MA is left off-screen');
-console.log('quarter view: ok');
+// 4H: centred on the close, the bars at about half the height.
+const wide = pw.reelOpeningPriceWindow(bars, null, 'wide');
+assert.ok(Math.abs((wide.hi + wide.lo) / 2 - 100) < 1e-9 && Math.abs(wide.hi - 100 - 5 / 0.55) < 1e-9);
+// Daily: 0 just above the bottom, the top at twice the highest high.
+const zero = pw.reelOpeningPriceWindow(bars, null, 'zero');
+assert.equal(zero.hi, 210);
+assert.ok(zero.lo < 0 && zero.lo > -15);
+console.log('stock views: ok');
