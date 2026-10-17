@@ -3,6 +3,15 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 crypto 4H/Daily views: app.js v505. Crypto 4H opens on the
+previous + current quarter (as stock 1H); crypto Daily on last year's line to
+two year lines ahead (2025-2028, REEL_CRYPTO_VIEW years [1, 2]). Price 'all'
+(user's choice, off BTC/AVAX/BCH/BNB 4H and ETH/BNB/BTC Daily): candles +
+switched-on overlay MAs + the chart's drawings across the window
+(reelDrawingRange: channel/trend ends and edges, ladder stack, levels), each
+side held to 2.5 bar-ranges beyond the candles, 5% margin; Daily ('allzero')
+always includes 0.
+
 2026-10-17 crypto 1H view: app.js v504. Crypto (assetClassOf 'Crypto') on
 1H opens on the last 30 days of candles plus 35 days of blank future
 (REEL_CRYPTO_VIEW, via reelOpenSpec/reelStockView). Price 'upper': candles and

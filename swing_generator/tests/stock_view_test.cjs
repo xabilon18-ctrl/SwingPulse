@@ -57,6 +57,23 @@ const vc = ctx.reelStockView({ t: round, c: round.map(() => 1) }, 'BTC');
 assert.equal(vc.bars - vc.future, 30 * 24 + 1);
 assert.equal(vc.future, 35 * 24);
 assert.equal(vc.fit, 'upper');
+// Crypto 4H: previous + current quarter, as stock 1H. Six 4H bars a day.
+ctx.timeframe = '4H';
+const r4 = [];
+for (let ms = Date.UTC(2025, 9, 18); ms <= Date.UTC(2026, 9, 17, 16); ms += 4 * 36e5) r4.push(new Date(ms).toISOString());
+const c4 = ctx.reelStockView({ t: r4, c: r4.map(() => 1) }, 'BTC');
+assert.ok(near(r4[r4.length - (c4.bars - c4.future)], '2026-07-01'));
+assert.equal(c4.fit, 'all');
+// Crypto Daily: last year's line to two year lines ahead (2025 → 2028).
+ctx.timeframe = 'D';
+const rd = [];
+for (let ms = Date.UTC(2021, 9, 1); ms <= Date.UTC(2026, 9, 16); ms += 864e5) rd.push(new Date(ms).toISOString());
+const cd = ctx.reelStockView({ t: rd, c: rd.map(() => 1) }, 'BTC');
+assert.ok(near(rd[rd.length - (cd.bars - cd.future)], '2025-01-01'));
+const frc = geometry.yearFrame({ t: rd }, bt);
+assert.ok(Math.abs(rd.length - (cd.bars - cd.future) + cd.bars - 1 - (frc.anchor + 2 * frc.yearBars)) <= 1, 'ends on the 2028 line');
+assert.equal(cd.fit, 'allzero');
+ctx.timeframe = '1H';
 // Only stocks and crypto, only these timeframes, only without a Range pill.
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'EUR'), null);
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'IDX'), null);
@@ -90,7 +107,7 @@ ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
-const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05, REEL_UPPER_FILL: 0.45, REEL_UPPER_HEAD: 0.08 });
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05, REEL_UPPER_FILL: 0.45, REEL_UPPER_HEAD: 0.08, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });
 vm.runInContext(fn('reelOpeningPriceWindow'), pw);
 const bars = { c: [100], l: [95], h: [105] };
 const plain = pw.reelOpeningPriceWindow(bars);
@@ -113,4 +130,24 @@ assert.ok(Math.abs(dot.hi - 1.66) < 0.03 && Math.abs(dot.lo - 0.28) < 0.05, JSON
 assert.ok(Math.abs((0.93 - dot.lo) / (dot.hi - dot.lo) - 0.47) < 0.03);
 const far2 = pw.reelOpeningPriceWindow({ c: [1.1], l: [1.0], h: [1.2] }, { lo: 0.2, hi: 1.2 }, 'upper');
 assert.ok(far2.lo > 0.2 && Math.abs((far2.hi - far2.lo) - 0.4 / 0.45) < 1e-9);
+// Crypto 4H/Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
+const btc4 = pw.reelOpeningPriceWindow({ c: [81377], l: [63000], h: [88000] }, { lo: 44000, hi: 141000 }, 'all');
+assert.ok(Math.abs(btc4.lo - 39150) < 1 && Math.abs(btc4.hi - 145850) < 1, JSON.stringify(btc4));
+const run = pw.reelOpeningPriceWindow({ c: [10], l: [9], h: [11] }, { lo: 9, hi: 1000 }, 'all');
+assert.ok(Math.abs(run.hi - (16 + 7 * 0.05)) < 1e-9);
+const ethD = pw.reelOpeningPriceWindow({ c: [2412], l: [1400], h: [4950] }, { lo: 1400, hi: 8600 }, 'allzero');
+assert.ok(ethD.lo < 0 && Math.abs(ethD.hi - 9030) < 1, JSON.stringify(ethD));
+// Drawings: a channel's ends and edges, a ladder's whole stack (never below 0), a level.
+const dw = vm.createContext({ REEL_EXTRAP_BARS: 250, LADDER_LINES: 10,
+  ladderStack: (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0)),
+  reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt });
+vm.runInContext(fn('reelBarIndexForDate') + fn('reelDrawingRange'), dw);
+const days = []; for (let i = 0; i < 100; i++) days.push(new Date(Date.UTC(2026, 0, 1) + i * 864e5).toISOString().slice(0, 10));
+const src = { t: days, c: days.map(() => 1) };
+const ch = { kind: 'channel', t1: days[0], p1: 100, t2: days[10], p2: 110, up: 5, dn: -5 };
+const r1 = dw.reelDrawingRange([ch], src, 0, 150);
+assert.ok(Math.abs(r1.lo - 95) < 1e-9 && Math.abs(r1.hi - 255) < 1e-9, JSON.stringify(r1));
+const lad = { kind: 'ladder', p1: 10, p4: 40 };
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 10, hi: 300 });
+assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 console.log('stock and crypto views: ok');
