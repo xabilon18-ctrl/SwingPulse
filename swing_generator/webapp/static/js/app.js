@@ -9216,6 +9216,8 @@
   const REEL_OV_FIT_CAP = 2;   // see reelOpeningPriceWindow
   const REEL_WIDE_PRICE_FILL = 0.55;   // 4H stocks, measured off RAND/PHIA/NN_NL
   const REEL_ZERO_FIT_FOOT = 0.05;     // Daily stocks: 0 sits 5% of the top above the bottom
+  const REEL_UPPER_FILL = 0.45;        // crypto 1H: candles + MAs fill 45% of the height,
+  const REEL_UPPER_HEAD = 0.08;        // 8% of it above them (measured off DOT/DOGE/DASH)
 
   // Empty bar-widths held back on the right, between the newest bar and the
   // price scale.
@@ -9456,16 +9458,41 @@
   // line; the blank future is a default pan (reelPanOf), so zooming and
   // panning work from it as from any other view. `fit` names the price rule
   // for reelOpeningPriceWindow. Off with a Range pill; a saved view wins.
+  //
+  // CRYPTO 1H (user, 2026-10-17, DOT/DOGE/DASH screenshots) is measured in
+  // days, not grid lines: the last `back` days of candles and `ahead` days of
+  // blank future (mid-Sep to ~22 Nov on 17 Oct), the last candle a little
+  // left of the middle. Price: 'upper'.
   const REEL_STOCK_VIEW = {
     '1H': { unit: 0.25, fit: 'ov' },     // bars + overlay MAs, capped
     '4H': { unit: 0.5,  fit: 'wide' },   // bars at about half the height
     'D':  { term: 4,    fit: 'zero' },   // 0 at the bottom, top 2x the high
   };
+  const REEL_CRYPTO_VIEW = {
+    '1H': { back: 30, ahead: 35, fit: 'upper' },
+  };
+  function reelOpenSpec(name) {
+    const item = instrumentByName(name);
+    if (reelGridScope(item) === 'stocks') return REEL_STOCK_VIEW[timeframe];
+    if (item && assetClassOf(item) === 'Crypto') return REEL_CRYPTO_VIEW[timeframe];
+    return null;
+  }
   function reelStockView(bundle, name) {
-    const spec = REEL_STOCK_VIEW[timeframe];
-    if (!spec || reel.range) return null;
-    if (reelGridScope(instrumentByName(name)) !== 'stocks') return null;
+    if (reel.range) return null;
+    const spec = reelOpenSpec(name);
+    if (!spec) return null;
     if (bundle._sv !== undefined) return bundle._sv;
+    if (spec.back) {
+      const bt = reelBarTimes(bundle), last = bt.length - 1;
+      if (last < 1) return (bundle._sv = null);
+      let from = last;
+      while (from > 0 && bt[from - 1] >= bt[last] - spec.back * 864e5) from--;
+      // Future slots at the window's own bars per day: 24 on crypto 1H.
+      const future = Math.round(spec.ahead * (last - from) / spec.back);
+      const bars = Math.max(REEL_MIN_WINDOW_BARS, last - from + 1 + future);
+      return (bundle._sv = { bars, fit: spec.fit,
+        future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
+    }
     const fr = window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
     if (!fr) return (bundle._sv = null);
     const last = fr.n - 1;
@@ -9579,13 +9606,25 @@
   // `fit` is a stock opening view's price rule (reelStockView): 'zero' puts
   // 0 just above the bottom and the top at twice the highest high (Daily —
   // the candles in the lower half, room above for projections); 'wide'
-  // centres the close with the bars at about half the height (4H).
+  // centres the close with the bars at about half the height (4H); 'upper'
+  // puts the candles and overlay MAs in the upper part — a little headroom
+  // above the highest, the lowest at about the middle, the lower half left
+  // for projections (crypto 1H). An MA counts only up to one bar-range
+  // beyond the bars, so a far one cannot flatten them.
   function reelOpeningPriceWindow(b, extra, fit) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
+    if (fit === 'upper') {
+      const bs = (hi - lo) || c * 0.01;
+      const chi = extra ? Math.max(hi, Math.min(extra.hi, hi + bs)) : hi;
+      const clo = extra ? Math.min(lo, Math.max(extra.lo, lo - bs)) : lo;
+      const span = (chi - clo) / REEL_UPPER_FILL;
+      const top = chi + REEL_UPPER_HEAD * span;
+      return { lo: top - span, hi: top };
+    }
     if (fit === 'zero' && lo >= 0) {
       const top = 2 * hi;
       return { lo: -REEL_ZERO_FIT_FOOT * top, hi: top };
@@ -9699,8 +9738,8 @@
   }
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
-  // edge), except a stock on 1H/4H/Daily, which opens with the rest of its
-  // frame as blank space (reelStockView).
+  // edge), except a stock on 1H/4H/Daily or crypto on 1H, which opens with
+  // the rest of its frame as blank space (reelStockView).
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
     const qv = bundle && reelStockView(bundle, name);
@@ -11025,12 +11064,12 @@
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
-    // A stock's opening view has its own price rule (reelStockView); 1H also
-    // fits the overlay MAs. Once the reader zooms or pans, the fit is the
+    // A stock's or crypto's opening view has its own price rule
+    // (reelStockView); stock and crypto 1H also fit the overlay MAs. Once the reader zooms or pans, the fit is the
     // bars' alone again.
     const _nm = item.instrument_name;
     const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
-    const _ovFit = _sv && _sv.fit === 'ov'
+    const _ovFit = _sv && (_sv.fit === 'ov' || _sv.fit === 'upper')
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D) : null;
     const sc = reelScale(b, L, reel.lockY.get(_nm)
       || null, _ovFit, _sv && _sv.fit);   // fitted to the bars on every timeframe (2026-09-30)

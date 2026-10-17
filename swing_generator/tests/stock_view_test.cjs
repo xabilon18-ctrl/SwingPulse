@@ -13,11 +13,12 @@ const bt = b => b._bt || (b._bt = b.t.map(Date.parse));
 const ctx = vm.createContext({
   timeframe: '1H', reel: { range: null }, REEL_MIN_WINDOW_BARS: 20, REEL_FUTURE_FRAC: 0.9,
   window: { SwingPulseModules: { gridGeometry: geometry } }, reelBarTimes: bt,
-  instrumentByName: name => ({ STOCK: 'stocks', BTC: 'other', IDX: 'indices' }[name]),
+  instrumentByName: name => ({ STOCK: 'stocks', BTC: 'crypto', IDX: 'indices', EUR: 'other' }[name]),
   reelGridScope: scope => scope,
+  assetClassOf: scope => scope === 'crypto' ? 'Crypto' : 'Other',
 });
-const block = source.slice(source.indexOf('  const REEL_STOCK_VIEW = {'), source.indexOf('  };\n', source.indexOf('  const REEL_STOCK_VIEW = {')) + 5);
-vm.runInContext(block.replace('const REEL_STOCK_VIEW', 'var REEL_STOCK_VIEW') + fn('reelStockView'), ctx);
+const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
+vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -49,8 +50,15 @@ const jan = hourly(Date.UTC(2026, 6, 10), Date.UTC(2027, 0, 8), hours);
 const qj = ctx.reelStockView(jan, 'STOCK');
 assert.ok(near(jan.t[jan.t.length - (qj.bars - qj.future)], '2026-10-01'));
 
-// Only stocks, only 1H, only without a Range pill.
-assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'BTC'), null);
+// Crypto 1H: 30 days of candles, then 35 days of blank future.
+const round = [];
+for (let ms = Date.UTC(2026, 3, 17); ms <= Date.UTC(2026, 9, 17, 18); ms += 36e5) round.push(new Date(ms).toISOString());
+const vc = ctx.reelStockView({ t: round, c: round.map(() => 1) }, 'BTC');
+assert.equal(vc.bars - vc.future, 30 * 24 + 1);
+assert.equal(vc.future, 35 * 24);
+assert.equal(vc.fit, 'upper');
+// Only stocks and crypto, only these timeframes, only without a Range pill.
+assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'EUR'), null);
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'IDX'), null);
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
@@ -82,7 +90,7 @@ ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
-const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05 });
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05, REEL_UPPER_FILL: 0.45, REEL_UPPER_HEAD: 0.08 });
 vm.runInContext(fn('reelOpeningPriceWindow'), pw);
 const bars = { c: [100], l: [95], h: [105] };
 const plain = pw.reelOpeningPriceWindow(bars);
@@ -98,4 +106,11 @@ assert.ok(Math.abs((wide.hi + wide.lo) / 2 - 100) < 1e-9 && Math.abs(wide.hi - 1
 const zero = pw.reelOpeningPriceWindow(bars, null, 'zero');
 assert.equal(zero.hi, 210);
 assert.ok(zero.lo < 0 && zero.lo > -15);
-console.log('stock views: ok');
+// Crypto 1H, measured off DOT: candles 1.02-1.29, W50 up to 1.55, D50 down to 0.93.
+const dot = pw.reelOpeningPriceWindow({ c: [1.1115], l: [1.02], h: [1.29] }, { lo: 0.93, hi: 1.55 }, 'upper');
+assert.ok(Math.abs(dot.hi - 1.66) < 0.03 && Math.abs(dot.lo - 0.28) < 0.05, JSON.stringify(dot));
+// The lowest line sits at about the middle; a far MA is held to one bar-range.
+assert.ok(Math.abs((0.93 - dot.lo) / (dot.hi - dot.lo) - 0.47) < 0.03);
+const far2 = pw.reelOpeningPriceWindow({ c: [1.1], l: [1.0], h: [1.2] }, { lo: 0.2, hi: 1.2 }, 'upper');
+assert.ok(far2.lo > 0.2 && Math.abs((far2.hi - far2.lo) - 0.4 / 0.45) < 1e-9);
+console.log('stock and crypto views: ok');
