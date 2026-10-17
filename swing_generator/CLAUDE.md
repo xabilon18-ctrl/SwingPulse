@@ -3,6 +3,11 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 price-fit cap: app.js v502. The 1H stock opening fit to overlay
+MAs may grow the price frame to at most REEL_OV_FIT_CAP (2) times what the
+bars need, so candles keep at least half their height; a line left outside is
+named at the plot edge ("M50 62 ↓ off-screen", reelChartSvg).
+
 2026-10-17 1H stock quarter view: app.js v501 / grid-geometry.js v2. A 1H
 STOCK chart (reelGridScope 'stocks') opens on the previous quarter's start to
 the NEXT quarter line, the current quarter running into blank future

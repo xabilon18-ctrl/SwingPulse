@@ -9213,6 +9213,7 @@
   // room at its furthest edge. Distant averages may be off-screen; including
   // every level would flatten the price action. Saved/manual bounds win.
   const REEL_OPENING_PRICE_FILL = 0.85;
+  const REEL_OV_FIT_CAP = 2;   // see reelOpeningPriceWindow
 
   // Empty bar-widths held back on the right, between the newest bar and the
   // price scale.
@@ -9466,12 +9467,14 @@
 
   // The highest and lowest switched-on Daily/Weekly/Monthly overlay MA inside
   // [t0, t1] (ms), as drawn: each point at its period's close, a Weekly or
-  // Monthly value held flat to the newest bar. Null when none is on or loaded.
+  // Monthly value held flat to the newest bar, plus each line's latest value
+  // (`lines`, for the off-screen note). Null when none is on or loaded.
   function reelOverlayRange(name, t0, t1) {
     const ovTf = ovOtherTf();
     const ob = ovTf && reelCachedBundle(name, ovTf);
     if (!ob || !ovAny()) return null;
     let lo = Infinity, hi = -Infinity;
+    const lines = [];
     const take = v => { if (v != null && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
     [['M', 'mo'], ['W', 'w']].forEach(([tf, key]) => {
       const h = ovHtfOn(tf) && ob[key];
@@ -9488,16 +9491,21 @@
           if (t >= t0 && t <= t1) take(v);
         });
         take(held);
+        if (held != null) lines.push({ tag: tf + p, v: held });
       });
     });
     if (ovHtfOn('D') && ob.m && ob.m.length) {
-      const { ot, mi, ms } = ovDailyLines(ob);
-      ms.forEach(series => series.forEach((v, j) => {
-        const t = ot[mi[j]] + OV_TF_MS.D;
-        if (t >= t0 && t <= t1) take(v);
-      }));
+      const { ot, mi, ps, ms } = ovDailyLines(ob);
+      ms.forEach((series, k) => {
+        let latest = null;
+        series.forEach((v, j) => {
+          const t = ot[mi[j]] + OV_TF_MS.D;
+          if (t >= t0 && t <= t1) { take(v); if (v != null) latest = v; }
+        });
+        if (latest != null) lines.push({ tag: 'D' + ps[k], v: latest });
+      });
     }
-    return isFinite(lo) ? { lo, hi } : null;
+    return isFinite(lo) ? { lo, hi, lines } : null;
   }
 
   function reelWindowBars(bundle, name) {
@@ -9538,15 +9546,19 @@
   // Same relative frame on 1H, 4H and Daily, using each visible swing's actual
   // range rather than a fixed percentage that flattens quieter instruments.
   // `extra` ({lo, hi}) widens the fit to more than the bars — the overlay
-  // MAs on a 1H stock's opening view (reelOverlayRange).
+  // MAs on a 1H stock's opening view (reelOverlayRange) — but only so far
+  // (user, 2026-10-17, "add the cap"): the frame may grow to twice what the
+  // bars alone need, so the candles always keep at least half the height
+  // they would have. A line further away is left off-screen and named in a
+  // note (reelChartSvg).
   function reelOpeningPriceWindow(b, extra) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
-    if (extra) { lo = Math.min(lo, extra.lo); hi = Math.max(hi, extra.hi); }
-    const dev = Math.max(hi - c, c - lo, c * 0.002);
+    let dev = Math.max(hi - c, c - lo, c * 0.002);
+    if (extra) dev = Math.min(Math.max(dev, extra.hi - c, c - extra.lo), dev * REEL_OV_FIT_CAP);
     const half = dev / REEL_OPENING_PRICE_FILL;
     // A large fall (for example ETH Daily) can put the symmetric frame below
     // zero. Trim that empty space when all visible prices are nonnegative.
@@ -11192,6 +11204,15 @@
       const above = sc.maHi > sc.hi;
       const dist  = above ? (sc.maHi / last - 1) : (sc.maLo / last - 1);
       clipTag = `<text x="${L.x1 - 6}" y="${above ? L.py0 + 16 : L.py1 - 6}" class="reel-clip-tag" text-anchor="end">ribbon ${above ? '↑' : '↓'} ${Math.abs(dist * 100).toFixed(0)}%</text>`;
+    }
+    // Overlay MAs the capped opening fit left out: named at the edge they
+    // ran off, with their level, so a hidden line is never silent.
+    if (_ovFit && _ovFit.lines) {
+      const off = d => _ovFit.lines.filter(l => d > 0 ? l.v > sc.hi : l.v < sc.lo)
+        .map(l => `${l.tag} ${reelFmtPrice(l.v)}`).join(' · ');
+      const up = off(1), dn = off(-1);
+      if (up) clipTag += `<text x="${L.x0 + 6}" y="${L.py0 + 16}" class="reel-clip-tag reel-ov-off">${up} ↑ off-screen</text>`;
+      if (dn) clipTag += `<text x="${L.x0 + 6}" y="${L.py1 - 6}" class="reel-clip-tag reel-ov-off">${dn} ↓ off-screen</text>`;
     }
 
     // ── Time lines + date labels ──
