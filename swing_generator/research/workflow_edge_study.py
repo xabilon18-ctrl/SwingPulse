@@ -244,7 +244,10 @@ def _summ(rs, cs):
 
 
 def main():
-    insts = load_instruments(include_retired=True)
+    try:   # retired instruments included where the option exists (no survivorship bias)
+        insts = load_instruments(include_retired=True)
+    except TypeError:
+        insts = load_instruments()
     if LIMIT:
         insts = insts[:LIMIT]
     print(f'workflow edge study: {len(insts)} instruments, since {SINCE}, '
