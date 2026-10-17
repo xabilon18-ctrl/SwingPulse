@@ -9218,6 +9218,8 @@
   const REEL_ZERO_FIT_FOOT = 0.05;     // Daily stocks: 0 sits 5% of the top above the bottom
   const REEL_UPPER_FILL = 0.45;        // crypto 1H: candles + MAs fill 45% of the height,
   const REEL_UPPER_HEAD = 0.08;        // 8% of it above them (measured off DOT/DOGE/DASH)
+  const REEL_ALL_FIT_REACH = 2.5;      // crypto 4H/Daily: lines count up to 2.5 bar-ranges out
+  const REEL_ALL_FIT_PAD = 0.05;       // and 5% margin top and bottom
 
   // Empty bar-widths held back on the right, between the newest bar and the
   // price scale.
@@ -9462,7 +9464,10 @@
   // CRYPTO 1H (user, 2026-10-17, DOT/DOGE/DASH screenshots) is measured in
   // days, not grid lines: the last `back` days of candles and `ahead` days of
   // blank future (mid-Sep to ~22 Nov on 17 Oct), the last candle a little
-  // left of the middle. Price: 'upper'.
+  // left of the middle. Price: 'upper'. CRYPTO 4H (BTC/AVAX/BCH/BNB) is the
+  // stock 1H quarter frame (1 Jul to 1 Jan on 17 Oct); CRYPTO DAILY
+  // (ETH/BNB/BTC) runs from last year's line to two year lines ahead (2025 to
+  // 2028). Both price 'all': everything on screen, drawings included.
   const REEL_STOCK_VIEW = {
     '1H': { unit: 0.25, fit: 'ov' },     // bars + overlay MAs, capped
     '4H': { unit: 0.5,  fit: 'wide' },   // bars at about half the height
@@ -9470,6 +9475,8 @@
   };
   const REEL_CRYPTO_VIEW = {
     '1H': { back: 30, ahead: 35, fit: 'upper' },
+    '4H': { unit: 0.25, fit: 'all' },
+    'D':  { years: [1, 2], fit: 'allzero' },   // last year's line → two lines ahead
   };
   function reelOpenSpec(name) {
     const item = instrumentByName(name);
@@ -9497,7 +9504,11 @@
     if (!fr) return (bundle._sv = null);
     const last = fr.n - 1;
     let start, endAt;
-    if (spec.term) {
+    if (spec.years) {
+      const [yb, ya] = spec.years;
+      start = fr.anchor - yb * fr.yearBars;
+      endAt = fr.anchor + ya * fr.yearBars;
+    } else if (spec.term) {
       // Terms start in 2025, 2029, ... — the Daily administration lines.
       const year = new Date(reelBarTimes(bundle)[last]).getUTCFullYear();
       const first = 2025 + spec.term * Math.floor((year - 2025) / spec.term);
@@ -9560,6 +9571,36 @@
     return isFinite(lo) ? { lo, hi, lines } : null;
   }
 
+  // The price range the drawings cover between bar positions fiL and fiR of
+  // `src` (the window's left and right edges, future included). A line's
+  // price is linear in bar position, so its ends bound it. Null when none.
+  function reelDrawingRange(list, src, fiL, fiR) {
+    let lo = Infinity, hi = -Infinity;
+    const take = v => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
+    for (const d of list || []) {
+      if (!d || d.hidden) continue;
+      if ((d.kind === 'channel' || !d.kind || d.kind === 'trend') && d.t1 != null) {
+        const i1 = reelBarIndexForDate(src, d.t1), i2 = reelBarIndexForDate(src, d.t2);
+        if (i1 == null || i2 == null || i1 === i2) { take(d.p1); take(d.p2); continue; }
+        const at = fi => d.p1 + (d.p2 - d.p1) * (fi - i1) / (i2 - i1);
+        const a = d.clipL ? Math.max(fiL, Math.min(i1, i2)) : fiL;
+        const z = d.clipR ? Math.min(fiR, Math.max(i1, i2)) : fiR;
+        const offs = d.kind === 'trend' ? [0] : [d.up || 0, d.dn || 0];
+        for (const f of [a, z]) for (const o of offs) take(at(f) + o);
+      } else if (d.kind === 'ladder') {
+        const step = (d.p4 - d.p1) / 3, span = LADDER_LINES - 1;
+        if (!Number.isFinite(step) || !step) continue;
+        take(Math.max(0, d.p1 - span * ladderStack(d, 'down') * step));
+        take(Math.max(0, d.p1 + span * (1 + ladderStack(d, 'up')) * step));
+      } else if (d.kind === 'hline' || d.kind === 'entry') {
+        take(d.p);
+      } else if (d.kind === 'circle' || d.kind === 'triangle') {
+        take(d.p1); take(d.p2); take(d.p3);
+      }
+    }
+    return Number.isFinite(lo) ? { lo, hi } : null;
+  }
+
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
@@ -9617,6 +9658,18 @@
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
+    if (fit === 'all' || fit === 'allzero') {
+      // Everything on screen (crypto 4H/Daily, user's choice): the candles,
+      // the overlay MAs and the drawings in `extra`, each side held to
+      // REEL_ALL_FIT_REACH bar-ranges beyond the candles so one runaway
+      // projection cannot flatten them. Daily also always shows 0.
+      const bs = (hi - lo) || c * 0.01, reach = REEL_ALL_FIT_REACH * bs;
+      let chi = extra ? Math.max(hi, Math.min(extra.hi, hi + reach)) : hi;
+      let clo = extra ? Math.min(lo, Math.max(extra.lo, lo - reach)) : lo;
+      if (fit === 'allzero' && lo >= 0) clo = Math.min(clo, 0);
+      const pad = (chi - clo) * REEL_ALL_FIT_PAD;
+      return { lo: clo - pad, hi: chi + pad };
+    }
     if (fit === 'upper') {
       const bs = (hi - lo) || c * 0.01;
       const chi = extra ? Math.max(hi, Math.min(extra.hi, hi + bs)) : hi;
@@ -11069,8 +11122,14 @@
     // bars' alone again.
     const _nm = item.instrument_name;
     const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
-    const _ovFit = _sv && (_sv.fit === 'ov' || _sv.fit === 'upper')
+    let _ovFit = _sv && _sv.fit !== 'wide' && _sv.fit !== 'zero'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D) : null;
+    if (_sv && (_sv.fit === 'all' || _sv.fit === 'allzero')) {
+      const from = b._from || 0;
+      const dr = reelDrawingRange(channelSeedsFor(_nm, b), b._src || b, from,
+        from + _winBars + reelRightPadBars(_winBars));
+      if (dr) _ovFit = _ovFit ? { ..._ovFit, lo: Math.min(_ovFit.lo, dr.lo), hi: Math.max(_ovFit.hi, dr.hi) } : dr;
+    }
     const sc = reelScale(b, L, reel.lockY.get(_nm)
       || null, _ovFit, _sv && _sv.fit);   // fitted to the bars on every timeframe (2026-09-30)
     if (!sc) return '<div class="reel-nodata">No price data</div>';
