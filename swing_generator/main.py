@@ -947,15 +947,50 @@ def _m4h_ma_periods(frame: pd.DataFrame) -> list[int]:
     return [p for p in MA_PERIODS if p <= len(frame)]
 
 
+# ── Signal frames: the ONE definition of each timeframe's engine ──────────
+# Production and tests/golden_test.py both call these. The golden test used to
+# keep its own copy of the engine call, and when Daily/4H moved to
+# workflow_signals (2026-10-11) the copy stayed on add_signals — so the golden
+# kept passing while it pinned an engine production no longer ran.
+
+def _daily_signal_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Daily indicators + the workflow rules (MA500 main trend)."""
+    return add_workflow_signals(add_all_indicators(df), tf='D')
+
+
+def _h4_signal_frame(df_1h: pd.DataFrame) -> Optional[pd.DataFrame]:
+    """4H bars from the hourly feed + the workflow rules, or None if empty."""
+    frame = _frame_4h(df_1h)
+    if frame.empty:
+        return None
+    return add_workflow_signals(add_all_indicators(frame, ma_periods=[50, 250, 500]), tf='4H')
+
+
+def _intraday_signal_frame(frame: pd.DataFrame, tf: str,
+                           asset_class: str) -> Optional[pd.DataFrame]:
+    """30m/1H: the legacy engine, B1/S1 only, or None if the ribbon is too short."""
+    if frame.empty:
+        return None
+    periods = [p for p in MA_PERIODS if p <= len(frame)]
+    if len(periods) < 2:
+        return None
+    frame = add_all_indicators(frame, ma_periods=periods)
+    frame = add_signals(frame, ma_periods=periods, refire_pct=0.0,
+                        new_trend_pct=0.05, tf=tf, asset_class=asset_class)
+    drop = frame['primary_signal'].astype(str).ne('') & \
+           ~frame['primary_signal'].isin(FIFTEEN_MIN_SIGNAL_CODES)
+    frame.loc[drop, ['primary_signal', 'signal_confidence', 'confirmation_status']] = ''
+    return frame
+
+
 def _compute_4h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
     """4H twin of _compute_30m_state. tf '4h', not '4H': confidence_map.json
     holds '4H|' tiers from the retired re-firing 4H; these take 'standard'."""
     if df_1h is None or df_1h.empty:
         return None
-    frame = _frame_4h(df_1h)
-    if frame.empty:
+    frame = _h4_signal_frame(df_1h)
+    if frame is None:
         return None
-    frame = add_workflow_signals(add_all_indicators(frame, ma_periods=[50, 250, 500]), tf='4H')
     data, _ = _extract_row(frame, run_date, prefix='h4_', ma_periods=[50, 250, 500], signal_lookback=SIGNAL_LOOKBACK_4H)
     if data is None:
         return None
@@ -968,18 +1003,11 @@ def _compute_4h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
 
 def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
                     asset_class: str, run_date: date):
-    """Shared body of the 30m, 1H and 4H passes — see _compute_30m_state."""
-    if five.empty:
+    """Shared body of the 30m and 1H passes — see _compute_30m_state."""
+    five = _intraday_signal_frame(five, tf, asset_class)
+    if five is None:
         return None
     periods = [p for p in MA_PERIODS if p <= len(five)]
-    if len(periods) < 2:
-        return None
-    five = add_all_indicators(five, ma_periods=periods)
-    five = add_signals(five, ma_periods=periods, refire_pct=0.0,
-                       new_trend_pct=0.05, tf=tf, asset_class=asset_class)
-    drop = five['primary_signal'].astype(str).ne('') & \
-           ~five['primary_signal'].isin(FIFTEEN_MIN_SIGNAL_CODES)
-    five.loc[drop, ['primary_signal', 'signal_confidence', 'confirmation_status']] = ''
 
     data, _ = _extract_row(five, run_date, prefix=prefix, ma_periods=periods,
                            signal_lookback=lookback)
@@ -1038,27 +1066,13 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
     Returns (row_dict, trend_segments) or (None, []) on error.
     """
     try:
-        # ── DAILY (indicators first — needed for trend segments + perf) ──
-        df = add_all_indicators(df)
-
-        # ── DAILY signals (same engine as 4H, unprefixed columns) ──
-        # Clip the ribbon to available bars so the MA500 anchor isn't all-NaN on
-        # short-history instruments (which would suppress every signal).
-        d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
-        _asset_cls = asset_class_of(inst_meta.get('group', ''))
-        # RIBBON GATE, lowered 3 -> 2 on 2026-09-09 with the ribbon cut to three
-        # lines. `p <= len(df)` clips the ribbon to available bars, so a
-        # short-history frame keeps only the fast lines. Under the 20-MA ribbon
-        # a frame with 300 bars still kept twelve periods and sailed past a
-        # `>= 3` gate; under [50, 250, 500] it keeps exactly two and the gate
-        # would have silently produced NO SIGNALS AT ALL. Measured over the
-        # 812-instrument cache: 141 instruments (17%) would have lost every
-        # Weekly signal and 53 every 3-Day signal. Two lines is a real, if
-        # shallow, ribbon — max() still gives an anchor and min() a fast edge —
-        # so it fires, exactly as a clipped 20-MA ribbon used to.
+        # ── DAILY indicators + signals (workflow rules, unprefixed columns) ──
         # An insufficient Daily MA500 history is unavailable, never a shorter
         # average silently substituted as the main-trend anchor.
-        df = add_workflow_signals(df, tf='D')
+        df = _daily_signal_frame(df)
+        # Clipped ribbon for _extract_row's MA columns on short histories.
+        d_ma_periods = [p for p in MA_PERIODS if p <= len(df)]
+        _asset_cls = asset_class_of(inst_meta.get('group', ''))
 
         # ── TREND SEGMENTS (B1/S1 established_trend regimes — needs add_signals
         # to have run; falls back to ribbon trend_direction when it couldn't) ──
