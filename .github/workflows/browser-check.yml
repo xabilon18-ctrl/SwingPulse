@@ -3,7 +3,7 @@ name: Browser check (temporary)
 # TEMPORARY (2026-10-17). Runs the mobile browser tests deploy-app.yml runs
 # before a production deploy, on this branch only: once on this code, and
 # once with the pre-fix app.js + sync Worker from main, to prove the new
-# two-device notes test fails on the old code. Nothing is deployed.
+# notes and grid-swap tests fail on the old code. Nothing is deployed.
 on:
   push:
     branches: [claude/browser-check]
@@ -48,8 +48,13 @@ jobs:
         run: |
           python3 webapp/publish.py --ui-only --build-only
           python3 tests/browser_fixture.py
-      - name: Mobile browser tests
-        run: |
-          python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/preview.log 2>&1 &
-          node swing_generator/tests/app_smoke.cjs
-          node swing_generator/tests/saved_work_browser.cjs
+      - name: Serve the built app
+        run: python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/preview.log 2>&1 &
+      # On old code both are expected to fail (no per-market swap, notes
+      # whole-map sync); each runs on its own so one failure cannot hide the other.
+      - name: Smoke test (incl. per-market grid swap)
+        continue-on-error: ${{ matrix.code == 'old' }}
+        run: node swing_generator/tests/app_smoke.cjs
+      - name: Two-device saved-work test (incl. note-by-note sync)
+        continue-on-error: ${{ matrix.code == 'old' }}
+        run: node swing_generator/tests/saved_work_browser.cjs
