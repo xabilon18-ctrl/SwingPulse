@@ -8916,18 +8916,7 @@
       under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}${projG(proj)}</g>`;
     });
     if (ob && ob.m && ob.m.length) {
-      const ot = reelBarTimes(ob);
-      const mi = ob.mi || ob.m[0].map((_, j) => Math.min(j * (ob.ms || 1), ot.length - 1));
-      // A period the bundle does not ship (100/200/300) is rolled here from
-      // its own closes, sampled at the same points as the shipped lines.
-      const ps = [], ms = [];
-      ovPeriods('D').forEach(p => {
-        const k = ob.p.indexOf(p);
-        if (k >= 0) { ps.push(p); ms.push(ob.m[k]); return; }
-        const cm = ob._cma || (ob._cma = {});
-        if (!cm[p]) cm[p] = reelRollingAt(ob.c, p, mi);
-        if (cm[p].some(v => v != null)) { ps.push(p); ms.push(cm[p]); }
-      });
+      const { ot, mi, ps, ms } = ovDailyLines(ob);
       let proj = '';
       if (pj.on && ob.c && ot.length > 1) {
         // A trading day's calendar length, from the last ~60 days (1.4 for a
@@ -8944,6 +8933,24 @@
       under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}${projG(proj)}</g>`;
     }
     return { under, draw: '' };
+  }
+
+  // The switched-on Daily MA lines of a Daily bundle: times, sample indices,
+  // periods and series. A period the bundle does not ship (100/200/300) is
+  // rolled here from its own closes, sampled at the same points as the
+  // shipped lines.
+  function ovDailyLines(ob) {
+    const ot = reelBarTimes(ob);
+    const mi = ob.mi || ob.m[0].map((_, j) => Math.min(j * (ob.ms || 1), ot.length - 1));
+    const ps = [], ms = [];
+    ovPeriods('D').forEach(p => {
+      const k = ob.p.indexOf(p);
+      if (k >= 0) { ps.push(p); ms.push(ob.m[k]); return; }
+      const cm = ob._cma || (ob._cma = {});
+      if (!cm[p]) cm[p] = reelRollingAt(ob.c, p, mi);
+      if (cm[p].some(v => v != null)) { ps.push(p); ms.push(cm[p]); }
+    });
+    return { ot, mi, ps, ms };
   }
 
   // Simple moving average of `c` over `p` bars, read at the bar indices `at`.
@@ -9226,7 +9233,7 @@
     return Math.max(2, Math.round(winBars * 0.05));
   }
 
-  function reelScale(b, L, locked) {
+  function reelScale(b, L, locked, extra) {
     // A locked scale is the price window the reader was already looking at when
     // they grabbed the chart. Panning must not re-fit the axis underneath them —
     // that is a vertical zoom, and it is what "the view should remain" rules out.
@@ -9256,7 +9263,7 @@
     }
     const hasMa = isFinite(mLo);
 
-    const opening = reelOpeningPriceWindow(b);
+    const opening = reelOpeningPriceWindow(b, extra);
     const lo = opening ? opening.lo : pLo - pRange * 0.04;
     const hi = opening ? opening.hi : pHi + pRange * 0.04;
 
@@ -9387,8 +9394,10 @@
   // ~800 bars on an equity and ~4,300 on BTC, so candles there are sub-pixel
   // and read as a line — zoom in (drag the time axis) to see them. 4H is ~500
   // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
-  function reelDefaultBars(bundle) {
+  function reelDefaultBars(bundle, name) {
     const n = bundle.c.length;
+    const qv = name && reelQuarterView(bundle, name);
+    if (qv) return qv.bars;
     if (timeframe === '15m' || timeframe === '30m' || timeframe === '1H' || timeframe === '2H') {
       // 30m (2026-09-29) opens exactly as the 15m it replaced did.
       // 1H (2026-09-27) opens on a full calendar month on EVERY instrument —
@@ -9430,6 +9439,67 @@
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
+  // 1H STOCKS OPEN ON TWO QUARTERS (user, 2026-10-17, from their AME/AMD/
+  // AMBA/NXPI/NVDA full-screen screenshots: "for 1 hour make all stock charts
+  // look like this on open and flipping through"): the previous quarter's
+  // first bar at the left edge, the current quarter running into blank future
+  // up to the NEXT quarter line just inside the right edge — today (mid-Oct)
+  // that is 1 Jul to 1 Jan. The quarters are the grid's own permanent Q lines
+  // (gridGeometry.yearFrame), so the frame lands on them exactly and moves on
+  // by itself each quarter. The blank future is a default pan (reelPanOf), so
+  // zooming and panning work from it as from any other view. Price: see
+  // reelOverlayRange. Off with a Range pill; a saved view still wins.
+  function reelQuarterView(bundle, name) {
+    if (timeframe !== '1H' || reel.range) return null;
+    if (reelGridScope(instrumentByName(name)) !== 'stocks') return null;
+    if (bundle._qv !== undefined) return bundle._qv;
+    const fr = window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
+    if (!fr) return (bundle._qv = null);
+    const q = fr.yearBars / 4, last = fr.n - 1;
+    const k = Math.floor((last - fr.anchor) / q + 1e-9);
+    const from = Math.max(0, Math.floor(fr.anchor + (k - 1) * q));
+    const end = Math.ceil(fr.anchor + (k + 1) * q);
+    const future = Math.max(0, end - last);
+    const bars = Math.max(REEL_MIN_WINDOW_BARS, end - from + 1);
+    return (bundle._qv = { bars, future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
+  }
+
+  // The highest and lowest switched-on Daily/Weekly/Monthly overlay MA inside
+  // [t0, t1] (ms), as drawn: each point at its period's close, a Weekly or
+  // Monthly value held flat to the newest bar. Null when none is on or loaded.
+  function reelOverlayRange(name, t0, t1) {
+    const ovTf = ovOtherTf();
+    const ob = ovTf && reelCachedBundle(name, ovTf);
+    if (!ob || !ovAny()) return null;
+    let lo = Infinity, hi = -Infinity;
+    const take = v => { if (v != null && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
+    [['M', 'mo'], ['W', 'w']].forEach(([tf, key]) => {
+      const h = ovHtfOn(tf) && ob[key];
+      if (!h || !h.m || !h.m.length) return;
+      const ht = h._bt || (h._bt = h.t.map(reelParseTs));
+      const want = ovPeriods(tf);
+      h.p.forEach((p, k) => {
+        if (!want.includes(p)) return;
+        const series = h.m[k];
+        let held = null;
+        series.forEach((v, j) => {
+          const t = ht[j] + OV_TF_MS.D;
+          if (t <= t1 && v != null) held = v;
+          if (t >= t0 && t <= t1) take(v);
+        });
+        take(held);
+      });
+    });
+    if (ovHtfOn('D') && ob.m && ob.m.length) {
+      const { ot, mi, ms } = ovDailyLines(ob);
+      ms.forEach(series => series.forEach((v, j) => {
+        const t = ot[mi[j]] + OV_TF_MS.D;
+        if (t >= t0 && t <= t1) take(v);
+      }));
+    }
+    return isFinite(lo) ? { lo, hi } : null;
+  }
+
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
@@ -9441,7 +9511,7 @@
     const w = reel.range;
     if (w && w < n) return w;
     // 5m opens on a calendar span — see reelDefaultBars.
-    return reelDefaultBars(bundle);
+    return reelDefaultBars(bundle, name);
   }
 
   // THE 15m OPENING VIEW (user, 2026-09-25: "use this scale to make every
@@ -9467,12 +9537,15 @@
   }
   // Same relative frame on 1H, 4H and Daily, using each visible swing's actual
   // range rather than a fixed percentage that flattens quieter instruments.
-  function reelOpeningPriceWindow(b) {
+  // `extra` ({lo, hi}) widens the fit to more than the bars — the overlay
+  // MAs on a 1H stock's opening view (reelOverlayRange).
+  function reelOpeningPriceWindow(b, extra) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
+    if (extra) { lo = Math.min(lo, extra.lo); hi = Math.max(hi, extra.hi); }
     const dev = Math.max(hi - c, c - lo, c * 0.002);
     const half = dev / REEL_OPENING_PRICE_FILL;
     // A large fall (for example ETH Daily) can put the symmetric frame below
@@ -9581,10 +9654,12 @@
   }
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
-  // edge), except 15m, which opens with REEL_15M_VIEW.future of blank space.
+  // edge), except a 1H stock, which opens with the rest of the current
+  // quarter as blank space (reelQuarterView).
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
-    return 0;
+    const qv = bundle && reelQuarterView(bundle, name);
+    return qv ? -qv.future : 0;
   }
 
   // How far PAST the newest bar you may scroll, as a share of the window. The
@@ -10905,8 +10980,13 @@
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
-    const sc = reelScale(b, L, reel.lockY.get(item.instrument_name)
-      || null);   // fitted to the bars on every timeframe (2026-09-30)
+    // A 1H stock's opening view also fits the overlay MAs (reelQuarterView);
+    // once the reader zooms or pans, the fit is the bars' alone again.
+    const _nm = item.instrument_name;
+    const _ovFit = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) && reelQuarterView(bundle, _nm)
+      ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D) : null;
+    const sc = reelScale(b, L, reel.lockY.get(_nm)
+      || null, _ovFit);   // fitted to the bars on every timeframe (2026-09-30)
     if (!sc) return '<div class="reel-nodata">No price data</div>';
 
     const n  = b.c.length;
@@ -12507,7 +12587,7 @@
       if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
         if (bars >= n && sx < base.dx0) reelZoomLimitHint(host, n, 'out');
       } else {
-        if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
+        if (bars === reelDefaultBars(ctx.bundle, ctx.name)) reel.tzoom.delete(ctx.name);
         else                                                reel.tzoom.set(ctx.name, bars);
         reelSetPan(ctx.name, reelPanOf(ctx.name, ctx.bundle), ctx.bundle);
         changed = true;
@@ -12575,7 +12655,7 @@
     // the whole bundle. Those used to be the same number; since the bundle
     // carries more than a card opens with, deleting at full width snapped the
     // chart straight back to 520 bars — zooming all the way out undid itself.
-    if (bars === reelDefaultBars(ctx.bundle)) reel.tzoom.delete(ctx.name);
+    if (bars === reelDefaultBars(ctx.bundle, ctx.name)) reel.tzoom.delete(ctx.name);
     else                                                reel.tzoom.set(ctx.name, bars);
     reelSetPan(ctx.name, reelPanOf(ctx.name, ctx.bundle), ctx.bundle);   // re-clamp, never widen
     return true;
