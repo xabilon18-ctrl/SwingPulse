@@ -3,6 +3,15 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 stock 4H/Daily views: app.js v503. reelQuarterView became
+reelStockView (REEL_STOCK_VIEW table). Stocks open on: 1H previous + current
+quarter (overlay-MA fit, capped); 4H previous + current half-year, centred on
+the close with bars at ~half the height (REEL_WIDE_PRICE_FILL 0.55, off the
+user's RAND/PHIA/NN_NL screenshots); Daily the current four-year term
+(2025-2029 admin lines), price from just below 0 to twice the highest high
+(user's choice, off BE/WKL). Test: tests/stock_view_test.cjs (was
+quarter_view_test.cjs).
+
 2026-10-17 price-fit cap: app.js v502. The 1H stock opening fit to overlay
 MAs may grow the price frame to at most REEL_OV_FIT_CAP (2) times what the
 bars need, so candles keep at least half their height; a line left outside is
@@ -16,7 +25,7 @@ from it). Quarters come from gridGeometry.yearFrame, the same frame as the
 permanent Q lines, so the frame lands on them and moves each quarter. Opening
 price fit also includes the switched-on D/W/M overlay MAs in view
 (reelOverlayRange) until the reader zooms or pans. A Range pill or saved view
-overrides it. Test: tests/quarter_view_test.cjs.
+overrides it. Test: tests/quarter_view_test.cjs (now stock_view_test.cjs).
 
 2026-10-17 app review fixes: app.js v500 / freshness.js v4 / sw.js + sync
 Worker. Push: turning notifications off removes only that device's
