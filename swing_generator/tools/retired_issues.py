@@ -2,20 +2,24 @@
 Tell the owner when main.py retires or restores an instrument (2026-10-17).
 
 main.py writes config.RETIRED_FILE every run: the instruments whose daily data
-stopped more than STALE_INSTRUMENT_DAYS before the newest bar, dropped from
-that run's board. This turns changes in that list into GitHub issues — the
-issues ARE the state, so nothing has to persist between runs:
+stopped more than STALE_INSTRUMENT_DAYS before the newest bar (dropped from
+that run's board) and the ones within the limit ('fresh'). This turns that into
+GitHub issues, and the issues ARE the state, so nothing persists between runs:
 
-  - retired, no open issue for it  -> open one (mentions the repo owner, so
-                                      GitHub emails them)
-  - open issue, no longer retired  -> comment "data resumed" and close it
+  - retired, and no issue (open OR closed) for this ticker with this last bar
+        -> open one, mentioning the repo owner so GitHub emails them. Keyed on
+           the last bar so an issue the owner closed by hand stays closed,
+           while a later, separate stoppage still gets a new issue.
+  - open issue, ticker no longer retired:
+        in 'fresh'                 -> "data resumed", close
+        gone from Instruments.txt  -> "removed from Instruments.txt", close
+        neither (fetch failed, cold-cache skip, ...) -> leave it open; nothing
+           is known, and claiming a recovery would be false.
 
-Each issue carries a hidden marker naming its ticker, so titles can change
-freely. Runs in publish.yml after main.py with continue-on-error: a GitHub API
-problem must never cost a publish. A missing or unreadable RETIRED_FILE means
-main.py did not finish, and does nothing; so does a run main.py flagged as a
-feed outage (too many stale at once to retire). Neither may read as
-"everything restored".
+A run main.py flagged as a feed outage touches no open issue. A missing or
+unreadable RETIRED_FILE means main.py did not finish, and does nothing.
+Runs in publish.yml after main.py with continue-on-error: a GitHub API problem
+must never cost a publish.
 
 Needs GITHUB_TOKEN (issues: write) and GITHUB_REPOSITORY.
 Usage (from swing_generator/):  python3 tools/retired_issues.py [--dry-run]
@@ -24,14 +28,17 @@ Usage (from swing_generator/):  python3 tools/retired_issues.py [--dry-run]
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from _active_config import RETIRED_FILE  # noqa: E402
+from instruments import load_instruments, load_retired  # noqa: E402
 
 API = 'https://api.github.com'
-MARKER = '<!-- swingpulse-retired:{ticker} -->'
+MARKER = '<!-- swingpulse-retired:{ticker}@{last_bar} -->'
+# The @last_bar part is absent on issues opened before it existed.
+_MARKER_RE = re.compile(r'<!-- swingpulse-retired:([^@\s]+?)(?:@(\d{4}-\d{2}-\d{2}))? -->')
 
 
 def _call(method, path, token, body=None):
@@ -45,27 +52,39 @@ def _call(method, path, token, body=None):
         return json.loads(resp.read() or b'null')
 
 
-def _open_marked(repo, token) -> dict:
-    """{ticker: issue number} for every open issue this script opened."""
-    found, page = {}, 1
+def _marked_issues(repo, token) -> list:
+    """Every issue (open and closed) this script opened, parsed."""
+    found, page = [], 1
     while True:
-        batch = _call('GET', f'/repos/{repo}/issues?state=open&per_page=100&page={page}', token)
+        batch = _call('GET', f'/repos/{repo}/issues?state=all&per_page=100&page={page}', token)
         for issue in batch:
-            body = issue.get('body') or ''
-            if 'pull_request' in issue or '<!-- swingpulse-retired:' not in body:
-                continue
-            ticker = body.split('<!-- swingpulse-retired:', 1)[1].split(' -->', 1)[0]
-            found[ticker] = issue['number']
+            m = _MARKER_RE.search(issue.get('body') or '')
+            if m and 'pull_request' not in issue:
+                found.append({'number': issue['number'], 'state': issue['state'],
+                              'ticker': m.group(1), 'last_bar': m.group(2)})
         if len(batch) < 100:
             return found
         page += 1
 
 
-def plan(retired: list, open_issues: dict):
-    """(to_open, to_close): records to open issues for, ticker->number to close."""
-    now = {r['ticker'] for r in retired}
-    to_open = [r for r in retired if r['ticker'] not in open_issues]
-    to_close = {t: n for t, n in open_issues.items() if t not in now}
+def plan(retired: list, issues: list, fresh: set, listed: set, outage: bool):
+    """(to_open, to_close): records to open issues for, {number: (ticker, why)}
+    with why 'resumed' or 'removed'."""
+    def known(r):
+        return any(i['ticker'] == r['ticker'] and
+                   (i['last_bar'] == r['last_bar'] or (i['last_bar'] is None and i['state'] == 'open'))
+                   for i in issues)
+    to_open = [r for r in retired if not known(r)]
+    to_close = {}
+    if not outage:
+        now = {r['ticker'] for r in retired}
+        for i in issues:
+            if i['state'] != 'open' or i['ticker'] in now:
+                continue
+            if i['ticker'] in fresh:
+                to_close[i['number']] = (i['ticker'], 'resumed')
+            elif i['ticker'] not in listed:
+                to_close[i['number']] = (i['ticker'], 'removed')
     return to_open, to_close
 
 
@@ -79,9 +98,18 @@ def _issue_body(r, owner, newest, threshold):
             'still in `Instruments.txt` and is checked again every run, so if its '
             'data resumes it returns on its own and this issue closes itself.\n\n'
             '**What to do:** confirm what happened (TradingView or Yahoo). If it is '
-            'gone for good, delete its line from `Instruments.txt`. If it moved to '
-            'a new ticker, replace the ticker there.\n\n'
-            + MARKER.format(ticker=r['ticker']))
+            'gone for good, delete its line from `Instruments.txt` (this issue then '
+            'closes itself). If it moved to a new ticker, replace the ticker there. '
+            'Closing this issue by hand is fine too: it will not be reopened for '
+            'the same stoppage.\n\n'
+            + MARKER.format(ticker=r['ticker'], last_bar=r['last_bar']))
+
+
+_CLOSE_TEXT = {
+    'resumed': '`{t}` has fresh daily data again and is back on the board '
+               '(newest bar {newest}). Closing.',
+    'removed': '`{t}` is no longer in `Instruments.txt`. Closing.',
+}
 
 
 def main():
@@ -89,13 +117,12 @@ def main():
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
 
-    try:
-        with open(RETIRED_FILE, encoding='utf-8') as f:
-            doc = json.load(f)
-        retired = doc['instruments']
-    except (OSError, ValueError, KeyError) as exc:
-        print(f'retired_issues: no usable {RETIRED_FILE} ({exc}) — nothing to report')
+    doc = load_retired()
+    if not doc:
+        print('retired_issues: no usable retired-instruments file — nothing to report')
         return
+    retired = [r for r in doc['instruments']
+               if isinstance(r, dict) and {'ticker', 'name', 'last_bar'} <= r.keys()]
 
     token, repo = os.environ.get('GITHUB_TOKEN'), os.environ.get('GITHUB_REPOSITORY')
     if not token or not repo:
@@ -103,12 +130,12 @@ def main():
               f'retired this run: {[r["ticker"] for r in retired]}')
         return
     owner = os.environ.get('GITHUB_REPOSITORY_OWNER') or repo.split('/')[0]
+    listed = {i['ticker'] for i in load_instruments(include_retired=True)}
 
-    to_open, to_close = plan(retired, _open_marked(repo, token))
+    to_open, to_close = plan(retired, _marked_issues(repo, token),
+                             set(doc.get('fresh') or []), listed, bool(doc.get('outage')))
     if doc.get('outage'):
-        # Nothing could be retired this run, so nothing is known to be restored.
         print('retired_issues: feed outage this run — leaving open issues alone')
-        to_close = {}
     for r in to_open:
         title = f'Auto-removed: {r["name"]} ({r["ticker"]}) — no data for {r["days_behind"]} days'
         print(f'open issue: {title}')
@@ -116,12 +143,11 @@ def main():
             _call('POST', f'/repos/{repo}/issues', token,
                   {'title': title, 'body': _issue_body(r, owner, doc.get('newest_bar'),
                                                        doc.get('threshold_days'))})
-    for ticker, number in to_close.items():
-        print(f'close issue #{number}: {ticker} has data again')
+    for number, (ticker, why) in to_close.items():
+        print(f'close issue #{number}: {ticker} {why}')
         if not args.dry_run:
             _call('POST', f'/repos/{repo}/issues/{number}/comments', token,
-                  {'body': f'`{ticker}` has fresh daily data again and is back on the '
-                           f'board (newest bar {doc.get("newest_bar")}). Closing.'})
+                  {'body': _CLOSE_TEXT[why].format(t=ticker, newest=doc.get('newest_bar'))})
             _call('PATCH', f'/repos/{repo}/issues/{number}', token,
                   {'state': 'closed', 'state_reason': 'completed'})
     if not to_open and not to_close:

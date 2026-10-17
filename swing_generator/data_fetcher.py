@@ -863,9 +863,10 @@ def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
 def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
     """Fetch daily data for every instrument. Returns dict ticker → DataFrame.
 
-    NB the frames are used for their KEYS only — main.py's workers re-read each
-    parquet per-ticker. `drop_unfinished_daily` is therefore applied there, at
-    the read that actually feeds the indicators, NOT here.
+    NB the frames do not feed the indicators — main.py's workers re-read each
+    parquet per-ticker, and `drop_unfinished_daily` is applied there, at the
+    read that does, NOT here. main._retire_stale reads their last finished
+    bar to spot instruments whose data stopped.
     """
     data = _fetch_all_parallel(
         instruments,

@@ -1012,6 +1012,9 @@ def api_summary():
             missing   = sorted(i['name'] for i in expected if i['name'] not in published)
         except Exception:
             expected, missing = [], []
+        from instruments import load_retired
+        retired = [r.get('name', r.get('ticker')) for r in load_retired().get('instruments', [])
+                   if isinstance(r, dict)]
 
         return jsonify({
             'date': dt,
@@ -1019,6 +1022,7 @@ def api_summary():
             'expected': len(expected),
             'missing_count': len(missing),
             'missing': missing[:50],
+            'retired': retired,
             'trend_counts': trend_counts,
             'buy_count': int(buy_mask.sum()),
             'sell_count': int(sell_mask.sum()),
