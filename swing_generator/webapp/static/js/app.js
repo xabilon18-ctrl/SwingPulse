@@ -8560,7 +8560,17 @@
     if (!OV_BAND_COLORS.includes(g.color)) g.color = OV_BAND_COLORS[0];
     g.on = !!g.on;
     g.flip = !!g.flip;
+    // Swap per market (user, 2026-10-17: "make the swap shaded gaps work
+    // market to market"): stocks, indices and other markets each keep their own
+    // time grid per timeframe, so each keeps its own swap too. `flip` is the
+    // pre-split choice, which every market inherits until it is swapped.
+    if (!g.flipBy || typeof g.flipBy !== 'object') g.flipBy = {};
+    for (const k of Object.keys(g.flipBy)) if (!['stocks', 'indices', 'other'].includes(k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
     return g;
+  }
+  function gridFlip(tf, scope) {
+    const g = gridShade(tf);
+    return Object.prototype.hasOwnProperty.call(g.flipBy, scope) ? g.flipBy[scope] : g.flip;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
   // Ribbon shade (user, 2026-09-28: "a shade within the trend MAs, the 3 MAs
@@ -11153,7 +11163,7 @@
     {
       // "Swap" (user, 2026-09-27: "a choice in where the highlight should be")
       // moves the shading onto the gaps that were clear.
-      const flip = gridShade(timeframe).flip ? 1 : 0;
+      const flip = gridFlip(timeframe, reelGridScope(item)) ? 1 : 0;
       const lines = tg.filter(t => !t.fixedOnly).map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
@@ -11336,6 +11346,7 @@
   }
   function reelGridMenuHtml(name) {
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
+    const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
     let h = `${reelTimeGridSwitch(name)}
@@ -11347,7 +11358,7 @@
           `<button class="reel-tool reel-grid-opt${v === lvl ? ' on' : ''}" data-act="grid-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
         <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
           `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>
-        <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps</button>`;
+        <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps · ${GRID_SCOPE_LABELS[scope]}</button>`;
     }
     const r = ribShade(timeframe);
     h += `<div class="reel-grid-sep"></div>
@@ -11357,7 +11368,7 @@
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
-    return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own</div>`;
+    return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own; the swap is kept per market</div>`;
   }
   function reelGridMenuClose() {
     document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
@@ -13703,7 +13714,9 @@
         const v = +btn.dataset.v, part = btn.dataset.part, g = gridShade(timeframe);
         if (part === 'on') g.on = !g.on;
         else if (part === 'flip') {
-          g.flip = !g.flip;
+          const menuEl = btn.closest('.reel-grid-menu');
+          const scope = menuEl && menuEl._name ? reelGridScope(instrumentByName(menuEl._name)) : 'other';
+          g.flipBy[scope] = !gridFlip(timeframe, scope);
           // Which gaps are shaded is geometry, not a CSS variable: repaint.
           ovSave();
           reelRepaintVisible();
