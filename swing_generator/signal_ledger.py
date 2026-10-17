@@ -56,7 +56,8 @@ def _now() -> str:
 
 
 def _name_to_ticker() -> dict:
-    return {i['name']: i['ticker'] for i in load_instruments()}
+    # Retired instruments included: their open fires still grade off the cache.
+    return {i['name']: i['ticker'] for i in load_instruments(include_retired=True)}
 
 
 # ---------------------------------------------------------------------------

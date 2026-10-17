@@ -18,7 +18,7 @@ import math
 import os
 import sys
 import traceback
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import numpy as np
@@ -46,10 +46,12 @@ from _active_config import (
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
     FIVE_MIN_MAX_AGE_HOURS,
     FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
+    STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN, RETIRED_FILE,
 )
 
 PROFILE = ACTIVE_PROFILE
-from instruments   import load_instruments, instruments_by_ticker, asset_class_of
+from instruments   import (load_instruments, instruments_by_ticker, asset_class_of,
+                           find_stale)
 from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
                            drop_unfinished_1h, drop_unfinished_4h,
                            drop_unfinished_10m, drop_unfinished_5m,
@@ -1414,6 +1416,43 @@ def _process_worker(args: tuple) -> tuple:
 # Main
 # ---------------------------------------------------------------------------
 
+def _retire_stale(data: dict, inst_by_tick: dict) -> list:
+    """Drop from `data` every instrument whose last daily bar is more than
+    STALE_INSTRUMENT_DAYS behind the run's newest, and write RETIRED_FILE
+    (always — an empty list is what restores an instrument)."""
+    import json
+    last_bars = {}
+    for ticker, frame in data.items():
+        closes = frame['Close'].dropna() if frame is not None and 'Close' in frame else None
+        if closes is not None and len(closes):
+            last_bars[ticker] = pd.Timestamp(closes.index[-1]).date()
+    stale, newest = find_stale(last_bars, STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN)
+    behind = sum(1 for d in last_bars.values() if newest and (newest - d).days > STALE_INSTRUMENT_DAYS)
+    if behind > len(stale):
+        print(f'  WARN {behind} instruments are over {STALE_INSTRUMENT_DAYS}d behind — more than '
+              f'RETIRE_MAX_PER_RUN ({RETIRE_MAX_PER_RUN}), treated as a feed outage: none retired\n')
+    records = []
+    for ticker, last_bar, days in stale:
+        name = inst_by_tick.get(ticker, {}).get('name', ticker)
+        records.append({'ticker': ticker, 'name': name,
+                        'last_bar': last_bar.isoformat(), 'days_behind': days})
+        data.pop(ticker, None)
+        print(f'  RETIRED {name} ({ticker}) — last bar {last_bar}, {days}d behind {newest}')
+    os.makedirs(os.path.dirname(RETIRED_FILE), exist_ok=True)
+    with open(RETIRED_FILE, 'w') as f:
+        json.dump({'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                   'newest_bar': newest.isoformat() if newest else None,
+                   'threshold_days': STALE_INSTRUMENT_DAYS,
+                   # True when too many went stale to retire (a feed outage):
+                   # tools/retired_issues.py must not read the empty list as
+                   # "everything restored" and close the open issues.
+                   'outage': behind > len(stale),
+                   'instruments': records}, f, indent=1)
+    if records:
+        print()
+    return records
+
+
 def main():
     import time as _time
     _t0 = _time.time()
@@ -1446,8 +1485,10 @@ def main():
     print('=' * 60)
 
     # 1. Load instrument list
-    instruments  = load_instruments()
-    inst_by_tick = instruments_by_ticker()
+    # include_retired: every instrument is fetched and judged afresh each run,
+    # so one retired last run comes back the moment its data resumes.
+    instruments  = load_instruments(include_retired=True)
+    inst_by_tick = instruments_by_ticker(include_retired=True)
     print(f'\n  Instruments loaded: {len(instruments)}\n')
 
     # 2. Fetch / load data
@@ -1516,6 +1557,11 @@ def main():
     except Exception as _exc:
         print(f'  WARN currency indices (1h) not built: {_exc}\n')
 
+    # 2c. Retire instruments whose daily data stopped (see config
+    # STALE_INSTRUMENT_DAYS). Written before anything downstream calls
+    # load_instruments(), which reads it — publish.py included.
+    _retired = {r['ticker'] for r in _retire_stale(data, inst_by_tick)}
+
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
     n_workers = min(os.cpu_count() or 4, 8)
@@ -1552,7 +1598,7 @@ def main():
                 no_row[ticker] = status_str
 
     # ── Silent-rot guard: name every instrument that produced no output ──
-    unfetched = [t for t in inst_by_tick if t not in data]
+    unfetched = [t for t in inst_by_tick if t not in data and t not in _retired]
     if unfetched or no_row:
         print(f'\n  ⚠  {len(unfetched) + len(no_row)} of {len(instruments)} '
               f'instruments produced NO output:')

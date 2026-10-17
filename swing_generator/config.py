@@ -400,6 +400,23 @@ FIVE_MIN_NORMALIZE_ABOVE      = 2 * TEN_MIN_NORMALIZE_ABOVE       # 90.0
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 
+# ── Auto-retired instruments (2026-10-17, user: "automatically removed but let
+# me know when it happens") ──
+# An instrument whose last daily bar is more than STALE_INSTRUMENT_DAYS behind
+# the newest bar of the run is dropped from that run: Yahoo has stopped
+# publishing it (delisted, taken private, renamed). EA, FERG.L and QRVO each
+# froze this way and kept publishing a stale card until noticed. Nothing is
+# edited — main.py rewrites RETIRED_FILE every run, so an instrument whose data
+# resumes comes back on its own. 10 days matches tools/health_check.py
+# MAX_INSTRUMENT_STALE_DAYS (sized for Golden Week / Lunar New Year closures);
+# change both together. tools/retired_issues.py opens a GitHub issue for every
+# removal and closes it on a restore — that is the "let me know".
+STALE_INSTRUMENT_DAYS = 10
+# More than this many going stale in ONE run is a feed outage, not delistings:
+# nothing is retired and the health check fails loudly instead, as before.
+RETIRE_MAX_PER_RUN = 10
+RETIRED_FILE = os.path.join(OUTPUT_DIR, 'retired_instruments.json')
+
 # Prefixes whose bars are NOT unique by date, and therefore carry an extra
 # `{p}datetime` column naming the exact bar. A 4H date holds 2-6 bars, so the
 # date alone cannot identify which one fired (see main.py _extract_row). Daily
