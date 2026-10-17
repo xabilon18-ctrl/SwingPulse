@@ -1,11 +1,18 @@
 """
 Golden-file regression tests for the SwingPulse signal engine.
 
-Runs the production signal path (mirroring main.py process_instrument: full-
-ribbon indicators, clipped-ribbon signals, per-TF params) over FROZEN price
-fixtures and compares the result to a committed golden snapshot. Any change
-to signals.py / indicators.py / config.py that alters a single fire or trend
-transition fails with a readable diff.
+Runs the production signal path over FROZEN price fixtures and compares the
+result to a committed golden snapshot. Any change to workflow_signals.py /
+signals.py / indicators.py / config.py / main.py that alters a single fire or
+trend transition fails with a readable diff.
+
+The frames come from main.py's own _daily_signal_frame / _h4_signal_frame /
+_intraday_signal_frame — the functions production calls — not from a copy of
+them here. Until 2026-10-16 this file kept its own add_signals() call; when
+Daily and 4H moved to workflow_signals on 2026-10-11 that copy stayed behind,
+and the golden kept passing while it pinned an engine production no longer
+ran (inverting B1/S1 in the live engine left it green). check_coverage()
+also fails if config.TIMEFRAMES gains a timeframe this file does not pin.
 
 Also runs synthetic unit checks for past real bugs (zero-price bars, gap
 fills, confidence-map fallback) so they can't regress silently.
@@ -35,11 +42,9 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _GEN_DIR = os.path.dirname(_TESTS_DIR)
 sys.path.insert(0, _GEN_DIR)
 
-from _active_config import (MA_PERIODS,                     # noqa: E402
-                            REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
+from _active_config import (MA_PERIODS, TIMEFRAMES,         # noqa: E402
                             TREND_UP_FRAC, TREND_DOWN_FRAC)
-from indicators import add_all_indicators                    # noqa: E402
-from signals import add_signals, _signal_confidence          # noqa: E402
+from signals import _signal_confidence                       # noqa: E402
 import signals as _signals_mod                               # noqa: E402
 
 FIXTURES_DIR = os.path.join(_TESTS_DIR, 'fixtures')
@@ -51,12 +56,10 @@ FIXTURE_TICKERS = ['AAPL', 'NVDA', 'BTC-USD', 'ETH-USD', 'EURUSD=X',
                    'USDJPY=X', 'GC=F', 'CL=F', '^GSPC', '^GDAXI',
                    'TEF.MC', 'CRWV']
 
-# Production per-TF params — MUST mirror main.py process_instrument()
-TF_PARAMS = {
-    'D':  {'refire_pct': 0.05, 'new_trend_pct': 0.05},
-    '4H': {'refire_pct': 0.02, 'new_trend_pct': 0.05},
-    'W':  {'refire_pct': REFIRE_PCT_WEEKLY, 'new_trend_pct': NEW_TREND_PCT_WEEKLY},
-}
+# Every signal timeframe in config.TIMEFRAMES must be pinned here or listed as
+# unpinned with the reason — check_coverage() fails otherwise.
+PINNED_TFS   = ('D', '4H', '1H')
+UNPINNED_TFS = {'30m': 'built from 5m bars, and no 5m fixture is frozen'}
 
 _DAILY_BARS  = 2600   # fixture size: enough for MA500 + years of signals
                       # — and, at 5 sessions a week, ~520 weekly bars, which is
@@ -93,47 +96,30 @@ def make_fixtures() -> None:
 # Production-parity signal frames
 # ---------------------------------------------------------------------------
 def _signal_frame(ticker: str, tf: str):
-    """Signal columns for one fixture, computed the way main.py does."""
-    # Explicitly three-way rather than `if D / else 4H`: that shape was correct
-    # while 4H was the only other timeframe and would have quietly graded the
-    # weekly snapshot against 4H bars.
+    """Signal columns for one fixture, from the functions production calls."""
+    from main import (_daily_signal_frame, _h4_signal_frame,
+                      _intraday_signal_frame, _frame_1h)
     if tf == 'D':
-        df = pd.read_parquet(_fixture_path(ticker, 'D'))
-        df = add_all_indicators(df)
-        ma_p = [p for p in MA_PERIODS if p <= len(df)]
-    elif tf == 'W':
-        # Weekly comes off the SAME frozen daily fixture production resamples
-        # from. _resample_weekly's in-progress-week drop is judged against the
-        # frame's own last bar, not the wall clock, so this stays deterministic.
-        #
-        # COVERAGE NOTE: 2600 daily bars is only ~540 weekly bars, and MA500
-        # needs 500 of them as warmup — so the weekly golden pins roughly the
-        # LAST 40 BARS of each fixture, not a decade like the daily one. It
-        # will catch a rule change that moves a recent fire and will not catch
-        # one that only bites deeper in history. Widening it means refreezing
-        # every fixture, which also rewrites the D and 4H goldens.
-        from main import _resample_weekly
-        df = _resample_weekly(pd.read_parquet(_fixture_path(ticker, 'D')))
-        ma_p = [p for p in MA_PERIODS if p <= len(df)]
-        df = add_all_indicators(df, ma_periods=ma_p)
-    else:
-        from main import _resample_4h
-        hourly = pd.read_parquet(_fixture_path(ticker, '1h'))
-        df = _resample_4h(hourly)
-        ma_p = [p for p in MA_PERIODS if p <= len(df)]
-        df = add_all_indicators(df, ma_periods=ma_p)
-    # Mirrors the ribbon gate in main.process_instrument, lowered 3 -> 2 on
-    # 2026-09-09 with the ribbon cut to [50, 250, 500]. Left at 3 it dropped
-    # BTC-USD|W, ETH-USD|W and CRWV|D from the snapshot — the three fixtures
-    # whose ribbon is CLIPPED by `p <= len(df)`, i.e. precisely the short-history
-    # case the lowered production gate exists to serve. The golden would have
-    # stopped covering it while still passing.
-    if len(ma_p) < 2:
-        return None
-    # asset_class fixed: signal_confidence is excluded from the golden anyway,
-    # and a fixed value keeps output independent of Instruments.txt edits
-    return add_signals(df, ma_periods=ma_p, tf=tf, asset_class='Equity',
-                       **TF_PARAMS[tf])
+        return _daily_signal_frame(pd.read_parquet(_fixture_path(ticker, 'D')))
+    hourly = pd.read_parquet(_fixture_path(ticker, '1h'))
+    if tf == '4H':
+        return _h4_signal_frame(hourly)
+    if tf == '1H':
+        # tf '1h' and asset_class as _compute_1h_state passes them; class only
+        # moves signal_confidence, which the golden excludes.
+        return _intraday_signal_frame(_frame_1h(hourly), '1h', 'Equity')
+    raise ValueError(f'no golden frame for timeframe {tf!r}')
+
+
+def check_coverage() -> list:
+    """A production timeframe the golden does not pin is a failure, not a gap."""
+    production = {tf for tf, _ in TIMEFRAMES}
+    known = set(PINNED_TFS) | set(UNPINNED_TFS)
+    return ([f'timeframe {tf} is in config.TIMEFRAMES but not pinned by the golden '
+             f'(add it to PINNED_TFS, or to UNPINNED_TFS with the reason)'
+             for tf in sorted(production - known)]
+            + [f'timeframe {tf} is pinned but no longer in config.TIMEFRAMES'
+               for tf in sorted(known - production)])
 
 
 def _snapshot_one(df: pd.DataFrame) -> dict:
@@ -161,7 +147,7 @@ def _snapshot_one(df: pd.DataFrame) -> dict:
 def build_snapshot() -> dict:
     snap = {}
     for t in FIXTURE_TICKERS:
-        for tf in ('D', '4H', 'W'):
+        for tf in PINNED_TFS:
             df = _signal_frame(t, tf)
             if df is not None:
                 snap[f'{t}|{tf}'] = _snapshot_one(df)
@@ -339,7 +325,7 @@ def main():
         return
 
     print('Unit checks...', flush=True)
-    failures = unit_checks()
+    failures = unit_checks() + check_coverage()
     for f in failures:
         print(f'  ✘ {f}')
     if not failures:
