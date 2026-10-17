@@ -88,18 +88,22 @@ const assert = require('node:assert/strict');
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await page.locator('.reel-grid-menu [data-division="M"]').click();
-  // Swap shaded gaps is kept per market (2026-10-17): TEST is a stock, so the
-  // swap lands on stocks and other markets keep inheriting their own choice.
+  // Swap shaded gaps is kept per market (2026-10-17). The swap lands on the
+  // open chart's market only (TEST offline is a stock; live, the first chart
+  // can be any market), and the other markets keep inheriting their own.
   await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
   const bandXs = () => page.locator('#chartFull .reel-band-g rect').evaluateAll(rs => rs.map(r => r.getAttribute('x')).join(','));
   const unswapped = await bandXs();
   assert.ok(unswapped.length > 0, 'Shading draws bands on 4H');
-  assert.ok((await page.locator('.reel-grid-menu [data-part="flip"]').innerText()).includes('Stocks'), 'The swap names its market');
+  const swapLabel = await page.locator('.reel-grid-menu [data-part="flip"]').innerText();
+  const market = Object.entries({ Stocks: 'stocks', Indices: 'indices', 'Other markets': 'other' }).find(([label]) => swapLabel.includes(label));
+  assert.ok(market, 'The swap names its market');
+  if (!live) assert.equal(market[1], 'stocks', 'TEST is a stock');
   await page.locator('.reel-grid-menu [data-part="flip"]').click();
   await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') !== before, unswapped);
   const shade4h = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sp-overlay')))).shade['4H']);
-  assert.equal(shade4h.flipBy.stocks, true, 'The swap is saved for stocks');
-  assert.ok(!('indices' in shade4h.flipBy) && !('other' in shade4h.flipBy), 'Other markets keep their own swap');
+  assert.deepEqual(Object.keys(shade4h.flipBy), [market[1]], 'Only the open chart\'s market is swapped');
+  assert.equal(shade4h.flipBy[market[1]], true);
   await page.locator('.reel-grid-menu [data-part="flip"]').click();
   await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') === before, unswapped);
   await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
