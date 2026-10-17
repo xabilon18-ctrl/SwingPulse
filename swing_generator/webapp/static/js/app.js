@@ -9380,8 +9380,15 @@
     return Math.max(REEL_MIN_WINDOW_BARS, n - k);
   }
 
-  function reelMaxBars(bundle) {
+  // An opening view (reelStockView) can hold more slots than the bundle has
+  // bars — its blank future — and a zoom or a restored saved view must reach
+  // at least that far: a stock's 1H quarter frame is ~896 slots against ~880
+  // bars carried, so capping at the bar count shrank every saved 1H view and
+  // made zooming out zoom in (2026-10-17).
+  function reelMaxBars(bundle, name) {
     const n = bundle.c.length;
+    const sv = name && reelStockView(bundle, name);
+    if (sv && sv.bars > n) return sv.bars;
     if (timeframe !== '10m' || n < 2) return n;
     if (bundle._maxBars) return bundle._maxBars;
     return (bundle._maxBars = reelBarsInSpan(bundle, REEL_TEN_MIN_MAX_SPAN.months,
@@ -9608,7 +9615,7 @@
     // where it is set, so a stale entry from a wider bundle can never ask for
     // more bars than this one has.
     const z = reel.tzoom.get(name);
-    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle)));
+    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle, name)));
     const w = reel.range;
     if (w && w < n) return w;
     // 5m opens on a calendar span — see reelDefaultBars.
@@ -9736,7 +9743,7 @@
   function reelViewSeedTime(name, bundle) {
     const v = savedViews[viewKey(name)];
     if (!v || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
-    reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, bundle.c.length)));
+    reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, reelMaxBars(bundle, name))));
     reel.pan.set(name, 0);
     reelSetPan(name, v.pan, bundle);
     return true;
@@ -12735,7 +12742,7 @@
 
     // Fingers apart = zoom in = FEWER bars over the same width.
     if (base.dx0 >= MIN_SPREAD && sx >= 1) {
-      const n = reelMaxBars(ctx.bundle);
+      const n = reelMaxBars(ctx.bundle, ctx.name);
       let bars = Math.round(base.bars * (base.dx0 / sx));
       bars = Math.min(Math.max(bars, REEL_MIN_WINDOW_BARS), n);
       if (bars === reelWindowBars(ctx.bundle, ctx.name)) {
@@ -12793,7 +12800,7 @@
   function reelApplyTZoom(host, ctx, grab, dx) {
     const wPx = host.getBoundingClientRect().width || 0;
     const K   = Math.max(140, wPx * 0.9);
-    const n   = reelMaxBars(ctx.bundle);
+    const n   = reelMaxBars(ctx.bundle, ctx.name);
     let bars  = grab.bars * Math.exp(dx / K);
     bars = Math.min(Math.max(Math.round(bars), REEL_MIN_WINDOW_BARS), n);
     if (bars === reelWindowBars(ctx.bundle, ctx.name)) {

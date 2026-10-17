@@ -3,6 +3,12 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 saved-view fix: app.js v506. reelMaxBars(bundle, name) allows at
+least the opening view's slots (its blank future): a stock 1H quarter frame
+(~896 slots) is wider than the ~880 bars carried, and capping zoom and saved
+views at the bar count shrank every restored 1H view. The browser framing
+check now drags price AND time before Save and asserts both restore.
+
 2026-10-17 crypto 4H/Daily views: app.js v505. Crypto 4H opens on the
 previous + current quarter (as stock 1H); crypto Daily on last year's line to
 two year lines ahead (2025-2028, REEL_CRYPTO_VIEW years [1, 2]). Price 'all'
