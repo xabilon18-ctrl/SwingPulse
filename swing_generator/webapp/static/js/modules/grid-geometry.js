@@ -8,26 +8,24 @@
     return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
   }
 
-  function timeGrid(b, tf, { barTimes, getDivision }) {
-    const src = b._src || b, from = b._from || 0;
-    const n = src.t ? src.t.length : 0;
-    if (n < 2) return [];
+  // The equal-year frame every grid line is placed on: `anchor` is the bar
+  // position of 1 January of the newest bar's year, `yearBars` how many bars
+  // one calendar year spans on this bundle. Shared with the chart's opening
+  // window (app.js reelQuarterView) so the frame and the lines agree.
+  function yearFrame(src, barTimes) {
+    const n = src && src.t ? src.t.length : 0;
+    if (n < 2) return null;
     const bt = barTimes(src);
     const first = bt[0], last = bt[n - 1];
-    if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) return [];
-    // Measure the whole bundle in fractional calendar years. A single year
-    // width is used everywhere: holidays and leap years cannot change a gap.
-    // Anchor January of the newest year to its bar position; division labels
-    // name equal year parts, not exact calendar-week/month start dates.
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) return null;
     const yearAt = ms => {
       const year = new Date(ms).getUTCFullYear();
       const start = Date.UTC(year, 0, 1), end = Date.UTC(year + 1, 0, 1);
       return year + (ms - start) / (end - start);
     };
     const yearBars = (n - 1) / (yearAt(last) - yearAt(first));
-    if (!Number.isFinite(yearBars) || yearBars <= 0) return [];
-    const year = new Date(last).getUTCFullYear();
-    const anchorMs = Date.UTC(year, 0, 1);
+    if (!Number.isFinite(yearBars) || yearBars <= 0) return null;
+    const anchorMs = Date.UTC(new Date(last).getUTCFullYear(), 0, 1);
     let anchor;
     if (anchorMs <= first) {
       anchor = (anchorMs - first) / ((last - first) / (n - 1));
@@ -37,6 +35,21 @@
       const span = bt[hi] - bt[lo];
       anchor = lo + (span ? (anchorMs - bt[lo]) / span : 0);
     }
+    return { anchor, yearBars, n };
+  }
+
+  function timeGrid(b, tf, { barTimes, getDivision }) {
+    const src = b._src || b, from = b._from || 0;
+    // Measure the whole bundle in fractional calendar years. A single year
+    // width is used everywhere: holidays and leap years cannot change a gap.
+    // Anchor January of the newest year to its bar position; division labels
+    // name equal year parts, not exact calendar-week/month start dates.
+    const frame = yearFrame(src, barTimes);
+    if (!frame) return [];
+    const { anchor, yearBars, n } = frame;
+    const bt = barTimes(src);
+    const first = bt[0], last = bt[n - 1];
+    const year = new Date(last).getUTCFullYear();
     const division = getDivision(tf), parts = division.parts;
     const step = yearBars / parts;
     const firstYear = new Date(first).getUTCFullYear() - 1;
@@ -83,7 +96,7 @@
     return out;
   }
 
-  const api = Object.freeze({partLabel, timeGrid});
+  const api = Object.freeze({ yearFrame, partLabel, timeGrid });
   (root.SwingPulseModules ||= {}).gridGeometry = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
