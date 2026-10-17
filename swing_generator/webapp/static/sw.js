@@ -98,7 +98,9 @@ async function notifyUpcomingEvents(starred) {   // [] since stars were removed
         body:  `${e.time ? e.time + '  ·  ' : ''}Moves everything at once — check rate-sensitive positions.`,
         icon:  '/static/icon-192.png',
         badge: '/static/icon-192.png',
-        tag:   `sp-event-${e.date}-macro`,
+        // One tag per event, not per day: two macro releases on one date
+        // (FOMC and CPI) shared a tag, and the second replaced the first.
+        tag:   `sp-event-${e.date}-macro-${e.title || 'rate'}`,
         data:  { date: e.date },
       });
       continue;

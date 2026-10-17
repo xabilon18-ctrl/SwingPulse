@@ -890,6 +890,24 @@
     } catch(err) {
       console.warn('SW registration failed:', err);
     }
+    renewPushSubscription();
+  }
+
+  // The Worker keeps a subscription for 90 days. It used to be sent only when
+  // push was switched on, so every device silently stopped receiving pushes 90
+  // days later while still showing them as on. Re-sending it on each start
+  // renews it; a browser that dropped its subscription is shown as off.
+  async function renewPushSubscription() {
+    if (!swRegistration || !syncUser || !syncToken() || !isPushEnabled()) return;
+    try {
+      const sub = await swRegistration.pushManager.getSubscription();
+      if (!sub) { localStorage.removeItem(sk('sp-push-enabled')); updatePushBadgeUI(); return; }
+      await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`, {
+        method: 'POST', headers: syncHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(sub),
+      });
+    } catch (e) {
+      console.warn('[push] renew failed:', e);
+    }
   }
 
   async function requestNotificationPermission() {
@@ -948,9 +966,12 @@
     if (!swRegistration || !syncUser) return;
     try {
       const sub = await swRegistration.pushManager.getSubscription();
+      const endpoint = sub ? sub.endpoint : '';
       if (sub) await sub.unsubscribe();
-      await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}`,
-                  { method: 'DELETE', headers: syncHeaders() });
+      // Only THIS device's subscription: the Worker used to delete them all,
+      // which turned push off on every other device too.
+      if (endpoint) await fetch(`${SYNC_WORKER}/push/subscribe?user=${syncUser}&endpoint=${encodeURIComponent(endpoint)}`,
+                                { method: 'DELETE', headers: syncHeaders() });
       localStorage.removeItem(sk('sp-push-enabled'));
       updatePushBadgeUI();
     } catch (e) {

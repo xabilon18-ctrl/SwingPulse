@@ -3,6 +3,20 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 app review fixes: app.js v500 / freshness.js v4 / sw.js + sync
+Worker. Push: turning notifications off removes only that device's
+subscription (DELETE ?endpoint=); the app re-sends its subscription on every
+start, renewing the Worker's 90-day TTL; subscribe validates JSON and only
+accepts browser push-service HTTPS endpoints. Two macro events on one day get
+separate notification tags. Auth: an account is claimed only at POST
+/sync/auth and only while it holds no saved work; each wrong password writes
+its own `fail:<user>:<id>` key (the old single counter lost parallel
+guesses), with a `fail:<user>` flag so a correct request costs one read, not
+a KV list. Forex open/closed follows New York time (Sun-Fri 17:00), not fixed
+22:00 UTC. A forming 1H/4H candle whose hourly feed has gone quiet closes with
+its last hourly bar (`chart_feed._attach_forming`), so a finished session no
+longer reads "Still forming". Release the sync Worker with this UI.
+
 2026-10-17 grid swap per market: app.js v499. "Swap shaded gaps" is kept per
 market group (stocks / indices / other) on each timeframe, matching the time
 grid it shades (`tfOverlay.shade[tf].flipBy[scope]`, read via `gridFlip`). The
