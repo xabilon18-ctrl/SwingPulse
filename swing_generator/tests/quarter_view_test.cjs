@@ -55,4 +55,15 @@ ctx.timeframe = '4H';
 assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelQuarterView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
+
+// The overlay fit is capped: the frame grows to at most twice what the bars need.
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2 });
+vm.runInContext(fn('reelOpeningPriceWindow'), pw);
+const bars = { c: [100], l: [95], h: [105] };
+const plain = pw.reelOpeningPriceWindow(bars);
+const close = pw.reelOpeningPriceWindow(bars, { lo: 92, hi: 104 });
+const far = pw.reelOpeningPriceWindow(bars, { lo: 62, hi: 104 });
+assert.ok(close.lo < plain.lo && close.lo <= 92, 'a nearby MA is fitted');
+assert.ok(Math.abs((far.hi - far.lo) - 2 * (plain.hi - plain.lo)) < 1e-9, 'a far MA stops at the cap');
+assert.ok(far.lo > 62, 'the far MA is left off-screen');
 console.log('quarter view: ok');
