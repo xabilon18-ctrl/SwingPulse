@@ -101,6 +101,7 @@ const { pathToFileURL } = require('node:url');
     const serverNotes=()=>JSON.parse(disk.get('zabs')||'{}').notes||{};
     async function writeNote(page,text) {
       await page.evaluate(()=>window.SP.openModal('TEST'));
+      await page.locator('.mh-tab[data-panel="notes"]').click();
       await page.locator('#noteInput').fill(text);
       await page.waitForFunction(t=>(JSON.parse(localStorage.getItem('sp-notes__zabs')||'{}').TEST||'')===t,text);
       await page.locator('#modalClose').click();
