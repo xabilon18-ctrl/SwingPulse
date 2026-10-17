@@ -3,6 +3,13 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 crypto 1H view: app.js v504. Crypto (assetClassOf 'Crypto') on
+1H opens on the last 30 days of candles plus 35 days of blank future
+(REEL_CRYPTO_VIEW, via reelOpenSpec/reelStockView). Price 'upper': candles and
+switched-on overlay MAs fill the upper 45% with 8% headroom, the lower half
+left empty; an MA counts only up to one bar-range beyond the candles. Measured
+off the user's DOT/DOGE/DASH screenshots.
+
 2026-10-17 stock 4H/Daily views: app.js v503. reelQuarterView became
 reelStockView (REEL_STOCK_VIEW table). Stocks open on: 1H previous + current
 quarter (overlay-MA fit, capped); 4H previous + current half-year, centred on
