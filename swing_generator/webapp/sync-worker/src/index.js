@@ -8,7 +8,7 @@ import { mergeSavedWork } from './saved-work-store.js';
  * PUT  /sync?user=zabs                → saves user's JSON blob     (Bearer)
  * GET  /sync/health                   → health check
  * POST /push/subscribe?user=zabs      → store push subscription    (Bearer)
- * DEL  /push/subscribe?user=zabs      → remove all subs for user   (Bearer)
+ * DEL  /push/subscribe?user=zabs      → remove THIS device's sub   (Bearer, ?endpoint=)
  * POST /push/notify                   → fan-out empty push to all subs (X-Sync-Secret)
  * POST /run?user=zabs                 → trigger the CI data pipeline   (Bearer)
  * GET  /run/status?user=zabs          → state of the latest CI run     (Bearer)
@@ -26,12 +26,21 @@ import { mergeSavedWork } from './saved-work-store.js';
  *     We store only sha256(token), so a KV dump is not a credential.
  *     Trust-on-first-use: the first token presented for a user CLAIMS the
  *     account (there is no registration flow for two known people), after
- *     which a mismatch is rejected and counted.
+ *     which a mismatch is rejected and counted. Since 2026-10-17 a claim is
+ *     accepted only on POST /sync/auth and only while the account holds no
+ *     saved work: ALLOWED_USERS is readable in the public app.js, so a claim
+ *     on any route, or over existing data, let the first stranger to send a
+ *     token read that person's notes and drawings and lock them out.
  *   · `/push/notify` stays server-to-server — CI holds `SYNC_SECRET` as a
  *     GitHub secret and no browser ever sends it.
  *
  * Brute force: MAX_FAILS wrong passwords per user per hour, then 429. That is
- * what keeps a short password honest, so don't remove it.
+ * what keeps a short password honest, so don't remove it. Each wrong guess
+ * writes its OWN key (fail:<user>:<id>) and the count is a list of them: a
+ * single read-then-write counter lost increments to parallel guesses, so a
+ * burst could check far more than MAX_FAILS passwords. KV is eventually
+ * consistent, so a burst can still overshoot by what lands before the keys
+ * propagate (seconds within a location) — it can no longer reset the count.
  */
 
 const ALLOWED_USERS = ['zabs', 'hemi'];
@@ -143,16 +152,20 @@ function bearer(request) {
  * `claimed` is set on the request-scoped `out` object when this call was the
  * one that set the account's password.
  */
-async function authorize(request, env, user, out = {}) {
+async function authorize(request, env, user, out = {}, { allowClaim = false } = {}) {
   const token = bearer(request);
   if (!token) return json({ error: 'auth_required' }, 401);
 
   const authKey = `auth:${user}`;
-  const failKey = `fail:${user}`;
+  const failPrefix = `fail:${user}:`;
   const stored  = await env.USER_DATA.get(authKey);
   const hashed  = await sha256Hex(token);
 
-  if (!stored) {                     // trust-on-first-use — this device sets it
+  if (!stored) {
+    // Trust-on-first-use, from the sign-in step only, and only for an account
+    // with nothing saved yet — see the AUTH note at the top.
+    if (!allowClaim) return json({ error: 'not_set_up' }, 401);
+    if (await env.USER_DATA.get(user)) return json({ error: 'claim_refused' }, 403);
     await env.USER_DATA.put(authKey, hashed);
     out.claimed = true;
     return null;
@@ -162,17 +175,38 @@ async function authorize(request, env, user, out = {}) {
   // Checking the limit first would have let anyone lock the real owner out of
   // sync for an hour just by spamming wrong guesses — the limit exists to stop
   // guessing, and someone who already knows the password isn't guessing.
+  // `fail:<user>` is only a flag that failures exist, so a correct request
+  // costs one read: the free KV tier allows 1,000 list operations a day, and
+  // every sync request passes through here.
+  const flagKey = `fail:${user}`;
+  const failures = async () => (await env.USER_DATA.list({ prefix: failPrefix })).keys;
   if (sameSecret(stored, hashed)) {
-    if (await env.USER_DATA.get(failKey)) await env.USER_DATA.delete(failKey);
+    if (await env.USER_DATA.get(flagKey)) {
+      for (const k of await failures()) await env.USER_DATA.delete(k.name);
+      await env.USER_DATA.delete(flagKey);
+    }
     return null;
   }
 
-  const fails = parseInt(await env.USER_DATA.get(failKey) || '0', 10);
-  if (fails >= MAX_FAILS) {
+  if ((await failures()).length >= MAX_FAILS) {
     return json({ error: 'too_many_attempts', retry_after_s: FAIL_WINDOW }, 429);
   }
-  await env.USER_DATA.put(failKey, String(fails + 1), { expirationTtl: FAIL_WINDOW });
+  await env.USER_DATA.put(failPrefix + Date.now().toString(36) + crypto.randomUUID().slice(0, 8), '1',
+                          { expirationTtl: FAIL_WINDOW });
+  await env.USER_DATA.put(flagKey, '1', { expirationTtl: FAIL_WINDOW });
   return json({ error: 'bad_password' }, 401);
+}
+
+// A Web Push endpoint from one of the browser push services, or null. The
+// Worker POSTs a signed VAPID request to every stored endpoint on each hourly
+// fan-out, so an arbitrary URL here would turn it into a request relay.
+const PUSH_HOSTS = /^(?:fcm\.googleapis\.com|(?:[a-z0-9-]+\.)*push\.services\.mozilla\.com|web\.push\.apple\.com|(?:[a-z0-9-]+\.)*notify\.windows\.com)$/;
+function pushEndpoint(value) {
+  if (typeof value !== 'string' || value.length > 2048) return null;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && PUSH_HOSTS.test(u.hostname) ? u.href : null;
+  } catch (_) { return null; }
 }
 
 // ─── VAPID JWT signing ──────────────────────────────────────────────────────
@@ -272,7 +306,7 @@ export default {
       const user = (url.searchParams.get('user') || '').toLowerCase().trim();
       if (!ALLOWED_USERS.includes(user)) return json({ error: 'Unknown user' }, 403);
       const out  = {};
-      const deny = await authorize(request, env, user, out);
+      const deny = await authorize(request, env, user, out, { allowClaim: true });
       if (deny) return deny;
       return json({ ok: true, claimed: !!out.claimed });
     }
@@ -285,16 +319,30 @@ export default {
       if (deny) return deny;
 
       if (request.method === 'POST') {
-        const sub = await request.json();
-        if (!sub.endpoint) return json({ error: 'Missing endpoint' }, 400);
-        const key = subKey(user, sub.endpoint);
-        await env.USER_DATA.put(key, JSON.stringify(sub), { expirationTtl: 60 * 60 * 24 * 90 });
+        let sub;
+        try { sub = await request.json(); } catch (_) { return json({ error: 'Invalid JSON' }, 400); }
+        const endpoint = pushEndpoint(sub && sub.endpoint);
+        if (!endpoint) return json({ error: 'Invalid push endpoint' }, 400);
+        const keys = sub.keys && typeof sub.keys === 'object' ? sub.keys : undefined;
+        // The app re-sends its subscription on every start, which renews this
+        // 90-day TTL; before, a subscription expired silently after 90 days.
+        await env.USER_DATA.put(subKey(user, endpoint), JSON.stringify({ endpoint, keys }),
+                                { expirationTtl: 60 * 60 * 24 * 90 });
         return json({ ok: true });
       }
       if (request.method === 'DELETE') {
-        const list = await env.USER_DATA.list({ prefix: `push:${user}:` });
-        for (const k of list.keys) await env.USER_DATA.delete(k.name);
-        return json({ ok: true, deleted: list.keys.length });
+        // Only the calling device's subscription. This deleted every key under
+        // push:<user>:, so turning notifications off on one device silently
+        // stopped them on the others, which still showed them as on. A request
+        // without an endpoint (an older app) removes nothing: that browser has
+        // already unsubscribed itself, and its stale key is pruned on the next
+        // fan-out when the push service answers 404/410.
+        const endpoint = pushEndpoint(url.searchParams.get('endpoint'));
+        if (!endpoint) return json({ ok: true, deleted: 0 });
+        const key = subKey(user, endpoint);
+        const had = !!(await env.USER_DATA.get(key));
+        await env.USER_DATA.delete(key);
+        return json({ ok: true, deleted: had ? 1 : 0 });
       }
     }
 

@@ -29,8 +29,12 @@
   function session({ assetClass = '', symbol = '' } = {}, now = Date.now()) {
     if (assetClass === 'Crypto' || /-USD[T]?$/.test(symbol)) return { known: true, closed: false };
     if (assetClass === 'Currency' || symbol.endsWith('=X')) {
-      const d = new Date(now), day = d.getUTCDay(), hour = d.getUTCHours();
-      return { known: true, closed: day === 6 || day === 5 && hour >= 22 || day === 0 && hour < 22, label: 'Market closed' };
+      // Forex trades Sunday 17:00 to Friday 17:00 NEW YORK time. Fixed UTC
+      // hours (22:00) were right only in northern winter; in summer the market
+      // opens and closes at 21:00 UTC, so the label was an hour off each end.
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now));
+      const day = parts.find(p => p.type === 'weekday').value, hour = +parts.find(p => p.type === 'hour').value;
+      return { known: true, closed: day === 'Sat' || day === 'Fri' && hour >= 17 || day === 'Sun' && hour < 17, label: 'Market closed' };
     }
     if (assetClass !== 'Equity') return { known: false, closed: false };
     const exchanges = { '.L': ['Europe/London', 480, 990], '.DE': ['Europe/Berlin', 540, 1050], '.PA': ['Europe/Paris', 540, 1050], '.AS': ['Europe/Amsterdam', 540, 1050], '.MI': ['Europe/Rome', 540, 1050], '.MC': ['Europe/Madrid', 540, 1050], '.SW': ['Europe/Zurich', 540, 1050], '.JO': ['Africa/Johannesburg', 540, 1020], '.TO': ['America/Toronto', 570, 960], '.AX': ['Australia/Sydney', 600, 960] };

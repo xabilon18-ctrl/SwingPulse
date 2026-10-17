@@ -7,7 +7,10 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 (async () => {
   const worker = (await import(pathToFileURL(path.resolve(__dirname, '../webapp/sync-worker/src/index.js')))).default;
-  const disk = new Map(), env = {USER_DATA:{get:async k=>disk.get(k)??null,put:async(k,v)=>disk.set(k,v)}};
+  const disk = new Map(), env = {USER_DATA:{get:async k=>disk.get(k)??null,put:async(k,v)=>disk.set(k,v),delete:async k=>disk.delete(k),list:async({prefix})=>({keys:[...disk.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name}))})}};
+  // Both devices hold the token of an account already signed up through the
+  // password step (the Worker only lets that step claim an account).
+  disk.set('auth:zabs', require('node:crypto').createHash('sha256').update('test-token').digest('hex'));
   let offline = false;
   const browser = await chromium.launch({...(process.env.CHROMIUM_PATH ? {executablePath:process.env.CHROMIUM_PATH} : {}),args:['--no-sandbox','--disable-crashpad-for-testing']});
   const errors=[];

@@ -39,4 +39,16 @@ try {
 } finally {
   if(previousZone===undefined) delete process.env.TZ; else process.env.TZ=previousZone;
 }
-console.log('PASS: freshness, local chart times, day rollover, daylight saving and daily session dates');
+// Forex: Sunday 17:00 to Friday 17:00 New York, so 21:00 UTC in summer, 22:00 in winter.
+const fx=t=>f.session({assetClass:'Currency',symbol:'EURUSD=X'},Date.parse(t)).closed;
+assert.equal(fx('2026-07-12T21:30:00Z'),false,'Summer Sunday 21:30 UTC: forex has reopened');
+assert.equal(fx('2026-07-12T20:30:00Z'),true,'Summer Sunday 20:30 UTC: still closed');
+assert.equal(fx('2026-07-10T21:30:00Z'),true,'Summer Friday 21:30 UTC: closed');
+assert.equal(fx('2026-07-10T20:30:00Z'),false,'Summer Friday 20:30 UTC: open');
+assert.equal(fx('2026-01-11T21:30:00Z'),true,'Winter Sunday 21:30 UTC: still closed');
+assert.equal(fx('2026-01-11T22:30:00Z'),false,'Winter Sunday 22:30 UTC: open');
+assert.equal(fx('2026-01-09T21:30:00Z'),false,'Winter Friday 21:30 UTC: open');
+assert.equal(fx('2026-01-09T22:30:00Z'),true,'Winter Friday 22:30 UTC: closed');
+assert.equal(fx('2026-07-11T12:00:00Z'),true,'Saturday: closed');
+assert.equal(fx('2026-07-14T12:00:00Z'),false,'Tuesday: open');
+console.log('PASS: freshness, local chart times, day rollover, daylight saving, daily session dates and forex hours');

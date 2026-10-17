@@ -388,6 +388,14 @@ def _attach_forming(bundle: dict, hourly: pd.DataFrame,
     end = start + pd.Timedelta(hours=hours)
     if start <= completed.index[-1] or end <= now:
         return bundle
+    # A bar is session-anchored, so the last one of a session is short: a US
+    # equity's 17:30 UTC 4H bar ends at the 20:00 close, not at 21:30. Once the
+    # hourly feed has nothing newer than a bar that has already ended, the
+    # candle has stopped forming; say it closed then, so the chart reads
+    # "Awaiting final update" instead of "Still forming" for up to 2 hours
+    # after the session (the final completed bar still waits for `end`).
+    last_hour_end = raw.index[-1] + pd.Timedelta(hours=1)
+    closes = min(end, last_hour_end) if last_hour_end <= now else end
     row = frame.iloc[-1]
     values = {key: _round(row[col]) for key, col in
               [('o', 'Open'), ('h', 'High'), ('l', 'Low'), ('c', 'Close')]}
@@ -395,7 +403,7 @@ def _attach_forming(bundle: dict, hourly: pd.DataFrame,
         return bundle
     bundle['forming'] = {
         't': start.strftime('%Y-%m-%d %H:%M'),
-        'closes_at': end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'closes_at': closes.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **values,
         'm': [_round((completed['Close'].tail(p - 1).sum() + row['Close']) / p)
               for p in bundle['p']],
