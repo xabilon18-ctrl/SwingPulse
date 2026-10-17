@@ -72,6 +72,36 @@ await check('counter cleared by success  → 401', await call('GET', '/sync?user
 for (let i = 0; i < 9; i++) await call('GET', '/sync?user=zabs', { token: bad });
 await check('re-locks after 10 more      → 429', await call('GET', '/sync?user=zabs', { token: bad }), 429);
 
+console.log('\nclaims only at sign-in, never over saved work (2026-10-17)');
+// hemi's account, as if her password had never been set but her data had synced.
+const savedAuth = KV.get('auth:hemi'); KV.delete('auth:hemi');
+KV.set('hemi', JSON.stringify({ notes: { A: 'private' } }));
+const stranger = await tok('hemi', 'stranger');
+await check('GET /sync cannot claim      → 401', await call('GET', '/sync?user=hemi', { token: stranger }), 401, { error: 'not_set_up' });
+await check('sign-in over saved work     → 403', await call('POST', '/sync/auth?user=hemi', { token: stranger }), 403, { error: 'claim_refused' });
+await check('no auth key was written', { status: KV.has('auth:hemi') ? 500 : 200, clone: () => ({ json: async () => ({}) }) }, 200);
+KV.set('auth:hemi', savedAuth);
+
+console.log('\nparallel wrong guesses are all counted');
+const p = await tok('hemi', 'guess');
+KV.delete('fail:hemi'); for (const k of [...KV.keys()]) if (k.startsWith('fail:hemi:')) KV.delete(k);
+await Promise.all(Array.from({ length: 10 }, () => call('GET', '/sync?user=hemi', { token: p })));
+await check('11th after a burst of 10    → 429', await call('GET', '/sync?user=hemi', { token: p }), 429);
+await check('right pw clears the burst   → 200', await call('GET', '/sync?user=hemi', { token: hemi }), 200);
+await check('count restarts              → 401', await call('GET', '/sync?user=hemi', { token: p }), 401, { error: 'bad_password' });
+
+console.log('\npush subscriptions');
+await check('bad JSON                    → 400', await call('POST', '/push/subscribe?user=zabs', { token: good, body: '{nope' }), 400);
+await check('non-push endpoint           → 400', await call('POST', '/push/subscribe?user=zabs', { token: good, body: '{"endpoint":"https://evil.example/x"}' }), 400);
+await check('http endpoint               → 400', await call('POST', '/push/subscribe?user=zabs', { token: good, body: '{"endpoint":"http://fcm.googleapis.com/fcm/send/a"}' }), 400);
+const phone = 'https://web.push.apple.com/QPhone', laptop = 'https://fcm.googleapis.com/fcm/send/laptop';
+await check('phone subscribes            → 200', await call('POST', '/push/subscribe?user=zabs', { token: good, body: JSON.stringify({ endpoint: phone }) }), 200);
+await check('laptop subscribes           → 200', await call('POST', '/push/subscribe?user=zabs', { token: good, body: JSON.stringify({ endpoint: laptop, keys: { p256dh: 'k', auth: 'a' } }) }), 200);
+await check('laptop turns push off       → 200', await call('DELETE', '/push/subscribe?user=zabs&endpoint=' + encodeURIComponent(laptop), { token: good }), 200, { deleted: 1 });
+const subs = [...KV.keys()].filter(k => k.startsWith('push:zabs:'));
+await check('phone keeps its subscription', { status: subs.length === 1 && JSON.parse(KV.get(subs[0])).endpoint === phone ? 200 : 500, clone: () => ({ json: async () => ({}) }) }, 200);
+await check('old app DELETE removes none → 200', await call('DELETE', '/push/subscribe?user=zabs', { token: good }), 200, { deleted: 0 });
+
 console.log('\nCI push path (server-to-server, unchanged)');
 await check('notify without secret → 401', await call('POST', '/push/notify'), 401);
 await check('notify with browser token → 401', await call('POST', '/push/notify', { token: good }), 401);

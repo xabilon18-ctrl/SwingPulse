@@ -13,8 +13,10 @@ assert.deepEqual(mergeSavedWork(deleted,incoming).channels.A.D,[],'Older device 
 const stale=mergeSavedWork(old,{lastModified:10,notes:{A:'older'},watchlists:{lists:[],mod:10}});
 assert.equal(stale.notes.A,'note');assert.equal(stale.watchlists.mod,30);
 // Exercise the actual authenticated handler and retained backup.
-const disk=new Map(),env={USER_DATA:{get:async k=>disk.get(k)??null,put:async(k,v)=>disk.set(k,v)}};
+const disk=new Map(),env={USER_DATA:{get:async k=>disk.get(k)??null,put:async(k,v)=>disk.set(k,v),delete:async k=>disk.delete(k),list:async({prefix})=>({keys:[...disk.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name}))})}};
 async function put(body){return worker.fetch(new Request('https://worker/sync?user=zabs',{method:'PUT',headers:{Authorization:'Bearer test-token'},body:JSON.stringify(body)}),env);}
+// A device signs in (and so claims the account) before it syncs.
+assert.equal((await worker.fetch(new Request('https://worker/sync/auth?user=zabs',{method:'POST',headers:{Authorization:'Bearer test-token'}}),env)).status,200);
 assert.equal((await put(old)).status,200);assert.equal((await put(incoming)).status,200);
 const stored=JSON.parse(disk.get('zabs'));assert.equal(stored.channels.B.D[0].p1,3);
 assert.equal(JSON.parse(disk.get('zabs:prev')).channels.A.D[0].p1,1);

@@ -53,6 +53,25 @@ class FourHourTests(unittest.TestCase):
         self.assertEqual(final['t'][-1], '2026-10-10 12:00')
         self.assertEqual(final['c'][-1], 999)
 
+    def test_forming_bar_closes_when_its_session_does(self):
+        # Review finding 2026-10-17: the last 4H bar of a session is short, but
+        # closes_at was always start + 4h, so after the close the chart said
+        # "Still forming" for up to 2 hours.
+        now = pd.Timestamp('2026-10-10 19:05')
+        open_hour = hourly_frame(2600)
+        open_hour.index = pd.date_range(end='2026-10-10 19:00', periods=len(open_hour), freq='h', tz='UTC')
+        closed = open_hour.iloc[:-1]           # nothing newer than the 18:00 bar
+        with patch.object(data_fetcher, '_utc_now', return_value=now), \
+             patch.object(chart_feed, '_utc_now', return_value=now):
+            with patch.object(chart_feed, 'load_1h', return_value=open_hour):
+                trading = chart_feed.build_4h_live('', 'TEST')['forming']
+            with patch.object(chart_feed, 'load_1h', return_value=closed):
+                stopped = chart_feed.build_4h_live('', 'TEST')['forming']
+        self.assertEqual(trading['t'], '2026-10-10 16:00')
+        self.assertEqual(trading['closes_at'], '2026-10-10T20:00:00Z', 'Still trading: the full window')
+        self.assertEqual(stopped['t'], '2026-10-10 16:00')
+        self.assertEqual(stopped['closes_at'], '2026-10-10T19:00:00Z', 'Feed stopped: closed with its last hour')
+
     def test_closed_market_does_not_invent_a_candle(self):
         hourly = hourly_frame(2600)
         hourly.index = pd.date_range(end='2026-10-09 20:00', periods=len(hourly), freq='h', tz='UTC')
