@@ -7,7 +7,7 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     return host.evaluate(h => {
     const c = h._reelCtx, last = c.bundle.c.filter(v => v > 0).at(-1);
-    return {lo:c.sc.lo, hi:c.sc.hi, px:c.plotPx, last, n:c.b.c.length,
+    return {lo:c.sc.lo, hi:c.sc.hi, px:c.plotPx, last, n:c.b.c.length, slots:(c.L.x1-c.L.x0)/c.bw,
       pctPerPx:c.sc.span/last/c.plotPx, mid:((c.sc.hi+c.sc.lo)/2-last)/last};
     });
   };
@@ -44,7 +44,13 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const x=grip.x+grip.width/2, y=grip.y+grip.height*.45;
     await page.mouse.move(x,y); await page.mouse.down();
     await page.mouse.move(x,y+80,{steps:8}); await page.mouse.up();
+    // And a time-scale drag (zoom in), so Save holds both halves.
+    const tg=await host.locator('.reel-tgrip').boundingBox();
+    const tx=tg.x+tg.width*.5, ty=tg.y+tg.height/2;
+    await page.mouse.move(tx,ty); await page.mouse.down();
+    await page.mouse.move(tx-60,ty,{steps:8}); await page.mouse.up();
     const adjusted=await read(host);
+    assert.ok(adjusted.slots < opened.slots - 1,tf+' time drag zooms in: '+adjusted.slots+' vs '+opened.slots);
     assert.ok(Math.abs(adjusted.hi-adjusted.lo-(opened.hi-opened.lo))>1e-6,'Price drag changes scale');
     await page.locator('#chartFull [data-act="chart-view-save"]').click();
     assert.equal(await page.locator('#chartFull [data-act="chart-view-save"]').getAttribute('aria-pressed'),'true');
@@ -57,6 +63,7 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await card.locator('[data-act="chart-expand"]').click();
     await host.locator('svg').waitFor();
     const restored=await read(host);
+    near(restored.slots,adjusted.slots,tf+' saved time window restores');
     near(restored.pctPerPx,saved.pctPerPx,tf+' saved zoom restores');
     near(restored.mid,saved.mid,tf+' saved vertical placement restores');
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),stored,'Viewing never rewrites saved frames');
