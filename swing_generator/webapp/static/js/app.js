@@ -192,6 +192,11 @@
   localStorage.removeItem('sp-signal-history');   // retired per-device tracker (2026-07-15)
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
+  // instrument_name → ms of this device's last edit of that note. Notes sync
+  // note by note on these stamps, like drawings on channelMod: a stamp with no
+  // text is a deletion. Before 2026-10-17 the newest WHOLE notes map won, so a
+  // device that had not pulled wiped another device's edit with its old copy.
+  let notesMod = (() => { try { return JSON.parse(localStorage.getItem(sk('sp-notes-mod')) || '{}') || {}; } catch (_) { return {}; } })();
   let namesData        = {};   // ticker → full display name (e.g. 'NVDA' → 'NVIDIA')
   // Hand-drawn trend channels, ONE PER INSTRUMENT — deliberately not per
   // timeframe. A channel is anchored in (date, price), and a date and a price
@@ -347,6 +352,36 @@
       }
     channelSnap = cur;
     try { localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod)); } catch (_) {}
+  }
+
+  // Merge a remote copy into this device's notes, note by note. Returns true
+  // if any note changed. A remote stamp newer than this device's wins, text or
+  // deletion. A remote copy with no notesMod at all comes from before stamps:
+  // when `remoteNewer`, it still wins for this device's unstamped notes only —
+  // the old whole-blob rule, applied to those alone.
+  function notesMergeRemote(remote, remoteNewer) {
+    if (!remote || !remote.notes || typeof remote.notes !== 'object') return false;
+    const stamped = remote.notesMod && typeof remote.notesMod === 'object';
+    const rMod = stamped ? remote.notesMod : {};
+    const names = new Set(Object.keys(rMod));
+    if (!stamped && remoteNewer) {
+      for (const n of Object.keys(remote.notes)) names.add(n);
+      for (const n of Object.keys(instrumentNotes)) names.add(n);
+    }
+    let changed = false;
+    for (const name of names) {
+      const at = +rMod[name] || 0, mine = +notesMod[name] || 0;
+      if (!(at > mine || (!stamped && remoteNewer && !mine))) continue;
+      const text = typeof remote.notes[name] === 'string' ? remote.notes[name] : '';
+      if ((instrumentNotes[name] || '') !== text) changed = true;
+      if (text) instrumentNotes[name] = text; else delete instrumentNotes[name];
+      if (at) notesMod[name] = at;
+    }
+    if (changed || names.size) {
+      localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
+      localStorage.setItem(sk('sp-notes-mod'), JSON.stringify(notesMod));
+    }
+    return changed;
   }
 
   // Merge a remote copy into this device's drawings. Returns true if anything
@@ -518,10 +553,6 @@
       userStarred = new Set(remote.starred);
       localStorage.setItem(sk('swingpulse-starred'), JSON.stringify(remote.starred));
     }
-    if (remote.notes && typeof remote.notes === 'object') {
-      instrumentNotes = remote.notes;
-      localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
-    }
     localStorage.setItem(sk('sp-last-modified'), String(remote.lastModified || Date.now()));
   }
 
@@ -537,6 +568,8 @@
       // Drawings merge chart by chart on EVERY pull, whatever the blob's own
       // timestamp says — see channelMergeRemote.
       const drawingsChanged = channelMergeRemote(remote, remote.lastModified > localMod);
+      const notesChanged = notesMergeRemote(remote, remote.lastModified > localMod);
+      if (notesChanged && !(remote.lastModified > localMod) && allData.length) renderAll();
       if (drawingsChanged && !(remote.lastModified > localMod)) {
         try { reelRepaintVisible(); } catch (_) {}
       }
@@ -544,8 +577,10 @@
       // flush that never landed. Send it now rather than waiting for the next
       // edit; this is what rescued the phone drawings stranded by the 64 KB
       // keepalive cap. Costs a save only when something is actually missing.
-      const rMod = remote.channelsMod || {};
-      if (!syncDrawTimer && (Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)) || chartPreferences.pending(remote.chartPrefs)))
+      const rMod = remote.channelsMod || {}, rNotes = remote.notesMod || {};
+      if (!syncDrawTimer && (Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)) ||
+                             Object.keys(notesMod).some(k => (+notesMod[k] || 0) > (+rNotes[k] || 0)) ||
+                             chartPreferences.pending(remote.chartPrefs)))
         syncPushNow();
       if (remote.lastModified > localMod) {
         syncApplyRemote(remote);
@@ -570,10 +605,10 @@
   // loaded yet uploaded [] over the real list — and the Worker had no history.
   async function syncPushNow(intentional, quick) {
     if (!syncUser) return;
-    // Always record locally — a device with no sync password still works, it
-    // just keeps its stars to itself.
-    localStorage.setItem(sk('sp-last-modified'), String(Date.now()));
-    if (!syncToken()) return false;
+    // A device with no sync password still works, it just keeps its stars to
+    // itself. Signed in, the mark moves only once the Worker confirms the save:
+    // moving it first let a failed (offline) save hide the server's newer copy.
+    if (!syncToken()) { localStorage.setItem(sk('sp-last-modified'), String(Date.now())); return false; }
     const user = syncUser;
 
     // A pending drawing batch is covered by whatever this push sends — the
@@ -595,6 +630,7 @@
       if (channelMergeRemote(remote, false)) {
         try { reelRepaintVisible(); } catch (_) {}
       }
+      if (notesMergeRemote(remote, false) && allData.length) renderAll();
     } catch (e) {
       if (syncUser === user) {
         syncUnavailable = true; savedWork?.updateStatus();
@@ -604,7 +640,7 @@
     }
 
     const stars = [...userStarred];
-    const payload = { notes: instrumentNotes, channels: instChannels,
+    const payload = { notes: instrumentNotes, notesMod, channels: instChannels,
                       channelsMod: channelMod, watchlists: wlStore, chartPrefs: chartPreferences.snapshot(),
                       lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
@@ -627,6 +663,7 @@
       if (syncUser !== user) return false;
       // Only a confirmed save spends the catch-up marker.
       syncLastSuccess = Date.now(); syncUnavailable = false;
+      localStorage.setItem(sk('sp-last-modified'), String(payload.lastModified));
       syncPending = sentChanges !== JSON.stringify(channelMod) || JSON.stringify(payload.chartPrefs) !== JSON.stringify(chartPreferences.snapshot());
       if (!syncPending) try { localStorage.removeItem(sk(SYNC_DRAW_DIRTY)); } catch (_) {}
       savedWork?.updateStatus();
@@ -772,6 +809,7 @@
     // Reload user-specific data from their own storage bucket
     userStarred    = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
     instrumentNotes = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}');
+    try { notesMod = JSON.parse(localStorage.getItem(sk('sp-notes-mod')) || '{}') || {}; } catch (_) { notesMod = {}; }
     try { instChannels = expandChannelStore(JSON.parse(localStorage.getItem(sk('sp-channels')) || '{}')); }
     catch (_) { instChannels = {}; }
     try { channelMod = JSON.parse(localStorage.getItem(sk('sp-channels-mod')) || '{}') || {}; }
@@ -3296,9 +3334,14 @@
       const k = chKey(name, tf); nextMods[k] = Math.max(now, (+nextMods[k] || 0) + 1);
     }
     const nextLists = { ...data.watchlists, mod: now };
+    // Every note the restore sets or removes is stamped, so it reaches the
+    // other devices — deletions included — exactly as the drawings do.
+    const nextNotesMod = { ...notesMod };
+    for (const n of new Set([...Object.keys(instrumentNotes), ...Object.keys(data.notes || {})]))
+      nextNotesMod[n] = Math.max(now, (+nextNotesMod[n] || 0) + 1);
     const writes = {
       [sk('sp-channels')]: nextChannels, [sk('sp-channels-mod')]: nextMods,
-      [sk('sp-notes')]: data.notes, [sk(WL_KEY)]: nextLists,
+      [sk('sp-notes')]: data.notes, [sk('sp-notes-mod')]: nextNotesMod, [sk(WL_KEY)]: nextLists,
       [sk(VIEW_STORE)]: data.views, [sk('sp-overlay')]: data.overlay,
       [sk('sp-chart-prefs')]: chartPreferences.previewRestore(data.grids),
     };
@@ -3309,7 +3352,7 @@
       throw new Error('Browser storage is full. Your current work was kept; download a backup before freeing space.');
     }
     instChannels = nextChannels; channelMod = nextMods;
-    instrumentNotes = data.notes; wlStore = nextLists; savedViews = data.views;
+    instrumentNotes = data.notes; notesMod = nextNotesMod; wlStore = nextLists; savedViews = data.views;
     for (const k of Object.keys(tfOverlay)) delete tfOverlay[k];
     Object.assign(tfOverlay, data.overlay); ovApplyVars(); chartPreferences.reload();
     drawUndo.clear(); drawRedo.clear(); reel.editing = null; channelSnapAll();
@@ -6730,7 +6773,12 @@
             const text = noteInput.value.trim();
             if (text) instrumentNotes[name] = text;
             else       delete instrumentNotes[name];
+            notesMod[name] = Date.now();
             localStorage.setItem(sk('sp-notes'), JSON.stringify(instrumentNotes));
+            localStorage.setItem(sk('sp-notes-mod'), JSON.stringify(notesMod));
+            // Same unsent-work marker as drawings: an edit made offline is
+            // resent on the next start or reconnect until the Worker confirms it.
+            try { localStorage.setItem(sk(SYNC_DRAW_DIRTY), '1'); } catch (_) {}
             syncPush();
             scheduleWorkBackup();
             if (hint) { hint.textContent = 'Saved ✓'; hint.className = 'notes-save-hint saved'; }
@@ -8253,6 +8301,8 @@
     if (syncUser) syncPull();
   });
   window.addEventListener('pagehide', () => syncFlushDrawings(true));
+  // Back online: resend anything saved here while the network was gone.
+  window.addEventListener('online', () => { if (syncUser) syncCatchUpDrawings(); });
 
   // A desktop browser left open behind another window never goes "hidden", so
   // visibilitychange alone meant a laptop could sit on stale drawings all day.

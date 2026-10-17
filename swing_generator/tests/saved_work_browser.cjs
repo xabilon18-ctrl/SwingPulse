@@ -93,7 +93,38 @@ const { pathToFileURL } = require('node:url');
     offline=true; await sync(first,true);
     assert.deepEqual(await drawings(first),saved,'Offline sync keeps drawings');
     offline=false; await sync(first);
+    // Notes merge note by note (2026-10-17). Device two saves a note; device
+    // one, which never pulled it, then saves something else. The old client
+    // sent its whole, older notes map with a newer stamp and the Worker
+    // replaced the note with nothing, on every device.
+    const notes=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('sp-notes__zabs')||'{}'));
+    const serverNotes=()=>JSON.parse(disk.get('zabs')||'{}').notes||{};
+    async function writeNote(page,text) {
+      await page.evaluate(()=>window.SP.openModal('TEST'));
+      await page.locator('#noteInput').fill(text);
+      await page.waitForFunction(t=>(JSON.parse(localStorage.getItem('sp-notes__zabs')||'{}').TEST||'')===t,text);
+      await page.locator('#modalClose').click();
+    }
+    await writeNote(second,'Watch the breakout');
+    await second.waitForFunction(()=>localStorage.getItem('sp-draw-dirty__zabs')==null);
+    assert.equal(serverNotes().TEST,'Watch the breakout');
+    const savedAt=()=>JSON.parse(disk.get('zabs')||'{}').lastModified||0, before=savedAt();
+    await grid(first,'D','Q');
+    for (let i=0;i<50&&savedAt()===before;i++) await new Promise(r=>setTimeout(r,100));
+    assert.notEqual(savedAt(),before,'The grid change was saved');
+    assert.equal(serverNotes().TEST,'Watch the breakout','A save from a device that never pulled the note keeps it');
+    await sync(first);
+    assert.equal((await notes(first)).TEST,'Watch the breakout','The note reaches the other device');
+    // Edited offline: kept locally, resent once the network is back.
+    offline=true;
+    await writeNote(first,'Offline edit');
+    offline=false;
+    await first.evaluate(()=>window.dispatchEvent(new Event('online')));
+    await first.waitForFunction(()=>localStorage.getItem('sp-draw-dirty__zabs')==null);
+    assert.equal(serverNotes().TEST,'Offline edit','An offline note edit is sent on reconnect');
+    await sync(second);
+    assert.equal((await notes(second)).TEST,'Offline edit');
     assert.deepEqual(errors,[]);
-    console.log('PASS: two-device grid isolation and merging, Done drawing sync, offline status and recovery');
+    console.log('PASS: two-device grid isolation and merging, Done drawing sync, offline status and recovery, note-by-note sync and offline note resend');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exit(1)});

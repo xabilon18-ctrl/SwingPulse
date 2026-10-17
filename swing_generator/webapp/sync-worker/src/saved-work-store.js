@@ -11,6 +11,37 @@ function grids(value, field) {
   }
   return out;
 }
+// Notes merge note by note on their own timestamps (notesMod), like drawings.
+// A note whose stamp is set but whose text is absent is a deletion tombstone.
+// A save from an app that predates notesMod (a phone still on cached app.js)
+// keeps the old whole-list rule for unstamped notes only: when newer, its copy
+// wins, absences included. It can never erase a stamped note. A current app
+// changes only what it stamped: an unstamped note it does not carry is one it
+// has not loaded yet, not one it deleted.
+export function mergeNotes(previous, incoming) {
+  const notes = { ...(object(previous.notes) ? previous.notes : {}) };
+  const mods = { ...(object(previous.notesMod) ? previous.notesMod : {}) };
+  if (!object(incoming.notes)) return { notes, notesMod: mods };
+  const legacy = !object(incoming.notesMod);
+  const nextMods = legacy ? {} : incoming.notesMod;
+  const legacyWins = legacy && stamp(incoming.lastModified) > stamp(previous.lastModified);
+  const names = new Set(Object.keys(nextMods));
+  if (legacyWins) {
+    for (const name of Object.keys(incoming.notes)) names.add(name);
+    for (const name of Object.keys(notes)) names.add(name);
+  }
+  for (const name of names) {
+    if (!name || !safeKey(name)) continue;
+    const oldAt = stamp(mods[name]), nextAt = stamp(nextMods[name]);
+    const take = nextAt > oldAt || (legacyWins && !oldAt);
+    if (!take) continue;
+    const text = incoming.notes[name];
+    if (typeof text === 'string' && text) notes[name] = text;
+    else delete notes[name];
+    if (nextAt) mods[name] = nextAt;
+  }
+  return { notes, notesMod: mods };
+}
 export function mergeSavedWork(previous, incoming) {
   const merged = { ...previous, ...incoming };
   merged.chartPrefs = { version: 2 };
@@ -48,7 +79,7 @@ export function mergeSavedWork(previous, incoming) {
   }
   merged.channels = channels; merged.channelsMod = mods;
   if (!object(incoming.watchlists) || stamp(previous.watchlists?.mod) > stamp(incoming.watchlists.mod)) merged.watchlists = previous.watchlists;
-  if (stamp(incoming.lastModified) < stamp(previous.lastModified)) merged.notes = previous.notes;
+  Object.assign(merged, mergeNotes(previous, incoming));
   merged.lastModified = Math.max(stamp(previous.lastModified), stamp(incoming.lastModified));
   return merged;
 }
