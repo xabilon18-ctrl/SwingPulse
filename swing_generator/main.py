@@ -46,7 +46,7 @@ from _active_config import (
     TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
     FIVE_MIN_MAX_AGE_HOURS,
     FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
-    STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN, RETIRED_FILE,
+    STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN, RETIRE_MAX_SHARE, RETIRED_FILE,
 )
 
 PROFILE = ACTIVE_PROFILE
@@ -1417,22 +1417,29 @@ def _process_worker(args: tuple) -> tuple:
 # ---------------------------------------------------------------------------
 
 def _retire_stale(data: dict, inst_by_tick: dict) -> list:
-    """Drop from `data` every instrument whose last daily bar is more than
-    STALE_INSTRUMENT_DAYS behind the run's newest, and write RETIRED_FILE
-    (always — an empty list is what restores an instrument)."""
+    """Drop from `data` every instrument whose last FINISHED daily bar is more
+    than STALE_INSTRUMENT_DAYS behind the run's newest, and write RETIRED_FILE
+    (always — an empty list is what restores an instrument). Judged on
+    finished bars, like the board health_check measures: fetch_all's frames
+    still carry today's open bar on 24h markets, which would make the limit a
+    day stricter than the one it is documented to match."""
     import json
+    from data_fetcher import drop_unfinished_daily
     last_bars = {}
     for ticker, frame in data.items():
-        closes = frame['Close'].dropna() if frame is not None and 'Close' in frame else None
-        if closes is not None and len(closes):
+        if frame is None or 'Close' not in frame:
+            continue
+        closes = drop_unfinished_daily(frame)['Close'].dropna()
+        if len(closes):
             last_bars[ticker] = pd.Timestamp(closes.index[-1]).date()
-    stale, newest = find_stale(last_bars, STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN)
-    behind = sum(1 for d in last_bars.values() if newest and (newest - d).days > STALE_INSTRUMENT_DAYS)
-    if behind > len(stale):
-        print(f'  WARN {behind} instruments are over {STALE_INSTRUMENT_DAYS}d behind — more than '
-              f'RETIRE_MAX_PER_RUN ({RETIRE_MAX_PER_RUN}), treated as a feed outage: none retired\n')
+    verdict = find_stale(last_bars, STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN, RETIRE_MAX_SHARE)
+    newest = verdict['newest']
+    if verdict['held']:
+        print(f"  WARN {len(verdict['held'])} instruments crossed {STALE_INSTRUMENT_DAYS}d "
+              f'behind together — treated as a feed outage, left on the board: '
+              f"{', '.join(verdict['held'][:12])}\n")
     records = []
-    for ticker, last_bar, days in stale:
+    for ticker, last_bar, days in verdict['retire']:
         name = inst_by_tick.get(ticker, {}).get('name', ticker)
         records.append({'ticker': ticker, 'name': name,
                         'last_bar': last_bar.isoformat(), 'days_behind': days})
@@ -1443,10 +1450,12 @@ def _retire_stale(data: dict, inst_by_tick: dict) -> list:
         json.dump({'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                    'newest_bar': newest.isoformat() if newest else None,
                    'threshold_days': STALE_INSTRUMENT_DAYS,
-                   # True when too many went stale to retire (a feed outage):
-                   # tools/retired_issues.py must not read the empty list as
-                   # "everything restored" and close the open issues.
-                   'outage': behind > len(stale),
+                   # Instruments held back as a feed outage: tools/retired_issues.py
+                   # leaves every open issue alone on such a run.
+                   'outage': verdict['outage'],
+                   # Within the limit this run — the only evidence that lets
+                   # tools/retired_issues.py say an instrument's data resumed.
+                   'fresh': verdict['fresh'],
                    'instruments': records}, f, indent=1)
     if records:
         print()
@@ -1515,6 +1524,14 @@ def main():
     except Exception as _exc:
         print(f'  WARN currency indices (daily) not built: {_exc}\n')
 
+    # 2b. Retire instruments whose daily data stopped (see config
+    # STALE_INSTRUMENT_DAYS). Written before anything downstream calls
+    # load_instruments(), which reads it — publish.py included. Before the
+    # intraday downloads, so a dead ticker is not re-requested at 5m and 1h
+    # every hour; `active` is the instrument list everything after this uses.
+    _retired = {r['ticker'] for r in _retire_stale(data, inst_by_tick)}
+    active = [i for i in instruments if i['ticker'] not in _retired]
+
     # Hourly prices are NOT downloaded (again) since 2026-09-24: they fed only
     # the 4H chart, which was removed with 3-Day and Weekly. That was ~45s of
     # every CI run. The hourly parquet cache is left on disk for research.
@@ -1535,12 +1552,12 @@ def main():
         # hour apart, found a "fresh" cache, skipped the download, and
         # republished the previous run's 10m chart unchanged. See config
         # §FIVE_MIN_MAX_AGE_HOURS.
-        fetch_all_5m(instruments, force_refresh=args.refresh,
+        fetch_all_5m(active, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         print('  Fetching hourly market data (1H chart + signals) ...\n')
         # Refresh each scheduled run; the previous unfinished hour must be healed
         # before it can become a signal bar. Closed-market skipping still applies.
-        fetch_all_1h(instruments, force_refresh=args.refresh,
+        fetch_all_1h(active, force_refresh=args.refresh,
                      max_age_hours=FIVE_MIN_MAX_AGE_HOURS)
         _e2 = _time.time() - _t2
         print(f'  Intraday data (5m + 1h): {int(_e2 // 60)}m {int(_e2 % 60):02d}s\n')
@@ -1556,11 +1573,6 @@ def main():
         print(f"  Currency indices (1h): {_ccy_1h(_cp, lambda t: _r5(t, suffix='1h'))}\n")
     except Exception as _exc:
         print(f'  WARN currency indices (1h) not built: {_exc}\n')
-
-    # 2c. Retire instruments whose daily data stopped (see config
-    # STALE_INSTRUMENT_DAYS). Written before anything downstream calls
-    # load_instruments(), which reads it — publish.py included.
-    _retired = {r['ticker'] for r in _retire_stale(data, inst_by_tick)}
 
     # 3. Process each instrument (parallel across all CPU cores)
     _t3 = _time.time()
@@ -1653,14 +1665,14 @@ def main():
     #         therefore which 'separate' positions are really one bet.
     #         Cross-instrument, so it runs here rather than per-instrument.
     from shape_similarity import write as write_shape_similarity
-    write_shape_similarity(instruments)
+    write_shape_similarity(active)
 
     # 5d-ter. Sector rotation wheel + market ranking + its forward paper record.
     #         Isolated like the radar: a failure here must not cost the signals;
     #         tools/health_check.py flags the two files going stale instead.
     try:
         from rotation import update as update_rotation
-        update_rotation(instruments)
+        update_rotation(active)
     except Exception:
         import traceback
         print('\n  Rotation: FAILED')
@@ -1669,7 +1681,7 @@ def main():
     # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
     #     Never fatal: a Yahoo metadata outage must not cost a day of signals.
     from events import write_events
-    write_events(instruments)
+    write_events(active)
 
     # 6. Summary to console
     print('\n  Signal summary:')

@@ -408,13 +408,16 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output_ma500')
 # froze this way and kept publishing a stale card until noticed. Nothing is
 # edited — main.py rewrites RETIRED_FILE every run, so an instrument whose data
 # resumes comes back on its own. 10 days matches tools/health_check.py
-# MAX_INSTRUMENT_STALE_DAYS (sized for Golden Week / Lunar New Year closures);
-# change both together. tools/retired_issues.py opens a GitHub issue for every
+# MAX_INSTRUMENT_STALE_DAYS (sized for Golden Week / Lunar New Year closures),
+# measured on FINISHED daily bars like the board it checks; change both together. tools/retired_issues.py opens a GitHub issue for every
 # removal and closes it on a restore — that is the "let me know".
 STALE_INSTRUMENT_DAYS = 10
-# More than this many going stale in ONE run is a feed outage, not delistings:
-# nothing is retired and the health check fails loudly instead, as before.
+# More than RETIRE_MAX_PER_RUN instruments crossing the limit within the same
+# few days is a feed outage, not delistings: those are held back (left on the
+# board, health check loud) while long-dead ones still retire. More than
+# RETIRE_MAX_SHARE of the board stale at once holds back everything.
 RETIRE_MAX_PER_RUN = 10
+RETIRE_MAX_SHARE = 0.10
 RETIRED_FILE = os.path.join(OUTPUT_DIR, 'retired_instruments.json')
 
 # Prefixes whose bars are NOT unique by date, and therefore carry an extra

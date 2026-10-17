@@ -30,14 +30,24 @@ CANONICAL_SECTORS = {
 }
 
 
-def retired_tickers() -> set:
-    """Tickers main.py retired THIS run for stale data (config.RETIRED_FILE).
-    No file, or an unreadable one, retires nothing."""
+def load_retired() -> dict:
+    """main.py's verdict for THIS run (config.RETIRED_FILE), or {} when there
+    is none or it is unreadable — which retires nothing. Every reader of the
+    file goes through here, so they share one format and one fallback."""
     try:
         with open(RETIRED_FILE, encoding='utf-8') as f:
-            return {r['ticker'] for r in json.load(f).get('instruments', [])}
-    except (OSError, ValueError, KeyError, TypeError):
-        return set()
+            doc = json.load(f)
+        if isinstance(doc, dict) and isinstance(doc.get('instruments'), list):
+            return doc
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def retired_tickers() -> set:
+    """Tickers main.py retired this run for stale data."""
+    return {r['ticker'] for r in load_retired().get('instruments', [])
+            if isinstance(r, dict) and 'ticker' in r}
 
 
 def load_instruments(include_retired: bool = False):
@@ -75,19 +85,39 @@ def load_instruments(include_retired: bool = False):
     return instruments
 
 
-def find_stale(last_bars: dict, max_days: int, max_count: int):
-    """(stale, newest) from {ticker: last daily bar date}.
+def find_stale(last_bars: dict, max_days: int, max_new: int,
+               max_share: float, recent_days: int = 3) -> dict:
+    """Judge {ticker: last finished daily bar} against the newest of them.
 
-    stale is [(ticker, last_bar, days_behind)] for every ticker more than
-    max_days behind the newest bar, oldest first — or [] when more than
-    max_count are, because that many at once is a feed outage, not
-    delistings, and must stay loud rather than empty the board."""
+    stale  — more than max_days behind. Retired, unless held back below.
+    new    — stale, but by no more than recent_days past the limit: these
+             crossed it in the last few runs. More than max_new of them at
+             once is a feed outage (many instruments stopping together), not
+             delistings, so they are held back and the health check stays
+             loud. Long-dead tickers are counted separately, so they never
+             make a later delisting look like an outage.
+    More than max_share of everything stale at once holds back ALL of it.
+    Returns {'newest', 'retire': [(ticker, last_bar, days)] oldest first,
+    'held': [tickers held back], 'fresh': [tickers within the limit],
+    'outage': bool}."""
     if not last_bars:
-        return [], None
+        return {'newest': None, 'retire': [], 'held': [], 'fresh': [], 'outage': False}
     newest = max(last_bars.values())
-    stale = sorted(((t, d, (newest - d).days) for t, d in last_bars.items()
-                    if (newest - d).days > max_days), key=lambda r: r[1])
-    return ([] if len(stale) > max_count else stale), newest
+    behind = {t: (newest - d).days for t, d in last_bars.items()}
+    stale = sorted((t for t, b in behind.items() if b > max_days), key=lambda t: last_bars[t])
+    new = [t for t in stale if behind[t] <= max_days + recent_days]
+    if len(stale) > max_share * len(last_bars):
+        held = stale
+    elif len(new) > max_new:
+        held = new
+    else:
+        held = []
+    keep = set(held)
+    return {'newest': newest,
+            'retire': [(t, last_bars[t], behind[t]) for t in stale if t not in keep],
+            'held': held,
+            'fresh': sorted(t for t, b in behind.items() if b <= max_days),
+            'outage': bool(held)}
 
 
 def radar_sector_of(inst: dict) -> str:
