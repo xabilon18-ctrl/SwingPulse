@@ -1,0 +1,55 @@
+name: Browser check (temporary)
+
+# TEMPORARY (2026-10-17). Runs the mobile browser tests deploy-app.yml runs
+# before a production deploy, on this branch only: once on this code, and
+# once with the pre-fix app.js + sync Worker from main, to prove the new
+# two-device notes test fails on the old code. Nothing is deployed.
+on:
+  push:
+    branches: [claude/browser-check]
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        code: [new, old]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Old code only — restore main's app.js, sync Worker and index.html
+        if: matrix.code == 'old'
+        run: |
+          git checkout origin/main -- swing_generator/webapp/static/js/app.js \
+            swing_generator/webapp/sync-worker/src swing_generator/webapp/templates/index.html
+      - run: |
+          pip install -r swing_generator/requirements.txt
+          npm install --no-save @playwright/test@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Unit checks
+        working-directory: swing_generator
+        run: |
+          node --check webapp/static/js/app.js
+          node tests/saved_work_test.cjs
+          node webapp/sync-worker/test/auth_test.mjs
+          node webapp/sync-worker/test/saved_work_test.mjs || echo "worker test failed (expected on old code)"
+      - name: Build UI and offline browser fixtures
+        working-directory: swing_generator
+        run: |
+          python3 webapp/publish.py --ui-only --build-only
+          python3 tests/browser_fixture.py
+      - name: Mobile browser tests
+        run: |
+          python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/preview.log 2>&1 &
+          node swing_generator/tests/app_smoke.cjs
+          node swing_generator/tests/saved_work_browser.cjs
