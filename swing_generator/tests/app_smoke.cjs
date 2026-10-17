@@ -88,6 +88,21 @@ const assert = require('node:assert/strict');
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await page.locator('.reel-grid-menu [data-division="M"]').click();
+  // Swap shaded gaps is kept per market (2026-10-17): TEST is a stock, so the
+  // swap lands on stocks and other markets keep inheriting their own choice.
+  await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
+  const bandXs = () => page.locator('#chartFull .reel-band-g rect').evaluateAll(rs => rs.map(r => r.getAttribute('x')).join(','));
+  const unswapped = await bandXs();
+  assert.ok(unswapped.length > 0, 'Shading draws bands on 4H');
+  assert.ok((await page.locator('.reel-grid-menu [data-part="flip"]').innerText()).includes('Stocks'), 'The swap names its market');
+  await page.locator('.reel-grid-menu [data-part="flip"]').click();
+  await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') !== before, unswapped);
+  const shade4h = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sp-overlay')))).shade['4H']);
+  assert.equal(shade4h.flipBy.stocks, true, 'The swap is saved for stocks');
+  assert.ok(!('indices' in shade4h.flipBy) && !('other' in shade4h.flipBy), 'Other markets keep their own swap');
+  await page.locator('.reel-grid-menu [data-part="flip"]').click();
+  await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') === before, unswapped);
+  await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await require('./drawing_toolbar_checks.cjs')(page);
   await require('./saved_work_checks.cjs')(page);

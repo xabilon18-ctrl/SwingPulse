@@ -3,6 +3,12 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-17 grid swap per market: app.js v499. "Swap shaded gaps" is kept per
+market group (stocks / indices / other) on each timeframe, matching the time
+grid it shades (`tfOverlay.shade[tf].flipBy[scope]`, read via `gridFlip`). The
+old per-timeframe `flip` is what every market inherits until swapped. Shading
+on/off, strength and colour stay per timeframe. Device-local, like overlays.
+
 2026-10-17 sync fix: app.js v498 + sync Worker. Notes now sync note by note
 on per-note timestamps (`notesMod`, deletion = stamp without text), merged on
 every pull and before every push, like drawings. Before, the newest WHOLE
