@@ -61,6 +61,7 @@ TV_LAYOUTS = {
 sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments
+from _active_config import RETIRED_FILE
 from server import build_tv_map, build_ai_set, get_ticker_map, _ticker_to_filename
 from chart_feed import build_chart_feed
 
@@ -134,6 +135,13 @@ def build_summary(df, dt):
         missing = sorted(i['name'] for i in expected if i['name'] not in published)
     except Exception:
         expected, missing = [], []
+    # Retired for stale data this run (main._retire_stale) — already left out of
+    # `expected`, named here so the payload says where they went.
+    try:
+        with open(RETIRED_FILE, encoding='utf-8') as f:
+            retired = [r['name'] for r in json.load(f).get('instruments', [])]
+    except (OSError, ValueError, KeyError, TypeError):
+        retired = []
 
     return {
         'date':             dt,
@@ -141,6 +149,7 @@ def build_summary(df, dt):
         'expected':         len(expected),
         'missing_count':    len(missing),
         'missing':          missing[:50],
+        'retired':          retired,
 
         'trend_counts':     trend_counts,
         'buy_count':        int(buy_mask.sum()),

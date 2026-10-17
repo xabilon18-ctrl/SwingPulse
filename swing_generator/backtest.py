@@ -603,7 +603,8 @@ def main():
     parser.add_argument('--no-save', action='store_true')
     args = parser.parse_args()
 
-    instruments = load_instruments()
+    # Retired included: dropping instruments that later died is survivorship bias.
+    instruments = load_instruments(include_retired=True)
     if args.quick:
         instruments = instruments[:30]
 

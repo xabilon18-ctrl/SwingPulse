@@ -42,6 +42,10 @@ jobs:
     # workflow_dispatch still works from either repo.
     if: github.event_name != 'schedule' || github.repository == 'xabilon18-ctrl/SwingPulse'
     runs-on: ubuntu-latest
+    # issues: write is for tools/retired_issues.py (auto-retired instruments).
+    permissions:
+      contents: read
+      issues: write
     # 90 min so a cold-cache full download (first run / evicted cache) or a
     # Yahoo CI-IP throttle can't trip the timeout; warm runs finish in ~20 min.
     timeout-minutes: 90
@@ -113,6 +117,19 @@ jobs:
         run: |
           cd swing_generator
           python3 main.py --profile ma500
+
+      # ── 6-ter. Tell the owner about auto-retired instruments ─────────────
+      # main.py drops any instrument whose daily data stopped (config
+      # STALE_INSTRUMENT_DAYS) and lists it in retired_instruments.json; this
+      # opens a GitHub issue per removal and closes it when the data resumes.
+      # continue-on-error: a GitHub API hiccup must never fail the publish.
+      - name: Report auto-retired instruments
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd swing_generator
+          python3 tools/retired_issues.py
 
       # ── 6-bis. One-off: seed radar history for newly added instruments ───
       # Runs AFTER main.py on purpose — backfill() reads the parquet cache, and
