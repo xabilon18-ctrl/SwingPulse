@@ -3,6 +3,13 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-18 index 1H view: app.js v507. Indices (reelGridScope 'indices') on
+1H open from ~3 weeks before the current quarter line to the next quarter
+line (REEL_INDEX_VIEW lead 0.23 of a quarter; 10 Sep to 1 Jan on 18 Oct),
+anchored to the lines. Price 'all' (candles + overlay MAs + drawings), as
+crypto 4H/Daily. Off the user's US100/RUSSELL/BCHAIN_NFT/CHINA_NET/EV_INDX/
+FAANGS_10 screenshots.
+
 2026-10-17 saved-view fix: app.js v506. reelMaxBars(bundle, name) allows at
 least the opening view's slots (its blank future): a stock 1H quarter frame
 (~896 slots) is wider than the ~880 bars carried, and capping zoom and saved
