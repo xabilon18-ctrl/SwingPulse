@@ -3,6 +3,14 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-18 index 4H/Daily + forex/commodity views: app.js v508. Index 4H =
+stock 4H half-year frame, index Daily = stock Daily 2025-2029 term, both price
+'all' (off the user's US100/RUSSELL/NETH25/IT40). Forex and commodities
+(assetClassOf Currency/Commodity, REEL_FXCOM_VIEW) were left to us: they take
+the crypto frames (1H 30d/35d 'upper', 4H quarter 'all', Daily 2025-2028)
+but Daily is 'all', not 'allzero' — a 0 line would flatten a currency. Rates
+and anything else still open the old way.
+
 2026-10-18 index 1H view: app.js v507. Indices (reelGridScope 'indices') on
 1H open from ~3 weeks before the current quarter line to the next quarter
 line (REEL_INDEX_VIEW lead 0.23 of a quarter; 10 Sep to 1 Jan on 18 Oct),
