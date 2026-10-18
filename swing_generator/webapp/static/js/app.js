@@ -1218,6 +1218,99 @@
                       ['Currency', 'Forex'], ['CcyIndex', 'Ccy Index'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
   const WL_CLASS_COL = { Index: '#3b6fd8', Equity: '#6b5bd6', Currency: '#1f9d8b',
                          Commodity: '#c98a12', Crypto: '#d4602c' };
+  const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
+  const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
+  const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
+  const WL_FILTER_DEFAULTS = { sort: 'group', trend: 'all', relation: 'all', cluster: 'all' };
+
+  // The sheet filters that are on, as [key, chip label]. Class and search
+  // have their own controls on screen, so they are not repeated as chips.
+  function wlActiveFilters() {
+    const out = [];
+    if (wlUi.trend && wlUi.trend !== 'all')
+      out.push(['trend', { UPTREND: 'Main ▲ up', DOWNTREND: 'Main ▼ down', NEUTRAL: 'Main unavailable' }[wlUi.trend] || wlUi.trend]);
+    if (wlUi.relation && wlUi.relation !== 'all') out.push(['relation', wlUi.relation === 'aligned' ? '4H aligned' : '4H minor']);
+    if (wlUi.cluster && wlUi.cluster !== 'all')
+      out.push(['cluster', (CLUSTER_OPTIONS.find(([k]) => k === wlUi.cluster) || [, wlUi.cluster])[1]]);
+    if (wlUi.sort && wlUi.sort !== 'group') out.push(['sort', (WL_SORTS.find(([k]) => k === wlUi.sort) || [, wlUi.sort])[1]]);
+    return out;
+  }
+
+  // ── FILTER SHEETS (2026-10-18, user: "make these app friendly and
+  // beautiful, not clutter") ─────────────────────────────────────────────
+  // Watchlist and Charts each show one search row and a Filters button.
+  // Every option lives in a bottom sheet (.fsheet); only the filters that
+  // are ON stay on screen, as chips that remove themselves. Options apply
+  // as they are tapped, so the sheet's footer button just closes it and
+  // says how many results that leaves.
+  function fsheetOpen(id) {
+    const s = document.getElementById(id);
+    if (!s || !s.hidden) return;
+    s.hidden = false;
+    document.body.classList.add('fsheet-lock');
+    requestAnimationFrame(() => requestAnimationFrame(() => s.classList.add('open')));
+  }
+  function fsheetClose(s) {
+    if (!s || s.hidden) return;
+    s.classList.remove('open');
+    const panel = s.querySelector('.fsheet-panel');
+    if (panel) panel.style.transform = '';
+    setTimeout(() => {
+      if (!s.classList.contains('open')) s.hidden = true;
+      if (!document.querySelector('.fsheet.open')) document.body.classList.remove('fsheet-lock');
+    }, 260);
+  }
+  // `prefix` names the elements: <prefix>ActiveChips, <prefix>Active,
+  // <prefix>FilterBadge, <prefix>FilterBtn, <prefix>SheetCount.
+  function fsheetSyncActive(prefix, active) {
+    const list = document.getElementById(prefix + 'ActiveChips');
+    if (list) list.innerHTML = active.map(([k, l]) =>
+      `<button class="fchip" type="button" data-fclear="${k}" aria-label="Remove ${escText(l)}">${escText(l)}<span aria-hidden="true">×</span></button>`).join('');
+    const row = document.getElementById(prefix + 'Active');
+    if (row) row.hidden = !active.length;
+    const badge = document.getElementById(prefix + 'FilterBadge');
+    if (badge) { badge.hidden = !active.length; badge.textContent = active.length; }
+    const btn = document.getElementById(prefix + 'FilterBtn');
+    if (btn) btn.classList.toggle('on', active.length > 0);
+  }
+  function fsheetSyncCount(prefix, text) {
+    const el = document.getElementById(prefix + 'SheetCount');
+    if (el) el.textContent = text;
+  }
+  (function fsheetWire() {
+    document.addEventListener('click', e => {
+      const open = e.target.closest('[data-fsheet-open]');
+      if (open) return fsheetOpen(open.dataset.fsheetOpen);
+      const close = e.target.closest('[data-fsheet-close]');
+      if (close) fsheetClose(close.closest('.fsheet'));
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.querySelectorAll('.fsheet.open').forEach(fsheetClose);
+    });
+    // Drag the header down to dismiss, as a native sheet does.
+    document.querySelectorAll('.fsheet').forEach(s => {
+      const hd = s.querySelector('.fsheet-hd'), panel = s.querySelector('.fsheet-panel');
+      if (!hd || !panel) return;
+      let y0 = null, dy = 0;
+      hd.addEventListener('pointerdown', e => {
+        if (e.target.closest('button')) return;
+        y0 = e.clientY; dy = 0; panel.style.transition = 'none';
+        hd.setPointerCapture(e.pointerId);
+      });
+      hd.addEventListener('pointermove', e => {
+        if (y0 === null) return;
+        dy = Math.max(0, e.clientY - y0);
+        panel.style.transform = `translateY(${dy}px)`;
+      });
+      const end = () => {
+        if (y0 === null) return;
+        y0 = null; panel.style.transition = '';
+        if (dy > 80) fsheetClose(s); else panel.style.transform = '';
+      };
+      hd.addEventListener('pointerup', end);
+      hd.addEventListener('pointercancel', end);
+    });
+  })();
 
   function wlBadge(name, cls) {
     const digits = (String(name).match(/\d+/) || [''])[0];
@@ -1411,18 +1504,21 @@
     document.getElementById('wl2Lists').innerHTML = pills.join('');
     document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
       `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
-    // Main trend is always Daily; smaller-timeframe context is separate.
-    const trEl = document.getElementById('wl2Trend');
-    if (trEl) trEl.innerHTML =
-      [['all', 'Main: All'], ['UPTREND', 'Main ▲'], ['DOWNTREND', 'Main ▼'], ['NEUTRAL', 'Unavailable']].map(([k, l]) =>
-        `<button class="wl2-chip${wlUi.trend === k ? ' on' : ''}" data-wl-trend="${k}" title="Daily main trend">${l}</button>`).join('') +
-      '<span class="wl2-sep"></span>' +
-      [['all', '4H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']].map(([k, l]) =>
-        `<button class="wl2-chip${(wlUi.relation || 'all') === k ? ' on' : ''}" data-wl-relation="${k}">${l}</button>`).join('');
+    // Sort, main trend (always Daily), 4H direction and clusters live in the
+    // filter sheet; the ones that are on show as chips under the classes.
+    const opts = (id, attr, cur, choices) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = choices.map(([k, l]) =>
+        `<button class="wl2-chip${cur === k ? ' on' : ''}" data-wl-${attr}="${k}">${l}</button>`).join('');
+    };
+    opts('wl2SortOpts', 'sort', wlUi.sort, WL_SORTS);
+    opts('wl2Trend', 'trend', wlUi.trend, WL_TRENDS);
+    opts('wl2Relation', 'relation', wlUi.relation || 'all', WL_RELATIONS);
     const clusters = document.getElementById('wl2Clusters');
-    if (clusters) clusters.innerHTML = clusterFilterHtml('watchlist', wlUi.cluster);
-    const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
+    if (clusters) clusters.innerHTML = clusterSheetHtml('watchlist', wlUi.cluster);
+    fsheetSyncActive('wl2', wlActiveFilters());
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
+    const searchClear = document.getElementById('wl2SearchClear'); if (searchClear) searchClear.hidden = !wlUi.q;
 
     // EDIT MODE (2026-09-24, "an option to rearrange my watchlists"): the
     // list in its own order, each row with move up / move down / remove, and
@@ -1525,6 +1621,7 @@
       });
     } else html = rows.map(rowHtml).join('');
     body.innerHTML = html;
+    fsheetSyncCount('wl2', rows.length + (rows.length === 1 ? ' instrument' : ' instruments'));
     wlShown = rows.map(d => d.instrument_name);
     if (livePrices.running) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
   }
@@ -1723,6 +1820,10 @@
       if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
       const ttp = t.closest('[data-wl-ttf]');
       if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
+      const fc = t.closest('#wl2Active [data-fclear]');
+      if (fc) { wlUi[fc.dataset.fclear] = WL_FILTER_DEFAULTS[fc.dataset.fclear]; wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('#wl2Clear')) { Object.assign(wlUi, WL_FILTER_DEFAULTS); wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('#wl2SearchClear')) { wlUi.q = ''; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
       if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
       const l = wlStore.lists.find(x => x.id === wlUi.list);
@@ -1771,8 +1872,19 @@
     });
     const s = document.getElementById('wl2Search');
     if (s) s.addEventListener('input', () => { wlUi.q = s.value; wlSaveUi(); renderWatchlist(); });
-    const so = document.getElementById('wl2Sort');
-    if (so) so.addEventListener('change', () => { wlUi.sort = so.value; wlSaveUi(); renderWatchlist(); });
+    // The filter sheet sits outside the pane (body level), so it has its own
+    // listener. MA cluster buttons go through the shared cluster handler.
+    const sheet = document.getElementById('wl2Sheet');
+    if (sheet) sheet.addEventListener('click', e => {
+      const t = e.target;
+      const sp = t.closest('[data-wl-sort]');
+      if (sp) { wlUi.sort = sp.dataset.wlSort; wlSaveUi(); return renderWatchlist(); }
+      const tp = t.closest('[data-wl-trend]');
+      if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
+      const rp = t.closest('[data-wl-relation]');
+      if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('#wl2SheetClear')) { Object.assign(wlUi, WL_FILTER_DEFAULTS); wlSaveUi(); return renderWatchlist(); }
+    });
   })();
 
   // ── DASHBOARD AS A HUB (2026-09-24, user: "make the dashboard
@@ -2032,6 +2144,15 @@
       <div class="sp-cluster-options">${[[0.25,'Tight · ¼ range'],[0.5,'Medium · ½ range'],[1,'Wide · 1 range']].map(([v,l])=>`<button data-cluster-width="${v}" class="${clusterWidth===v?'on':''}">${l}</button>`).join('')}</div>
       <small>Daily 50/250/500 · Weekly 50/250/500 · Monthly 50. Completed periods only. Missing history is excluded.</small>
     </div></details>`;
+  }
+  // The same choices as a filter-sheet section (Watchlist and Charts).
+  function clusterSheetHtml(scope, mode) {
+    return `<h3>MA clusters</h3><div data-cluster-scope="${scope}">
+      <div class="fsheet-opts">${CLUSTER_OPTIONS.map(([k,l])=>`<button class="fsheet-opt${mode===k?' on':''}" data-cluster-mode="${k}">${k==='all'?'Any':l}</button>`).join('')}</div>
+      <h4>Cluster width</h4>
+      <div class="fsheet-opts">${[[0.25,'Tight · ¼ range'],[0.5,'Medium · ½ range'],[1,'Wide · 1 range']].map(([v,l])=>`<button class="fsheet-opt${clusterWidth===v?' on':''}" data-cluster-width="${v}">${l}</button>`).join('')}</div>
+      <p class="fsheet-note">Maximum gap between the outer averages, compared with the usual daily range. Daily 50/250/500 · Weekly 50/250/500 · Monthly 50. Completed periods only; missing history is excluded.</p>
+    </div>`;
   }
   function clusterBadgeHtml(row, detailed=false) {
     const found=SPTrendContext.clusters(row,channelTrend,clusterWidth), zone=found.zones[0];
@@ -13417,6 +13538,7 @@
           : 'Nothing matches those filters.';
         empty.style.display = '';
       }
+      reelSyncPills();      // the chips must show what emptied the list
       reelSyncNav();
       return;
     }
@@ -13619,7 +13741,7 @@
           (t.matches('input, textarea, select') || t.isContentEditable)) return;
       if (t && t.isContentEditable) return;
       // A sheet or modal over the reel owns the arrows while it is open.
-      if (document.querySelector('.sheet.open, .modal.open, .filter-pill[open]')) return;
+      if (document.querySelector('.sheet.open, .modal.open, .filter-pill[open], .fsheet.open')) return;
       const down = e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j';
       const up   = e.key === 'ArrowUp'   || e.key === 'PageUp'   || e.key === 'k';
       if (!down && !up) return;
@@ -13787,34 +13909,53 @@
   function reelSyncPills() {
     reelSyncSimBar();
     const clusterHost = document.getElementById('reelClusters');
-    if (clusterHost) clusterHost.innerHTML = clusterFilterHtml('charts', reel.cluster);
-    const set = (id, txt) => {
-      const el = document.querySelector('#' + id + ' .fp-val');
-      if (el) el.textContent = txt ? ' · ' + txt : '';
-    };
-    const scopeLbl = { views: 'my markers', 'views-buy': 'my buys', 'views-sell': 'my sells',
-                       all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'minor swings', m15sig: '4H B1/S1',
-                       dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
-    set('reelPillScope', scopeLbl[reel.scope] || '');
-    set('reelPillTrend', reel.trend === 'all' ? '' : SPTrendContext.label(reel.trend));
-    set('reelPillRelation', reel.relation === 'all' ? '' : reel.relation);
-    const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
-                       near: 'near cross', fresh: 'just flipped' };
-    set('reelPillStack', tfMeta().label + (stackLbl[reel.stack] ? ' · ' + stackLbl[reel.stack] : ''));
-    const nearLbl = { D: 'Daily', W: 'Weekly', M: 'Monthly', any: 'D/W/M' };
-    set('reelPillNear', nearLbl[reel.near] ? nearLbl[reel.near] + (reel.nearWithin === 1 ? ' · 1 day' : ' · ½ day') : '');
-    const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
-    set('reelPillSort', sortLbl[reel.sort] || '');
-    set('reelPillRange', reel.range ? reel.range + ' bars' : '');
-    const cv = document.querySelector('#reelPillClass .fp-cv');
-    if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
+    if (clusterHost) clusterHost.innerHTML = clusterSheetHtml('charts', reel.cluster);
+    const tfEl = document.getElementById('reelStackTf');
+    if (tfEl) tfEl.textContent = tfMeta().label;
+    // Search and the "charts like X" / watchlist set have their own clear
+    // controls, so only the sheet's filters become chips.
+    fsheetSyncActive('reel', reelActiveFilters());
+    const n = reel.list ? reel.list.length : 0;
+    fsheetSyncCount('reel', n + (n === 1 ? ' chart' : ' charts'));
+  }
 
-    const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.cluster !== 'all' || reel.relation !== 'all' || reel.stack !== 'all' || reel.near !== 'all' || reel.similarTo || reel.listSet ||
-                  reel.sort !== 'signal' || reel.search || reel.range;
-    const rst = document.getElementById('reelReset');
-    if (rst) rst.style.display = dirty ? '' : 'none';
+  // The sheet filters that are on, as [key, chip label].
+  function reelActiveFilters() {
+    const out = [];
+    const scopeLbl = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
+                       today: 'Fired today', signal: 'Open signals', buy: 'Buys', sell: 'Sells',
+                       watch: 'Minor 4H swings', m15sig: '4H B1/S1', dxpre: '1H touched D-MA',
+                       dxafter: '1H crossed D-MA' };
+    if (reel.scope !== 'all') out.push(['scope', scopeLbl[reel.scope] || reel.scope]);
+    if (reel.cat) {
+      const chip = document.querySelector(`#reelCatChips [data-cat="${CSS.escape(reel.cat)}"]`);
+      out.push(['cat', chip ? chip.textContent.trim() : reel.cat]);
+    }
+    if (reel.trend !== 'all')
+      out.push(['trend', { UPTREND: 'Main ▲ up', DOWNTREND: 'Main ▼ down', NEUTRAL: 'Main unavailable' }[reel.trend] || reel.trend]);
+    if (reel.relation !== 'all') out.push(['relation', reel.relation === 'aligned' ? '4H aligned' : '4H minor']);
+    if (reel.cluster !== 'all') out.push(['cluster', (CLUSTER_OPTIONS.find(([k]) => k === reel.cluster) || [, reel.cluster])[1]]);
+    const stackLbl = { bull: 'bull', bear: 'bear', mixed: 'mixed', near: 'near cross', fresh: 'just flipped' };
+    if (reel.stack !== 'all') out.push(['stack', 'MA ' + (stackLbl[reel.stack] || reel.stack)]);
+    const nearLbl = { D: 'Daily', W: 'Weekly', M: 'Monthly', any: 'D/W/M' };
+    if (reel.near !== 'all')
+      out.push(['near', 'Near ' + (nearLbl[reel.near] || reel.near) + ' MA · ' + (reel.nearWithin === 1 ? '1 day' : '½ day')]);
+    if (reel.range) out.push(['range', reel.range + ' bars']);
+    const sortLbl = { recent: 'Newest fire', move: 'Biggest move', name: 'A–Z' };
+    if (reel.sort !== 'signal') out.push(['sort', 'Sort: ' + (sortLbl[reel.sort] || reel.sort)]);
+    return out;
+  }
+
+  // Remove one filter by tapping its default option, so the option's own
+  // handler does the work (state, persistence, rebuild) exactly as a tap would.
+  function reelClearFilter(key) {
+    if (key === 'cluster') { reel.cluster = 'all'; buildReel(); return; }
+    if (key === 'cat') { document.querySelector('#reelCatChips .s-cat-chip.active')?.click(); return; }
+    const def = { scope: ['reelScopeOpts', 'scope', 'all'], trend: ['reelTrendOpts', 'trend', 'all'],
+                  relation: ['reelRelationOpts', 'relation', 'all'], stack: ['reelStackOpts', 'stack', 'all'],
+                  near: ['reelNearOpts', 'near', 'all'], range: ['reelRangeOpts', 'range', '0'],
+                  sort: ['reelSortOpts', 'sort', 'signal'] }[key];
+    if (def) document.querySelector(`#${def[0]} [data-${def[1]}="${def[2]}"]`)?.click();
   }
 
   function wireReel() {
@@ -13848,6 +13989,13 @@
         buildReel();
       });
     }
+
+    document.getElementById('reelActiveChips')?.addEventListener('click', e => {
+      const chip = e.target.closest('[data-fclear]');
+      if (chip) reelClearFilter(chip.dataset.fclear);
+    });
+    document.getElementById('reelSheetClear')?.addEventListener('click', () =>
+      document.getElementById('reelReset')?.click());
 
     const optGroup = (containerId, key, attr) => {
       const box = document.getElementById(containerId);

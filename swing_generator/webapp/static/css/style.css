@@ -10070,3 +10070,124 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .sp-cluster-row{display:block;width:100%;text-align:left;background:transparent;color:inherit;border:0;border-top:1px solid var(--border);padding:10px 0;cursor:pointer}
 .sp-cluster-market{padding:14px}
 #reelClusters .sp-cluster-filter{margin:0}
+
+/* ── Filter sheets (2026-10-18, user: "make these app friendly and
+   beautiful, not clutter") ────────────────────────────────────────────────
+   Watchlist and Charts: one search row + a Filters button. Every option
+   lives in a bottom sheet; only filters that are ON stay on screen, as
+   chips that remove themselves. */
+.fsheet-search { min-width: 0; height: 40px; padding: 0 10px; gap: 8px; border-radius: 12px;
+  background: var(--bg-elevated); border-color: transparent; }
+.fsheet-search:focus-within { border-color: var(--border-active); }
+.fsheet-search .search-input { padding: 0; font-size: 16px; min-width: 0; }   /* 16px: iOS does not zoom on focus */
+.fsheet-search-ic { flex: none; color: var(--text-muted); }
+.fsheet-search-clear { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0;
+  background: var(--bg-hover); color: var(--text-secondary); font-size: 15px; line-height: 22px; cursor: pointer; }
+.fsheet-search-clear[hidden] { display: none; }
+
+.fsheet-btn { flex: none; position: relative; display: inline-flex; align-items: center; gap: 7px; height: 40px;
+  padding: 0 13px; border-radius: 12px; background: var(--bg-elevated); border: 1px solid transparent;
+  color: var(--text-primary); font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform .12s, border-color var(--transition); }
+.fsheet-btn:active { transform: scale(.96); }
+.fsheet-btn.on { border-color: rgba(251,191,36,.45); }
+.fsheet-btn svg { color: var(--text-secondary); }
+.fsheet-btn.on svg { color: var(--accent); }
+.fsheet-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent);
+  color: #111; font-size: .68rem; font-weight: 800; line-height: 18px; text-align: center; }
+.fsheet-badge[hidden] { display: none; }
+
+/* Active-filter chips: one row that scrolls sideways, plus Clear. */
+.fchips { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.fchips[hidden] { display: none; }
+.fchips-list { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.fchips-list::-webkit-scrollbar { display: none; }
+.fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px 0 12px;
+  border-radius: 999px; border: 1px solid rgba(251,191,36,.35); background: var(--accent-glow); color: var(--accent);
+  font: inherit; font-size: .78rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.fchip span { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(251,191,36,.22); font-size: 12px; line-height: 1; }
+.fchips-clear { flex: none; background: none; border: 0; padding: 6px 2px; color: var(--text-muted);
+  font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; }
+
+/* Watchlist header */
+#pane-watchlist .wl2-head { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 10px; }
+#pane-watchlist .wl2-head .fsheet-search { flex: 1; }
+/* Lists read as tabs (where you are), classes as small chips (what you narrow
+   by) — two rows of identical yellow pills was most of the clutter. */
+#pane-watchlist .wl2-lists { gap: 18px; margin: 0 -2px 10px; padding: 0 2px; border-bottom: 1px solid var(--border); }
+#pane-watchlist .wl2-pill { background: none; border: 0; border-radius: 0; padding: 8px 0 10px; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; color: var(--text-muted); font-size: .9rem; font-weight: 600; }
+#pane-watchlist .wl2-pill.on { background: none; color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 700; }
+#pane-watchlist .wl2-pill.on .wl2-n { color: var(--accent); opacity: 1; }
+#pane-watchlist .wl2-pill .wl2-n { font-size: .78rem; margin-left: 2px; }
+/* Edit / Done / + New are actions, not lists: smaller, no tab underline. */
+#pane-watchlist .wl2-new, #pane-watchlist .wl2-edit, #pane-watchlist .wl2-done { align-self: center; padding: 4px 0;
+  margin-bottom: 0; border-bottom: 0; font-size: .8rem; }
+#pane-watchlist .wl2-new { color: var(--accent); }
+#pane-watchlist .wl2-edit { color: var(--text-secondary); }
+#pane-watchlist .wl2-done { color: var(--accent); font-weight: 700; }
+#pane-watchlist .wl2-classes { gap: 6px; }
+#pane-watchlist .wl2-classes .wl2-chip { height: 32px; padding: 0 13px; font-size: .8rem; background: var(--bg-elevated);
+  border-color: transparent; color: var(--text-secondary); font-weight: 600; }
+#pane-watchlist .wl2-classes .wl2-chip.on { background: var(--text-primary); color: #111; border-color: var(--text-primary); }
+#pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Charts header */
+.reel-filter-bar { padding: 8px 12px; }
+.reel-filter-row { gap: 8px; }
+.reel-search-wrap.fsheet-search { flex: 1; }
+.reel-search-wrap.fsheet-search .search-input { padding-left: 0; }
+.reel-search-wrap .reel-count { font-size: .72rem; }
+.reel-filter-bar .reel-simbar { margin-top: 8px; }
+
+/* The sheet */
+.fsheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+.fsheet[hidden] { display: none; }
+.fsheet-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.6); opacity: 0; transition: opacity .25s; }
+.fsheet.open .fsheet-scrim { opacity: 1; }
+.fsheet-panel { position: relative; width: 100%; max-width: 560px; max-height: 86dvh; display: flex; flex-direction: column;
+  background: var(--bg-card); border: 1px solid var(--glass-border); border-bottom: 0; border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow-lg); transform: translateY(100%); transition: transform .26s cubic-bezier(.32,.72,0,1); }
+.fsheet.open .fsheet-panel { transform: translateY(0); }
+.fsheet-hd { position: relative; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 18px 10px; touch-action: none; cursor: grab; }
+.fsheet-grab { position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px;
+  border-radius: 3px; background: var(--border-active); }
+.fsheet-hd h2 { margin: 0; font-size: 1.08rem; font-weight: 700; color: var(--text-primary); }
+.fsheet-clear { background: none; border: 0; padding: 6px 0; color: var(--accent); font: inherit; font-size: .85rem;
+  font-weight: 600; cursor: pointer; }
+.fsheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 8px; }
+.fsheet-sec { padding: 14px 0; border-top: 1px solid var(--border); }
+.fsheet-sec:first-child { border-top: 0; padding-top: 4px; }
+.fsheet-sec:empty { display: none; }
+.fsheet-sec h3, .fsheet-sec h4 { margin: 0 0 10px; font-size: .74rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-muted); }
+.fsheet-sec h4 { margin-top: 14px; }
+.fsheet-sec h3 small, .fsheet-sec h4 small { margin-left: 6px; font-size: .7rem; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--text-muted); opacity: .8; }
+.fsheet-note { margin: 10px 0 0; font-size: .72rem; line-height: 1.45; color: var(--text-muted); }
+.fsheet-opts, .fsheet .reel-opts, .fsheet .scanner-cat-chips { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; min-width: 0;
+  padding: 0; overflow: visible; }
+
+/* One chip style for every option in a sheet, whatever class the handlers key on. */
+.fsheet .fsheet-opt, .fsheet .reel-opt, .fsheet .s-cat-chip, .fsheet .wl2-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 7px 14px; border-radius: 999px;
+  background: var(--bg-elevated); border: 1px solid transparent; color: var(--text-secondary);
+  font: inherit; font-size: .84rem; font-weight: 500; line-height: 1.25; text-align: left; white-space: normal; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, border-color .15s; }
+.fsheet .fsheet-opt:active, .fsheet .reel-opt:active, .fsheet .s-cat-chip:active, .fsheet .wl2-chip:active { transform: scale(.97); }
+.fsheet .fsheet-opt.on, .fsheet .reel-opt.active, .fsheet .s-cat-chip.active, .fsheet .wl2-chip.on {
+  background: var(--accent-glow); border-color: rgba(251,191,36,.55); color: var(--accent); font-weight: 650; }
+.fsheet .reel-opt i { float: none; margin: 0; font-size: .74rem; color: inherit; opacity: .65; }
+.fsheet .reel-near-within { padding: 12px 0 0; margin-top: 12px; border-top: 1px dashed var(--border); gap: 8px; }
+.fsheet .reel-near-within span { font-size: .78rem; }
+
+.fsheet-ft { flex: none; padding: 10px 18px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); }
+.fsheet-done { width: 100%; height: 48px; border: 0; border-radius: 14px; background: var(--accent); color: #111;
+  font: inherit; font-size: .95rem; font-weight: 700; cursor: pointer; }
+.fsheet-done:active { transform: scale(.99); filter: brightness(.95); }
+body.fsheet-lock { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .fsheet-panel, .fsheet-scrim { transition: none; }
+}

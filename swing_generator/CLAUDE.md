@@ -3,6 +3,16 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-18 filter sheets: app.js v509 / style.css v369. Watchlist and Charts
+filters (user: "app friendly and beautiful, not clutter") collapse to one
+search row + a Filters button. Every option moved into a bottom sheet
+(#wl2Sheet / #reelSheet, body level, .fsheet); only filters that are ON show,
+as removable chips (#wl2Active / #reelActive, fsheetSyncActive). The Charts
+option ids and handlers are unchanged (#reelScopeOpts etc.); #reelReset is
+now the chips row's Clear. Watchlist Sort is chips (data-wl-sort), not a
+select. Lists render as tabs, classes as small chips. buildReel now syncs the
+chips on an empty result too.
+
 2026-10-18 index 4H/Daily + forex/commodity views: app.js v508. Index 4H =
 stock 4H half-year frame, index Daily = stock Daily 2025-2029 term, both price
 'all' (off the user's US100/RUSSELL/NETH25/IT40). Forex and commodities
