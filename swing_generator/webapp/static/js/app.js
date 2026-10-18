@@ -9485,9 +9485,19 @@
     '4H': { unit: 0.25, fit: 'all' },
     'D':  { years: [1, 2], fit: 'allzero' },   // last year's line → two lines ahead
   };
+  // INDEX 1H (user, 2026-10-18, US100/RUSSELL/BCHAIN_NFT/CHINA_NET/EV_INDX/
+  // FAANGS_10): from `lead` of a quarter (~3 weeks) before the current
+  // quarter's line to the next quarter's line — 10 Sep to 1 Jan on 18 Oct.
+  // Anchored to the lines, so it jumps forward when a new quarter starts.
+  // Price 'all', as crypto 4H/Daily.
+  const REEL_INDEX_VIEW = {
+    '1H': { unit: 0.25, lead: 0.23, fit: 'all' },
+  };
   function reelOpenSpec(name) {
     const item = instrumentByName(name);
-    if (reelGridScope(item) === 'stocks') return REEL_STOCK_VIEW[timeframe];
+    const scope = reelGridScope(item);
+    if (scope === 'stocks') return REEL_STOCK_VIEW[timeframe];
+    if (scope === 'indices') return REEL_INDEX_VIEW[timeframe];
     if (item && assetClassOf(item) === 'Crypto') return REEL_CRYPTO_VIEW[timeframe];
     return null;
   }
@@ -9524,7 +9534,7 @@
     } else {
       const u = fr.yearBars * spec.unit;
       const k = Math.floor((last - fr.anchor) / u + 1e-9);
-      start = fr.anchor + (k - 1) * u;
+      start = fr.anchor + (k - (spec.lead != null ? spec.lead : 1)) * u;
       endAt = fr.anchor + (k + 1) * u;
     }
     const from = Math.max(0, Math.floor(start));
@@ -9798,8 +9808,8 @@
   }
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
-  // edge), except a stock on 1H/4H/Daily or crypto on 1H, which opens with
-  // the rest of its frame as blank space (reelStockView).
+  // edge), except where an opening view applies (stocks, crypto, index 1H),
+  // which opens with the rest of its frame as blank space (reelStockView).
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
     const qv = bundle && reelStockView(bundle, name);

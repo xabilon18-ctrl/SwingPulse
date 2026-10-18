@@ -18,7 +18,7 @@ const ctx = vm.createContext({
   assetClassOf: scope => scope === 'crypto' ? 'Crypto' : 'Other',
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_INDEX_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -74,9 +74,16 @@ const frc = geometry.yearFrame({ t: rd }, bt);
 assert.ok(Math.abs(rd.length - (cd.bars - cd.future) + cd.bars - 1 - (frc.anchor + 2 * frc.yearBars)) <= 1, 'ends on the 2028 line');
 assert.equal(cd.fit, 'allzero');
 ctx.timeframe = '1H';
-// Only stocks and crypto, only these timeframes, only without a Range pill.
+// Index 1H: ~3 weeks before the Q4 line to the Q1 2027 line.
+const ix = hourly(Date.UTC(2026, 3, 20), Date.UTC(2026, 9, 16), [13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5]);
+const vi = ctx.reelStockView(ix, 'IDX');
+const fi0 = ix.t.length - (vi.bars - vi.future);
+assert.ok(Math.abs(Date.parse(ix.t[fi0]) - Date.parse('2026-09-10')) < 3 * 864e5, ix.t[fi0]);
+const fri = geometry.yearFrame(ix, bt);
+assert.ok(Math.abs(fi0 + vi.bars - 1 - (fri.anchor + fri.yearBars)) <= 1, 'ends on the Q1 2027 line');
+assert.equal(vi.fit, 'all');
+// Only these markets, only these timeframes, only without a Range pill.
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'EUR'), null);
-assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'IDX'), null);
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
