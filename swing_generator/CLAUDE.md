@@ -3,6 +3,22 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-18 filter dropdowns: app.js v509 / style.css v369. Watchlist and
+Charts filters (user: "app friendly and beautiful, not clutter", then "neat
+drop down designs that fit" after a bottom-sheet try felt clumsy) are ONE
+row of small dropdown buttons (.fdrop-btn) under the search field. A set
+button turns gold and shows its value in place of its name ("▲ Up", "+1" for
+a second choice); × resets. Menus (.fdrop-menu) live at body level
+(#wl2Menus / #reelMenus) so the scrolling row cannot clip them; app.js
+places each under its button (fdropPlace). data-fdrop-autoclose menus close
+on a pick. Charts option ids and handlers are unchanged (#reelScopeOpts
+etc.), grouped as Show / Class / Trend (main + 4H) / MA (order, clusters,
+near MA) / Sort (sort + range); #reelReset is the × and #reelCatChips gained
+an "All classes" row. Watchlist: lists are tabs; Class, Trend, Clusters and
+Sort are dropdowns (data-wl-cls/-trend/-relation/-sort; the old Sort select
+is gone) and × resets them all. buildReel now syncs the buttons on an empty
+result too.
+
 2026-10-18 index 4H/Daily + forex/commodity views: app.js v508. Index 4H =
 stock 4H half-year frame, index Daily = stock Daily 2025-2029 term, both price
 'all' (off the user's US100/RUSSELL/NETH25/IT40). Forex and commodities

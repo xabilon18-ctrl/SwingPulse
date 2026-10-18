@@ -10070,3 +10070,106 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .sp-cluster-row{display:block;width:100%;text-align:left;background:transparent;color:inherit;border:0;border-top:1px solid var(--border);padding:10px 0;cursor:pointer}
 .sp-cluster-market{padding:14px}
 #reelClusters .sp-cluster-filter{margin:0}
+
+/* ── Filter dropdowns (2026-10-18; user: "neat drop down designs that fit
+   and complement") ──────────────────────────────────────────────────────
+   Watchlist and Charts: a search field, then ONE row of small dropdown
+   buttons. A set button turns gold and shows its value; its menu opens
+   under it like a native menu: rows with a check on the current choice. */
+.fsearch { min-width: 0; height: 38px; padding: 0 10px; gap: 8px; border-radius: 11px;
+  background: var(--bg-elevated); border-color: transparent; }
+.fsearch:focus-within { border-color: var(--border-active); }
+.fsearch .search-input { padding: 0; font-size: 16px; min-width: 0; }   /* 16px: iOS does not zoom on focus */
+.fsearch-ic { flex: none; color: var(--text-muted); }
+.fsearch-clear { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0;
+  background: var(--bg-hover); color: var(--text-secondary); font-size: 14px; line-height: 20px; cursor: pointer; }
+.fsearch-clear[hidden] { display: none; }
+
+.fdrop-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; overflow-x: auto;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.fdrop-row::-webkit-scrollbar { display: none; }
+/* The buttons share the row: they stretch to fill it, never shrink (a value
+   cut to "▲ …" reads as nothing); in the rare case they overflow, the row scrolls. */
+.fdrop-btn { flex: 1 0 auto; justify-content: center; display: inline-flex; align-items: center; gap: 3px; height: 32px; padding: 0 7px 0 10px;
+  border-radius: 9px; background: var(--bg-elevated); border: 1px solid transparent; color: var(--text-secondary);
+  font: inherit; font-size: .78rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, border-color .15s; }
+.fdrop-btn:active { transform: scale(.97); }
+.fdrop-lbl { flex: none; }
+.fdrop-val { max-width: 120px; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.fdrop-val:empty { display: none; }
+.fdrop-chev { flex: none; opacity: .55; transition: transform .2s; }
+.fdrop-btn.open { background: var(--bg-hover); color: var(--text-primary); }
+.fdrop-btn.open .fdrop-chev { transform: rotate(180deg); }
+.fdrop-btn.on { background: var(--accent-glow); border-color: rgba(251,191,36,.4); color: var(--accent); }
+.fdrop-btn.on .fdrop-lbl { display: none; }
+.fdrop-reset { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 50%;
+  background: var(--bg-elevated); border: 0; color: var(--text-secondary); cursor: pointer; }
+.fdrop-reset:active { transform: scale(.94); }
+.fdrop-reset[hidden] { display: none; }
+
+/* Watchlist header */
+#pane-watchlist .wl2-head { margin-bottom: 4px; }
+/* Lists read as tabs (where you are); filters are the dropdown row. */
+#pane-watchlist .wl2-lists { gap: 18px; margin: 0 0 2px; border-bottom: 1px solid var(--border); }
+#pane-watchlist .wl2-pill { background: none; border: 0; border-radius: 0; padding: 8px 0 9px; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; color: var(--text-muted); font-size: .88rem; font-weight: 600; }
+#pane-watchlist .wl2-pill.on { background: none; color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 700; }
+#pane-watchlist .wl2-pill .wl2-n { font-size: .76rem; margin-left: 2px; }
+#pane-watchlist .wl2-pill.on .wl2-n { color: var(--accent); opacity: 1; }
+/* Edit / Done / + New are actions, not lists: smaller, no tab underline. */
+#pane-watchlist .wl2-new, #pane-watchlist .wl2-edit, #pane-watchlist .wl2-done { align-self: center; padding: 4px 0;
+  margin-bottom: 0; border-bottom: 0; font-size: .78rem; }
+#pane-watchlist .wl2-new { color: var(--accent); }
+#pane-watchlist .wl2-edit { color: var(--text-secondary); }
+#pane-watchlist .wl2-done { color: var(--accent); font-weight: 700; }
+#pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Charts header */
+.reel-filter-bar { padding: 8px 12px; }
+.reel-search-wrap.fsearch .search-input { padding-left: 0; }
+.reel-search-wrap .reel-count { font-size: .72rem; }
+.reel-filter-bar .reel-simbar { margin-top: 8px; }
+
+/* The menu */
+.fdrop-menu { position: fixed; z-index: 1000; width: 244px; overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px; border-radius: 14px; background: #1c1c1b; border: 1px solid rgba(255,255,255,.09);
+  box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4); animation: fdrop-in .14s ease-out; transform-origin: top left; }
+.fdrop-menu[hidden] { display: none; }
+.fdrop-wide { width: 290px; }
+@keyframes fdrop-in { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+.fdrop-sec + .fdrop-sec { border-top: 1px solid rgba(255,255,255,.07); margin-top: 4px; padding-top: 4px; }
+.fdrop-sec:empty { display: none; }
+.fdrop-hd { padding: 8px 10px 4px; font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-muted); }
+.fdrop-hd small { margin-left: 4px; font-size: .68rem; font-weight: 500; letter-spacing: 0; text-transform: none; opacity: .8; }
+.fdrop-opts, .fdrop-menu .reel-opts, .fdrop-menu .scanner-cat-chips { display: flex; flex-direction: column; flex-wrap: nowrap;
+  gap: 0; min-width: 0; padding: 0; overflow: visible; }
+
+/* Rows: one look for every option, whatever class its handler keys on. */
+.fdrop-menu .fdrop-opts > button, .fdrop-menu .reel-opt, .fdrop-menu .scanner-cat-chips .s-cat-chip {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 8px 32px 8px 10px; margin: 0;
+  position: relative; border: 0; border-radius: 9px; background: none; color: var(--text-primary);
+  font: inherit; font-size: .86rem; font-weight: 500; line-height: 1.25; text-align: left; white-space: normal; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.fdrop-menu .fdrop-opts > button:hover, .fdrop-menu .fdrop-opts > button:active,
+.fdrop-menu .reel-opt:hover, .fdrop-menu .reel-opt:active { background: rgba(255,255,255,.06); color: var(--text-primary); }
+.fdrop-menu .fdrop-opts > button.on, .fdrop-menu .fdrop-opts > button.active,
+.fdrop-menu .reel-opt.active { background: none; color: var(--accent); font-weight: 650; }
+.fdrop-menu .fdrop-opts > button.on::after, .fdrop-menu .fdrop-opts > button.active::after, .fdrop-menu .reel-opt.active::after {
+  content: ''; position: absolute; right: 12px; top: 50%; width: 5px; height: 10px; margin-top: -7px;
+  border: solid var(--accent); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.fdrop-menu .reel-opt i { float: none; margin: 0 0 0 auto; font-style: normal; font-size: .74rem; font-weight: 400;
+  color: var(--text-muted); white-space: nowrap; }
+.fdrop-menu .reel-opt.active i { color: var(--accent); opacity: .7; }
+
+/* Modifiers (cluster width, Near MA "within") as one small segmented control. */
+.fdrop-seg { display: flex; align-items: center; gap: 2px; margin: 6px 6px 4px; padding: 3px; border-radius: 9px;
+  background: rgba(255,255,255,.05); border: 0; }
+.fdrop-menu .fdrop-seg > span { flex: none; padding: 0 8px 0 6px; font-size: .72rem; font-weight: 600; color: var(--text-muted); margin: 0; }
+.fdrop-menu .fdrop-seg > button { flex: 1; min-height: 28px; padding: 4px 6px; border: 0; border-radius: 7px; background: none;
+  color: var(--text-secondary); font: inherit; font-size: .74rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.fdrop-menu .fdrop-seg > button.on, .fdrop-menu .fdrop-seg > button.active { background: var(--bg-hover); color: var(--accent);
+  border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.fdrop-note { margin: 4px 10px 8px; font-size: .7rem; line-height: 1.4; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .fdrop-menu { animation: none; } }

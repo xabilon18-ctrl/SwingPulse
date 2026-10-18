@@ -1218,6 +1218,94 @@
                       ['Currency', 'Forex'], ['CcyIndex', 'Ccy Index'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
   const WL_CLASS_COL = { Index: '#3b6fd8', Equity: '#6b5bd6', Currency: '#1f9d8b',
                          Commodity: '#c98a12', Crypto: '#d4602c' };
+  const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
+  const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
+  const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
+  const WL_FILTER_DEFAULTS = { cls: 'all', sort: 'group', trend: 'all', relation: 'all', cluster: 'all' };
+
+  // What each Watchlist dropdown button shows when its filters are set.
+  function wlDropValues() {
+    const pick = (list, k) => (list.find(([v]) => v === k) || [, k])[1];
+    const trend = [];
+    if (wlUi.trend && wlUi.trend !== 'all')
+      trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[wlUi.trend] || wlUi.trend);
+    if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '4H aligned' : '4H minor');
+    return {
+      wl2DdClass: wlUi.cls && wlUi.cls !== 'all' ? [pick(WL_CLASSES, wlUi.cls)] : [],
+      wl2DdTrend: trend,
+      wl2DdClusters: wlUi.cluster && wlUi.cluster !== 'all' ? [CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster] : [],
+      wl2DdSort: wlUi.sort && wlUi.sort !== 'group' ? [{ up: 'Gainers', down: 'Losers', name: 'A–Z' }[wlUi.sort] || wlUi.sort] : [],
+    };
+  }
+
+  // ── FILTER DROPDOWNS (2026-10-18; user: "neat drop down designs that fit
+  // and complement" — a bottom sheet tried first felt clumsy) ─────────────
+  // Watchlist and Charts: ONE row of small dropdown buttons. A button shows
+  // its value when set ("Trend ▲ Up", or a count when several are); its
+  // menu (.fdrop-menu, body level so nothing clips it) opens under it.
+  // Options apply as they are tapped.
+  function fdropClose() {
+    document.querySelectorAll('.fdrop-menu:not([hidden])').forEach(m => { m.hidden = true; });
+    document.querySelectorAll('.fdrop-btn.open').forEach(b => { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); });
+  }
+  function fdropPlace(btn, menu) {
+    const r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    const nav = document.getElementById('bottomNav');
+    const floor = nav && nav.offsetParent ? nav.getBoundingClientRect().top : window.innerHeight;
+    menu.style.maxHeight = Math.max(160, floor - r.bottom - 16) + 'px';
+    menu.style.left = Math.max(10, Math.min(r.left, vw - menu.offsetWidth - 10)) + 'px';
+    menu.style.top = (r.bottom + 6) + 'px';
+  }
+  function fdropOpen(btn) {
+    const menu = document.getElementById(btn.dataset.fdrop);
+    if (!menu) return;
+    fdropClose();
+    menu.hidden = false;
+    btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+    fdropPlace(btn, menu);
+    menu.scrollTop = 0;
+  }
+  // values: { buttonId: [labels] }. A set button shows its value in place of
+  // its name ("▲ Up"), so the values must read on their own; "+1" when a
+  // menu holds two choices.
+  function fdropSync(values, resetId) {
+    let any = false;
+    Object.entries(values).forEach(([id, vals]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      const val = btn.querySelector('.fdrop-val');
+      if (val) val.textContent = vals.length ? vals[0] + (vals.length > 1 ? ' +' + (vals.length - 1) : '') : '';
+      btn.classList.toggle('on', vals.length > 0);
+      if (vals.length) any = true;
+    });
+    const rst = document.getElementById(resetId);
+    if (rst) rst.hidden = !any;
+  }
+  (function fdropWire() {
+    document.addEventListener('click', e => {
+      // composedPath, not closest(): a pick re-renders its menu's options,
+      // so by now e.target can be detached and would read as a tap outside.
+      const path = e.composedPath();
+      const btn = path.find(n => n.classList && n.classList.contains('fdrop-btn'));
+      if (btn) return btn.classList.contains('open') ? fdropClose() : fdropOpen(btn);
+      const menu = path.find(n => n.classList && n.classList.contains('fdrop-menu'));
+      if (!menu) return fdropClose();
+      // A pick in a single-choice menu closes it, as a native menu does.
+      if (menu.hasAttribute('data-fdrop-autoclose') && path.some(n => n.tagName === 'BUTTON')) fdropClose();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') fdropClose(); });
+    window.addEventListener('resize', fdropClose);
+    // Anything scrolling under an open menu (the page, the reel, the button
+    // row) would leave it floating in the wrong place — except the menu itself.
+    // The button row itself scrolling sideways just carries the menu along.
+    document.addEventListener('scroll', e => {
+      const t = e.target;
+      if (t.closest && t.closest('.fdrop-menu')) return;
+      const btn = t.classList && t.classList.contains('fdrop-row') && t.querySelector('.fdrop-btn.open');
+      const menu = btn && document.getElementById(btn.dataset.fdrop);
+      if (menu) fdropPlace(btn, menu); else fdropClose();
+    }, { capture: true, passive: true });
+  })();
 
   function wlBadge(name, cls) {
     const digits = (String(name).match(/\d+/) || [''])[0];
@@ -1411,18 +1499,21 @@
     document.getElementById('wl2Lists').innerHTML = pills.join('');
     document.getElementById('wl2Classes').innerHTML = WL_CLASSES.map(([k, l]) =>
       `<button class="wl2-chip${wlUi.cls === k ? ' on' : ''}" data-wl-cls="${k}">${l}</button>`).join('');
-    // Main trend is always Daily; smaller-timeframe context is separate.
-    const trEl = document.getElementById('wl2Trend');
-    if (trEl) trEl.innerHTML =
-      [['all', 'Main: All'], ['UPTREND', 'Main ▲'], ['DOWNTREND', 'Main ▼'], ['NEUTRAL', 'Unavailable']].map(([k, l]) =>
-        `<button class="wl2-chip${wlUi.trend === k ? ' on' : ''}" data-wl-trend="${k}" title="Daily main trend">${l}</button>`).join('') +
-      '<span class="wl2-sep"></span>' +
-      [['all', '4H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']].map(([k, l]) =>
-        `<button class="wl2-chip${(wlUi.relation || 'all') === k ? ' on' : ''}" data-wl-relation="${k}">${l}</button>`).join('');
+    // Class, sort, main trend (always Daily), 4H direction and clusters are
+    // dropdown menus (#wl2Menus); each button shows its value when set.
+    const opts = (id, attr, cur, choices) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = choices.map(([k, l]) =>
+        `<button class="wl2-chip${cur === k ? ' on' : ''}" data-wl-${attr}="${k}">${l}</button>`).join('');
+    };
+    opts('wl2SortOpts', 'sort', wlUi.sort, WL_SORTS);
+    opts('wl2Trend', 'trend', wlUi.trend, WL_TRENDS);
+    opts('wl2Relation', 'relation', wlUi.relation || 'all', WL_RELATIONS);
     const clusters = document.getElementById('wl2Clusters');
-    if (clusters) clusters.innerHTML = clusterFilterHtml('watchlist', wlUi.cluster);
-    const sortSel = document.getElementById('wl2Sort'); if (sortSel) sortSel.value = wlUi.sort;
+    if (clusters) clusters.innerHTML = clusterMenuHtml('watchlist', wlUi.cluster);
+    fdropSync(wlDropValues(), 'wl2Clear');
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
+    const searchClear = document.getElementById('wl2SearchClear'); if (searchClear) searchClear.hidden = !wlUi.q;
 
     // EDIT MODE (2026-09-24, "an option to rearrange my watchlists"): the
     // list in its own order, each row with move up / move down / remove, and
@@ -1723,6 +1814,8 @@
       if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
       const ttp = t.closest('[data-wl-ttf]');
       if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('#wl2Clear')) { Object.assign(wlUi, WL_FILTER_DEFAULTS); wlSaveUi(); return renderWatchlist(); }
+      if (t.closest('#wl2SearchClear')) { wlUi.q = ''; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
       if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
       const l = wlStore.lists.find(x => x.id === wlUi.list);
@@ -1771,8 +1864,20 @@
     });
     const s = document.getElementById('wl2Search');
     if (s) s.addEventListener('input', () => { wlUi.q = s.value; wlSaveUi(); renderWatchlist(); });
-    const so = document.getElementById('wl2Sort');
-    if (so) so.addEventListener('change', () => { wlUi.sort = so.value; wlSaveUi(); renderWatchlist(); });
+    // The dropdown menus sit outside the pane (body level), so they have their
+    // own listener. MA cluster buttons go through the shared cluster handler.
+    const menus = document.getElementById('wl2Menus');
+    if (menus) menus.addEventListener('click', e => {
+      const t = e.target;
+      const cp = t.closest('[data-wl-cls]');
+      if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      const sp = t.closest('[data-wl-sort]');
+      if (sp) { wlUi.sort = sp.dataset.wlSort; wlSaveUi(); return renderWatchlist(); }
+      const tp = t.closest('[data-wl-trend]');
+      if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
+      const rp = t.closest('[data-wl-relation]');
+      if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
+    });
   })();
 
   // ── DASHBOARD AS A HUB (2026-09-24, user: "make the dashboard
@@ -2022,6 +2127,8 @@
   // Shared definition across all tabs, independent of chart zoom and price scale.
   let clusterWidth = 0.25;
   try { const saved=Number(localStorage.getItem('swingpulse-cluster-width')); if ([0.25,0.5,1].includes(saved)) clusterWidth=saved; } catch (_) {}
+  // Button-sized names for the same modes (the dropdown shows the full ones).
+  const CLUSTER_SHORT = { any: 'Has cluster', multi: 'Mixed TF', near: 'Near cluster', crossed: '4H crossed', rejected: '4H rejected' };
   const CLUSTER_OPTIONS = [['all','All instruments'],['any','Has MA cluster'],['multi','Mixed timeframes'],['near','Price near cluster'],['crossed','4H crossed cluster'],['rejected','4H rejected cluster']];
   function clusterMatches(row, mode) { return SPTrendContext.matchesCluster(row, channelTrend, mode, clusterWidth); }
   function clusterFilterHtml(scope, mode) {
@@ -2032,6 +2139,14 @@
       <div class="sp-cluster-options">${[[0.25,'Tight · ¼ range'],[0.5,'Medium · ½ range'],[1,'Wide · 1 range']].map(([v,l])=>`<button data-cluster-width="${v}" class="${clusterWidth===v?'on':''}">${l}</button>`).join('')}</div>
       <small>Daily 50/250/500 · Weekly 50/250/500 · Monthly 50. Completed periods only. Missing history is excluded.</small>
     </div></details>`;
+  }
+  // The same choices as a dropdown-menu section (Watchlist and Charts).
+  function clusterMenuHtml(scope, mode) {
+    return `<div class="fdrop-hd">MA clusters</div><div data-cluster-scope="${scope}">
+      <div class="fdrop-opts">${CLUSTER_OPTIONS.map(([k,l])=>`<button class="fdrop-opt${mode===k?' on':''}" data-cluster-mode="${k}">${k==='all'?'Any':l}</button>`).join('')}</div>
+      <div class="fdrop-seg"><span>Width</span>${[[0.25,'Tight ¼'],[0.5,'Mid ½'],[1,'Wide 1']].map(([v,l])=>`<button class="fdrop-opt${clusterWidth===v?' on':''}" data-cluster-width="${v}">${l}</button>`).join('')}</div>
+      <p class="fdrop-note">Width: the largest gap between the outer averages, in daily ranges. Daily 50/250/500 · Weekly 50/250/500 · Monthly 50; completed periods only.</p>
+    </div>`;
   }
   function clusterBadgeHtml(row, detailed=false) {
     const found=SPTrendContext.clusters(row,channelTrend,clusterWidth), zone=found.zones[0];
@@ -13417,6 +13532,7 @@
           : 'Nothing matches those filters.';
         empty.style.display = '';
       }
+      reelSyncPills();      // the chips must show what emptied the list
       reelSyncNav();
       return;
     }
@@ -13619,7 +13735,7 @@
           (t.matches('input, textarea, select') || t.isContentEditable)) return;
       if (t && t.isContentEditable) return;
       // A sheet or modal over the reel owns the arrows while it is open.
-      if (document.querySelector('.sheet.open, .modal.open, .filter-pill[open]')) return;
+      if (document.querySelector('.sheet.open, .modal.open, .filter-pill[open], .fdrop-menu:not([hidden])')) return;
       const down = e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j';
       const up   = e.key === 'ArrowUp'   || e.key === 'PageUp'   || e.key === 'k';
       if (!down && !up) return;
@@ -13787,34 +13903,36 @@
   function reelSyncPills() {
     reelSyncSimBar();
     const clusterHost = document.getElementById('reelClusters');
-    if (clusterHost) clusterHost.innerHTML = clusterFilterHtml('charts', reel.cluster);
-    const set = (id, txt) => {
-      const el = document.querySelector('#' + id + ' .fp-val');
-      if (el) el.textContent = txt ? ' · ' + txt : '';
-    };
-    const scopeLbl = { views: 'my markers', 'views-buy': 'my buys', 'views-sell': 'my sells',
-                       all: '', today: 'today', signal: 'signals', buy: 'buys',
-                       sell: 'sells', watch: 'minor swings', m15sig: '4H B1/S1',
-                       dxpre: 'touched D-MA', dxafter: 'crossed D-MA' };
-    set('reelPillScope', scopeLbl[reel.scope] || '');
-    set('reelPillTrend', reel.trend === 'all' ? '' : SPTrendContext.label(reel.trend));
-    set('reelPillRelation', reel.relation === 'all' ? '' : reel.relation);
-    const stackLbl = { all: '', bull: 'bull', bear: 'bear', mixed: 'mixed',
-                       near: 'near cross', fresh: 'just flipped' };
-    set('reelPillStack', tfMeta().label + (stackLbl[reel.stack] ? ' · ' + stackLbl[reel.stack] : ''));
-    const nearLbl = { D: 'Daily', W: 'Weekly', M: 'Monthly', any: 'D/W/M' };
-    set('reelPillNear', nearLbl[reel.near] ? nearLbl[reel.near] + (reel.nearWithin === 1 ? ' · 1 day' : ' · ½ day') : '');
-    const sortLbl = { signal: '', recent: 'newest', move: 'move', name: 'A–Z' };
-    set('reelPillSort', sortLbl[reel.sort] || '');
-    set('reelPillRange', reel.range ? reel.range + ' bars' : '');
-    const cv = document.querySelector('#reelPillClass .fp-cv');
-    if (cv) cv.textContent = reel.cat ? ' · ' + reel.cat : '';
+    if (clusterHost) clusterHost.innerHTML = clusterMenuHtml('charts', reel.cluster);
+    const tfEl = document.getElementById('reelStackTf');
+    if (tfEl) tfEl.textContent = tfMeta().label;
+    document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.cat === (reel.cat || '')));
+    fdropSync(reelDropValues(), 'reelReset');
+  }
 
-    const dirty = reel.scope !== 'all' || reel.cat || reel.trend !== 'all' ||
-                  reel.cluster !== 'all' || reel.relation !== 'all' || reel.stack !== 'all' || reel.near !== 'all' || reel.similarTo || reel.listSet ||
-                  reel.sort !== 'signal' || reel.search || reel.range;
-    const rst = document.getElementById('reelReset');
-    if (rst) rst.style.display = dirty ? '' : 'none';
+  // What each Charts dropdown button shows when its filters are set.
+  // Search and the "charts like X" set have their own clear controls.
+  function reelDropValues() {
+    const scopeLbl = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
+                       today: 'Today', signal: 'Signals', buy: 'Buys', sell: 'Sells',
+                       watch: 'Minor 4H', m15sig: '4H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
+    const cat = reel.cat && document.querySelector(`#reelCatChips [data-cat="${CSS.escape(reel.cat)}"]`);
+    const trend = [], ma = [], sort = [];
+    if (reel.trend !== 'all') trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[reel.trend] || reel.trend);
+    if (reel.relation !== 'all') trend.push(reel.relation === 'aligned' ? '4H aligned' : '4H minor');
+    const stackLbl = { bull: 'MA bull', bear: 'MA bear', mixed: 'MA mixed', near: 'MA near cross', fresh: 'MA flipped' };
+    if (reel.stack !== 'all') ma.push(stackLbl[reel.stack] || reel.stack);
+    if (reel.cluster !== 'all') ma.push(CLUSTER_SHORT[reel.cluster] || reel.cluster);
+    if (reel.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[reel.near] || reel.near) + ' MA');
+    const sortLbl = { recent: 'Newest', move: 'Move', name: 'A–Z' };
+    if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
+    if (reel.range) sort.push(reel.range + ' bars');
+    return {
+      reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
+      reelDdClass: reel.cat ? [cat ? cat.textContent.trim() : reel.cat] : [],
+      reelDdTrend: trend, reelDdMa: ma, reelDdSort: sort,
+    };
   }
 
   function wireReel() {
