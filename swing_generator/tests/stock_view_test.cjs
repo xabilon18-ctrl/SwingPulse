@@ -13,12 +13,12 @@ const bt = b => b._bt || (b._bt = b.t.map(Date.parse));
 const ctx = vm.createContext({
   timeframe: '1H', reel: { range: null }, REEL_MIN_WINDOW_BARS: 20, REEL_FUTURE_FRAC: 0.9,
   window: { SwingPulseModules: { gridGeometry: geometry } }, reelBarTimes: bt,
-  instrumentByName: name => ({ STOCK: 'stocks', BTC: 'crypto', IDX: 'indices', EUR: 'other' }[name]),
+  instrumentByName: name => ({ STOCK: 'stocks', BTC: 'crypto', IDX: 'indices', EUR: 'other', FX: 'fx' }[name]),
   reelGridScope: scope => scope,
-  assetClassOf: scope => scope === 'crypto' ? 'Crypto' : 'Other',
+  assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_INDEX_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -82,6 +82,21 @@ assert.ok(Math.abs(Date.parse(ix.t[fi0]) - Date.parse('2026-09-10')) < 3 * 864e5
 const fri = geometry.yearFrame(ix, bt);
 assert.ok(Math.abs(fi0 + vi.bars - 1 - (fri.anchor + fri.yearBars)) <= 1, 'ends on the Q1 2027 line');
 assert.equal(vi.fit, 'all');
+// Index 4H and Daily take the stock frames, fitted to everything.
+ctx.timeframe = '4H';
+const i4 = ctx.reelStockView(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [8, 12, 16]), 'IDX');
+assert.equal(i4.fit, 'all');
+ctx.timeframe = 'D';
+const idd = hourly(Date.UTC(2021, 0, 4), Date.UTC(2026, 9, 16), [0]);
+const vid = ctx.reelStockView(idd, 'IDX');
+assert.ok(near(idd.t[idd.t.length - (vid.bars - vid.future)], '2025-01-01'));
+assert.equal(vid.fit, 'all');
+// Forex/commodities: the crypto frames, but Daily never forces 0 onto the scale.
+const fxd = ctx.reelStockView({ t: rd, c: rd.map(() => 1) }, 'FX');
+assert.ok(near(rd[rd.length - (fxd.bars - fxd.future)], '2025-01-01'));
+assert.equal(fxd.fit, 'all');
+ctx.timeframe = '1H';
+assert.equal(ctx.reelStockView({ t: round, c: round.map(() => 1) }, 'FX').fit, 'upper');
 // Only these markets, only these timeframes, only without a Range pill.
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'EUR'), null);
 ctx.timeframe = '15m';

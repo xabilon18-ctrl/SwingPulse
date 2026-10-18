@@ -9489,16 +9489,35 @@
   // FAANGS_10): from `lead` of a quarter (~3 weeks) before the current
   // quarter's line to the next quarter's line — 10 Sep to 1 Jan on 18 Oct.
   // Anchored to the lines, so it jumps forward when a new quarter starts.
-  // Price 'all', as crypto 4H/Daily.
+  // Price 'all', as crypto 4H/Daily. INDEX 4H (RUSSELL/NETH25/IT40) is the
+  // stock 4H half-year frame and INDEX DAILY (US100/RUSSELL) the stock Daily
+  // term frame, both fitted to everything on screen (their % ladders and
+  // channels set the scale).
   const REEL_INDEX_VIEW = {
     '1H': { unit: 0.25, lead: 0.23, fit: 'all' },
+    '4H': { unit: 0.5, fit: 'all' },
+    'D':  { term: 4, fit: 'all' },
+  };
+  // FOREX AND COMMODITIES (2026-10-18, left to us: "I am leaving fx and
+  // commodities in your hands"). Both trade round the clock like crypto, so
+  // they take the crypto frames — 30 days back / 35 ahead on 1H, previous +
+  // current quarter on 4H, last year's line to two ahead on Daily — with one
+  // change: Daily does NOT force 0 onto the scale. A currency moves a few
+  // percent a year and a commodity tens of percent, so a 0 line would press
+  // the whole chart into a sliver at the top.
+  const REEL_FXCOM_VIEW = {
+    '1H': { back: 30, ahead: 35, fit: 'upper' },
+    '4H': { unit: 0.25, fit: 'all' },
+    'D':  { years: [1, 2], fit: 'all' },
   };
   function reelOpenSpec(name) {
     const item = instrumentByName(name);
     const scope = reelGridScope(item);
     if (scope === 'stocks') return REEL_STOCK_VIEW[timeframe];
     if (scope === 'indices') return REEL_INDEX_VIEW[timeframe];
-    if (item && assetClassOf(item) === 'Crypto') return REEL_CRYPTO_VIEW[timeframe];
+    const cls = item && assetClassOf(item);
+    if (cls === 'Crypto') return REEL_CRYPTO_VIEW[timeframe];
+    if (cls === 'Currency' || cls === 'Commodity') return REEL_FXCOM_VIEW[timeframe];
     return null;
   }
   function reelStockView(bundle, name) {
