@@ -53,6 +53,15 @@ jobs:
           node tests/time_grid_test.cjs
           node tests/saved_work_test.cjs
           node webapp/sync-worker/test/saved_work_test.mjs
+          # The rest of deploy-app's offline checks, so a PR cannot pass here
+          # and then stop the release (PR #34 did: stock_view_test, 2026-10-19).
+          python3 tests/four_hour_test.py
+          node --check webapp/static/js/app.js
+          node tests/stock_view_test.cjs
+          node tests/price_refresh_test.cjs
+          node tests/chart_refresh_test.cjs
+          node tests/freshness_test.cjs
+          node webapp/sync-worker/test/auth_test.mjs
           # The FOMC calendar parser is regexes over someone else's HTML — the
           # most breakable thing in the pipeline, and it fails SILENTLY: zero
           # rows just reads as "no meetings scheduled". Offline, against a

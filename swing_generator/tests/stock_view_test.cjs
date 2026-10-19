@@ -183,8 +183,8 @@ assert.ok(ethD.lo < 0 && Math.abs(ethD.hi - 9030) < 1, JSON.stringify(ethD));
 // Drawings: a channel's ends and edges, a ladder's whole stack (never below 0), a level.
 const dw = vm.createContext({ REEL_EXTRAP_BARS: 250, LADDER_LINES: 10,
   ladderStack: (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0)),
-  reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt });
-vm.runInContext(fn('reelBarIndexForDate') + fn('reelDrawingRange'), dw);
+  reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt, timeframe: '4H' });
+vm.runInContext(fn('drawShownOn') + fn('reelBarIndexForDate') + fn('reelDrawingRange'), dw);
 const days = []; for (let i = 0; i < 100; i++) days.push(new Date(Date.UTC(2026, 0, 1) + i * 864e5).toISOString().slice(0, 10));
 const src = { t: days, c: days.map(() => 1) };
 const ch = { kind: 'channel', t1: days[0], p1: 100, t2: days[10], p2: 110, up: 5, dn: -5 };
@@ -193,4 +193,7 @@ assert.ok(Math.abs(r1.lo - 95) < 1e-9 && Math.abs(r1.hi - 255) < 1e-9, JSON.stri
 const lad = { kind: 'ladder', p1: 10, p4: 40 };
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 10, hi: 300 });
 assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
+// A linked drawing switched off for this timeframe does not frame it.
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 10, hi: 100 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 10, hi: 300 });
 console.log('stock, crypto, Weekly and Monthly views: ok');
