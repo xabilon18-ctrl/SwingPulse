@@ -106,19 +106,28 @@ assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
 assert.equal(context().reelGridDivision('4H','stocks').code,'M');
 assert.equal(context().reelGridDivision('4H','indices').code,'H');
 // Weekly (bars stamped on Mondays) and Monthly (on the 1st), back 2026-10-19:
-// a year grid of light lines only, no term lines (user: "divide the weekly by
-// year with light division and remove the yearly ones", "same as the monthly").
+// divided by administration TERM, every line equal (user: "divided by
+// administration and not by year. All must be equal") — no year lines, no bold.
 const weeks = [], months = [];
 for (let ms = Date.UTC(2006, 0, 2); ms < Date.UTC(2026, 9, 12); ms += 7 * 864e5) weeks.push(new Date(ms).toISOString().slice(0, 10));
 for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) months.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
 for (const [tf, t] of [['W', weeks], ['M', months]]) {
-  assert.equal(c.reelGridDivision(tf).code, 'Y', `${tf} opens on a year grid`);
+  assert.equal(c.reelGridDivision(tf).code, 'T', `${tf} opens on the term grid`);
   const lines = c.reelTimeGrid({ t }, tf);
-  assert.ok(lines.every(l => !l.admin && !l.annual && !l.quarter && !l.fixedOnly), `${tf} carries no bold reference lines`);
-  // One light line per year, labelled with the year, on the first bar of it.
-  const y2025 = lines.find(l => l.label === '2025');
-  assert.ok(y2025 && Math.abs(y2025.fi - t.findIndex(d => d >= '2025-01-01')) < 1, `${tf} 2025 line on its bar`);
+  assert.ok(lines.every(l => l.division === 'T' && !l.admin && !l.annual && !l.quarter && !l.fixedOnly), `${tf}: term lines only, all equal`);
+  assert.deepEqual(lines.map(l => l.year).filter(y => y >= 2009 && y <= 2029), [2009, 2013, 2017, 2021, 2025, 2029]);
+  assert.deepEqual(lines.filter(l => l.year >= 2009 && l.year <= 2025).map(l => l.label),
+    ['2009 · Obama I', '2013 · Obama II', '2017 · Trump I', '2021 · Biden', '2025 · Trump II']);
+  const y2025 = lines.find(l => l.year === 2025);
+  assert.ok(Math.abs(y2025.fi - t.findIndex(d => d >= '2025-01-01')) < 1, `${tf} 2025 line on its bar`);
   const gap = lines[1].fi - lines[0].fi;
-  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, `${tf} year lines are equal`));
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, `${tf} terms are equal`));
+  lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, `${tf} shading alternates term by term`));
 }
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, light Weekly/Monthly years, saved choices and shading');
+// Term is offered on the slow charts only, and Daily keeps its bold terms.
+c.timeframe = 'W';
+assert.match(c.reelTimeGridSwitchHtml(), /data-division="T"/);
+c.timeframe = '1H';
+assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T"/);
+assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its term lines');
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms, saved choices and shading');

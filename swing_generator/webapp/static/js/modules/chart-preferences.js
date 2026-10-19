@@ -1,8 +1,12 @@
 /* Per-user chart choices, independent by market group and timeframe. */
 (function (root) {
   'use strict';
-  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }];
-  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q' };
+  // T = one part per four-year US administration term (2025, 2029, ...).
+  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T', name: 'Term', parts: 0.25 }];
+  // Weekly and Monthly are divided by administration term, every line equal
+  // (user, 2026-10-19: "divided by administration and not by year. All must
+  // be equal").
+  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q', W: 'T', M: 'T' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids' };
   const valid = code => choices.some(c => c.code === code);
   function cleanRows(value) {
