@@ -31,9 +31,9 @@ app.js `TIMEFRAMES`, buttons #tfBtnW/#tfBtnM; no signals, markers, alerts or
 - App reads W/M only through their own index (reelLoadTfIndex/reel.tfIndex),
   never the shared map. Opening views (REEL_SLOW_VIEW, every market): Weekly
   four terms 2013-2029, Monthly all history to 2029, price 'all'. Grid:
-  Monthly draws the Daily's term lines (Obama I/II named); Weekly draws NO
-  term lines, only its light year division (user: "divide the weekly by year
-  with light division and remove the yearly ones"; grid-geometry v4). Labels are now
+  Weekly and Monthly draw NO term lines, only their light year division
+  (user: "divide the weekly by year with light division and remove the yearly
+  ones", then "same as the monthly"; grid-geometry v4). Labels are now
   thinned by their width (LABEL_MIN_GAP still the minimum). Header context on
   W/M is the Daily main trend only.
 - Tests: tests/htf_feed_test.py, plus W/M cases in time_grid, stock_view,
