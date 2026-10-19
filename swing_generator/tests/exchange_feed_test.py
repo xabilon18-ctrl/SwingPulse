@@ -6,9 +6,11 @@ pair its TradingView chart shows, that nothing else changes source, and that a
 Yahoo cache is replaced — never topped up — the first time a coin moves.
 """
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -96,6 +98,23 @@ class DownloadTests(unittest.TestCase):
         first = df.iloc[0]
         self.assertEqual((first['Open'], first['High'], first['Low'], first['Close']), (9, 11, 8, 10))
         self.assertEqual(first['Volume'], 30)                # 3 BTC at 10 = 30 USD
+
+    def test_coinbase_never_asks_for_the_future(self):
+        # The default end is tomorrow; Coinbase answers 400 to a window that
+        # starts after now, which every 60-day 5m pull used to send.
+        calls = []
+        def fake(url, attempts=4):
+            calls.append(url)
+            return [[int(time.time()) - 600, 8, 11, 9, 10, 3]]
+        with patch.object(exchange_feed, '_get', side_effect=fake), \
+             patch.object(exchange_feed.time, 'sleep'):
+            exchange_feed.download('COINBASE:BTCUSD', '5m', period='60d')
+        now = pd.Timestamp.now(tz='UTC')
+        starts = [pd.Timestamp(re.search(r'start=([^&]+)', u).group(1)) for u in calls]
+        ends = [pd.Timestamp(re.search(r'end=([^&]+)', u).group(1)) for u in calls]
+        self.assertTrue(all(s < now for s in starts), max(starts))
+        self.assertLessEqual(max(ends), now)
+        self.assertEqual(len(calls), 57)                     # 59 days up to now, 25 hours a window
 
     def test_empty_reply_raises_like_yahoo(self):
         with patch.object(exchange_feed, '_get', return_value=[]):

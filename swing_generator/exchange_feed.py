@@ -125,6 +125,10 @@ def _coinbase(product: str, interval: str, start: datetime | None, end: datetime
     step = COINBASE_GRANULARITY[interval]
     window = timedelta(seconds=step * COINBASE_LIMIT)
     cursor = max(start or COINBASE_EPOCH, COINBASE_EPOCH)
+    # Coinbase answers HTTP 400 to a window that starts in the future, and the
+    # default end is tomorrow: at 5m a window is only 25 hours, so the last one
+    # of a 60-day pull (or of any hourly top-up) began after now (2026-10-19).
+    end = min(end, datetime.now(timezone.utc))
     rows = []
     while cursor < end:
         upto = min(cursor + window, end)
