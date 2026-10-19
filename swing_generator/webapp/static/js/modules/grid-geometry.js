@@ -1,8 +1,12 @@
 /* Equal chart divisions and permanent references; no browser state. */
 (function(root) {
   'use strict';
+  const ADMINISTRATIONS = { 2009: 'Obama I', 2013: 'Obama II', 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
+  const isTermYear = y => ((y - 2025) % 4 + 4) % 4 === 0;
+  function termLabel(year) { return ADMINISTRATIONS[year] ? `${year} · ${ADMINISTRATIONS[year]}` : String(year); }
   function partLabel(year, part, division) {
     if (division === 'Y') return String(year);
+    if (division === 'T') return termLabel(year);
     if (division === 'M') return new Date(Date.UTC(year, part, 1))
       .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
     return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
@@ -54,7 +58,17 @@
     const step = yearBars / parts;
     const firstYear = new Date(first).getUTCFullYear() - 1;
     const out = [];
-    for (let y = firstYear; y <= year + 4; y++) {
+    if (division.code === 'T') {
+      // One equal division per administration term, on the same equal-year
+      // geometry; shading alternates term by term.
+      for (let y = firstYear - 3; y <= year + 8; y++) {
+        if (!isTermYear(y)) continue;
+        const fi = anchor + (y - year) * yearBars - from;
+        out.push({ fi, label: termLabel(y), future: fi > n - 1 - from,
+          par: (((y - 2025) / 4) % 2 + 2) % 2, year: y, part: 0, division: 'T' });
+      }
+    }
+    for (let y = firstYear; division.code !== 'T' && y <= year + 4; y++) {
       for (let k = 0; k < parts; k++) {
         const fi = anchor + ((y - year) * parts + k) * step - from;
         out.push({ fi, label: partLabel(y, k, division.code),
@@ -85,14 +99,12 @@
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
       }
     } else if (tf === 'D') {
-      // Weekly and Monthly (back 2026-10-19) have no term lines (user: "divide
-      // the weekly by year with light division and remove the yearly ones",
-      // then "same as the monthly"): their own year grid alone, light lines.
-      const administrations = { 2009: 'Obama I', 2013: 'Obama II', 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
+      // Daily's bold term lines over its year grid. Weekly and Monthly have
+      // none: their DIVISION is the term (chartPreferences default 'T'), so
+      // every line there is the same light line.
       for (let y = firstYear; y <= year + 4; y++) {
-        if (((y - 2025) % 4 + 4) % 4 !== 0) continue;
-        permanent(anchor + (y - year) * yearBars - from,
-          administrations[y] ? `${y} · ${administrations[y]}` : String(y), 'admin');
+        if (!isTermYear(y)) continue;
+        permanent(anchor + (y - year) * yearBars - from, termLabel(y), 'admin');
       }
     }
     out.sort((a, b) => a.fi - b.fi);

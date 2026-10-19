@@ -11173,6 +11173,8 @@
 
   // One equal grid for every chart in a market group/timeframe, saved and synced.
   const GRID_DIVISIONS = modules.chartPreferences.choices;
+  // The Term division (four-year administrations) is offered on the slow charts only.
+  const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', other: 'Other markets' };
   function reelGridScope(item) {
     if (!item) return 'other';
@@ -11189,7 +11191,11 @@
     const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
     const selected = reelGridDivision(timeframe, scope).code, label = GRID_SCOPE_LABELS[scope];
     return `<span class="reel-time-grid-label">Time grid · ${label}</span><div class="reel-time-grid-options" role="group" aria-label="${label}: time grid for all ${tfMeta().label} charts">`
-      + GRID_DIVISIONS.map(d => `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year" title="${d.name} · ${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year">${d.code}</button>`).join('')
+      + GRID_DIVISIONS.filter(d => d.code !== 'T' || TERM_GRID_TFS.has(timeframe)).map(d => {
+        const what = d.code === 'T' ? 'one equal part per four-year administration term'
+          : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
+        return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.code}</button>`;
+      }).join('')
       + `</div><span class="reel-time-grid-scope">${tfMeta().label}</span><span class="reel-time-grid-note">Saved for ${label.toLowerCase()} · ${tfMeta().label} only</span>`;
   }
   function reelTimeGridSwitch(name) {
