@@ -39,15 +39,52 @@ async function dispatch(env, reason) {
  * (10 upstream requests; the free plan allows 50 subrequests).
  */
 const LIVE_MAX = 200, LIVE_BATCH = 20;
+// Crypto comes from the exchange the user's TradingView chart reads
+// (exchange_feed.py, 2026-10-19): quotes.json names it as 'BINANCE:XRPUSDT' or
+// 'COINBASE:BTCUSD'. Binance through its market-data host (api.binance.com
+// refuses some locations); ONE request for every Binance price, so a delisted
+// pair can never fail the others. Coinbase per product.
+const BINANCE_PRICES = 'https://data-api.binance.vision/api/v3/ticker/price';
+const COINBASE_PRODUCTS = 'https://api.exchange.coinbase.com/products/';
+
+async function exchangePrices(syms, out) {
+  const binance = syms.filter(s => s.startsWith('BINANCE:'));
+  const coinbase = syms.filter(s => s.startsWith('COINBASE:'));
+  const jobs = [];
+  if (binance.length) jobs.push((async () => {
+    try {
+      const r = await fetch(BINANCE_PRICES);
+      if (!r.ok) return;
+      const want = new Set(binance.map(s => s.slice(8)));
+      const now = Math.floor(Date.now() / 1000);   // the price is current as of this request
+      for (const { symbol, price } of await r.json()) {
+        const px = Number(price);
+        if (want.has(symbol) && px > 0) out['BINANCE:' + symbol] = [px, now];
+      }
+    } catch (_) { /* leaves these symbols out; the app keeps the published price */ }
+  })());
+  for (const sym of coinbase) jobs.push((async () => {
+    try {
+      const pair = sym.slice(9), product = pair.slice(0, -3) + '-' + pair.slice(-3);
+      const r = await fetch(COINBASE_PRODUCTS + product + '/ticker', { headers: { 'User-Agent': 'SwingPulse/1.0' } });
+      if (!r.ok) return;
+      const j = await r.json(), px = Number(j.price), t = Math.floor(Date.parse(j.time) / 1000);
+      if (px > 0 && t > 0) out[sym] = [px, t];
+    } catch (_) { /* as above */ }
+  })());
+  await Promise.all(jobs);
+}
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
 
 async function livePrices(url) {
   const syms = [...new Set((url.searchParams.get('s') || '').split(',')
-    .map(x => x.trim()).filter(x => /^[A-Za-z0-9^=.\-]{1,20}$/.test(x)))].slice(0, LIVE_MAX);
+    .map(x => x.trim()).filter(x => /^[A-Za-z0-9^=.:\-]{1,24}$/.test(x)))].slice(0, LIVE_MAX);
   const out = {};
+  const yahoo = syms.filter(s => !s.includes(':'));
   const batches = [];
-  for (let i = 0; i < syms.length; i += LIVE_BATCH) batches.push(syms.slice(i, i + LIVE_BATCH));
-  await Promise.all(batches.map(async b => {
+  for (let i = 0; i < yahoo.length; i += LIVE_BATCH) batches.push(yahoo.slice(i, i + LIVE_BATCH));
+  const crypto = exchangePrices(syms.filter(s => s.includes(':')), out);
+  await Promise.all([crypto, ...batches.map(async b => {
     try {
       const r = await fetch('https://query1.finance.yahoo.com/v8/finance/spark?symbols='
         + b.map(encodeURIComponent).join(',') + '&range=1d&interval=5m',
@@ -66,7 +103,7 @@ async function livePrices(url) {
         if (px != null && t != null) out[sym] = [px, t];
       }
     } catch (_) { /* one failed batch just leaves its symbols out */ }
-  }));
+  })]);
   return new Response(JSON.stringify(out), {
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...CORS } });
 }

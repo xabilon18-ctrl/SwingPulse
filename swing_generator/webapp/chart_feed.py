@@ -58,6 +58,7 @@ sys.path.insert(0, PROJECT_DIR)
 
 from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
                           scale_daily, SGX_FRONT, _utc_now)
+import exchange_feed                                    # noqa: E402
 from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
@@ -802,7 +803,9 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
            # spot/cash shift to subtract from it (load_5m's basis at the last
            # bar), `yc` an unshifted level reference polled alongside — the cash
            # index or XAUT — which the app uses whenever it is the fresher print.
-           'y': src}
+           # Crypto polls its exchange instead ('BINANCE:XRPUSDT'), which the
+           # live Worker routes there (exchange_feed, 2026-10-19).
+           'y': exchange_feed.source(ticker) or src}
     ref = FIVE_MIN_LEVEL_REF.get(ticker)
     if ref:
         try:

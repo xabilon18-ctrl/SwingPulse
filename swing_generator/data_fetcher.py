@@ -19,6 +19,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
+import exchange_feed
 from _active_config import (HISTORY_YEARS, CACHE_DIR, MIN_ROWS_REQUIRED, H4_SOURCE,
                             FIVE_MIN_PERIOD, FIVE_MIN_KEEP_DAYS)
 
@@ -136,6 +137,34 @@ def _cache_path(ticker: str, suffix: str = '') -> str:
             .replace('.', '_DOT_'))
     tag = f'_{suffix}' if suffix else ''
     return os.path.join(CACHE_DIR, f'{safe}{tag}.parquet')
+
+
+# ── Where a cache's bars came from ─────────────────────────────────────────
+# Crypto moved from Yahoo to the exchanges (exchange_feed.py, 2026-10-19). The
+# fetchers APPEND to a cache, so a Yahoo cache topped up with exchange bars
+# would be two price sources spliced into one series. A `<cache>.source` file
+# names the feed that wrote it; when it is not the feed this ticker now uses,
+# the next fetch replaces the whole cache instead of appending. Yahoo caches
+# carry no file, so nothing else is touched.
+def _cache_source_changed(path: str, ticker: str) -> bool:
+    try:
+        with open(path + '.source') as fh:
+            have = fh.read().strip() or None
+    except OSError:
+        have = None
+    return os.path.exists(path) and have != exchange_feed.source(ticker)
+
+
+def _save_cache(df: pd.DataFrame, path: str, ticker: str) -> pd.DataFrame:
+    """Write a WHOLE cache (a full download) and record which feed it came from."""
+    df.to_parquet(path)
+    want = exchange_feed.source(ticker)
+    if want:
+        with open(path + '.source', 'w') as fh:
+            fh.write(want)
+    elif os.path.exists(path + '.source'):
+        os.remove(path + '.source')
+    return df
 
 
 # How old a cache file may be before a run downloads again. 20h locally, so
@@ -383,6 +412,10 @@ def _full_download(ticker: str, start: datetime, end: datetime,
     _drop_priceless — is shared, so there is still one definition of "a clean
     frame from Yahoo". See config.py §"10-minute bar geometry".
     """
+    # Crypto: the exchange the user's TradingView chart reads (exchange_feed).
+    venue = exchange_feed.source(ticker)
+    if venue:
+        return _drop_priceless(exchange_feed.download(venue, interval, start, end, period))
     hist_kw = ({'period': period} if period else
                {'start': start.strftime('%Y-%m-%d'), 'end': end.strftime('%Y-%m-%d')})
     df = yf.Ticker(ticker).history(
@@ -498,6 +531,9 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
     """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = _cache_path(ticker)
+    if _cache_source_changed(path, ticker):
+        print(f'    INFO [{ticker}] price source changed — replacing the cached history')
+        force_refresh = True
 
     # ── Already fresh: return immediately ────────────────────────────────
     if not force_refresh and _is_fresh(path):
@@ -518,7 +554,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
             df = _full_download(ticker, start, end)
             if df.empty:
                 raise ValueError('no priced bars in response')
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
         except Exception as exc:
             print(f'    WARN [{ticker}] download failed: {exc}')
@@ -537,7 +573,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
         try:
             df = _full_download(ticker, end - timedelta(days=int(HISTORY_YEARS * 365.25)), end)
             if not df.empty:
-                df.to_parquet(path)
+                _save_cache(df, path, ticker)
                 return df
         except Exception as exc:
             print(f'    WARN [{ticker}] split re-download failed: {exc}')
@@ -583,7 +619,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
         if problem:
             print(f'    WARN [{ticker}] {problem} — re-downloading full history')
             df = _full_download(ticker, end - timedelta(days=int(HISTORY_YEARS * 365.25)), end)
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
         new_df = probe[probe.index >= last_date]
 
@@ -611,7 +647,7 @@ def fetch(ticker: str, force_refresh: bool = False) -> pd.DataFrame | None:
                   f'jump ×{ratio:.2f}) — re-downloading full history')
             start_full = end - timedelta(days=int(HISTORY_YEARS * 365.25))
             df = _full_download(ticker, start_full, end)
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
 
         return _append_new_bars(path, new_df)
@@ -641,6 +677,9 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
     """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = _cache_path(ticker, suffix='1h')
+    if _cache_source_changed(path, ticker):
+        print(f'    INFO [{ticker}] price source changed — replacing the cached hourly history')
+        force_refresh = True
 
     # ── Already fresh ─────────────────────────────────────────────────────
     if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
@@ -656,7 +695,7 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
             df = _full_download(ticker, start, end, interval='1h')
             if df.empty:
                 raise ValueError('no priced bars in response')
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
         except Exception as exc:
             print(f'    WARN [{ticker}] hourly download failed: {exc}')
@@ -699,7 +738,7 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
                   f'— re-downloading full hourly history')
             start_full = end - timedelta(days=HOURLY_HISTORY_DAYS)
             df = _full_download(ticker, start_full, end, interval='1h')
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
 
         return _append_new_bars(path, new_df)
@@ -732,6 +771,9 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
     """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = _cache_path(ticker, suffix='5m')
+    if _cache_source_changed(path, ticker):
+        print(f'    INFO [{ticker}] price source changed — replacing the cached 5m history')
+        force_refresh = True
 
     # ── Already fresh ─────────────────────────────────────────────────────
     if not force_refresh and _is_fresh(path, max_age_hours=max_age_hours):
@@ -746,7 +788,7 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
             df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
             if df.empty:
                 raise ValueError('no priced bars in response')
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
         except Exception as exc:
             print(f'    WARN [{ticker}] 5m download failed: {exc}')
@@ -774,7 +816,7 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
             # discontinuity in it; start again instead.
             print(f'    INFO [{ticker}] 5m cache {gap_days}d behind — re-pulling full window')
             df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
 
         start = last_date.to_pydatetime() - timedelta(days=1)   # overlap; dedup handles repeats
@@ -796,7 +838,7 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
             print(f'    WARN [{ticker}] 5m discontinuity (jump x{ratio:.2f}) '
                   f'— re-downloading full 5m window')
             df = _full_download(ticker, end, end, interval='5m', period=FIVE_MIN_PERIOD)
-            df.to_parquet(path)
+            _save_cache(df, path, ticker)
             return df
 
         # Yahoo serves only 60 days of 5m, so everything older exists only

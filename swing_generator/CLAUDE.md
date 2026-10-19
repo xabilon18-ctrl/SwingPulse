@@ -10,6 +10,30 @@ deploy-app run to green including "Verify the live app". If a change needs a
 data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
 
+2026-10-19 CRYPTO PRICES FROM THE EXCHANGES (user: prices should match
+TradingView; "indices, crypto for now"). Every crypto download — Daily, 1H,
+5m and the whole-history Weekly/Monthly pull — comes from the exchange the
+user's TradingView chart reads: Binance (52 USDT pairs) and Coinbase (BTC,
+ETH, LINK), not Yahoo. exchange_feed.py; hooked in at
+data_fetcher._full_download, so engine, caches and charts are unchanged.
+- The pair comes from tv_symbols.TV_BY_NAME (moved out of webapp/server.py
+  so the data layer can read it): MATIC reads BINANCE:POLUSDT, FTM
+  BINANCE:SUSDT. tests/exchange_feed_test.py pins every crypto instrument to
+  its TradingView pair.
+- Binance through data-api.binance.vision: api.binance.com answers HTTP 451
+  to the US GitHub runners (probed 2026-10-19). Volume is QUOTE volume
+  (USDT/USD), like Yahoo's crypto volume.
+- `<cache>.source` names the feed that wrote a cache; when it differs from
+  the ticker's current feed the next fetch REPLACES the cache instead of
+  appending (no Yahoo/exchange splice). Yahoo caches carry no file.
+- Live quotes: quotes.json `y` is 'BINANCE:XRPUSDT' / 'COINBASE:BTCUSD' for
+  crypto; the cron Worker's /live routes those to the exchange (one Binance
+  request for all pairs) and the rest to Yahoo. tests/live_worker_test.mjs.
+- tools/check_exchange_feed.py (deploy validation, live network) fails the
+  release if any pair stops answering at 1d/1h/5m.
+- INDICES next: OANDA (user's choice) once OANDA_API_TOKEN / OANDA_ACCOUNT_ID
+  are repository secrets; TradingView index symbols then repoint to OANDA:.
+
 2026-10-19 Weekly and Monthly charts back: app.js v510 (freshness v5,
 trend-context v2, grid-geometry v3). User: "add back weekly and monthly chart
 but weekly run every Monday and monthly between 3-5" (the 3rd-5th), then "go
