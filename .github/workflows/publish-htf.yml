@@ -53,10 +53,15 @@ jobs:
       # Read-only: the Daily cache is the fallback for an instrument whose whole
       # history Yahoo will not serve (and the source of the synthetic CCY_
       # currency indices). Never saved back — that cache belongs to publish.yml.
+      # The path list MUST match publish.yml's exactly: it is part of the cache
+      # version, and with cache_ma500 alone the first run found no cache at all
+      # (2026-10-19) and the eight CCY_ indices got no Weekly or Monthly chart.
       - name: Restore the Daily parquet cache
         uses: actions/cache/restore@v4
         with:
-          path: swing_generator/cache_ma500
+          path: |
+            swing_generator/cache_ma500
+            swing_generator/output_ma500/names_cache.json
           key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
           restore-keys: parquet-ma500-${{ runner.os }}-
 
