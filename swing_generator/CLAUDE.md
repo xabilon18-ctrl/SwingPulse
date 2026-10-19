@@ -3,6 +3,13 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+**ALWAYS DEPLOY (user, 2026-10-19: "when we make changes just deploy always").**
+Every change goes all the way to production without asking: push the branch,
+open the PR, merge it once CI (golden) is green, then follow the main
+deploy-app run to green including "Verify the live app". If a change needs a
+data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
+that goes red. Report what is live when done.
+
 2026-10-19 Weekly and Monthly charts back: app.js v510 (freshness v5,
 trend-context v2, grid-geometry v3). User: "add back weekly and monthly chart
 but weekly run every Monday and monthly between 3-5" (the 3rd-5th), then "go
