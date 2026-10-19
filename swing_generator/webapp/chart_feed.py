@@ -136,7 +136,12 @@ BARS_BY_TF = {
     '15m': 6000,   # two months of a 24/7 instrument
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
-    'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
+    # Weekly and Monthly (back 2026-10-19) are built from each instrument's
+    # WHOLE Yahoo history (tools/publish_htf.py), not the 13-year Daily cache:
+    # Weekly carries ~25 years behind its four-term opening view, Monthly
+    # every month there is (^GSPC goes back to 1927).
+    'W':  1300,   # ~25 years
+    'M':  1200,   # 100 years — in practice all of it
     # 4H CARRIES more than it shows (user, 2026-09-19: "i cannot go back further
     # on the 4h"). The card still opens on 520 bars (REEL_DEFAULT_WINDOW_BARS);
     # this is how far back a drag can reach. 2190 = a year of a 24h instrument
@@ -158,18 +163,14 @@ BARS_BY_TF = {
     '12H': 1300,
 }
 
-# MONTHLY was REMOVED 2026-09-14 at the user's request, along with
-# MONTHLY_MA_PERIODS = [50] and build_monthly(). It carried one moving average
-# because it could: 98% of instruments hold the 50 monthly bars MA50 needs and
-# 0% hold the 250 or 500 the other two would (~21 and ~42 years against a cache
-# whose median is 244 months), so the ribbon this app is built on was never
-# actually drawable there. main._resample_monthly STAYS — backtest.py and the
-# research scripts use it, and the monthly MA50 finding (mildly contrarian
-# within-instrument) is a result, not dead code.
+# MONTHLY was removed 2026-09-14 and is BACK 2026-10-19 as a chart only (user:
+# "add back weekly and monthly chart"), built from each instrument's whole Yahoo
+# history. Its MA250/MA500 are ~21/~42 years, so most instruments still draw
+# the MA50 alone; see monthly_bundle.
 #
-# NB the published chart/M/*.json chunks are NOT deleted by this: the publisher
-# only ever writes, it has no sweep step (see the stale-chunk note in
-# DOCUMENTATION). They will sit on R2 unreferenced until removed by hand.
+# Weekly and Monthly are NOT built by build_chart_feed: they have their own
+# workflow (publish-htf.yml -> tools/publish_htf.py) on Mondays and the 3rd-5th,
+# with their own chunk index, chart/<W|M>/index.json.
 
 # Ribbon points are emitted every Nth bar (the last bar is always included).
 # The MAs are smooth and drawn dotted, so this is invisible on screen and cuts
@@ -512,24 +513,74 @@ def build_12h(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
-def build_weekly(cache_dir: str, ticker: str) -> dict | None:
-    """Weekly chart from the same daily cache the daily chart reads.
-
-    520 weekly bars is ~10 years, which is what the MA500 anchor needs to
-    be drawn at all — so a weekly chart deliberately shows far more calendar
-    time than a daily one. Volume is included, as on daily.
-    """
+def _read_daily(cache_dir: str, ticker: str) -> pd.DataFrame | None:
     path = os.path.join(cache_dir, _cache_name(ticker))
     if not os.path.exists(path):
         return None
     df = pd.read_parquet(path)
-    if df.empty:
-        return None
+    return None if df.empty else df
+
+
+def build_weekly(cache_dir: str, ticker: str) -> dict | None:
+    """Weekly chart from the Daily cache — the local dev server's path. The
+    published one is weekly_bundle over the instrument's whole history."""
+    df = _read_daily(cache_dir, ticker)
+    return None if df is None else weekly_bundle(ticker, df)
+
+
+def build_monthly(cache_dir: str, ticker: str) -> dict | None:
+    """Monthly chart from the Daily cache; see build_weekly."""
+    df = _read_daily(cache_dir, ticker)
+    return None if df is None else monthly_bundle(ticker, df)
+
+
+def weekly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
+    """Weekly chart from daily bars, as deep as `df` goes.
+
+    520 weekly bars is ~10 years, which is what the MA500 anchor needs to
+    be drawn at all — so a weekly chart deliberately shows far more calendar
+    time than a daily one. Volume is included, as on daily. Price is scaled the
+    way build_daily scales it, so a week closes where the Daily chart says.
+
+    Carries the MONTHLY overlay MAs itself (`mo`, user 2026-10-19: "we will
+    need the monthly overlay on weekly"), rolled over the same whole history,
+    so they reach back as far as the weekly bars do. The Daily bundle's `mo`
+    only spans the Daily chart's ~5 years.
+    """
+    df = scale_daily(ticker, df)
     weekly = _resample_weekly(df)
     periods = [p for p in MA_PERIODS if p <= len(weekly)]
     if len(periods) < MIN_RIBBON_LINES:
         return None
-    return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
+    # Stamped on the week's MONDAY, not the Friday _resample_weekly labels it by
+    # (that label is what drops the week in progress). The app places every bar
+    # at its start, as Daily is — an end stamp would put each week, the year
+    # lines and the overlay one bar apart. TradingView stamps weeks this way too.
+    weekly.index = weekly.index - pd.Timedelta(days=4)
+    out = _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
+    if out:
+        mo = _htf_mas(df, out['t'][0], _resample_monthly, OVERLAY_MA_PERIODS)
+        if mo:
+            out['mo'] = mo
+    return out
+
+
+def monthly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
+    """Monthly chart from daily bars, as deep as `df` goes.
+
+    The one timeframe that ignores MIN_RIBBON_LINES: a monthly MA250 is ~21
+    years, so short histories carry the MA50 alone, and the two-line floor
+    would reject them. An instrument without 50 monthly bars gets no monthly
+    chart at all. Over the whole Yahoo history many indices and old stocks do
+    warm the 250 and some the 500 (~42 years).
+    """
+    monthly = _resample_monthly(scale_daily(ticker, df))
+    periods = [p for p in MA_PERIODS if p <= len(monthly)]
+    if not periods:
+        return None
+    # Stamped on the 1st, for the reason in build_weekly.
+    monthly.index = monthly.index.to_period('M').to_timestamp()
+    return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
 
 
 def build_3d(cache_dir: str, ticker: str) -> dict | None:
@@ -987,7 +1038,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, '2H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'chunks': n_files}.
+    Weekly and Monthly (back 2026-10-19) are published separately, by
+    tools/publish_htf.py.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
     1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;

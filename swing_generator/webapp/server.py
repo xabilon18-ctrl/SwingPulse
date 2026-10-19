@@ -1074,6 +1074,10 @@ _CHART_BUILDERS = {
     '2H': chart_feed.build_2h,
     '12H': chart_feed.build_12h,
     'D':  chart_feed.build_daily,
+    # From the Daily cache, always fresh. The published ones come from the whole
+    # Yahoo history on their own schedule (tools/publish_htf.py).
+    'W':  chart_feed.build_weekly,
+    'M':  chart_feed.build_monthly,
 }
 
 
@@ -1111,6 +1115,13 @@ def _near_map_local() -> dict:
                 daily[name] = bd
         _near_cache['v'] = chart_feed.near_ma_map(daily)
     return _near_cache['v']
+
+
+@app.route('/api/chart/<tf>/index')
+def api_chart_tf_index(tf: str):
+    # Weekly and Monthly read their own index (chart/<tf>/index.json when
+    # published); locally it is the same sorted-name grouping as everything else.
+    return jsonify({'tf': tf, 'chunk_size': chart_feed.CHUNK_SIZE, 'chunks': _chart_chunk_map()})
 
 
 @app.route('/api/chart/<tf>/<int:cid>')

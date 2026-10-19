@@ -51,4 +51,10 @@ assert.equal(fx('2026-01-09T21:30:00Z'),false,'Winter Friday 21:30 UTC: open');
 assert.equal(fx('2026-01-09T22:30:00Z'),true,'Winter Friday 22:30 UTC: closed');
 assert.equal(fx('2026-07-11T12:00:00Z'),true,'Saturday: closed');
 assert.equal(fx('2026-07-14T12:00:00Z'),false,'Tuesday: open');
+for (const [tf,word] of [['W','weekly'],['M','monthly']]) {
+  const bar=f.chart('2026-10-05',tf,now);
+  assert.equal(bar.label,`Last completed ${word} bar`);
+  assert.equal(bar.basis,'session date');
+  assert.equal(bar.time,'5 Oct');
+}
 console.log('PASS: freshness, local chart times, day rollover, daylight saving, daily session dates and forex hours');

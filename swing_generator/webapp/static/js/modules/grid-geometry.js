@@ -84,8 +84,9 @@
       for (let y = firstYear; y <= year + 4; y++) {
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
       }
-    } else if (tf === 'D') {
-      const administrations = { 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
+    } else if (tf === 'D' || tf === 'W' || tf === 'M') {
+      // Weekly and Monthly (back 2026-10-19) carry the Daily's term lines.
+      const administrations = { 2009: 'Obama I', 2013: 'Obama II', 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
       for (let y = firstYear; y <= year + 4; y++) {
         if (((y - 2025) % 4 + 4) % 4 !== 0) continue;
         permanent(anchor + (y - year) * yearBars - from,

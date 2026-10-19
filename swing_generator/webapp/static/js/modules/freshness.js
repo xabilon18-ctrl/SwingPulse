@@ -84,9 +84,11 @@
     const provisional = !!forming && forming.t === value;
     const end = provisional ? timestamp(forming.closes_at) : null;
     const state = provisional ? (end != null && now >= end ? 'Awaiting final update' : 'Still forming') : '';
-    return { label: provisional ? tf + ' candle · ' + state : 'Last completed ' + (tf === 'D' ? 'daily' : tf) + ' bar', state,
+    // Weekly and Monthly bars are dated like Daily ones, by their first day.
+    const dated = { D: 'daily', W: 'weekly', M: 'monthly' }[tf];
+    return { label: provisional ? tf + ' candle · ' + state : 'Last completed ' + (dated || tf) + ' bar', state,
       time: chartTime(value, tf), detailTime: chartTime(value, tf, false, true),
-      basis: tf === 'D' ? 'session date' : 'local', age: ago(value, now) };
+      basis: dated ? 'session date' : 'local', age: ago(value, now) };
   }
   const api = Object.freeze({ timestamp, age, ago, time, session, quote, dataset, chartTime, chart });
   (root.SwingPulseModules ||= {}).freshness = api;

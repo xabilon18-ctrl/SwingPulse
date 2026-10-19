@@ -63,6 +63,32 @@ const assert = require('node:assert/strict');
     assert.ok(summaries > oldSummaries, 'visible app reloads datasets after 30 minutes');
     assert.ok(chunks > oldChunks, 'new dataset invalidates and reloads chart chunks');
   }
+  if (!live) {
+    // Weekly and Monthly (back 2026-10-19): chart only, each read through its own
+    // chunk map, on the Daily's term lines, with no 4H read under their name.
+    for (const [tf, word] of [['W', 'weekly'], ['M', 'monthly']]) {
+      const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
+      const chunk = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/0.json`));
+      await page.locator(`#tfBtn${tf}`).click();
+      await Promise.all([index, chunk]);
+      await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
+      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+      const card = await page.locator('#chartReel .reel-card').first().innerText();
+      // Labels are thinned to fit, so which terms are named depends on width.
+      assert.ok(/20\d\d · (Obama|Trump|Biden)/.test(card), `${tf} draws the term lines`);
+      assert.ok(!/\b[WM] (aligned|minor)/.test(card), `${tf} shows no borrowed 4H relation`);
+      assert.ok(/Bar \d+ \w+/.test(card), `${word} bar is dated`);
+      if (tf === 'W') {
+        // The Monthly overlay on Weekly, drawn from the Weekly bundle's own `mo`.
+        await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+        await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
+        await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M50')));
+        await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
+        await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      }
+    }
+    assert.equal(errors.length, 0, errors.join('\n'));
+  }
   await page.locator('#tfBtn4H').click();
   await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
@@ -123,6 +149,6 @@ const assert = require('node:assert/strict');
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) await require('./chart_framing_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log('PASS: mobile 1H/4H charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
+  console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

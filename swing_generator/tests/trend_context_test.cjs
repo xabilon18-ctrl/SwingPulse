@@ -26,4 +26,5 @@ assert.equal(t.distance('',100),null);
 assert.equal(t.distance(100,0),null);
 assert.equal(t.native(gold,'4H',{tf:{'4H':{GOLD:t.UP}}}),t.UNKNOWN,'Legacy channel classification cannot supply the setup direction');
 assert.equal(t.native(gold,'1H',null),t.DOWN,'Completed native hourly values work without channel geometry');
+for (const tf of ['W','M']) assert.equal(t.native(gold,tf,channels),t.UNKNOWN,`${tf} has no native read and never borrows the 1H columns`);
 console.log('PASS: Daily main trend, independent chart directions, consistent filters and missing-data handling');

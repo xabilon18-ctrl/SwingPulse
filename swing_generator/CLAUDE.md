@@ -3,6 +3,40 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-19 Weekly and Monthly charts back: app.js v510 (freshness v5,
+trend-context v2, grid-geometry v3). User: "add back weekly and monthly chart
+but weekly run every Monday and monthly between 3-5" (the 3rd-5th), then "go
+back further ... these need not run with the daily and hourly runs" and "we
+will need the monthly overlay on weekly". CHARTS ONLY — `chartOnly` rows W/M in
+app.js `TIMEFRAMES`, buttons #tfBtnW/#tfBtnM; no signals, markers, alerts or
+`w_`/`m_` columns; `config.TIMEFRAMES` untouched.
+- OWN JOB, not the hourly publish: .github/workflows/publish-htf.yml (GitHub
+  cron 00:35 UTC — Mondays for W, the 3rd-5th for M; workflow_dispatch for
+  either) runs tools/publish_htf.py. It downloads each instrument's WHOLE Yahoo
+  daily history (period='max', fresh every run so adjustments are current),
+  falling back to the read-only-restored Daily cache, builds
+  chart_feed.weekly_bundle / monthly_bundle and uploads chart/<W|M>/<cid>.json
+  plus chart/<W|M>/index.json (its own name -> chunk map, no-cache). The hourly
+  build_chart_feed never builds W/M and chart/index.json says nothing about
+  them. Its own concurrency group: in swingpulse-publish a waiting run is
+  dropped when an hourly one queues behind it. Refuses to publish below 60% (W)
+  / 50% (M) coverage. Every chunk id is written, empty ones too, so the stale
+  pre-removal W/M chunks on R2 are never served.
+- Bundles: closed periods only (main._resample_weekly/_monthly), stamped on
+  the period START (Monday / the 1st) because the app places bars, year lines
+  and overlays by start time; scaled like Daily. W carries 1300 bars (~25y), M
+  1200 (all). Weekly carries its own Monthly overlay MAs (`mo`, _htf_mas over
+  the whole history); app.js ovOwnHtf/OV_OWN_HTF draw them from the Weekly
+  bundle and ovOtherTf only loads the Daily chunk for Daily lines.
+- App reads W/M only through their own index (reelLoadTfIndex/reel.tfIndex),
+  never the shared map. Opening views (REEL_SLOW_VIEW, every market): Weekly
+  four terms 2013-2029, Monthly all history to 2029, price 'all'. Grid draws
+  the Daily's term lines on both (Obama I/II named); grid labels are now
+  thinned by their width (LABEL_MIN_GAP still the minimum). Header context on
+  W/M is the Daily main trend only.
+- Tests: tests/htf_feed_test.py, plus W/M cases in time_grid, stock_view,
+  freshness, trend_context, browser_fixture and app_smoke.
+
 2026-10-18 filter dropdowns: app.js v509 / style.css v369. Watchlist and
 Charts filters (user: "app friendly and beautiful, not clutter", then "neat
 drop down designs that fit" after a bottom-sheet try felt clumsy) are ONE
