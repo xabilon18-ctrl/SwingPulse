@@ -1074,6 +1074,9 @@ _CHART_BUILDERS = {
     '2H': chart_feed.build_2h,
     '12H': chart_feed.build_12h,
     'D':  chart_feed.build_daily,
+    # Always built fresh here; the Monday / 3rd-5th schedule is the publisher's.
+    'W':  chart_feed.build_weekly,
+    'M':  chart_feed.build_monthly,
 }
 
 

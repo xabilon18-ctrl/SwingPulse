@@ -105,4 +105,20 @@ assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
 assert.equal(context().reelGridDivision('4H','stocks').code,'M');
 assert.equal(context().reelGridDivision('4H','indices').code,'H');
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, saved choices and shading');
+// Weekly (bars stamped on Mondays) and Monthly (on the 1st), back 2026-10-19:
+// a year grid by default and the Daily's equal term lines, Obama I onwards.
+const weeks = [], months = [];
+for (let ms = Date.UTC(2006, 0, 2); ms < Date.UTC(2026, 9, 12); ms += 7 * 864e5) weeks.push(new Date(ms).toISOString().slice(0, 10));
+for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) months.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
+for (const [tf, bars] of [['W', { t: weeks }], ['M', { t: months }]]) {
+  assert.equal(c.reelGridDivision(tf).code, 'Y', `${tf} opens on a year grid`);
+  const refs = c.reelTimeGrid(bars, tf).filter(l => l.admin);
+  assert.deepEqual(refs.map(l => l.label).filter(l => l.includes('·')),
+    ['2009 · Obama I', '2013 · Obama II', '2017 · Trump I', '2021 · Biden', '2025 · Trump II']);
+  const gap = refs[1].fi - refs[0].fi;
+  refs.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - refs[i + 1].fi - gap) < 1e-9, `${tf} term spans must be equal`));
+  // The 2025 line lands on the first bar of 2025.
+  const at = bars.t.findIndex(t => t >= '2025-01-01');
+  assert.ok(Math.abs(refs.find(l => l.label === '2025 · Trump II').fi - at) < 1, `${tf} term line sits on its bar`);
+}
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, Weekly/Monthly terms, saved choices and shading');

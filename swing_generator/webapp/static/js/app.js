@@ -150,8 +150,15 @@
     // are left in place, unused; drawings saved on them stay in the store.
     { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
-    // 4H and Weekly were removed 2026-09-24. Drawings saved on those charts
-    // stay in the store untouched — expandChannelStore keeps every key it finds.
+    // Weekly (removed 2026-09-24) and Monthly (removed 2026-09-14) are BACK
+    // 2026-10-19 as CHARTS ONLY (user: "add back weekly and monthly chart"):
+    // no signals, markers or alerts. Their bundles are rebuilt on Mondays and
+    // on the 3rd-5th (chart_feed.HTF_SCHEDULE_TZ), and only ever hold closed
+    // weeks and months. No prefixed columns exist for them, so prefix '' reads
+    // the Daily row (price, filters) as the Charts tab does on any chart view.
+    // Drawings saved on the old Weekly chart were kept and show again.
+    { code: 'W',  prefix: '',    label: 'Weekly',  tv: 'W',  bar: 'weeks',   barShort: '25-week',  chartOnly: true },
+    { code: 'M',  prefix: '',    label: 'Monthly', tv: 'M',  bar: 'months',  barShort: '25-month', chartOnly: true },
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
@@ -1029,6 +1036,8 @@
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
     const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
+    if (timeframe === 'W') return `${n}w`;
+    if (timeframe === 'M') return `${n}mo`;
     if (!per) return `${n}d`;
     const mins = n * per;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
@@ -2202,7 +2211,9 @@
     const c = SPTrendContext.context(item, channelTrend);
     const main = `${prefix} ${SPTrendContext.glyph(c.main)} ${SPTrendContext.label(c.main)}`;
     const dir = tf === '1H' ? c.h1 : c.h4;
-    const detail = tf === 'D' ? 'Daily · confirmed close' :
+    // Weekly and Monthly have no setup read of their own; like Daily they
+    // show the main trend alone, never the 4H relation under their name.
+    const detail = tf !== '1H' && tf !== '4H' ? 'Daily · confirmed close' :
       (dir === 'NEUTRAL' ? `${tf} direction unclear` : SPTrendContext.relationText(c.main, dir, tf));
     const color = c.main === 'UPTREND' ? 'up' : c.main === 'DOWNTREND' ? 'down' : 'flat';
     return `<span class="sp-trend-context${compact ? ' compact' : ''}" data-main-trend="${c.main}" title="Daily main trend as of ${escText(c.asOf || 'unavailable')}"><b class="${color}">${main}</b><span>${detail}</span></span>`;
@@ -3968,9 +3979,10 @@
   function trendSentence(item) {
     const c = SPTrendContext.context(item, channelTrend);
     const dir = c.main, head = 'Main trend ' + SPTrendContext.label(dir).toLowerCase();
-    const now = timeframe === 'D' ? 'Daily close vs Daily MA500' :
+    const native = timeframe === '1H' || timeframe === '4H';   // as trendContextHtml
+    const now = !native ? 'Daily close vs Daily MA500' :
       SPTrendContext.relationText(dir, timeframe === '1H' ? c.h1 : c.h4, timeframe);
-    return {dir, head, now, against: timeframe === '1H' ? c.h1Relation === 'minor' : c.h4Relation === 'minor',
+    return {dir, head, now, against: native && (timeframe === '1H' ? c.h1Relation === 'minor' : c.h4Relation === 'minor'),
       glyph: SPTrendContext.glyph(dir), text: head + ' · ' + now};
   }
 
@@ -8634,7 +8646,8 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5 };
+  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
+                     'W': 7 * 864e5, 'M': 31 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -8856,9 +8869,19 @@
   ovApplyVars();
   // A bundle already in the cache, or null — the synchronous read the renderer
   // needs; reelPaint and chartFullOpen load it before painting.
+  // Weekly and Monthly are published on their own schedule and grouped as they
+  // were when last built, so they carry their own name -> chunk map. They never
+  // fall back to the shared one: R2 still holds W and M chunks from before they
+  // were removed, grouped differently, and an index without their map (the
+  // first hour after this ships) would draw those as current.
+  const OWN_CHUNK_TFS = new Set(['W', 'M']);
+  function reelChunkId(idx, name, tf) {
+    const map = idx && (OWN_CHUNK_TFS.has(tf) ? idx.chunks_by_tf && idx.chunks_by_tf[tf] : idx.chunks);
+    return map ? map[name] : undefined;
+  }
   function reelCachedBundle(name, tf) {
     const idx = reel.index;
-    const cid = idx && idx.chunks ? idx.chunks[name] : undefined;
+    const cid = reelChunkId(idx, name, tf);
     if (cid === undefined) return null;
     const data = reel.chunks.get(tf + ':' + cid);
     return (data && data[name]) || null;
@@ -9259,7 +9282,7 @@
   async function reelLoadChunk(name, tf) {
     tf = tf || timeframe;
     const idx = await reelLoadIndex();
-    const cid = idx.chunks ? idx.chunks[name] : undefined;
+    const cid = reelChunkId(idx, name, tf);
     if (cid === undefined) return null;
 
     const key = tf + ':' + cid;
@@ -9625,7 +9648,16 @@
     '4H': { unit: 0.25, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
+  // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market: whole
+  // four-year terms on the Daily's administration lines — Weekly the previous
+  // and current term (2021 to 2029), Monthly five terms (2009 to 2029, about
+  // all the monthly history there is). Price 'all', everything on screen.
+  const REEL_SLOW_VIEW = {
+    'W': { term: 4, terms: 2, fit: 'all' },
+    'M': { term: 4, terms: 5, fit: 'all' },
+  };
   function reelOpenSpec(name) {
+    if (REEL_SLOW_VIEW[timeframe]) return REEL_SLOW_VIEW[timeframe];
     const item = instrumentByName(name);
     const scope = reelGridScope(item);
     if (scope === 'stocks') return REEL_STOCK_VIEW[timeframe];
@@ -9663,8 +9695,8 @@
       // Terms start in 2025, 2029, ... — the Daily administration lines.
       const year = new Date(reelBarTimes(bundle)[last]).getUTCFullYear();
       const first = 2025 + spec.term * Math.floor((year - 2025) / spec.term);
-      start = fr.anchor + (first - year) * fr.yearBars;
-      endAt = start + spec.term * fr.yearBars;
+      start = fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
+      endAt = fr.anchor + (first + spec.term - year) * fr.yearBars;
     } else {
       const u = fr.yearBars * spec.unit;
       const k = Math.floor((last - fr.anchor) / u + 1e-9);

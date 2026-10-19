@@ -141,6 +141,7 @@ jobs:
           node tests/trend_context_test.cjs
           node tests/ma_clusters_test.cjs
           python3 tests/four_hour_test.py
+          python3 tests/htf_schedule_test.py
           node --check webapp/static/js/app.js
           node tests/time_grid_test.cjs
           node tests/stock_view_test.cjs

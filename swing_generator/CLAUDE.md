@@ -3,6 +3,30 @@
 > Auto-generated from codebase — reflects actual current file state.
 > Update this file whenever the architecture, profile, versions, or instruments count changes.
 
+2026-10-19 Weekly and Monthly charts back: app.js v510 (freshness v5,
+trend-context v2, grid-geometry v3). User: "add back weekly and monthly chart
+but weekly run every Monday and monthly between 3-5" (the 3rd to the 5th of
+the month). CHARTS ONLY — `chartOnly` rows W/M in app.js `TIMEFRAMES`, Charts
+switch buttons #tfBtnW/#tfBtnM; no signals, markers, alerts or `w_`/`m_`
+columns, and `config.TIMEFRAMES` is untouched. `chart_feed.build_weekly` /
+`build_monthly` (Monthly MA50 only, as before; both now `scale_daily` like
+Daily) stamp each bar on its period START (Monday / the 1st), because the app
+places bars, year lines and the overlay by start time — the in-progress week
+and month are still dropped first. SCHEDULE (`chart_feed.HTF_SCHEDULE_TZ`,
+SAST): Weekly is rebuilt once on a Monday, Monthly once on each of the 3rd,
+4th and 5th; off-schedule only when `cache_ma500/chart_htf_state.json` (carried
+by the publish workflow's actions cache) is missing or lacks an instrument.
+Other runs write no W/M chunks; index.json points at R2's kept ones through
+`chunks_by_tf` {W, M}, and the app reads W/M ONLY through that map (never the
+shared `chunks`) so the stale pre-removal W/M chunks on R2 can never draw.
+Opening view, every market (`REEL_SLOW_VIEW`): Weekly the previous + current
+term (2021 to 2029), Monthly five terms (2009 to 2029; the live feed starts
+~2013, see HISTORY_YEARS), price 'all'. The grid draws the Daily's term lines
+on both (Obama I/II now named). Header context on W/M is the Daily main trend
+only — trendContextHtml/trendSentence and SPTrendContext.native no longer
+read the 4H/1H relation for any other timeframe. Tests: tests/htf_schedule_test.py,
+plus W/M cases in time_grid, stock_view, freshness, trend_context and app_smoke.
+
 2026-10-18 filter dropdowns: app.js v509 / style.css v369. Watchlist and
 Charts filters (user: "app friendly and beautiful, not clutter", then "neat
 drop down designs that fit" after a bottom-sheet try felt clumsy) are ONE

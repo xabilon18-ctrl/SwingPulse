@@ -18,7 +18,7 @@ const ctx = vm.createContext({
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext(table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -125,6 +125,29 @@ assert.ok(near(d.t[fd], '2025-01-01'), d.t[fd]);
 const frd = geometry.yearFrame(d, bt);
 assert.ok(Math.abs(fd + vd.bars - 1 - (frd.anchor + 3 * frd.yearBars)) <= 1, 'ends on the 2029 line');
 assert.equal(vd.fit, 'zero');
+// Weekly and Monthly (2026-10-19): whole terms on every market, from the Daily
+// cache's week starts (Mondays) and month starts. Weekly opens 2021 to 2029.
+ctx.timeframe = 'W';
+const wk = [];
+for (let ms = Date.UTC(2006, 0, 2); ms <= Date.UTC(2026, 9, 12); ms += 7 * 864e5) wk.push(new Date(ms).toISOString().slice(0, 10));
+for (const market of ['STOCK', 'BTC', 'EUR']) {
+  const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, market);
+  assert.equal(wk[wk.length - (vw.bars - vw.future)], '2020-12-28', market);   // the week holding 1 Jan 2021
+  assert.equal(vw.fit, 'all');
+}
+const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, 'STOCK');
+const frw = geometry.yearFrame({ t: wk }, bt);
+assert.ok(Math.abs(wk.length - (vw.bars - vw.future) + vw.bars - 1 - (frw.anchor + 3 * frw.yearBars)) <= 1, 'Weekly ends on the 2029 line');
+// Monthly opens on five terms, 2009 to 2029.
+ctx.timeframe = 'M';
+const mo = [];
+for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) mo.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
+const vm1 = ctx.reelStockView({ t: mo, c: mo.map(() => 1) }, 'EUR');
+// Within a bar of 2009: the grid's years are equal parts, so over 17 years the
+// line can fall just past the December candle.
+assert.ok(['2008-12-01', '2009-01-01'].includes(mo[mo.length - (vm1.bars - vm1.future)]));
+const frm = geometry.yearFrame({ t: mo }, bt);
+assert.ok(Math.abs(mo.length - (vm1.bars - vm1.future) + vm1.bars - 1 - (frm.anchor + 3 * frm.yearBars)) <= 1, 'Monthly ends on the 2029 line');
 ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
@@ -172,4 +195,4 @@ assert.ok(Math.abs(r1.lo - 95) < 1e-9 && Math.abs(r1.hi - 255) < 1e-9, JSON.stri
 const lad = { kind: 'ladder', p1: 10, p4: 40 };
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 10, hi: 300 });
 assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
-console.log('stock and crypto views: ok');
+console.log('stock, crypto, Weekly and Monthly views: ok');

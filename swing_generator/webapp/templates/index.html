@@ -53,12 +53,14 @@
         <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       </div>
     </header>
-    <!-- ===== GLOBAL TIMEFRAME TOGGLE (1H / 4H / Daily) ===== -->
+    <!-- ===== GLOBAL TIMEFRAME TOGGLE (1H / 4H / Daily / Weekly / Monthly) ===== -->
     <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
       <div class="tf-switch">
         <button class="tf-switch-btn" id="tfBtn1H" data-tf="1H" role="tab" aria-selected="false">1H</button>
         <button class="tf-switch-btn" id="tfBtn4H" data-tf="4H" role="tab" aria-selected="false">4H</button>
         <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
+        <button class="tf-switch-btn" id="tfBtnW"  data-tf="W"  role="tab" aria-selected="false" hidden>Weekly</button>
+        <button class="tf-switch-btn" id="tfBtnM"  data-tf="M"  role="tab" aria-selected="false" hidden>Monthly</button>
       </div>
     </div>
   </div>
@@ -942,15 +944,15 @@
 
 
   <script src="/static/js/modules/data-client.js?v=1"></script>
-  <script src="/static/js/modules/freshness.js?v=4"></script>
-  <script src="/static/js/modules/trend-context.js?v=1"></script>
+  <script src="/static/js/modules/freshness.js?v=5"></script>
+  <script src="/static/js/modules/trend-context.js?v=2"></script>
   <script src="/static/js/modules/live-prices.js?v=1"></script>
   <script src="/static/js/modules/chart-preferences.js?v=2"></script>
   <script src="/static/js/modules/drawing-icons.js?v=1"></script>
   <script src="/static/js/modules/drawing-toolbar.js?v=1"></script>
-  <script src="/static/js/modules/grid-geometry.js?v=2"></script>
+  <script src="/static/js/modules/grid-geometry.js?v=3"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=509"></script>
+  <script src="/static/js/app.js?v=510"></script>
 </body>
 </html>
 

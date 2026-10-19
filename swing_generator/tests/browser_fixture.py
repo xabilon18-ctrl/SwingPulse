@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import tempfile
 from unittest.mock import patch
 
 import pandas as pd
@@ -31,11 +32,15 @@ row.update(main._live_intraday(main._compute_4h_state(hourly_frame(12000), 'Equi
 row.update(main._live_intraday(main._intraday_state(m30.tz_localize(None), 'm30_', '30m', 48, 'Equity', h1.index[-1].date())))
 fires = out / 'h1-fires.json'
 fires.write_text(json.dumps({'TEST': h_state[2]}))
+# Weekly and Monthly are built for real from the Daily frame, through a cache
+# dir of their own (their schedule state lands there, not in browser-data).
+cache = tempfile.mkdtemp()
+d.to_parquet(Path(cache) / chart_feed._cache_name('TEST'))
 with patch.object(chart_feed, 'load_1h', return_value=h1), \
      patch.object(chart_feed, 'build_4h_live', return_value=h4_bundle), \
      patch.object(chart_feed, 'build_30m', return_value=chart_feed._bundle(m30, [50, 250, 500], '%Y-%m-%d %H:%M', bars=1000)), \
      patch.object(chart_feed, 'build_daily', return_value={**chart_feed._bundle(d, [50, 250, 500], '%Y-%m-%d', bars=1000, context_tf='D'), 'references': chart_feed.reference_history(d)}):
-    chart_feed.build_chart_feed(str(out), str(out), {'TEST': 'TEST'}, h1_fires_path=str(fires))
+    chart_feed.build_chart_feed(str(out), cache, {'TEST': 'TEST'}, h1_fires_path=str(fires))
 stamp = pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 summary = publish.build_summary(pd.DataFrame([row]), str(d.index[-1].date()))
 summary['fetched_at'] = stamp

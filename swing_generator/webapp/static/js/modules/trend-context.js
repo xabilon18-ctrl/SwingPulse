@@ -19,6 +19,9 @@
   }
   function native(row, tf, channels) {
     if (tf === 'D') return daily(row, channels);
+    // Only 1H and 4H have a native read. The Weekly and Monthly charts have none,
+    // and must not fall through to the 1H columns below.
+    if (tf !== '1H' && tf !== '4H') return UNKNOWN;
     const measured = snapshot(row, tf, channels);
     if (measured) {
       const direction = tf === '4H' ? measured.swingDirection || measured.direction : measured.direction;

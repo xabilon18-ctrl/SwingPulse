@@ -137,6 +137,7 @@ BARS_BY_TF = {
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
     'W':  1040,   # ~20 years  (the deepest the weekly cache goes)
+    'M':  300,    # every month there is — the cache tops out at ~244 monthly bars
     # 4H CARRIES more than it shows (user, 2026-09-19: "i cannot go back further
     # on the 4h"). The card still opens on 520 bars (REEL_DEFAULT_WINDOW_BARS);
     # this is how far back a drag can reach. 2190 = a year of a 24h instrument
@@ -158,18 +159,27 @@ BARS_BY_TF = {
     '12H': 1300,
 }
 
-# MONTHLY was REMOVED 2026-09-14 at the user's request, along with
-# MONTHLY_MA_PERIODS = [50] and build_monthly(). It carried one moving average
-# because it could: 98% of instruments hold the 50 monthly bars MA50 needs and
+# MONTHLY was removed 2026-09-14 and is BACK 2026-10-19 as a chart only (user:
+# "add back weekly and monthly chart"). It carries one moving average because
+# that is all it can: 98% of instruments hold the 50 monthly bars MA50 needs and
 # 0% hold the 250 or 500 the other two would (~21 and ~42 years against a cache
-# whose median is 244 months), so the ribbon this app is built on was never
-# actually drawable there. main._resample_monthly STAYS — backtest.py and the
-# research scripts use it, and the monthly MA50 finding (mildly contrarian
-# within-instrument) is a result, not dead code.
-#
-# NB the published chart/M/*.json chunks are NOT deleted by this: the publisher
-# only ever writes, it has no sweep step (see the stale-chunk note in
-# DOCUMENTATION). They will sit on R2 unreferenced until removed by hand.
+# whose median is 244 months). See build_monthly.
+
+# ── Weekly and Monthly are rebuilt on a SCHEDULE, not every run ─────────────
+# (user, 2026-10-19: "weekly run every Monday and monthly between 3-5" — the
+# 3rd to the 5th of the month.) Both drop the period in progress
+# (main._resample_weekly / _resample_monthly), so their bars only move when a
+# week or a month has closed; rebuilding them every hour would upload the same
+# chunks 24 times a day. Weekly is rebuilt once on a Monday and Monthly once on
+# each of the 3rd, 4th and 5th — the spare days cover a failed run — judged in
+# SAST, the clock the hourly runs are scheduled on. In between R2 keeps the
+# chunks, and index.json points at them through `chunks_by_tf`: the shared
+# `chunks` map is rebuilt every run, and an instrument added or retired midweek
+# would shift it away from the grouping those chunks were written with.
+HTF_SCHEDULE_TZ = 'Africa/Johannesburg'
+# Lives in the parquet cache dir because that is what the publish workflow
+# carries from one run to the next (actions/cache). Lost cache = rebuild now.
+HTF_STATE_FILE = 'chart_htf_state.json'
 
 # Ribbon points are emitted every Nth bar (the last bar is always included).
 # The MAs are smooth and drawn dotted, so this is invisible on screen and cuts
@@ -517,7 +527,8 @@ def build_weekly(cache_dir: str, ticker: str) -> dict | None:
 
     520 weekly bars is ~10 years, which is what the MA500 anchor needs to
     be drawn at all — so a weekly chart deliberately shows far more calendar
-    time than a daily one. Volume is included, as on daily.
+    time than a daily one. Volume is included, as on daily. Price is scaled the
+    way build_daily scales it, so a week closes where the Daily chart says.
     """
     path = os.path.join(cache_dir, _cache_name(ticker))
     if not os.path.exists(path):
@@ -525,11 +536,81 @@ def build_weekly(cache_dir: str, ticker: str) -> dict | None:
     df = pd.read_parquet(path)
     if df.empty:
         return None
-    weekly = _resample_weekly(df)
+    weekly = _resample_weekly(scale_daily(ticker, df))
     periods = [p for p in MA_PERIODS if p <= len(weekly)]
     if len(periods) < MIN_RIBBON_LINES:
         return None
+    # Stamped on the week's MONDAY, not the Friday _resample_weekly labels it by
+    # (that label is what drops the week in progress). The app places every bar
+    # at its start, as Daily is — an end stamp would put each week, the year
+    # lines and the overlay one bar apart. TradingView stamps weeks this way too.
+    weekly.index = weekly.index - pd.Timedelta(days=4)
     return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
+
+
+def build_monthly(cache_dir: str, ticker: str) -> dict | None:
+    """Monthly chart from the same daily cache every other timeframe reads.
+
+    The one timeframe that ignores MIN_RIBBON_LINES: a monthly MA250 is ~21
+    years, so nearly every instrument carries the MA50 alone, and the two-line
+    floor would reject every monthly chart. An instrument without 50 monthly
+    bars gets no monthly chart at all.
+    """
+    path = os.path.join(cache_dir, _cache_name(ticker))
+    if not os.path.exists(path):
+        return None
+    df = pd.read_parquet(path)
+    if df.empty:
+        return None
+    monthly = _resample_monthly(scale_daily(ticker, df))
+    periods = [p for p in MA_PERIODS if p <= len(monthly)]
+    if not periods:
+        return None
+    # Stamped on the 1st, for the reason in build_weekly.
+    monthly.index = monthly.index.to_period('M').to_timestamp()
+    return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
+
+
+def htf_due(tf: str, now: pd.Timestamp) -> bool:
+    """Is `now` (SAST) a day `tf` is scheduled to be rebuilt on?"""
+    if tf == 'W':
+        return now.weekday() == 0
+    if tf == 'M':
+        return 3 <= now.day <= 5
+    return True
+
+
+def htf_rebuild_reason(tf: str, state: dict, names: list[str],
+                       now: pd.Timestamp) -> str | None:
+    """Why `tf` has to be built this run, or None to keep R2's chunks.
+
+    Once per scheduled day, not on every run that day: the bars cannot move
+    between two runs on the same Monday. Built off-schedule only when there is
+    nothing to keep — no previous build (first run, lost cache) or an
+    instrument the previous build never saw, which would otherwise go a week or
+    a month without that chart.
+    """
+    prev = state.get(tf)
+    if not isinstance(prev, dict) or not isinstance(prev.get('chunks'), dict):
+        return 'no previous build'
+    if any(n not in prev['chunks'] for n in names):
+        return 'new instruments'
+    if htf_due(tf, now) and prev.get('built') != now.strftime('%Y-%m-%d'):
+        return 'scheduled'
+    return None
+
+
+def _now_sast() -> pd.Timestamp:
+    return pd.Timestamp.now(tz=HTF_SCHEDULE_TZ)
+
+
+def _load_htf_state(cache_dir: str) -> dict:
+    try:
+        with open(os.path.join(cache_dir, HTF_STATE_FILE)) as fh:
+            state = json.load(fh)
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def build_3d(cache_dir: str, ticker: str) -> dict | None:
@@ -987,7 +1068,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, '2H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'W': n, 'M': n, 'chunks': n_files}.
+    Weekly and Monthly came back 2026-10-19 as charts only, rebuilt on their
+    own schedule (HTF_SCHEDULE_TZ); on other runs W/M count the kept build.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
     1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
     1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
@@ -1004,17 +1087,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'W': 0, 'M': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
-    # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
-    # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
-    # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
-    # build_10m_live/build_1h/build_2h/build_12h kept for research.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live), ('D', build_daily)):
-        bundles: dict[str, dict] = {}
-
+    def _build_all(builder) -> dict[str, dict]:
         def _one(name):
             try:
                 return name, builder(cache_dir, ticker_map[name])
@@ -1023,13 +1099,43 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                 # instrument simply shows "no chart data" on its card.
                 return name, None
 
+        bundles: dict[str, dict] = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
             for name, payload in ex.map(_one, names):
                 if payload:
                     bundles[name] = payload
+        return bundles
 
-        stats[tf] = len(bundles)
-        built[tf] = bundles
+    # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
+    # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
+    # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
+    # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
+    # build_10m_live/build_1h/build_2h/build_12h kept for research.
+    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live), ('D', build_daily)):
+        built[tf] = _build_all(builder)
+        stats[tf] = len(built[tf])
+
+    # Weekly and Monthly (back 2026-10-19, charts only) — on their schedule;
+    # see HTF_SCHEDULE_TZ. Kept apart from `built`: nothing below (markers,
+    # alerts, trend reads) runs on them, and on most runs they are not built.
+    htf_state = _load_htf_state(cache_dir)
+    htf_built: dict[str, dict[str, dict]] = {}
+    htf_chunks: dict[str, dict[str, int]] = {}
+    now_sast = _now_sast()
+    for tf, builder in (('W', build_weekly), ('M', build_monthly)):
+        why = htf_rebuild_reason(tf, htf_state, names, now_sast)
+        if why is None:
+            prev = htf_state[tf]
+            htf_chunks[tf] = prev['chunks']
+            stats[tf] = prev.get('n', 0)
+            print(f'  {tf} chart: keeping the {prev.get("built")} build on R2')
+            continue
+        htf_built[tf] = _build_all(builder)
+        htf_chunks[tf] = dict(chunk_of)
+        stats[tf] = len(htf_built[tf])
+        htf_state[tf] = {'built': now_sast.strftime('%Y-%m-%d'), 'n': stats[tf],
+                         'chunks': htf_chunks[tf]}
+        print(f'  {tf} chart: built ({why})')
 
     # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
     # two bundles. A failure here costs the markers, never the chart feed.
@@ -1133,11 +1239,33 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                       {'tf': tf, 'bars': BARS_BY_TF.get(tf, BARS), 'data': group})
             stats['chunks'] += 1
 
+    for tf, bundles in htf_built.items():
+        tf_dir = os.path.join(chart_dir, tf)
+        os.makedirs(tf_dir, exist_ok=True)
+        # EVERY chunk id is written, empty ones included: R2 still holds W and M
+        # chunks from before they were removed, grouped differently, and a chunk
+        # left unwritten would serve one of those instead of "no chart data".
+        grouped = {cid: {} for cid in set(chunk_of.values())}
+        for name, payload in bundles.items():
+            grouped[chunk_of[name]][name] = payload
+        for cid, group in grouped.items():
+            _write_gz(os.path.join(tf_dir, f'{cid}.json'),
+                      {'tf': tf, 'bars': BARS_BY_TF[tf], 'data': group})
+            stats['chunks'] += 1
+
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
-               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
+               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'chunks_by_tf': htf_chunks,
+               'ev15': events,
                'events_by_tf': {'30m': events, '1H': hourly_events, '4H': four_hour_events},
                'near': near_ma_map(built.get('D', {}))})
+
+    # Saved only once the chunks it describes are on disk. A run that then fails
+    # to upload them fails the publish, and a failed job does not save the
+    # actions cache — so the next run still sees the old state and rebuilds.
+    if htf_built:
+        with open(os.path.join(cache_dir, HTF_STATE_FILE), 'w') as fh:
+            json.dump(htf_state, fh, separators=(',', ':'))
 
     return stats
 
