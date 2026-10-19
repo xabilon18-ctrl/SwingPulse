@@ -65,7 +65,8 @@ const assert = require('node:assert/strict');
   }
   if (!live) {
     // Weekly and Monthly (back 2026-10-19): chart only, each read through its own
-    // chunk map, on the Daily's term lines, with no 4H read under their name.
+    // chunk map, with no 4H read under their name. Monthly carries the Daily's
+    // term lines; Weekly only light year lines.
     for (const [tf, word] of [['W', 'weekly'], ['M', 'monthly']]) {
       const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
       const chunk = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/0.json`));
@@ -74,8 +75,13 @@ const assert = require('node:assert/strict');
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
       await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
       const card = await page.locator('#chartReel .reel-card').first().innerText();
-      // Labels are thinned to fit, so which terms are named depends on width.
-      assert.ok(/20\d\d · (Obama|Trump|Biden)/.test(card), `${tf} draws the term lines`);
+      // Labels are thinned to fit, so which ones are named depends on width.
+      const terms = /20\d\d · (Obama|Trump|Biden)/.test(card);
+      assert.equal(terms, tf === 'M', `${tf} ${tf === 'M' ? 'draws' : 'has no'} term lines`);
+      if (tf === 'W') {
+        assert.equal(await page.locator('#chartReel .reel-card').first().locator('.reel-tgrid-admin, .reel-tgrid-year').count(), 0);
+        assert.ok(await page.locator('#chartReel .reel-card').first().locator('line.reel-tgrid').count() > 3, 'W draws light year lines');
+      }
       assert.ok(!/\b[WM] (aligned|minor)/.test(card), `${tf} shows no borrowed 4H relation`);
       assert.ok(/Bar \d+ \w+/.test(card), `${word} bar is dated`);
       if (tf === 'W') {

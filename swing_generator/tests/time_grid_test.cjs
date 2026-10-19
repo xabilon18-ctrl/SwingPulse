@@ -106,19 +106,31 @@ assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
 assert.equal(context().reelGridDivision('4H','stocks').code,'M');
 assert.equal(context().reelGridDivision('4H','indices').code,'H');
 // Weekly (bars stamped on Mondays) and Monthly (on the 1st), back 2026-10-19:
-// a year grid by default and the Daily's equal term lines, Obama I onwards.
+// a year grid by default. Monthly also carries the Daily's equal term lines,
+// Obama I onwards; Weekly has its light year lines only (user: "divide the
+// weekly by year with light division and remove the yearly ones").
 const weeks = [], months = [];
 for (let ms = Date.UTC(2006, 0, 2); ms < Date.UTC(2026, 9, 12); ms += 7 * 864e5) weeks.push(new Date(ms).toISOString().slice(0, 10));
 for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) months.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
-for (const [tf, bars] of [['W', { t: weeks }], ['M', { t: months }]]) {
-  assert.equal(c.reelGridDivision(tf).code, 'Y', `${tf} opens on a year grid`);
-  const refs = c.reelTimeGrid(bars, tf).filter(l => l.admin);
+{
+  assert.equal(c.reelGridDivision('M').code, 'Y', 'M opens on a year grid');
+  const refs = c.reelTimeGrid({ t: months }, 'M').filter(l => l.admin);
   assert.deepEqual(refs.map(l => l.label).filter(l => l.includes('·')),
     ['2009 · Obama I', '2013 · Obama II', '2017 · Trump I', '2021 · Biden', '2025 · Trump II']);
   const gap = refs[1].fi - refs[0].fi;
-  refs.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - refs[i + 1].fi - gap) < 1e-9, `${tf} term spans must be equal`));
+  refs.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - refs[i + 1].fi - gap) < 1e-9, 'M term spans must be equal'));
   // The 2025 line lands on the first bar of 2025.
-  const at = bars.t.findIndex(t => t >= '2025-01-01');
-  assert.ok(Math.abs(refs.find(l => l.label === '2025 · Trump II').fi - at) < 1, `${tf} term line sits on its bar`);
+  const at = months.findIndex(t => t >= '2025-01-01');
+  assert.ok(Math.abs(refs.find(l => l.label === '2025 · Trump II').fi - at) < 1, 'M term line sits on its bar');
 }
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, Weekly/Monthly terms, saved choices and shading');
+{
+  assert.equal(c.reelGridDivision('W').code, 'Y', 'W opens on a year grid');
+  const lines = c.reelTimeGrid({ t: weeks }, 'W');
+  assert.ok(lines.every(l => !l.admin && !l.annual && !l.quarter && !l.fixedOnly), 'W carries no bold reference lines');
+  // One light line per year, labelled with the year, on the first week of it.
+  const y2025 = lines.find(l => l.label === '2025');
+  assert.ok(y2025 && Math.abs(y2025.fi - weeks.findIndex(t => t >= '2025-01-01')) < 1);
+  const gap = lines[1].fi - lines[0].fi;
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, 'W year lines are equal'));
+}
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, light Weekly years, Monthly terms, saved choices and shading');
