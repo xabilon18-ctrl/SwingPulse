@@ -10,6 +10,18 @@ deploy-app run to green including "Verify the live app". If a change needs a
 data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
 
+2026-10-19 DRAWINGS: CHOOSE THE TIMEFRAMES (user: "choose where my drawing
+tools show on which time frames"). app.js v512 / drawing-toolbar.js v2 /
+style.css v370. The selected drawing's More panel has a "Show on" row, one
+switch per chart timeframe (1H 4H D W M). Default: its own chart only — an
+ordinary unlinked drawing, as before. Any other set makes it a LINKED drawing
+(the 2026-09-26 `link` copies, kept in step by channelLinkSync) with `tfs`
+naming where it is drawn; switching back to its own chart alone unlinks it and
+removes the copies. At least one timeframe stays on. drawShownOn(d, tf) is the
+one rule: unlinked → its chart; linked with `tfs` → those; an old link without
+`tfs` → everywhere but Daily (unchanged). Hidden copies are kept, not drawn,
+left out of the price fit and of line alerts. tests/drawing_toolbar_checks.cjs.
+
 2026-10-19 CRYPTO PRICES FROM THE EXCHANGES (user: prices should match
 TradingView; "indices, crypto for now"). Every crypto download — Daily, 1H,
 5m and the whole-history Weekly/Monthly pull — comes from the exchange the

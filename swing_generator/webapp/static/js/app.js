@@ -483,7 +483,7 @@
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
-    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-alpha-set',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash',
   ]);
 
@@ -2102,7 +2102,7 @@
         // Auto-placed channels (seed, tools/place_channels.py) sit on ~every chart:
         // left out, or Alerts loads every chunk and lists thousands of rule lines.
         // A dragged one loses `seed` and alerts like any drawing of the user's.
-        const list = ((per && per[tf]) || []).filter(d => d && !d.seed);
+        const list = ((per && per[tf]) || []).filter(d => d && !d.seed && drawShownOn(d, tf));
         if (!list.some(d => d && AL_LINE_KINDS.has(d.kind))) continue;
         let b = null;
         if (list.some(d => d && (d.kind === 'trend' || d.kind === 'channel'))) {
@@ -7451,6 +7451,7 @@
   const drawingToolbar = window.SwingPulseModules.drawingToolbar.create({
     activeChannel, channelsFor, chKey, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack: (d, dir) => ladderStack(d, dir),
     getTimeframe: () => timeframe, getEditing: () => reel.editing,
+    chartTfs: () => tabTfs('charts'), drawShownTfs,
   });
   const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
   function reelDrawStripHtml(name) { return drawingToolbar.stripHtml(name); }
@@ -9789,7 +9790,7 @@
     let lo = Infinity, hi = -Infinity;
     const take = v => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
     for (const d of list || []) {
-      if (!d || d.hidden) continue;
+      if (!d || d.hidden || !drawShownOn(d, timeframe)) continue;
       if ((d.kind === 'channel' || !d.kind || d.kind === 'trend') && d.t1 != null) {
         const i1 = reelBarIndexForDate(src, d.t1), i2 = reelBarIndexForDate(src, d.t2);
         if (i1 == null || i2 == null || i1 === i2) { take(d.p1); take(d.p2); continue; }
@@ -10475,6 +10476,33 @@
   function drawLinkId() {
     return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
+  // Which timeframes a drawing shows on (user, 2026-10-19: "choose where my
+  // drawing tools show on which time frames"). An unlinked drawing lives only
+  // on its own chart. A linked one is copied onto every chart timeframe and
+  // shown on those in `tfs`; a link made before `tfs` existed keeps its old
+  // rule — everywhere but Daily (the 2026-09-26 call, see reelChannelsSvg).
+  function drawShownOn(d, tf) {
+    if (!d || !d.link) return true;
+    return Array.isArray(d.tfs) ? d.tfs.includes(tf) : tf !== 'D';
+  }
+  function drawShownTfs(d, own) {
+    const tfs = tabTfs('charts');
+    return d && d.link ? tfs.filter(tf => drawShownOn(d, tf)) : [own];
+  }
+  // Turn one timeframe on or off for a drawing. Only its own chart → an
+  // ordinary unlinked drawing again (channelLinkSync removes the copies);
+  // anything else → linked, shown where chosen. At least one stays on.
+  function drawToggleTf(d, tf, own) {
+    const all = tabTfs('charts');
+    if (!d || !all.includes(tf)) return false;
+    const on = new Set(drawShownTfs(d, own));
+    if (on.has(tf)) on.delete(tf); else on.add(tf);
+    if (!on.size) return false;
+    if (on.size === 1 && on.has(own)) { delete d.link; delete d.tfs; return true; }
+    if (!d.link) d.link = drawLinkId();
+    d.tfs = all.filter(t => on.has(t));
+    return true;
+  }
   function channelLinkSync() {
     const tfs = tabTfs('charts');
     // The charts THIS save changed, found against the last snapshot — fixed
@@ -10700,10 +10728,10 @@
     // handles. The rest draw as plain lines that a tap selects, so dragging
     // near one drawing can never move another that happens to sit close by.
     return list.map((d, i) => {
-      // Daily shows Daily drawings only: a copy linked in from 15m (the
-      // 2026-09-26 "All TFs" drawings) is kept but not drawn here. Skipped in
-      // place so every other drawing keeps its index for taps and edits.
-      if (d && d.link && timeframe === 'D') return '';
+      // A linked copy shows only on the timeframes chosen for it (drawShownOn;
+      // old links stay off Daily). It is kept but not drawn elsewhere, skipped
+      // in place so every other drawing keeps its index for taps and edits.
+      if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
       return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
@@ -14345,6 +14373,15 @@
         const d = activeChannel(name);
         if (d && d.kind === 'ladder') {
           if (d.reverse) delete d.reverse; else d.reverse = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      if (btn.dataset.act === 'draw-tfs') {
+        const d = activeChannel(name);
+        if (d && drawToggleTf(d, btn.dataset.tf, timeframe)) {
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

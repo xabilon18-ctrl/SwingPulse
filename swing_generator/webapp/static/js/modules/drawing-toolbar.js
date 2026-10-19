@@ -2,7 +2,7 @@
 (function(root) {
   'use strict';
   function create(deps) {
-    const { activeChannel, channelsFor, chKey, getTimeframe, getEditing, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack } = deps;
+    const { activeChannel, channelsFor, chKey, getTimeframe, getEditing, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack, chartTfs, drawShownTfs } = deps;
     const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = root.SwingPulseModules.drawingIcons;
   // Toolbar visibility is independent of drawing mode and selection.
   const drawToolsCollapsed = new Set(), drawMoreOpen = new Set();
@@ -114,6 +114,14 @@
       ? `<button class="reel-tool reel-tool-pct${d.extL ? ' on' : ''}" data-act="draw-ext" data-dir="L" data-name="${name}" aria-pressed="${!!d.extL}" aria-label="Extend the line left" title="Extend left">⟵</button>`
         + `<button class="reel-tool reel-tool-pct${d.extR ? ' on' : ''}" data-act="draw-ext" data-dir="R" data-name="${name}" aria-pressed="${!!d.extR}" aria-label="Extend the line right" title="Extend right">⟶</button>`
       : '';
+    // Show on: the timeframes this drawing appears on (user, 2026-10-19).
+    // Its own chart only is the default; at least one stays on.
+    const own = getTimeframe(), shown = new Set(drawShownTfs(d, own));
+    const showOn = `<div class="reel-draw-tfs" role="group" aria-label="Show on timeframes"><span>Show on</span>`
+      + chartTfs().map(tf => {
+        const on = shown.has(tf), last = on && shown.size === 1;
+        return `<button class="reel-tool reel-tool-pct${on ? ' on' : ''}" data-act="draw-tfs" data-tf="${tf}" data-name="${name}"${tf === own ? ' data-own="1"' : ''} aria-pressed="${on}" aria-label="${on ? 'Hide on' : 'Show on'} ${tf}"${last ? ' disabled' : ''}>${tf}</button>`;
+      }).join('') + `</div>`;
     const less = d.kind !== 'ladder' ? '' : `<span class="reel-stack" role="group" aria-label="Remove ladder stacks">`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
@@ -122,7 +130,7 @@
     </div>${more ? `<div class="reel-draw-more"><div class="reel-draw-actions">${less}
       <button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing">${ICON_COPY}<span>Duplicate</span></button>
       <button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing">${ICON_TRASH}<span>Delete</span></button>
-    </div>${intensity}</div>` : ''}`;
+    </div>${showOn}${intensity}</div>` : ''}`;
   }
 
 
