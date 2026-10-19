@@ -17,7 +17,10 @@ import exchange_feed                                   # noqa: E402
 from instruments import load_instruments               # noqa: E402
 
 # A short window per timeframe: enough to prove the pair and its bars exist.
-WINDOWS = {'1d': timedelta(days=10), '1h': timedelta(days=2), '5m': timedelta(hours=6)}
+# Asked with the pipeline's own defaults (a period, no end) and, at 5m, longer
+# than one Coinbase window — an explicit end=now once hid a 400 that every real
+# 5m Coinbase fetch hit (2026-10-19).
+WINDOWS = {'1d': timedelta(days=10), '1h': timedelta(days=2), '5m': timedelta(days=2)}
 
 
 def check(ticker):
@@ -26,7 +29,7 @@ def check(ticker):
     problems = []
     for interval, span in WINDOWS.items():
         try:
-            df = exchange_feed.download(symbol, interval, start=end - span, end=end)
+            df = exchange_feed.download(symbol, interval, period=f'{span.days}d')
             age = end - df.index[-1].to_pydatetime().replace(tzinfo=timezone.utc)
             if age > span:
                 problems.append(f'{interval} last bar {age} old')
