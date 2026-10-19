@@ -1,0 +1,22 @@
+name: Probe price feeds (temporary)
+on:
+  push:
+    branches: [claude/feed-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Can a GitHub runner reach the exchanges' public market data?
+        run: |
+          probe() { printf '%-70s ' "$1"; curl -s -o /tmp/b -w '%{http_code} ' --max-time 20 "$1"; head -c 160 /tmp/b; echo; }
+          probe 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=2'
+          probe 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=2'
+          probe 'https://data-api.binance.vision/api/v3/klines?symbol=XRPUSDT&interval=5m&limit=2'
+          probe 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=0&limit=1'
+          probe 'https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=2'
+          probe 'https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400'
+          probe 'https://api-fxpractice.oanda.com/v3/instruments/SPX500_USD/candles?count=2'
+          curl -s --max-time 10 https://ipinfo.io/json | head -c 300; echo
