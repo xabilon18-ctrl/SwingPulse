@@ -44,7 +44,7 @@ jobs:
           python3 tests/workflow_setup_test.py
           python3 tests/shape_audit_test.py
           python3 tests/retired_instruments_test.py
-          python3 tests/htf_schedule_test.py
+          python3 tests/htf_feed_test.py
           node tests/trend_context_test.cjs
           node tests/ma_clusters_test.cjs
           node tests/chart_framing_test.cjs

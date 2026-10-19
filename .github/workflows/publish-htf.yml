@@ -1,0 +1,82 @@
+name: SwingPulse Weekly + Monthly Charts
+
+# Weekly and Monthly charts, published on their OWN schedule and never with the
+# hourly publish (user, 2026-10-19: "weekly run every Monday and monthly
+# between 3-5 ... these need not run with the daily and hourly runs"). Their
+# bars only change when a week or a month closes, and they are built from each
+# instrument's whole Yahoo history — a download the hourly runs should not
+# carry. See swing_generator/tools/publish_htf.py.
+#
+# GitHub's own cron is fine here, unlike for the hourly publish (which a
+# Cloudflare cron Worker dispatches because GitHub queues runs 2.5-5h late):
+# 00:35 UTC is 02:35 SAST, so even a 5-hour delay still lands on the same day.
+on:
+  schedule:
+    - cron: '35 0 * * 1'      # Weekly — every Monday
+    - cron: '35 0 3-5 * *'    # Monthly — the 3rd, 4th and 5th
+  workflow_dispatch:
+    inputs:
+      tf:
+        description: 'Timeframes to publish now'
+        type: choice
+        options: ['W M', 'W', 'M']
+        default: 'W M'
+
+# Its own lock, NOT swingpulse-publish: in that group a waiting run is dropped
+# when a newer one queues behind it, and an hourly run would drop this one.
+# The two jobs write different R2 keys (chart/W, chart/M), so they never clash.
+concurrency:
+  group: swingpulse-htf
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Origin only — the mirror repo must never publish to the same bucket
+    # (see publish.yml).
+    if: github.event_name != 'schedule' || github.repository == 'xabilon18-ctrl/SwingPulse'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r swing_generator/requirements.txt
+
+      # Read-only: the Daily cache is the fallback for an instrument whose whole
+      # history Yahoo will not serve (and the source of the synthetic CCY_
+      # currency indices). Never saved back — that cache belongs to publish.yml.
+      - name: Restore the Daily parquet cache
+        uses: actions/cache/restore@v4
+        with:
+          path: swing_generator/cache_ma500
+          key: parquet-ma500-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: parquet-ma500-${{ runner.os }}-
+
+      - name: Check the builders
+        run: |
+          cd swing_generator
+          python3 tests/htf_feed_test.py
+
+      - name: Build and publish Weekly / Monthly
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SCHEDULE: ${{ github.event.schedule }}
+          TF_INPUT: ${{ inputs.tf }}
+        run: |
+          cd swing_generator
+          # The cron that fired decides, not the date the run starts on.
+          case "$SCHEDULE" in
+            '35 0 * * 1')   TF=W ;;
+            '35 0 3-5 * *') TF=M ;;
+            *)              TF="$TF_INPUT" ;;
+          esac
+          python3 tools/publish_htf.py --tf $TF

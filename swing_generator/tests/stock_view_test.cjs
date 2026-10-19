@@ -125,27 +125,25 @@ assert.ok(near(d.t[fd], '2025-01-01'), d.t[fd]);
 const frd = geometry.yearFrame(d, bt);
 assert.ok(Math.abs(fd + vd.bars - 1 - (frd.anchor + 3 * frd.yearBars)) <= 1, 'ends on the 2029 line');
 assert.equal(vd.fit, 'zero');
-// Weekly and Monthly (2026-10-19): whole terms on every market, from the Daily
-// cache's week starts (Mondays) and month starts. Weekly opens 2021 to 2029.
+// Weekly and Monthly (2026-10-19): on every market, from week starts (Mondays)
+// and month starts. Weekly opens on four terms, 2013 to 2029.
 ctx.timeframe = 'W';
 const wk = [];
 for (let ms = Date.UTC(2006, 0, 2); ms <= Date.UTC(2026, 9, 12); ms += 7 * 864e5) wk.push(new Date(ms).toISOString().slice(0, 10));
 for (const market of ['STOCK', 'BTC', 'EUR']) {
   const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, market);
-  assert.equal(wk[wk.length - (vw.bars - vw.future)], '2020-12-28', market);   // the week holding 1 Jan 2021
+  assert.equal(wk[wk.length - (vw.bars - vw.future)], '2012-12-31', market);   // the week holding 1 Jan 2013
   assert.equal(vw.fit, 'all');
 }
 const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, 'STOCK');
 const frw = geometry.yearFrame({ t: wk }, bt);
 assert.ok(Math.abs(wk.length - (vw.bars - vw.future) + vw.bars - 1 - (frw.anchor + 3 * frw.yearBars)) <= 1, 'Weekly ends on the 2029 line');
-// Monthly opens on five terms, 2009 to 2029.
+// Monthly opens on ALL its history, to the 2029 line.
 ctx.timeframe = 'M';
 const mo = [];
 for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) mo.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
 const vm1 = ctx.reelStockView({ t: mo, c: mo.map(() => 1) }, 'EUR');
-// Within a bar of 2009: the grid's years are equal parts, so over 17 years the
-// line can fall just past the December candle.
-assert.ok(['2008-12-01', '2009-01-01'].includes(mo[mo.length - (vm1.bars - vm1.future)]));
+assert.equal(mo[mo.length - (vm1.bars - vm1.future)], mo[0]);
 const frm = geometry.yearFrame({ t: mo }, bt);
 assert.ok(Math.abs(mo.length - (vm1.bars - vm1.future) + vm1.bars - 1 - (frm.anchor + 3 * frm.yearBars)) <= 1, 'Monthly ends on the 2029 line');
 ctx.timeframe = '1H'; ctx.reel.range = 300;

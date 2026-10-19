@@ -8629,6 +8629,7 @@
     editing: null,           // instrument whose channels are being edited, or null
     activeCh: new Map(),     // "name|tf" → index of the channel Lock/Clear act on
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
+    tfIndex: new Map(),      // 'W' | 'M' → their own { chunks } (OWN_INDEX_TFS)
     chunks: new Map(),       // "D:3" → { name: bundle }
     inflight: new Map(),     // "D:3" → Promise
     list:   [],              // filtered+sorted rows, in reel order
@@ -8850,8 +8851,19 @@
   // The bundle to load for the overlay: the Daily one on an intraday chart
   // whenever any line is switched on (it carries Weekly and Monthly too); none
   // on Daily, which carries its own.
+  // Overlay lines a chart's OWN bundle carries: Daily carries W and M; Weekly
+  // carries M over its whole history (chart_feed.weekly_bundle, user
+  // 2026-10-19: "we will need the monthly overlay on weekly").
+  const OV_OWN_HTF = { D: ['W', 'M'], W: ['M'] };
+  const OV_HTF_KEY = { W: 'w', M: 'mo' };
+  function ovOwnHtf(b) {
+    const src = b && (b._src || b);
+    return src && OV_OWN_HTF[timeframe] && OV_OWN_HTF[timeframe].some(tf => src[OV_HTF_KEY[tf]]) ? src : null;
+  }
   function ovOtherTf() {
-    return timeframe !== 'D' && ovAny() ? 'D' : null;
+    if (timeframe === 'D') return null;
+    const own = OV_OWN_HTF[timeframe] || [];
+    return ovHtfChoices().some(([tf]) => ovHtfOn(tf) && !own.includes(tf)) ? 'D' : null;
   }
   function ovApplyVars() {
     const st = document.documentElement.style;
@@ -8869,19 +8881,17 @@
   ovApplyVars();
   // A bundle already in the cache, or null — the synchronous read the renderer
   // needs; reelPaint and chartFullOpen load it before painting.
-  // Weekly and Monthly are published on their own schedule and grouped as they
-  // were when last built, so they carry their own name -> chunk map. They never
-  // fall back to the shared one: R2 still holds W and M chunks from before they
-  // were removed, grouped differently, and an index without their map (the
-  // first hour after this ships) would draw those as current.
-  const OWN_CHUNK_TFS = new Set(['W', 'M']);
-  function reelChunkId(idx, name, tf) {
-    const map = idx && (OWN_CHUNK_TFS.has(tf) ? idx.chunks_by_tf && idx.chunks_by_tf[tf] : idx.chunks);
-    return map ? map[name] : undefined;
+  // Weekly and Monthly are published by their own job (tools/publish_htf.py),
+  // with their own name -> chunk map in chart/<tf>/index.json. They never fall
+  // back to the shared map: R2 still holds W and M chunks from before they were
+  // removed, grouped differently, and those must not draw as current.
+  const OWN_INDEX_TFS = new Set(['W', 'M']);
+  function reelChunkId(name, tf) {
+    const idx = OWN_INDEX_TFS.has(tf) ? reel.tfIndex.get(tf) : reel.index;
+    return idx && idx.chunks ? idx.chunks[name] : undefined;
   }
   function reelCachedBundle(name, tf) {
-    const idx = reel.index;
-    const cid = reelChunkId(idx, name, tf);
+    const cid = reelChunkId(name, tf);
     if (cid === undefined) return null;
     const data = reel.chunks.get(tf + ':' + cid);
     return (data && data[name]) || null;
@@ -9252,6 +9262,8 @@
     reel.inflight.clear();
     reel.index = null;
     reelIndexPromise = null;
+    reel.tfIndex.clear();
+    reelTfIndexPromises.clear();
   }
 
   function reelChunkUrl(tf, cid) {
@@ -9276,13 +9288,26 @@
     return reelIndexPromise;
   }
 
+  // Weekly / Monthly index, memoised like reelLoadIndex. Missing (before their
+  // first publish) reads as empty: "no chart data", never another map.
+  const reelTfIndexPromises = new Map();
+  function reelLoadTfIndex(tf) {
+    if (reel.tfIndex.has(tf)) return Promise.resolve(reel.tfIndex.get(tf));
+    if (!reelTfIndexPromises.has(tf)) {
+      const ver = reelDataVersion;
+      reelTfIndexPromises.set(tf, fetchJson(reelChunkUrl(tf, 'index'), { chunks: {} })
+        .then(idx => { idx = idx || { chunks: {} }; if (ver === reelDataVersion) reel.tfIndex.set(tf, idx); return idx; }));
+    }
+    return reelTfIndexPromises.get(tf);
+  }
+
   // Fetch the bundle file holding `name`, memoised per (timeframe, chunk).
   // `tf` defaults to the active timeframe; the volume sparklines pass 'D'
   // explicitly because they are daily by definition.
   async function reelLoadChunk(name, tf) {
     tf = tf || timeframe;
-    const idx = await reelLoadIndex();
-    const cid = reelChunkId(idx, name, tf);
+    await (OWN_INDEX_TFS.has(tf) ? reelLoadTfIndex(tf) : reelLoadIndex());
+    const cid = reelChunkId(name, tf);
     if (cid === undefined) return null;
 
     const key = tf + ':' + cid;
@@ -9648,13 +9673,13 @@
     '4H': { unit: 0.25, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
-  // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market: whole
-  // four-year terms on the Daily's administration lines — Weekly the previous
-  // and current term (2021 to 2029), Monthly five terms (2009 to 2029, about
-  // all the monthly history there is). Price 'all', everything on screen.
+  // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
+  // the current term's closing line like Daily: Weekly opens on FOUR terms
+  // (2013 to 2029), Monthly on ALL its history (user: "W 4 terms, M all" — so
+  // each reaches well past the Daily's one term). Price 'all'.
   const REEL_SLOW_VIEW = {
-    'W': { term: 4, terms: 2, fit: 'all' },
-    'M': { term: 4, terms: 5, fit: 'all' },
+    'W': { term: 4, terms: 4, fit: 'all' },
+    'M': { term: 4, all: true, fit: 'all' },
   };
   function reelOpenSpec(name) {
     if (REEL_SLOW_VIEW[timeframe]) return REEL_SLOW_VIEW[timeframe];
@@ -9695,7 +9720,7 @@
       // Terms start in 2025, 2029, ... — the Daily administration lines.
       const year = new Date(reelBarTimes(bundle)[last]).getUTCFullYear();
       const first = 2025 + spec.term * Math.floor((year - 2025) / spec.term);
-      start = fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
+      start = spec.all ? 0 : fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
       endAt = fr.anchor + (first + spec.term - year) * fr.yearBars;
     } else {
       const u = fr.yearBars * spec.unit;
@@ -9715,15 +9740,18 @@
   // [t0, t1] (ms), as drawn: each point at its period's close, a Weekly or
   // Monthly value held flat to the newest bar, plus each line's latest value
   // (`lines`, for the off-screen note). Null when none is on or loaded.
-  function reelOverlayRange(name, t0, t1) {
+  function reelOverlayRange(name, t0, t1, b) {
     const ovTf = ovOtherTf();
     const ob = ovTf && reelCachedBundle(name, ovTf);
-    if (!ob || !ovAny()) return null;
+    // Weekly's Monthly lines come from its own bundle (ovOwnHtf). Daily's own
+    // W/M lines have never been part of its fit, and still are not.
+    const hb = (timeframe !== 'D' && ovOwnHtf(b)) || ob;
+    if (!hb || !ovAny()) return null;
     let lo = Infinity, hi = -Infinity;
     const lines = [];
     const take = v => { if (v != null && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
     [['M', 'mo'], ['W', 'w']].forEach(([tf, key]) => {
-      const h = ovHtfOn(tf) && ob[key];
+      const h = ovHtfOn(tf) && hb[key];
       if (!h || !h.m || !h.m.length) return;
       const ht = h._bt || (h._bt = h.t.map(reelParseTs));
       const want = ovPeriods(tf);
@@ -9740,7 +9768,7 @@
         if (held != null) lines.push({ tag: tf + p, v: held });
       });
     });
-    if (ovHtfOn('D') && ob.m && ob.m.length) {
+    if (ovHtfOn('D') && ob && ob.m && ob.m.length) {
       const { ot, mi, ps, ms } = ovDailyLines(ob);
       ms.forEach((series, k) => {
         let latest = null;
@@ -11306,7 +11334,7 @@
     const _nm = item.instrument_name;
     const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
     let _ovFit = _sv && _sv.fit !== 'wide' && _sv.fit !== 'zero'
-      ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D) : null;
+      ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
     if (_sv && (_sv.fit === 'all' || _sv.fit === 'allzero')) {
       const from = b._from || 0;
       const dr = reelDrawingRange(channelSeedsFor(_nm, b), b._src || b, from,
@@ -11565,8 +11593,11 @@
         const x = xOf(t.fi);
         if (x < L.x0 || x > L.x1) return;
         if ((x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1) return;
-        if (placed.some(px => Math.abs(px - x) < LABEL_MIN_GAP)) return;
-        placed.push(x); keepLbl.add(i);
+        // Room by WIDTH, at least LABEL_MIN_GAP: a term label ("2013 · Obama II")
+        // is three times a year's, and Monthly puts a term every ~35 units.
+        const w = Math.max(LABEL_MIN_GAP, lblW(t.label) + 16);
+        if (placed.some(([px, pw]) => Math.abs(px - x) < (w + pw) / 2)) return;
+        placed.push([x, w]); keepLbl.add(i);
       });
       pick(true); pick(false);
     }
@@ -11668,7 +11699,7 @@
     const _editing = reel.editing === name;
     const _ovTf = ovOtherTf();
     const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
-    const _htf  = timeframe === 'D' ? (b._src || b) : _ovB;
+    const _htf  = timeframe === 'D' ? (b._src || b) : (ovOwnHtf(b) || _ovB);
     const _ovOn = !!_htf && ovAny();
     // With the overlay on, this timeframe's drawings take its own contrast too —
     // except while they are being edited, when they must be seen.

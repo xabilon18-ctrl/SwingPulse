@@ -718,7 +718,9 @@ def _cache_control_for(r2_key):
     # The index is the map everything else is read through, and it is 3 KB.
     # Caching it independently of the chunks it points at is what let a stale
     # copy outlive the grouping it described. Chunks stay cached; this does not.
-    if tail == 'chart/index.json':
+    # chart/W/index.json and chart/M/index.json (tools/publish_htf.py) are the
+    # same kind of map for the Weekly and Monthly chunks.
+    if tail == 'chart/index.json' or (tail.startswith('chart/') and tail.endswith('/index.json')):
         return 'no-cache, max-age=0'
     if tail.startswith('chart/'):
         return 'public, max-age=900'

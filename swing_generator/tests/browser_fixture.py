@@ -2,17 +2,18 @@
 import json
 from pathlib import Path
 import sys
-import tempfile
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT), str(ROOT / 'webapp'), str(ROOT / 'tests')]
+sys.path[:0] = [str(ROOT), str(ROOT / 'webapp'), str(ROOT / 'tests'), str(ROOT / 'tools')]
 from hourly_test import hourly_frame
 import main
 import chart_feed
 import publish
+import publish_htf
 
 out = ROOT / 'webapp' / 'publish' / 'browser-data'
 out.mkdir(parents=True, exist_ok=True)
@@ -32,15 +33,21 @@ row.update(main._live_intraday(main._compute_4h_state(hourly_frame(12000), 'Equi
 row.update(main._live_intraday(main._intraday_state(m30.tz_localize(None), 'm30_', '30m', 48, 'Equity', h1.index[-1].date())))
 fires = out / 'h1-fires.json'
 fires.write_text(json.dumps({'TEST': h_state[2]}))
-# Weekly and Monthly are built for real from the Daily frame, through a cache
-# dir of their own (their schedule state lands there, not in browser-data).
-cache = tempfile.mkdtemp()
-d.to_parquet(Path(cache) / chart_feed._cache_name('TEST'))
 with patch.object(chart_feed, 'load_1h', return_value=h1), \
      patch.object(chart_feed, 'build_4h_live', return_value=h4_bundle), \
      patch.object(chart_feed, 'build_30m', return_value=chart_feed._bundle(m30, [50, 250, 500], '%Y-%m-%d %H:%M', bars=1000)), \
      patch.object(chart_feed, 'build_daily', return_value={**chart_feed._bundle(d, [50, 250, 500], '%Y-%m-%d', bars=1000, context_tf='D'), 'references': chart_feed.reference_history(d)}):
-    chart_feed.build_chart_feed(str(out), cache, {'TEST': 'TEST'}, h1_fires_path=str(fires))
+    chart_feed.build_chart_feed(str(out), str(out), {'TEST': 'TEST'}, h1_fires_path=str(fires))
+# Weekly and Monthly as tools/publish_htf.py publishes them, from a deeper
+# history than the Daily bundle carries (~25 years, so Weekly's four-term view
+# and its Monthly overlay have something behind them).
+back = 1 + 0.3 * np.sin((np.arange(5000) - 5000) / 300)   # meets the fixture's first close
+pc = float(d['Close'].iloc[0]) * back
+deep = pd.concat([pd.DataFrame({'Open': pc, 'High': pc * 1.01, 'Low': pc * 0.99, 'Close': pc, 'Volume': 1000},
+                               index=pd.bdate_range(end=d.index[0] - pd.Timedelta(days=1), periods=len(pc))), d])
+built, _ = publish_htf.build({'TEST': 'TEST'}, ['W', 'M'], lambda t: (deep, 'max'), workers=1)
+for tf in ('W', 'M'):
+    publish_htf.write(out, tf, built[tf], ['TEST'], str(d.index[-1].date()))
 stamp = pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 summary = publish.build_summary(pd.DataFrame([row]), str(d.index[-1].date()))
 summary['fetched_at'] = stamp
