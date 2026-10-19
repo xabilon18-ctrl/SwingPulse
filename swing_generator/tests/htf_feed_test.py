@@ -61,6 +61,17 @@ class ScheduleTests(unittest.TestCase):
             self.assertIn(f"{cron}{')' if tf == 'W' else ''}", text)
         self.assertNotIn('group: swingpulse-publish', text, 'an hourly run would drop a waiting one')
 
+    def test_cache_restore_paths_match_the_publisher(self):
+        # The path list is part of the actions cache version: any difference
+        # and the restore finds nothing (the first run, 2026-10-19).
+        import re
+        workflows = ROOT.parent / '.github' / 'workflows'
+        def paths(name):
+            text = (workflows / name).read_text()
+            block = re.search(r'path: \|\n((?:\s+swing_generator/\S+\n)+)\s+key: parquet-ma500', text)
+            return block.group(1).split()
+        self.assertEqual(paths('publish-htf.yml'), paths('publish.yml'))
+
 
 class FetchTests(unittest.TestCase):
     def test_whole_history_first_then_the_daily_cache(self):
