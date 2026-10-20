@@ -286,7 +286,8 @@ global 1H / 4H / Daily switch. Refresh, calendar, backups and user remain access
 Quote timestamps, latest completed-bar timestamps (bar start), and successful
 dataset publication timestamps are shown separately. Regular-session status is
 only inferred for known equity/currency markets, never from an old quote alone.
-The Cloudflare schedule runs at :05 every hour, 24/7 including weekends.
+The Cloudflare schedule runs at :05 every hour, 24/7 including weekends, with a
+:35 backup that dispatches only if no run was created in the last 45 minutes.
 Dataset warnings use a 90-minute limit at all times; failed updates show immediately.
 These rules supersede the historical 32-hour notes below.
 
@@ -392,7 +393,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4.5.1 (exact pin + SRI hash). *Lightweight Charts is NOT used — see Important Rule 2.* |
 | Frontend modules | `static/js/modules/` — bounded requests, quote freshness/polling, per-user preferences, equal grid geometry, drawing icons/toolbar, saved-work backup UI |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | Cloudflare Cron Worker dispatches GitHub Actions `publish.yml`. Schedule: **hourly at :05, 24/7**, including weekends; manual runs remain available. See `webapp/cron-worker/wrangler.toml`. |
+| CI pipeline | Cloudflare Cron Worker dispatches GitHub Actions `publish.yml`. Schedule: **hourly at :05, 24/7**, including weekends, plus a :35 backup that dispatches only when no run was created in the last 45 min (2026-10-20); manual runs remain available. See `webapp/cron-worker/wrangler.toml`. |
 | Repo | https://github.com/xabilon18-ctrl/SwingPulse — **the only one.** `xabilon18/SwingPulse` was the original prod repo until 2026-06-01 and is now retired: its publish workflow is disabled, it holds no commits this one lacks, and the local `prod` remote was removed 2026-08-27. Manual run: `gh workflow run publish.yml --repo xabilon18-ctrl/SwingPulse --ref main` |
 
 ---
