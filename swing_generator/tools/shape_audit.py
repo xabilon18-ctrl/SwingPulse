@@ -669,6 +669,26 @@ def check_events(events_doc):
                     'sources says the Fed calendar loaded but the payload holds zero '
                     'macro rows — the gap note will claim FOMC dates that are not there'))
 
+    # Carried rows (events.carry_forward, 2026-10-20): a throttled lookup keeps
+    # the previous feed's dates instead of publishing an empty calendar. That is
+    # the right call for one run, so it warns rather than fails — but a carry
+    # that keeps being renewed is a calendar that has stopped refreshing while
+    # generated_at moves every hour, which the freshness check below cannot see.
+    carried = events_doc.get('carried') or {}
+    if carried:
+        out.append(('WARN', 'event feed',
+                    f"earnings for {carried.get('instruments')} instruments carried from "
+                    f"the feed fetched {carried.get('from')} — Yahoo did not answer this run"))
+        try:
+            since = datetime.datetime.strptime((carried.get('from') or '').replace('Z', ''),
+                                               '%Y-%m-%dT%H:%M:%S')
+            if (datetime.datetime.utcnow() - since).total_seconds() / 3600 > 72:
+                out.append(('WARN', 'event feed',
+                            f"carried earnings are over 3 days old (fetched {carried.get('from')}) "
+                            f"— the equity lookup has been failing quietly"))
+        except ValueError:
+            pass
+
     # Freshness. events.json is written by the same run as signals.json, so more
     # than a couple of runs' drift means the event fetch has been failing while
     # the pipeline stayed green.

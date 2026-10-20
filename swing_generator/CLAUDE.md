@@ -752,6 +752,18 @@ windowed −7/+120 days, and turned into a subscribable `events.ics` by
 as `text/calendar` — as `application/json` iOS silently ignores a `webcal://`
 subscription.
 
+**A throttled lookup keeps the previous dates (2026-10-20).** On the 15:05 UTC
+run Yahoo rate-limited the runner and 625/625 equities returned nothing; the
+calendar went out with 13 macro rows and the shape audit failed the update after
+it was live. Now, when more than `CARRY_MISS_SHARE` (10%) of equities return
+nothing, each of those keeps its rows from the previously published feed (R2,
+then the local file) — `events.carry_forward`. Healthy runs miss ~0.5% and
+carry nothing, so a date that really left Yahoo still leaves the calendar.
+`carried: {from, instruments}` in the payload says what was kept and when it was
+actually fetched (a second carry keeps the first date); shape_audit WARNs on any
+carry and again once `from` is over 72h old. Macro rows are always this run's.
+Test: tests/events_carry_test.py.
+
 **No time-of-day on an earnings row, deliberately.** `Ticker.calendar` returns a
 bare date for every ticker (measured: 0 of 542 carried a time). The endpoint that
 does — `get_earnings_dates` — costs 0.42s/ticker vs 0.10s and populates it for US
