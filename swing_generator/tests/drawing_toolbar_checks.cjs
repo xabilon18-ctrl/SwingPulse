@@ -85,6 +85,27 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     assert.equal(await ladderOn(otherTf),null,`Only its own chart again: the ${otherTf} copy is removed`);
     assert.ok(!(await ladderOn(ownTf)).link,'…and the drawing is unlinked');
     assert.ok(await toolbar.evaluate(el=>el.getBoundingClientRect().right<=innerWidth),'Show on fits a narrow phone');
+    // Channel line weight (2026-10-20): thin (default) / thick / thicker.
+    if (await toolbar.evaluate(el=>el.classList.contains('is-collapsed'))) await toolbar.locator('.reel-draw-fold').click();
+    await toolbar.locator('[data-kind="channel"]').click();
+    if (await toolbar.evaluate(el=>el.classList.contains('is-collapsed'))) await toolbar.locator('.reel-draw-fold').click();
+    const channelOn=()=>page.evaluate(([tf])=>{const all=JSON.parse(localStorage.getItem('sp-channels')||'{}');
+      return Object.values(all).map(per=>(per[tf]||[]).filter(d=>d&&d.kind==='channel').pop()).find(Boolean)||null;},[ownTf]);
+    const weights=toolbar.locator('[data-act="draw-weight"]');
+    assert.equal(await weights.count(),3,'A channel offers three line weights');
+    assert.equal(await toolbar.locator('[data-act="draw-weight"][data-v="1"]').getAttribute('aria-pressed'),'true','Thin is the default');
+    const edgeW=()=>page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge').first().evaluate(el=>parseFloat(getComputedStyle(el).strokeWidth));
+    const thin=await edgeW();
+    await toolbar.locator('[data-act="draw-weight"][data-v="3"]').click();
+    assert.equal((await channelOn()).weight,3,'Thicker is saved on the channel');
+    assert.ok(await edgeW()>thin*2,'Thicker draws the channel edges heavier');
+    await toolbar.locator('[data-act="draw-weight"][data-v="2"]').click();
+    const thick=await edgeW();
+    assert.ok(thick>thin&&(await channelOn()).weight===2,'Thick sits between');
+    await toolbar.locator('[data-act="draw-weight"][data-v="1"]').click();
+    assert.ok(!('weight' in (await channelOn())),'Thin stores no field');
+    assert.equal(await edgeW(),thin,'…and draws as before');
+    assert.ok(await toolbar.evaluate(el=>el.getBoundingClientRect().right<=innerWidth),'Weight buttons fit a narrow phone');
     await toolbar.locator('[data-act="draw-done"]').click();
     assert.equal(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),false);
     assert.equal(await toolbar.isVisible(),false);

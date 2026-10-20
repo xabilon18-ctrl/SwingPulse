@@ -484,7 +484,7 @@
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
-    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash',
+    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -11133,6 +11133,7 @@
     }
     const seg = (off, cls) =>
       `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
+    const chW = ch.weight === 2 || ch.weight === 3 ? ` is-w${ch.weight}` : '';
 
     const band = drawFillStyle(ch)
       ? `<polygon class="reel-fill" ${drawFillStyle(ch)} points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`
@@ -11193,9 +11194,9 @@
     // answer without hunting through the footer.
 
     return band
-      + seg(dUp,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : ''))
-      + seg(dDn,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : ''))
-      + seg(dMid, 'reel-ch reel-ch-mid' + (ch.dash ? ' is-dash' : ''))
+      + seg(dUp,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : '') + chW)
+      + seg(dDn,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : '') + chW)
+      + seg(dMid, 'reel-ch reel-ch-mid' + (ch.dash ? ' is-dash' : '') + chW)
       // Tap targets over all three lines, so a channel can be made the active
       // drawing by touching any part of it rather than only its handles.
       + reelHitLine(XA, yA + dUp,  XB, yB + dUp,  idx)
@@ -14431,6 +14432,19 @@
         const d = activeChannel(name);
         if (d && d.kind === 'channel') {
           if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      // Channel line weight: thin (the default, stored as no field), thick or
+      // thicker (user, 2026-10-20). Channels only — the time grid and the other
+      // drawings keep their own weights.
+      if (btn.dataset.act === 'draw-weight') {
+        const d = activeChannel(name), v = +btn.dataset.v;
+        if (d && d.kind === 'channel' && [1, 2, 3].includes(v)) {
+          if (v === 1) delete d.weight; else d.weight = v;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

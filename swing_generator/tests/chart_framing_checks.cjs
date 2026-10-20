@@ -40,12 +40,17 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     }
 
     // A real axis gesture and Save, followed by a timeframe round trip.
-    const grip=await host.locator('.reel-ygrip').boundingBox();
+    // The grips are rebuilt with the chart on every repaint, so a box read
+    // straight after a drag can land on the swap and come back null — the
+    // race that failed deploys on 2026-10-19/20. Retry until it is back.
+    const boxOf=async loc=>{for(let i=0;i<40;i++){const b=await loc.boundingBox();if(b)return b;await page.waitForTimeout(50);}
+      throw new Error(tf+' grip never became visible');};
+    const grip=await boxOf(host.locator('.reel-ygrip'));
     const x=grip.x+grip.width/2, y=grip.y+grip.height*.45;
     await page.mouse.move(x,y); await page.mouse.down();
     await page.mouse.move(x,y+80,{steps:8}); await page.mouse.up();
     // And a time-scale drag (zoom in), so Save holds both halves.
-    const tg=await host.locator('.reel-tgrip').boundingBox();
+    const tg=await boxOf(host.locator('.reel-tgrip'));
     const tx=tg.x+tg.width*.5, ty=tg.y+tg.height/2;
     await page.mouse.move(tx,ty); await page.mouse.down();
     await page.mouse.move(tx-60,ty,{steps:8}); await page.mouse.up();
