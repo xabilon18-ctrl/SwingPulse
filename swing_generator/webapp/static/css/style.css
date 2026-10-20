@@ -7965,7 +7965,10 @@ body {
 /* ── Timeframe overlay (2026-09-26) ── the other chart timeframe drawn on the
    same axes. Blue so it can never be read as this timeframe's own ink; its
    ribbon keeps the slope colours but runs long-dashed with a period tag. */
-.reel-chart { --reel-ov-bar: #2563eb; }
+.reel-chart { --reel-ov-bar: #2563eb;
+  /* Daily and Weekly overlay MAs: one colour each, both directions (user,
+     2026-10-20). Monthly and the chart's own lines keep black/red by slope. */
+  --reel-ov-d: #2563eb; --reel-ov-w: #ea580c; }
 .reel-ov-box { stroke-width: 1.2; stroke-dasharray: 4 4; }
 /* Daily boxes over 15m: green closed up, red closed down — same light fill and
    dashed outline the blue ones had (user, 2026-09-26). */

@@ -10,6 +10,15 @@ deploy-app run to green including "Verify the live app". If a change needs a
 data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
 
+2026-10-20 OVERLAY COLOURS: app.js v513 / style.css v371. User: the Daily MA
+overlay and the chart's own three MAs were "hard to distinguish" — both took
+black rising / red falling, and only dash vs dot told them apart on a phone.
+Now the Daily overlay is one colour, BLUE (`--reel-ov-d` #2563eb), and Weekly
+one colour, ORANGE (`--reel-ov-w` #ea580c), whichever way they slope, their
+projections too (`OV_COLOUR` → ribbonSvg/projSvg `colour`). Dashes unchanged
+(the user declined solid). Monthly and the chart's own lines keep black/red by
+slope. Labels stay black.
+
 2026-10-19 DRAWINGS: CHOOSE THE TIMEFRAMES (user: "choose where my drawing
 tools show on which time frames"). app.js v512 / drawing-toolbar.js v2 /
 style.css v370. The selected drawing's More panel has a "Show on" row, one

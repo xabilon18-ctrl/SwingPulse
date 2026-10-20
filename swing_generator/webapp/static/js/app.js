@@ -8943,7 +8943,11 @@
     // in progress is not shipped), so the last closed value is carried flat to
     // the newest bar instead of the line stopping at last Friday / month end.
     const lastX = L.x0 + (n - from) * bw;
-    const ribbonSvg = (times, mi, periods, series, tag, width, dash, hold) => {
+    // `colour`: one fixed stroke for the whole family (Daily blue, Weekly
+    // orange — user, 2026-10-20: the Daily lines and this chart's own three
+    // were both black/red by slope and only the dash told them apart). Left
+    // out, the line keeps the slope colours, as Monthly does.
+    const ribbonSvg = (times, mi, periods, series, tag, width, dash, hold, colour) => {
       let ribbon = '', labels = '';
       for (let k = series.length - 1; k >= 0; k--) {
         const P = series[k].map((v, j) => {
@@ -8961,7 +8965,7 @@
         a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
         let run = [], down = null, prev = null, before = null, firstVis = null;
         const flush = () => {
-          if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
+          if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
           run = [];
         };
         for (let j = a; j <= z; j++) {
@@ -9010,7 +9014,7 @@
     const avgMs = n > 1 ? Math.max(1, (bt[n - 1] - bt[0]) / (n - 1)) : baseDur;
     const xF = t => t <= bt[n - 1] ? xT(t) : L.x0 + (n - 1 - from) * bw + (t - bt[n - 1]) / avgMs * bw;
     // One projected line: from (x0, v0) through each future period's close.
-    const projSvg = (x0, vals, timeOf, width) => {
+    const projSvg = (x0, vals, timeOf, width, colour) => {
       const pts = [[x0, vals[0]]];
       for (let k = 1; k < vals.length; k++) {
         const x = xF(timeOf(k));
@@ -9021,7 +9025,7 @@
       const dash = `${(width * 0.15).toFixed(1)} ${(width * 2).toFixed(1)}`;
       let out = '', run = [], down = null;
       const flush = () => {
-        if (run.length >= 2) out += `<polyline points="${run.join(' ')}" fill="none" stroke="${down ? 'var(--sell)' : 'var(--reel-ma-up)'}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round"/>`;
+        if (run.length >= 2) out += `<polyline points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round"/>`;
         run = [];
       };
       pts.forEach(([x, v], j) => {
@@ -9038,6 +9042,7 @@
     const projG = inner => inner ? `<g class="reel-ov-proj" ${ovLayerStyle('oP', 'ma')}>${inner}</g>` : '';
     const lastXp = L.x0 + (n - from) * bw;
     let under = '';
+    const OV_COLOUR = { D: 'var(--reel-ov-d)', W: 'var(--reel-ov-w)' };
     // Thickest first, so the thinner lines sit on top of it.
     [['M', 'mo', wW * 1.6], ['W', 'w', wW]].forEach(([tf, key, width]) => {
       const h = htf && ovHtfOn(tf) && htf[key];
@@ -9059,10 +9064,10 @@
           // vals[k] = the MA at the close of period k (0 = the one in
           // progress); it is held flat from the newest bar to that close.
           const vals = ovProjVals(h.c, h.p[k], j => end(j) > horizon);
-          if (vals) proj += projSvg(lastXp, [vals[0], ...vals], j => end(j - 1), pw);
+          if (vals) proj += projSvg(lastXp, [vals[0], ...vals], j => end(j - 1), pw, OV_COLOUR[tf]);
         });
       }
-      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true)}${projG(proj)}</g>`;
+      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true, OV_COLOUR[tf])}${projG(proj)}</g>`;
     });
     if (ob && ob.m && ob.m.length) {
       const { ot, mi, ps, ms } = ovDailyLines(ob);
@@ -9076,10 +9081,10 @@
         const x0 = xT(at(0));
         ps.forEach(p => {
           const vals = ovProjVals(ob.c, p, k => at(k) > horizon);
-          if (vals && x0 != null) proj += projSvg(x0, vals, k => at(k), 4.2 * pj.w);
+          if (vals && x0 != null) proj += projSvg(x0, vals, k => at(k), 4.2 * pj.w, OV_COLOUR.D);
         });
       }
-      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9')}${projG(proj)}</g>`;
+      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9', false, OV_COLOUR.D)}${projG(proj)}</g>`;
     }
     return { under, draw: '' };
   }
