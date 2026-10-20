@@ -22,6 +22,14 @@ compatibility_date = "2025-01-01"
 [triggers]
 crons = ["5 * * * *", "35 * * * *"]
 
+# Keep the Worker's logs (2026-10-20). The 14:05 dispatch ran and called GitHub
+# (Cloudflare analytics: success, 1 subrequest) yet no run was created, and
+# dispatch() reports GitHub's answer only through console.error — which, with
+# no stored logs, existed only for a live `wrangler tail`. Free plan: 200,000
+# log events a day; this Worker sees ~140-240 requests a day (cron + /live).
+[observability]
+enabled = true
+
 [vars]
 REPO     = "xabilon18-ctrl/SwingPulse"
 WORKFLOW = "publish.yml"
