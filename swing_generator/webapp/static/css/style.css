@@ -9764,6 +9764,21 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-dash-btn { padding: 6px 7px !important; color: #555; border-radius: 0 !important; }
 .reel-dash-btn.on { background: rgba(0,0,0,.14); color: #000; }
 .reel-dash-btn svg { width: 26px !important; height: 10px !important; display: block; }
+.reel-weight-seg .reel-dash-btn svg { width: 22px !important; }
+/* Channel line weight (2026-10-20): thick and thicker, on dots and dashes alike.
+   Each sits above the selected weight (.reel-draw.is-sel .reel-ch-edge, 3.6) so
+   selecting a thick channel never thins it. Dot gaps grow with the weight so
+   the dots stay dots. */
+.reel-draw .reel-ch-edge.is-w2 { stroke-width: 4.8; stroke-dasharray: 4.8 11; }
+.reel-draw.is-sel .reel-ch-edge.is-w2 { stroke-width: 5.8; }
+.reel-draw .reel-ch-mid.is-w2  { stroke-width: 3.2; stroke-dasharray: 3.2 12; }
+.reel-draw .reel-ch-edge.is-w3 { stroke-width: 7.5; stroke-dasharray: 7.5 15; }
+.reel-draw.is-sel .reel-ch-edge.is-w3 { stroke-width: 8.5; }
+.reel-draw .reel-ch-mid.is-w3  { stroke-width: 5; stroke-dasharray: 5 15; }
+.reel-draw .reel-ch-edge.is-dash.is-w2, .reel-draw.is-sel .reel-ch-edge.is-dash.is-w2 { stroke-dasharray: 22 12; }
+.reel-draw .reel-ch-mid.is-dash.is-w2 { stroke-dasharray: 12 12; }
+.reel-draw .reel-ch-edge.is-dash.is-w3, .reel-draw.is-sel .reel-ch-edge.is-dash.is-w3 { stroke-dasharray: 28 14; }
+.reel-draw .reel-ch-mid.is-dash.is-w3 { stroke-dasharray: 15 14; }
 /* Overlay MA width (2026-09-27): three one-tap choices under the sliders. */
 .reel-ov-maw { grid-template-columns: 62px 1fr; }
 .reel-ov-maw-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }

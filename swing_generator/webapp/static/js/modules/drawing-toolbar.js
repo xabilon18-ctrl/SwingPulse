@@ -91,6 +91,13 @@
     const lineStyle = d.kind !== 'channel' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
       + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
       + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
+      + `</span>`
+      // Line weight: thin (default), thick, thicker (user, 2026-10-20).
+      + `<span class="reel-dash-seg reel-weight-seg" role="group" aria-label="Line weight">`
+      + [[1, 'Thin', 1.5], [2, 'Thick', 3.5], [3, 'Thicker', 6]].map(([v, label, w]) => {
+        const on = (d.weight || 1) === v;
+        return `<button class="reel-tool reel-dash-btn${on ? ' on' : ''}" data-act="draw-weight" data-v="${v}" data-name="${name}" aria-pressed="${on}" aria-label="${label} lines" title="${label}"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="2" y1="5" x2="20" y2="5" stroke="currentColor" stroke-width="${w}" stroke-linecap="round"/></svg></button>`;
+      }).join('')
       + `</span>`;
     // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
     // labels (user, 2026-09-15). On = labels showing, the default.

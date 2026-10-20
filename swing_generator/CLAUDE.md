@@ -10,6 +10,17 @@ deploy-app run to green including "Verify the live app". If a change needs a
 data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
 
+2026-10-20 CHANNEL LINE WEIGHT: app.js v514 / style.css v372 / drawing-toolbar.js
+v3. User: "an option to make the channels thin, thick and thicker … channel
+only", not the time grids. A channel's props row has a three-button weight
+group beside Dotted/Dashed (`data-act="draw-weight"`, v 1/2/3). Thin is the
+old weight and stores no field; thick/thicker store `weight: 2|3`, rendered as
+`.is-w2`/`.is-w3` on the edges and midline (dots and dashes both scale, and the
+selected weight stays heavier). Linked copies carry it like any other field.
+Test: drawing_toolbar_checks.cjs. Also: chart_framing_checks.cjs retries the
+grip bounding boxes — the grips are rebuilt on every repaint and a read right
+after a drag could land on the swap (the null-box race that failed deploys).
+
 2026-10-20 OVERLAY COLOURS: app.js v513 / style.css v371. User: the Daily MA
 overlay and the chart's own three MAs were "hard to distinguish" — both took
 black rising / red falling, and only dash vs dot told them apart on a phone.
