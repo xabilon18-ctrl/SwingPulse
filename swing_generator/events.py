@@ -50,6 +50,8 @@ import datetime as dt
 import json
 import os
 import sys
+import time
+import urllib.request
 import warnings
 
 from _active_config import OUTPUT_DIR
@@ -70,6 +72,19 @@ FUTURE_DAYS = 120
 # call (~0.1s each at 8 workers, measured over 12 tickers), so the whole equity
 # universe costs well under two minutes on top of a ~20-minute pipeline run.
 WORKERS = int(os.environ.get('FETCH_WORKERS', 8))
+
+# Carry-forward (2026-10-20). Yahoo rate-limited the runner on the 15:05 UTC
+# run: 625 of 625 equities came back empty, events.json went out with 13 macro
+# rows instead of ~590, and the shape audit failed the whole update AFTER the
+# gutted calendar was live. A failed lookup proves nothing about a date, so when
+# more than CARRY_MISS_SHARE of the equities return nothing, each one that
+# returned nothing keeps its rows from the previous feed. Measured: a healthy
+# run misses 3/625 (0.5%), the throttled one 625/625 — 10% sits far from both.
+# Below the threshold nothing is carried, so a stock whose report genuinely
+# dropped off Yahoo's calendar still drops off ours.
+CARRY_MISS_SHARE = 0.10
+R2_EVENTS_URL = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500/events.json'
+R2_USER_AGENT = 'SwingPulse-pipeline/1.0'   # r2.dev 403s the default urllib agent
 
 def macro_events() -> tuple[list[dict], dict]:
     """Central-bank and inflation dates, from macro_events.py.
@@ -142,8 +157,50 @@ def _fetch_one(inst: dict) -> list[dict]:
     return out
 
 
-def build_events(instruments: list[dict] | None = None) -> dict:
-    """Fetch the equity event feed and return the payload dict."""
+def load_previous() -> dict | None:
+    """The last published feed: R2 first (a CI run starts with an empty
+    OUTPUT_DIR), then the local file. None when neither can be read."""
+    try:
+        req = urllib.request.Request(f'{R2_EVENTS_URL}?t={int(time.time())}',
+                                     headers={'Cache-Control': 'no-cache',
+                                              'User-Agent': R2_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = r.read()
+        if body[:2] == b'\x1f\x8b':          # upload_to_r2 may gzip under a plain name
+            import gzip
+            body = gzip.decompress(body)
+        return json.loads(body)
+    except Exception as e:
+        print(f'  Events: previous feed unavailable on R2 — {type(e).__name__}: {e}')
+    try:
+        with open(EVENTS_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def carry_forward(missed: set[str], previous: dict | None) -> tuple[list[dict], dict | None]:
+    """Rows the previous feed held for the instruments that returned nothing.
+
+    Returns `(rows, carried)`; `carried` is null when nothing was carried, else
+    `{'from', 'instruments'}`. `from` is when the oldest carried rows were
+    actually fetched — a feed carried twice keeps its first date, so the shape
+    audit can tell a day-old carry from a calendar that has not refreshed in a
+    week."""
+    if not previous or not missed:
+        return [], None
+    rows = [r for r in previous.get('events') or [] if r.get('instrument') in missed]
+    if not rows:
+        return [], None
+    fetched = (previous.get('carried') or {}).get('from') or previous.get('generated_at')
+    return rows, {'from': fetched, 'instruments': len({r['instrument'] for r in rows})}
+
+
+def build_events(instruments: list[dict] | None = None, previous=load_previous) -> dict:
+    """Fetch the equity event feed and return the payload dict.
+
+    `previous` is called only when the fetch is degraded (see CARRY_MISS_SHARE);
+    tests pass a stub."""
     instruments = instruments if instruments is not None else load_instruments()
     equities = [i for i in instruments if asset_class_of(i['group']) == 'Equity']
 
@@ -154,13 +211,26 @@ def build_events(instruments: list[dict] | None = None) -> dict:
     print(f'  Events: querying {len(equities)} equities for earnings dates ...')
 
     rows: list[dict] = []
-    misses = 0
+    missed: set[str] = set()
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(WORKERS, 1)) as ex:
-        for got in ex.map(_fetch_one, equities):
+        for inst, got in zip(equities, ex.map(_fetch_one, equities)):
             if got:
                 rows.extend(got)
             else:
-                misses += 1
+                missed.add(inst['name'])
+    misses = len(missed)
+
+    carried = None
+    if equities and misses / len(equities) > CARRY_MISS_SHARE:
+        kept, carried = carry_forward(missed, previous())
+        rows.extend(kept)
+        if carried:
+            print(f'  Events: {misses}/{len(equities)} equities returned nothing — kept '
+                  f'{len(kept)} rows for {carried["instruments"]} of them from the feed '
+                  f'fetched {carried["from"]}')
+        else:
+            print(f'  Events: {misses}/{len(equities)} equities returned nothing and '
+                  f'no previous feed to carry from')
 
     macro, macro_sources = macro_events()
     rows.extend(macro)
@@ -194,6 +264,8 @@ def build_events(instruments: list[dict] | None = None) -> dict:
             'fred':     macro_sources.get('fred'),
             'speeches': None,
         },
+        # Set when some equity rows came from the previous feed (carry_forward).
+        'carried': carried,
         'events':  rows,
     }
 
