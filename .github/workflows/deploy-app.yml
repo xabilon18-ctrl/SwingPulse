@@ -144,6 +144,7 @@ jobs:
           python3 tests/htf_feed_test.py
           python3 tests/exchange_feed_test.py
           node tests/live_worker_test.mjs
+          node tests/cron_worker_test.mjs
           # Live: every crypto pair answers from its exchange (needs the network).
           python3 tools/check_exchange_feed.py
           node --check webapp/static/js/app.js

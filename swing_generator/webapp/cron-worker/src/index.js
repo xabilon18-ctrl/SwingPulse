@@ -2,6 +2,7 @@
  * SwingPulse run scheduler — see wrangler.toml for the why.
  *
  * scheduled  → POST /repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches
+ *              (:05 always; :35 only when no run started since — see backup)
  * GET /      → a one-line health check (no secrets, no side effects)
  */
 async function dispatch(env, reason) {
@@ -24,6 +25,44 @@ async function dispatch(env, reason) {
     console.log(`dispatched (${reason})`);
   }
   return res.status;
+}
+
+/**
+ * Backup at :35 (2026-10-20). The :05 dispatch is a single attempt, and on
+ * 2026-10-20 the 14:05 one never reached GitHub — no run, no failure, so the
+ * Publish Watchdog (which fires on a run COMPLETING) saw nothing and the app sat
+ * on 13:05 data until 15:05. Here: if no run on REF was created in the last 45
+ * minutes, dispatch one. A healthy :05 run was created 30 minutes earlier, so
+ * this normally does nothing. If GitHub cannot be asked, dispatch anyway — the
+ * publish concurrency group makes a second run wait instead of overlapping.
+ */
+const BACKUP_CRON = '35 * * * *', RECENT_MS = 45 * 60000;
+
+async function backup(env, reason, now = Date.now()) {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${env.REPO}/actions/workflows/${env.WORKFLOW}/runs?branch=${encodeURIComponent(env.REF)}&per_page=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${env.GH_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'swingpulse-cron',
+        },
+      });
+    if (res.ok) {
+      const last = Date.parse((await res.json()).workflow_runs?.[0]?.created_at);
+      if (now - last < RECENT_MS) {
+        console.log(`backup not needed (${reason}): last run created ${new Date(last).toISOString()}`);
+        return 0;
+      }
+    } else {
+      console.error(`backup check failed (${reason}): ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`backup check failed (${reason}): ${err}`);
+  }
+  return dispatch(env, reason + ' backup');
 }
 
 /**
@@ -111,7 +150,7 @@ async function livePrices(url) {
 export default {
   async scheduled(event, env, ctx) {
     if (!env.GH_TOKEN) { console.error('GH_TOKEN secret is not set'); return; }
-    ctx.waitUntil(dispatch(env, event.cron));
+    ctx.waitUntil(event.cron === BACKUP_CRON ? backup(env, event.cron) : dispatch(env, event.cron));
   },
   async fetch(request) {
     const url = new URL(request.url);
