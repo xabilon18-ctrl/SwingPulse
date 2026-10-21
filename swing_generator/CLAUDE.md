@@ -657,9 +657,9 @@ Rules 2/4/5. Lightweight Charts is gone; modal charts are Chart.js now.
 
 **Data not updating:** CI cron runs 9×/day weekdays (01:35/07:05/09:35/10:35/13:05/14:35/15:35/17:05/18:05 UTC, landing 2.8–4.9h later due to the GitHub queue → ~08:30/14:00/16:20/17:10/19:35/20:20/21:05/22:05/22:55 SAST) + 1×/day weekends (08 UTC → ~10:00 SAST); ad-hoc runs are manual from the GitHub Actions tab. Stale banner is schedule-agnostic since app.js v231 — it flags `now - summary.fetched_at > 32h`, so publish.yml cron changes need no front-end sync. A FAILED run flips `status.json` on R2 to `state:'failed'` and pushes a failure notification (sw.js checks status.json on every push).
 
-**Update version numbers:** After any UI change, bump `?v=NNN` on `app.js` and/or `style.css` in
-`index.html` — there are only TWO now, `utils.js` is gone. A Stop hook
-(`.claude/hooks/check_version_bump.py`) warns when one is missed, because the query string is
+**Update version numbers:** After any UI change, bump the `?v=NNN` of every file you changed in
+`index.html` — app.js, style.css, each `modules/*.js`, icons, manifest (15 today). A Stop hook
+(`.claude/hooks/check_version_bump.py`, which reads that list from index.html itself) warns when one is missed, because the query string is
 the only cache-buster: installed phones keep serving the old file until it changes, so a
 forgotten bump ships a fix nobody receives while looking deployed from this end.
 

@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Warn when app.js or style.css changed without bumping its ?v= in index.html.
+"""Warn when a versioned static file changed without bumping its ?v= in index.html.
 
 Stop hook. Never blocks — it prints a note and exits 0.
 
 WHY
-CLAUDE.md: "After any UI change, bump ?v=NNN on app.js, style.css and/or
-utils.js in index.html." The query string is the ONLY cache-buster: phones that
-already have the app installed keep serving the old file until the URL changes,
-so a forgotten bump ships a fix that nobody receives — and it looks deployed
-from this end, which is the worst kind of failure this project keeps having.
+CLAUDE.md: "After any UI change, bump ?v=NNN ... in index.html." The query
+string is the ONLY cache-buster: phones that already have the app installed
+keep serving the old file until the URL changes, so a forgotten bump ships a
+fix that nobody receives — and it looks deployed from this end, which is the
+worst kind of failure this project keeps having.
 
 Warns rather than blocks on purpose. Mid-edit the tree is legitimately
 half-done, and a Stop hook that refuses to let you stop is a trap.
+
+The assets are READ FROM index.html, not listed here (2026-10-21). The list
+this used to carry named app.js, style.css and utils.js: utils.js had been
+deleted, and the nine modules/*.js plus the icons and manifest that also
+carry a ?v= were never checked. A hand-kept list decays the same way the
+rule it enforces does; every `/static/...?v=N` reference is the list.
 """
 import json
 import re
@@ -20,12 +26,10 @@ import sys
 import os
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-INDEX = 'swing_generator/webapp/templates/index.html'
-ASSETS = {
-    'app.js': 'swing_generator/webapp/static/js/app.js',
-    'style.css': 'swing_generator/webapp/static/css/style.css',
-    'utils.js': 'swing_generator/webapp/static/js/utils.js',
-}
+WEBAPP = 'swing_generator/webapp'
+INDEX = f'{WEBAPP}/templates/index.html'
+# src="/static/js/app.js?v=516", href="/static/css/style.css?v=374", ...
+ASSET_RE = re.compile(r'(?:src|href)=["\'](/static/[^"\'?]+)\?v=(\d+)')
 
 
 def _git(*args):
@@ -36,9 +40,9 @@ def _git(*args):
         return ''
 
 
-def _version_of(text, asset):
-    m = re.search(re.escape(asset) + r'\?v=(\d+)', text)
-    return m.group(1) if m else None
+def _versions(text):
+    """{repo path of the asset: its ?v= number} for every versioned reference."""
+    return {f'{WEBAPP}{url}': v for url, v in ASSET_RE.findall(text)}
 
 
 def main():
@@ -56,13 +60,10 @@ def main():
     if not head_index:
         return 0
 
-    stale = []
-    for asset, path in ASSETS.items():
-        if path not in changed:
-            continue
-        before, after = _version_of(head_index, asset), _version_of(live_index, asset)
-        if before is not None and before == after:
-            stale.append(f'{asset} (still ?v={after})')
+    before, after = _versions(head_index), _versions(live_index)
+    stale = [f'{os.path.basename(path)} (still ?v={after[path]})'
+             for path in sorted(after)
+             if path in changed and before.get(path) == after[path]]
 
     if stale:
         print(json.dumps({'systemMessage':
