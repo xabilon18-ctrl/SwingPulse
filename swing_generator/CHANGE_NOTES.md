@@ -7,14 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
-2026-10-21 SWAP SHADED GAPS PER INSTRUMENT: app.js v517. User: "Why does the
-swap for oil affect crypto? Oil should stand alone." The 10-17 swap was kept
-per market group, and Brent, crypto, currencies, metals and rates all fall in
-'other', so one swap moved them all while the menu said "kept per market".
-Each chart now keeps its own swap (`tfOverlay.shade[tf].flipByName[name]`,
-read via `gridFlip(tf, name)`). The group swap (`flipBy`) and the older `flip`
-are only inherited until a chart is swapped, so no saved chart moved. The
-button names the instrument; the time grid (M/Q/H/Y) stays per group.
+2026-10-21 OTHER MARKETS SPLIT BY MARKET: app.js v517 / chart-preferences.js
+v4 + sync Worker. User: "Why does the swap for oil affect crypto? Oil should
+stand alone" and "Fix this by market and don't mix oil with the markets".
+'other' held Brent, crypto, currencies, metals and rates under one time grid
+and one swap. It is now energy (WTI, BRENT, NGAS, HEATINGOIL, GASOLINE),
+commodities, crypto, currency and rates (`reelGridScope`), each with its own
+grid (`energyGrids` ... `rateGrids`) and swap (`flipBy[scope]`). They read the
+'other' choice until set (`chartPreferences.fromOther`), so nothing moved.
+Stocks and indices are unchanged. Release the sync Worker with this UI.
 
 2026-10-20 CHANNEL LINE WEIGHT: app.js v514 / style.css v372 / drawing-toolbar.js
 v3. User: "an option to make the channels thin, thick and thicker … channel
