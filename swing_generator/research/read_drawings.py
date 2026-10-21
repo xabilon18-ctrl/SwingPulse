@@ -139,7 +139,7 @@ def read_one(name: str, tf: str, d: dict, ticker: str) -> dict:
         row.update(anchor1=on_swing(f, i1, float(d['p1']), atr), anchor2=on_swing(f, i2, float(d['p2']), atr))
     elif k == 'ladder':
         lo, hi = sorted((float(d['p1']), float(d['p4'])))
-        span = (hi - lo) * 3                     # p1 and p4 are lines 1 and 4 of 10 (step = (p4-p1)/3)
+        span = (hi - lo) / 3 * 10                # p1, p4 are its 10% and 40% lines; 0%..100% is 10 steps
         row.update(span_atr=round(span / atr, 2), stacks_up=d.get('up', 0), stacks_down=d.get('down', 0))
     elif k == 'hline':
         c = float(f['Close'].iloc[-1])

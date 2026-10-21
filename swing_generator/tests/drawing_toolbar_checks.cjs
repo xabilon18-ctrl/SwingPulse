@@ -6,6 +6,10 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await page.locator('#chartFull [data-act="channel"]').click();
     const toolbar=page.locator('#chartFull .reel-toolbar');
     await toolbar.locator('[data-kind="ladder"]').click();
+    // Ten divisions, not nine (2026-10-21): eleven lines, 0% up to 100%.
+    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),11,'A new ladder draws eleven lines');
+    assert.deepEqual(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').allTextContents(),
+      ['0%','10%','20%','30%','40%','50%','60%','70%','80%','90%','100%'],'…numbered 0% to 100%');
     assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));
     assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')));
     assert.ok(await page.locator('#chartFull [data-h]').count()>0,'Handles remain while collapsed');
@@ -106,6 +110,18 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     assert.ok(!('weight' in (await channelOn())),'Thin stores no field');
     assert.equal(await edgeW(),thin,'…and draws as before');
     assert.ok(await toolbar.evaluate(el=>el.getBoundingClientRect().right<=innerWidth),'Weight buttons fit a narrow phone');
+    // Channel ten divisions (2026-10-21): a switch, off by default.
+    const divSw=toolbar.locator('[data-act="draw-div"]');
+    const divLines=()=>page.locator('#chartFull .reel-draw.is-sel .reel-ch-div').count();
+    assert.equal(await divSw.getAttribute('aria-checked'),'false','Divisions start off');
+    assert.equal(await divLines(),0,'…and draw nothing');
+    await divSw.click();
+    assert.equal((await channelOn()).div,true,'Divisions on is saved on the channel');
+    assert.equal(await divLines(),8,'Ten divisions: eight dotted lines between the edges and the midline');
+    assert.equal(await toolbar.locator('[data-act="draw-div"]').getAttribute('aria-checked'),'true');
+    await toolbar.locator('[data-act="draw-div"]').click();
+    assert.ok(!('div' in (await channelOn())),'Off stores no field');
+    assert.equal(await divLines(),0,'…and the divisions are gone');
     await toolbar.locator('[data-act="draw-done"]').click();
     assert.equal(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),false);
     assert.equal(await toolbar.isVisible(),false);

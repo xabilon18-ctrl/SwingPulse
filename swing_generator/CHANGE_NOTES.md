@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-21 CHANNEL TEN DIVISIONS + LADDER 0%..100%: app.js v518 / style.css
+v375 / drawing-toolbar.js v4. User: "Make the channel the same way [as the
+percentage lines] with the 10 divisions but have a switch to turn the divisions
+on and off. When done fix the horizontal percentage lines to also have 10
+divisions and not 9". Channel: a `÷10` switch in its props row stores `div:
+true`; on, the band between the edges is cut into ten by dotted lines in the
+ladder's style (`.reel-ladder.reel-ch-div`), labelled 0% (bottom edge) to 100%
+(top), the 50% line being the existing midline. Off stores no field and is the
+default, so seeded and saved channels are unchanged; divisions on are alert
+levels like a ladder's lines. Ladder: eleven lines, 0%..100% (was ten,
+10%..100%). The 0% line is one step below p1, so p1/p4 keep meaning the 10% and
+40% lines and a saved ladder keeps every line and number, gaining 0% under it
+(reversed ladders now read 0% at the top). A new ladder puts 0% on the lowest
+low and 100% on the highest high; stacks are ten steps each
+(`ladderKRange`/`ladderPct`). Tests: drawing_toolbar_checks.cjs,
+stock_view_test.cjs.
+
 2026-10-21 PR VALIDATION BEFORE MERGE: deploy-app.yml now also runs on pull
 requests. User: "I like the idea of testing before merging". Golden on a PR
 missed failures the deploy run's engine and mobile browser steps catch (e.g.
