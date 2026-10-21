@@ -426,7 +426,6 @@ swing_generator/
 ├── config.py                  # MA500 profile: MA50/250/500, thresholds, OUTPUT_COLUMNS
 ├── _active_config.py          # Thin re-export shim from config.py; ACTIVE_PROFILE='ma500'
 ├── instruments.py             # Parses ../Instruments.txt → list of {num,ticker,name,group,sector,industry}
-├── events.py                  # Scheduled events (earnings/ex-div from yfinance) → events.json
 ├── output_ma500/              # CSV output files (gitignored)
 ├── cache_ma500/               # Parquet price cache (gitignored)
 ├── webapp/
@@ -438,9 +437,6 @@ swing_generator/
 │       ├── js/app.js          # App coordinator and chart renderer (v489)
 │       ├── js/modules/        # Price, grids, drawing toolbar, saved work
 │       └── css/style.css      # App/component styles (v361)
-├── macro_events.py            # FOMC (federalreserve.gov) + FRED release dates
-├── tests/macro_events_test.py # Offline parser tests + tests/fixtures/fomc_calendar.html
-└── tools/refresh_fomc_fixture.py
 └── .github/workflows/
     └── publish.yml            # CI: python3 main.py --profile ma500 → R2 upload → push notify
 ```
@@ -722,8 +718,7 @@ set (`main.py _extract_row`); daily bars are unique by date.
   Alerts are timed at the bar they could first be KNOWN (a cross confirms `XM_HOLD` bars later)
   — stamping on the crossing bar put the hold hour into the 1h result (77% vs 49% baseline).
   The old scanner markup stays in the pane, hidden by CSS, so nothing that references it breaks.
-- **Market** (pane `#pane-dashboard`, container `#marketToday`) — Coming up (events.json filtered
-  to listed names + macro), Likely 10-day range + quiet/normal/wild (`market.json` from
+- **Market** (pane `#pane-dashboard`, container `#marketToday`) — Likely 10-day range + quiet/normal/wild (`market.json` from
   `webapp/market_feed.py`, constants `EXPECTED_MOVE_*` in config.py fitted by
   `research/expected_move_fit.py`), then the kept Dashboard cards: movers, sector rotation,
   market ranking (+ "Open all in Charts"). Other old cards hidden by CSS, not deleted.
@@ -753,8 +748,6 @@ set (`main.py _extract_row`); daily bars are unique by date.
 | `/api/names` | `{ display_name: full company name }` — keyed by display name since 2026-07-19 (was yf ticker, which never matched `instName()` lookups) |
 | `/api/ai-instruments` | List of AI-sector instrument names |
 | `/api/explanations` | Signal explanation text map |
-| `/api/events` | `{generated_at, window, sources, events:[…]}` — earnings/ex-dividend/macro dates. An **equity row** carries `instrument` (a name that resolves in signals.json); a **macro row** carries `title` and NO instrument. Consumers test for `instrument`, never for `type`. `sources` is `{earnings, fomc, fred, speeches}` — one flag per feed, each set by the fetcher that names it |
-| `/events.ics` | The same feed as a subscribable calendar (`text/calendar`). Served locally since 2026-08-30; built by `publish.build_ics()`, which is the **only** place an event is given a calendar title |
 | `/api/shape-similarity` | `{neighbours, families, family_of, window_bars}` — which charts look alike, from `shape_similarity.py`. Written GZIPPED under a plain `.json` name (43 KB vs 236 KB); `upload_to_r2` detects the magic bytes and sets `Content-Encoding` |
 | `/api/flow` | Capital flow data for a group/region/period |
 | `/api/backtest` | Latest backtest results (overall, by_signal, by_tf, by_class, by_instrument, equity_curve, params) |
@@ -762,113 +755,19 @@ set (`main.py _extract_row`); daily bars are unique by date.
 
 ---
 
-## Event Calendar (2026-08-29)
+## Event Calendar — REMOVED (2026-10-21)
 
-`events.py` fetches earnings + ex-dividend dates for the **equity** rows only
-(an index/currency/commodity/coin has none) via `yfinance Ticker.calendar`, one
-metadata call per ticker at 8 workers (~0.1s each). Written to `events.json`,
-windowed −7/+120 days, and turned into a subscribable `events.ics` by
-`publish.build_ics()`. Both upload to R2; `_content_type_for()` serves the .ics
-as `text/calendar` — as `application/json` iOS silently ignores a `webcal://`
-subscription.
-
-**A throttled lookup keeps the previous dates (2026-10-20).** On the 15:05 UTC
-run Yahoo rate-limited the runner and 625/625 equities returned nothing; the
-calendar went out with 13 macro rows and the shape audit failed the update after
-it was live. Now, when more than `CARRY_MISS_SHARE` (10%) of equities return
-nothing, each of those keeps its rows from the previously published feed (R2,
-then the local file) — `events.carry_forward`. Healthy runs miss ~0.5% and
-carry nothing, so a date that really left Yahoo still leaves the calendar.
-`carried: {from, instruments}` in the payload says what was kept and when it was
-actually fetched (a second carry keeps the first date); shape_audit WARNs on any
-carry and again once `from` is over 72h old. Macro rows are always this run's.
-Test: tests/events_carry_test.py.
-
-**No time-of-day on an earnings row, deliberately.** `Ticker.calendar` returns a
-bare date for every ticker (measured: 0 of 542 carried a time). The endpoint that
-does — `get_earnings_dates` — costs 0.42s/ticker vs 0.10s and populates it for US
-listings only, so the field would render on some rows and not others.
-
-**Macro dates DO ship (since 2026-08-29 / commit 3f0bfaf).** The old rule was
-"empty on purpose, and if ever filled, fill it from a re-fetchable source, never
-by hand" — that condition was met, not waived. `macro_events.py` carries two
-feeds, both official and both re-fetchable:
-- **FOMC** — federalreserve.gov's own calendar page. No key. Dated the LAST day
-  of the meeting, because that is when the statement lands. Live.
-- **FRED** (CPI / PCE / payrolls / GDP) — needs a free `FRED_API_KEY`. Wired into
-  `publish.yml` as an optional secret; unset is supported (returns `[]`, prints
-  why, FOMC still ships) and the calendar says so out loud.
-- **Speeches** — still absent and probably permanently: the Fed's speech feed
-  publishes at DELIVERY, not in advance.
-
-**Each source reports on ITSELF.** `sources` is `{earnings, fomc, fred, speeches}`,
-one flag per feed set by that feed's own fetcher. It used to be a single `macro`
-flag derived from the combined list, so a FRED-only result (Fed page down, key
-present) made `calGapNote()` announce "FOMC dates are included, from the Fed's own
-calendar" over a month holding none. A flag derived from a different source than
-the one it names is worse than no flag.
-
-**A macro row carries `title`, not `instrument`** (2026-08-30). Everywhere else in
-the payload `instrument` is a name that resolves in signals.json and opens a card;
-a rate decision has no card. Putting the event name in that field forced every
-consumer to branch on `type` before it could trust the value, and blocked the
-calendar's day rows from being clickable. The rule now: **a row is clickable
-exactly when `instrument` is set.**
-
-**The FOMC parser is tested** — `tests/macro_events_test.py`, offline, against a
-trimmed copy of the real page in `tests/fixtures/fomc_calendar.html`. It is
-regexes over someone else's HTML and it fails SILENTLY (zero rows reads as "no
-meetings scheduled"), so it runs in both `test.yml` and `publish.yml`. Refresh the
-fixture with `tools/refresh_fomc_fixture.py` and READ THE DIFF — half the rows use
-`fomc-meeting--shaded fomc-meeting__month`, i.e. the class is not first in the
-attribute, and a capture that drops that variant tests half the page while looking
-complete. `tools/shape_audit.py --only data` also gates the publish on the feed
-being alive and on `sources` not claiming a feed the payload cannot show.
-
-### Front end
-
-The bell is a **calendar glyph** with two segments — `Today` (daily signal list)
-and `Calendar` (month grid, ‹ › or swipe to a neighbouring month, tap a day for
-its sheet). A `#eventBanner` sits between `#staleBanner` and
-`#marketStateBanner`: the caveat stack reads "can I trust this data" → "what is
-coming" → "what are conditions".
-
-**The calendar is not a tab, it is a dimension** (2026-08-30). Until then
-`eventsData` was read by the dropdown and the banner and by nothing else — 700
-scheduled dates that the screen you actually decide on never mentioned. The
-joins:
-
-| Surface | What it shows |
-|---------|---------------|
-| Instrument modal | `modalEventHtml()` — this instrument's next event AND the next market-wide one, as sentences. Both open the calendar on that date |
-| Scanner / Analyzed / Trends cards | `eventChipHtml()` — one chip definition. Instrument-specific only: a rate decision hits all 798 rows, so it belongs to the banner, not to 798 identical chips |
-| Scanner filter | `#eventChip`, cycling off → **Event ≤7d** → **No event**. Both directions matter — "what is about to gap" and "what can I hold with nothing scheduled in it" |
-| Dashboard banner | A rate decision gets a **Rates board →** action (`openRatesBoard`). "Rate-sensitive instruments first" was advice with nowhere to go |
-| Push (`sw.js`) | `notifyUpcomingEvents()` warns the evening before, for starred names + every macro row. Before this the calendar could only warn you if you happened to open the app — the exact failure it was built to prevent |
-| Ledger | `signal_ledger._event_in_window()` tags each fire with a scheduled event inside its holding window. **Recorded, not yet reported** — no split by it until a cohort matures, same rule as the Track Record |
-
-Two counts on the bell, never one sum: `data-count` (gold, fired today) and
-`data-events` (violet pip, scheduled inside `EVENT_BANNER_DAYS`). Summing them
-produced "137" on a busy day and belonged to neither segment. The segment labels
-carry the same two numbers. `upcomingEvents()` is **starred-scoped** once you
-have a list, so an empty violet pip beside a full calendar is correct, not a bug.
-
-**Days are TRADING days** — `tradingDaysUntil()`, weekends only (a per-exchange
-holiday table would go stale silently, the same bar macro dates had to clear).
-A Monday event is one session away on a Friday, not three. `sw.js` deliberately
-does NOT copy this: it uses "today or tomorrow" in calendar days, because an
-earnings or FOMC date never falls on a weekend and a second copy of the rule in
-a file that cannot import from `app.js` is how duplicate definitions start.
-
-Dates are formatted with `ymd()`, **not** `toISOString()` — the latter converts
-to UTC first and lands a day early for SAST before 02:00.
-
-**One .ics builder.** `publish.build_ics()` names every event; `app.js
-downloadIcs()` FETCHES that feed and slices the day out of it rather than
-composing its own. It used to compose, and the two drifted the moment macro rows
-arrived — subscribing gave you "FOMC decision", the day download gave you "FOMC
-decision — macro". No local fallback on a failed fetch, on purpose: a second
-builder is the bug.
+User decision: the earnings dates and the rest were not useful and went unused.
+Removed end to end: `events.py` (~625 yfinance calls on EVERY hourly run),
+`macro_events.py` (FOMC page scraper + FRED), `events.json` / `events.ics`,
+the Calendar segment and subscribe link in the bell panel (now just Alerts,
+with a bell icon again), the dashboard event banner, card/modal event chips,
+the scanner Event filter, Market's "Coming up" card, the service worker's
+evening-before warnings, the shape-audit "event feed" gate, the ledger's
+`event` tag on new fires (older records keep the field; nothing reads it),
+and their tests/fixture/tool. The `FRED_API_KEY` secret is no longer used.
+The old `events.json`/`events.ics` objects are left on R2, unreferenced.
+The original design notes are in git history (the commit before this one).
 
 ---
 

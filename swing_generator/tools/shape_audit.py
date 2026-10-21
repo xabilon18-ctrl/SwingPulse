@@ -609,7 +609,6 @@ def check_drift(rows, base_rows):
 CHECK_FAMILY = {
     'no-data flood': 'data',
     'distribution drift': 'data',
-    'event feed': 'data',
     'phantom predicate': 'code',
     'orphan column': 'code',
     'ghost read': 'code',
@@ -618,98 +617,9 @@ CHECK_FAMILY = {
 }
 
 
-def check_events(events_doc):
-    """Is the event feed still a working one?
-
-    The calendar has three ways to fail silently, and none of them stops the
-    pipeline or changes a single number on the dashboard:
-
-      - the whole fetch fails and write_events leaves YESTERDAY's file in place
-        (deliberately — an outage must not cost a day of dates), so the app
-        shows a stale month that looks exactly like a fresh one;
-      - the FOMC parse breaks on a page redesign and macro rows drop to zero,
-        which the UI reports as the honest-sounding "no rate decisions loaded";
-      - the equity half returns nothing and the calendar is macro-only.
-
-    All three are the "green run, wrong number" family this tool exists for.
-    """
-    out = []
-    if events_doc is None:
-        return [('WARN', 'event feed', 'events.json not published — the calendar '
-                                       'tab has nothing to render')]
-
-    events = events_doc.get('events') or []
-    sources = events_doc.get('sources') or {}
-
-    # Measured on the 2026-08-29 run: 701 rows (542 earnings, 156 ex-div, 3
-    # FOMC) over a -7/+120 window. A tenth of that is not a quiet week.
-    if len(events) < 70:
-        out.append(('FAIL', 'event feed',
-                    f'only {len(events)} events in the window — the 2026-08-29 '
-                    f'baseline was 701. The equity fetch has probably failed.'))
-
-    kinds = {}
-    for e in events:
-        kinds[e.get('type', '?')] = kinds.get(e.get('type', '?'), 0) + 1
-
-    if not kinds.get('earnings'):
-        out.append(('FAIL', 'event feed',
-                    'no earnings rows at all — yfinance Ticker.calendar is the '
-                    'only source for them, so this is a dead feed, not a quiet month'))
-
-    # sources.fomc is set by the fetcher that names it, so a null here means the
-    # Fed page did not answer or no longer parses. Warn, not fail: it must never
-    # gate a day of market data, but it must not pass in silence either.
-    if not (sources.get('fomc') or sources.get('macro')):
-        out.append(('WARN', 'event feed',
-                    'no FOMC dates loaded — federalreserve.gov did not answer, or '
-                    'the calendar page markup changed (run tests/macro_events_test.py)'))
-    elif not kinds.get('macro'):
-        out.append(('FAIL', 'event feed',
-                    'sources says the Fed calendar loaded but the payload holds zero '
-                    'macro rows — the gap note will claim FOMC dates that are not there'))
-
-    # Carried rows (events.carry_forward, 2026-10-20): a throttled lookup keeps
-    # the previous feed's dates instead of publishing an empty calendar. That is
-    # the right call for one run, so it warns rather than fails — but a carry
-    # that keeps being renewed is a calendar that has stopped refreshing while
-    # generated_at moves every hour, which the freshness check below cannot see.
-    carried = events_doc.get('carried') or {}
-    if carried:
-        out.append(('WARN', 'event feed',
-                    f"earnings for {carried.get('instruments')} instruments carried from "
-                    f"the feed fetched {carried.get('from')} — Yahoo did not answer this run"))
-        try:
-            since = datetime.datetime.strptime((carried.get('from') or '').replace('Z', ''),
-                                               '%Y-%m-%dT%H:%M:%S')
-            if (datetime.datetime.utcnow() - since).total_seconds() / 3600 > 72:
-                out.append(('WARN', 'event feed',
-                            f"carried earnings are over 3 days old (fetched {carried.get('from')}) "
-                            f"— the equity lookup has been failing quietly"))
-        except ValueError:
-            pass
-
-    # Freshness. events.json is written by the same run as signals.json, so more
-    # than a couple of runs' drift means the event fetch has been failing while
-    # the pipeline stayed green.
-    gen = events_doc.get('generated_at') or ''
-    if gen:
-        try:
-            when = datetime.datetime.strptime(gen.replace('Z', ''), '%Y-%m-%dT%H:%M:%S')
-            age_h = (datetime.datetime.utcnow() - when).total_seconds() / 3600
-            if age_h > 72:
-                out.append(('WARN', 'event feed',
-                            f'events.json is {age_h/24:.1f} days old while signals '
-                            f'are current — the event fetch has been failing quietly'))
-        except ValueError:
-            pass
-    return out
-
-
-def run(rows, js, base_rows=None, only='all', events_doc=None):
+def run(rows, js, base_rows=None, only='all'):
     findings = []
     findings += check_no_data(rows)
-    findings += check_events(events_doc)
     findings += check_phantoms(rows, js)
     findings += check_degenerate(rows)
     findings += check_orphans(rows, js)
@@ -738,16 +648,7 @@ def main():
     with open(args.app_js, encoding='utf-8') as fh:
         js = fh.read()
 
-    # The event feed lives beside signals.json and fails independently of it.
-    # Never fatal to FETCH: a missing file is itself a finding, not a crash.
-    events_doc = None
-    if not args.snapshot:
-        try:
-            events_doc = _fetch_json('events.json')
-        except Exception:
-            events_doc = None
-
-    findings = run(rows, js, base_rows, only=args.only, events_doc=events_doc)
+    findings = run(rows, js, base_rows, only=args.only)
 
     if args.json:
         print(json.dumps([{'level': l, 'check': c, 'detail': d}

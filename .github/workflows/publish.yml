@@ -89,26 +89,12 @@ jobs:
           python3 tests/hourly_test.py
           python3 tests/trend_context_feed_test.py
           python3 tests/workflow_setup_test.py
-          # The FOMC calendar parser is regexes over someone else's HTML — the
-          # most breakable thing in the pipeline, and it fails SILENTLY: zero
-          # rows just reads as "no meetings scheduled". Offline, against a
-          # trimmed copy of the real page in tests/fixtures/.
-          python3 tests/macro_events_test.py
 
       # ── 6. Run pipeline ──────────────────────────────────────────────────
       - name: Fetch data + compute signals + publish to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Optional. Adds the CPI / PCE / payrolls / GDP release dates to the
-          # event calendar (macro_events.fetch_fred). Unset is a supported
-          # state: fetch_fred returns [] and prints why, and the FOMC half
-          # still ships. Free key from fred.stlouisfed.org/docs/api/api_key.html
-          # -> add as repo secret FRED_API_KEY. Until then the calendar's gap
-          # note tells the user those releases are missing, which is why this
-          # is wired up rather than left out: an unwired key means that note
-          # can never come down.
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           # Download prices on EVERY run (2026-09-11). data_fetcher's local
           # default is a 20h gate; here it meant only the first run of the day
           # fetched, and the next morning's run finalised that mid-session

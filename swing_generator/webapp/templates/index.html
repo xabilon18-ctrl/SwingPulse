@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=373">
+  <link rel="stylesheet" href="/static/css/style.css?v=374">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -48,7 +48,7 @@
         <button class="icon-btn" id="refreshBtn" title="Refresh data" aria-label="Refresh data">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
         </button>
-        <button class="icon-btn push-toggle-btn" id="pushToggleBtn" title="Notifications" aria-label="Alerts and calendar" onclick="window.SP && window.SP.toggleNotifPanel()"></button>
+        <button class="icon-btn push-toggle-btn" id="pushToggleBtn" title="Notifications" aria-label="Alerts" onclick="window.SP && window.SP.toggleNotifPanel()"></button>
         <button class="icon-btn" id="savedWorkBtn" title="Saved work and backups" aria-label="Saved work and backups"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16H4a3 3 0 0 1 0-6 6 6 0 0 1 11.7-1.8A4 4 0 1 1 20 16h-1M12 12v9M8 17l4 4 4-4"/></svg></button>
         <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       </div>
@@ -68,30 +68,11 @@
   <!-- ===== NOTIFICATIONS POPUP ===== -->
   <div class="notif-popup" id="notifPopup" style="display:none">
     <div class="notif-popup-header">
-      <span class="notif-popup-title">Alerts &amp; calendar</span>
+      <span class="notif-popup-title">Alerts</span>
       <span class="notif-ui-build" id="notifUiBuild"></span>
       <button class="notif-push-toggle" id="notifPushToggle" onclick="window.SP && window.SP.togglePush()">Push: off</button>
     </div>
-    <!-- Two questions, two segments: what fired today, and what is coming.
-         Merging them would put "GOOGL fired B2" and "NVDA reports on the 17th"
-         in one scroll, and those are read differently. -->
-    <div class="notif-seg" role="tablist" aria-label="Notifications view">
-      <!-- Labels carry their own counts (updateNotifBell). The bell used to
-           show ONE number that summed today's fires and upcoming events, which
-           told you neither which segment it belonged to nor what it meant. -->
-      <button class="notif-seg-btn active" id="notifSegToday" role="tab" aria-selected="true"
-              data-notif-tab="today">Today</button>
-      <button class="notif-seg-btn" id="notifSegCal" role="tab" aria-selected="false"
-              data-notif-tab="calendar">Calendar</button>
-    </div>
     <div class="notif-popup-list" id="notifPopupList"></div>
-    <div class="notif-popup-list" id="notifCalendarBody" style="display:none"></div>
-    <!-- Subscribe lives OUTSIDE the scroll area. Inside it, it sat below a
-         day sheet that can run 20 rows — reachable only after scrolling past
-         everything, which is not where a primary action belongs. -->
-    <div class="notif-cal-footer" id="notifCalFooter" style="display:none">
-      <a class="cal-sub-btn" id="calSubscribeLink" href="#">Subscribe in Calendar</a>
-    </div>
   </div>
 
   <!-- ===== MAIN CONTENT ===== -->
@@ -108,10 +89,6 @@
       </div>
 
       <!-- ── Sector-mood market-state banner (provisional conviction layer) ── -->
-      <!-- Caveat stack, top down: is the data fresh -> what is coming ->
-           what are conditions. Stale stays first: whether to trust the numbers
-           at all outranks what happens tomorrow. -->
-      <div id="eventBanner"></div>
 
       <!-- MARKET (2026-09-27): coming up + likely 10-day range, above the old
          Dashboard cards that stay (movers, sectors, momentum ranking). -->
@@ -443,7 +420,6 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           Key Lvl
         </button>
-        <button class="sig-ctx-chip sig-chip-event" id="eventChip" title="Scheduled events — tap to cycle: off → Event within 7 sessions → No event">📅 <span class="event-label">Event</span></button>
         <button class="sig-ctx-chip sig-chip-vol" data-filter="vol">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Vol Spike
@@ -932,7 +908,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=3"></script>
   <script src="/static/js/modules/grid-geometry.js?v=5"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=515"></script>
+  <script src="/static/js/app.js?v=516"></script>
 </body>
 </html>
 

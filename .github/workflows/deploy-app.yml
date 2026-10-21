@@ -134,8 +134,6 @@ jobs:
         working-directory: swing_generator
         run: |
           python3 tests/golden_test.py
-          python3 tests/macro_events_test.py
-          python3 tests/events_carry_test.py
           python3 tests/hourly_test.py
           python3 tests/trend_context_feed_test.py
           python3 tests/workflow_setup_test.py

@@ -183,17 +183,6 @@
     try { return fn(); } finally { timeframe = saved; }
   }
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
-  let eventsData = { events: [], sources: {} };  // scheduled events (events.json)
-  // Which dropdown segment is open. Persisted like stars, notes and the
-  // scanner filters are — it used to reset to Today on every reload, so anyone
-  // living in the calendar re-tapped it every single time.
-  const NOTIF_TAB_KEY = 'swingpulse-notif-tab';
-  let notifTab = (() => {
-    try { return localStorage.getItem(NOTIF_TAB_KEY) === 'calendar' ? 'calendar' : 'today'; }
-    catch { return 'today'; }
-  })();
-  let calMonth   = null;     // Date pinned to the 1st of the month on screen
-  let calSelected = null;    // 'YYYY-MM-DD' of the open day sheet, or null
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
   let selectedTrendInst = null;
   localStorage.removeItem('sp-signal-history');   // retired per-device tracker (2026-07-15)
@@ -890,7 +879,7 @@
     navigator.serviceWorker.addEventListener('message', ev => {
       const d = ev.data || {};
       if (d.type !== 'OPEN_TARGET') return;
-      openFromNotification(d.ticker, d.date);
+      openFromNotification(d.ticker);
     });
     try {
       swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -997,10 +986,11 @@
     if (!btn) return;
     const on = isPushEnabled();
     btn.classList.toggle('push-on', on);
-    btn.title = 'Notifications and calendar';
-    // A calendar, not a bell: most of what lives behind this button is now in
-    // the future. The green live dot (.push-on::after) still means push is on.
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></svg>';
+    btn.title = 'Alerts';
+    // A bell again since the event calendar went (2026-10-21): everything
+    // behind this button is today's alerts. The green live dot
+    // (.push-on::after) still means push is on.
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
     const pt = document.getElementById('notifPushToggle');
     if (pt) {
       pt.textContent = on ? 'Push: on' : 'Push: off';
@@ -2431,46 +2421,13 @@
   })();
 
   // ── MARKET TAB (2026-09-27, replaced Dashboard) ──────────────────────────
-  // The conditions around the reader's lists, all automatic: what is coming up
-  // (economic calendar + earnings of listed names), how far each listed
+  // The conditions around the reader's lists, all automatic: how far each listed
   // instrument is likely to move over 10 trading days (market.json — tested,
   // right ~8 in 10 times), and whether it is quiet or wild right now. The
   // movers, sector and momentum-ranking cards below are the old Dashboard's.
   const mkUi = { list: '', ccyTf: 'D', cluster: 'any' };
   try { Object.assign(mkUi, JSON.parse(localStorage.getItem('swingpulse-mk-ui') || '{}')); } catch (_) {}
   if (mkUi.ccyTf === '30m') mkUi.ccyTf = '1H';
-
-  function mkComingUp(lists) {
-    const evs = (eventsData && eventsData.events) || [];
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const end = new Date(today); end.setDate(end.getDate() + 8);
-    const listed = new Set(Object.keys(lists));
-    const rows = evs.filter(e => {
-      const d = new Date(e.date + 'T00:00:00');
-      if (!(d >= today && d < end)) return false;
-      return e.type === 'macro' || e.type === 'fomc' || !e.instrument || listed.has(e.instrument);
-    });
-    const KIND = { earnings: 'Earnings', exdiv: 'Ex-dividend', macro: '', fomc: '' };
-    let h = '', day = '';
-    rows.slice(0, 40).forEach(e => {
-      const d = new Date(e.date + 'T00:00:00');
-      const dk = d.toDateString() === today.toDateString() ? 'Today'
-        : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-      if (dk !== day) { day = dk; h += `<div class="mk-day">${escText(dk)}</div>`; }
-      const what = e.instrument ? `<b>${escText(e.instrument)}</b> ${KIND[e.type] || escText(e.type)}` : `<b>${escText(e.title || 'Rates decision')}</b>${e.time ? ` <span class="al-px">${escText(e.time)}</span>` : ''}`;
-      h += `<div class="mk-ev">${what}${e.instrument && lists[e.instrument] ? `<i class="al-list">${escText(lists[e.instrument])}</i>` : ''}</div>`;
-    });
-    if (!h) h = `<div class="al-empty">Nothing scheduled for your lists in the next week.</div>`;
-    // Everything else reporting this week, as one line — the names you might
-    // still want to know about without listing 60 rows.
-    const others = [...new Set(evs.filter(e => {
-      const d = new Date(e.date + 'T00:00:00');
-      return d >= today && d < end && e.type === 'earnings' && e.instrument && !listed.has(e.instrument);
-    }).map(e => e.instrument))];
-    if (others.length) h += `<p class="mk-note mk-also">Also reporting this week, not on your lists: ${others.slice(0, 15).map(escText).join(', ')}${others.length > 15 ? ` and ${others.length - 15} more` : ''}.</p>`;
-    return `<div class="card mk-card" id="mkComing"><div class="card-header mk-h"><h3>Coming up</h3><button class="al-link" data-mk-cal="1">Full calendar ›</button></div>
-      <p class="mk-note">Next 7 days: rates decisions, plus earnings and ex-dividend dates for names on your lists.</p>${h}</div>`;
-  }
 
   function mkRanges(lists) {
     const m = marketData && marketData.i;
@@ -2549,7 +2506,7 @@
     const host = document.getElementById('marketToday');
     if (!host) return;
     const lists = alListIndex();
-    host.innerHTML = mainTrendMarketHtml() + clusterMarketHtml() + mkCcyFocus() + mkComingUp(lists) + mkRanges(lists);
+    host.innerHTML = mainTrendMarketHtml() + clusterMarketHtml() + mkCcyFocus() + mkRanges(lists);
     // Momentum 20 opens in Charts as a set, like a watchlist.
     const lc = document.getElementById('leadersCard');
     if (lc && rotationData && rotationData.leaders && !lc.querySelector('.mk-open20')) {
@@ -2580,7 +2537,6 @@
         const names = cur ? cur.items.filter(x => !wlIsDiv(x)) : [];
         return openChartFor(o.dataset.mkOpen, names.length ? { label: cur.name, names } : null);
       }
-      if (e.target.closest('[data-mk-cal]')) return openCalendar();
       const ct = e.target.closest('[data-ccy-tf]');
       if (ct) { mkUi.ccyTf = ct.dataset.ccyTf; try { localStorage.setItem('swingpulse-mk-ui', JSON.stringify(mkUi)); } catch (_) {} return renderMarketToday(); }
       const co = e.target.closest('[data-ccy-open]'), ca = e.target.closest('[data-ccy-all]');
@@ -2730,8 +2686,7 @@
     const o = tag, c = tag;
     return `<${o} class="card-name">${item.instrument_name}${noteIndicator(item.instrument_name)}</${c}>`
       + (full ? `<${o} class="inst-fullname">${full}</${c}>` : '')
-      + `<${o} class="card-group">${meta}${isAi ? ' <span class="ai-chip-mini">AI</span>' : ''}`
-      + `${eventChipHtml(item.instrument_name)}</${c}>`;
+      + `<${o} class="card-group">${meta}${isAi ? ' <span class="ai-chip-mini">AI</span>' : ''}</${c}>`;
   }
 
   // Jump to this instrument on the Charts tab. Every list — Signals, Analyzed,
@@ -2747,20 +2702,6 @@
     return `<div class="scanner-actions">${wlMarkBtn(name, 'share-btn', 'wlPick')}${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}</div>`;
   }
 
-  // What is scheduled for this instrument, at chip density. ONE definition,
-  // rendered by the shared card identity block (scanner / Analyzed / Trends)
-  // and by the instrument modal, so "AAPL reports in 2 sessions" is the same
-  // element wherever it appears — the v237 rule.
-  //
-  // Instrument-specific only. A rate decision hits all 798 rows, so putting it
-  // on a card would print the identical chip 798 times; that one belongs to the
-  // dashboard banner and the modal, where there is room to say what it means.
-  // The modal is where the decision gets made, so it gets sentences rather
-  // than a chip: what is scheduled for THIS instrument, and separately what is
-  // scheduled for everything. Both rows open the calendar on that date.
-  // This screen used to show the ribbon, the MA pills, the confidence tier and
-  // the radar breakdown, and never once mention that the company reports on
-  // Thursday — the single fact most likely to change the size of the trade.
   // "Looks like" — the charts that have moved most like this one. Tapping one
   // opens it, because the whole point is to go and compare them.
   function modalShapeHtml(item) {
@@ -2780,47 +2721,6 @@
       <button class="ms-compare" data-act="showSimilarCharts" data-arg="${name}">See these as charts →</button>
       <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} ${tfMeta().label} bars — the same bars this chart draws — with the market's common drift removed. Describes what has already happened, not a forecast.</div>
     </div>`;
-  }
-
-  function modalEventHtml(item) {
-    const own = nextEventFor(item.instrument_name, EVENT_CHIP_DAYS);
-    const mkt = nextMarketEvent(EVENT_CHIP_DAYS);
-    if (!own && !mkt) return '';
-
-    const row = (date, tone, head, sub) =>
-      `<div class="mh-ev-row ${tone}" role="button" tabindex="0"
-            data-act="openCalendar" data-arg="${date}" data-stop="1">
-         <span class="mh-ev-head">${head}</span>
-         <span class="mh-ev-sub">${sub}</span>
-       </div>`;
-
-    let out = '';
-    if (own) {
-      const kind = EVENT_KINDS[own.ev.type] || own.ev.type;
-      const near = own.ev.type !== 'exdiv' && own.days <= 2;
-      out += row(own.ev.date, near ? 'mh-ev-near' : '',
-        `${kind} ${whenLabel(own.days)}`,
-        own.ev.type === 'exdiv'
-          ? 'Goes ex-dividend — expect a gap of roughly the dividend, which is not a signal.'
-          : 'A scheduled gap you can see coming. Size the position before the close, not after.');
-    }
-    if (mkt) {
-      out += row(mkt.ev.date, mkt.days <= 2 ? 'mh-ev-near' : '',
-        `${evLabel(mkt.ev)} ${whenLabel(mkt.days)}`,
-        `${mkt.ev.time ? mkt.ev.time + '. ' : ''}Market-wide — it moves this whether or not it is rate-sensitive.`);
-    }
-    return `<div class="mh-events">${out}</div>`;
-  }
-
-  function eventChipHtml(name) {
-    const hit = nextEventFor(name, EVENT_CHIP_DAYS);
-    if (!hit) return '';
-    const { ev, days } = hit;
-    const kind = EVENT_KINDS[ev.type] || ev.type;
-    // Ex-dividend is context, never an alarm — it does not gap you.
-    const near = ev.type !== 'exdiv' && days <= 2;
-    return `<span class="card-event${near ? ' card-event-near' : ''}"`
-         + ` title="${kind} on ${ev.date}">${kind} ${whenLabel(days)}</span>`;
   }
 
   // The verdict at chip density, for surfaces where the full bar would bury the
@@ -3367,7 +3267,7 @@
     if (_dataLoadInFlight) return;
     _dataLoadInFlight = true;
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, evRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -3380,7 +3280,6 @@
         fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
         fetchJson('/api/instrument-flavours', null),
-        fetchJson('/api/events', null),
         fetchJson('/api/shape-similarity', null),
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
@@ -3414,10 +3313,9 @@
       syncRadarTf();
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
-      eventsData = (evRes && Array.isArray(evRes.events)) ? evRes : { events: [], sources: {} };
       shapeSim = (shRes && (shRes.by_tf || shRes.neighbours)) ? shRes
                  : { neighbours: {}, families: [], family_of: {} };
-      resetEventIndexes();   // both indexes are derived from the two lines above
+      resetInstrumentIndex();   // derived from allData, replaced above
       rotationData = (rotRes && rotRes.wheel && rotRes.leaders) ? rotRes : null;
       rotationPaper = (rotPaperRes && Array.isArray(rotPaperRes.nav)) ? rotPaperRes : null;
       quotesData = (quotesRes && quotesRes.q) ? quotesRes : null;
@@ -4180,7 +4078,6 @@
   }
 
   function renderDashboard() {
-    renderEventBanner();
     renderMarketState();
     const s = computeSummary();
     const total = s.total || 1;
@@ -5645,9 +5542,6 @@
       else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
       else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
       else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
-      // Sessions, not calendar days — the same window the chip label names.
-      else if (activeScannerFilter === 'event')      filtered = filtered.filter(d => !!nextEventFor(d.instrument_name, 7));
-      else if (activeScannerFilter === 'noevent')    filtered = filtered.filter(d => !nextEventFor(d.instrument_name, 7));
       else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
       else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
       else if (activeScannerFilter === 'today') {
@@ -5815,7 +5709,7 @@
           ${mv('1W', item.pct_1w)}${mv('1M', item.pct_1m)}${mv('1Y', item.pct_1y)}
         </div>
         <div class="sc2-r4">
-          <span class="sc2-meaning">${meaning ? escText(meaning) : ''}</span>${tags.join('')}${rvv !== null ? `<span class="sc2-tag volx">VOL ${fmtRvol(rvv)}</span>` : ''}${eventChipHtml(item.instrument_name)}
+          <span class="sc2-meaning">${meaning ? escText(meaning) : ''}</span>${tags.join('')}${rvv !== null ? `<span class="sc2-tag volx">VOL ${fmtRvol(rvv)}</span>` : ''}
           ${cardActionsHtml(item.instrument_name)}
         </div>
       </div>`;
@@ -6090,8 +5984,7 @@
   if (radarChip) {
     radarChip.addEventListener('click', () => {
       // Deactivate other context chips
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
-      if (typeof resetEventChip === 'function') resetEventChip();
+      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip)').forEach(c => c.classList.remove('active'));
       document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
       document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
       if (activeScannerFilter === 'radar_prime') {
@@ -6110,49 +6003,14 @@
     });
   }
 
-  // ── Event chip — cycles off → Event soon → No event → off ──
-  // A signal that fires the session before a report is a different trade from
-  // the same signal on a clear week, and until now the scanner had no way to
-  // separate the two. Both directions matter: "what is about to gap" and "what
-  // can I hold without a scheduled surprise in it".
-  const eventChip  = document.getElementById('eventChip');
-  const eventLabel = eventChip ? eventChip.querySelector('.event-label') : null;
-  function resetEventChip() {
-    if (!eventChip) return;
-    eventChip.classList.remove('on', 'off');
-    if (eventLabel) eventLabel.textContent = 'Event';
-  }
-  if (eventChip) {
-    eventChip.addEventListener('click', () => {
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
-      resetRadarChip();
-      document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-      if (activeScannerFilter === 'event') {
-        eventChip.classList.remove('on'); eventChip.classList.add('off');
-        eventLabel.textContent = 'No event';
-        activeScannerFilter = 'noevent';
-      } else if (activeScannerFilter === 'noevent') {
-        resetEventChip();
-        activeScannerFilter = 'all';
-      } else {
-        eventChip.classList.add('on');
-        eventLabel.textContent = 'Event \u22647d';
-        activeScannerFilter = 'event';
-      }
-      buildScannerCards();
-    });
-  }
-
   // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike, Macro S/R) ──
   document.querySelector('.sig-ctx-row').addEventListener('click', e => {
     const chip = e.target.closest('.sig-ctx-chip');
-    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip' || chip.id === 'eventChip') return;
+    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip') return;
     const wasActive = chip.classList.contains('active');
     // Deactivate all context chips (except filters btn, signal btn, radar chip, analyzed chip)
-    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip):not(#eventChip)').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip)').forEach(c => c.classList.remove('active'));
     resetRadarChip();
-    resetEventChip();
     // Also reset direction toggle to All
     document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
     if (wasActive) {
@@ -6204,7 +6062,6 @@
     // above never cleared them: Radar/Analyzed/Event stayed lit while the
     // filter they represented had just been replaced by a signal type.
     resetRadarChip();
-    resetEventChip();
     closeSheets();
     buildScannerCards();
   });
@@ -6496,7 +6353,6 @@
             </div>
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
-            ${modalEventHtml(item)}
             ${modalShapeHtml(item)}
           </div>
           <div class="mh-sig-wrap">
@@ -6917,7 +6773,6 @@
             <span class="tc-name">${d.name}</span>
             ${_aiTrend ? '<span class="ai-chip-mini">AI</span>' : ''}
             <span class="tc-group">${d.group}</span>
-            ${eventChipHtml(d.name)}
           </div>
           <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
         </div>
@@ -7326,111 +7181,9 @@
     }
   }
 
-  // ── Event calendar ───────────────────────────────────────────────────
-  // events.json carries scheduled dates the price engine cannot know: earnings
-  // and ex-dividend, from the same yfinance feed the bars come from. Macro
-  // dates (FOMC/CPI/ECB/SARB) are NOT in the feed — see events.py; the calendar
-  // says so rather than quietly showing an equities-only month as complete.
-
-  const EVENTS_ICS_URL = '/events.ics';   // rewritten to the R2 URL by publish.py
-  const DOW_LABELS  = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const MONTH_NAMES = ['January','February','March','April','May','June',
-                       'July','August','September','October','November','December'];
-  // ONE word per event type, used by the legend, the day sheet and the card
-  // chips alike. 'macro' used to leak to the screen here while the legend said
-  // "Rates" and the banner said "rate decision" — three names for one thing, in
-  // the week after Forex/FX/Currency were collapsed into one for the same
-  // reason. The .ics titles come from publish.build_ics, not from here.
-  const EVENT_KINDS = { earnings: 'Earnings', exdiv: 'Ex-dividend', macro: 'Rates' };
-  // How far ahead the dashboard banner looks, in TRADING days (see tradingDaysUntil):
-  // far enough to act before the gap, near enough that it is not permanently
-  // on screen. Calendar days would have made a Monday event "in 3 days" on a
-  // Friday, when it is really the next session.
-  const EVENT_BANNER_DAYS = 3;
-  // A card chip is quieter than the banner and can look further out — an
-  // earnings date inside two weeks changes position size even when it is not
-  // yet the thing to act on today.
-  const EVENT_CHIP_DAYS = 14;
-
-  // 'YYYY-MM-DD' for a Date, in LOCAL time. Deliberately not toISOString(),
-  // which converts to UTC first and lands on the previous day for anyone east
-  // of Greenwich — SAST is UTC+2, so every date would have been off by one
-  // before 02:00. Same class of bug as the v224 signal-age fix.
-  function ymd(d) {
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  }
-
-  function parseYmd(str) {
-    const [y, m, d] = String(str).split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  // Whole days from today to a date string, local midnight to local midnight.
-  function daysUntil(dateStr) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    return Math.round((parseYmd(dateStr) - today) / 86400000);
-  }
-
-  // Sessions, not calendar days. An event on Monday is ONE session away on a
-  // Friday, not three — and the whole point of the window is "can I still act
-  // before this lands". Weekends only: a public-holiday table would have to be
-  // per-exchange and would go stale silently, which is the same bar macro dates
-  // had to clear. Negative for past dates, so callers can still test n < 0.
-  function tradingDaysUntil(dateStr) {
-    const raw = daysUntil(dateStr);
-    if (raw === 0) return 0;
-    const step = raw > 0 ? 1 : -1;
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    let n = 0;
-    for (let i = 0; i < Math.abs(raw); i++) {
-      d.setDate(d.getDate() + step);
-      const dow = d.getDay();
-      if (dow !== 0 && dow !== 6) n += step;
-    }
-    return n;
-  }
-
-  // An event either points at an instrument you can hold, or it is a named
-  // event that hits everything (a rate decision). `title` marks the second
-  // kind — see events.py. Both helpers tolerate a payload published before the
-  // split, where a macro row carried its name in `instrument`.
-  function evLabel(e) {
-    return e.title || e.instrument || '';
-  }
-  function evInstrument(e) {
-    if (e.type === 'macro' || e.title) return null;
-    return e.instrument || null;
-  }
-
-  function eventsByDate() {
-    const map = {};
-    (eventsData.events || []).forEach(e => {
-      (map[e.date] || (map[e.date] = [])).push(e);
-    });
-    return map;
-  }
-
-  // Name -> its upcoming events, nearest first. Built once per data load and
-  // read by every card chip; the alternative is a scan of allData (798 rows)
-  // per row rendered, which the day sheet used to do 20 times to fetch a group.
-  let _eventsByInstrument = null;
-  let _instrumentsByName  = null;
-
-  function eventsForInstrument(name) {
-    if (!_eventsByInstrument) {
-      _eventsByInstrument = {};
-      (eventsData.events || []).forEach(e => {
-        const inst = evInstrument(e);
-        if (!inst) return;
-        (_eventsByInstrument[inst] || (_eventsByInstrument[inst] = [])).push(e);
-      });
-      Object.values(_eventsByInstrument)
-            .forEach(list => list.sort((a, b) => a.date.localeCompare(b.date)));
-    }
-    return _eventsByInstrument[name] || [];
-  }
-
+  // Name -> its row in allData. Built once per data load; the alternative is a
+  // scan of allData (798 rows) per lookup.
+  let _instrumentsByName = null;
   function instrumentByName(name) {
     if (!_instrumentsByName) {
       _instrumentsByName = {};
@@ -7438,382 +7191,8 @@
     }
     return _instrumentsByName[name] || null;
   }
-
-  // Both indexes are derived from allData/eventsData, so any load that
-  // replaces either has to drop them.
-  function resetEventIndexes() { _eventsByInstrument = null; _instrumentsByName = null; }
-
-  // The next thing scheduled for this instrument inside `days` sessions, or
-  // null. Ex-dividend is included here (unlike the banner) because on a card
-  // it is context, not an alarm.
-  function nextEventFor(name, days) {
-    const list = eventsForInstrument(name);
-    for (const e of list) {
-      const n = tradingDaysUntil(e.date);
-      if (n < 0) continue;
-      if (n > days) return null;
-      return { ev: e, days: n };
-    }
-    return null;
-  }
-
-  // The nearest market-wide event (a rate decision) inside `days` sessions.
-  // Cached per render pass rather than per card — it is the same answer for
-  // every instrument on screen.
-  function nextMarketEvent(days) {
-    const soon = (eventsData.events || [])
-      .filter(e => !evInstrument(e) && tradingDaysUntil(e.date) >= 0
-                                    && tradingDaysUntil(e.date) <= days)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (!soon.length) return null;
-    return { ev: soon[0], days: tradingDaysUntil(soon[0].date) };
-  }
-
-  // "today" / "tomorrow" / "in 3 sessions" — one phrasing everywhere an event
-  // countdown is spoken, so the banner and the card chips cannot disagree.
-  function whenLabel(n) {
-    return n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} sessions`;
-  }
-
-  // Macro first, then earnings before ex-dividend, then alphabetical. (Starred
-  // rows sorted first until stars were removed, 2026-09-24.)
-  function sortEvents(list) {
-    const rank = { macro: 0, earnings: 1, exdiv: 2 };
-    return list.slice().sort((a, b) =>
-      ((rank[a.type] ?? 9) - (rank[b.type] ?? 9))
-      || evLabel(a).localeCompare(evLabel(b)));
-  }
-
-  // Upcoming events within `days`, nearest first, across every instrument
-  // (starred-only until stars were removed, 2026-09-24).
-  function upcomingEvents(days) {
-    return (eventsData.events || [])
-      .filter(e => {
-        const n = tradingDaysUntil(e.date);
-        if (n < 0 || n > days) return false;
-        if (e.type === 'exdiv') return false;   // not a gap risk; calendar only
-        return true;
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  function renderEventBanner() {
-    const el = document.getElementById('eventBanner');
-    if (!el) return;
-    const soon = upcomingEvents(EVENT_BANNER_DAYS);
-    if (!soon.length) { el.innerHTML = ''; return; }
-
-    const first = soon[0];
-    const when  = whenLabel(tradingDaysUntil(first.date));
-
-    // A market-wide event outranks earnings and is worded differently — it hits
-    // everything you hold, so it is never "a company reporting".
-    const macro = soon.filter(e => !evInstrument(e));
-    let lead, body, extraAct = '';
-    if (macro.length) {
-      const m = macro[0];
-      lead = `${evLabel(m)} ${whenLabel(tradingDaysUntil(m.date))}`;
-      body = `${m.time ? `<b>${m.time}</b>. ` : ''}Moves everything at once, not one
-              position — rate-sensitive instruments first.`;
-      // "rate-sensitive instruments first" was advice with nowhere to go. The
-      // five Rates instruments landed the same week the FOMC feed did and the
-      // two had no connection; this is it.
-      extraAct = `<button type="button" class="eb-act" data-act="openRatesBoard" data-stop="1">
-                    Rates board →</button>`;
-    } else {
-      const names = [...new Set(soon.map(e => evInstrument(e)).filter(Boolean))];
-      const shown = names.slice(0, 4).map(x => `<b>${x}</b>`).join(', ');
-      const more  = names.length > 4 ? ` and ${names.length - 4} more` : '';
-      lead = names.length === 1
-        ? `${names[0]} reports ${when}`
-        : `${names.length} companies report in the next ${EVENT_BANNER_DAYS} sessions`;
-      body = `${shown}${more}. An earnings date is the one scheduled gap
-              you can see coming — check size before the close.`;
-    }
-
-    el.innerHTML =
-      `<div class="event-banner" role="button" tabindex="0" data-act="openCalendar"
-            data-arg="${(macro[0] || first).date}" aria-label="Open calendar">
-        <div class="eb-ic">📅</div>
-        <div>
-          <div class="eb-t">${lead}</div>
-          <div class="eb-s">${body}</div>
-          ${extraAct}
-        </div>
-      </div>`;
-  }
-
-  // The feed covers a fixed window (-7/+120 days, events.py). The grid swipes
-  // for ever, so a month past the horizon rendered as a blank one — identical
-  // on screen to "nothing is scheduled", which is a different statement.
-  function calWindow() {
-    const w = eventsData.window || {};
-    return { from: w.from || null, to: w.to || null };
-  }
-  function monthOutsideWindow(monthDate) {
-    const { from, to } = calWindow();
-    if (!from || !to) return false;
-    const first = ymd(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
-    const last  = ymd(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
-    return last < from || first > to;   // no overlap with the covered range
-  }
-
-  function calGridHtml(monthDate, byDate) {
-    const year  = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const first = new Date(year, month, 1);
-    // Monday-first: JS getDay() is Sunday=0, so Sunday must become column 7.
-    const lead  = (first.getDay() + 6) % 7;
-    const days  = new Date(year, month + 1, 0).getDate();
-    const today = ymd(new Date());
-
-    let cells = '';
-    for (let i = 0; i < lead; i++) cells += '<div class="cal-cell pad"></div>';
-    for (let d = 1; d <= days; d++) {
-      const date = ymd(new Date(year, month, d));
-      const evs  = byDate[date] || [];
-      const dow  = (new Date(year, month, d).getDay() + 6) % 7;
-      const cls  = ['cal-cell'];
-      if (dow >= 5) cls.push('wknd');
-      if (evs.length) cls.push('has-events');
-      if (date === today) cls.push('today');
-      if (date === calSelected) cls.push('sel');
-      // At most three dots: the cell is ~41px at 320px and a fourth clips.
-      const kinds = [...new Set(evs.map(e => e.type))].slice(0, 3);
-      const dots  = kinds.map(k => `<i class="cal-dot ${k}"></i>`).join('');
-      cells += evs.length
-        ? `<button type="button" class="${cls.join(' ')}" data-act="calDay" data-arg="${date}"
-             aria-label="${d} ${MONTH_NAMES[month]}, ${evs.length} event${evs.length > 1 ? 's' : ''}">
-             ${d}<span class="cal-dots">${dots}</span></button>`
-        : `<div class="${cls.join(' ')}">${d}<span class="cal-dots"></span></div>`;
-    }
-    return cells;
-  }
-
-  function daySheetHtml(date, byDate) {
-    const evs = sortEvents(byDate[date] || []);
-    if (!evs.length) return '';
-    const d = parseYmd(date);
-    const label = `${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][(d.getDay()+6)%7]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
-    const rows = evs.map(e => {
-      const inst = evInstrument(e);
-      const grp  = inst ? ((instrumentByName(inst) || {}).group || '') : '';
-      const kind = EVENT_KINDS[e.type] || e.type;
-      // A macro row carries a time where the minute matters; an earnings row
-      // never does, by design (events.py). Show both facts rather than letting
-      // the time displace the type name, which is how "macro" used to reach
-      // the screen on a FRED row that had no time.
-      const meta = [grp, e.time].filter(Boolean).join(' · ');
-      // Clickable exactly when the row points at something you can hold — the
-      // same rule the rest of the app follows, and the reason macro rows moved
-      // their name out of `instrument`. A rate decision has no card to open.
-      const open = inst
-        ? ` role="button" tabindex="0" data-act="openModal" data-arg="${inst}"`
-        : '';
-      return `<div class="cal-ev ${e.type}${inst ? ' cal-ev-open' : ''}"${open}>
-        <div class="cal-ev-top">
-          <span class="cal-ev-name">${evLabel(e)}</span>
-          <span class="cal-ev-kind">${kind}</span>
-        </div>
-        ${meta ? `<div class="cal-ev-meta">${meta}</div>` : ''}
-      </div>`;
-    }).join('');
-    return `<div class="cal-sheet">
-      <div class="cal-sheet-head">
-        <span class="cal-sheet-date">${label}</span>
-        <button type="button" class="cal-sheet-close" data-act="calClose">Close</button>
-      </div>
-      ${rows}
-      <div class="cal-sheet-acts">
-        <button type="button" class="cal-act" data-act="calIcs" data-arg="${date}">Add this day to calendar</button>
-      </div>
-    </div>`;
-  }
-
-  function renderCalendar() {
-    const body = document.getElementById('notifCalendarBody');
-    if (!body) return;
-    if (!calMonth) { const n = new Date(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
-
-    const byDate = eventsByDate();
-    const total  = (eventsData.events || []).length;
-    if (!total) {
-      body.innerHTML = '<div class="notif-empty">No event feed yet — it lands with the next data run.</div>';
-      return;
-    }
-
-    const prev = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
-    const next = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
-    const short = d => MONTH_NAMES[d.getMonth()].slice(0, 3);
-    const outside = monthOutsideWindow(calMonth);
-    const w = calWindow();
-    const pretty = iso => { const d = parseYmd(iso); return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].slice(0,3)}`; };
-    const wFrom = w.from ? pretty(w.from) : '';
-    const wTo   = w.to   ? pretty(w.to)   : '';
-
-    body.innerHTML =
-      `<div class="cal-head">
-        <span class="cal-month">${MONTH_NAMES[calMonth.getMonth()]} ${calMonth.getFullYear()}</span>
-        <span class="cal-nav">
-          <button type="button" class="cal-nav-btn" data-act="calPrev" aria-label="Previous month">‹</button>
-          <button type="button" class="cal-nav-btn" data-act="calNext" aria-label="Next month">›</button>
-        </span>
-      </div>
-      <div class="cal-quarter">
-        <button type="button" class="cal-q" data-act="calPrev">${short(prev)}</button>
-        <b>${short(calMonth)}</b>
-        <button type="button" class="cal-q" data-act="calNext">${short(next)}</button>
-        <span class="cal-q-hint">swipe</span>
-      </div>
-      <div class="cal-dow">${DOW_LABELS.map(d => `<div>${d}</div>`).join('')}</div>
-      <div class="cal-grid${outside ? ' cal-grid-out' : ''}" id="calGrid">${calGridHtml(calMonth, byDate)}</div>
-      ${outside ? `<div class="cal-out-note">Past the end of the feed — it carries
-        ${wFrom} to ${wTo}. An empty month here means "not fetched yet", not
-        "nothing scheduled".</div>` : ''}
-      ${calSelected ? daySheetHtml(calSelected, byDate) : ''}
-      <div class="cal-legend">
-        <span><i class="cal-dot macro" style="background:var(--accent)"></i>Rates</span>
-        <span><i class="cal-dot earnings" style="background:var(--volume)"></i>Earnings</span>
-        <span><i class="cal-dot exdiv" style="background:var(--text-muted)"></i>Ex-dividend</span>
-      </div>
-      <div class="cal-gap">${calGapNote()}</div>`;
-  }
-
-  // The calendar states its own gaps rather than presenting a partial month as
-  // complete. Driven by events.json's `sources`, so it can never claim a feed
-  // that did not actually load.
-  function calGapNote() {
-    const src = eventsData.sources || {};
-    // Each flag is now set by the feed it names (events.py). It used to be one
-    // `macro` flag covering two different sources, so a FRED-only result made
-    // this note announce the Fed calendar over a month holding no FOMC dates.
-    // `src.macro` is read as a fallback so a payload published before the split
-    // still renders truthfully rather than claiming nothing loaded.
-    const fomc = src.fomc || src.macro;
-    const bits = [];
-    if (fomc) bits.push('<b>FOMC decision dates</b> are included, from the Fed\u2019s own calendar.');
-    else      bits.push('<b>No rate decisions loaded</b> \u2014 the Fed calendar did not answer on the last run.');
-    if (!src.fred) bits.push('CPI, PCE and the jobs report are not in yet \u2014 they need a free FRED API key.');
-    if (!src.speeches) bits.push('<b>Speeches are not here and may never be:</b> the Fed publishes a speech when it is delivered, not before.');
-    const stale = eventsAgeNote();
-    if (stale) bits.push(stale);
-    return bits.join(' ');
-  }
-
-  // A calendar can go stale on its own. write_events deliberately leaves the
-  // previous file in place when the fetch fails, so the pipeline can stay green
-  // and the prices an hour old while these dates are a week old — and nothing
-  // on screen looked any different. The stale banner only reasons about prices.
-  const EVENTS_STALE_AFTER_H = 48;   // two ordinary runs' worth of slack
-  function eventsAgeNote() {
-    const gen = eventsData.generated_at;
-    if (!gen) return '';
-    const t = Date.parse(gen);
-    if (isNaN(t)) return '';
-    const hrs = (Date.now() - t) / 3600000;
-    if (hrs < EVENTS_STALE_AFTER_H) return '';
-    const days = Math.floor(hrs / 24);
-    return `<b>These dates are ${days === 1 ? 'a day' : days + ' days'} old.</b>
-            The event fetch has not landed since then \u2014 a date added or moved
-            since will not be here.`;
-  }
-
-  // One-off .ics for a single day, built in the browser. The standing
-  // subscription is the published feed (calSubscribe) — this is for taking one
-  // date with you without subscribing to all of them.
-  // SLICED from the published feed, never rebuilt. This function used to
-  // compose its own VEVENTs, which meant two pieces of code named the same
-  // event: publish.build_ics special-cases a rate decision, this one did not,
-  // so subscribing gave you "FOMC decision" and the day download gave you
-  // "FOMC decision — macro". build_ics is now the only place an event is
-  // titled, and this takes the blocks it wants out of the file it produced.
-  function sliceIcs(feed, date) {
-    const compact = date.replace(/-/g, '');
-    const head = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SwingPulse//Events//EN',
-                  'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
-    const blocks = [];
-    let cur = null;
-    // Unfold RFC 5545 continuation lines first: a folded DTSTART would not
-    // match, and a folded SUMMARY would be split across array entries.
-    const lines = String(feed).replace(/\r\n[ \t]/g, '').split(/\r?\n/);
-    for (const line of lines) {
-      if (line === 'BEGIN:VEVENT') { cur = [line]; continue; }
-      if (!cur) continue;
-      cur.push(line);
-      if (line === 'END:VEVENT') {
-        if (cur.some(l => l.startsWith('DTSTART') && l.includes(compact))) blocks.push(cur);
-        cur = null;
-      }
-    }
-    if (!blocks.length) return null;
-    return head.concat(...blocks, ['END:VCALENDAR']).join('\r\n') + '\r\n';
-  }
-
-  async function downloadIcs(date) {
-    let text = null;
-    try {
-      const res = await fetch(EVENTS_ICS_URL, { cache: 'no-store' });
-      if (res.ok) text = sliceIcs(await res.text(), date);
-    } catch (err) {
-      console.warn('[cal] feed fetch failed:', err);
-    }
-    if (!text) {
-      // Deliberately no local fallback: a second builder is what produced two
-      // different names for one event. Better to say the feed is unreachable.
-      alert('Could not reach the calendar feed just now — try Subscribe instead.');
-      return;
-    }
-    const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `swingpulse-${date}.ics`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }
-
-  // webcal:// is the scheme iOS Calendar and macOS listen for; the feed itself
-  // is plain https. A real <a href> rather than a scripted navigation: iOS
-  // handles the scheme far more reliably from a link, and it makes the URL
-  // long-pressable so it can be copied into any other calendar app.
-  function webcalUrl() {
-    return new URL(EVENTS_ICS_URL, window.location.href).href.replace(/^https?:/, 'webcal:');
-  }
-  function subscribeToEvents() { window.location.href = webcalUrl(); }
-
-  // Horizontal swipe across the grid moves a month — the arrows are small and
-  // a calendar is a thing people swipe. Bound once to the container, which
-  // survives renderCalendar()'s innerHTML rewrite; the grid inside does not.
-  (function wireCalendarSwipe() {
-    const body = document.getElementById('notifCalendarBody');
-    if (!body) return;
-    let x0 = null, y0 = null;
-    body.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) { x0 = null; return; }
-      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
-    }, { passive: true });
-    body.addEventListener('touchend', e => {
-      if (x0 === null) return;
-      const t  = e.changedTouches[0];
-      const dx = t.clientX - x0, dy = t.clientY - y0;
-      x0 = null;
-      // Horizontal-dominant and past a real threshold, so scrolling the day
-      // sheet vertically never flips the month by accident.
-      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      calShiftMonth(dx < 0 ? 1 : -1);
-    }, { passive: true });
-    // Trackpad / mouse-wheel horizontal scroll, for the desktop view.
-    let wheelLock = 0;
-    body.addEventListener('wheel', e => {
-      if (Math.abs(e.deltaX) < 30 || Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
-      const now = Date.now();
-      if (now - wheelLock < 400) return;
-      wheelLock = now;
-      calShiftMonth(e.deltaX > 0 ? 1 : -1);
-    }, { passive: true });
-  })();
+  // Derived from allData, so any load that replaces it has to drop the index.
+  function resetInstrumentIndex() { _instrumentsByName = null; }
 
   // ── Notifications popup (bell) ───────────────────────────────────────
   // Today's notifications = every instrument with an active daily signal.
@@ -7826,26 +7205,11 @@
   function updateNotifBell() {
     const btn = document.getElementById('pushToggleBtn');
     if (!btn) return;
-    // TWO counts, deliberately not one sum. It used to add today's fires to the
-    // upcoming events and show the total, which on a busy day read "137" and
-    // told you nothing — and gave no clue which of the two segments below it
-    // the number belonged to. Gold badge = fired today; violet pip = scheduled
-    // inside the banner window. The pip is the half that must still appear on a
-    // quiet signal day, since the whole point of the calendar is that the count
-    // rises BEFORE the event.
+    // Gold badge = signals fired today.
     const sigs = notifItems().length;
-    const evs  = upcomingEvents(EVENT_BANNER_DAYS).length;
-    btn.classList.toggle('has-signals', (sigs + evs) > 0);
-    if (sigs > 0) btn.dataset.count  = sigs; else delete btn.dataset.count;
-    if (evs  > 0) btn.dataset.events = evs;  else delete btn.dataset.events;
-    btn.setAttribute('aria-label',
-      `Notifications and calendar — ${sigs} fired today, ${evs} scheduled soon`);
-    // The segments carry their own counts too, so opening the panel says which
-    // number was which without having to read both lists.
-    const segT = document.getElementById('notifSegToday');
-    const segC = document.getElementById('notifSegCal');
-    if (segT) segT.textContent = sigs ? `Today ${sigs}` : 'Today';
-    if (segC) segC.textContent = evs  ? `Calendar ${evs}` : 'Calendar';
+    btn.classList.toggle('has-signals', sigs > 0);
+    if (sigs > 0) btn.dataset.count = sigs; else delete btn.dataset.count;
+    btn.setAttribute('aria-label', `Alerts — ${sigs} fired today`);
   }
 
   function renderNotifPanel() {
@@ -7880,32 +7244,12 @@
     }).join('');
   }
 
-  // Show whichever segment is active and render only that one.
-  function renderNotifBody() {
-    const list = document.getElementById('notifPopupList');
-    const cal  = document.getElementById('notifCalendarBody');
-    if (!list || !cal) return;
-    const onCal = notifTab === 'calendar';
-    list.style.display = onCal ? 'none' : '';
-    cal.style.display  = onCal ? '' : 'none';
-    const footer = document.getElementById('notifCalFooter');
-    const subLink = document.getElementById('calSubscribeLink');
-    if (footer) footer.style.display = onCal && (eventsData.events || []).length ? '' : 'none';
-    if (subLink) subLink.href = webcalUrl();
-    document.querySelectorAll('.notif-seg-btn').forEach(b => {
-      const on = b.dataset.notifTab === notifTab;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    if (onCal) renderCalendar(); else renderNotifPanel();
-  }
-
   function toggleNotifPanel() {
     const popup = document.getElementById('notifPopup');
     if (!popup) return;
     const open = popup.style.display !== 'none';
     if (open) { popup.style.display = 'none'; return; }
-    renderNotifBody();
+    renderNotifPanel();
     // Refresh the push row only — rewriting the bell's innerHTML here would
     // detach the clicked SVG and break the outside-click guard below.
     const pt = document.getElementById('notifPushToggle');
@@ -7917,28 +7261,13 @@
     popup.style.display = '';
   }
 
-  document.addEventListener('click', e => {
-    const seg = e.target.closest('.notif-seg-btn');
-    if (!seg) return;
-    notifTab = seg.dataset.notifTab === 'calendar' ? 'calendar' : 'today';
-    try { localStorage.setItem(NOTIF_TAB_KEY, notifTab); } catch {}
-    renderNotifBody();
-  });
-
   // Close popup on outside click or when a notification opens its modal
   document.addEventListener('click', e => {
     const popup = document.getElementById('notifPopup');
     if (!popup || popup.style.display === 'none') return;
-    if (e.target.closest('.notif-seg-btn')) return;   // switching view, not leaving
-    // A handler that ran before this one may have re-rendered the thing that was
-    // clicked — the calendar's month arrows and month chips both rebuild
-    // #notifCalendarBody's innerHTML, which DETACHES the clicked button. On a
-    // detached node closest('#notifPopup') is null, so the test below read a
-    // click on the arrow as a click outside the popup and closed it: the month
-    // advanced and the calendar vanished in the same frame. Swipe was unaffected
-    // because a touch gesture never fires click, which is exactly why it worked
-    // while the arrows appeared dead. If the target is gone from the document,
-    // the click was ours.
+    // A handler that ran first may have re-rendered (detached) the clicked
+    // node; closest('#notifPopup') is then null and would read as an outside
+    // click. If the target is gone from the document, the click was ours.
     if (!e.target.isConnected) return;
     if (e.target.closest('.notif-item')) { popup.style.display = 'none'; return; }
     if (!e.target.closest('#notifPopup') && !e.target.closest('#pushToggleBtn')) {
@@ -7949,53 +7278,14 @@
   // Initial UI state for push button (after SW registers)
   setTimeout(updatePushBadgeUI, 500);
 
-  // Calendar actions, wired through the same data-act dispatcher as everything
-  // else so the grid can be re-rendered wholesale without rebinding handlers.
-  function calShiftMonth(delta) {
-    calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
-    calSelected = null;
-    renderCalendar();
-  }
-  const calPrev = () => calShiftMonth(-1);
-  const calNext = () => calShiftMonth(1);
-  const calDay  = (date) => { calSelected = (calSelected === date) ? null : date; renderCalendar(); };
-  const calClose = () => { calSelected = null; renderCalendar(); };
-  const calIcs  = (date) => downloadIcs(date);
-  const calSubscribe = () => subscribeToEvents();
-  // "rate-sensitive instruments first" used to be advice with no destination.
-  // The five Rates instruments and the FOMC feed landed the same week and had
-  // no connection; this is it. Uses the Class chip, which now carries Rates as
-  // its own value (browseClassOf) rather than hiding them inside Index.
-  function openRatesBoard() {
-    const popup = document.getElementById('notifPopup');
-    if (popup) popup.style.display = 'none';
-    openChartsFiltered({ cls: 'Rates', label: 'Rates' });
-  }
-
-  // Where a tapped notification lands. An instrument opens its card; a
-  // market-wide date opens the calendar on that day. Retried once because a
-  // cold start reaches this before allData exists.
-  function openFromNotification(ticker, date) {
+  // Where a tapped notification lands: the instrument's card. Retried once
+  // because a cold start reaches this before allData exists.
+  function openFromNotification(ticker) {
     const go = () => {
       if (ticker && allData.some(d => d.instrument_name === ticker)) { openModal(ticker); return true; }
-      if (date) { openCalendar(date); return true; }
       return false;
     };
     if (!go()) setTimeout(go, 2500);
-  }
-
-  // From the dashboard banner: open the dropdown straight onto that date.
-  function openCalendar(date) {
-    const popup = document.getElementById('notifPopup');
-    if (!popup) return;
-    notifTab = 'calendar';
-    if (date) {
-      const d = parseYmd(date);
-      calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-      calSelected = date;
-    }
-    popup.style.display = '';
-    renderNotifBody();
   }
 
   // Cold start from a notification tap: the SW could not post to a client that
@@ -8003,7 +7293,7 @@
   // and stripped, so a reload does not reopen it.
   (function landFromQuery() {
     const q = new URLSearchParams(window.location.search);
-    const open = q.get('open'), day = q.get('day');
+    const open = q.get('open');
     // Chart deep link (2026-09-26): ?chart=US100&tf=15m&at=2026-09-16T14:45
     // opens that chart centred on that moment with a marker line on it. Built
     // so a list of setups can link straight to each one.
@@ -8013,9 +7303,9 @@
       openChartAt(chart, q.get('tf') || '', q.get('at') || '');
       return;
     }
-    if (!open && !day) return;
+    if (!open) return;
     history.replaceState({}, '', window.location.pathname);
-    setTimeout(() => openFromNotification(open || '', day || ''), 1200);
+    setTimeout(() => openFromNotification(open), 1200);
   })();
 
   // Open `name` on the Charts tab at timeframe `tf`, with `at` (a UTC time,
@@ -8055,9 +7345,7 @@
   }
 
   window.SP = { openModal, openTvPicker, wlPick, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
-                calPrev, calNext, calDay, calClose, calIcs, calSubscribe, openCalendar,
-                showSimilarCharts, clearSimilarCharts, openChartFor, openChartAt,
-                openRatesBoard };
+                showSimilarCharts, clearSimilarCharts, openChartFor, openChartAt };
 
   // ── Init ─────────────────────────────────────────────────────────────
   // Wire legend filters once (static HTML elements — no re-registration on timeframe change)
