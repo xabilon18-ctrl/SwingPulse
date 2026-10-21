@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-21 PR VALIDATION BEFORE MERGE: deploy-app.yml now also runs on pull
+requests. User: "I like the idea of testing before merging". Golden on a PR
+missed failures the deploy run's engine and mobile browser steps catch (e.g.
+10-17 18:31 browser, 10-19 #34 engine): they surfaced only after merge, with
+main broken. PR runs stop before every refs/heads/main step, skip the Pages
+preview (no secrets) and use a per-PR lock, so they never queue behind or
+block a data publish. Live-only failures (10-17 #14/#16 "Verify the live
+app") are not caught by this; they need their own look.
+
 2026-10-21 OTHER MARKETS SPLIT BY MARKET: app.js v517 / chart-preferences.js
 v4 + sync Worker. User: "Why does the swap for oil affect crypto? Oil should
 stand alone" and "Fx, crypto, commodities, stocks and brent as energy".
