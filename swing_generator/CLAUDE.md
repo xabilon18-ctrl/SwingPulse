@@ -954,66 +954,16 @@ remote one.
 
 ---
 
-## Manual data run from the app (2026-08-30)
+## Manual data run from the app — REMOVED (2026-10-21)
 
-A **Run now** button starts the CI pipeline — the same `workflow_dispatch` as
-the Actions tab. Two homes, one handler and one state (`[data-run-btn]`): on the
-**stale banner**, where the complaint is, and in the **Alerts & calendar panel**,
-for a run when the banner is not up.
-
-Why it exists: `#refreshBtn` re-downloads what CI last PUBLISHED. When the stale
-banner is up that is exactly the wrong thing — it fetches the same stale file and
-looks like it worked.
-
-**No GitHub token is in app.js and none can be.** The bundle is public; a
-credential in it is readable by anyone who opens the site, which is the mistake
-the old hard-coded `SYNC_SECRET` made. The browser proves only WHO it is, with
-the same per-user bearer sync uses. The token is a Worker secret:
-
-```bash
-cd swing_generator/webapp/sync-worker && npx wrangler secret put GH_TOKEN
-# fine-grained PAT, xabilon18-ctrl/SwingPulse ONLY, Actions: read and write
-npx wrangler deploy
-```
-
-Worker routes (`sync-worker/src/index.js`): `POST /run` (authorize → cooldown →
-already-running check → GitHub dispatch) and `GET /run/status` (latest run, for
-the button's queued → running → done). Unset `GH_TOKEN` returns **501** and the
-app names the missing thing rather than sending you to check your password.
-
-**The outcome persists; the button state does not.** `#runStatusLine` in the
-run row reads "✓ Manual run succeeded · 12 min ago" / "✕ Manual run failure ·
-35 min ago", coloured `--buy`/`--sell` (semantic, not the accent). The button
-alone could not answer "did it work" — it flashed "Done — loading" and returned
-to idle, so ten minutes later the screen looked identical whether the run had
-succeeded, failed, or never started, and a run is the one thing here you start
-and walk away from. `event` distinguishes a manual run from a cron, which is
-what you are actually asking when you ask whether YOUR run worked. Refreshed on
-every panel open, not just page load.
-
-**Signed out, the button opens the sign-in** rather than saying "Sign in first"
-and sitting there — it named the problem and offered no way to act on it, which
-is the same complaint as an affordance nobody can find. Straight to the password
-step if a user is already chosen, the picker if not. NB the picker's "Who are
-you?" step IS the sign-in; the only other way in is the name chip in the header
-(`#syncUserBadge`).
-
-**Two guards that matter.** `RUN_COOLDOWN_MS` (10 min, just over a run) plus a
-409 when a run is already in flight — the pipeline is not re-entrant and two
-runs would race on the same R2 keys and on the accumulating files (ledger,
-sector activity). And on the client, `watchRun(since)`: GitHub's dispatch
-returns 204 with no run id and the run does not appear immediately, so the first
-poll returns the PREVIOUS run — completed, successful. Without the since-guard
-the button flashed "Done — loading", reloaded, and reported the last cron's
-result as if it were yours. Any run that began before we asked is somebody
-else's.
-
-**What it does NOT do, and the UI says so.** `data_fetcher._is_fresh()` gates
-downloads at 20 hours, so a run started within 20h of the last download does not
-re-fetch prices — it recomputes from cache and completes with identical signals.
-Useful after a failed run or a code change; not a "get fresh prices now" button.
-That gate is load-bearing for the finished-sessions rule (Important Rule 10), so
-this works around it by being honest rather than by forcing a download.
+The **Run now** button (Alerts & calendar panel + stale banner) and the sync
+Worker's `POST /run` / `GET /run/status` routes are gone. User: "remove this
+button since we have the 35m thing". Its fine-grained token had expired on
+2026-09-29 and the button failed silently for three weeks; the hourly :05
+dispatch plus the :35 backup (cron-worker) cover what it was for. The sync
+Worker no longer reads `GH_TOKEN`. To start a run by hand, use the Actions tab
+(publish.yml → Run workflow). The original design notes are in git history
+(commit before this one, and app.js v257–v259).
 
 ---
 
