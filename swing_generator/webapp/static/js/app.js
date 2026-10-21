@@ -7755,13 +7755,17 @@
     // market to market"): stocks, indices and other markets each keep their own
     // time grid per timeframe, so each keeps its own swap too. `flip` is the
     // pre-split choice, which every market inherits until it is swapped.
+    // 2026-10-21 (user: "Why does the swap for oil affect crypto?"): 'other'
+    // is split into energy, commodities, crypto and currency (rates stay in
+    // 'other'), which read the 'other' swap until swapped themselves.
     if (!g.flipBy || typeof g.flipBy !== 'object') g.flipBy = {};
-    for (const k of Object.keys(g.flipBy)) if (!['stocks', 'indices', 'other'].includes(k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
+    for (const k of Object.keys(g.flipBy)) if (!Object.hasOwn(modules.chartPreferences.scopes, k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
     return g;
   }
   function gridFlip(tf, scope) {
-    const g = gridShade(tf);
-    return Object.prototype.hasOwnProperty.call(g.flipBy, scope) ? g.flipBy[scope] : g.flip;
+    const g = gridShade(tf), own = k => Object.prototype.hasOwnProperty.call(g.flipBy, k);
+    if (own(scope)) return g.flipBy[scope];
+    return modules.chartPreferences.fromOther.has(scope) && own('other') ? g.flipBy.other : g.flip;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
   // Ribbon shade (user, 2026-09-28: "a shade within the trend MAs, the 3 MAs
@@ -10249,12 +10253,18 @@
   const GRID_DIVISIONS = modules.chartPreferences.choices;
   // The Term division (four-year administrations) is offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
-  const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', other: 'Other markets' };
+  const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
+    crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
+  // Oil is its own market, apart from metals and crops (user, 2026-10-21:
+  // "Fx, crypto, commodities, stocks and brent as energy"). Rates stay 'other'.
   function reelGridScope(item) {
     if (!item) return 'other';
     const kind = assetClassOf(item);
     if (kind === 'Equity') return 'stocks';
     if (kind === 'Index' && item.group !== 'Rates') return 'indices';
+    if (kind === 'Commodity') return item.industry === 'Energy' ? 'energy' : 'commodities';
+    if (kind === 'Crypto') return 'crypto';
+    if (kind === 'Currency') return 'currency';
     return 'other';
   }
   function reelGridDivision(tf, scope = 'other') { return chartPreferences.division(tf, scope); }

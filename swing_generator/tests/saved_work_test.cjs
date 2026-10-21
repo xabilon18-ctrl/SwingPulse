@@ -28,6 +28,16 @@ assert.equal(b.division('4H','indices').code,'Q');
 assert.equal(b.division('1H').code,'M','A stock edit leaves other markets unchanged');
 a.mergeRemote({version:1,grids:{'1H':{division:'Y',modifiedAt:500}}});
 assert.equal(a.division('1H','stocks').code,'H','Old clients cannot replace stock choices');
+// Markets split out of 'other' (2026-10-21) read it until set, then stand alone.
+assert.equal(a.division('1H','energy').code,a.division('1H').code,'Energy starts from the other-markets grid');
+assert.equal(a.division('1H','crypto').code,a.division('1H').code);
+const otherBefore=a.division('1H').code,oil=otherBefore==='Q'?'M':'Q';
+a.set('1H',oil,'energy');
+assert.equal(a.division('1H','energy').code,oil);
+assert.equal(a.division('1H','crypto').code,otherBefore,'An energy edit leaves crypto unchanged');
+assert.equal(a.division('1H').code,otherBefore,'An energy edit leaves other markets unchanged');
+b.mergeRemote(a.snapshot());assert.equal(b.division('1H','energy').code,oil,'Energy choices sync');
+assert.equal(a.division('1H','stocks').code,'H','Stocks never read the other-markets grid');
 a.reload();assert.equal(a.division('1H','stocks').code,'H','Groups survive a restart');
 assert.equal(a.set('4H','W','stocks'),false,'Keep the requested M/Q/H/Y choices');
 assert.equal(a.set('4H','M','invalid'),false);

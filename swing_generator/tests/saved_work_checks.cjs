@@ -24,7 +24,7 @@ module.exports=async function checkSavedWork(page, screenshots) {
   await full.locator('[data-freshness-name] summary').click();
   await full.locator('[data-act="grid-menu"]').click();
   const scope=await page.locator('.reel-grid-menu [data-division="H"]').getAttribute('data-grid-scope');
-  const gridField={stocks:'stockGrids',indices:'indexGrids',other:'grids'}[scope];
+  const gridField=await page.evaluate(s=>window.SwingPulseModules.chartPreferences.scopes[s],scope);
   assert.ok(gridField,'Grid menu identifies the chart market group');
   assert.equal(await page.locator('[data-act="pct-set"]').count(),0);
   await page.locator('.reel-grid-menu [data-division="H"]').click();
