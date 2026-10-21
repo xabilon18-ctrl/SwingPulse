@@ -118,6 +118,7 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await divSw.click();
     assert.equal((await channelOn()).div,true,'Divisions on is saved on the channel');
     assert.equal(await divLines(),8,'Ten divisions: eight dotted lines between the edges and the midline');
+    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels on the channel');
     assert.equal(await toolbar.locator('[data-act="draw-div"]').getAttribute('aria-checked'),'true');
     await toolbar.locator('[data-act="draw-div"]').click();
     assert.ok(!('div' in (await channelOn())),'Off stores no field');

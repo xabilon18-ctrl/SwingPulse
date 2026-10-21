@@ -10150,8 +10150,8 @@
   // A channel's TEN DIVISIONS (user, 2026-10-21: "make the channel the same
   // way [as the ladder] with the 10 divisions but have a switch to turn the
   // divisions on and off"). With `div` set, the band between the two edges is
-  // split into ten equal parts by dotted lines in the ladder's style, numbered
-  // 0% on the bottom edge to 100% on the top. The 50% line is the midline the
+  // split into ten equal parts by dotted lines in the ladder's style, without
+  // the ladder's % labels. The 50% line is the midline the
   // channel already draws. Off (no field) is the default, so seeded channels
   // and every channel saved before stay as they were.
   const CHANNEL_DIVS = 10;
@@ -10264,22 +10264,13 @@
     // answer without hunting through the footer.
 
     // Divisions: each one parallel to the edges, a fixed share of the way from
-    // the bottom edge (dDn) to the top (dUp). Labelled at the left end where
-    // it is on the panel, else at the right end, like the ladder's numbers.
+    // the bottom edge (dDn) to the top (dUp). No % labels (user, 2026-10-21:
+    // "remove the labels on the channel") — the lines alone.
     let divs = '';
     if (ch.div) {
-      const lblAt = (off, txt, end) => {
-        const cls = 'reel-ladder-lbl' + (end ? ' reel-ladder-lbl-end' : '');
-        for (const [x, anchor] of [[XA + 8, 'start'], [XB - 8, 'end']]) {
-          const y = yAtX(x) + off - 7;
-          if (y >= L.py0 + 24 && y <= L.py1 - 4) return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="${cls}">${txt}</text>`;
-        }
-        return '';
-      };
-      for (let j = 0; j <= CHANNEL_DIVS; j++) {
-        const off = dDn + (dUp - dDn) * j / CHANNEL_DIVS, end = j === 0 || j === CHANNEL_DIVS;
-        if (!end && 2 * j !== CHANNEL_DIVS) divs += seg(off, 'reel-ladder reel-ch-div') + reelHitLine(XA, yA + off, XB, yB + off, idx);
-        divs += lblAt(off, `${j * 100 / CHANNEL_DIVS}%`, end);
+      for (let j = 1; j < CHANNEL_DIVS; j++) {
+        const off = dDn + (dUp - dDn) * j / CHANNEL_DIVS;
+        if (2 * j !== CHANNEL_DIVS) divs += seg(off, 'reel-ladder reel-ch-div') + reelHitLine(XA, yA + off, XB, yB + off, idx);
       }
     }
 
