@@ -7837,7 +7837,7 @@ body {
 /* The start of each WEEK on the 5m day grid (user, 2026-09-24): dashed and
    bold, so the week reads at a glance among the dotted day lines. Declared
    after -month so a month start that is also a week start draws as a week. */
-/* Bolder again (user, 2026-09-24): 4 -> 6. The ladder's 10% and 100% lines
+/* Bolder again (user, 2026-09-24): 4 -> 6. The ladder's 0% and 100% lines
    use the SAME width and dash (.reel-ladder-key) — keep the two in step. */
 .reel-tgrid-quarter { stroke: #000000; stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
 .reel-tgrid-quarter + .reel-tgrid-lbl { font-weight: 700; }
@@ -8801,16 +8801,18 @@ body.chart-full-open { overflow: hidden; }
 /* Trend strip label under the chart (2026-09-11). SVG units: the card viewBox is 1000 wide. */
 .reel-strip-lbl { font-size: 17px; fill: var(--text-muted); font-family: inherit; }
 
-/* Ten price lines (2026-09-11): dotted like the calendar lines; 1 and 4 carry the handles. */
+/* Ladder (2026-09-11; eleven lines, 0%..100%, since 2026-10-21): dotted like the
+   calendar lines; the 0% and 30% lines carry the handles. A channel's ten
+   divisions (.reel-ch-div) use the same line and labels. */
 /* White like every other drawing — these are hand-placed, not computed. */
 .reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }
-/* Top and bottom (10% / 100%): same weight and dash as the 5m week line
+/* Top and bottom (0% / 100%): same weight and dash as the 5m week line
    (.reel-tgrid-week), user 2026-09-24. Colour stays the drawing's own. */
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
 /* Black and LARGER than the price axis (24px phone / 18px desktop) — the user
    reads the ladder by these, so they outrank the numbers in the gutter. */
 .reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 500; font-variant-numeric: tabular-nums; }
-/* 10% and 100% — the two ends of the ladder — are the bold ones (user, 2026-09-15). */
+/* 0% and 100% — the two ends of the ladder or channel — are the bold ones (user, 2026-09-15). */
 .reel-ladder-lbl-end { font-weight: 900; }
 @media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
 /* Full-screen chart: previous / next without closing. */
@@ -9492,6 +9494,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw-compact .reel-style-panel { margin: 7px 0 0; padding: 7px 0 0; border-top: 1px solid #dde1e5; background: transparent; }
 .reel-draw-compact .reel-fill-switch { width: 100%; height: 34px; margin: 0; padding: 3px; display: flex; justify-content: space-between; }
 .reel-draw-compact .reel-fill-switch span { font-size: 12px; }
+/* Channel ten divisions switch (2026-10-21): it shares the props row with the
+   line style and weight, so it sizes to its content instead of the full-width
+   Background switch it borrows its look from. */
+.reel-draw-compact .reel-div-switch { width: auto; gap: 5px; padding: 3px 2px 3px 6px !important; }
+.reel-draw-compact .reel-div-switch span { font-size: 13px; font-weight: 750; }
 .reel-draw-compact .reel-style-cols { gap: 5px; justify-content: center; padding: 6px 0; }
 .reel-draw-compact .reel-swatch { min-width: 24px; height: 29px; padding: 3px; }
 .reel-draw-compact .reel-swatch i { width: 19px; height: 19px; }

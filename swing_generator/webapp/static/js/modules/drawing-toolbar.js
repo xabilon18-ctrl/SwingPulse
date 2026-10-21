@@ -98,14 +98,16 @@
         const on = (d.weight || 1) === v;
         return `<button class="reel-tool reel-dash-btn${on ? ' on' : ''}" data-act="draw-weight" data-v="${v}" data-name="${name}" aria-pressed="${on}" aria-label="${label} lines" title="${label}"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="2" y1="5" x2="20" y2="5" stroke="currentColor" stroke-width="${w}" stroke-linecap="round"/></svg></button>`;
       }).join('')
-      + `</span>`;
-    // The 10-line ladder alone gets a "%" switch: show or hide its 10%–100%
-    // labels (user, 2026-09-15). On = labels showing, the default.
+      + `</span>`
+      // Ten divisions on / off (user, 2026-10-21). Off is the default.
+      + `<button class="reel-tool reel-grid-switch reel-fill-switch reel-div-switch${d.div ? ' on' : ''}" data-act="draw-div" data-name="${name}" role="switch" aria-checked="${!!d.div}" aria-label="Ten divisions" title="10 divisions"><span>÷10</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    // The ladder alone gets a "%" switch: show or hide its 0%–100% labels
+    // (user, 2026-09-15). On = labels showing, the default.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
-        // Reverse the numbering: 10% at the top, 100% at the bottom (user, 2026-09-25).
+        // Reverse the numbering: 0% at the top, 100% at the bottom (user, 2026-09-25).
         + `<button class="reel-tool reel-tool-pct${d.reverse ? ' on' : ''}" data-act="draw-reverse" data-name="${name}" aria-pressed="${!!d.reverse}" aria-label="${d.reverse ? 'Number the percentages from the bottom' : 'Number the percentages from the top'}" title="Reverse %">%⇅</button>`
-        // Stack a copy of the 10 lines above / below, or take one away.
+        // Stack a copy of the ladder above / below, or take one away.
         + `<span class="reel-stack" role="group" aria-label="Stack ladder">`
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="1" data-name="${name}" title="Build another block above" aria-label="Build another block above">+▲</button>`
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="1" data-name="${name}" title="Build another block below" aria-label="Build another block below">+▼</button>`

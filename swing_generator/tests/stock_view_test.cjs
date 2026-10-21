@@ -181,19 +181,22 @@ assert.ok(Math.abs(run.hi - (16 + 7 * 0.05)) < 1e-9);
 const ethD = pw.reelOpeningPriceWindow({ c: [2412], l: [1400], h: [4950] }, { lo: 1400, hi: 8600 }, 'allzero');
 assert.ok(ethD.lo < 0 && Math.abs(ethD.hi - 9030) < 1, JSON.stringify(ethD));
 // Drawings: a channel's ends and edges, a ladder's whole stack (never below 0), a level.
-const dw = vm.createContext({ REEL_EXTRAP_BARS: 250, LADDER_LINES: 10,
+const dw = vm.createContext({ REEL_EXTRAP_BARS: 250, LADDER_LINES: 11,
   ladderStack: (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0)),
   reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt, timeframe: '4H' });
-vm.runInContext(fn('drawShownOn') + fn('reelBarIndexForDate') + fn('reelDrawingRange'), dw);
+vm.runInContext(fn('drawShownOn') + fn('reelBarIndexForDate') + fn('ladderKRange') + fn('reelDrawingRange'), dw);
 const days = []; for (let i = 0; i < 100; i++) days.push(new Date(Date.UTC(2026, 0, 1) + i * 864e5).toISOString().slice(0, 10));
 const src = { t: days, c: days.map(() => 1) };
 const ch = { kind: 'channel', t1: days[0], p1: 100, t2: days[10], p2: 110, up: 5, dn: -5 };
 const r1 = dw.reelDrawingRange([ch], src, 0, 150);
 assert.ok(Math.abs(r1.lo - 95) < 1e-9 && Math.abs(r1.hi - 255) < 1e-9, JSON.stringify(r1));
-const lad = { kind: 'ladder', p1: 10, p4: 40 };
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 10, hi: 300 });
+// Eleven lines, 0%..100%, starting FROM p1: p1 (0%) = 20 and p4 (30%) = 50 put 100% at 120.
+const lad = { kind: 'ladder', p1: 20, p4: 50 };
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad], src, 0, 99))), { lo: 20, hi: 120 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([{ ...lad, up: 1, down: 1 }], src, 0, 99))), { lo: 0, hi: 220 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 20, hi: 300 });
 assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 // A linked drawing switched off for this timeframe does not frame it.
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 10, hi: 100 });
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 10, hi: 300 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 20, hi: 120 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 20, hi: 300 });
 console.log('stock, crypto, Weekly and Monthly views: ok');
