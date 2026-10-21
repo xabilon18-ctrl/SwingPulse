@@ -8802,7 +8802,7 @@ body.chart-full-open { overflow: hidden; }
 .reel-strip-lbl { font-size: 17px; fill: var(--text-muted); font-family: inherit; }
 
 /* Ladder (2026-09-11; eleven lines, 0%..100%, since 2026-10-21): dotted like the
-   calendar lines; the 10% and 40% lines carry the handles. A channel's ten
+   calendar lines; the 0% and 30% lines carry the handles. A channel's ten
    divisions (.reel-ch-div) use the same line and labels. */
 /* White like every other drawing — these are hand-placed, not computed. */
 .reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }

@@ -17,9 +17,10 @@ ladder's style (`.reel-ladder.reel-ch-div`), labelled 0% (bottom edge) to 100%
 (top), the 50% line being the existing midline. Off stores no field and is the
 default, so seeded and saved channels are unchanged; divisions on are alert
 levels like a ladder's lines. Ladder: eleven lines, 0%..100% (was ten,
-10%..100%). The 0% line is one step below p1, so p1/p4 keep meaning the 10% and
-40% lines and a saved ladder keeps every line and number, gaining 0% under it
-(reversed ladders now read 0% at the top). A new ladder puts 0% on the lowest
+10%..100%). It starts FROM 0 (user: "make sure they start from 0 and not
+10%"): p1, the first line, is now 0% and p4 the 30% line, so a saved ladder's
+first line reads 0% where it read 10%, every label drops by 10 and a 100% line
+is added on top (reversed ladders read 0% at the top). A new ladder puts 0% on the lowest
 low and 100% on the highest high; stacks are ten steps each
 (`ladderKRange`/`ladderPct`). Tests: drawing_toolbar_checks.cjs,
 stock_view_test.cjs.

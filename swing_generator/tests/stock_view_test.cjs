@@ -190,13 +190,13 @@ const src = { t: days, c: days.map(() => 1) };
 const ch = { kind: 'channel', t1: days[0], p1: 100, t2: days[10], p2: 110, up: 5, dn: -5 };
 const r1 = dw.reelDrawingRange([ch], src, 0, 150);
 assert.ok(Math.abs(r1.lo - 95) < 1e-9 && Math.abs(r1.hi - 255) < 1e-9, JSON.stringify(r1));
-// Eleven lines, 0%..100%: p1 (10%) = 20 and p4 (40%) = 50 put 0% at 10 and 100% at 110.
+// Eleven lines, 0%..100%, starting FROM p1: p1 (0%) = 20 and p4 (30%) = 50 put 100% at 120.
 const lad = { kind: 'ladder', p1: 20, p4: 50 };
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad], src, 0, 99))), { lo: 10, hi: 110 });
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([{ ...lad, up: 1, down: 1 }], src, 0, 99))), { lo: 0, hi: 210 });
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 10, hi: 300 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad], src, 0, 99))), { lo: 20, hi: 120 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([{ ...lad, up: 1, down: 1 }], src, 0, 99))), { lo: 0, hi: 220 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300 }], src, 0, 99))), { lo: 20, hi: 300 });
 assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 // A linked drawing switched off for this timeframe does not frame it.
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 10, hi: 110 });
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 10, hi: 300 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 20, hi: 120 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 20, hi: 300 });
 console.log('stock, crypto, Weekly and Monthly views: ok');

@@ -9428,12 +9428,13 @@
 
   // Eleven price lines, 0% to 100% — TEN even divisions (user, 2026-10-21:
   // "10 divisions and not 9"; it was ten lines, 10%..100%, from 2026-09-11).
-  // Stored as two anchors — the 10% and 40% lines, p1 and p4 — because those
+  // Stored as two anchors — the 0% and 30% lines, p1 and p4 — because those
   // are the two the reader drags: every line sits at p1 + k × (p4 − p1) / 3,
-  // so the set stays even whichever handle moves. The 0% line is k = −1, one
-  // step below p1, so a ladder saved before keeps every line and number it had
-  // and gains the 0% line under it. Starts spanning the visible range, 0% on
-  // the lowest low and 100% on the highest high.
+  // so the set stays even whichever handle moves. It STARTS FROM 0 (user,
+  // 2026-10-21: "make sure they start from 0 and not 10%"): p1, the first
+  // line, is 0%, so a ladder saved when p1 read 10% now reads 0% there and
+  // gains a 100% line on top. Starts spanning the visible range, 0% on the
+  // lowest low and 100% on the highest high.
   const LADDER_LINES = 11;
   function reelDefaultLadder(b) {
     const lows = b.l.filter(v => v != null), highs = b.h.filter(v => v != null);
@@ -9441,7 +9442,7 @@
     const lo = Math.min(...lows), hi = Math.max(...highs);
     if (!(hi > lo)) return null;
     const step = (hi - lo) / (LADDER_LINES - 1);
-    return { kind: 'ladder', p1: lo + step, p4: lo + 4 * step };
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step };
   }
 
   function reelDefaultHLine(b) {
@@ -10022,7 +10023,7 @@
   }
 
   // Eleven price lines — dotted like the calendar lines, always evenly spaced,
-  // adjusted from the 10% and 40% lines. Each line is numbered and priced at the
+  // adjusted from the 0% and 30% lines. Each line is numbered and priced at the
   // right-hand end of the plot, clear of the axis ticks in the gutter.
   // STACKS (2026-09-24, user: "build above it or below it divided by the bold
   // line"): extra copies of the ladder above (d.up) and below (d.down), each
@@ -10032,11 +10033,11 @@
   // original readjusts every block. Unlimited; removed one at a time. A block
   // spans LADDER_LINES-1 steps (0% to 100% is ten gaps).
   const ladderStack = (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0));
-  // The steps k (from p1, the 10% line) that a ladder and its stacks cover:
-  // the original block runs k = −1 (0%) to k = 9 (100%).
+  // The steps k (from p1, the 0% line) that a ladder and its stacks cover:
+  // the original block runs k = 0 (0%) to k = 10 (100%).
   function ladderKRange(d) {
     const SPAN = LADDER_LINES - 1;
-    return [-1 - SPAN * ladderStack(d, 'down'), SPAN - 1 + SPAN * ladderStack(d, 'up')];
+    return [-SPAN * ladderStack(d, 'down'), SPAN * (1 + ladderStack(d, 'up'))];
   }
   // CONTINUOUS numbering (user, 2026-09-25: "when i stack it's a continuation
   // of % and not a repeat even to negative numbers"): 10% per line all the way
@@ -10044,7 +10045,7 @@
   // REVERSED (d.reverse) counts from the top instead: the original's top line
   // is 0% and its bottom 100%, and the stacks carry on the same way.
   function ladderPct(d, k) {
-    return d.reverse ? (LADDER_LINES - 1 - k) * 10 : (k + 1) * 10;
+    return d.reverse ? (LADDER_LINES - 1 - k) * 10 : k * 10;
   }
 
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
@@ -10061,7 +10062,7 @@
       if (y < L.py0 || y > L.py1) continue;
       // Block boundaries are the bold lines — the original's 0% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
-      const j = (((k + 1) % SPAN) + SPAN) % SPAN;
+      const j = ((k % SPAN) + SPAN) % SPAN;
       const key = j === 0;
       const pctLbl = ladderPct(d, k);
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
@@ -10089,9 +10090,9 @@
       const y1 = sc.y(d.p1), y4 = sc.y(d.p4);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
-      const ym = sc.y(d.p1 + 4 * step);
+      const ym = sc.y(d.p1 + 5 * step);     // the 50% line
       if (ym >= L.py0 && ym <= L.py1) handles += reelMoveHandle(L, L.x0 + (L.x1 - L.x0) * 0.65, ym, idx, isActive);
-      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 10% and 40% lines are outside this range — zoom out to adjust</text>`;
+      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and 30% lines are outside this range — zoom out to adjust</text>`;
     }
     return out + handles;
   }
@@ -12544,7 +12545,7 @@
         return;
       }
 
-      // Ladder: the 10% and 40% lines are the anchors, the rest follow.
+      // Ladder: the 0% and 30% lines are the anchors, the rest follow.
       // Refuse a drag that would collapse them onto one price (they vanish).
       if (ch.kind === 'ladder') {
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
@@ -13461,7 +13462,7 @@
           const n = ladderStack(d, dir) + (Number(btn.dataset.d) || 0);
           // A new block with every line below price 0 would draw nothing.
           const SPAN = LADDER_LINES - 1, step = (d.p4 - d.p1) / 3;
-          const k0 = dir === 'up' ? SPAN * n - 1 : -1 - SPAN * (n - 1), k1 = dir === 'up' ? SPAN * (n + 1) - 1 : -1 - SPAN * n;
+          const k0 = dir === 'up' ? SPAN * n : -SPAN * (n - 1), k1 = dir === 'up' ? SPAN * (n + 1) : -SPAN * n;
           if (n > ladderStack(d, dir) && Math.max(d.p1 + k0 * step, d.p1 + k1 * step) <= 0) return true;
           if (n > 0) d[dir] = n; else delete d[dir];
           channelSave();
