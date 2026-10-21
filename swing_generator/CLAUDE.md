@@ -12,14 +12,16 @@ data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
 
 **Except Claude's own setup and CI (2026-10-21).** A change to `CLAUDE.md`,
-`CHANGE_NOTES.md`, `.claude/` or `.github/workflows/` goes up as a PR for the
-user to review; Claude does not merge it. Nothing in CI checks these files, and
-a wrong rule here silently changes every later session.
+`.claude/` or `.github/workflows/` goes up as a PR for the user to review;
+Claude does not merge it. Nothing in CI checks these files, and a wrong rule
+here silently changes every later session.
 
 **Change history lives in `CHANGE_NOTES.md`**, newest first: the dated feature
 notes that used to open this file, and the per-version notes for app.js and
 style.css. Read the entry for a feature before changing it, and add new entries
-there. This file holds only what is true now.
+there. This file holds only what is true now. The entry goes in the SAME PR as
+the change it describes and merges with it under ALWAYS DEPLOY (user,
+2026-10-21): it is history, not a rule, so it needs no separate review PR.
 
 ## What is SwingPulse?
 
