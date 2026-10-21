@@ -1678,11 +1678,6 @@ def main():
         print('\n  Rotation: FAILED')
         traceback.print_exc()
 
-    # 5e. Scheduled events — earnings/ex-div dates for the calendar tab.
-    #     Never fatal: a Yahoo metadata outage must not cost a day of signals.
-    from events import write_events
-    write_events(active)
-
     # 6. Summary to console
     print('\n  Signal summary:')
     _print_summary(output_df)

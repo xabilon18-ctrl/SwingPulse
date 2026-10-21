@@ -15,13 +15,11 @@ self.addEventListener('notificationclick', e => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
         if ('focus' in client) {
-          client.postMessage({ type: 'OPEN_TARGET', ticker: data.ticker || '', date: data.date || '' });
+          client.postMessage({ type: 'OPEN_TARGET', ticker: data.ticker || '' });
           return client.focus();
         }
       }
-      const q = data.ticker ? `/?open=${encodeURIComponent(data.ticker)}`
-              : data.date   ? `/?day=${encodeURIComponent(data.date)}`
-              : '/';
+      const q = data.ticker ? `/?open=${encodeURIComponent(data.ticker)}` : '/';
       return clients.openWindow(q);
     })
   );
@@ -49,13 +47,10 @@ self.addEventListener('push', e => {
     } catch {}
 
     // Stars were removed 2026-09-24 (user decision), and with them the
-    // per-instrument alerts: no signal notifications and no earnings notices.
-    // Macro events hit everything, so those still go out. A push must ALWAYS
-    // show something — iOS revokes a web-push subscription that receives
-    // pushes without a notification — so the plain update notice stays.
-    try { await notifyUpcomingEvents([]); } catch (err) {
-      console.warn('[SW] event check failed:', err);
-    }
+    // per-instrument alerts; the event calendar and its evening-before
+    // warnings went 2026-10-21. A push must ALWAYS show something — iOS
+    // revokes a web-push subscription that receives pushes without a
+    // notification — so the plain update notice stays.
     await self.registration.showNotification('SwingPulse', {
       body:  'SwingPulse updated — tap to open.',
       icon:  '/static/icon-192.png',
@@ -64,56 +59,3 @@ self.addEventListener('push', e => {
     });
   })());
 });
-
-// ── Scheduled events: warn the evening before ────────────────────────────────
-// Calendar days, not the app's trading-day count. An earnings or FOMC date
-// never lands on a weekend, so "today or tomorrow" needs no session arithmetic
-// here — and a second copy of tradingDaysUntil() in a file that cannot import
-// from app.js is exactly the kind of duplicate rule that has cost this codebase
-// before. The tag is keyed on the event, so three runs a day raise it once.
-async function notifyUpcomingEvents(starred) {   // [] since stars were removed
-  const res = await fetch(`${R2_BASE}/events.json?t=${Date.now()}`, { cache: 'no-store' });
-  if (!res.ok) return;
-  const payload = await res.json();
-  const events  = payload.events || [];
-  if (!events.length) return;
-
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const daysOff = (str) => {
-    const [y, m, d] = String(str).split('-').map(Number);
-    return Math.round((new Date(y, m - 1, d) - today) / 86400000);
-  };
-
-  const starredSet = new Set(starred || []);
-  for (const e of events) {
-    const n = daysOff(e.date);
-    if (n < 0 || n > 1) continue;
-    if (e.type === 'exdiv') continue;         // not a gap risk, same as the banner
-    const when = n === 0 ? 'today' : 'tomorrow';
-
-    // A macro row carries `title` and no instrument: it hits everything, so it
-    // goes out whether or not anything is starred.
-    if (e.title || !e.instrument) {
-      await self.registration.showNotification(`🏛 ${e.title || 'Rate decision'} ${when}`, {
-        body:  `${e.time ? e.time + '  ·  ' : ''}Moves everything at once — check rate-sensitive positions.`,
-        icon:  '/static/icon-192.png',
-        badge: '/static/icon-192.png',
-        // One tag per event, not per day: two macro releases on one date
-        // (FOMC and CPI) shared a tag, and the second replaced the first.
-        tag:   `sp-event-${e.date}-macro-${e.title || 'rate'}`,
-        data:  { date: e.date },
-      });
-      continue;
-    }
-
-    // An earnings date only matters for something you actually hold.
-    if (!starredSet.has(e.instrument)) continue;
-    await self.registration.showNotification(`📅 ${e.instrument} reports ${when}`, {
-      body:  'A scheduled gap you can see coming — check size before the close.',
-      icon:  '/static/icon-192.png',
-      badge: '/static/icon-192.png',
-      tag:   `sp-event-${e.date}-${e.instrument}`,
-      data:  { ticker: e.instrument, date: e.date },
-    });
-  }
-}

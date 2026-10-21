@@ -20,7 +20,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
@@ -227,77 +227,6 @@ def _explain_one(row: pd.Series) -> str:
     else:
         s2 = ''
     return f'{s1} {s2}'.strip()
-
-
-EVENT_TITLES = {
-    'earnings': 'earnings',
-    'exdiv':    'ex-dividend',
-}
-
-
-def _ics_escape(text: str) -> str:
-    """RFC 5545 §3.3.11 — backslash, semicolon, comma and newline are special."""
-    return (str(text).replace('\\', '\\\\').replace(';', '\\;')
-                     .replace(',', '\\,').replace('\n', '\\n'))
-
-
-def build_ics(events: list) -> str:
-    """One all-day VEVENT per row, as a subscribable calendar.
-
-    DTEND is the day AFTER DTSTART: an all-day VALUE=DATE event is a half-open
-    range, so an equal DTEND renders as a zero-length event that several
-    calendar apps drop silently.
-
-    THIS IS THE ONLY PLACE AN EVENT IS GIVEN A CALENDAR TITLE. app.js used to
-    build its own one-day .ics with its own naming, and the two drifted the
-    moment macro rows arrived: this builder special-cases them, that one did
-    not, so subscribing gave you "FOMC decision" while the day download gave
-    you "FOMC decision - macro". The browser now slices THIS output instead of
-    rebuilding it (app.js downloadIcs), so there is one name per event.
-    """
-    stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-    lines = [
-        'BEGIN:VCALENDAR', 'VERSION:2.0',
-        'PRODID:-//SwingPulse//Events//EN',
-        'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-        'X-WR-CALNAME:SwingPulse Events',
-        'X-WR-TIMEZONE:UTC',
-        # Tell subscribers how often to re-poll; the pipeline runs 3x a weekday.
-        'REFRESH-INTERVAL;VALUE=DURATION:PT6H',
-        'X-PUBLISHED-TTL:PT6H',
-    ]
-    for e in events:
-        try:
-            d0 = datetime.strptime(e['date'], '%Y-%m-%d').date()
-        except (KeyError, ValueError):
-            continue
-        d1   = d0 + timedelta(days=1)
-        # An event either points at an instrument you can hold, or it is a
-        # named event that hits everything. `title` marks the second kind.
-        inst  = e.get('instrument') or ''
-        title = e.get('title') or ''
-        uid   = f"{e['date']}-{e.get('type','')}-{title or inst}@swingpulse"
-        if title:
-            summary = title
-            detail  = f"SwingPulse · {title}" + (f" · {e['time']}" if e.get('time') else '')
-        else:
-            kind    = EVENT_TITLES.get(e.get('type'), e.get('type', 'event'))
-            summary = f"{inst} — {kind}"
-            detail  = f"SwingPulse · {inst} {kind}"
-        lines += [
-            'BEGIN:VEVENT',
-            f'UID:{_ics_escape(uid)}',
-            f'DTSTAMP:{stamp}',
-            f'DTSTART;VALUE=DATE:{d0.strftime("%Y%m%d")}',
-            f'DTEND;VALUE=DATE:{d1.strftime("%Y%m%d")}',
-            f'SUMMARY:{_ics_escape(summary)}',
-            f'DESCRIPTION:{_ics_escape(detail)}',
-            'TRANSP:TRANSPARENT',
-            'END:VEVENT',
-        ]
-    lines.append('END:VCALENDAR')
-    # RFC 5545 requires CRLF line endings
-    return '\r\n'.join(lines) + '\r\n'
 
 
 def generate_explanations(df: pd.DataFrame) -> dict:
@@ -540,7 +469,7 @@ def build_data(output_dir, src_signals_dir=None):
     for fname in ('signal_ledger.json', 'ledger_summary.json',
                   'sector_activity.json', 'sector_radar.json',
                   'shape_similarity.json',
-                  'instrument_flavours.json', 'events.json',
+                  'instrument_flavours.json',
                   'rotation.json', 'rotation_paper.json'):
         src = os.path.join(OUTPUT_DIR, fname)
         if os.path.exists(src):
@@ -552,19 +481,6 @@ def build_data(output_dir, src_signals_dir=None):
             # and the round-trip died on it with UnicodeDecodeError, taking the
             # whole publish down after the signals had been computed.
             shutil.copyfile(src, os.path.join(output_dir, fname))
-
-    # Calendar subscription feed. The per-event "Add to calendar" button in the
-    # app builds its own one-off .ics client-side; THIS file is the standing
-    # subscription — point iOS Calendar at webcal://<r2>/ma500/events.ics once
-    # and every future earnings date arrives on its own. All-day VEVENTs, since
-    # events.py deliberately carries no time of day.
-    ev_src = os.path.join(OUTPUT_DIR, 'events.json')
-    if os.path.exists(ev_src):
-        with open(ev_src) as f:
-            ev_payload = json.load(f)
-        with open(os.path.join(output_dir, 'events.ics'), 'w') as f:
-            f.write(build_ics(ev_payload.get('events', [])))
-        print(f'  Calendar feed: events.ics ({len(ev_payload.get("events", []))} events)')
 
     # Backtest results — copy if a recent backtest JSON exists
     bt_files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'backtest_*.json')))
@@ -728,14 +644,9 @@ def _cache_control_for(r2_key):
 
 
 def _content_type_for(r2_key):
-    """Content-Type for an R2 object.
-
-    Everything this pipeline publishes is JSON except the calendar feed, and an
-    .ics served as application/json will not subscribe — iOS Calendar dispatches
-    on the MIME type, not the extension, so a webcal:// link to a JSON-typed
-    file silently does nothing.
-    """
-    return 'text/calendar; charset=utf-8' if r2_key.endswith('.ics') else 'application/json'
+    """Content-Type for an R2 object. Everything this pipeline publishes is
+    JSON (the .ics calendar feed was removed 2026-10-21)."""
+    return 'application/json'
 
 
 def _is_gzipped(path):
@@ -882,7 +793,6 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'sector_activity.json', 'sector_radar.json',
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
-                  'events.json', 'events.ics',
                   'rotation.json', 'rotation_paper.json', 'quotes.json',
                   'alerts.json', 'market.json', 'trend_channels.json']:
         p = os.path.join(data_dir, fname)
@@ -1028,13 +938,8 @@ def build_ui():
     js = js.replace("'/api/sector-radar'", f"'{base}/sector_radar.json'")
     js = js.replace("'/api/sector-activity'", f"'{base}/sector_activity.json'")
     js = js.replace("'/api/instrument-flavours'", f"'{base}/instrument_flavours.json'")
-    js = js.replace("'/api/events'",       f"'{base}/events.json'")
     js = js.replace("'/api/rotation-paper'", f"'{base}/rotation_paper.json'")
     js = js.replace("'/api/rotation'",     f"'{base}/rotation.json'")
-    # The calendar SUBSCRIPTION feed. Must be an absolute R2 URL: the app is on
-    # pages.dev and the .ics lives in the bucket, and webcal:// is resolved by
-    # the OS calendar app, which has no page context to resolve a relative path.
-    js = js.replace("'/events.ics'",       f"'{base}/events.ics'")
     js = js.replace("'/api/flow'",         f"'{base}/flow_volumes.json'")
     # The chart index and its chunks are ONE dataset and must never be mixed
     # across publishes. They are cached at the edge for 15 minutes, and the
