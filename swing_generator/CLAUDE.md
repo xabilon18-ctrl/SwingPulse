@@ -6,7 +6,10 @@
 
 **ALWAYS DEPLOY (user, 2026-10-19: "when we make changes just deploy always").**
 Every change goes all the way to production without asking: push the branch,
-open the PR, merge it once CI (golden) is green, then follow the main
+open the PR, merge it once CI is green on the PR (golden AND "Validate and
+deploy SwingPulse app", which runs the engine and mobile browser checks before
+merge since 2026-10-21; it is skipped when the PR touches no
+`swing_generator/` or deploy-app file), then follow the main
 deploy-app run to green including "Verify the live app". If a change needs a
 data job (e.g. tools/publish_htf.py), run it after the merge. Fix anything
 that goes red. Report what is live when done.
@@ -38,7 +41,9 @@ the chart index and chunks too. UI JavaScript is v481.
 `.github/workflows/deploy-app.yml` validates the engine, hourly payload and mobile
 browser, then on `main` generates/validates data, uploads R2 and deploys the
 existing Direct Upload Pages project `swingpulse200`. It shares the data workflow's
-concurrency lock. Feature-branch runs deploy an isolated Pages preview only.
+concurrency lock. Pull-request runs validate only (no secrets, no deploy) under
+their own per-PR lock; pushes to the other listed branch deploy an isolated
+Pages preview only.
 Existing Cron Worker schedules are unchanged; no paid service is introduced.
 The historical timeframe removals and schedules below are superseded by this note.
 A personal swing-trading signal dashboard that scans a watchlist of instruments (indices, commodities, crypto, currencies, US/global equities — the currency pairs were removed 2026-07-11 for worst-class backtest expectancy and RESTORED 2026-08-25 at the user's request, 57 pairs, #742-798). **Vocabulary: the asset class is called `Currency` everywhere** — group, sector, asset_class, Class chip and radar spoke all use that one word (renamed 2026-08-26; it had been a mix of Forex/FX/Currency/Currencies). The only `FX` left is TradingView's `FX:`/`FX_IDC:` exchange prefixes, which are their identifiers, not ours. using a Gann-inspired MA-ribbon system. Results are served as a mobile-first web app.

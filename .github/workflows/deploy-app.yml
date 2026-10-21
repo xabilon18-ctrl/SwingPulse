@@ -6,6 +6,13 @@ on:
     paths:
       - 'swing_generator/**'
       - '.github/workflows/deploy-app.yml'
+  # Validate before merge (user, 2026-10-21: "I like the idea of testing before
+  # merging"): a PR runs the engine and mobile browser checks that golden lacks.
+  # Every publish/deploy step is gated on refs/heads/main, so a PR never ships.
+  pull_request:
+    paths:
+      - 'swing_generator/**'
+      - '.github/workflows/deploy-app.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,9 +20,11 @@ permissions:
 
 # Shares the existing data publisher's lock: neither can overwrite the other's
 # output during an app release. UI releases run on code changes, never on cron.
+# A PR publishes nothing, so it takes its own lock (a new push replaces the
+# stale run) and never waits behind, or holds up, a data publish.
 concurrency:
-  group: swingpulse-publish
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('app-pr-{0}', github.event.pull_request.number) || 'swingpulse-publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   release:
@@ -166,8 +175,9 @@ jobs:
           python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/swingpulse-preview.log 2>&1 &
           node swing_generator/tests/app_smoke.cjs
           node swing_generator/tests/saved_work_browser.cjs
+      # Not on PRs: a PR run needs no Cloudflare secrets and deploys nothing.
       - name: Verify Pages deployment capability on an isolated preview
-        if: github.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main' && github.event_name != 'pull_request'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch codex-1h-preview
       - name: Restore market cache for production release
         if: github.ref == 'refs/heads/main' && (steps.scope.outputs.data_required == 'true' || steps.scope.outputs.four_hour_required == 'true')
