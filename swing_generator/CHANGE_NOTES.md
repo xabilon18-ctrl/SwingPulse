@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-21 OTHER MARKETS SPLIT BY MARKET: app.js v517 / chart-preferences.js
+v4 + sync Worker. User: "Why does the swap for oil affect crypto? Oil should
+stand alone" and "Fx, crypto, commodities, stocks and brent as energy".
+'other' held Brent, crypto, currencies and metals under one time grid and one
+swap. It is now energy (WTI, BRENT, NGAS, HEATINGOIL, GASOLINE), commodities,
+crypto and currency (`reelGridScope`), each with its own grid (`energyGrids`,
+`commodityGrids`, `cryptoGrids`, `currencyGrids`) and swap (`flipBy[scope]`).
+They read the 'other' choice until set (`chartPreferences.fromOther`), so
+nothing moved. Stocks and indices are unchanged; rates stay in 'other'.
+Release the sync Worker with this UI.
+
 2026-10-20 CHANNEL LINE WEIGHT: app.js v514 / style.css v372 / drawing-toolbar.js
 v3. User: "an option to make the channels thin, thick and thicker … channel
 only", not the time grids. A channel's props row has a three-button weight
