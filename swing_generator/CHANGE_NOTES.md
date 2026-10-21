@@ -7,6 +7,11 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-21 CHANNEL DIVISIONS UNLABELLED: app.js v519. User: "Remove the labels
+on the channel". The ten divisions (`div`) draw their dotted lines only; the
+0%..100% text from v518 is gone. Ladders keep their labels. Test:
+drawing_toolbar_checks.cjs.
+
 2026-10-21 CHANNEL TEN DIVISIONS + LADDER 0%..100%: app.js v518 / style.css
 v375 / drawing-toolbar.js v4. User: "Make the channel the same way [as the
 percentage lines] with the 10 divisions but have a switch to turn the divisions
