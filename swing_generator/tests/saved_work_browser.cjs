@@ -67,7 +67,7 @@ const { pathToFileURL } = require('node:url');
     const scope=await page.locator('.reel-grid-menu [data-division="'+division+'"]').getAttribute('data-grid-scope');
     await page.locator('.reel-grid-menu [data-division="'+division+'"]').click();
     await page.locator('#chartReel [data-act="grid-menu"]').first().click();
-    return {stocks:'stockGrids',indices:'indexGrids',other:'grids'}[scope];
+    return page.evaluate(s=>window.SwingPulseModules.chartPreferences.scopes[s],scope);
   }
   async function sync(page,fail=false) {
     await page.locator('#savedWorkBtn').click();

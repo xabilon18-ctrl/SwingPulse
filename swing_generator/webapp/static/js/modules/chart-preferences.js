@@ -7,7 +7,12 @@
   // (user, 2026-10-19: "divided by administration and not by year. All must
   // be equal").
   const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q', W: 'T', M: 'T' };
-  const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids' };
+  const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
+    energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids', rates: 'rateGrids' };
+  // Split out of 'other' (user, 2026-10-21: "Fix this by market and don't mix
+  // oil with the markets"). Until a market is set it reads the 'other' choice,
+  // so nothing moved on the split.
+  const fromOther = new Set(['energy', 'commodities', 'crypto', 'currency', 'rates']);
   const valid = code => choices.some(c => c.code === code);
   function cleanRows(value) {
     const grids = {};
@@ -55,7 +60,10 @@
     }
     function save() { try { storage.setItem(key(), JSON.stringify(state)); } catch (_) {} }
     function snapshot() { return clean(state); }
-    function division(tf, scope = 'other') { const code = state[scopes[scope] || 'grids'][tf]?.division || defaults[tf] || 'Y'; return choices.find(c => c.code === code); }
+    function division(tf, scope = 'other') {
+      const code = state[scopes[scope] || 'grids'][tf]?.division || (fromOther.has(scope) && state.grids[tf]?.division) || defaults[tf] || 'Y';
+      return choices.find(c => c.code === code);
+    }
     function set(tf, code, scope = 'other') {
       if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
       const rows = state[scopes[scope]], old = rows[tf];
@@ -81,7 +89,7 @@
     reload();
     return { reload, snapshot, division, set, mergeRemote, pending, restore, previewRestore };
   }
-  const api = Object.freeze({ choices, defaults, scopes, clean, migrate, merge, create });
+  const api = Object.freeze({ choices, defaults, scopes, fromOther, clean, migrate, merge, create });
   (root.SwingPulseModules ||= {}).chartPreferences = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -7755,21 +7755,17 @@
     // market to market"): stocks, indices and other markets each keep their own
     // time grid per timeframe, so each keeps its own swap too. `flip` is the
     // pre-split choice, which every market inherits until it is swapped.
+    // 2026-10-21 (user: "Why does the swap for oil affect crypto?"): 'other'
+    // is split into energy, commodities, crypto, currency and rates, which
+    // read the 'other' swap until swapped themselves.
     if (!g.flipBy || typeof g.flipBy !== 'object') g.flipBy = {};
-    for (const k of Object.keys(g.flipBy)) if (!['stocks', 'indices', 'other'].includes(k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
-    // Swap per instrument (user, 2026-10-21: "Why does the swap for oil affect
-    // crypto? Oil should stand alone"): Brent and Bitcoin shared the 'other'
-    // swap above. Now each chart keeps its own; the group swap and `flip` are
-    // only what a chart inherits until it is swapped, so no saved chart moves.
-    if (!g.flipByName || typeof g.flipByName !== 'object' || Array.isArray(g.flipByName)) g.flipByName = {};
-    for (const k of Object.keys(g.flipByName)) g.flipByName[k] = !!g.flipByName[k];
+    for (const k of Object.keys(g.flipBy)) if (!Object.hasOwn(modules.chartPreferences.scopes, k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
     return g;
   }
-  function gridFlip(tf, name) {
-    const g = gridShade(tf), own = Object.prototype.hasOwnProperty;
-    if (name && own.call(g.flipByName, name)) return g.flipByName[name];
-    const scope = reelGridScope(name ? instrumentByName(name) : null);
-    return own.call(g.flipBy, scope) ? g.flipBy[scope] : g.flip;
+  function gridFlip(tf, scope) {
+    const g = gridShade(tf), own = k => Object.prototype.hasOwnProperty.call(g.flipBy, k);
+    if (own(scope)) return g.flipBy[scope];
+    return modules.chartPreferences.fromOther.has(scope) && own('other') ? g.flipBy.other : g.flip;
   }
   function gridBand(tf) { const g = gridShade(tf || timeframe); return g.on ? g.lvl : 0; }
   // Ribbon shade (user, 2026-09-28: "a shade within the trend MAs, the 3 MAs
@@ -10257,12 +10253,19 @@
   const GRID_DIVISIONS = modules.chartPreferences.choices;
   // The Term division (four-year administrations) is offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
-  const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', other: 'Other markets' };
+  const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
+    crypto: 'Crypto', currency: 'Currencies', rates: 'Rates', other: 'Other markets' };
+  // Oil is its own market, apart from metals and crops (user, 2026-10-21:
+  // "don't mix oil with the markets").
   function reelGridScope(item) {
     if (!item) return 'other';
+    if (item.group === 'Rates') return 'rates';
     const kind = assetClassOf(item);
     if (kind === 'Equity') return 'stocks';
-    if (kind === 'Index' && item.group !== 'Rates') return 'indices';
+    if (kind === 'Index') return 'indices';
+    if (kind === 'Commodity') return item.industry === 'Energy' ? 'energy' : 'commodities';
+    if (kind === 'Crypto') return 'crypto';
+    if (kind === 'Currency') return 'currency';
     return 'other';
   }
   function reelGridDivision(tf, scope = 'other') { return chartPreferences.division(tf, scope); }
@@ -10720,7 +10723,7 @@
     {
       // "Swap" (user, 2026-09-27: "a choice in where the highlight should be")
       // moves the shading onto the gaps that were clear.
-      const flip = gridFlip(timeframe, item && item.instrument_name) ? 1 : 0;
+      const flip = gridFlip(timeframe, reelGridScope(item)) ? 1 : 0;
       const lines = tg.filter(t => !t.fixedOnly).map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
@@ -10915,7 +10918,7 @@
           `<button class="reel-tool reel-grid-opt${v === lvl ? ' on' : ''}" data-act="grid-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>
         <div class="reel-grid-row reel-grid-cols">${OV_BAND_COLORS.map(c =>
           `<button class="reel-tool reel-swatch${c === bc ? ' on' : ''}" data-act="grid-set" data-part="color" data-color="${c}" aria-label="Shading colour" style="--sw:${c}"><i></i></button>`).join('')}</div>
-        <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps · ${name || GRID_SCOPE_LABELS[scope]}</button>`;
+        <button class="reel-tool reel-grid-opt reel-grid-swap" data-act="grid-set" data-part="flip">⇄ Swap shaded gaps · ${GRID_SCOPE_LABELS[scope]}</button>`;
     }
     const r = ribShade(timeframe);
     h += `<div class="reel-grid-sep"></div>
@@ -10925,7 +10928,7 @@
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
-    return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own; the swap is kept per instrument</div>`;
+    return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own; the swap is kept per market</div>`;
   }
   function reelGridMenuClose() {
     document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
@@ -13275,9 +13278,8 @@
         if (part === 'on') g.on = !g.on;
         else if (part === 'flip') {
           const menuEl = btn.closest('.reel-grid-menu');
-          const name = menuEl && menuEl._name;
-          if (name) g.flipByName[name] = !gridFlip(timeframe, name);
-          else g.flipBy.other = !gridFlip(timeframe, null);
+          const scope = menuEl && menuEl._name ? reelGridScope(instrumentByName(menuEl._name)) : 'other';
+          g.flipBy[scope] = !gridFlip(timeframe, scope);
           // Which gaps are shaded is geometry, not a CSS variable: repaint.
           ovSave();
           reelRepaintVisible();

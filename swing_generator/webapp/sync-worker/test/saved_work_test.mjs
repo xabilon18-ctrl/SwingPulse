@@ -29,6 +29,12 @@ assert.equal(groups.stockGrids['4H'].division,'M','Legacy clients preserve newer
 assert.equal(groups.indexGrids['4H'].division,'H','Independent index edits survive another device');
 assert.equal(groups.grids['4H'].division,'Q');
 assert.equal(mergeSavedWork({chartPrefs:groups},{chartPrefs:{stockGrids:{'4H':{division:'Y',modifiedAt:20}}}}).chartPrefs.stockGrids['4H'].division,'M');
+// Energy and the other markets split out of 'grids' (2026-10-21) are kept, and
+// a client that predates them (no energyGrids) cannot drop them.
+const energy=mergeSavedWork({chartPrefs:groups},{chartPrefs:{version:2,energyGrids:{'4H':{division:'Y',modifiedAt:500}},cryptoGrids:{'4H':{division:'M',modifiedAt:500}}}}).chartPrefs;
+assert.equal(energy.energyGrids['4H'].division,'Y');assert.equal(energy.cryptoGrids['4H'].division,'M');
+assert.equal(mergeSavedWork({chartPrefs:energy},incoming).chartPrefs.energyGrids['4H'].division,'Y','Older clients preserve energy choices');
+assert.deepEqual(mergeSavedWork({chartPrefs:{version:1,grids:{D:{division:'Y',modifiedAt:1}}}},{}).chartPrefs.energyGrids,{},'Split markets read grids at use, no copy');
 // The Term division (Weekly/Monthly, 2026-10-19) survives the server merge.
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{W:{division:'T',modifiedAt:5}}}}).chartPrefs.grids.W.division,'T');
 // Notes merge note by note (review finding 2026-10-17: a stale device wiped
