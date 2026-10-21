@@ -7,6 +7,9 @@ on:
   push:
     paths:
       - 'swing_generator/**.py'
+      # A dependency bump (pandas, yfinance) can change every signal without
+      # touching a .py file, so it must reproduce the golden snapshot too.
+      - 'swing_generator/requirements.txt'
       - 'swing_generator/tests/**'
       - '.github/workflows/test.yml'
       # app.js and index.html are here for the shape audit's code checks. The
