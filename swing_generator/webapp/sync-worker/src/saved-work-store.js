@@ -47,7 +47,7 @@ export function mergeSavedWork(previous, incoming) {
   merged.chartPrefs = { version: 2 };
   // The markets split out of 'grids' on 2026-10-21 read it until set, so they
   // need no copy from a version-1 store.
-  for (const field of ['grids', 'stockGrids', 'indexGrids', 'energyGrids', 'commodityGrids', 'cryptoGrids', 'currencyGrids', 'rateGrids']) {
+  for (const field of ['grids', 'stockGrids', 'indexGrids', 'energyGrids', 'commodityGrids', 'cryptoGrids', 'currencyGrids']) {
     const localGrids = grids(previous.chartPrefs, field), remoteGrids = grids(incoming.chartPrefs, field);
     if ((field === 'stockGrids' || field === 'indexGrids') && previous.chartPrefs?.version !== 2) {
       for (const [tf, row] of Object.entries(grids(previous.chartPrefs, 'grids'))) {

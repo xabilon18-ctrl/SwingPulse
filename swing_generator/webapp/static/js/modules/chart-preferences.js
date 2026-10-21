@@ -8,11 +8,11 @@
   // be equal").
   const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q', W: 'T', M: 'T' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
-    energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids', rates: 'rateGrids' };
-  // Split out of 'other' (user, 2026-10-21: "Fix this by market and don't mix
-  // oil with the markets"). Until a market is set it reads the 'other' choice,
-  // so nothing moved on the split.
-  const fromOther = new Set(['energy', 'commodities', 'crypto', 'currency', 'rates']);
+    energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids' };
+  // Split out of 'other' (user, 2026-10-21: "Fx, crypto, commodities, stocks
+  // and brent as energy"); rates stay in 'other'. Until a market is set it
+  // reads the 'other' choice, so nothing moved on the split.
+  const fromOther = new Set(['energy', 'commodities', 'crypto', 'currency']);
   const valid = code => choices.some(c => c.code === code);
   function cleanRows(value) {
     const grids = {};

@@ -101,6 +101,16 @@ for(const [item,code,parts] of [[stock,'M',12],[index,'H',2],[crypto,'Y',1]]) {
 }
 assert.equal(c.reelTimeGrid(b,'1H',stock).find(l=>!l.fixedOnly).division,'Q');
 assert.equal(c.reelGridScope({asset_class:'Index',group:'Rates'}),'other');
+// Per market (user, 2026-10-21: "Fx, crypto, commodities, stocks and brent as
+// energy"): oil never shares a grid or swap with crypto, metals or currencies.
+assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry:'Energy',instrument_name:'BRENT'}),'energy');
+assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry:'Precious Metals'}),'commodities');
+assert.equal(c.reelGridScope(crypto),'crypto');
+assert.equal(c.reelGridScope({asset_class:'Currency',group:'Currency'}),'currency');
+c.reelSetGridDivision('4H','Q','energy');
+assert.equal(c.reelTimeGrid(b,'4H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
+assert.equal(c.reelTimeGrid(b,'4H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
+assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
 assert.equal(context().reelGridDivision('4H','stocks').code,'M');

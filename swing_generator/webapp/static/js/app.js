@@ -7756,8 +7756,8 @@
     // time grid per timeframe, so each keeps its own swap too. `flip` is the
     // pre-split choice, which every market inherits until it is swapped.
     // 2026-10-21 (user: "Why does the swap for oil affect crypto?"): 'other'
-    // is split into energy, commodities, crypto, currency and rates, which
-    // read the 'other' swap until swapped themselves.
+    // is split into energy, commodities, crypto and currency (rates stay in
+    // 'other'), which read the 'other' swap until swapped themselves.
     if (!g.flipBy || typeof g.flipBy !== 'object') g.flipBy = {};
     for (const k of Object.keys(g.flipBy)) if (!Object.hasOwn(modules.chartPreferences.scopes, k)) delete g.flipBy[k]; else g.flipBy[k] = !!g.flipBy[k];
     return g;
@@ -10254,15 +10254,14 @@
   // The Term division (four-year administrations) is offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
-    crypto: 'Crypto', currency: 'Currencies', rates: 'Rates', other: 'Other markets' };
+    crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
-  // "don't mix oil with the markets").
+  // "Fx, crypto, commodities, stocks and brent as energy"). Rates stay 'other'.
   function reelGridScope(item) {
     if (!item) return 'other';
-    if (item.group === 'Rates') return 'rates';
     const kind = assetClassOf(item);
     if (kind === 'Equity') return 'stocks';
-    if (kind === 'Index') return 'indices';
+    if (kind === 'Index' && item.group !== 'Rates') return 'indices';
     if (kind === 'Commodity') return item.industry === 'Energy' ? 'energy' : 'commodities';
     if (kind === 'Crypto') return 'crypto';
     if (kind === 'Currency') return 'currency';
