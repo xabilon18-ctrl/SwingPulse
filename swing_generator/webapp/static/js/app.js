@@ -8431,7 +8431,6 @@
   // every level would flatten the price action. Saved/manual bounds win.
   const REEL_OPENING_PRICE_FILL = 0.85;
   const REEL_OV_FIT_CAP = 2;   // see reelOpeningPriceWindow
-  const REEL_WIDE_PRICE_FILL = 0.55;   // 4H stocks, measured off RAND/PHIA/NN_NL
   const REEL_ZERO_FIT_FOOT = 0.05;     // Daily stocks: 0 sits 5% of the top above the bottom
   const REEL_UPPER_FILL = 0.45;        // crypto 1H: candles + MAs fill 45% of the height,
   const REEL_UPPER_HEAD = 0.08;        // 8% of it above them (measured off DOT/DOGE/DASH)
@@ -8677,9 +8676,8 @@
   // itself:
   //   1H  — previous + current QUARTER (AME/AMD/AMBA/NXPI/NVDA): mid-Oct
   //         opens 1 Jul to 1 Jan.
-  //   4H  — previous + current HALF-YEAR (RAND/PHIA/NN_NL): mid-Oct opens
-  //         1 Jan to 1 Jan; in March it is 1 Jul to 1 Jul.
   //   D   — the current four-year TERM (BE/WKL): 2025 to 2029.
+  // 4H is one frame on every market — REEL_4H_VIEW below.
   // The left edge is the first line, the right edge just past the closing
   // line; the blank future is a default pan (reelPanOf), so zooming and
   // panning work from it as from any other view. `fit` names the price rule
@@ -8688,45 +8686,47 @@
   // CRYPTO 1H (user, 2026-10-17, DOT/DOGE/DASH screenshots) is measured in
   // days, not grid lines: the last `back` days of candles and `ahead` days of
   // blank future (mid-Sep to ~22 Nov on 17 Oct), the last candle a little
-  // left of the middle. Price: 'upper'. CRYPTO 4H (BTC/AVAX/BCH/BNB) is the
-  // stock 1H quarter frame (1 Jul to 1 Jan on 17 Oct); CRYPTO DAILY
-  // (ETH/BNB/BTC) runs from last year's line to two year lines ahead (2025 to
-  // 2028). Both price 'all': everything on screen, drawings included.
+  // left of the middle. Price: 'upper'. CRYPTO DAILY (ETH/BNB/BTC) runs from
+  // last year's line to two year lines ahead (2025 to 2028), price 'all':
+  // everything on screen, drawings included.
   const REEL_STOCK_VIEW = {
     '1H': { unit: 0.25, fit: 'ov' },     // bars + overlay MAs, capped
-    '4H': { unit: 0.5,  fit: 'wide' },   // bars at about half the height
     'D':  { term: 4,    fit: 'zero' },   // 0 at the bottom, top 2x the high
   };
   const REEL_CRYPTO_VIEW = {
     '1H': { back: 30, ahead: 35, fit: 'upper' },
-    '4H': { unit: 0.25, fit: 'all' },
     'D':  { years: [1, 2], fit: 'allzero' },   // last year's line → two lines ahead
   };
   // INDEX 1H (user, 2026-10-18, US100/RUSSELL/BCHAIN_NFT/CHINA_NET/EV_INDX/
   // FAANGS_10): from `lead` of a quarter (~3 weeks) before the current
   // quarter's line to the next quarter's line — 10 Sep to 1 Jan on 18 Oct.
   // Anchored to the lines, so it jumps forward when a new quarter starts.
-  // Price 'all', as crypto 4H/Daily. INDEX 4H (RUSSELL/NETH25/IT40) is the
-  // stock 4H half-year frame and INDEX DAILY (US100/RUSSELL) the stock Daily
-  // term frame, both fitted to everything on screen (their % ladders and
+  // Price 'all', as crypto Daily. INDEX DAILY (US100/RUSSELL) is the stock
+  // Daily term frame, fitted to everything on screen (their % ladders and
   // channels set the scale).
   const REEL_INDEX_VIEW = {
     '1H': { unit: 0.25, lead: 0.23, fit: 'all' },
-    '4H': { unit: 0.5, fit: 'all' },
     'D':  { term: 4, fit: 'all' },
   };
   // FOREX AND COMMODITIES (2026-10-18, left to us: "I am leaving fx and
   // commodities in your hands"). Both trade round the clock like crypto, so
-  // they take the crypto frames — 30 days back / 35 ahead on 1H, previous +
-  // current quarter on 4H, last year's line to two ahead on Daily — with one
+  // they take the crypto frames — 30 days back / 35 ahead on 1H, last year's
+  // line to two ahead on Daily — with one
   // change: Daily does NOT force 0 onto the scale. A currency moves a few
   // percent a year and a commodity tens of percent, so a 0 line would press
   // the whole chart into a sliver at the top.
   const REEL_FXCOM_VIEW = {
     '1H': { back: 30, ahead: 35, fit: 'upper' },
-    '4H': { unit: 0.25, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
+  // 4H, THE SAME FRAME ON EVERY INSTRUMENT (user, 2026-10-22, PLATINUM/ETHUSD/
+  // LINKUSD/USDX/US100/IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for
+  // all instruments let the frame look like this"). Previous + current
+  // QUARTER — the shaded previous quarter, the current one running into blank
+  // future to the next quarter line (1 Jul to 1 Jan on 22 Oct) — priced 'all'.
+  // It was the crypto/forex/commodity 4H frame; stocks and indices opened on
+  // a half-year and rates on five months.
+  const REEL_4H_VIEW = { unit: 0.25, fit: 'all' };
   // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
   // the current term's closing line like Daily: Weekly opens on FOUR terms
   // (2013 to 2029), Monthly on ALL its history (user: "W 4 terms, M all" — so
@@ -8737,6 +8737,7 @@
   };
   function reelOpenSpec(name) {
     if (REEL_SLOW_VIEW[timeframe]) return REEL_SLOW_VIEW[timeframe];
+    if (timeframe === '4H') return REEL_4H_VIEW;
     const item = instrumentByName(name);
     const scope = reelGridScope(item);
     if (scope === 'stocks') return REEL_STOCK_VIEW[timeframe];
@@ -8912,8 +8913,7 @@
   // note (reelChartSvg).
   // `fit` is a stock opening view's price rule (reelStockView): 'zero' puts
   // 0 just above the bottom and the top at twice the highest high (Daily —
-  // the candles in the lower half, room above for projections); 'wide'
-  // centres the close with the bars at about half the height (4H); 'upper'
+  // the candles in the lower half, room above for projections); 'upper'
   // puts the candles and overlay MAs in the upper part — a little headroom
   // above the highest, the lowest at about the middle, the lower half left
   // for projections (crypto 1H). An MA counts only up to one bar-range
@@ -8925,7 +8925,7 @@
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
     if (fit === 'all' || fit === 'allzero') {
-      // Everything on screen (crypto 4H/Daily, user's choice): the candles,
+      // Everything on screen (4H, crypto Daily; user's choice): the candles,
       // the overlay MAs and the drawings in `extra`, each side held to
       // REEL_ALL_FIT_REACH bar-ranges beyond the candles so one runaway
       // projection cannot flatten them. Daily also always shows 0.
@@ -8950,7 +8950,7 @@
     }
     let dev = Math.max(hi - c, c - lo, c * 0.002);
     if (extra) dev = Math.min(Math.max(dev, extra.hi - c, c - extra.lo), dev * REEL_OV_FIT_CAP);
-    const half = dev / (fit === 'wide' ? REEL_WIDE_PRICE_FILL : REEL_OPENING_PRICE_FILL);
+    const half = dev / REEL_OPENING_PRICE_FILL;
     // A large fall (for example ETH Daily) can put the symmetric frame below
     // zero. Trim that empty space when all visible prices are nonnegative.
     // Keep genuine negative-price history and saved/manual bounds intact.
@@ -10460,7 +10460,7 @@
     // bars' alone again.
     const _nm = item.instrument_name;
     const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
-    let _ovFit = _sv && _sv.fit !== 'wide' && _sv.fit !== 'zero'
+    let _ovFit = _sv && _sv.fit !== 'zero'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
     if (_sv && (_sv.fit === 'all' || _sv.fit === 'allzero')) {
       const from = b._from || 0;
