@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-22 1H PRICE SCALE CENTRED: app.js v522. User, off TXN/ANET/AMKR 1H
+against their saved GOLD: "Look at the 1 h again and fix. Yours not right" —
+the price scale. 1H's 'all' fit (v521) pulled W500/M50/D500 and drawings
+into view, squashing the candles to ~1/4 of the height and pinning them to an
+edge (TXN at the top). 1H now opens 'centre': the last close in the middle,
+the bars' furthest edge at REEL_CENTRE_PRICE_FILL (0.6) of the way out, so
+the candles take about a third of the height (GOLD 36%, ETHUSD 36% in the
+user's saved views). Overlay MAs and drawings take no part in it and are not
+named as off-screen. The month window and 4H ('all') are unchanged. Tests:
+stock_view_test.cjs, chart_framing_checks.cjs.
+
 2026-10-22 1H MONTH FRAME ON EVERY MARKET: app.js v521. User, off ETHUSD 1H:
 "do the same to all 1h charts like this" (after the 4H quarter frame). Every
 1H chart opens on the previous + current MONTH (REEL_INTRADAY_VIEW, which

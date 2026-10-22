@@ -51,7 +51,7 @@ for (const [market, b1] of [['STOCK', hourly(Date.UTC(2026, 3, 17), Date.UTC(202
   assert.ok(nov.fi - f1 > v1.bars - 2 && nov.fi - f1 <= v1.bars, market + ' next month line at the right edge');
   assert.ok(sep.fi - f1 >= 0 && sep.fi - f1 < 1, market + ' previous month line at the left edge');
   assert.ok(v1.future > 0 && v1.future < v1.bars * 0.9, market);
-  assert.equal(v1.fit, 'all', market);
+  assert.equal(v1.fit, 'centre', market);
 }
 // A new month moves the frame on: on 5 Nov it is October and November.
 const nv = hourly(Date.UTC(2026, 5, 1), Date.UTC(2026, 10, 5), hours);
@@ -136,7 +136,7 @@ ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
-const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_ZERO_FIT_FOOT: 0.05, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_CENTRE_PRICE_FILL: 0.6, REEL_OV_FIT_CAP: 2, REEL_ZERO_FIT_FOOT: 0.05, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });
 vm.runInContext(fn('reelOpeningPriceWindow'), pw);
 const bars = { c: [100], l: [95], h: [105] };
 const plain = pw.reelOpeningPriceWindow(bars);
@@ -145,11 +145,18 @@ const far = pw.reelOpeningPriceWindow(bars, { lo: 62, hi: 104 });
 assert.ok(close.lo < plain.lo && close.lo <= 92, 'a nearby MA is fitted');
 assert.ok(Math.abs((far.hi - far.lo) - 2 * (plain.hi - plain.lo)) < 1e-9, 'a far MA stops at the cap');
 assert.ok(far.lo > 62, 'the far MA is left off-screen');
+// 1H 'centre', measured off the user's saved GOLD (close 4077, candles
+// 4040-4520, scale 3280-4620): the close in the middle, the bars about a third
+// of the height. It takes no overlay range at all (the caller passes none).
+const gold = pw.reelOpeningPriceWindow({ c: [4077], l: [4040], h: [4520] }, null, 'centre');
+assert.ok(Math.abs((gold.hi + gold.lo) / 2 - 4077) < 1e-9, JSON.stringify(gold));
+const share = (4520 - 4040) / (gold.hi - gold.lo);
+assert.ok(share > 0.3 && share < 0.4, String(share));
 // Daily: 0 just above the bottom, the top at twice the highest high.
 const zero = pw.reelOpeningPriceWindow(bars, null, 'zero');
 assert.equal(zero.hi, 210);
 assert.ok(zero.lo < 0 && zero.lo > -15);
-// 1H / 4H / crypto Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
+// 4H / crypto Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
 const btc4 = pw.reelOpeningPriceWindow({ c: [81377], l: [63000], h: [88000] }, { lo: 44000, hi: 141000 }, 'all');
 assert.ok(Math.abs(btc4.lo - 39150) < 1 && Math.abs(btc4.hi - 145850) < 1, JSON.stringify(btc4));
 const run = pw.reelOpeningPriceWindow({ c: [10], l: [9], h: [11] }, { lo: 9, hi: 1000 }, 'all');
