@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-22 4H QUARTER FRAME ON EVERY MARKET: app.js v520. User, off
+PLATINUM/ETHUSD/LINKUSD/USDX/US100/IT40/NETH25/FRA40/SPAIN35: "for the 4h
+time frame for all instruments let the frame look like this". Every 4H chart
+now opens on the previous + current QUARTER (REEL_4H_VIEW, checked first in
+reelOpenSpec): the shaded previous quarter, the current one running into
+blank future up to the next quarter line (1 Jul to 1 Jan on 22 Oct; 1 Oct to
+1 Apr in January), price 'all'. That was already the crypto/forex/commodity
+4H frame. Stocks opened on a half-year with bars at half height ('wide',
+removed with REEL_WIDE_PRICE_FILL), indices on a half-year, and rates on
+five months. A saved view still wins.
+Test: stock_view_test.cjs.
+
 2026-10-21 CHANNEL DIVISIONS UNLABELLED: app.js v519. User: "Remove the labels
 on the channel". The ten divisions (`div`) draw their dotted lines only; the
 0%..100% text from v518 is gone. Ladders keep their labels. Test:

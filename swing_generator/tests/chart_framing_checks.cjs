@@ -7,8 +7,10 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     return host.evaluate(h => {
     const c = h._reelCtx, last = c.bundle.c.filter(v => v > 0).at(-1);
+    const lows = (c.b.l || []).filter(v => v != null), highs = (c.b.h || []).filter(v => v != null);
     return {lo:c.sc.lo, hi:c.sc.hi, px:c.plotPx, last, n:c.b.c.length, slots:(c.L.x1-c.L.x0)/c.bw,
-      pctPerPx:c.sc.span/last/c.plotPx, mid:((c.sc.hi+c.sc.lo)/2-last)/last};
+      pctPerPx:c.sc.span/last/c.plotPx, mid:((c.sc.hi+c.sc.lo)/2-last)/last,
+      barLo:Math.min(...lows), barHi:Math.max(...highs)};
     });
   };
   const near = (a,b,label) => assert.ok(Math.abs(a-b) <= Math.max(Math.abs(b)*0.015,1e-9),label+': '+a+' vs '+b);
@@ -33,6 +35,11 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
       // the top at twice the highest high (reelStockView, 2026-10-17).
       assert.ok(opened.lo < 0 && opened.lo > -0.1*opened.hi,tf+' stock Daily puts 0 just above the bottom');
       assert.ok(opened.hi >= 2*opened.last,tf+' stock Daily top is twice the high');
+    } else if (tf === '4H') {
+      // 4H opens on the quarter frame on every market, priced 'all' (REEL_4H_VIEW,
+      // 2026-10-22): every candle in view fits, with a margin either side.
+      assert.ok(opened.lo < opened.barLo && opened.hi > opened.barHi,
+        tf+' fits every candle in view: '+JSON.stringify([opened.lo, opened.barLo, opened.barHi, opened.hi]));
     } else if (opened.lo === 0) {
       assert.ok(opened.hi >= 2*opened.last,tf+' large positive-price swings trim only the empty space below zero');
     } else {

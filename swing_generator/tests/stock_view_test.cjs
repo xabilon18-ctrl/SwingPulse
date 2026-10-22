@@ -1,4 +1,4 @@
-// Stock opening views: 1H quarters, 4H half-years, Daily terms (2026-10-17).
+// Opening views: stock 1H quarters, Daily terms (2026-10-17); 4H quarters on every market (2026-10-22).
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -18,7 +18,8 @@ const ctx = vm.createContext({
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+const one = name => { const a = source.indexOf(`  const ${name} = `); return source.slice(a, source.indexOf(';\n', a) + 2).replace('const ', 'var '); };
+vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_STOCK_VIEW') + table('REEL_CRYPTO_VIEW') + table('REEL_INDEX_VIEW') + table('REEL_FXCOM_VIEW') + one('REEL_4H_VIEW') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 // Six months of a stock's 1H bars (7 a weekday, 13:30-19:30 UTC) up to 17 Oct 2026.
 const hourly = (from, to, hours) => {
@@ -57,13 +58,25 @@ const vc = ctx.reelStockView({ t: round, c: round.map(() => 1) }, 'BTC');
 assert.equal(vc.bars - vc.future, 30 * 24 + 1);
 assert.equal(vc.future, 35 * 24);
 assert.equal(vc.fit, 'upper');
-// Crypto 4H: previous + current quarter, as stock 1H. Six 4H bars a day.
+// 4H, every market: previous + current quarter, as stock 1H. Six 4H bars a
+// day round the clock, two a session on a stock, three on a European index.
 ctx.timeframe = '4H';
 const r4 = [];
 for (let ms = Date.UTC(2025, 9, 18); ms <= Date.UTC(2026, 9, 17, 16); ms += 4 * 36e5) r4.push(new Date(ms).toISOString());
-const c4 = ctx.reelStockView({ t: r4, c: r4.map(() => 1) }, 'BTC');
-assert.ok(near(r4[r4.length - (c4.bars - c4.future)], '2026-07-01'));
-assert.equal(c4.fit, 'all');
+for (const [market, b4] of [['BTC', { t: r4, c: r4.map(() => 1) }], ['FX', { t: r4, c: r4.map(() => 1) }],
+  ['EUR', { t: r4, c: r4.map(() => 1) }], ['STOCK', hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [13.5, 17.5])],
+  ['IDX', hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [8, 12, 16])]]) {
+  const c4 = ctx.reelStockView(b4, market);
+  const f4 = b4.t.length - (c4.bars - c4.future);
+  assert.ok(near(b4.t[f4], '2026-07-01'), market + ' ' + b4.t[f4]);
+  const fr4 = geometry.yearFrame(b4, bt);
+  assert.ok(Math.abs(f4 + c4.bars - 1 - (fr4.anchor + fr4.yearBars)) <= 1, market + ' ends on the 2027 line');
+  assert.equal(c4.fit, 'all', market);
+}
+// In January it is Q4 of last year plus Q1 of this one.
+const j4 = hourly(Date.UTC(2026, 0, 5), Date.UTC(2027, 0, 20), [13.5, 17.5]);
+const k4 = ctx.reelStockView(j4, 'STOCK');
+assert.ok(near(j4.t[j4.t.length - (k4.bars - k4.future)], '2026-10-01'));
 // Crypto Daily: last year's line to two year lines ahead (2025 → 2028).
 ctx.timeframe = 'D';
 const rd = [];
@@ -82,10 +95,7 @@ assert.ok(Math.abs(Date.parse(ix.t[fi0]) - Date.parse('2026-09-10')) < 3 * 864e5
 const fri = geometry.yearFrame(ix, bt);
 assert.ok(Math.abs(fi0 + vi.bars - 1 - (fri.anchor + fri.yearBars)) <= 1, 'ends on the Q1 2027 line');
 assert.equal(vi.fit, 'all');
-// Index 4H and Daily take the stock frames, fitted to everything.
-ctx.timeframe = '4H';
-const i4 = ctx.reelStockView(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [8, 12, 16]), 'IDX');
-assert.equal(i4.fit, 'all');
+// Index Daily takes the stock frame, fitted to everything.
 ctx.timeframe = 'D';
 const idd = hourly(Date.UTC(2021, 0, 4), Date.UTC(2026, 9, 16), [0]);
 const vid = ctx.reelStockView(idd, 'IDX');
@@ -101,20 +111,6 @@ assert.equal(ctx.reelStockView({ t: round, c: round.map(() => 1) }, 'FX').fit, '
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'EUR'), null);
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
-
-// 4H: previous + current half-year. Two bars a session, a year carried.
-ctx.timeframe = '4H';
-const h4 = hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [13.5, 17.5]);
-const v4 = ctx.reelStockView(h4, 'STOCK');
-const f4 = h4.t.length - (v4.bars - v4.future);
-assert.ok(near(h4.t[f4], '2026-01-01'), h4.t[f4]);
-const fr4 = geometry.yearFrame(h4, bt);
-assert.ok(Math.abs(f4 + v4.bars - 1 - (fr4.anchor + fr4.yearBars)) <= 1, 'ends on the 2027 line');
-// In March it is the second half of last year plus the first half of this one.
-const m4 = hourly(Date.UTC(2025, 2, 1), Date.UTC(2026, 2, 10), [13.5, 17.5]);
-const w4 = ctx.reelStockView(m4, 'STOCK');
-assert.ok(near(m4.t[m4.t.length - (w4.bars - w4.future)], '2025-07-01'));
-assert.equal(w4.fit, 'wide');
 
 // Daily: the current four-year term, 2025 to 2029.
 ctx.timeframe = 'D';
@@ -150,7 +146,7 @@ ctx.timeframe = '1H'; ctx.reel.range = 300;
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
-const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_WIDE_PRICE_FILL: 0.55, REEL_ZERO_FIT_FOOT: 0.05, REEL_UPPER_FILL: 0.45, REEL_UPPER_HEAD: 0.08, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });
+const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_OV_FIT_CAP: 2, REEL_ZERO_FIT_FOOT: 0.05, REEL_UPPER_FILL: 0.45, REEL_UPPER_HEAD: 0.08, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });
 vm.runInContext(fn('reelOpeningPriceWindow'), pw);
 const bars = { c: [100], l: [95], h: [105] };
 const plain = pw.reelOpeningPriceWindow(bars);
@@ -159,9 +155,6 @@ const far = pw.reelOpeningPriceWindow(bars, { lo: 62, hi: 104 });
 assert.ok(close.lo < plain.lo && close.lo <= 92, 'a nearby MA is fitted');
 assert.ok(Math.abs((far.hi - far.lo) - 2 * (plain.hi - plain.lo)) < 1e-9, 'a far MA stops at the cap');
 assert.ok(far.lo > 62, 'the far MA is left off-screen');
-// 4H: centred on the close, the bars at about half the height.
-const wide = pw.reelOpeningPriceWindow(bars, null, 'wide');
-assert.ok(Math.abs((wide.hi + wide.lo) / 2 - 100) < 1e-9 && Math.abs(wide.hi - 100 - 5 / 0.55) < 1e-9);
 // Daily: 0 just above the bottom, the top at twice the highest high.
 const zero = pw.reelOpeningPriceWindow(bars, null, 'zero');
 assert.equal(zero.hi, 210);
@@ -173,7 +166,7 @@ assert.ok(Math.abs(dot.hi - 1.66) < 0.03 && Math.abs(dot.lo - 0.28) < 0.05, JSON
 assert.ok(Math.abs((0.93 - dot.lo) / (dot.hi - dot.lo) - 0.47) < 0.03);
 const far2 = pw.reelOpeningPriceWindow({ c: [1.1], l: [1.0], h: [1.2] }, { lo: 0.2, hi: 1.2 }, 'upper');
 assert.ok(far2.lo > 0.2 && Math.abs((far2.hi - far2.lo) - 0.4 / 0.45) < 1e-9);
-// Crypto 4H/Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
+// 4H / crypto Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
 const btc4 = pw.reelOpeningPriceWindow({ c: [81377], l: [63000], h: [88000] }, { lo: 44000, hi: 141000 }, 'all');
 assert.ok(Math.abs(btc4.lo - 39150) < 1 && Math.abs(btc4.hi - 145850) < 1, JSON.stringify(btc4));
 const run = pw.reelOpeningPriceWindow({ c: [10], l: [9], h: [11] }, { lo: 9, hi: 1000 }, 'all');
