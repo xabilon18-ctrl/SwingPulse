@@ -35,10 +35,10 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
       // the top at twice the highest high (reelStockView, 2026-10-17).
       assert.ok(opened.lo < 0 && opened.lo > -0.1*opened.hi,tf+' stock Daily puts 0 just above the bottom');
       assert.ok(opened.hi >= 2*opened.last,tf+' stock Daily top is twice the high');
-    } else if (tf === '1H' || tf === '4H') {
-      // 1H (month) and 4H (quarter) frames on every market are priced 'all'
-      // (REEL_INTRADAY_VIEW, 2026-10-22): every candle in view fits, with a
-      // margin either side.
+    } else if (tf === '4H') {
+      // The 4H quarter frame on every market is priced 'all' (REEL_INTRADAY_VIEW,
+      // 2026-10-22): every candle in view fits, with a margin either side.
+      // 1H ('centre') falls through to the centred check below.
       assert.ok(opened.lo < opened.barLo && opened.hi > opened.barHi,
         tf+' fits every candle in view: '+JSON.stringify([opened.lo, opened.barLo, opened.barHi, opened.hi]));
     } else if (opened.lo === 0) {
