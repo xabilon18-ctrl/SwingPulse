@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-22 1H MONTH FRAME ON EVERY MARKET: app.js v521. User, off ETHUSD 1H:
+"do the same to all 1h charts like this" (after the 4H quarter frame). Every
+1H chart opens on the previous + current MONTH (REEL_INTRADAY_VIEW, which
+now holds 1H and 4H): the previous month, the current one running into blank
+future up to the next month line (1 Sep to 1 Nov on 22 Oct), price 'all'.
+Replaced: stock 1H previous + current quarter ('ov' fit), index 1H ~3 weeks
+before the quarter line (`lead`), crypto/forex/commodity 1H 30 days back /
+35 ahead ('upper'). The `back`/`ahead`/`lead` frame options and the 'upper'
+fit (REEL_UPPER_FILL/HEAD) went with them. A saved view still wins. Tests:
+stock_view_test.cjs, chart_framing_checks.cjs.
+
 2026-10-22 4H QUARTER FRAME ON EVERY MARKET: app.js v520. User, off
 PLATINUM/ETHUSD/LINKUSD/USDX/US100/IT40/NETH25/FRA40/SPAIN35: "for the 4h
 time frame for all instruments let the frame look like this". Every 4H chart
