@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-22 DAILY YEAR FRAME ON EVERY MARKET: app.js v523. User, off
+CHINAH/CHINA50/CHINA_NET/SA40 Daily: "This is how we do daily". Every Daily
+chart opens on last year's line to two year lines ahead (2025 to 2028 on 22
+Oct), priced 'all' (candles, overlay MAs and drawings, each held to 2.5
+bar-ranges). Was: stocks the 2025-2029 term with 0 at the bottom ('zero'),
+indices the 2025-2029 term ('all'), crypto 2025-2028 with 0 forced on
+('allzero'), forex/commodities 2025-2028 ('all'), rates no frame. 1H, 4H and
+Daily now live in one table, REEL_FRAME_VIEW; reelOpenSpec no longer looks at
+the market. 'zero', 'allzero' and REEL_ZERO_FIT_FOOT are gone. A saved view
+still wins. Tests: stock_view_test.cjs, chart_framing_checks.cjs.
+
 2026-10-22 1H PRICE SCALE CENTRED: app.js v522. User, off TXN/ANET/AMKR 1H
 against their saved GOLD: "Look at the 1 h again and fix. Yours not right" —
 the price scale. 1H's 'all' fit (v521) pulled W500/M50/D500 and drawings

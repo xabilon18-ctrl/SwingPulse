@@ -8431,9 +8431,8 @@
   // every level would flatten the price action. Saved/manual bounds win.
   const REEL_OPENING_PRICE_FILL = 0.85;
   const REEL_OV_FIT_CAP = 2;   // see reelOpeningPriceWindow
-  const REEL_ZERO_FIT_FOOT = 0.05;     // Daily stocks: 0 sits 5% of the top above the bottom
   const REEL_CENTRE_PRICE_FILL = 0.6;  // 1H: the close in the middle, the bars ~1/3 of the height (GOLD/ETHUSD)
-  const REEL_ALL_FIT_REACH = 2.5;      // 4H/crypto Daily: lines count up to 2.5 bar-ranges out
+  const REEL_ALL_FIT_REACH = 2.5;      // 4H/Daily/W/M: lines count up to 2.5 bar-ranges out
   const REEL_ALL_FIT_PAD = 0.05;       // and 5% margin top and bottom
 
   // Empty bar-widths held back on the right, between the newest bar and the
@@ -8668,81 +8667,49 @@
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
 
-  // STOCK OPENING VIEWS (user, 2026-10-17, from their full-screen
-  // screenshots: "make all stock charts look like this on open and flipping
-  // through"). Each frame runs between the grid's own permanent lines
-  // (gridGeometry.yearFrame), so it lands on them exactly and moves on by
-  // itself:
-  //   D   — the current four-year TERM (BE/WKL): 2025 to 2029.
-  // 1H and 4H are one frame on every market — REEL_INTRADAY_VIEW below.
-  // The left edge is the first line, the right edge just past the closing
-  // line; the blank future is a default pan (reelPanOf), so zooming and
-  // panning work from it as from any other view. `fit` names the price rule
-  // for reelOpeningPriceWindow. Off with a Range pill; a saved view wins.
-  //
-  // CRYPTO DAILY (ETH/BNB/BTC) runs from last year's line to two year lines
-  // ahead (2025 to 2028), price 'all': everything on screen, drawings
-  // included.
-  const REEL_STOCK_VIEW = {
-    'D':  { term: 4,    fit: 'zero' },   // 0 at the bottom, top 2x the high
-  };
-  const REEL_CRYPTO_VIEW = {
-    'D':  { years: [1, 2], fit: 'allzero' },   // last year's line → two lines ahead
-  };
-  // INDEX DAILY (US100/RUSSELL) is the stock Daily term frame, fitted to
-  // everything on screen (their % ladders and channels set the scale).
-  const REEL_INDEX_VIEW = {
-    'D':  { term: 4, fit: 'all' },
-  };
-  // FOREX AND COMMODITIES (2026-10-18, left to us: "I am leaving fx and
-  // commodities in your hands"). Daily takes the crypto frame, last year's
-  // line to two ahead, with one change: it does NOT force 0 onto the scale.
-  // A currency moves a few percent a year and a commodity tens of percent,
-  // so a 0 line would press the whole chart into a sliver at the top.
-  const REEL_FXCOM_VIEW = {
-    'D':  { years: [1, 2], fit: 'all' },
-  };
-  // 1H AND 4H, THE SAME FRAME ON EVERY INSTRUMENT. Each opens on
-  // the previous + current grid part: the shaded previous one, the current
-  // one running into blank future up to the next line.
-  //   4H — QUARTERS (user, 2026-10-22, PLATINUM/ETHUSD/LINKUSD/USDX/US100/
-  //        IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for all
-  //        instruments let the frame look like this"): 1 Jul to 1 Jan on 22 Oct.
+  // OPENING VIEWS: ONE FRAME PER TIMEFRAME ON EVERY INSTRUMENT. Each runs
+  // between the grid's own permanent lines (gridGeometry.yearFrame), so it
+  // lands on them exactly and moves on by itself: the previous grid part
+  // (shaded), the current one, and blank future up to the next line. The left
+  // edge is the first line, the right edge just past the closing line; the
+  // blank future is a default pan (reelPanOf), so zooming and panning work
+  // from it as from any other view. `fit` names the price rule for
+  // reelOpeningPriceWindow. Off with a Range pill; a saved view wins.
   //   1H — MONTHS (user, 2026-10-22, ETHUSD: "do the same to all 1h charts
   //        like this"): 1 Sep to 1 Nov on 22 Oct. Priced 'centre', not 'all'
   //        (user, same day, off TXN/ANET/AMKR against their saved GOLD:
   //        "yours not right"): 'all' pulled W500/M50/D500 in and squashed the
   //        candles into a quarter of the height, pinned to an edge.
-  // They replace per-market frames: 4H was a half-year on stocks and indices,
+  //   4H — QUARTERS (user, 2026-10-22, PLATINUM/ETHUSD/LINKUSD/USDX/US100/
+  //        IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for all
+  //        instruments let the frame look like this"): 1 Jul to 1 Jan on 22 Oct.
+  //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
+  //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
+  //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
+  //        scale).
+  // They replace per-market frames: 4H was a half-year on stocks and indices;
   // 1H a quarter on stocks, ~3 weeks before the quarter line on indices and
-  // 30 days back / 35 ahead on crypto, forex and commodities.
-  const REEL_INTRADAY_VIEW = {
-    '1H': { unit: 1 / 12, fit: 'centre' },
-    '4H': { unit: 0.25,   fit: 'all' },
+  // 30 days back / 35 ahead on crypto, forex and commodities; Daily the
+  // 2025-2029 term on stocks (0 at the bottom) and indices, with 0 forced onto
+  // crypto's scale.
+  const REEL_FRAME_VIEW = {
+    '1H': { unit: 1 / 12,  fit: 'centre' },
+    '4H': { unit: 0.25,    fit: 'all' },
+    'D':  { years: [1, 2], fit: 'all' },
   };
   // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
-  // the current term's closing line like Daily: Weekly opens on FOUR terms
-  // (2013 to 2029), Monthly on ALL its history (user: "W 4 terms, M all" — so
-  // each reaches well past the Daily's one term). Price 'all'.
+  // the current term's closing line: Weekly opens on FOUR terms (2013 to
+  // 2029), Monthly on ALL its history (user: "W 4 terms, M all"). Price 'all'.
   const REEL_SLOW_VIEW = {
     'W': { term: 4, terms: 4, fit: 'all' },
     'M': { term: 4, all: true, fit: 'all' },
   };
-  function reelOpenSpec(name) {
-    if (REEL_SLOW_VIEW[timeframe]) return REEL_SLOW_VIEW[timeframe];
-    if (REEL_INTRADAY_VIEW[timeframe]) return REEL_INTRADAY_VIEW[timeframe];
-    const item = instrumentByName(name);
-    const scope = reelGridScope(item);
-    if (scope === 'stocks') return REEL_STOCK_VIEW[timeframe];
-    if (scope === 'indices') return REEL_INDEX_VIEW[timeframe];
-    const cls = item && assetClassOf(item);
-    if (cls === 'Crypto') return REEL_CRYPTO_VIEW[timeframe];
-    if (cls === 'Currency' || cls === 'Commodity') return REEL_FXCOM_VIEW[timeframe];
-    return null;
+  function reelOpenSpec() {
+    return REEL_SLOW_VIEW[timeframe] || REEL_FRAME_VIEW[timeframe] || null;
   }
   function reelStockView(bundle, name) {
     if (reel.range) return null;
-    const spec = reelOpenSpec(name);
+    const spec = reelOpenSpec();
     if (!spec) return null;
     if (bundle._sv !== undefined) return bundle._sv;
     const fr = window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
@@ -8893,34 +8860,27 @@
   // bars alone need, so the candles always keep at least half the height
   // they would have. A line further away is left off-screen and named in a
   // note (reelChartSvg).
-  // `fit` is a stock opening view's price rule (reelStockView): 'zero' puts
-  // 0 just above the bottom and the top at twice the highest high (Daily —
-  // the candles in the lower half, room above for projections); 'centre'
-  // puts the close in the middle with the bars' furthest edge at
+  // `fit` is an opening view's price rule (reelStockView): 'centre' puts the
+  // close in the middle with the bars' furthest edge at
   // REEL_CENTRE_PRICE_FILL of the way out (1H — overlay MAs and drawings
-  // further away are left off-screen); 'all' and 'allzero' fit everything on
-  // screen (below).
+  // further away are left off-screen); 'all' fits everything on screen
+  // (below).
   function reelOpeningPriceWindow(b, extra, fit) {
     let c = null, lo = Infinity, hi = -Infinity;
     for (let i = b.c.length - 1; i >= 0 && c == null; i--) c = b.c[i];
     if (!(c > 0)) return null;
     for (const v of b.l) if (v != null && v < lo) lo = v;
     for (const v of b.h) if (v != null && v > hi) hi = v;
-    if (fit === 'all' || fit === 'allzero') {
-      // Everything on screen (4H, crypto Daily; user's choice): the candles,
+    if (fit === 'all') {
+      // Everything on screen (4H, Daily, W, M; user's choice): the candles,
       // the overlay MAs and the drawings in `extra`, each side held to
       // REEL_ALL_FIT_REACH bar-ranges beyond the candles so one runaway
-      // projection cannot flatten them. Daily also always shows 0.
+      // projection cannot flatten them.
       const bs = (hi - lo) || c * 0.01, reach = REEL_ALL_FIT_REACH * bs;
-      let chi = extra ? Math.max(hi, Math.min(extra.hi, hi + reach)) : hi;
-      let clo = extra ? Math.min(lo, Math.max(extra.lo, lo - reach)) : lo;
-      if (fit === 'allzero' && lo >= 0) clo = Math.min(clo, 0);
+      const chi = extra ? Math.max(hi, Math.min(extra.hi, hi + reach)) : hi;
+      const clo = extra ? Math.min(lo, Math.max(extra.lo, lo - reach)) : lo;
       const pad = (chi - clo) * REEL_ALL_FIT_PAD;
       return { lo: clo - pad, hi: chi + pad };
-    }
-    if (fit === 'zero' && lo >= 0) {
-      const top = 2 * hi;
-      return { lo: -REEL_ZERO_FIT_FOOT * top, hi: top };
     }
     let dev = Math.max(hi - c, c - lo, c * 0.002);
     if (extra) dev = Math.min(Math.max(dev, extra.hi - c, c - extra.lo), dev * REEL_OV_FIT_CAP);
@@ -10429,14 +10389,14 @@
     // scrolling back through history does not re-fit the axis under the reader.
     // Re-fitting is what made a sideways drag look like a zoom — the bars kept
     // their x and changed their y. Double-tap restores the fit.
-    // A stock's or crypto's opening view has its own price rule
-    // (reelStockView); all but the stock Daily and 1H fit the overlay MAs too. Once the reader zooms or pans, the fit is the
+    // An opening view has its own price rule (reelStockView); all but 1H fit
+    // the overlay MAs and drawings too. Once the reader zooms or pans, the fit is the
     // bars' alone again.
     const _nm = item.instrument_name;
     const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
-    let _ovFit = _sv && _sv.fit !== 'zero' && _sv.fit !== 'centre'
+    let _ovFit = _sv && _sv.fit !== 'centre'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
-    if (_sv && (_sv.fit === 'all' || _sv.fit === 'allzero')) {
+    if (_sv && _sv.fit === 'all') {
       const from = b._from || 0;
       const dr = reelDrawingRange(channelSeedsFor(_nm, b), b._src || b, from,
         from + _winBars + reelRightPadBars(_winBars));

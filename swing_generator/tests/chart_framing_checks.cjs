@@ -30,14 +30,10 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const opened=await read(host);
     near(opened.lo,before.lo,tf+' automatic frame does not zoom out on expand');
     near(opened.hi,before.hi,tf+' automatic frame does not zoom out on expand');
-    if (tf === 'D') {
-      // TEST is a stock: Daily stocks open with 0 just above the bottom and
-      // the top at twice the highest high (reelStockView, 2026-10-17).
-      assert.ok(opened.lo < 0 && opened.lo > -0.1*opened.hi,tf+' stock Daily puts 0 just above the bottom');
-      assert.ok(opened.hi >= 2*opened.last,tf+' stock Daily top is twice the high');
-    } else if (tf === '4H') {
-      // The 4H quarter frame on every market is priced 'all' (REEL_INTRADAY_VIEW,
-      // 2026-10-22): every candle in view fits, with a margin either side.
+    if (tf === 'D' || tf === '4H') {
+      // 4H (quarters) and Daily (years) on every market are priced 'all'
+      // (REEL_FRAME_VIEW, 2026-10-22): every candle in view fits, with a
+      // margin either side.
       // 1H ('centre') falls through to the centred check below.
       assert.ok(opened.lo < opened.barLo && opened.hi > opened.barHi,
         tf+' fits every candle in view: '+JSON.stringify([opened.lo, opened.barLo, opened.barHi, opened.hi]));
