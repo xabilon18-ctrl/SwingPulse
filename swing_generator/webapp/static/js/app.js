@@ -10285,9 +10285,23 @@
     return freshness.chartTime(ts, timeframe, true) + ' local';
   }
   function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
+  // A session-only 4H chart opens on half-years, not quarters (REEL_FRAME_VIEW
+  // `sessionUnit`), so its grid takes the next size up from the market's
+  // choice (user, 2026-10-24, "your recommendation sounds good"): one setting
+  // per market, and US100 (quarters) and DAX (half-years) both show the
+  // previous part shaded and the current one plain. Year and Term stay.
+  const REEL_SESSION_GRID = {
+    M: { code: 'M2', name: 'Two months', parts: 6 },
+    Q: { code: 'H', name: 'Half-year', parts: 2 },
+    H: { code: 'Y', name: 'Year', parts: 1 },
+  };
   function reelTimeGrid(b, tf, item) {
     const scope = reelGridScope(item);
-    return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => reelGridDivision(code, scope) });
+    const session = tf === '4H' && reelBarsPerDay(b._src || b) < REEL_SESSION_BARS_PER_DAY;
+    return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => {
+      const d = reelGridDivision(code, scope);
+      return (session && REEL_SESSION_GRID[d.code]) || d;
+    } });
   }
 
 

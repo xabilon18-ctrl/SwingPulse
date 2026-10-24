@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-24 4H GRID SCALES WITH THE SESSION FRAME: app.js v525 /
+grid-geometry.js v6. User, after the session half-year frame: "And the time
+grids for these how can we fix", then took the recommendation. Grid choices
+are per market, but on 4H the indices (20 session-only, 14 round the clock),
+crypto (9 crypto stocks, 55 coins) and commodities (4 softs, 14 others) mix
+both frames, so one choice could not suit a quarter frame and a half-year
+frame at once. A session-only 4H chart (reelBarsPerDay < 4) now draws the
+next size up from its market's choice (REEL_SESSION_GRID in reelTimeGrid):
+Q → H, H → Y, M → M2 (two-month blocks, named by their first month in
+gridGeometry.partLabel); Y and T stay. 24h charts, 1H and Daily keep the
+choice as set. Test: time_grid_test.cjs.
+
 2026-10-24 4H HALF-YEAR ON SESSION-ONLY CHARTS: app.js v524. User: EU
 indices and SOX on 4H "are smaller and doesn't fit well on the 2 qs", then
 "do option 1". Their 4H feed is the exchange session only — measured on the

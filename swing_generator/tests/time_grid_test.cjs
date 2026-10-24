@@ -19,6 +19,8 @@ const context = () => {
     assetClassOf: item => item.asset_class,
     instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
+    REEL_SESSION_BARS_PER_DAY: 4,
+    reelBarsPerDay: b => b.t.length / (new Set(b.t.map(t => String(t).slice(0, 10))).size || 1),
   });
   vm.runInContext(code, c);
   return c;
@@ -31,6 +33,11 @@ for (let ms = Date.UTC(2023, 0, 1); ms < Date.UTC(2026, 10, 1); ms += 864e5) {
   if (![0, 6].includes(d.getUTCDay()) && d.getUTCDate() !== 15) t.push(d.toISOString());
 }
 const b = { t };
+// The 4H checks below run on a round-the-clock feed (six bars a day); a
+// session-only 4H feed scales its grid up a size (checked at the end).
+const t24 = [];
+for (let ms = Date.UTC(2023, 0, 1); ms < Date.UTC(2026, 10, 1); ms += 4 * 36e5) t24.push(new Date(ms).toISOString());
+const b24 = { t: t24 };
 for (const [division, parts] of [['M', 12], ['Q', 4], ['H', 2], ['Y', 1]]) {
   assert.equal(c.reelSetGridDivision('1H', division), true);
   const lines = c.reelTimeGrid(b, '1H').filter(l => !l.fixedOnly);
@@ -56,7 +63,7 @@ assert.equal(reloaded.reelTimeGrid({ t: ['invalid', 'invalid'] }, '1H').length, 
 assert.match(reloaded.reelTimeGridSwitchHtml(), /aria-pressed="true"/);
 for (const division of ['M', 'Q', 'H', 'Y']) {
   c.reelSetGridDivision('4H', division);
-  const lines = c.reelTimeGrid(b, '4H');
+  const lines = c.reelTimeGrid(b24, '4H');
   const gap = lines[1].fi - lines[0].fi;
   lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, '4H grid gaps must be equal'));
   const years = lines.filter(l => l.annual);
@@ -93,7 +100,7 @@ c.reelSetGridDivision('4H','H','indices');
 c.reelSetGridDivision('4H','Y','other');
 c.reelSetGridDivision('1H','Q','stocks');
 for(const [item,code,parts] of [[stock,'M',12],[index,'H',2],[crypto,'Y',1]]) {
-  const lines=c.reelTimeGrid(b,'4H',item).filter(l=>!l.fixedOnly);
+  const lines=c.reelTimeGrid(b24,'4H',item).filter(l=>!l.fixedOnly);
   assert.equal(lines.filter(l=>l.year===2024).length,parts);
   assert.ok(lines.every(l=>l.division===code));
   const gap=lines[1].fi-lines[0].fi;
@@ -108,8 +115,24 @@ assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry
 assert.equal(c.reelGridScope(crypto),'crypto');
 assert.equal(c.reelGridScope({asset_class:'Currency',group:'Currency'}),'currency');
 c.reelSetGridDivision('4H','Q','energy');
-assert.equal(c.reelTimeGrid(b,'4H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
-assert.equal(c.reelTimeGrid(b,'4H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
+assert.equal(c.reelTimeGrid(b24,'4H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
+assert.equal(c.reelTimeGrid(b24,'4H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
+// A session-only 4H chart (fewer than 4 bars a day — `b` has one) takes the
+// next size up from its market's choice (2026-10-24): Q → H, H → Y, M → two
+// months; Year and Term stay. A 24h chart in the same market keeps the choice.
+for (const [code, want, parts] of [['Q','H',2],['H','Y',1],['M','M2',6],['Y','Y',1]]) {
+  c.reelSetGridDivision('4H', code, 'indices');
+  const lines = c.reelTimeGrid(b, '4H', index).filter(l => !l.fixedOnly);
+  assert.ok(lines.every(l => l.division === want), code + ' on a session chart draws ' + want);
+  assert.equal(lines.filter(l => l.year === 2024).length, parts);
+  assert.equal(c.reelTimeGrid(b24, '4H', index).find(l => !l.fixedOnly).division, code, code + ' stays on a 24h chart');
+}
+c.reelSetGridDivision('4H', 'H', 'indices');   // the saved choice read back below
+assert.deepEqual(['2024-01','2024-03','2024-05'].map((_, k) => geometry.partLabel(2024, k, 'M2')),
+  ['Jan 2024', 'Mar', 'May'], 'Two-month blocks are named by their first month');
+// Session-only 1H and Daily keep the market's choice.
+c.reelSetGridDivision('1H', 'Q', 'indices');
+assert.equal(c.reelTimeGrid(b, '1H', index).find(l => !l.fixedOnly).division, 'Q');
 assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);

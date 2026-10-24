@@ -7,7 +7,7 @@
   function partLabel(year, part, division) {
     if (division === 'Y') return String(year);
     if (division === 'T') return termLabel(year);
-    if (division === 'M') return new Date(Date.UTC(year, part, 1))
+    if (division === 'M' || division === 'M2') return new Date(Date.UTC(year, division === 'M2' ? 2 * part : part, 1))
       .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
     return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
   }
