@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- 'black', not 'black-translucent' (2026-10-24): translucent drew the page
+       under the clock, and iOS 26 lays a blur-and-dim band over whatever sits
+       there, smearing the header and the full-screen chart's title row. An
+       opaque bar keeps the page below it. Installed apps pick this up on
+       relaunch; if not, remove and re-add the Home Screen icon. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SwingPulse">
   <meta name="theme-color" content="#000000">
   <title>SwingPulse</title>
