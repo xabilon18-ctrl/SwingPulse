@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-24 4H HALF-YEAR ON SESSION-ONLY CHARTS: app.js v524. User: EU
+indices and SOX on 4H "are smaller and doesn't fit well on the 2 qs", then
+"do option 1". Their 4H feed is the exchange session only — measured on the
+live bundles: 2.99 bars a day on DAX/FRA40/IT40/NETH25/SPAIN35/EU50/UK100/SW20,
+1.98 on SOX and US stocks, against 5.07 on the futures-fed US100/US500/NI225,
+5.08 on PLATINUM and 5.99 on crypto. Two quarters therefore held ~380 and ~250
+candles against US100's ~780. A 4H chart with fewer than
+REEL_SESSION_BARS_PER_DAY (4) bars per calendar day (reelBarsPerDay) now opens
+on the previous + current HALF-YEAR (`sessionUnit`: 1 Jan to 1 Jan on 24 Oct),
+~760 slots on the EU indices and ~500 on SOX; 24h feeds keep the two quarters.
+Decided from the bundle, not a market list, so stocks follow too. Test:
+stock_view_test.cjs.
+
 2026-10-24 OPAQUE iOS STATUS BAR: index.html only. User, after updating iOS:
 the header (main screen) and the full-screen chart's title row looked blurred
 and dimmed under the clock. Nothing in the app blurs its own header; the

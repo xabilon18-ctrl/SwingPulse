@@ -8683,6 +8683,14 @@
   //   4H — QUARTERS (user, 2026-10-22, PLATINUM/ETHUSD/LINKUSD/USDX/US100/
   //        IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for all
   //        instruments let the frame look like this"): 1 Jul to 1 Jan on 22 Oct.
+  //        A SESSION-ONLY chart (fewer than REEL_SESSION_BARS_PER_DAY 4H
+  //        bars a day) takes HALF-YEARS instead, `sessionUnit` (user,
+  //        2026-10-24, "do option 1" — EU indices and SOX were "smaller and
+  //        doesn't fit well on the 2 qs"): 1 Jan to 1 Jan on 24 Oct. Their
+  //        feed is the exchange session only — 3 bars a day on the European
+  //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
+  //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
+  //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
@@ -8692,9 +8700,10 @@
   // 30 days back / 35 ahead on crypto, forex and commodities; Daily the
   // 2025-2029 term on stocks (0 at the bottom) and indices, with 0 forced onto
   // crypto's scale.
+  const REEL_SESSION_BARS_PER_DAY = 4;   // 24h feeds give 5-6 4H bars a day, session feeds 2-3
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
-    '4H': { unit: 0.25,    fit: 'all' },
+    '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
   // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
@@ -8727,7 +8736,9 @@
       start = spec.all ? 0 : fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
       endAt = fr.anchor + (first + spec.term - year) * fr.yearBars;
     } else {
-      const u = fr.yearBars * spec.unit;
+      const unit = spec.sessionUnit && reelBarsPerDay(bundle) < REEL_SESSION_BARS_PER_DAY
+        ? spec.sessionUnit : spec.unit;
+      const u = fr.yearBars * unit;
       const k = Math.floor((last - fr.anchor) / u + 1e-9);
       start = fr.anchor + (k - 1) * u;
       endAt = fr.anchor + (k + 1) * u;
@@ -8846,6 +8857,13 @@
   const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, fill: 0.85 };
   // Round the clock (crypto, forex, futures: up to 48 thirty-minute bars a UTC
   // day) or a session a day (stocks, cash indices: 10-17). Measured off the bundle.
+  // Bars per calendar day that has any: 6 four-hour bars on crypto, 5 on a
+  // futures feed, 3 on a European cash index, 2 on a US stock or SOX.
+  function reelBarsPerDay(bundle) {
+    if (bundle._perDay != null) return bundle._perDay;
+    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
+    return (bundle._perDay = bundle.t.length / days);
+  }
   function reel15mIs24h(bundle) {
     if (bundle._is24h != null) return bundle._is24h;
     const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
