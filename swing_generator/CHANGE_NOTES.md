@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-24 OPAQUE iOS STATUS BAR: index.html only. User, after updating iOS:
+the header (main screen) and the full-screen chart's title row looked blurred
+and dimmed under the clock. Nothing in the app blurs its own header; the
+status-bar style was `black-translucent`, which draws the page under the
+clock, and iOS lays its own blur band over that area. Now `black`: iOS draws
+a solid black strip and the page starts below it (safe-area-inset-top goes
+to 0, which the existing env() paddings already handle). Trade-off: the
+white full-screen chart has a black strip above it. Untestable off-device.
+
 2026-10-22 DAILY YEAR FRAME ON EVERY MARKET: app.js v523. User, off
 CHINAH/CHINA50/CHINA_NET/SA40 Daily: "This is how we do daily". Every Daily
 chart opens on last year's line to two year lines ahead (2025 to 2028 on 22
