@@ -8855,15 +8855,19 @@
   // plot. Only the view a chart OPENS on: any drag or zoom takes over, and
   // double-tap comes back to it.
   const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, fill: 0.85 };
+  // Bars per calendar day that has any: 6 four-hour bars on crypto, 5 on a
+  // futures feed, 3 on a European cash index, 2 on a US stock or SOX. Cached
+  // beside the bundle, not on it (CodeQL: a property written onto parsed data).
+  const reelPerDayCache = new WeakMap();
+  function reelBarsPerDay(bundle) {
+    if (reelPerDayCache.has(bundle)) return reelPerDayCache.get(bundle);
+    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
+    const perDay = bundle.t.length / days;
+    reelPerDayCache.set(bundle, perDay);
+    return perDay;
+  }
   // Round the clock (crypto, forex, futures: up to 48 thirty-minute bars a UTC
   // day) or a session a day (stocks, cash indices: 10-17). Measured off the bundle.
-  // Bars per calendar day that has any: 6 four-hour bars on crypto, 5 on a
-  // futures feed, 3 on a European cash index, 2 on a US stock or SOX.
-  function reelBarsPerDay(bundle) {
-    if (bundle._perDay != null) return bundle._perDay;
-    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
-    return (bundle._perDay = bundle.t.length / days);
-  }
   function reel15mIs24h(bundle) {
     if (bundle._is24h != null) return bundle._is24h;
     const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;

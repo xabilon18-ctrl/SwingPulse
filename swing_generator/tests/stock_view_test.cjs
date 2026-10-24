@@ -18,7 +18,7 @@ const ctx = vm.createContext({
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext('var REEL_SESSION_BARS_PER_DAY = 4;' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext('var REEL_SESSION_BARS_PER_DAY = 4; var reelPerDayCache = new WeakMap();' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 const hourly = (from, to, hours) => {
   const t = [];
