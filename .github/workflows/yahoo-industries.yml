@@ -1,0 +1,50 @@
+name: Yahoo industries for Instruments.txt
+
+# One-off, run by hand (user, 2026-10-25: "Do it", on cleaning up the industry
+# column). Replaces each stock's industry with Yahoo's own label and pushes the
+# result to the data/yahoo-industries branch, where it goes up as an ordinary
+# PR to review and merge. Lives here because Yahoo is reachable from Actions
+# and not from the Claude sandbox. See swing_generator/tools/yahoo_industries.py.
+on:
+  workflow_dispatch:
+
+jobs:
+  industries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write      # push the data/yahoo-industries branch, nothing else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r swing_generator/requirements.txt
+
+      - name: Look up each stock's Yahoo industry
+        run: |
+          cd swing_generator
+          python3 tools/yahoo_industries.py --report ../industry-report.json --write
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: industry-report
+          path: industry-report.json
+          if-no-files-found: warn
+
+      - name: Push the result to data/yahoo-industries
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B data/yahoo-industries
+          git add Instruments.txt
+          git diff --cached --quiet && { echo "No industry changed"; exit 0; }
+          git commit -m "Instruments.txt: stock industries from Yahoo"
+          git push --force origin data/yahoo-industries
