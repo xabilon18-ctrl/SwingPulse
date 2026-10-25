@@ -18,7 +18,7 @@ const ctx = vm.createContext({
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext('var REEL_SESSION_BARS_PER_DAY = 4; var reelPerDayCache = new WeakMap();' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext('var REEL_SESSION_HOURS = 16; var reelPerDayCache = new WeakMap(); var OV_TF_MS = { \'1H\': 36e5, \'2H\': 72e5, \'4H\': 144e5, D: 864e5 };' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelSessionOnly') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
 
 const hourly = (from, to, hours) => {
   const t = [];
@@ -87,6 +87,25 @@ const jr = [];
 for (let ms = Date.UTC(2026, 0, 5); ms <= Date.UTC(2027, 0, 20); ms += 4 * 36e5) jr.push(new Date(ms).toISOString());
 const kr = ctx.reelStockView({ t: jr, c: jr.map(() => 1) }, 'BTC');
 assert.ok(near(jr[jr.length - (kr.bars - kr.future)], '2026-10-01'));
+// 2H (back 2026-10-25): previous + current TWO-MONTH block round the clock
+// (12 bars a day: Jul-Aug and Sep-Oct on 25 Oct, to the 1 Nov line),
+// FOUR-MONTH blocks on a session feed (4 a day on a US stock, 5 on a European
+// index: May-Aug and Sep-Dec, to the 1 Jan line).
+ctx.timeframe = '2H';
+const r2 = [];
+for (let ms = Date.UTC(2025, 9, 25); ms <= Date.UTC(2026, 9, 24, 20); ms += 2 * 36e5) r2.push(new Date(ms).toISOString());
+const span2 = (b2, market, startDay, endParts) => {
+  const v2 = ctx.reelStockView(b2, market);
+  const f2 = b2.t.length - (v2.bars - v2.future);
+  // The first bar on or after the line: a weekend can sit between (1 May 2026 is a Friday).
+  assert.ok(Math.abs(Date.parse(b2.t[f2]) - Date.parse(startDay)) < 4 * 864e5, market + ' ' + b2.t[f2]);
+  const fr2 = geometry.yearFrame(b2, bt);
+  assert.ok(Math.abs(f2 + v2.bars - 1 - (fr2.anchor + endParts * fr2.yearBars)) <= 1, market + ' ends on its line');
+  assert.equal(v2.fit, 'centre', market);
+};
+span2({ t: r2, c: r2.map(() => 1) }, 'BTC', '2026-07-01', 10 / 12);                                  // Jul → 1 Nov
+span2(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 23), [13.5, 15.5, 17.5, 19.5]), 'STOCK', '2026-05-01', 1); // May → 1 Jan
+span2(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 23), [7, 9, 11, 13, 15]), 'IDX', '2026-05-01', 1);
 // Daily, every market (2026-10-22): last year's line to two year lines ahead
 // (2025 → 2028). Round the clock (crypto) and a session a weekday.
 ctx.timeframe = 'D';

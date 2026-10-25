@@ -19,8 +19,8 @@ const context = () => {
     assetClassOf: item => item.asset_class,
     instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
-    REEL_SESSION_BARS_PER_DAY: 4,
-    reelBarsPerDay: b => b.t.length / (new Set(b.t.map(t => String(t).slice(0, 10))).size || 1),
+    reelSessionOnly: (b, tf) => b.t.length / (new Set(b.t.map(t => String(t).slice(0, 10))).size || 1)
+      * ({ '2H': 2, '4H': 4 }[tf] || 24) < 16,
   });
   vm.runInContext(code, c);
   return c;

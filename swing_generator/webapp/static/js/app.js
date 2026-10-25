@@ -144,6 +144,10 @@
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
+    // 2H back 2026-10-25 (user: "Just 2h") as a CHART ONLY, as it was from
+    // 2026-10-01 to 10-03: no signals, markers, alerts or 2H trend read; the
+    // header and filters read the Daily row, as on Weekly and Monthly.
+    { code: '2H', prefix: '', label: '2H', tv: '120', bar: '2-hour bars', barShort: '25-bar', chartOnly: true },
     { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
@@ -8726,14 +8730,20 @@
   //   4H — QUARTERS (user, 2026-10-22, PLATINUM/ETHUSD/LINKUSD/USDX/US100/
   //        IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for all
   //        instruments let the frame look like this"): 1 Jul to 1 Jan on 22 Oct.
-  //        A SESSION-ONLY chart (fewer than REEL_SESSION_BARS_PER_DAY 4H
-  //        bars a day) takes HALF-YEARS instead, `sessionUnit` (user,
+  //        A SESSION-ONLY chart (reelSessionOnly: under REEL_SESSION_HOURS
+  //        of bars a day) takes HALF-YEARS instead, `sessionUnit` (user,
   //        2026-10-24, "do option 1" — EU indices and SOX were "smaller and
   //        doesn't fit well on the 2 qs"): 1 Jan to 1 Jan on 24 Oct. Their
   //        feed is the exchange session only — 3 bars a day on the European
   //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
   //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
   //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
+  //   2H — TWO-MONTH BLOCKS (user, 2026-10-25, "Just 2h", back as a chart
+  //        only): Jul-Aug shaded, Sep-Oct running into blank future up to the
+  //        1 Nov line on 25 Oct; priced 'centre' like 1H. ~1,400 candles round
+  //        the clock (12 a day). Session-only feeds (4 a day on a US stock, 5
+  //        on a European index) take FOUR-MONTH blocks, as 4H takes
+  //        half-years: May-Aug and Sep-Dec, ~670 and ~840 candles.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
@@ -8743,9 +8753,13 @@
   // 30 days back / 35 ahead on crypto, forex and commodities; Daily the
   // 2025-2029 term on stocks (0 at the bottom) and indices, with 0 forced onto
   // crypto's scale.
-  const REEL_SESSION_BARS_PER_DAY = 4;   // 24h feeds give 5-6 4H bars a day, session feeds 2-3
+  // Hours of bars a calendar day carries: 20-24 on a round-the-clock or
+  // futures feed, 6.5-10 on an exchange session (4H: 5-6 bars a day against
+  // 2-3; 2H: 10-12 against 4-5).
+  const REEL_SESSION_HOURS = 16;
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
+    '2H': { unit: 1 / 6,   sessionUnit: 1 / 3, fit: 'centre' },
     '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
@@ -8779,8 +8793,7 @@
       start = spec.all ? 0 : fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
       endAt = fr.anchor + (first + spec.term - year) * fr.yearBars;
     } else {
-      const unit = spec.sessionUnit && reelBarsPerDay(bundle) < REEL_SESSION_BARS_PER_DAY
-        ? spec.sessionUnit : spec.unit;
+      const unit = spec.sessionUnit && reelSessionOnly(bundle, timeframe) ? spec.sessionUnit : spec.unit;
       const u = fr.yearBars * unit;
       const k = Math.floor((last - fr.anchor) / u + 1e-9);
       start = fr.anchor + (k - 1) * u;
@@ -8911,6 +8924,11 @@
   }
   // Round the clock (crypto, forex, futures: up to 48 thirty-minute bars a UTC
   // day) or a session a day (stocks, cash indices: 10-17). Measured off the bundle.
+  // An exchange-session feed rather than a round-the-clock one, measured off
+  // the bundle: its bars cover fewer than REEL_SESSION_HOURS a day.
+  function reelSessionOnly(bundle, tf) {
+    return reelBarsPerDay(bundle) * (OV_TF_MS[tf] || 864e5) / 36e5 < REEL_SESSION_HOURS;
+  }
   function reel15mIs24h(bundle) {
     if (bundle._is24h != null) return bundle._is24h;
     const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
@@ -10340,7 +10358,7 @@
   };
   function reelTimeGrid(b, tf, item) {
     const scope = reelGridScope(item);
-    const session = tf === '4H' && reelBarsPerDay(b._src || b) < REEL_SESSION_BARS_PER_DAY;
+    const session = tf === '4H' && reelSessionOnly(b._src || b, tf);
     return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => {
       const d = reelGridDivision(code, scope);
       return (session && REEL_SESSION_GRID[d.code]) || d;
