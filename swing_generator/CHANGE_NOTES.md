@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-25 2H CHART BACK: chart_feed.py + app.js v528. User: "Just 2h" (8H was
+declined: on session-only markets it is one daily bar, or 8h plus a 30-min
+stub on European hours). Chart only, as it was 2026-10-01 to 10-03: no
+signals, markers, alerts or trend read; header and filters read the Daily
+row, as on Weekly/Monthly. Data: build_2h is back in build_chart_feed's loop
+(chart/2H/<chunk>.json) and now carries the forming candle like 1H/4H
+(_attach_forming, hours=2). App: a 2H button between 1H and 4H, TIMEFRAMES
+row with chartOnly. Opening frame REEL_FRAME_VIEW['2H']: previous + current
+TWO-MONTH block (Jul-Aug, Sep-Oct to the 1 Nov line on 25 Oct), priced
+'centre' like 1H; session-only feeds take FOUR-MONTH blocks (May-Aug,
+Sep-Dec). The session test is now hours of bars a day (reelSessionOnly,
+REEL_SESSION_HOURS 16) so it works on 2H and 4H alike: 24h feeds give 20-24h,
+sessions 6.5-10h. Grids: 2H keeps the market's choice (default Month). Tests:
+stock_view_test.cjs, time_grid_test.cjs.
+
 2026-10-25 BITCOIN MINERS KEEP "Bitcoin Mining": Instruments.txt. User: "Keep
 Bitcoin Mining as the label for the bitcoin miners" (Yahoo files them as
 "Capital Markets"). MARA, RIOT, CLSK, HUT, WULF and IREN are "Bitcoin Mining"
