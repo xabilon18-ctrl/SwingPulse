@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-25 BITCOIN MINERS KEEP "Bitcoin Mining": Instruments.txt. User: "Keep
+Bitcoin Mining as the label for the bitcoin miners" (Yahoo files them as
+"Capital Markets"). MARA, RIOT, CLSK, HUT, WULF and IREN are "Bitcoin Mining"
+again (IREN's old "Bitcoin Mining / AI HPC" is not restored), and
+tools/yahoo_industries.py OWN_LABELS keeps them so on every future Yahoo run.
+They are back in the Miners chip ('mining'): 19 stocks.
+
 2026-10-25 STOCK INDUSTRIES FROM YAHOO: Instruments.txt + app.js v527. User:
 "Do it", on cleaning the industry labels behind the Sector › Industry filter.
 tools/yahoo_industries.py, run by hand in Actions (yahoo-industries.yml, run

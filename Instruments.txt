@@ -857,8 +857,8 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   BLOCKCHAIN & CRYPTO EQUITY (4)
 ═══════════════════════════════════════════════════════════════════════════════
 683  | COIN          | COIN          | Blockchain    | Financial Services        | Financial Data & Stock Exchanges
-684  | MARA          | MARA          | Blockchain    | Technology                | Capital Markets
-685  | RIOT          | RIOT          | Blockchain    | Technology                | Capital Markets
+684  | MARA          | MARA          | Blockchain    | Technology                | Bitcoin Mining
+685  | RIOT          | RIOT          | Blockchain    | Technology                | Bitcoin Mining
 686  | MSTR          | MSTR          | Blockchain    | Financial Services        | Software - Application
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -901,10 +901,10 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
   BLOCKCHAIN — ADDITIONS (5)
 ═══════════════════════════════════════════════════════════════════════════════
-704  | CLSK          | CLSK          | Blockchain    | Technology                | Capital Markets
-705  | HUT           | HUT           | Blockchain    | Technology                | Capital Markets
-706  | WULF          | WULF          | Blockchain    | Technology                | Capital Markets
-707  | IREN          | IREN          | Blockchain    | Technology                | Capital Markets
+704  | CLSK          | CLSK          | Blockchain    | Technology                | Bitcoin Mining
+705  | HUT           | HUT           | Blockchain    | Technology                | Bitcoin Mining
+706  | WULF          | WULF          | Blockchain    | Technology                | Bitcoin Mining
+707  | IREN          | IREN          | Blockchain    | Technology                | Bitcoin Mining
 708  | HOOD          | HOOD          | Blockchain    | Financial Services        | Capital Markets
 
 ═══════════════════════════════════════════════════════════════════════════════
