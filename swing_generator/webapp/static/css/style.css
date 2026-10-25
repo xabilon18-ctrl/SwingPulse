@@ -9702,6 +9702,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .fdrop-menu .reel-opt i { float: none; margin: 0 0 0 auto; font-style: normal; font-size: .74rem; font-weight: 400;
   color: var(--text-muted); white-space: nowrap; }
 .fdrop-menu .reel-opt.active i { color: var(--accent); opacity: .7; }
+/* Sector / industry rows carry a count on the right, like the reel options. */
+.fdrop-menu .fdrop-opts > button i { margin-left: auto; font-style: normal; font-size: .74rem; font-weight: 400;
+  color: var(--text-muted); white-space: nowrap; }
+.fdrop-menu .fdrop-opts > button.on i { color: var(--accent); opacity: .7; }
 
 /* Modifiers (cluster width, Near MA "within") as one small segmented control. */
 .fdrop-seg { display: flex; align-items: center; gap: 2px; margin: 6px 6px 4px; padding: 3px; border-radius: 9px;

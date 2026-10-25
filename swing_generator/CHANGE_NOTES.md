@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-25 SECTOR / INDUSTRY FILTER: app.js v526 / style.css v376. User: "If
+I ... wanted to filter by sector and industry, I wouldn't be able to do that,
+would I?", then "yes build it". The only sector dropdown lived on the Scanner
+tab, hidden with it on 2026-09-27 and never carried over; search still matched
+sector and industry text. Watchlist and Charts each get a Sector dropdown
+(#wl2DdSector / #reelDdSector, sectorMenuHtml): the stock sectors with
+counts (Crypto/Index/Commodities/Currency are the Class menu's), then, once a
+sector is picked, that sector's industries. Exact matches (sectorMatches);
+picking a sector clears the industry; Reset and Market taps clear both.
+Watchlist choices persist with the other wlUi filters; Charts' do not, like
+its other filters. Measured on the live data: Technology 168 Watchlist rows,
+Semiconductors 24; Healthcare 54 charts. NB the industry labels are
+inconsistent — 259 stock industries, 169 holding one stock, near-duplicates
+such as "Data Center REIT" / "Data Centre REIT". Test: stock_view_test.cjs.
+
 2026-10-24 4H GRID SCALES WITH THE SESSION FRAME: app.js v525 /
 grid-geometry.js v6. User, after the session half-year frame: "And the time
 grids for these how can we fix", then took the recommendation. Grid choices

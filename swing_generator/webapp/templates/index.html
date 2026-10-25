@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=375">
+  <link rel="stylesheet" href="/static/css/style.css?v=376">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -578,6 +578,7 @@
       <div class="wl2-lists" id="wl2Lists"></div>
       <div class="fdrop-row" id="wl2Drops">
         <button class="fdrop-btn" type="button" id="wl2DdClass" data-fdrop="wl2MenuClass" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Class</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <button class="fdrop-btn" type="button" id="wl2DdSector" data-fdrop="wl2MenuSector" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sector</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
         <button class="fdrop-btn" type="button" id="wl2DdTrend" data-fdrop="wl2MenuTrend" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Trend</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
         <button class="fdrop-btn" type="button" id="wl2DdClusters" data-fdrop="wl2MenuClusters" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Clusters</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
         <button class="fdrop-btn" type="button" id="wl2DdSort" data-fdrop="wl2MenuSort" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
@@ -686,6 +687,7 @@
         <div class="fdrop-row" id="reelDrops">
           <button class="fdrop-btn" type="button" id="reelDdShow" data-fdrop="reelMenuShow" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Show</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
           <button class="fdrop-btn" type="button" id="reelDdClass" data-fdrop="reelMenuClass" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Class</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="fdrop-btn" type="button" id="reelDdSector" data-fdrop="reelMenuSector" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sector</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
           <button class="fdrop-btn" type="button" id="reelDdTrend" data-fdrop="reelMenuTrend" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Trend</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
           <button class="fdrop-btn" type="button" id="reelDdMa" data-fdrop="reelMenuMa" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">MA</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
           <button class="fdrop-btn" type="button" id="reelDdSort" data-fdrop="reelMenuSort" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
@@ -733,6 +735,10 @@
   <div class="fdrop-layer" id="wl2Menus">
     <div class="fdrop-menu" id="wl2MenuClass" role="menu" hidden data-fdrop-autoclose>
       <div class="fdrop-sec"><div class="fdrop-opts" id="wl2Classes"></div></div>
+    </div>
+    <!-- Sector, then that sector's industries: two picks, so it stays open. -->
+    <div class="fdrop-menu fdrop-wide" id="wl2MenuSector" role="menu" hidden>
+      <div id="wl2Sector"></div>
     </div>
     <div class="fdrop-menu" id="wl2MenuTrend" role="menu" hidden>
       <div class="fdrop-sec"><div class="fdrop-hd">Main trend <small>Daily</small></div><div class="fdrop-opts" id="wl2Trend"></div></div>
@@ -784,6 +790,10 @@
           <button class="s-cat-chip" data-cat="ai">AI</button>
         </div>
       </div>
+    </div>
+
+    <div class="fdrop-menu fdrop-wide" id="reelMenuSector" role="menu" hidden>
+      <div id="reelSectorMenu"></div>
     </div>
 
     <div class="fdrop-menu" id="reelMenuTrend" role="menu" hidden>
@@ -913,7 +923,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=4"></script>
   <script src="/static/js/modules/grid-geometry.js?v=6"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=525"></script>
+  <script src="/static/js/app.js?v=526"></script>
 </body>
 </html>
 
