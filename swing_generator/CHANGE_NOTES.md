@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-25 STOCK INDUSTRIES FROM YAHOO: Instruments.txt + app.js v527. User:
+"Do it", on cleaning the industry labels behind the Sector › Industry filter.
+tools/yahoo_industries.py, run by hand in Actions (yahoo-industries.yml, run
+40170454966 — Yahoo is unreachable from the Claude sandbox), replaced the
+industry of 462 stock rows with Yahoo's own label. Only that column of stock
+rows changed: every sector, group, name, ticker and non-stock row, and the
+column widths, are as they were. Stock industries 243 → 109; single-stock
+industries 149 → 25 (e.g. "Data Center REIT"/"Data Centre REIT" are one now).
+A stock Yahoo gave no industry keeps its old label. Yahoo's own calls stand,
+including the bitcoin miners (MARA/RIOT/CLSK/HUT/IREN/WULF) as "Capital
+Markets". The Miners chip (CATEGORY_ALIASES) matched "... Mining"; Yahoo
+names the metal ("Gold", "Copper"), so it now also matches gold, copper,
+silver and uranium: 13 metal miners, all the old ones plus WPM. Other chips
+moved by a stock or two (Semis gains CRDO/RMBS/SITM, loses MKSI to
+"Scientific & Technical Instruments").
+
 2026-10-25 SECTOR / INDUSTRY FILTER: app.js v526 / style.css v376. User: "If
 I ... wanted to filter by sector and industry, I wouldn't be able to do that,
 would I?", then "yes build it". The only sector dropdown lived on the Scanner

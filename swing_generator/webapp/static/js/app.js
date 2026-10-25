@@ -3545,7 +3545,9 @@
     ],
     'luxury':       ['luxury'],
     'auto':         ['auto manufacturers'],
-    'miners':       ['mining', 'gold mining'],
+    // Yahoo's industry labels (2026-10-25) name the metal, not the mining:
+    // 'Gold', 'Copper', 'Silver', 'Other Precious Metals & Mining', 'Uranium'.
+    'miners':       ['mining', 'gold', 'copper', 'silver', 'uranium'],
   };
 
   function matchesSearch(item, query) {
