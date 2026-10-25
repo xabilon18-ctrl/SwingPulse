@@ -10,7 +10,8 @@ meant to follow (about 145 names: "Semiconductors", "Banks - Regional", ...).
 Only the industry of a STOCK row changes. Crypto, index, commodity and
 currency rows, every sector, group, name and ticker, and the file's layout are
 left exactly as they are. A stock Yahoo gives no industry for keeps its old
-label and is listed in the report. Sectors Yahoo files differently are only
+label and is listed in the report. OWN_LABELS are the user's and are never
+replaced. Sectors Yahoo files differently are only
 REPORTED, never changed: the sector is part of the radar and the rotation
 wheel, and moving one is a separate decision.
 
@@ -31,6 +32,10 @@ sys.path.insert(0, str(ROOT))
 from _active_config import INSTRUMENTS_FILE            # noqa: E402
 
 NON_STOCK = {'Crypto', 'Index', 'Commodities', 'Currency'}
+# The user's own labels, kept over Yahoo's on every run. Yahoo files the
+# bitcoin miners as "Capital Markets" (user, 2026-10-25: "Keep Bitcoin Mining
+# as the label for the bitcoin miners").
+OWN_LABELS = {t: 'Bitcoin Mining' for t in ('MARA', 'RIOT', 'CLSK', 'HUT', 'WULF', 'IREN')}
 # num | ticker | name | group | sector | industry — everything up to the last
 # separator is kept byte for byte; only the industry text is replaced.
 ROW = re.compile(r'^(\s*\d+\s*\|\s*(\S+)\s*\|\s*\S+\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*)(.+?)\s*$')
@@ -77,8 +82,11 @@ def main():
             out.append(line)
             continue
         prefix, ticker, sector, old = m.group(1), m.group(2), m.group(4), m.group(5)
-        industry, yahoo_sector = yahoo_profile(ticker)
-        time.sleep(args.pause)
+        if ticker in OWN_LABELS:
+            industry, yahoo_sector = OWN_LABELS[ticker], ''
+        else:
+            industry, yahoo_sector = yahoo_profile(ticker)
+            time.sleep(args.pause)
         if yahoo_sector and yahoo_sector != sector:
             report['sector_differs'].append({'ticker': ticker, 'ours': sector, 'yahoo': yahoo_sector})
         if not industry:
