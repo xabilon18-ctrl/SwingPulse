@@ -181,3 +181,28 @@ assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 20, hi: 120 });
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 20, hi: 300 });
 console.log('stock, crypto, Weekly and Monthly views: ok');
+
+// Sector / industry filter (2026-10-25): stock sectors only, the industry list
+// limited to the chosen sector, exact matches.
+const sx = vm.createContext({
+  escText: v => String(v),
+  allData: [
+    { sector: 'Technology', industry: 'Semiconductors' }, { sector: 'Technology', industry: 'Semiconductors' },
+    { sector: 'Technology', industry: 'Software' }, { sector: 'Healthcare', industry: 'Biotechnology' },
+    { sector: 'Crypto', industry: 'Coin' }, { sector: 'Index', industry: 'US Index' },
+  ],
+});
+vm.runInContext(fn('sectorMenuHtml') + fn('sectorMatches') + fn('sectorDropValue'), sx);
+const menu = sx.sectorMenuHtml('wl', '', '');
+assert.ok(/data-wl-sector="Technology">Technology<i>3<\/i>/.test(menu) && /data-wl-sector="Healthcare"/.test(menu), menu);
+assert.ok(!/Crypto|US Index/.test(menu), 'Class covers crypto and indices');
+assert.ok(!/data-wl-industry/.test(menu), 'No industry list before a sector is chosen');
+const tech = sx.sectorMenuHtml('reel', 'Technology', 'Software');
+assert.ok(/data-reel-industry="Semiconductors">Semiconductors<i>2<\/i>/.test(tech) && !/Biotechnology/.test(tech), tech);
+assert.ok(/class="fdrop-opt on" data-reel-industry="Software"/.test(tech));
+assert.equal(sx.sectorMatches({ sector: 'Technology', industry: 'Software' }, 'Technology', ''), true);
+assert.equal(sx.sectorMatches({ sector: 'Technology', industry: 'Software' }, 'Technology', 'Semiconductors'), false);
+assert.equal(sx.sectorMatches({ sector: 'Healthcare' }, 'Technology', ''), false);
+assert.deepEqual([...sx.sectorDropValue('Technology', 'Software')], ['Software']);
+assert.deepEqual([...sx.sectorDropValue('', '')], []);
+console.log('sector / industry filter: ok');

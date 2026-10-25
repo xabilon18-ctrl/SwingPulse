@@ -1184,7 +1184,7 @@
     try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null'); wlStore = v && Array.isArray(v.lists) ? v : { lists: [], mod: 0 }; }
     catch (_) { wlStore = { lists: [], mod: 0 }; }
   }
-  const wlUi = { cluster: 'all', list: 'all', cls: 'all', q: '', sort: 'group', trend: 'all', ttf: 'D' };
+  const wlUi = { cluster: 'all', list: 'all', cls: 'all', sector: '', industry: '', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
   if (wlUi.ttf === '30m') wlUi.ttf = '1H';
@@ -1220,7 +1220,7 @@
   const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
   const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
   const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
-  const WL_FILTER_DEFAULTS = { cls: 'all', sort: 'group', trend: 'all', relation: 'all', cluster: 'all' };
+  const WL_FILTER_DEFAULTS = { cls: 'all', sector: '', industry: '', sort: 'group', trend: 'all', relation: 'all', cluster: 'all' };
 
   // What each Watchlist dropdown button shows when its filters are set.
   function wlDropValues() {
@@ -1231,6 +1231,7 @@
     if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '4H aligned' : '4H minor');
     return {
       wl2DdClass: wlUi.cls && wlUi.cls !== 'all' ? [pick(WL_CLASSES, wlUi.cls)] : [],
+      wl2DdSector: sectorDropValue(wlUi.sector, wlUi.industry),
       wl2DdTrend: trend,
       wl2DdClusters: wlUi.cluster && wlUi.cluster !== 'all' ? [CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster] : [],
       wl2DdSort: wlUi.sort && wlUi.sort !== 'group' ? [{ up: 'Gainers', down: 'Losers', name: 'A–Z' }[wlUi.sort] || wlUi.sort] : [],
@@ -1510,6 +1511,8 @@
     opts('wl2Relation', 'relation', wlUi.relation || 'all', WL_RELATIONS);
     const clusters = document.getElementById('wl2Clusters');
     if (clusters) clusters.innerHTML = clusterMenuHtml('watchlist', wlUi.cluster);
+    const sectors = document.getElementById('wl2Sector');
+    if (sectors) sectors.innerHTML = sectorMenuHtml('wl', wlUi.sector, wlUi.industry);
     fdropSync(wlDropValues(), 'wl2Clear');
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
     const searchClear = document.getElementById('wl2SearchClear'); if (searchClear) searchClear.hidden = !wlUi.q;
@@ -1555,6 +1558,7 @@
     // they score as Index, so they also appear under Indices.
     if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index');
     else if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
+    if (wlUi.sector) rows = rows.filter(d => sectorMatches(d, wlUi.sector, wlUi.industry));
     if (wlUi.trend && wlUi.trend !== 'all')
       rows = rows.filter(d => mainTrendOf(d) === wlUi.trend);
     if (wlUi.relation && wlUi.relation !== 'all')
@@ -1870,6 +1874,10 @@
       const t = e.target;
       const cp = t.closest('[data-wl-cls]');
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      const sec = t.closest('[data-wl-sector]');
+      if (sec) { wlUi.sector = sec.dataset.wlSector; wlUi.industry = ''; wlSaveUi(); return renderWatchlist(); }
+      const ind = t.closest('[data-wl-industry]');
+      if (ind) { wlUi.industry = ind.dataset.wlIndustry; wlSaveUi(); return renderWatchlist(); }
       const sp = t.closest('[data-wl-sort]');
       if (sp) { wlUi.sort = sp.dataset.wlSort; wlSaveUi(); return renderWatchlist(); }
       const tp = t.closest('[data-wl-trend]');
@@ -2144,6 +2152,37 @@
     </div></details>`;
   }
   // The same choices as a dropdown-menu section (Watchlist and Charts).
+  // SECTOR / INDUSTRY (user, 2026-10-25: "filter by sector and industry").
+  // The old Scanner tab had a sector dropdown; it was hidden with that tab on
+  // 2026-09-27 and never carried over. Stock sectors only: Crypto, Index,
+  // Commodities and Currency are what the Class menu already picks. The
+  // industry list appears once a sector is chosen and holds only that
+  // sector's industries; counts are over every instrument, not the filtered
+  // list. `attr` names the data attribute: data-wl-sector, data-reel-sector.
+  function sectorMenuHtml(attr, sector, industry) {
+    const NON_STOCK_SECTORS = new Set(['Crypto', 'Index', 'Commodities', 'Currency']);
+    const tally = keep => {
+      const m = new Map();
+      allData.forEach(d => { const k = keep(d); if (k) m.set(k, (m.get(k) || 0) + 1); });
+      return [...m].sort((a, b) => a[0].localeCompare(b[0]));
+    };
+    const opt = (kind, v, label, on, n) => `<button class="fdrop-opt${on ? ' on' : ''}" data-${attr}-${kind}="${escText(v)}">`
+      + `${escText(label)}${n != null ? `<i>${n}</i>` : ''}</button>`;
+    const sectors = tally(d => !NON_STOCK_SECTORS.has(d.sector) && d.sector);
+    let h = `<div class="fdrop-sec"><div class="fdrop-hd">Sector</div><div class="fdrop-opts">`
+      + opt('sector', '', 'Any', !sector) + sectors.map(([s, n]) => opt('sector', s, s, s === sector, n)).join('') + '</div></div>';
+    if (sector) {
+      const industries = tally(d => d.sector === sector && d.industry);
+      h += `<div class="fdrop-sec"><div class="fdrop-hd">Industry <small>${escText(sector)}</small></div><div class="fdrop-opts">`
+        + opt('industry', '', 'Any', !industry) + industries.map(([s, n]) => opt('industry', s, s, s === industry, n)).join('') + '</div></div>';
+    }
+    return h;
+  }
+  function sectorMatches(d, sector, industry) {
+    return (!sector || d.sector === sector) && (!industry || d.industry === industry);
+  }
+  function sectorDropValue(sector, industry) { return industry ? [industry] : sector ? [sector] : []; }
+
   function clusterMenuHtml(scope, mode) {
     return `<div class="fdrop-hd">MA clusters</div><div data-cluster-scope="${scope}">
       <div class="fdrop-opts">${CLUSTER_OPTIONS.map(([k,l])=>`<button class="fdrop-opt${mode===k?' on':''}" data-cluster-mode="${k}">${k==='all'?'Any':l}</button>`).join('')}</div>
@@ -4984,7 +5023,7 @@
   // in the Charts search box; typing there or Reset clears it.
   function openChartsFiltered({ gp = null, cls = '', search = '', trend = 'all', label = '' } = {}) {
     reel.similarTo = ''; reel.listSet = null;
-    reel.gp = gp; reel.cls = cls; reel.cat = ''; reel.trend = trend;
+    reel.gp = gp; reel.cls = cls; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = trend;
     reel.search = (search || '').toLowerCase();
     const inp = document.getElementById('reelSearch'), clr = document.getElementById('reelSearchClear');
     if (inp) inp.value = label || search || cls || '';
@@ -7657,6 +7696,8 @@
   const reel = {
     scope:  'all',
     cat:    '',
+    sector: '',              // stock sector, and an industry inside it (sectorMenuHtml)
+    industry: '',
     trend:  'all',
     relation: 'all',
     cluster: 'all',
@@ -11447,6 +11488,7 @@
     if (reel.cls)    rows = rows.filter(d => browseClassOf(d) === reel.cls);
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
+    if (reel.sector) rows = rows.filter(d => sectorMatches(d, reel.sector, reel.industry));
     // On a chartOnly timeframe (10m) the row carries NO prefixed columns at
     // all, so these two read the signal timeframe the way the scopes below
     // already do. Without it `m_trend_direction` is undefined on every row,
@@ -13068,6 +13110,8 @@
     if (tfEl) tfEl.textContent = tfMeta().label;
     document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c =>
       c.classList.toggle('active', c.dataset.cat === (reel.cat || '')));
+    const sectors = document.getElementById('reelSectorMenu');
+    if (sectors) sectors.innerHTML = sectorMenuHtml('reel', reel.sector, reel.industry);
     fdropSync(reelDropValues(), 'reelReset');
   }
 
@@ -13091,6 +13135,7 @@
     return {
       reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
       reelDdClass: reel.cat ? [cat ? cat.textContent.trim() : reel.cat] : [],
+      reelDdSector: sectorDropValue(reel.sector, reel.industry),
       reelDdTrend: trend, reelDdMa: ma, reelDdSort: sort,
     };
   }
@@ -13191,6 +13236,16 @@
         buildReel();
       });
     }
+    const sectorMenu = document.getElementById('reelMenuSector');
+    if (sectorMenu) {
+      sectorMenu.addEventListener('click', e => {
+        const sec = e.target.closest('[data-reel-sector]'), ind = e.target.closest('[data-reel-industry]');
+        if (sec) { reel.sector = sec.dataset.reelSector; reel.industry = ''; }
+        else if (ind) reel.industry = ind.dataset.reelIndustry;
+        else return;
+        buildReel();
+      });
+    }
 
     window.addEventListener('resize', debounce(() => {
       if (currentTab !== 'charts') return;
@@ -13207,7 +13262,7 @@
     const rst = document.getElementById('reelReset');
     if (rst) {
       rst.addEventListener('click', () => {
-        reel.scope = 'all'; reel.cat = ''; reel.trend = 'all'; reel.sort = 'signal';
+        reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal';
         reel.search = ''; reel.range = 0; reelResetPan();
         // Reset was missing both of these: the Stack pill (added with the MA
         // stack filter) and the compare mode. "Reset" that leaves a filter
