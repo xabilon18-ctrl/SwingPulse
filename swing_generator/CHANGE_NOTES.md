@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-26 2H CHART REMOVED AGAIN: chart_feed.py + app.js v529. User: "Remove
+2 h", the day after it came back. Gone: the 2H button, its TIMEFRAMES row, its
+opening frame (REEL_FRAME_VIEW['2H']) and its test, and build_2h from
+build_chart_feed's loop, so chart/2H chunks stop updating (the old ones stay on
+R2, unreferenced). Kept: build_2h/_frame_2h for research, the grid/overlay
+table entries (as after the 10-03 removal), and the hours-a-day session test
+(reelSessionOnly), which 4H uses. A saved 2H chart choice opens on Daily
+(isTf check in the timeframe restore).
+
 2026-10-25 2H CHART BACK: chart_feed.py + app.js v528. User: "Just 2h" (8H was
 declined: on session-only markets it is one daily bar, or 8h plus a 30-min
 stub on European hours). Chart only, as it was 2026-10-01 to 10-03: no

@@ -144,10 +144,8 @@
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
-    // 2H back 2026-10-25 (user: "Just 2h") as a CHART ONLY, as it was from
-    // 2026-10-01 to 10-03: no signals, markers, alerts or 2H trend read; the
-    // header and filters read the Daily row, as on Weekly and Monthly.
-    { code: '2H', prefix: '', label: '2H', tv: '120', bar: '2-hour bars', barShort: '25-bar', chartOnly: true },
+    // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
+    // "Remove 2 h"); a saved 2H chart choice opens on Daily.
     { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
@@ -8738,12 +8736,6 @@
   //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
   //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
   //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
-  //   2H — TWO-MONTH BLOCKS (user, 2026-10-25, "Just 2h", back as a chart
-  //        only): Jul-Aug shaded, Sep-Oct running into blank future up to the
-  //        1 Nov line on 25 Oct; priced 'centre' like 1H. ~1,400 candles round
-  //        the clock (12 a day). Session-only feeds (4 a day on a US stock, 5
-  //        on a European index) take FOUR-MONTH blocks, as 4H takes
-  //        half-years: May-Aug and Sep-Dec, ~670 and ~840 candles.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
@@ -8755,11 +8747,10 @@
   // crypto's scale.
   // Hours of bars a calendar day carries: 20-24 on a round-the-clock or
   // futures feed, 6.5-10 on an exchange session (4H: 5-6 bars a day against
-  // 2-3; 2H: 10-12 against 4-5).
+  // 2-3).
   const REEL_SESSION_HOURS = 16;
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
-    '2H': { unit: 1 / 6,   sessionUnit: 1 / 3, fit: 'centre' },
     '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
