@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 CHART RANGE NO LONGER SAVED: app.js v533. User: "The zoom frames
+for all instruments for the 1 hour, 4 hour, the daily, weekly, and the
+monthly have been messed up ... Now there's a zoom". The Sort menu's Chart
+range (Half 260 / Quarter 130 / Close up 65 bars) was kept in localStorage
+(`swingpulse-reel-range`), and any set range switches off the opening frame
+(reelStockView) on every timeframe, so one tap zoomed every chart in on its
+last N bars, with no blank future, on every later visit. It sits just under
+the "Move over" row added earlier the same day. Measured against live data
+with the range at 130: AAPL 1H showed 1-27 Oct (frame 1 Sep-1 Nov), Daily
+Apr-Oct 2026 (2025-2028), Monthly from 2015 (all). The range now lasts for
+the visit only, and a stored one is removed on load. The frames themselves
+were already correct on a clean device (1H, 4H, D, W, M, card and full
+screen). Not confirmed on the user's phone: a per-chart saved view also wins
+over a frame. Test: app_smoke.cjs.
+
 2026-10-27 LADDER LINES AND CHANNEL MIDLINE THICKER: style.css v382. User:
 "Nothing changed" after the 90% black. Measured at iPhone scale (DPR 3, 390px
 card): `.reel-ladder` at 1.6 units drew 0.59 CSS px and `.reel-ch-mid` at 1.7

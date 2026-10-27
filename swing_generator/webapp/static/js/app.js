@@ -13183,18 +13183,12 @@
   }
 
   function wireReel() {
-    try {
-      const savedRange = parseInt(localStorage.getItem('swingpulse-reel-range') || '0', 10);
-      if (savedRange > 0) {
-        reel.range = savedRange;
-        const box = document.getElementById('reelRangeOpts');
-        if (box) {
-          box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const m = box.querySelector(`[data-range="${savedRange}"]`);
-          if (m) m.classList.add('active');
-        }
-      }
-    } catch (_) {}
+    // Chart range is for this visit only (2026-10-27). It used to be restored
+    // from localStorage, and a set range switches off every opening frame
+    // (reelStockView) on every timeframe, so one tap on Half/Quarter/Close up,
+    // just under the Sort menu's "Move over" row, zoomed every chart in for
+    // good. Drop what an earlier version stored.
+    try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
 
     const search = document.getElementById('reelSearch');
     const clear  = document.getElementById('reelSearchClear');
@@ -13258,7 +13252,6 @@
         btn.classList.add('active');
         reel.range = +btn.dataset.range || 0;
         reelResetPan();       // a different window width makes old offsets meaningless
-        try { localStorage.setItem('swingpulse-reel-range', String(reel.range)); } catch (_) {}
         const pill = btn.closest('.filter-pill');
         if (pill) pill.open = false;
         reelRepaintAll();
@@ -13313,7 +13306,6 @@
         // the instrument you are looking for.
         reel.cluster = 'all'; reel.relation = 'all'; reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
         reel.near = 'all'; reel.gp = null; reel.cls = '';
-        try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
         const rbox = document.getElementById('reelRangeOpts');
         if (rbox) {
           rbox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
