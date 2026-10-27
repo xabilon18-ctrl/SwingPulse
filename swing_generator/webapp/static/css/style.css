@@ -8864,6 +8864,10 @@ body.chart-full-open { overflow: hidden; }
 .wl2-chg { font-size: .84rem; color: var(--text-muted); }
 .wl2-chg.up { color: var(--buy); }
 .wl2-chg.down { color: var(--sell); }
+/* The sort period's move under today's change (gainers/losers over 1W-1Y). */
+.wl2-move { font-size: .74rem; font-weight: 600; color: var(--text-muted); }
+.wl2-move.up { color: var(--buy); }
+.wl2-move.down { color: var(--sell); }
 .wl2-empty { color: var(--text-muted); padding: 28px 8px; text-align: center; line-height: 1.5; }
 .wl2-sheet-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
 .wl2-sheet { width: 100%; max-width: 520px; background: var(--bg-card); border-radius: 16px 16px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0));

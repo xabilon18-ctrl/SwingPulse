@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=377">
+  <link rel="stylesheet" href="/static/css/style.css?v=378">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -749,6 +749,7 @@
     </div>
     <div class="fdrop-menu" id="wl2MenuSort" role="menu" hidden data-fdrop-autoclose>
       <div class="fdrop-sec"><div class="fdrop-opts" id="wl2SortOpts"></div></div>
+      <div class="fdrop-sec" id="wl2MoveOpts" hidden></div>
     </div>
   </div>
 
@@ -855,8 +856,18 @@
         <div class="reel-opts fdrop-opts" id="reelSortOpts">
           <button class="reel-opt active" data-sort="signal">Signals first</button>
           <button class="reel-opt" data-sort="recent">Newest fire</button>
-          <button class="reel-opt" data-sort="move">Biggest move</button>
+          <button class="reel-opt" data-sort="up">Top gainers</button>
+          <button class="reel-opt" data-sort="down">Top losers</button>
           <button class="reel-opt" data-sort="name">Name A–Z</button>
+        </div>
+      </div>
+      <div class="fdrop-sec">
+        <div class="fdrop-hd">Move over<small>for gainers / losers</small></div>
+        <div class="reel-opts fdrop-opts" id="reelMoveOpts">
+          <button class="reel-opt active" data-mp="1d">1D</button>
+          <button class="reel-opt" data-mp="1w">1W</button>
+          <button class="reel-opt" data-mp="1m">1M</button>
+          <button class="reel-opt" data-mp="1y">1Y</button>
         </div>
       </div>
       <div class="fdrop-sec">
@@ -923,7 +934,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=4"></script>
   <script src="/static/js/modules/grid-geometry.js?v=6"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=530"></script>
+  <script src="/static/js/app.js?v=531"></script>
 </body>
 </html>
 
