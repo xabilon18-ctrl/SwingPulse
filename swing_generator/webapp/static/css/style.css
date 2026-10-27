@@ -8132,7 +8132,6 @@ body {
 .reel-draw .reel-ch-edge.is-bold,
 .reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
 .reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
-.reel-draw.is-sel .reel-ladder  { stroke-opacity: 1; }
 .reel-tool {
   appearance: none; border: 0; background: transparent; cursor: pointer;
   /* Dark ink on the white bar — the accent was chosen to read on a dark
@@ -8803,8 +8802,10 @@ body.chart-full-open { overflow: hidden; }
 /* Ladder (2026-09-11; eleven lines, 0%..100%, since 2026-10-21): dotted like the
    calendar lines; the 0% and 30% lines carry the handles. A channel's ten
    divisions (.reel-ch-div) use the same line, without labels. */
-/* White like every other drawing — these are hand-placed, not computed. */
-.reel-ladder { stroke: var(--reel-ch-color, #fff); stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .7; }
+/* Black at 50% (user, 2026-10-27: "the percentage lines are grey make black",
+   then "make it 50") — the drawing's colour at .7 read grey on the white plot.
+   The 0%/100% lines below keep the drawing's own colour; the labels are black. */
+.reel-ladder { stroke: #000; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .5; }
 /* Top and bottom (0% / 100%): same weight and dash as the 5m week line
    (.reel-tgrid-week), user 2026-09-24. Colour stays the drawing's own. */
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
