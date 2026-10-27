@@ -39,6 +39,9 @@ const assert = require('node:assert/strict');
     localStorage.setItem('swingpulse-wl-ui', JSON.stringify({ ttf: '30m' }));
     localStorage.setItem('swingpulse-al-ui', JSON.stringify({ tf: '30m' }));
     localStorage.setItem('swingpulse-mk-ui', JSON.stringify({ ccyTf: '30m' }));
+    // A Chart range stored by an older version must not survive the load: a set
+    // range switches off every timeframe's opening frame (2026-10-27).
+    localStorage.setItem('swingpulse-reel-range', '130');
   });
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   await page.locator('.up-skip').click();
@@ -50,6 +53,8 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
   assert.equal(errors.length, 0, errors.join('\n'));
+  assert.equal(await page.evaluate(() => localStorage.getItem('swingpulse-reel-range')), null, 'stored Chart range is dropped');
+  assert.equal(await page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range'), '0', 'charts open on their frames, not a stored range');
   if (!live) {
     assert.ok(chunks > 0, '1H chart chunk was fetched');
     const oldSummaries = summaries, oldChunks = chunks;
