@@ -7801,8 +7801,9 @@ body {
    read as something the pipeline had computed. */
 .reel-ch { fill: none; stroke: var(--reel-ch-color, #f2f2ee); stroke-linecap: round; }
 .reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
-/* Midline: black at 90%, dotted, like the ladder lines (user, 2026-10-27). */
-.reel-ch-mid  { stroke: #000; stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .9; }
+/* Midline: black at 90%, dotted, at the ladder lines' weight (user, 2026-10-27;
+   1.7 drew 0.63 CSS px on a phone and read grey). */
+.reel-ch-mid  { stroke: #000; stroke-width: 2.6; stroke-dasharray: 2.6 8; stroke-opacity: .9; }
 /* No fill between the edges. At 5% it was barely there on a dark panel, and
    what it did do was wash out the bars inside the channel — the very ones you
    drew it to look at. The two dotted edges and the midline carry it. */
@@ -8805,8 +8806,12 @@ body.chart-full-open { overflow: hidden; }
 /* Black at 90%, still dotted (user, 2026-10-27: "the percentage lines are grey
    make black"; 50% still read grey, then "not solid, still dotted, but make
    them black ... 90%"). The 0%/100% lines below keep the drawing's own colour;
-   the labels are black. The channel midline matches (.reel-ch-mid). */
-.reel-ladder { stroke: #000; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .9; }
+   the labels are black. The channel midline matches (.reel-ch-mid).
+   WEIGHT is what made them grey, not colour ("nothing changed" after .5/.9):
+   1.6 units drew 0.59 CSS px on an iPhone, which antialiases to grey whatever
+   the stroke. 2.6 with 3/8 dots is the calendar line (.reel-tgrid, 0.95px),
+   which reads black. */
+.reel-ladder { stroke: #000; stroke-width: 2.6; stroke-dasharray: 3 8; stroke-opacity: .9; }
 /* Top and bottom (0% / 100%): same weight and dash as the 5m week line
    (.reel-tgrid-week), user 2026-09-24. Colour stays the drawing's own. */
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }

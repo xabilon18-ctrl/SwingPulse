@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 LADDER LINES AND CHANNEL MIDLINE THICKER: style.css v382. User:
+"Nothing changed" after the 90% black. Measured at iPhone scale (DPR 3, 390px
+card): `.reel-ladder` at 1.6 units drew 0.59 CSS px and `.reel-ch-mid` at 1.7
+drew 0.63 px — too thin to show black, so every colour/opacity change looked the
+same grey. Both now 2.6 units (0.95 px), the calendar line's weight
+(`.reel-tgrid`), with its 3/8 dots on the ladder and 2.6/8 on the midline;
+still black at 90%. The user-picked midline weights (is-w2 3.2, is-w3 5) are
+unchanged.
+
 2026-10-27 LADDER LINES AND CHANNEL MIDLINE BLACK AT 90%: style.css v381. User:
 the 50% lines were "still grey", then "ladder and middle of channel", "not
 solid, still dotted, but make them black ... 90%". `.reel-ladder` (ladder
