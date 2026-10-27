@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 LADDER LINES AND CHANNEL MIDLINE BLACK AT 90%: style.css v381. User:
+the 50% lines were "still grey", then "ladder and middle of channel", "not
+solid, still dotted, but make them black ... 90%". `.reel-ladder` (ladder
+10%-90% lines and channel divisions) 50% -> 90%; `.reel-ch-mid` was the
+drawing's colour at .6 (.85 when selected) and is now #000 at .9 either way.
+Width and dots unchanged on both.
+
 2026-10-27 LADDER % LINES BLACK: style.css v380. User: "The percentage lines
 are grey make black", then "make it 50". The ladder's in-between lines
 (10%-90%) and a channel's ten divisions (`.reel-ladder`, which `.reel-ch-div`

@@ -7801,7 +7801,8 @@ body {
    read as something the pipeline had computed. */
 .reel-ch { fill: none; stroke: var(--reel-ch-color, #f2f2ee); stroke-linecap: round; }
 .reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
-.reel-ch-mid  { stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .6; }
+/* Midline: black at 90%, dotted, like the ladder lines (user, 2026-10-27). */
+.reel-ch-mid  { stroke: #000; stroke-width: 1.7; stroke-dasharray: 1.7 8; stroke-opacity: .9; }
 /* No fill between the edges. At 5% it was barely there on a dark panel, and
    what it did do was wash out the bars inside the channel — the very ones you
    drew it to look at. The two dotted edges and the midline carry it. */
@@ -8131,7 +8132,6 @@ body {
 .reel-tri { fill: none; }
 .reel-draw .reel-ch-edge.is-bold,
 .reel-draw.is-sel .reel-ch-edge.is-bold { stroke-width: 6; stroke-dasharray: 5 7; stroke-opacity: 1; }
-.reel-draw.is-sel .reel-ch-mid  { stroke-opacity: .85; }
 .reel-tool {
   appearance: none; border: 0; background: transparent; cursor: pointer;
   /* Dark ink on the white bar — the accent was chosen to read on a dark
@@ -8802,10 +8802,11 @@ body.chart-full-open { overflow: hidden; }
 /* Ladder (2026-09-11; eleven lines, 0%..100%, since 2026-10-21): dotted like the
    calendar lines; the 0% and 30% lines carry the handles. A channel's ten
    divisions (.reel-ch-div) use the same line, without labels. */
-/* Black at 50% (user, 2026-10-27: "the percentage lines are grey make black",
-   then "make it 50") — the drawing's colour at .7 read grey on the white plot.
-   The 0%/100% lines below keep the drawing's own colour; the labels are black. */
-.reel-ladder { stroke: #000; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .5; }
+/* Black at 90%, still dotted (user, 2026-10-27: "the percentage lines are grey
+   make black"; 50% still read grey, then "not solid, still dotted, but make
+   them black ... 90%"). The 0%/100% lines below keep the drawing's own colour;
+   the labels are black. The channel midline matches (.reel-ch-mid). */
+.reel-ladder { stroke: #000; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-opacity: .9; }
 /* Top and bottom (0% / 100%): same weight and dash as the 5m week line
    (.reel-tgrid-week), user 2026-09-24. Colour stays the drawing's own. */
 .reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
