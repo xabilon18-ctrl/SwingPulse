@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 LADDER % LINES BLACK: style.css v379. User: "The percentage lines
+are grey make black". The ladder's in-between lines (10%-90%) and a channel's
+ten divisions (`.reel-ladder`, which `.reel-ch-div` shares) were the drawing's
+colour at .7 opacity, which read grey on the white plot. Now #000 at full
+opacity, same width and dots. The 0%/100% lines (`.reel-ladder-key`) keep the
+drawing's own colour; the labels were already black.
+
 2026-10-27 SORT BY % MOVE (GAINERS / LOSERS, 1D-1Y): app.js v531 + style.css
 v378. User: "an option to sort by price percentage movement", then "Yes do
 that" to the proposal. Charts: Sort's "Biggest move" (size of the 1D move, up
