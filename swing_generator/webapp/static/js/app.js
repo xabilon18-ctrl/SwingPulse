@@ -73,6 +73,18 @@
     const v = parseFloat(item && item['pct_' + (period || '1d')]);
     return isNaN(v) ? null : v;
   }
+  // The LIVE move over a period: the latest price against the close 5/21/252
+  // sessions before its session (quotes.json `r`, chart_feed._quote_one) — the
+  // pipeline's bar counts, ending now instead of at the last closed bar. 1D is
+  // the quote's own change on the previous close. Without a quote or reference,
+  // the closed-bar figure.
+  const MOVE_REF_IDX = { '1w': 0, '1m': 1, '1y': 2 };
+  function liveMovePct(item, period) {
+    const x = item && wlQuote(item.instrument_name);
+    if (!period || period === '1d') return x && x.pct != null ? x.pct : movePctOf(item, '1d');
+    const ref = x && x.refs && x.refs[MOVE_REF_IDX[period]];
+    return ref ? (x.p / ref - 1) * 100 : movePctOf(item, period);
+  }
   function sortByMove(rows, dir, pctOf) {
     const sgn = dir === 'up' ? -1 : 1;
     rows.sort((a, b) => {
@@ -1341,7 +1353,7 @@
     const useLive = L && (runMs == null || L.t * 1000 >= runMs);
     const p = useLive ? L.p : q.p;
     const ch = q.pc ? p - q.pc : null;
-    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, t: useLive ? L.t : q.t,
+    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, refs: q.r || null, t: useLive ? L.t : q.t,
              live: !!useLive, age: useLive ? (Date.now() / 1000 - L.t) / 60 : null };
   }
 
@@ -1387,6 +1399,13 @@
     return `<span class="wl2-tag quote-${state.state}" title="${escText(state.detail)}">${escText(state.label)}</span>`;
   }
 
+  // Sorted by a longer period, a row also shows that period's live move, or
+  // the order would not match any number on screen. Repainted with the price.
+  function wlMoveTag(d, p) {
+    const v = liveMovePct(d, p);
+    return `<span class="wl2-move${v == null ? '' : v > 0 ? ' up' : v < 0 ? ' down' : ''}">${moveLbl(p)} ${v == null ? '—' : wlFmtPct(v)}</span>`;
+  }
+
   // Re-price rows in place — no re-render, so scroll position and taps survive.
   function wlPaintLive(names) {
     names.forEach(n => {
@@ -1405,6 +1424,8 @@
         ce.className = 'wl2-chg' + (x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '');
       }
       if (te) te.innerHTML = wlAgeTag(x, n);
+      const me = row.querySelector('.wl2-move');
+      if (me) me.outerHTML = wlMoveTag(allData.find(d => d.instrument_name === n), wlUi.move);
     });
     const a = document.getElementById('wl2AsOf');
     if (a) a.textContent = wlAsOfText();
@@ -1594,13 +1615,9 @@
     if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
       || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
       || String(d.group || '').toLowerCase().includes(q));
-    // 1D is today's live change, as each row shows; longer periods are the
-    // pipeline's daily-close returns.
+    // Every period is live: the latest price against its reference close.
     const move = wlUi.move || '1d';
-    const pctOf = d => {
-      if (move !== '1d') return movePctOf(d, move);
-      const x = wlQuote(d.instrument_name); return x && x.pct != null ? x.pct : null;
-    };
+    const pctOf = d => liveMovePct(d, move);
     const byMove = wlUi.sort === 'up' || wlUi.sort === 'down';
     if (byMove) sortByMove(rows, wlUi.sort, pctOf);
     else if (wlUi.sort === 'name') rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
@@ -1614,12 +1631,6 @@
                         || a.instrument_name.localeCompare(b.instrument_name));
     }
 
-    // Sorted by a longer period, the row also shows that period's move, or
-    // the order would not match any number on screen.
-    const wlMoveTag = (d, p) => {
-      const v = movePctOf(d, p);
-      return `<span class="wl2-move${v == null ? '' : v > 0 ? ' up' : v < 0 ? ' down' : ''}">${moveLbl(p)} ${v == null ? '—' : wlFmtPct(v)}</span>`;
-    };
     const rowHtml = d => {
       const n = d.instrument_name, x = wlQuote(n);
       const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
@@ -11433,10 +11444,12 @@
     const onSigTf = SIGNAL_TFS.has(timeframe);
     const sig   = withSignalTf(() => item[f('primary_signal')] || '');
     const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
-    // Sorted by gainers/losers over a longer period, the card shows that
-    // period's move (labelled), so the order matches the number on screen.
-    const mvPer = (reel.sort === 'up' || reel.sort === 'down') && reel.movePeriod !== '1d' ? reel.movePeriod : '1d';
-    const mv    = parseFloat(item['pct_' + mvPer]);
+    // Sorted by gainers/losers, the card shows the LIVE move it was sorted on
+    // (labelled when longer than a day), so the order matches the number.
+    const byMove = reel.sort === 'up' || reel.sort === 'down';
+    const mvPer = byMove ? reel.movePeriod || '1d' : '1d';
+    const mvRaw = byMove ? liveMovePct(item, mvPer) : parseFloat(item.pct_1d);
+    const mv    = mvRaw == null ? NaN : mvRaw;
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%' + (mvPer !== '1d' ? ' ' + moveLbl(mvPer) : '');
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
@@ -11606,7 +11619,7 @@
     if (reel.sort === 'name') {
       sorted.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
     } else if (reel.sort === 'up' || reel.sort === 'down') {
-      sortByMove(sorted, reel.sort, d => movePctOf(d, reel.movePeriod));
+      sortByMove(sorted, reel.sort, d => liveMovePct(d, reel.movePeriod));
     } else if (reel.sort === 'recent') {
       sorted.sort((a, b) => daysAgo(a) - daysAgo(b));
     } else {
