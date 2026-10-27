@@ -798,7 +798,14 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
         ts, last, pc, srcname = daily.index[-1], float(daily['Close'].iloc[-1]), float(daily['Close'].iloc[-2]), 'D'
     else:
         return None
-    out = {'p': _round(last), 'pc': _round(pc), 't': ts.strftime('%Y-%m-%d %H:%M'), 's': srcname,
+    # Reference closes for the LIVE 1W/1M/1Y moves (2026-10-27, user: "can the
+    # live be added as well?"): the daily close 5, 21 and 252 sessions before
+    # this price's session. price / ref - 1 is then the same 5/21/252-bar
+    # return indicators.py gives a closed bar, ending at the latest price —
+    # on a closed daily price it IS pct_1w/1m/1y.
+    before = daily['Close'][daily.index.normalize() < ts.normalize()] if len(daily) else pd.Series(dtype=float)
+    refs = [_round(float(before.iloc[-n])) if len(before) >= n else None for n in (5, 21, 252)]
+    out = {'p': _round(last), 'pc': _round(pc), 't': ts.strftime('%Y-%m-%d %H:%M'), 's': srcname, 'r': refs,
            # LIVE polling (Watchlist): `y` is the Yahoo symbol to poll, `b` the
            # spot/cash shift to subtract from it (load_5m's basis at the last
            # bar), `yc` an unshifted level reference polled alongside — the cash

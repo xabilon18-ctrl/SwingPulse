@@ -125,6 +125,42 @@ class BuildTests(unittest.TestCase):
         self.assertNotIn('mo', self.built['M']['Apple'])
 
 
+class QuoteRefTests(unittest.TestCase):
+    """quotes.json `r` (2026-10-27): the closes the app's live 1W/1M/1Y moves
+    are measured from. On a closed daily price they must give exactly the
+    pipeline's 5/21/252-bar returns; on a newer session's price the window
+    ends at that price, so it starts one session later."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        shutil.copy(FIXTURES / 'AAPL_D.parquet', os.path.join(cls.dir, chart_feed._cache_name('AAPL')))
+        daily = chart_feed.scale_daily('AAPL', pd.read_parquet(FIXTURES / 'AAPL_D.parquet'))
+        cls.close = daily['Close'].dropna()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dir, ignore_errors=True)
+
+    def test_closed_price_matches_the_pipeline_returns(self):
+        with patch.object(chart_feed, 'load_5m', return_value=None):
+            q = chart_feed._quote_one(self.dir, 'AAPL')
+        c = self.close
+        for ref, n in zip(q['r'], (5, 21, 252)):
+            self.assertAlmostEqual(q['p'] / ref - 1, c.iloc[-1] / c.iloc[-1 - n] - 1, places=4)
+
+    def test_newer_session_window_ends_at_the_live_price(self):
+        c = self.close
+        when = c.index[-1].normalize() + pd.offsets.BDay(1) + pd.Timedelta(hours=15)
+        five = pd.DataFrame({'Close': [float(c.iloc[-1]) * 1.01]}, index=[when])
+        with patch.object(chart_feed, 'load_5m', return_value=five), \
+             patch.object(chart_feed, '_frame_5m', side_effect=lambda raw: raw):
+            q = chart_feed._quote_one(self.dir, 'AAPL')
+        self.assertEqual(q['s'], '5m')
+        self.assertAlmostEqual(q['pc'], float(c.iloc[-1]), places=2)
+        self.assertEqual(q['r'], [chart_feed._round(float(c.iloc[-n])) for n in (5, 21, 252)])
+
+
 class WriteTests(unittest.TestCase):
     def test_own_index_and_every_chunk_written(self):
         names = [f'N{i:02d}' for i in range(12)]   # three chunks of five

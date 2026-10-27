@@ -64,6 +64,35 @@
   // up2/up5/down2/… buttons would have needed 12 rows to say the same thing.
   const MOVE_PERIODS = { pct_1d: '1D', pct_1w: '1W', pct_1m: '1M', pct_1y: '1Y' };
   let scannerMovePeriod = 'pct_1d';   // which return the Move filter reads
+  // Gainers / losers sort on Charts and Watchlist (2026-10-27, user: "an option
+  // to sort by price percentage movement"), over one of the same four periods.
+  // A market with no figure for the period sorts last either way.
+  const MOVE_SORT_PERIODS = [['1d', '1D'], ['1w', '1W'], ['1m', '1M'], ['1y', '1Y']];
+  const moveLbl = p => (MOVE_SORT_PERIODS.find(([k]) => k === p) || [, '1D'])[1];
+  function movePctOf(item, period) {
+    const v = parseFloat(item && item['pct_' + (period || '1d')]);
+    return isNaN(v) ? null : v;
+  }
+  // The LIVE move over a period: the latest price against the close 5/21/252
+  // sessions before its session (quotes.json `r`, chart_feed._quote_one) — the
+  // pipeline's bar counts, ending now instead of at the last closed bar. 1D is
+  // the quote's own change on the previous close. Without a quote or reference,
+  // the closed-bar figure.
+  const MOVE_REF_IDX = { '1w': 0, '1m': 1, '1y': 2 };
+  function liveMovePct(item, period) {
+    const x = item && wlQuote(item.instrument_name);
+    if (!period || period === '1d') return x && x.pct != null ? x.pct : movePctOf(item, '1d');
+    const ref = x && x.refs && x.refs[MOVE_REF_IDX[period]];
+    return ref ? (x.p / ref - 1) * 100 : movePctOf(item, period);
+  }
+  function sortByMove(rows, dir, pctOf) {
+    const sgn = dir === 'up' ? -1 : 1;
+    rows.sort((a, b) => {
+      const x = pctOf(a), y = pctOf(b);
+      if (x == null || y == null) return (x == null) - (y == null);
+      return sgn * (x - y);
+    });
+  }
   let scannerMoveDir = 'all';         // 'all' | 'up' | 'down'
   let scannerMoveMin = 0;             // minimum |move| in %, 0 = any size
   let scannerSort = 'signal';
@@ -1222,7 +1251,7 @@
   const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
   const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
   const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
-  const WL_FILTER_DEFAULTS = { cls: 'all', sector: '', industry: '', sort: 'group', trend: 'all', relation: 'all', cluster: 'all' };
+  const WL_FILTER_DEFAULTS = { cls: 'all', sector: '', industry: '', sort: 'group', move: '1d', trend: 'all', relation: 'all', cluster: 'all' };
 
   // What each Watchlist dropdown button shows when its filters are set.
   function wlDropValues() {
@@ -1236,7 +1265,7 @@
       wl2DdSector: sectorDropValue(wlUi.sector, wlUi.industry),
       wl2DdTrend: trend,
       wl2DdClusters: wlUi.cluster && wlUi.cluster !== 'all' ? [CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster] : [],
-      wl2DdSort: wlUi.sort && wlUi.sort !== 'group' ? [{ up: 'Gainers', down: 'Losers', name: 'A–Z' }[wlUi.sort] || wlUi.sort] : [],
+      wl2DdSort: wlUi.sort && wlUi.sort !== 'group' ? [({ up: 'Gainers ', down: 'Losers ' }[wlUi.sort] ? { up: 'Gainers ', down: 'Losers ' }[wlUi.sort] + moveLbl(wlUi.move) : { name: 'A–Z' }[wlUi.sort] || wlUi.sort)] : [],
     };
   }
 
@@ -1324,7 +1353,7 @@
     const useLive = L && (runMs == null || L.t * 1000 >= runMs);
     const p = useLive ? L.p : q.p;
     const ch = q.pc ? p - q.pc : null;
-    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, t: useLive ? L.t : q.t,
+    return { p, ch, pct: q.pc ? (p / q.pc - 1) * 100 : null, refs: q.r || null, t: useLive ? L.t : q.t,
              live: !!useLive, age: useLive ? (Date.now() / 1000 - L.t) / 60 : null };
   }
 
@@ -1370,6 +1399,13 @@
     return `<span class="wl2-tag quote-${state.state}" title="${escText(state.detail)}">${escText(state.label)}</span>`;
   }
 
+  // Sorted by a longer period, a row also shows that period's live move, or
+  // the order would not match any number on screen. Repainted with the price.
+  function wlMoveTag(d, p) {
+    const v = liveMovePct(d, p);
+    return `<span class="wl2-move${v == null ? '' : v > 0 ? ' up' : v < 0 ? ' down' : ''}">${moveLbl(p)} ${v == null ? '—' : wlFmtPct(v)}</span>`;
+  }
+
   // Re-price rows in place — no re-render, so scroll position and taps survive.
   function wlPaintLive(names) {
     names.forEach(n => {
@@ -1388,6 +1424,8 @@
         ce.className = 'wl2-chg' + (x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '');
       }
       if (te) te.innerHTML = wlAgeTag(x, n);
+      const me = row.querySelector('.wl2-move');
+      if (me) me.outerHTML = wlMoveTag(allData.find(d => d.instrument_name === n), wlUi.move);
     });
     const a = document.getElementById('wl2AsOf');
     if (a) a.textContent = wlAsOfText();
@@ -1509,6 +1547,13 @@
         `<button class="wl2-chip${cur === k ? ' on' : ''}" data-wl-${attr}="${k}">${l}</button>`).join('');
     };
     opts('wl2SortOpts', 'sort', wlUi.sort, WL_SORTS);
+    // The period row shows once a gainers/losers sort is picked.
+    const movePer = document.getElementById('wl2MoveOpts');
+    if (movePer) {
+      movePer.hidden = wlUi.sort !== 'up' && wlUi.sort !== 'down';
+      movePer.innerHTML = `<div class="fdrop-hd">Move over</div><div class="fdrop-opts">${MOVE_SORT_PERIODS.map(([k, l]) =>
+        `<button class="wl2-chip${(wlUi.move || '1d') === k ? ' on' : ''}" data-wl-move="${k}">${l}</button>`).join('')}</div>`;
+    }
     opts('wl2Trend', 'trend', wlUi.trend, WL_TRENDS);
     opts('wl2Relation', 'relation', wlUi.relation || 'all', WL_RELATIONS);
     const clusters = document.getElementById('wl2Clusters');
@@ -1570,12 +1615,12 @@
     if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
       || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
       || String(d.group || '').toLowerCase().includes(q));
-    const pctOf = d => { const x = wlQuote(d.instrument_name); return x && x.pct != null ? x.pct : null; };
-    if (wlUi.sort === 'up' || wlUi.sort === 'down') {
-      const sgn = wlUi.sort === 'up' ? -1 : 1;
-      rows.sort((a, b) => { const x = pctOf(a), y = pctOf(b);
-        if (x == null) return 1; if (y == null) return -1; return sgn * (x - y); });
-    } else if (wlUi.sort === 'name') rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
+    // Every period is live: the latest price against its reference close.
+    const move = wlUi.move || '1d';
+    const pctOf = d => liveMovePct(d, move);
+    const byMove = wlUi.sort === 'up' || wlUi.sort === 'down';
+    if (byMove) sortByMove(rows, wlUi.sort, pctOf);
+    else if (wlUi.sort === 'name') rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
     else if (cur) rows.sort((a, b) => cur.items.indexOf(a.instrument_name) - cur.items.indexOf(b.instrument_name));
     else {
       // Markets first, then stocks: indices, commodities, forex, crypto, then
@@ -1593,7 +1638,7 @@
         ${wlBadge(n, d.asset_class)}
         <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span>${trendContextHtml(d, '4H', true)}${clusterBadgeHtml(d)}</span>
         <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
-          <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span></span>
+          <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span>${byMove && move !== '1d' ? wlMoveTag(d, move) : ''}</span>
       </button>`;
     };
     let html = '';
@@ -1882,6 +1927,8 @@
       if (ind) { wlUi.industry = ind.dataset.wlIndustry; wlSaveUi(); return renderWatchlist(); }
       const sp = t.closest('[data-wl-sort]');
       if (sp) { wlUi.sort = sp.dataset.wlSort; wlSaveUi(); return renderWatchlist(); }
+      const mp = t.closest('[data-wl-move]');
+      if (mp) { wlUi.move = mp.dataset.wlMove; wlSaveUi(); return renderWatchlist(); }
       const tp = t.closest('[data-wl-trend]');
       if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
       const rp = t.closest('[data-wl-relation]');
@@ -7704,6 +7751,7 @@
     similarTo: '',          // instrument whose lookalikes the reel is showing
     listSet: null,          // {label, names} — the watchlist the chart was opened from
     sort:   'signal',
+    movePeriod: '1d',        // period the gainers/losers sort reads
     search: '',
     range:  0,               // trailing bars to draw; 0 = the whole window
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
@@ -11396,8 +11444,13 @@
     const onSigTf = SIGNAL_TFS.has(timeframe);
     const sig   = withSignalTf(() => item[f('primary_signal')] || '');
     const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
-    const mv    = parseFloat(item.pct_1d);
-    const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%';
+    // Sorted by gainers/losers, the card shows the LIVE move it was sorted on
+    // (labelled when longer than a day), so the order matches the number.
+    const byMove = reel.sort === 'up' || reel.sort === 'down';
+    const mvPer = byMove ? reel.movePeriod || '1d' : '1d';
+    const mvRaw = byMove ? liveMovePct(item, mvPer) : parseFloat(item.pct_1d);
+    const mv    = mvRaw == null ? NaN : mvRaw;
+    const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%' + (mvPer !== '1d' ? ' ' + moveLbl(mvPer) : '');
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
     const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
 
@@ -11565,8 +11618,8 @@
     withSignalTf(() => {
     if (reel.sort === 'name') {
       sorted.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
-    } else if (reel.sort === 'move') {
-      sorted.sort((a, b) => Math.abs(parseFloat(b.pct_1d) || 0) - Math.abs(parseFloat(a.pct_1d) || 0));
+    } else if (reel.sort === 'up' || reel.sort === 'down') {
+      sortByMove(sorted, reel.sort, d => liveMovePct(d, reel.movePeriod));
     } else if (reel.sort === 'recent') {
       sorted.sort((a, b) => daysAgo(a) - daysAgo(b));
     } else {
@@ -13118,7 +13171,7 @@
     if (reel.stack !== 'all') ma.push(stackLbl[reel.stack] || reel.stack);
     if (reel.cluster !== 'all') ma.push(CLUSTER_SHORT[reel.cluster] || reel.cluster);
     if (reel.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[reel.near] || reel.near) + ' MA');
-    const sortLbl = { recent: 'Newest', move: 'Move', name: 'A–Z' };
+    const sortLbl = { recent: 'Newest', up: 'Gainers ' + moveLbl(reel.movePeriod), down: 'Losers ' + moveLbl(reel.movePeriod), name: 'A–Z' };
     if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
     if (reel.range) sort.push(reel.range + ' bars');
     return {
@@ -13191,6 +13244,7 @@
       });
     }
     optGroup('reelSortOpts',  'sort',  'sort');
+    optGroup('reelMoveOpts',  'movePeriod', 'mp');
 
     // Range is the only filter that changes nothing about WHICH instruments
     // are listed — just how much history each card draws — so it repaints in
@@ -13251,7 +13305,7 @@
     const rst = document.getElementById('reelReset');
     if (rst) {
       rst.addEventListener('click', () => {
-        reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal';
+        reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal'; reel.movePeriod = '1d';
         reel.search = ''; reel.range = 0; reelResetPan();
         // Reset was missing both of these: the Stack pill (added with the MA
         // stack filter) and the compare mode. "Reset" that leaves a filter
@@ -13269,11 +13323,11 @@
         if (search) search.value = '';
         if (clear) clear.style.display = 'none';
         document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
-        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelRelationOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal']].forEach(([id, def]) => {
+        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelRelationOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal'],['reelMoveOpts','1d']].forEach(([id, def]) => {
           const box = document.getElementById(id);
           if (!box) return;
           box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-relation="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"]`);
+          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-relation="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"],[data-mp="${def}"]`);
           if (d) d.classList.add('active');
         });
         buildReel();

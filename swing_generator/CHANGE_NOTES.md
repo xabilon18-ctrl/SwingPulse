@@ -7,6 +7,35 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 SORT BY % MOVE (GAINERS / LOSERS, 1D-1Y): app.js v531 + style.css
+v378. User: "an option to sort by price percentage movement", then "Yes do
+that" to the proposal. Charts: Sort's "Biggest move" (size of the 1D move, up
+and down mixed) is replaced by Top gainers and Top losers, with a "Move over"
+row (1D / 1W / 1M / 1Y, `reel.movePeriod`) read from pct_1d/1w/1m/1y. Sorted
+over 1W-1Y the card's % shows that period, labelled ("+22.55% 1W"), so the
+order matches a number on screen. Watchlist: Top gainers / Top losers gain the
+same period row (shown once one is picked, `wlUi.move`, cleared by Clear); 1D
+stays today's live quote change, as each row shows, and longer periods add a
+"1M −47.58%" line under it. One comparator (sortByMove) serves both; a market
+with no figure for the period sorts last either way (the old Watchlist one
+returned 1 for two blanks, an inconsistent comparator). Checked in a browser
+against live data: top six 1W gainers on Charts (ZS, S, LMT, OKTA, RAND, ROP)
+and 1M losers on Watchlist (CEREBRAS, ZILUSDT, MARA, RIOT, CLSK, ONEUSDT)
+match signals.json exactly.
+LIVE (same PR, user: "Can the live be add as well?"): every period is now
+measured to the latest price, not the last closed bar. quotes.json gains `r`
+per market (chart_feed._quote_one): the daily close 5, 21 and 252 sessions
+before the price's session, so price / ref - 1 is the pipeline's 5/21/252-bar
+return ending now; on a closed daily price it equals pct_1w/1m/1y exactly
+(htf_feed_test QuoteRefTests). The app's liveMovePct uses it on both tabs (1D
+is the quote's change on its previous close, as before) and falls back to the
+closed-bar figure when a market has no quote or reference, including until the
+first data run after deploy writes `r`. The Watchlist row's period line is
+repainted with each live price. Checked in a browser with injected references:
+order and figures follow `r` on both tabs. For the five futures-fed indices
+and gold, whose live price is basis-shifted to the cash level, the reference is
+the cash daily close, so their longer moves carry that small basis error.
+
 2026-10-27 ALERT TAPS OPEN THE NORMAL CHART: app.js v530 + style.css v377.
 User: the Alerts tab "bring[s] up charts with an orange vertical line. Remove
 it and bring up the actual chart with divisions because these are plain".
