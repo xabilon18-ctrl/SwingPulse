@@ -7960,7 +7960,6 @@ body {
 .reel-ov-tick.up { stroke: #059669; }
 .reel-ov-tick.dn { stroke: #dc2626; }
 .reel-ov-line.up { stroke: #059669; }
-.reel-focus-lbl { font-size: 16px; font-weight: 800; fill: #b45309; paint-order: stroke; stroke: #fff; stroke-width: 5px; }
 .reel-ov-line.dn { stroke: #dc2626; }
 .reel-ov-lbl { font-size: 15px; font-weight: 700; fill: #2563eb; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
 .reel-ov-draw, .reel-ov-draw * { pointer-events: none !important; }

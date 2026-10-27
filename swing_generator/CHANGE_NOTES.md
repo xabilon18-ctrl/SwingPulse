@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-27 ALERT TAPS OPEN THE NORMAL CHART: app.js v530 + style.css v377.
+User: the Alerts tab "bring[s] up charts with an orange vertical line. Remove
+it and bring up the actual chart with divisions because these are plain".
+openChartAt (alert rows and the ?chart= deep link) used to centre the window on
+the alert time and draw an amber line with a SAST label there. For a recent
+alert that pushed the window into blank future past the opening frame, where
+the time grid draws nothing: measured on AUDNZD 4H, 0 division lines from the
+alert against 3 (Q4) opened normally. Now it clears the instrument's pan, price
+lock and time zoom and opens the chart exactly as the Charts tab does, so the
+divisions, shading and drawings are those of the normal view (4H, 1H and Daily
+checked identical). `at` still picks the timeframe: Daily when the intraday
+chart does not reach back that far. The amber line, `reel.focusAt` and
+`.reel-focus-lbl` are gone. An older alert can sit left of the opening view;
+scroll back to it.
+
 2026-10-26 2H CHART REMOVED AGAIN: chart_feed.py + app.js v529. User: "Remove
 2 h", the day after it came back. Gone: the 2H button, its TIMEFRAMES row, its
 opening frame (REEL_FRAME_VIEW['2H']) and its test, and build_2h from
