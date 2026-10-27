@@ -7342,8 +7342,7 @@
     const q = new URLSearchParams(window.location.search);
     const open = q.get('open');
     // Chart deep link (2026-09-26): ?chart=US100&tf=15m&at=2026-09-16T14:45
-    // opens that chart centred on that moment with a marker line on it. Built
-    // so a list of setups can link straight to each one.
+    // opens that chart on its normal view (see openChartAt).
     const chart = q.get('chart');
     if (chart) {
       history.replaceState({}, '', window.location.pathname);
@@ -7355,10 +7354,13 @@
     setTimeout(() => openFromNotification(open), 1200);
   })();
 
-  // Open `name` on the Charts tab at timeframe `tf`, with `at` (a UTC time,
-  // "YYYY-MM-DDTHH:MM" or a date) in the middle of the window and marked. If the
-  // 15m chart does not reach back that far (it carries ~2 months), falls back to
-  // Daily so the moment is still shown.
+  // Open `name` on the Charts tab at timeframe `tf`, on the chart's NORMAL
+  // view: its opening frame, time divisions and drawings, as the Charts tab
+  // shows it. `at` (a UTC time, "YYYY-MM-DDTHH:MM" or a date) only picks the
+  // timeframe: when the intraday chart does not reach back that far, Daily.
+  // Until 2026-10-27 the window was centred on `at` with an amber line on it;
+  // user: "remove it and bring up the actual chart" — centring a recent alert
+  // pushed the window past the opening frame, where no divisions are drawn.
   async function openChartAt(name, tf, at) {
     for (let i = 0; i < 40 && !allData.length; i++) await new Promise(r => setTimeout(r, 250));
     if (!allData.some(d => d.instrument_name === name)) return;
@@ -7373,18 +7375,9 @@
       if (!b || !(ts >= t0)) want = 'D';
     }
     if (want !== timeframe) setTimeframe(want, name);
-    const data = await reelLoadChunk(name, want);
-    const b = data && data[name];
-    if (b && isFinite(ts)) {
-      // Labelled in SAST (UTC+2, no DST) — the times the setup list is read in.
-      const sast = new Date(ts + 2 * 3600e3).toISOString();
-      reel.focusAt = { name, t, label: sast.slice(0, 10) + ' ' + sast.slice(11, 16) + ' SAST' };
-      const n  = b.c.length;
-      const fi = reelBarIndexForDate(b, t);
-      const w  = reelWindowBars(b, name);
-      if (fi != null) reelSetPan(name, (n - 1 - fi) - Math.round(w / 2), b);
-      reel.lockY.delete(name);
-    }
+    reel.pan.delete(name);
+    reel.lockY.delete(name);
+    reel.tzoom.delete(name);
     openChartFor(name);
     const card = [...document.querySelectorAll('#chartReel .reel-card')].find(c => c.dataset.name === name);
     const host = card && card.querySelector('.reel-chart');
@@ -10921,20 +10914,6 @@
 
     const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
 
-    // The moment a deep link asked for (openChartAt): an amber vertical line
-    // with its time, so the setup is found at a glance. Cleared by double-tap.
-    let focus = '';
-    const fa = reel.focusAt;
-    if (fa && fa.name === name) {
-      const ffi = reelBarIndexForDate(b, fa.t);
-      if (ffi != null) {
-        const fx = xOf(ffi);
-        if (fx >= L.x0 && fx <= L.x1) focus =
-          `<line x1="${fx.toFixed(1)}" y1="${L.py0}" x2="${fx.toFixed(1)}" y2="${L.py1}" stroke="#f59e0b" stroke-width="3" stroke-opacity=".9"/>` +
-          `<text x="${(fx + 6).toFixed(1)}" y="${(L.py0 + 18).toFixed(1)}" class="reel-focus-lbl">${escText(fa.label)}</text>`;
-      }
-    }
-
     // Price, ribbon and drawings are clipped to the plot. A channel or trend
     // line is drawn edge to edge at its own slope, so a steep one used to run
     // straight down through the trend strip and the date labels — on screen and
@@ -10944,7 +10923,7 @@
 
     return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${focus}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
   }
@@ -12675,7 +12654,6 @@
       reel.pan.delete(ctx.name);
       reel.lockY.delete(ctx.name);
       reel.tzoom.delete(ctx.name);
-      if (reel.focusAt && reel.focusAt.name === ctx.name) reel.focusAt = null;
       reelRepaint(host);
     });
   }
