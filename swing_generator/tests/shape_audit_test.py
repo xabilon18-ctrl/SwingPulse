@@ -105,5 +105,47 @@ class FetchRetryTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             self._run([err, {'data': []}])
 
+class HealthCheckFetchRetryTests(unittest.TestCase):
+    """health_check.py's reads get the same retry (2026-10-28: the 10:05 and
+    11:05 publishes went red on r2.dev timeouts after writing every file).
+    Kept here because test.yml already runs this file."""
+    def _run(self, outcomes, tries=3):
+        from tools import health_check
+        calls, waits = [], []
+        def once(fname):
+            calls.append(fname)
+            r = outcomes.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        real = health_check._fetch_once
+        health_check._fetch_once = once
+        try:
+            return health_check._fetch('signals.json', tries=tries, wait=5, sleep=waits.append), calls, waits
+        finally:
+            health_check._fetch_once = real
+
+    def test_timeout_then_success_returns_the_payload(self):
+        doc, calls, waits = self._run([TimeoutError('The read operation timed out'), {'data': []}])
+        self.assertEqual(doc, {'data': []})
+        self.assertEqual((len(calls), waits), (2, [5]))
+
+    def test_handshake_timeout_is_retried(self):
+        import urllib.error
+        doc, _, waits = self._run([urllib.error.URLError('_ssl.c:999: The handshake operation timed out'),
+                                   TimeoutError(), {'ok': 1}])
+        self.assertEqual((doc, waits), ({'ok': 1}, [5, 10]))
+
+    def test_stall_on_every_try_still_fails(self):
+        with self.assertRaises(TimeoutError):
+            self._run([TimeoutError('a'), TimeoutError('b'), TimeoutError('c')])
+
+    def test_http_error_is_not_retried(self):
+        import urllib.error
+        err = urllib.error.HTTPError('u', 404, 'Not Found', {}, None)
+        with self.assertRaises(urllib.error.HTTPError):
+            self._run([err, {'data': []}])
+
+
 if __name__ == '__main__':
     unittest.main()

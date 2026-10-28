@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 HOURLY RUNS: HEALTH CHECK RETRIES, :35 BACKUP RETRIES A FAILED
+RUN. tools/health_check.py, cron-worker. User: "My hourly updates keep
+breaking and the 30m back up fails please fix". The 10:05 and 11:05 publish
+runs both uploaded every file ("App updated!") and then went red in "Verify
+the publish moved the data": r2.dev read and TLS-handshake timeouts on 3 and
+2 files (a different set each time), which also set status.json to failed
+and sent a failure push for data that was fine. health_check._fetch now
+tries a read that times out or loses its connection up to 3 times, waiting
+5 s then 10 s; an HTTP error fails at once and a file still unreadable after
+the last try fails as before (shape_audit got the same retry earlier today).
+The :35 backup only asked whether a run had been CREATED in the last 45
+minutes, so a :05 run that failed was never retried. It now also dispatches
+when the recent run has finished without success (failure, timed_out,
+cancelled ...); one still queued or running is left alone. Tests:
+cron_worker_test.mjs, shape_audit_test.py (HealthCheckFetchRetryTests).
+
 2026-10-28 MONTHLY 5Y AND 10Y TIME GRIDS: app.js v545, chart-preferences.js v6,
 grid-geometry.js v8, sync worker. User: "Add 5 and 10 time grids for months
 only". Two new Time grid choices, 5Y (code Y5, "Five years") and 10Y (Y10,

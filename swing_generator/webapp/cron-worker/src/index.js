@@ -35,6 +35,10 @@ async function dispatch(env, reason) {
  * minutes, dispatch one. A healthy :05 run was created 30 minutes earlier, so
  * this normally does nothing. If GitHub cannot be asked, dispatch anyway — the
  * publish concurrency group makes a second run wait instead of overlapping.
+ * A recent run that already FINISHED without success is retried too
+ * (2026-10-28: the 10:05 and 11:05 runs failed and :35 skipped both, because
+ * all it asked was whether a run had been created). One still running is left
+ * alone; if it fails after :35 the next :05 is the retry.
  */
 const BACKUP_CRON = '35 * * * *', RECENT_MS = 45 * 60000;
 
@@ -51,10 +55,14 @@ async function backup(env, reason, now = Date.now()) {
         },
       });
     if (res.ok) {
-      const last = Date.parse((await res.json()).workflow_runs?.[0]?.created_at);
+      const run = (await res.json()).workflow_runs?.[0];
+      const last = Date.parse(run?.created_at);
       if (now - last < RECENT_MS) {
-        console.log(`backup not needed (${reason}): last run created ${new Date(last).toISOString()}`);
-        return 0;
+        if (run.status !== 'completed' || run.conclusion === 'success') {
+          console.log(`backup not needed (${reason}): last run created ${new Date(last).toISOString()}, ${run.conclusion || run.status}`);
+          return 0;
+        }
+        return dispatch(env, `${reason} retry of ${run.conclusion} run ${run.id}`);
       }
     } else {
       console.error(`backup check failed (${reason}): ${res.status}`);

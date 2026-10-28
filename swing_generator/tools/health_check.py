@@ -143,8 +143,33 @@ STALE_RETRY_WAIT_S = 20
 # got 6 rows and 1 row, and dropped them — 41 days after FERG.L stopped.
 MAX_INSTRUMENT_STALE_DAYS = 10
 
+# A read that times out or loses its connection is tried this many times in
+# all, waiting FETCH_WAIT seconds before the second try and twice that before
+# each next one. On 2026-10-28 the 10:05 and 11:05 runs published every file
+# and then went red here on r2.dev read and handshake timeouts (3 files, then
+# 2, a different set each time); shape_audit got the same retry that morning.
+FETCH_TRIES = 3
+FETCH_WAIT = 5
 
-def _fetch(fname):
+
+def _fetch(fname, tries=FETCH_TRIES, wait=FETCH_WAIT, sleep=time.sleep):
+    """A slow R2 read is retried; anything else fails at once. An HTTP error
+    (404, 403) is an answer, not a stall, so it is never retried, and a file
+    still unreadable after the last try fails the check as before."""
+    for n in range(1, tries + 1):
+        try:
+            return _fetch_once(fname)
+        except urllib.error.HTTPError:
+            raise
+        except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
+            if n == tries:
+                raise
+            print(f'  {fname:26} read failed ({exc}), try {n + 1} of {tries} in {wait}s')
+            sleep(wait)
+            wait *= 2
+
+
+def _fetch_once(fname):
     """GET a published file, bypassing every cache between here and the bucket."""
     url = f'{R2_BASE}/{fname}?_hc={int(datetime.now(timezone.utc).timestamp())}'
     req = urllib.request.Request(url, headers={
