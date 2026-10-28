@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 FULL SCREEN NAMES ITS TIME GRID: app.js v548. User: "i just need
+to see what time grid i am on when the app is on full screen", then chose
+"beside the timeframe". The full-screen header reads e.g. "AAPL Monthly · 10Y":
+the grid's button label (M Q H Y ½T T 10Y 20Y, 2M for a session-only 4H's
+two-month blocks), titled with its full name. It is read off the lines just
+drawn (reelSyncGridTag, from reelChartSvg), so it changes the moment another
+grid is picked and names what is on screen when a session-only 4H draws one
+size up from the market's choice. Test: app_smoke.cjs (tag present; follows
+a change to Month).
+
 2026-10-28 R2 READS GET A WHOLE-BODY DEADLINE: tools/health_check.py,
 tools/validate_hourly_release.py. Same day as the health-check retry. A body
 that keeps trickling in never trips urlopen's per-read timeout: the 10:05
