@@ -242,7 +242,7 @@ const assert = require('node:assert/strict');
     // Swipe between lists (2026-10-28): left = next tab, right = previous;
     // nothing past the ends, and a vertical drag never switches.
     await page.evaluate(() => localStorage.setItem('sp-watchlists', JSON.stringify({ mod: Date.now(),
-      lists: [{ id: 'a', name: 'Mine', items: ['TEST'] }, { id: 'b', name: 'Other', items: [] }] })));
+      lists: [{ id: 'a', name: 'Mine', items: ['§Tech names', 'TEST'] }, { id: 'b', name: 'Other', items: [] }] })));
     await page.reload({ waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
     await page.locator('.nav-tab[data-tab="watchlist"]').click();
@@ -271,6 +271,13 @@ const assert = require('node:assert/strict');
     assert.equal(await onList(), 'a', 'a vertical drag is a scroll, not a switch');
     await swipe(-40);
     assert.equal(await onList(), 'a', 'a short nudge does not switch');
+    // Sorting keeps the sections (2026-10-28): a list's divisions and All
+    // markets' groups stay as headings; only the rows inside are reordered.
+    await page.evaluate(() => document.querySelector('[data-wl-sort="up"]').click());
+    assert.deepEqual(await page.locator('#wl2Body .wl2-udiv').evaluateAll(es => es.map(e => e.textContent)), ['Tech names'], 'the division stays when sorted');
+    await page.locator('#wl2Lists [data-wl-list="all"]').click();
+    assert.ok(await page.locator('#wl2Body .wl2-group').count() >= 1, 'All markets keeps its group headings when sorted');
+    await page.evaluate(() => document.querySelector('[data-wl-sort="group"]').click());
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');

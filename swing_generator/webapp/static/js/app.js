@@ -1794,17 +1794,39 @@
     const move = wlUi.move || '1d';
     const pctOf = d => liveMovePct(d, move);
     const byMove = wlUi.sort === 'up' || wlUi.sort === 'down';
-    if (byMove) sortByMove(rows, wlUi.sort, pctOf);
-    else if (wlUi.sort === 'name') rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
-    else if (cur) rows.sort((a, b) => cur.items.indexOf(a.instrument_name) - cur.items.indexOf(b.instrument_name));
-    else {
+    // SORT KEEPS THE SECTIONS (user, 2026-10-28: "keep the grouping only
+    // sorting the order in the group"): All markets keeps its groups and a
+    // list its divisions, in their usual order; Sort only orders the rows
+    // inside each. By group is each section's own order (A-Z in All markets,
+    // the list's order in a list). It used to flatten everything into one run.
+    let sections;
+    if (cur) {
+      const byName = Object.fromEntries(rows.map(d => [d.instrument_name, d]));
+      sections = [{ title: null, rows: [] }];
+      cur.items.forEach(n => {
+        if (wlIsDiv(n)) sections.push({ title: n.slice(1), rows: [] });
+        else if (byName[n]) sections[sections.length - 1].rows.push(byName[n]);
+      });
+    } else {
       // Markets first, then stocks: indices, commodities, forex, crypto, then
       // every equity group — alphabetical inside each class.
       const CLS_ORDER = { Index: 0, Commodity: 1, Currency: 2, Crypto: 3, Equity: 4 };
       const co = d => CLS_ORDER[d.asset_class] ?? 5;
       rows.sort((a, b) => (co(a) - co(b)) || String(a.group).localeCompare(String(b.group))
                         || a.instrument_name.localeCompare(b.instrument_name));
+      sections = [];
+      rows.forEach(d => {
+        const last = sections[sections.length - 1];
+        if (last && last.group === d.group) last.rows.push(d);
+        else sections.push({ title: d.group || 'Other', group: d.group, rows: [d] });
+      });
     }
+    sections = sections.filter(sec => sec.rows.length);
+    sections.forEach(sec => {
+      if (byMove) sortByMove(sec.rows, wlUi.sort, pctOf);
+      else if (wlUi.sort === 'name') sec.rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
+    });
+    rows = sections.flatMap(sec => sec.rows);   // the screen's order, for the Charts reel
 
     const rowHtml = d => {
       const n = d.instrument_name, x = wlQuote(n);
@@ -1821,25 +1843,15 @@
       html = cur && !wlCount(cur)
         ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
         : `<div class="wl2-empty">Nothing matches.</div>`;
-    } else if (wlUi.sort === 'group' && cur) {
-      // The list in its own order, divisions as headings. A division whose
-      // instruments are all filtered out (class chip, search) is hidden.
-      const shown = new Set(rows.map(d => d.instrument_name));
-      const byName = Object.fromEntries(rows.map(d => [d.instrument_name, d]));
-      let pending = null;
-      cur.items.forEach(n => {
-        if (wlIsDiv(n)) { pending = n.slice(1); return; }
-        if (!shown.has(n)) return;
-        if (pending !== null) { html += `<div class="wl2-group wl2-udiv">${escText(pending)}</div>`; pending = null; }
-        html += rowHtml(byName[n]);
+    } else {
+      // A list's division whose instruments are all filtered out (class chip,
+      // search) is hidden with them; rows before a list's first division have
+      // no heading.
+      sections.forEach(sec => {
+        if (sec.title !== null) html += `<div class="wl2-group${cur ? ' wl2-udiv' : ''}">${escText(sec.title)}</div>`;
+        html += sec.rows.map(rowHtml).join('');
       });
-    } else if (wlUi.sort === 'group' && !cur) {
-      let g = null;
-      rows.forEach(d => {
-        if (d.group !== g) { g = d.group; html += `<div class="wl2-group">${escText(g || 'Other')}</div>`; }
-        html += rowHtml(d);
-      });
-    } else html = rows.map(rowHtml).join('');
+    }
     body.innerHTML = html;
     wlShown = rows.map(d => d.instrument_name);
     if (livePrices.running) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
