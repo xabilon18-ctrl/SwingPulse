@@ -51,6 +51,8 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 
 # Run as `python3 tools/shape_audit.py`, sys.path[0] is tools/ and the package
@@ -123,8 +125,11 @@ PRODUCER_FILES = {
 }
 
 
-def _fetch_json(fname):
-    url = f'{R2_BASE}/{fname}'
+FETCH_TRIES = 3          # R2 reads that time out are retried this many times in all
+FETCH_WAIT = 5           # seconds before the 2nd try, doubled before each next one
+
+
+def _fetch_once(url):
     req = urllib.request.Request(url, headers={
         'User-Agent': USER_AGENT, 'Cache-Control': 'no-cache, max-age=0'})
     with urllib.request.urlopen(req, timeout=30) as r:
@@ -134,6 +139,27 @@ def _fetch_json(fname):
         if body[:2] == b'\x1f\x8b':
             body = gzip.decompress(body)
         return json.loads(body.decode('utf-8'))
+
+
+def _fetch_json(fname, tries=FETCH_TRIES, wait=FETCH_WAIT, sleep=time.sleep):
+    """A slow R2 read is retried; anything else fails at once. Twice on
+    2026-10-28 (#82, #83) the golden job went red on a read timeout with the
+    code unchanged, and one re-run passed both times. An HTTP error (404,
+    403) is an answer, not a stall, so it is never retried; R2 still down
+    after every try fails the job as before."""
+    url = f'{R2_BASE}/{fname}'
+    for n in range(1, tries + 1):
+        try:
+            return _fetch_once(url)
+        except urllib.error.HTTPError:
+            raise
+        except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
+            if n == tries:
+                raise
+            print(f'shape_audit: {fname} read failed ({exc!r}), try {n + 1} of {tries} '
+                  f'in {wait}s', file=sys.stderr)
+            sleep(wait)
+            wait *= 2
 
 
 def load_rows(snapshot=None):

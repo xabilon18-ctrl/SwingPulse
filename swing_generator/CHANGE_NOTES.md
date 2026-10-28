@@ -17,6 +17,14 @@ sits before T, so the menu's second row is the two term choices. Daily keeps
 its bold term lines on top. The sync worker accepts T2, so the choice
 syncs across devices. Test: time_grid_test.cjs (lines, labels, equal gaps,
 alternating shading, offered on D/W/M only).
+2026-10-28 SHAPE AUDIT RETRIES A SLOW R2 READ: tools/shape_audit._fetch_json.
+User: "Yes do it". Twice today (#82, #83) the golden job's `shape_audit --only
+code` went red on an R2 read TimeoutError with the code unchanged, and one
+re-run passed both times. A read that times out or loses its connection is
+now tried up to 3 times in all, waiting 5 s then 10 s; an HTTP error (404,
+403) fails at once, and R2 still down after the last try fails the job as
+before. Test only, the app is unchanged. Test: shape_audit_test.py
+(FetchRetryTests).
 
 2026-10-28 WATCHLIST SORT KEEPS THE SECTIONS: app.js v542. User: "Make sort in
 All Markets keep the grouping only sorting the order in the group same as the
