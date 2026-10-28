@@ -118,7 +118,10 @@ const assert = require('node:assert/strict');
     await toTf('M');
     assert.equal(await rangeOn(), '65', 'Monthly keeps its own range');
     assert.equal(await firstShown(), 65, 'Monthly is still zoomed to 65 bars');
+    const storedRanges = () => page.evaluate(() => JSON.parse(localStorage.getItem('swingpulse-reel-ranges')));
+    assert.deepEqual(await storedRanges(), { M: 65 }, 'only the Monthly range is remembered');
     await page.evaluate(() => document.querySelector('#reelRangeOpts [data-range="0"]').click());
+    assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   await page.locator('#tfBtn4H').click();
@@ -181,6 +184,22 @@ const assert = require('node:assert/strict');
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) await require('./chart_framing_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));
+  if (!live) {
+    // A remembered range comes back after a reload on its own timeframe only;
+    // values the buttons do not offer, and unknown timeframes, are dropped.
+    await page.evaluate(() => localStorage.setItem('swingpulse-reel-ranges', JSON.stringify({ M: 65, W: 7, XX: 65 })));
+    await page.reload({ waitUntil: 'networkidle' });
+    if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
+    await page.locator('.nav-tab[data-tab="charts"]').click();
+    for (const [tf, want] of [['M', '65'], ['W', '0']]) {
+      await page.locator(`#tfBtn${tf}`).click();
+      await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
+      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+      assert.equal(await page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range'), want, `${tf} range after reload`);
+    }
+    assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Weekly is not zoomed by the Monthly range');
+    assert.equal(errors.length, 0, errors.join('\n'));
+  }
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

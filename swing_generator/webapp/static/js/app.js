@@ -7755,7 +7755,8 @@
     search: '',
     // Chart range, PER TIMEFRAME (2026-10-28, user: "the tab must apply only
     // in monthly if i tab it or weekly if i do weekly"): timeframe → trailing
-    // bars to draw. Unset = that timeframe's opening frame. For the visit only.
+    // bars to draw. Unset = that timeframe's opening frame. Remembered
+    // (REEL_RANGE_STORE, restored in wireReel).
     ranges: {},
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
     tzoom:  new Map(),       // name → bars visible; the time-scale drag's override of the Range pill
@@ -8810,6 +8811,10 @@
   }
   // The Chart range set on the timeframe on screen; 0 = its opening frame.
   function reelRange() { return reel.ranges[timeframe] || 0; }
+  const REEL_RANGE_STORE = 'swingpulse-reel-ranges';
+  function reelRangesSave() {
+    try { localStorage.setItem(REEL_RANGE_STORE, JSON.stringify(reel.ranges)); } catch (_) {}
+  }
   function reelStockView(bundle, name) {
     if (reelRange()) return null;
     const spec = reelOpenSpec();
@@ -13194,12 +13199,17 @@
   }
 
   function wireReel() {
-    // Chart range is for this visit only (2026-10-27). It used to be restored
-    // from localStorage, and a set range switches off every opening frame
-    // (reelStockView) on every timeframe, so one tap on Half/Quarter/Close up,
-    // just under the Sort menu's "Move over" row, zoomed every chart in for
-    // good. Drop what an earlier version stored.
-    try { localStorage.removeItem('swingpulse-reel-range'); } catch (_) {}
+    // Chart range is remembered PER TIMEFRAME (2026-10-28, user: "it must
+    // always remember where it was last saved"). The one range that used to be
+    // stored for every timeframe at once (`swingpulse-reel-range`, until
+    // 2026-10-27) zoomed every chart in after a single tap; it is dropped, not
+    // carried over. Only values the buttons offer, on timeframes that exist.
+    try {
+      localStorage.removeItem('swingpulse-reel-range');
+      const offered = new Set([...document.querySelectorAll('#reelRangeOpts [data-range]')].map(b => +b.dataset.range).filter(v => v > 0));
+      const stored = JSON.parse(localStorage.getItem(REEL_RANGE_STORE) || '{}') || {};
+      for (const [tf, bars] of Object.entries(stored)) if (isTf(tf) && offered.has(bars)) reel.ranges[tf] = bars;
+    } catch (_) {}
 
     const search = document.getElementById('reelSearch');
     const clear  = document.getElementById('reelSearchClear');
@@ -13263,6 +13273,7 @@
         btn.classList.add('active');
         const bars = +btn.dataset.range || 0;
         if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
+        reelRangesSave();
         reelResetPan();       // a different window width makes old offsets meaningless
         const pill = btn.closest('.filter-pill');
         if (pill) pill.open = false;
@@ -13311,7 +13322,7 @@
     if (rst) {
       rst.addEventListener('click', () => {
         reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal'; reel.movePeriod = '1d';
-        reel.search = ''; reel.ranges = {}; reelResetPan();
+        reel.search = ''; reel.ranges = {}; reelRangesSave(); reelResetPan();
         // Reset was missing both of these: the Stack pill (added with the MA
         // stack filter) and the compare mode. "Reset" that leaves a filter
         // applied is worse than no reset — you press it and still cannot see
