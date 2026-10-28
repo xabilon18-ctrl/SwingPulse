@@ -216,9 +216,10 @@ const assert = require('node:assert/strict');
     // tap opens that sector's markets on Charts at that timeframe.
     await page.locator('.nav-tab[data-tab="watchlist"]').click();
     const strip = page.locator('#wl2Active');
-    await strip.locator('.wl2-act-chip').first().waitFor();
-    assert.deepEqual(await strip.locator('.wl2-act-tf').evaluateAll(es => es.map(e => e.firstChild.textContent)), ['Day', 'Week'], 'one row per active timeframe');
-    assert.match(await strip.innerText(), /Technology ▲\s+4 big moves/);
+    await strip.locator('.wl2-act-s').first().waitFor();
+    // One entry per sector, then the timeframes it is busy on (none for M).
+    assert.deepEqual(await strip.locator('.wl2-act-s').allInnerTexts(), ['Tech']);
+    assert.deepEqual(await strip.locator('.wl2-act-tf.up').allInnerTexts(), ['D▲', 'W▲']);
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
     await page.waitForFunction(() => document.querySelector('#tfBtnW').getAttribute('aria-selected') === 'true');
     await page.locator('#chartReel .reel-card').first().waitFor();
