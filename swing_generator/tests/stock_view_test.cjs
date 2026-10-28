@@ -11,14 +11,15 @@ const fn = name => {
 };
 const bt = b => b._bt || (b._bt = b.t.map(Date.parse));
 const ctx = vm.createContext({
-  timeframe: '1H', reel: { range: null }, REEL_MIN_WINDOW_BARS: 20, REEL_FUTURE_FRAC: 0.9,
+  timeframe: '1H', reel: { ranges: {} }, REEL_MIN_WINDOW_BARS: 20, REEL_FUTURE_FRAC: 0.9,
   window: { SwingPulseModules: { gridGeometry: geometry } }, reelBarTimes: bt,
   instrumentByName: name => ({ STOCK: 'stocks', BTC: 'crypto', IDX: 'indices', EUR: 'other', FX: 'fx' }[name]),
   reelGridScope: scope => scope,
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext('var REEL_SESSION_HOURS = 16; var reelPerDayCache = new WeakMap(); var OV_TF_MS = { \'1H\': 36e5, \'2H\': 72e5, \'4H\': 144e5, D: 864e5 };' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelSessionOnly') + fn('reelOpenSpec') + fn('reelStockView'), ctx);
+vm.runInContext('var REEL_SESSION_HOURS = 16; var reelPerDayCache = new WeakMap(); var OV_TF_MS = { \'1H\': 36e5, \'2H\': 72e5, \'4H\': 144e5, D: 864e5 };' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelSessionOnly') + fn('reelOpenSpec') + fn('reelStockView')
+  + 'function reelRange() { return reel.ranges[timeframe] || 0; }', ctx);
 
 const hourly = (from, to, hours) => {
   const t = [];
@@ -132,8 +133,12 @@ const vm1 = ctx.reelStockView({ t: mo, c: mo.map(() => 1) }, 'EUR');
 assert.equal(mo[mo.length - (vm1.bars - vm1.future)], mo[0]);
 const frm = geometry.yearFrame({ t: mo }, bt);
 assert.ok(Math.abs(mo.length - (vm1.bars - vm1.future) + vm1.bars - 1 - (frm.anchor + 3 * frm.yearBars)) <= 1, 'Monthly ends on the 2029 line');
-ctx.timeframe = '1H'; ctx.reel.range = 300;
+// Chart range is per timeframe (2026-10-28): set on 1H it replaces 1H's
+// frame only; Monthly keeps its own.
+ctx.timeframe = '1H'; ctx.reel.ranges = { '1H': 300 };
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
+ctx.timeframe = 'M';
+assert.ok(ctx.reelStockView({ t: mo, c: mo.map(() => 1) }, 'EUR'), 'a 1H range leaves the Monthly frame');
 
 // The overlay fit is capped: the frame grows to at most twice what the bars need.
 const pw = vm.createContext({ REEL_OPENING_PRICE_FILL: 0.85, REEL_CENTRE_PRICE_FILL: 0.6, REEL_OV_FIT_CAP: 2, REEL_ALL_FIT_REACH: 2.5, REEL_ALL_FIT_PAD: 0.05 });

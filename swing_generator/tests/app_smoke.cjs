@@ -72,6 +72,7 @@ const assert = require('node:assert/strict');
     // Weekly and Monthly (back 2026-10-19): chart only, each read through its own
     // chunk map, with no 4H read under their name, divided by administration
     // term with every line equal (no bold, no year lines).
+    const shownBars = {};
     for (const [tf, word] of [['W', 'weekly'], ['M', 'monthly']]) {
       const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
       const chunk = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/0.json`));
@@ -88,6 +89,7 @@ const assert = require('node:assert/strict');
       assert.ok(await grid.locator('line.reel-tgrid').count() >= 3, `${tf} draws its term lines`);
       assert.ok(!/\b[WM] (aligned|minor)/.test(card), `${tf} shows no borrowed 4H relation`);
       assert.ok(/Bar \d+ \w+/.test(card), `${word} bar is dated`);
+      shownBars[tf] = await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
       if (tf === 'W') {
         // The Monthly overlay on Weekly, drawn from the Weekly bundle's own `mo`.
         await page.locator('#chartReel [data-act="tf-menu"]').first().click();
@@ -97,6 +99,26 @@ const assert = require('node:assert/strict');
         await page.locator('#chartReel [data-act="tf-menu"]').first().click();
       }
     }
+    // Chart range is PER TIMEFRAME (2026-10-28): Close up tapped on Monthly
+    // zooms Monthly only; Weekly keeps its opening frame, and Monthly keeps
+    // the range when the reader comes back to it.
+    const firstShown = () => page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
+    const rangeOn = () => page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range');
+    const toTf = async tf => {
+      await page.locator(`#tfBtn${tf}`).click();
+      await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
+      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+    };
+    assert.ok(shownBars.M > 65 && shownBars.W > 65, 'both charts open on more than 65 bars: ' + JSON.stringify(shownBars));
+    await page.evaluate(() => document.querySelector('#reelRangeOpts [data-range="65"]').click());
+    await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.b.c.length === 65);
+    await toTf('W');
+    assert.equal(await rangeOn(), '0', 'Weekly shows no range');
+    assert.equal(await firstShown(), shownBars.W, 'Weekly keeps its opening frame');
+    await toTf('M');
+    assert.equal(await rangeOn(), '65', 'Monthly keeps its own range');
+    assert.equal(await firstShown(), 65, 'Monthly is still zoomed to 65 bars');
+    await page.evaluate(() => document.querySelector('#reelRangeOpts [data-range="0"]').click());
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   await page.locator('#tfBtn4H').click();

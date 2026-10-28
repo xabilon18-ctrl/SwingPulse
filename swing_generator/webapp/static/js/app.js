@@ -7753,7 +7753,10 @@
     sort:   'signal',
     movePeriod: '1d',        // period the gainers/losers sort reads
     search: '',
-    range:  0,               // trailing bars to draw; 0 = the whole window
+    // Chart range, PER TIMEFRAME (2026-10-28, user: "the tab must apply only
+    // in monthly if i tab it or weekly if i do weekly"): timeframe → trailing
+    // bars to draw. Unset = that timeframe's opening frame. For the visit only.
+    ranges: {},
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
     tzoom:  new Map(),       // name → bars visible; the time-scale drag's override of the Range pill
     lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
@@ -8805,8 +8808,10 @@
   function reelOpenSpec() {
     return REEL_SLOW_VIEW[timeframe] || REEL_FRAME_VIEW[timeframe] || null;
   }
+  // The Chart range set on the timeframe on screen; 0 = its opening frame.
+  function reelRange() { return reel.ranges[timeframe] || 0; }
   function reelStockView(bundle, name) {
-    if (reel.range) return null;
+    if (reelRange()) return null;
     const spec = reelOpenSpec();
     if (!spec) return null;
     if (bundle._sv !== undefined) return bundle._sv;
@@ -8924,7 +8929,7 @@
     // more bars than this one has.
     const z = reel.tzoom.get(name);
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle, name)));
-    const w = reel.range;
+    const w = reelRange();
     if (w && w < n) return w;
     // 5m opens on a calendar span — see reelDefaultBars.
     return reelDefaultBars(bundle, name);
@@ -13146,6 +13151,12 @@
 
   function reelSyncPills() {
     reelSyncSimBar();
+    // The Chart range buttons show the CURRENT timeframe's range.
+    const rbox = document.getElementById('reelRangeOpts');
+    if (rbox) rbox.querySelectorAll('.reel-opt').forEach(b =>
+      b.classList.toggle('active', (+b.dataset.range || 0) === reelRange()));
+    const rtf = document.getElementById('reelRangeTf');
+    if (rtf) rtf.textContent = tfMeta().label + ' only';
     const clusterHost = document.getElementById('reelClusters');
     if (clusterHost) clusterHost.innerHTML = clusterMenuHtml('charts', reel.cluster);
     const tfEl = document.getElementById('reelStackTf');
@@ -13173,7 +13184,7 @@
     if (reel.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[reel.near] || reel.near) + ' MA');
     const sortLbl = { recent: 'Newest', up: 'Gainers ' + moveLbl(reel.movePeriod), down: 'Losers ' + moveLbl(reel.movePeriod), name: 'A–Z' };
     if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
-    if (reel.range) sort.push(reel.range + ' bars');
+    if (reelRange()) sort.push(reelRange() + ' bars');
     return {
       reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
       reelDdClass: reel.cat ? [cat ? cat.textContent.trim() : reel.cat] : [],
@@ -13250,7 +13261,8 @@
         if (!btn) return;
         rangeBox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        reel.range = +btn.dataset.range || 0;
+        const bars = +btn.dataset.range || 0;
+        if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
         reelResetPan();       // a different window width makes old offsets meaningless
         const pill = btn.closest('.filter-pill');
         if (pill) pill.open = false;
@@ -13299,19 +13311,13 @@
     if (rst) {
       rst.addEventListener('click', () => {
         reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal'; reel.movePeriod = '1d';
-        reel.search = ''; reel.range = 0; reelResetPan();
+        reel.search = ''; reel.ranges = {}; reelResetPan();
         // Reset was missing both of these: the Stack pill (added with the MA
         // stack filter) and the compare mode. "Reset" that leaves a filter
         // applied is worse than no reset — you press it and still cannot see
         // the instrument you are looking for.
         reel.cluster = 'all'; reel.relation = 'all'; reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
         reel.near = 'all'; reel.gp = null; reel.cls = '';
-        const rbox = document.getElementById('reelRangeOpts');
-        if (rbox) {
-          rbox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = rbox.querySelector('[data-range="0"]');
-          if (d) d.classList.add('active');
-        }
         if (search) search.value = '';
         if (clear) clear.style.display = 'none';
         document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
