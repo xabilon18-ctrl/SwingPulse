@@ -55,3 +55,6 @@ Swing Trading Strategy.rtf
 
 # Personal Claude Code permissions — local only, never published (2026-09-24)
 .claude/settings.local.json
+
+# Screenshot app_smoke.cjs leaves behind (CI uploads it as an artifact)
+hourly-chart-mobile.png
