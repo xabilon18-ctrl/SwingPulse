@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 WEEKLY OVERLAY PURPLE: app.js v544 / style.css v389. User: "The
+orange for the weekly MAs looks close to red… can we find another tone that
+is far from red?" `--reel-ov-w` goes from orange #ea580c to purple #9333ea.
+Red (falling), green, blue (Daily overlay) and black (this chart's own MAs)
+were all taken; purple is the remaining hue that is far from red. Its nearest
+neighbour is the Daily blue (#2563eb), told apart by hue and the dash. Only
+the colour changed; app.js changed in a comment only.
+
 2026-10-28 HALF-TERM TIME GRID: app.js v543, chart-preferences.js v5,
 grid-geometry.js v7, sync worker. User: "add 1/2 a term under time grid". A
 new Time grid choice, ½T (code T2, "Half term"), on Daily, Weekly and Monthly

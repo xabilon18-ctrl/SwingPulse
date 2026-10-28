@@ -8276,8 +8276,9 @@
     // the newest bar instead of the line stopping at last Friday / month end.
     const lastX = L.x0 + (n - from) * bw;
     // `colour`: one fixed stroke for the whole family (Daily blue, Weekly
-    // orange — user, 2026-10-20: the Daily lines and this chart's own three
-    // were both black/red by slope and only the dash told them apart). Left
+    // purple — user, 2026-10-20: the Daily lines and this chart's own three
+    // were both black/red by slope and only the dash told them apart; Weekly
+    // was orange until 2026-10-28, too close to the falling red). Left
     // out, the line keeps the slope colours, as Monthly does.
     const ribbonSvg = (times, mi, periods, series, tag, width, dash, hold, colour) => {
       let ribbon = '', labels = '';
