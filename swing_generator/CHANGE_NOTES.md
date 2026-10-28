@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 WATCHLIST SORT KEEPS THE SECTIONS: app.js v542. User: "Make sort in
+All Markets keep the grouping only sorting the order in the group same as the
+watchlist with divisions". Any sort but By group used to flatten the list into
+one run with no headings, in All markets and in a list alike. Now All markets
+keeps its groups (in their usual class/group order) and a list its divisions;
+Top gainers / Top losers / A-Z order only the rows inside each section. By
+group is each section's own order (A-Z in All markets, the list's order in a
+list). The Charts reel steps through the rows in the screen's order. Checked
+on live data: All markets by Top gainers keeps AFRICA INDEX / ASIA INDEX /
+..., ASIA INDEX running +1.77% NQTW, +0.51%, +0.49%, +0.43%. Test:
+app_smoke.cjs (a division and the All markets groups survive Top gainers).
+
 2026-10-28 4H CHART FOR YOUNG LISTINGS: chart_feed.build_4h_live. User: "fix
 cerebras 4h it shows no data". CEREBRAS (listed May 2026) holds ~230
 four-hour bars, so only MA50 is warm, and build_4h_live dropped any chart with
