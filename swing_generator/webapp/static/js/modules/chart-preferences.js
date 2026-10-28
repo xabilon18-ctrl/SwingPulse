@@ -1,8 +1,10 @@
 /* Per-user chart choices, independent by market group and timeframe. */
 (function (root) {
   'use strict';
-  // T = one part per four-year US administration term (2025, 2029, ...).
-  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T', name: 'Term', parts: 0.25 }];
+  // T = one part per four-year US administration term (2025, 2029, ...);
+  // T2 = half a term, two years (2025, 2027, 2029, ...; user, 2026-10-28:
+  // "add 1/2 a term under time grid"). `label` is the button text.
+  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }];
   // Weekly and Monthly are divided by administration term, every line equal
   // (user, 2026-10-19: "divided by administration and not by year. All must
   // be equal").

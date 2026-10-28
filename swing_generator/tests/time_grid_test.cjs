@@ -14,7 +14,7 @@ const context = () => {
     modules, window: { SwingPulseModules: modules },
     chartPreferences: preferences.create({ storage: disk, key: () => 'test-chart-preferences' }),
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
-    TF_BY_CODE: { '1H': {}, '4H': {}, D: {} }, timeframe: '1H',
+    TF_BY_CODE: { '1H': {}, '4H': {}, D: {}, W: {}, M: {} }, timeframe: '1H',
     tfMeta: () => ({ label: '1H' }),
     assetClassOf: item => item.asset_class,
     instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
@@ -163,4 +163,24 @@ assert.match(c.reelTimeGridSwitchHtml(), /data-division="T"/);
 c.timeframe = '1H';
 assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T"/);
 assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its term lines');
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms, saved choices and shading');
+// Half term (user, 2026-10-28: "add 1/2 a term under time grid"): a line
+// every two years from 2025, on the slow charts only, beside Term.
+c.timeframe = 'W';
+assert.match(c.reelTimeGridSwitchHtml(), /data-division="T2"[^>]*>½T</);
+assert.ok(c.reelTimeGridSwitchHtml().indexOf('data-division="T2"') < c.reelTimeGridSwitchHtml().indexOf('data-division="T"'), '½T sits before T');
+c.timeframe = '4H';
+assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T2"/);
+for (const [tf, t] of [['W', weeks], ['M', months], ['D', weeks]]) {
+  assert.equal(c.reelSetGridDivision(tf, 'T2'), true);
+  assert.equal(c.reelGridDivision(tf).code, 'T2');
+  const lines = c.reelTimeGrid({ t }, tf), half = lines.filter(l => !l.fixedOnly);
+  assert.ok(half.every(l => l.division === 'T2'), `${tf}: half-term lines`);
+  assert.deepEqual(half.map(l => l.year).filter(y => y >= 2013 && y <= 2029), [2013, 2015, 2017, 2019, 2021, 2023, 2025, 2027, 2029]);
+  assert.deepEqual(half.filter(l => l.year >= 2021 && l.year <= 2027).map(l => l.label),
+    ['2021 · Biden', '2023 · 2nd half', '2025 · Trump II', '2027 · 2nd half']);
+  const gap = half[1].fi - half[0].fi;
+  half.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - half[i + 1].fi - gap) < 1e-9, `${tf} half terms are equal`));
+  half.slice(1).forEach((l, i) => assert.notEqual(l.par, half[i].par, `${tf} shading alternates`));
+}
+assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its bold term lines under half terms');
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms and half terms, saved choices and shading');
