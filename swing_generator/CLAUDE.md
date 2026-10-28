@@ -146,11 +146,12 @@ Everything below about 4H/3D/Weekly/alignment is HISTORY.
   instruments: 98% hold the 50 monthly bars MA50 needs; **0%** hold 250 or 500 (that is ~21
   and ~42 YEARS, against a cache whose median is 244 monthly bars). MA250/MA500 would be
   blank on every instrument, so this is a data limit, not a style choice.
-- **Published depth is ~158 bars, not 244.** The 244-month figure above is a long-lived
-  LOCAL cache; CI fetches `HISTORY_YEARS = 13`, so the live feed carries ~158 monthly bars
-  (from 2013-07) and about 108 usable months — ~9 years of drawn chart once MA50 has warmed
-  up. Verified on R2 2026-09-12. Don't quote the local number as what the app shows; it only
-  strengthens the MA250/MA500 conclusion.
+- **Published depth is the whole Yahoo history (since 2026-10-19).** `tools/publish_htf.py`
+  (its own job, `publish-htf.yml`, the 3rd-5th of each month) downloads each instrument's
+  `period='max'` daily history, not the 13-year Daily cache. Measured on R2 2026-10-28:
+  783 of 805 instruments have a Monthly chart, median first bar 2000, 58% start in or
+  before 2000, US500 from 1927, BTCUSD from 2015. The ~158-bar (from 2013-07) figure that
+  stood here was the hourly feed's depth before that job existed.
 - **It is the one builder that ignores `MIN_RIBBON_LINES`** — that floor rejects a ribbon too
   short to be worth drawing, and would reject a deliberately single-line chart instead. An
   instrument without 50 monthly bars still gets no monthly chart.
