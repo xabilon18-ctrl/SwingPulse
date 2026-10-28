@@ -9663,14 +9663,18 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 /* Watchlist header */
 #pane-watchlist .wl2-head { margin-bottom: 4px; }
 /* Lists read as tabs (where you are); filters are the dropdown row. */
-#pane-watchlist .wl2-lists { gap: 18px; margin: 0 0 2px; border-bottom: 1px solid var(--border); }
-#pane-watchlist .wl2-pill { background: none; border: 0; border-radius: 0; padding: 8px 0 9px; margin-bottom: -1px;
-  border-bottom: 2px solid transparent; color: var(--text-muted); font-size: .88rem; font-weight: 600; }
-#pane-watchlist .wl2-pill.on { background: none; color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 700; }
+/* The selected list is a gold pill like the bottom bar's selected tab (user,
+   2026-10-28: "Some like the selection at the bottom"); it was an underline.
+   The row pads its edges so the pill's glow is not clipped by the scroller. */
+#pane-watchlist .wl2-lists { gap: 6px; margin: 0 -4px 6px; padding: 6px 4px 8px; }
+#pane-watchlist .wl2-pill { background: none; border: 0; border-radius: 999px; padding: 7px 14px;
+  color: var(--text-muted); font-size: .88rem; font-weight: 600; transition: background .2s, color .2s; }
+#pane-watchlist .wl2-pill.on { background: #fbbf24; color: #0a0a0f; font-weight: 800;
+  box-shadow: 0 0 14px rgba(251,191,36,.4), 0 2px 6px rgba(0,0,0,.3); }
 #pane-watchlist .wl2-pill .wl2-n { font-size: .76rem; margin-left: 2px; }
-#pane-watchlist .wl2-pill.on .wl2-n { color: var(--accent); opacity: 1; }
+#pane-watchlist .wl2-pill.on .wl2-n { color: #0a0a0f; opacity: .7; }
 /* Edit / Done / + New are actions, not lists: smaller, no tab underline. */
-#pane-watchlist .wl2-new, #pane-watchlist .wl2-edit, #pane-watchlist .wl2-done { align-self: center; padding: 4px 0;
+#pane-watchlist .wl2-new, #pane-watchlist .wl2-edit, #pane-watchlist .wl2-done { align-self: center; padding: 4px 8px;
   margin-bottom: 0; border-bottom: 0; font-size: .78rem; }
 #pane-watchlist .wl2-new { color: var(--accent); }
 #pane-watchlist .wl2-edit { color: var(--text-secondary); }
