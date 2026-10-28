@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 FULL NAME IN THE FULL-SCREEN CHART HEADER: app.js v541 / style.css
+v388. User, on MPWR 4H: "add the instrument full name here". The full-screen
+header gets a line under the symbol with the instrument's full name
+(instName, from names.json: "Monolithic Power Systems"), one line, ellipsis
+when long; left out when the name is only the symbol again. Test:
+app_smoke.cjs ("Test instrument" on the fixture).
+
 2026-10-28 SWIPE BETWEEN WATCHLIST LISTS: app.js v540 / style.css v386. User:
 "here i need an option to scroll left and right in between price lists". A
 sideways swipe on the price list (#wl2Body) moves to the next list tab (swipe
