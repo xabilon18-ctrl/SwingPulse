@@ -7,6 +7,44 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 ACTIVE AT LAST CLOSE (Day / Week / Month): webapp/activity_feed.py
++ app.js v537 / style.css v383. User: "I spend most of my time looking at my
+... watch list, and then I miss the active markets", Forex above all ("the
+daily price movements, those must count a lot"), then "build this thing for
+monthly and weekly". A strip at the top of the Watchlist, one row per
+timeframe, naming the radar sectors busy at the last close; a tap opens that
+sector's markets on Charts at that timeframe, biggest movers first ("Active:
+Currency · Week"). Six or more sectors at once collapse to one "Market-wide"
+chip that opens into the list. A timeframe with nothing busy has no row.
+- BIG MOVE: a closed bar whose close-to-close change is >= 2x the
+  instrument's own typical change (sd of its previous 60 changes). Measured on
+  the published bundles before choosing: 5.3-6.0% of Daily bars in every radar
+  sector (Currency 5.7%), Weekly 5.3-6.5%, Monthly 5.3-6.9%. ATR was rejected:
+  Forex reached 1.5x ATR on 1.9% of days against ~4.6% elsewhere.
+- ACTIVE: the sector's share of big moves vs its own last 20 bars, z >= 1.5
+  (sector_activity._z_series, the radar's formula). Each sector ~9-12% of
+  days, ~10-12% of weeks, ~10-15% of months; Daily has none on 53% of days and
+  6+ (market-wide) on 5% (e.g. 22 Oct, 11 sectors).
+- Day also shows the radar's own hot sectors (signal fires, volume spikes,
+  sector_radar.json); Week and Month have no signals, so moves only. Moves stay
+  OUT of sector_radar.json's rate, which feeds instrument_flavours.json (card
+  glow, verdict bar): that layer is unchanged.
+- Closed bars only: a Daily bar dated today (UTC) is dropped, and Daily
+  weekend bars count only for coins (Forex/gold/futures carry a Sunday stub,
+  USDZAR a Saturday one). Weekly/Monthly keep every bar: months are labelled
+  by their 1st (1 Aug 2026 is a Saturday), which the first cut wrongly dropped.
+- Stateless: each run recomputes from the bundles (Daily ~5 years, W/M
+  decades), so nothing is stored and nothing needs a backfill.
+- activity/D.json from build_chart_feed (hourly); activity/W.json and
+  activity/M.json from tools/publish_htf.py with their charts (Mondays, the
+  3rd-5th). Each job uploads only its own (publish.upload_to_r2's list).
+- Live readings at build: Week of 19 Oct Currency (6 big moves) and Industrials
+  (14, mostly down); September Crypto (5, up) and Currency (6, mostly down);
+  Day 27 Oct no move-active sector, five radar-hot ones.
+Tests: htf_feed_test.py ActivityFeedTests (weekend stub, today's bar, own
+yardstick, active + market-wide, small sector, weekend month starts, W/M file),
+app_smoke.cjs (rows per timeframe, tap opens the sector on Weekly).
+
 2026-10-28 CHART RANGE MOVED TO THE GRID MENU: app.js v536. User: "move these
 buttons to the time grid window and put below time grid". The Chart range
 buttons left the Charts Sort menu (#reelRangeOpts removed from index.html)

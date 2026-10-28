@@ -211,6 +211,20 @@ const assert = require('node:assert/strict');
     }
     assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Weekly is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));
+    // Active at last close (2026-10-28): a row per timeframe with a busy
+    // sector (the fixture: Technology on Day and Week, quiet on Month), and a
+    // tap opens that sector's markets on Charts at that timeframe.
+    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    const strip = page.locator('#wl2Active');
+    await strip.locator('.wl2-act-chip').first().waitFor();
+    assert.deepEqual(await strip.locator('.wl2-act-tf').evaluateAll(es => es.map(e => e.firstChild.textContent)), ['Day', 'Week'], 'one row per active timeframe');
+    assert.match(await strip.innerText(), /Technology ▲\s+4 big moves/);
+    await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
+    await page.waitForFunction(() => document.querySelector('#tfBtnW').getAttribute('aria-selected') === 'true');
+    await page.locator('#chartReel .reel-card').first().waitFor();
+    assert.match(await page.locator('#reelSimBar').innerText(), /Active: Technology · Week · 1/);
+    assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
+    assert.equal(errors.length, 0, errors.join('\n'));
   }
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();

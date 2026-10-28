@@ -48,6 +48,15 @@ deep = pd.concat([pd.DataFrame({'Open': pc, 'High': pc * 1.01, 'Low': pc * 0.99,
 built, _ = publish_htf.build({'TEST': 'TEST'}, ['W', 'M'], lambda t: (deep, 'max'), workers=1)
 for tf in ('W', 'M'):
     publish_htf.write(out, tf, built[tf], ['TEST'], str(d.index[-1].date()))
+# Active at last close (activity_feed): TEST's sector busy on Day and Week,
+# quiet on Month, so the strip shows two rows.
+for tf, period, hot in (('D', str(d.index[-1].date()), True), ('W', '2026-10-19', True), ('M', '2026-09-01', False)):
+    (out / 'activity').mkdir(exist_ok=True)
+    (out / 'activity' / f'{tf}.json').write_text(json.dumps({
+        'tf': tf, 'period': period, 'active': int(hot), 'market_wide': False,
+        'sectors': [{'sector': 'Technology', 'date': period, 'members': 9, 'counted': 9, 'big': 4,
+                     'up': 4, 'down': 0, 'z': 2.4 if hot else 0.1, 'hot': hot, 'tilt': 'up',
+                     'top': [['TEST', 3.1, 2.6]], 'order': ['TEST'], 'history_bars': 300}]}))
 stamp = pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 summary = publish.build_summary(pd.DataFrame([row]), str(d.index[-1].date()))
 summary['fetched_at'] = stamp

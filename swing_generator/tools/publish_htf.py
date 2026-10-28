@@ -123,6 +123,17 @@ def write(output: Path, tf: str, bundles: dict, names: list[str], built_on: str)
     return len(groups)
 
 
+def write_activity(output: Path, tf: str, bundles: dict) -> dict:
+    """activity/<tf>.json: the sectors busy at the last closed week or month
+    (webapp/activity_feed.py), from the bundles this run just built."""
+    from activity_feed import build_activity
+    from instruments import load_instruments
+    act = build_activity(bundles, load_instruments(), tf)
+    (output / 'activity').mkdir(parents=True, exist_ok=True)
+    _write_gz(str(output / 'activity' / f'{tf}.json'), act)
+    return act
+
+
 def main():
     from publish import CACHE_DIR, R2_DATA_PREFIX, upload_to_r2
     from server import get_ticker_map
@@ -154,6 +165,12 @@ def main():
                              f'(need {need}) — not publishing over the live ones.')
         chunks = write(output, tf, built[tf], list(ticker_map), now.strftime('%Y-%m-%d'))
         print(f'  {tf}: {n} charts in {chunks} chunks', flush=True)
+        # A failure costs the Watchlist strip's Weekly/Monthly row, never the charts.
+        try:
+            act = write_activity(output, tf, built[tf])
+            print(f'  {tf}: {act["active"]} active sectors at {act["period"]}', flush=True)
+        except Exception as exc:
+            print(f'  WARN activity/{tf}.json not built: {exc}', flush=True)
     if args.no_upload:
         return
     ok, failed = upload_to_r2(str(output), r2_prefix=R2_DATA_PREFIX)

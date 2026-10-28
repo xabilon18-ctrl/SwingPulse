@@ -198,5 +198,98 @@ class WriteTests(unittest.TestCase):
         self.assertEqual(publish._cache_control_for('ma500/chart/W/3.json'), 'public, max-age=900')
 
 
+
+class ActivityFeedTests(unittest.TestCase):
+    """Active sectors at the last close (webapp/activity_feed.py, 2026-10-28)."""
+
+    @staticmethod
+    def bars(days, closes):
+        return {'t': [str(d.date()) for d in days], 'c': list(closes)}
+
+    def quiet(self, seed, days, last=None):
+        """Closes moving ~0.5% a bar; `last` replaces the final bar's change."""
+        import numpy as np
+        ch = np.random.default_rng(seed).normal(0, 0.005, len(days))
+        if last is not None:
+            ch[-1] = last
+        return self.bars(days, 100 * np.cumprod(1 + ch))
+
+    def test_closed_weekday_bars_only_except_coins(self):
+        import activity_feed as af
+        days = pd.date_range('2026-06-01', '2026-10-28', freq='D')
+        b = self.quiet(1, days)
+        fx = af.instrument_moves(b, keep_weekends=False, cutoff='2026-10-28')
+        coin = af.instrument_moves(b, keep_weekends=True, cutoff='2026-10-28')
+        self.assertFalse(any(pd.Timestamp(d).weekday() >= 5 for d in fx))   # Sunday stub out
+        self.assertTrue(any(pd.Timestamp(d).weekday() >= 5 for d in coin))  # coins trade weekends
+        self.assertNotIn('2026-10-28', fx)                                 # still trading
+        self.assertNotIn('2026-10-28', coin)
+        # Monday is measured from Friday, not from the Sunday stub.
+        mon, fri = '2026-10-26', '2026-10-23'
+        i = {d: k for k, d in enumerate(b['t'])}
+        self.assertAlmostEqual(fx[mon][0], b['c'][i[mon]] / b['c'][i[fri]] - 1)
+
+    def test_monthly_bars_on_a_weekend_first_are_kept(self):
+        import activity_feed as af
+        months = pd.date_range(end='2026-09-01', periods=80, freq='MS')   # 1 Aug 2026 = Saturday
+        b = self.quiet(3, months)
+        insts = [{'name': 'Apple', 'group': 'US Equity', 'sector': 'Technology'}]
+        s = af.build_activity({'Apple': b}, insts, 'M')['sectors'][0]
+        self.assertEqual(s['date'], '2026-09-01')
+        self.assertEqual(s['history_bars'], 80 - 1 - af.SD_MIN)   # no month dropped
+
+    def test_own_yardstick_flags_a_big_move(self):
+        import activity_feed as af
+        days = pd.bdate_range(end='2026-10-27', periods=120)
+        calm = af.instrument_moves(self.quiet(2, days), False, None)
+        jump = af.instrument_moves(self.quiet(2, days, last=-0.03), False, None)
+        self.assertLess(calm['2026-10-27'][1], af.MOVE_K)
+        self.assertGreaterEqual(jump['2026-10-27'][1], af.MOVE_K)   # ~6x its typical bar
+        self.assertLess(jump['2026-10-27'][0], 0)
+
+    def test_sector_active_down_and_market_wide(self):
+        import activity_feed as af
+        days = pd.bdate_range(end='2026-10-27', periods=150)
+        sectors = ['Currency', 'Technology', 'Energy', 'Utilities', 'Healthcare', 'Industrials', 'Real Estate']
+        bundles, insts, seed = {}, [], 10
+        for k, sec in enumerate(sectors):
+            for j in range(10):
+                name = f'{sec[:3]}{j}'
+                # Every sector but Real Estate: six of ten fall hard on the last bar.
+                big = sec != 'Real Estate' and j < 6
+                bundles[name] = self.quiet(seed, days, last=-0.04 if big else None)
+                insts.append({'name': name, 'group': sec, 'sector': sec})
+                seed += 1
+        out = af.build_activity(bundles, insts, 'D', now=pd.Timestamp('2026-10-28 06:00', tz='UTC').to_pydatetime())
+        by = {s['sector']: s for s in out['sectors']}
+        self.assertEqual(out['period'], '2026-10-27')
+        cur = by['Currency']
+        self.assertTrue(cur['hot'])
+        self.assertEqual((cur['big'], cur['down'], cur['tilt']), (6, 6, 'down'))
+        self.assertEqual(len(cur['top']), 6)
+        self.assertEqual(sorted(cur['order'][:6]), [f'Cur{j}' for j in range(6)])   # movers first
+        self.assertFalse(by['Real Estate']['hot'])
+        self.assertEqual(out['active'], 6)
+        self.assertTrue(out['market_wide'])
+
+    def test_small_sector_is_listed_never_active(self):
+        import activity_feed as af
+        days = pd.bdate_range(end='2026-10-27', periods=150)
+        bundles = {f'S{j}': self.quiet(40 + j, days, last=-0.05) for j in range(af.MIN_MEMBERS - 1)}
+        insts = [{'name': n, 'group': 'Utilities', 'sector': 'Utilities'} for n in bundles]
+        s = af.build_activity(bundles, insts, 'W')['sectors'][0]
+        self.assertEqual(s['big'], af.MIN_MEMBERS - 1)
+        self.assertFalse(s['hot'])
+
+    def test_weekly_and_monthly_jobs_write_their_own_file(self):
+        days = pd.bdate_range(end='2026-10-23', periods=150, freq='W-MON')
+        with tempfile.TemporaryDirectory() as out:
+            out = Path(out)
+            act = publish_htf.write_activity(out, 'W', {'Apple': self.quiet(5, days)})
+            self.assertEqual(act['tf'], 'W')
+            self.assertEqual(read_gz(out / 'activity' / 'W.json')['tf'], 'W')
+            self.assertFalse((out / 'activity' / 'D.json').exists())
+
+
 if __name__ == '__main__':
     unittest.main()
