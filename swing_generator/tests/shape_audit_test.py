@@ -68,5 +68,42 @@ class ConfidenceVocabularyTests(unittest.TestCase):
         self.assertTrue(audit.check_no_data(healthy + [{'confirmation_status': 'No data'}] * 20))
 
 
+class FetchRetryTests(unittest.TestCase):
+    """A slow R2 read is retried; an HTTP answer and a lasting stall are not hidden."""
+    def _run(self, outcomes, tries=3):
+        calls, waits = [], []
+        def once(url):
+            calls.append(url)
+            r = outcomes.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        real = audit._fetch_once
+        audit._fetch_once = once
+        try:
+            return audit._fetch_json('signals.json', tries=tries, wait=5, sleep=waits.append), calls, waits
+        finally:
+            audit._fetch_once = real
+
+    def test_timeout_then_success_returns_the_payload(self):
+        doc, calls, waits = self._run([TimeoutError('read'), {'data': []}])
+        self.assertEqual(doc, {'data': []})
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(waits, [5])
+
+    def test_stall_on_every_try_still_fails(self):
+        with self.assertRaises(TimeoutError):
+            self._run([TimeoutError('a'), TimeoutError('b'), TimeoutError('c')])
+
+    def test_waits_double(self):
+        _, calls, waits = self._run([TimeoutError(), TimeoutError(), {'ok': 1}])
+        self.assertEqual(waits, [5, 10])
+
+    def test_http_error_is_not_retried(self):
+        import urllib.error
+        err = urllib.error.HTTPError('u', 404, 'Not Found', {}, None)
+        with self.assertRaises(urllib.error.HTTPError):
+            self._run([err, {'data': []}])
+
 if __name__ == '__main__':
     unittest.main()
