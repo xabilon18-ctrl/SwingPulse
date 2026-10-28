@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 SELECTED WATCHLIST TAB AS A GOLD PILL: style.css v387. User: "put
+a background that compliments the tab section", then, pointing at the bottom
+bar, "Some like the selection at the bottom". The selected list tab (All
+markets / your lists) is now the bottom bar's selected style: #fbbf24 pill,
+dark bold text, the same gold glow (smaller), count at 70% opacity. It was an
+underline on a ruled row; the rule is gone, the row pads its edges so the
+glow is not clipped. (A first reading, a card behind the ACTIVE strip, went up
+as PR #80 and was closed unmerged.)
+
 2026-10-28 SWIPE BETWEEN WATCHLIST LISTS: app.js v540 / style.css v386. User:
 "here i need an option to scroll left and right in between price lists". A
 sideways swipe on the price list (#wl2Body) moves to the next list tab (swipe
