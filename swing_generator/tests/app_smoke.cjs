@@ -134,6 +134,17 @@ const assert = require('node:assert/strict');
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
     await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
+    // The Monthly overlay on Daily rolls from the Monthly chart's whole history
+    // (2026-10-28, "like on the monthly MAs"). The fixture's Daily bundle
+    // carries no Monthly lines at all and its Monthly chart 25 years, so an
+    // M250 on Daily can only come from there.
+    await toTf('D');
+    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+    await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
+    assert.match(await page.locator('.reel-tf-menu').innerText(), /50 · 250 · 500/, 'the menu lists the Monthly 500');
+    await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
+    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   await page.locator('#tfBtn4H').click();

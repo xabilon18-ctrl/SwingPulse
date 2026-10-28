@@ -22,7 +22,7 @@ async function main() {
   const context = vm.createContext({
     chartFullName: 'BTC', timeframe: '30m', reelDataVersion: 'new publish',
     chartFullEl: () => ({ querySelector: () => host }),
-    reelLoadChunk: async () => ({ BTC: bundle }), ovOtherTf: () => null,
+    reelLoadChunk: async () => ({ BTC: bundle }), ovLoadHtf: async () => {},
     allData: [item], reelChartSvg: b => 'candles: ' + b.c.join(','),
     chartFullSyncButtons: () => {},
   });

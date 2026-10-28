@@ -8143,8 +8143,9 @@
   // Overlay MA SETS (user, 2026-09-28: "another profile for the overlay ...
   // 50, 100, 200, 300 and 500 ... only for the overlay"). One choice for every
   // chart timeframe; the chart's own ribbon stays 50/250/500 regardless.
-  // Monthly draws only what its history can warm (250/500 = 21/42 years; 300
-  // rarely), so its list is shorter.
+  // Monthly draws only what its history can warm (250/500 = 21/42 years), from
+  // the whole history since 2026-10-28 (ovHtfView), so where it is listed and
+  // not drawn, that instrument's history is too short.
   // Third set (user, 2026-09-28: "one that goes up by 50 all the way to 500").
   // Buttons are named by how many lines they draw ("find a shorter name").
   const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500],
@@ -8164,9 +8165,8 @@
     if (tf === 'M') return [50, ...ps];
     return ps;
   }
-  // Monthly lists only what history can warm (a Monthly 250 is ~21 years).
   function ovPeriodsTxt(tf) {
-    const ps = ovPeriods(tf).filter(p => tf !== 'M' || p <= 200);
+    const ps = ovPeriods(tf);
     if (ovSet() !== 'step' || ps.length <= 4) return ps.join(' · ');
     return `every 50, ${ps[0]} to ${ps[ps.length - 1]}`;
   }
@@ -8187,6 +8187,59 @@
   // Overlay lines a chart's OWN bundle carries: Daily carries W and M; Weekly
   // carries M over its whole history (chart_feed.weekly_bundle, user
   // 2026-10-19: "we will need the monthly overlay on weekly").
+  // MONTHLY OVERLAY FROM THE WHOLE HISTORY (user, 2026-10-28: "Add the 500ma
+  // and where it shows it show and where it does not it doesn't really
+  // matter", "like on the monthly MAs"). The Daily bundle's `mo` is rolled
+  // over the 13-year Daily cache, so a Monthly 250 or 500 never warms there.
+  // The Monthly chart's own bundle (publish_htf, whole Yahoo history) holds
+  // every closed month, so on every chart but Weekly (whose own `mo` is
+  // already whole-history) the overlay rolls its Monthly lines from those
+  // closes, then appends the months the Daily feed has that the Monthly job
+  // has not published yet, the one in progress included. Labels follow
+  // chart_feed._htf_mas: a month by its last day, the one in progress by its
+  // newest day. A period the history cannot warm is simply not drawn.
+  const OV_ALL_PERIODS = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
+  function ovWantsDeepMonthly() { return ovHtfOn('M') && timeframe !== 'M' && timeframe !== 'W'; }
+  async function ovLoadHtf(name) {
+    const o = ovOtherTf();
+    await Promise.all([o && reelLoadChunk(name, o), ovWantsDeepMonthly() && reelLoadChunk(name, 'M')]);
+  }
+  function ovDeepMonthly(mb, shallow, since) {
+    const monthEnd = s => { const d = new Date(Date.parse(s)); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10); };
+    const t = mb.t.map(monthEnd), c = mb.c.slice();
+    if (shallow && shallow.c && shallow.t) {
+      const off = shallow.t.length - shallow.c.length;
+      shallow.c.forEach((v, i) => { const ti = shallow.t[off + i]; if (ti > t[t.length - 1]) { t.push(ti); c.push(v); } });
+    }
+    const periods = OV_ALL_PERIODS.filter(p => p <= c.length);
+    if (!periods.length) return null;
+    let first = t.findIndex(x => x >= since);
+    if (first < 0) return null;
+    if (first > 0) first--;
+    const roll = p => {
+      const out = new Array(c.length).fill(null);
+      let sum = 0, run = 0;
+      c.forEach((v, j) => {
+        if (v == null) { sum = 0; run = 0; return; }
+        sum += v; run++;
+        if (run > p) { sum -= c[j - p]; run = p; }
+        if (run === p) out[j] = sum / p;
+      });
+      return out.slice(first);
+    };
+    return { t: t.slice(first), p: periods, m: periods.map(roll), c: c.slice(-periods[periods.length - 1]) };
+  }
+  // `hb` (the bundle carrying the overlay's W/M lines) with its Monthly lines
+  // swapped for the whole-history ones once the Monthly chart is loaded.
+  function ovHtfView(name, hb, b) {
+    const mb = ovWantsDeepMonthly() && reelCachedBundle(name, 'M');
+    if (!hb || !mb || !mb.c || !mb.c.length) return hb;
+    const since = (hb.mo && hb.mo.t && hb.mo.t[0]) || String((b._src || b).t[0]).slice(0, 10);
+    const memo = mb._ovDeep;
+    let mo = memo && memo.shallow === hb.mo && memo.since === since ? memo.mo : undefined;
+    if (mo === undefined) { mo = ovDeepMonthly(mb, hb.mo, since); mb._ovDeep = { shallow: hb.mo, since, mo }; }
+    return mo ? Object.assign(Object.create(hb), { mo }) : hb;
+  }
   const OV_OWN_HTF = { D: ['W', 'M'], W: ['M'] };
   const OV_HTF_KEY = { W: 'w', M: 'mo' };
   function ovOwnHtf(b) {
@@ -8236,7 +8289,7 @@
   // The overlay: MOVING AVERAGES ONLY (user, 2026-09-28: "make the overlay to
   // only have MAs from the daily") — no Daily range boxes, no Daily drawings.
   // The Daily ribbon on the intraday charts and, each switched on separately,
-  // the Weekly 50/250/500 and the Monthly 50 on every chart — Weekly thicker
+  // the Weekly and Monthly 50/250/500 (where warm) on every chart — Weekly thicker
   // than Daily, Monthly thickest of all ("make the weekly MAs thicker", "the
   // monthly with a 50MA thicker than them all"). Weekly and Monthly ride in
   // the Daily bundle (`w`, `mo`, chart_feed._htf_mas) because the ~5 years of
@@ -8557,8 +8610,7 @@
     const full = chartFullEl();
     const host = full && full.classList.contains('open') && full.querySelector('.reel-chart');
     if (host && host._reelCtx) {
-      const o = ovOtherTf();
-      if (o) await reelLoadChunk(chartFullName, o);
+      await ovLoadHtf(chartFullName);
       reelRepaint(host);
     }
   }
@@ -9059,7 +9111,7 @@
     const ob = ovTf && reelCachedBundle(name, ovTf);
     // Weekly's Monthly lines come from its own bundle (ovOwnHtf). Daily's own
     // W/M lines have never been part of its fit, and still are not.
-    const hb = (timeframe !== 'D' && ovOwnHtf(b)) || ob;
+    const hb = ovHtfView(name, (timeframe !== 'D' && ovOwnHtf(b)) || ob, b);
     if (!hb || !ovAny()) return null;
     let lo = Infinity, hi = -Infinity;
     const lines = [];
@@ -11128,7 +11180,7 @@
     const _editing = reel.editing === name;
     const _ovTf = ovOtherTf();
     const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
-    const _htf  = timeframe === 'D' ? (b._src || b) : (ovOwnHtf(b) || _ovB);
+    const _htf  = ovHtfView(name, timeframe === 'D' ? (b._src || b) : (ovOwnHtf(b) || _ovB), b);
     const _ovOn = !!_htf && ovAny();
     // With the overlay on, this timeframe's drawings take its own contrast too —
     // except while they are being edited, when they must be seen.
@@ -11391,8 +11443,7 @@
     const host = el && el.querySelector('.reel-chart');
     if (!name || !host) return;
     const data = await reelLoadChunk(name, tf);
-    const other = ovOtherTf();
-    if (other) await reelLoadChunk(name, other);
+    await ovLoadHtf(name);
     if (chartFullName !== name || timeframe !== tf || reelDataVersion !== version
         || chartFullEl()?.querySelector('.reel-chart') !== host) return;
     const bundle = data && data[name];
@@ -11429,7 +11480,7 @@
 
     const host = el.querySelector('.reel-chart');
     const data = await reelLoadChunk(name);
-    { const o = ovOtherTf(); if (o) await reelLoadChunk(name, o); }
+    await ovLoadHtf(name);
     const bundle = data && data[name];
     if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
     host._reelItem = item;
@@ -11949,7 +12000,7 @@
 
     const name = item.instrument_name;
     const data = await reelLoadChunk(name);
-    { const o = ovOtherTf(); if (o) await reelLoadChunk(name, o); }
+    await ovLoadHtf(name);
 
     // The user may have scrolled far away, or flipped timeframe, while the
     // chunk was in flight — re-check before touching the DOM.
