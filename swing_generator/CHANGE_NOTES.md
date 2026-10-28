@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 R2 READS GET A WHOLE-BODY DEADLINE: tools/health_check.py,
+tools/validate_hourly_release.py. Same day as the health-check retry. A body
+that keeps trickling in never trips urlopen's per-read timeout: the 10:05
+health check spent 12 minutes reading before it failed, and at 14:23 SAST the
+release's "Verify the live app" printed nothing for 13 minutes on its first
+R2 read, holding the shared release lock (so blocking the next hourly run)
+until it was cancelled by hand. health_check._read_all now stops a body
+still arriving after 90 s with a TimeoutError, which the existing retry
+(3 tries, 5 s then 10 s) treats like any other stall; validate_hourly_release
+--live reads through the same helper and retry. A healthy read of the largest
+file (~2 MB) takes under a second. Tests: shape_audit_test.py
+(HealthCheckFetchRetryTests: trickling body, whole body).
+
 2026-10-28 WEEKLY 10Y TIME GRID: app.js v547, chart-preferences.js v8. User:
 "apply 10y time grid on weekly". The 10Y choice (a line on every decade,
 2000, 2010, 2020, 2030) is offered on Weekly as well as Monthly, after T, so
