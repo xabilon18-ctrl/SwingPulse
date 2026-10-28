@@ -1525,17 +1525,22 @@
 
   // ── ACTIVE AT LAST CLOSE (2026-10-28) ─────────────────────────────────
   // User: "I spend most of my time looking at my ... watch list, and then I
-  // miss the active markets", Forex above all. One row per timeframe (Day,
-  // Week, Month) naming the radar sectors that were busy at the last close:
-  // big moves against each market's own typical move (activity/<tf>.json,
-  // webapp/activity_feed.py), and on Day also the radar's signal fires and
-  // volume spikes (sector_radar.json). Weekly and Monthly carry no signals, so
-  // moves are all they have. A tap opens that sector's markets on Charts, on
-  // that timeframe, biggest movers first. A timeframe with nothing active has
-  // no row; six or more sectors at once is the market moving, shown as one
-  // chip that opens into the list.
+  // miss the active markets", Forex above all. ONE LINE above the lists (user,
+  // same day, off the first three-row version: "I hate clutter"): per
+  // timeframe (D, W, M) the radar sectors busy at the last close, coloured by
+  // direction, nothing else. Busy = big moves against each market's own
+  // typical move (activity/<tf>.json, webapp/activity_feed.py), and on D also
+  // the radar's signal/volume reading, at the radar card's own display gate
+  // (z >= 2 or two days running) rather than its 1.5 alert line. Weekly and
+  // Monthly carry no signals, so moves are all they have. A tap opens that
+  // sector's markets on Charts at that timeframe, biggest movers first. Six or
+  // more sectors at once is the market moving: one "Market-wide" word that
+  // opens into the names. Nothing busy anywhere: no line.
   const ACT_TFS = [['D', 'Day'], ['W', 'Week'], ['M', 'Month']];
   const ACT_MARKET_WIDE = 6;
+  const ACT_SHORT = { 'Communication Services': 'Comms', 'Consumer Cyclical': 'Cyclicals',
+    'Consumer Defensive': 'Staples', 'Financial Services': 'Financials', 'Basic Materials': 'Materials',
+    'Technology': 'Tech', 'Index': 'Indices' };
   const actWideOpen = new Set();
   function activeSectorsOf(tf) {
     const a = activityByTf[tf];
@@ -1544,7 +1549,7 @@
     a.sectors.forEach(s => { if (s.hot) out.set(s.sector, { sector: s.sector, mv: s }); });
     const r = tf === 'D' ? sectorRadarByTf.D : null;
     (r ? r.sectors : []).forEach(s => {
-      if (!s.hot) return;
+      if (!(s.hot && (s.z >= 2 || s.elevated_days >= 2))) return;
       const e = out.get(s.sector) || { sector: s.sector };
       e.sig = s;
       out.set(s.sector, e);
@@ -1562,33 +1567,40 @@
     const d = new Date(p.slice(0, 10) + 'T00:00:00Z');
     if (tf === 'M') return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
     const dm = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-    return tf === 'W' ? 'wk of ' + dm : dm;
+    return tf === 'W' ? 'week of ' + dm : dm;
   }
-  function actChipHtml(tf, e) {
-    const dir = actDir(e), arrow = dir === 'up' ? ' ▲' : dir === 'down' ? ' ▼' : '';
+  // The why goes in the tooltip, not on the line.
+  function actWhy(e) {
     const why = [];
-    if (e.mv) why.push(`${e.mv.big} big move${e.mv.big === 1 ? '' : 's'}`);
-    if (e.sig && e.sig.buys + e.sig.sells) why.push(`${e.sig.buys + e.sig.sells} signal${e.sig.buys + e.sig.sells === 1 ? '' : 's'}`);
-    if (e.sig && e.sig.vol_spikes) why.push(`${e.sig.vol_spikes} vol`);
-    return `<button class="wl2-act-chip${dir ? ' ' + dir : ''}" data-act-tf="${tf}" data-act-sector="${escText(e.sector)}">`
-      + `<b>${escText(e.sector)}${arrow}</b><span>${why.join(' · ')}</span></button>`;
+    if (e.mv) why.push(`${e.mv.big} big move${e.mv.big === 1 ? '' : 's'} (${e.mv.up} up, ${e.mv.down} down)`);
+    if (e.sig && e.sig.buys + e.sig.sells) why.push(`${e.sig.buys + e.sig.sells} signals`);
+    if (e.sig && e.sig.vol_spikes) why.push(`${e.sig.vol_spikes} volume spikes`);
+    return why.join(' · ');
   }
+  // One entry per SECTOR, not per timeframe (user: "I hate clutter"): its
+  // name, then the timeframes it is busy on, each coloured by its own
+  // direction. The name opens the shortest of them; a letter opens that one.
   function renderActiveStrip() {
     const box = document.getElementById('wl2Active');
     if (!box) return;
-    const rows = ACT_TFS.map(([tf, lbl]) => {
+    const bySector = new Map(), wide = [];
+    ACT_TFS.forEach(([tf]) => {
       const list = activeSectorsOf(tf);
-      if (!list.length) return '';
-      let chips;
-      if (list.length >= ACT_MARKET_WIDE && !actWideOpen.has(tf)) {
-        const up = list.filter(e => actDir(e) === 'up').length, down = list.filter(e => actDir(e) === 'down').length;
-        const lean = down >= 2 * Math.max(up, 1) ? ' ▼ mostly down' : up >= 2 * Math.max(down, 1) ? ' ▲ mostly up' : '';
-        chips = `<button class="wl2-act-chip wide${lean.includes('down') ? ' down' : lean.includes('up') ? ' up' : ''}" data-act-wide="${tf}"><b>Market-wide · ${list.length} sectors</b><span>${lean.trim() || 'both ways'} · tap to list</span></button>`;
-      } else chips = list.map(e => actChipHtml(tf, e)).join('');
-      return `<div class="wl2-act-row"><span class="wl2-act-tf">${lbl}<em>${escText(actPeriodLabel(tf, activityByTf[tf].period))}</em></span><div class="wl2-act-chips">${chips}</div></div>`;
-    }).join('');
-    box.hidden = !rows;
-    box.innerHTML = rows ? `<div class="wl2-act-hd">Active at last close</div>${rows}` : '';
+      if (list.length >= ACT_MARKET_WIDE && !actWideOpen.has(tf)) { wide.push([tf, list.length]); return; }
+      list.forEach(e => {
+        if (!bySector.has(e.sector)) bySector.set(e.sector, []);
+        bySector.get(e.sector).push([tf, e]);
+      });
+    });
+    const tfLbl = tf => (ACT_TFS.find(([k]) => k === tf) || [, tf])[1];
+    const letter = (tf, e) => {
+      const dir = actDir(e);
+      return `<button class="wl2-act-tf${dir ? ' ' + dir : ''}" data-act-tf="${tf}" data-act-sector="${escText(e.sector)}" title="${escText(`${e.sector} · ${tfLbl(tf)} ${actPeriodLabel(tf, activityByTf[tf].period)}: ${actWhy(e)}`)}">${tf}${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}</button>`;
+    };
+    const items = wide.map(([tf, n]) => `<span class="wl2-act-g"><button class="wl2-act-s" data-act-wide="${tf}" title="${n} sectors busy at once on the ${tfLbl(tf)}: the market moved. Tap to list them">Market-wide</button><span class="wl2-act-tf">${tf}</span></span>`)
+      .concat([...bySector].map(([sec, tfs]) => `<span class="wl2-act-g"><button class="wl2-act-s" data-act-tf="${tfs[0][0]}" data-act-sector="${escText(sec)}">${escText(ACT_SHORT[sec] || sec)}</button>${tfs.map(([tf, e]) => letter(tf, e)).join('')}</span>`));
+    box.hidden = !items.length;
+    box.innerHTML = items.length ? `<span class="wl2-act-hd">Active</span>${items.join('')}` : '';
   }
   function openActiveSector(tf, sector) {
     const a = activityByTf[tf];

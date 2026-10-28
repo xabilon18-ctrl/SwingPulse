@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 ACTIVE STRIP DOWN TO ONE LINE: app.js v538 / style.css v384. User,
+off the three-row version: "Is this the best you can do ? I hate clutter".
+Three rows of boxed chips (sector, arrow, counts) took ~a third of the phone
+above the lists. Now one line, plain words: "ACTIVE Industrials D W▼ ·
+Currency W M▼ · Crypto M▲" — each SECTOR once, then the timeframes it is busy
+on, each letter coloured by its own direction; counts and dates moved to the
+tooltip. The name opens its shortest timeframe, a letter opens that one. Day's
+radar part now uses the radar card's own display gate (z >= 2 or two days
+running) instead of its 1.5 alert line: on 27 Oct that left Industrials of
+the five. Moves keep z >= 1.5. Long sector names are shortened (Tech,
+Financials, Staples, Cyclicals, Materials, Comms, Indices). Market-wide stays
+one word per timeframe that opens into the names. Checked at 390px on live
+data: fits on one line; Currency's W opens Weekly on the 57 pairs.
+
 2026-10-28 ACTIVE AT LAST CLOSE (Day / Week / Month): webapp/activity_feed.py
 + app.js v537 / style.css v383. User: "I spend most of my time looking at my
 ... watch list, and then I miss the active markets", Forex above all ("the
