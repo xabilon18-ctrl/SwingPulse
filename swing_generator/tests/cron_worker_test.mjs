@@ -1,6 +1,7 @@
 // The run scheduler (cron-worker scheduled), offline: :05 always dispatches;
 // the :35 backup dispatches only when no run was created in the last 45
-// minutes, and dispatches anyway when GitHub cannot be asked (2026-10-20).
+// minutes, and dispatches anyway when GitHub cannot be asked (2026-10-20); it
+// also retries a recent run that finished without success (2026-10-28).
 import assert from 'node:assert/strict';
 import worker from '../webapp/cron-worker/src/index.js';
 
@@ -35,4 +36,13 @@ assert.equal((await run('35 * * * *', list())).dispatched, 1, ':35 dispatches wh
 assert.equal((await run('35 * * * *', () => new Response('', { status: 500 }))).dispatched, 1, ':35 dispatches when the check fails');
 assert.equal((await run('35 * * * *', () => { throw new Error('network'); })).dispatched, 1, ':35 dispatches when GitHub is unreachable');
 
-process.stdout.write('PASS: scheduler — :05 always dispatches; :35 only when no run started in 45 min\n');
+// A :05 run that already failed is retried at :35; one that passed or is
+// still running is not.
+const one = run => () => new Response(JSON.stringify({ workflow_runs: [{ id: 7, created_at: minutesAgo(30), ...run }] }));
+assert.equal((await run('35 * * * *', one({ status: 'completed', conclusion: 'failure' }))).dispatched, 1, ':35 retries a failed :05 run');
+assert.equal((await run('35 * * * *', one({ status: 'completed', conclusion: 'timed_out' }))).dispatched, 1, ':35 retries a timed-out run');
+assert.equal((await run('35 * * * *', one({ status: 'completed', conclusion: 'success' }))).dispatched, 0, ':35 skips a passed run');
+assert.equal((await run('35 * * * *', one({ status: 'in_progress', conclusion: null }))).dispatched, 0, ':35 leaves a running run alone');
+assert.equal((await run('35 * * * *', one({ status: 'queued', conclusion: null }))).dispatched, 0, ':35 leaves a queued run alone');
+
+process.stdout.write('PASS: scheduler — :05 always dispatches; :35 when no run started in 45 min or the recent one failed\n');
