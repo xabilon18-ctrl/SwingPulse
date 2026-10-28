@@ -16,9 +16,10 @@ name               = "swingpulse-cron"
 main               = "src/index.js"
 compatibility_date = "2025-01-01"
 
-# :35 is a backup (src/index.js `backup`): it dispatches only when no run was
+# :35 is a backup (src/index.js `backup`): it dispatches when no run was
 # created in the last 45 minutes, i.e. when the :05 dispatch was lost
-# (2026-10-20 14:05). A missed hour then costs ~30 minutes, not two hours.
+# (2026-10-20 14:05), or when the recent run has already finished without
+# success (2026-10-28). A missed hour then costs ~30 minutes, not two hours.
 [triggers]
 crons = ["5 * * * *", "35 * * * *"]
 

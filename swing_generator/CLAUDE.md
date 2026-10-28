@@ -4,6 +4,11 @@
 > Update this file whenever the architecture, profile, rules or instruments count changes.
 > History (dated feature notes, per-version notes) goes in `CHANGE_NOTES.md`, not here.
 
+**TIME ZONE: SAST (user, 2026-10-28: "Please always use my time zone").** Give every
+time in SAST (Africa/Johannesburg, UTC+2, no daylight saving). GitHub, Actions logs,
+R2 and cron are UTC: add 2 hours before saying a time, and label UTC wherever it
+has to be quoted as the code's own value.
+
 **ALWAYS DEPLOY (user, 2026-10-19: "when we make changes just deploy always").**
 Every change goes all the way to production without asking: push the branch,
 open the PR, merge it once CI is green on the PR (golden AND "Validate and
@@ -69,7 +74,7 @@ A personal swing-trading signal dashboard that scans a watchlist of instruments 
 | Frontend | Vanilla JS + Chart.js 4.5.1 (exact pin + SRI hash). *Lightweight Charts is NOT used — see Important Rule 2.* |
 | Frontend modules | `static/js/modules/` — bounded requests, quote freshness/polling, per-user preferences, equal grid geometry, drawing icons/toolbar, saved-work backup UI |
 | Deploy | Cloudflare Pages (UI) + Cloudflare R2 (data files) |
-| CI pipeline | Cloudflare Cron Worker dispatches GitHub Actions `publish.yml`. Schedule: **hourly at :05, 24/7**, including weekends, plus a :35 backup that dispatches only when no run was created in the last 45 min (2026-10-20); the Worker keeps its logs (`[observability]`, Workers & Pages → swingpulse-cron → Logs); manual runs remain available. See `webapp/cron-worker/wrangler.toml`. |
+| CI pipeline | Cloudflare Cron Worker dispatches GitHub Actions `publish.yml`. Schedule: **hourly at :05, 24/7**, including weekends, plus a :35 backup that dispatches when no run was created in the last 45 min (2026-10-20) or the recent run has finished without success (2026-10-28); the Worker keeps its logs (`[observability]`, Workers & Pages → swingpulse-cron → Logs); manual runs remain available. See `webapp/cron-worker/wrangler.toml`. |
 | Repo | https://github.com/xabilon18-ctrl/SwingPulse — **the only one.** `xabilon18/SwingPulse` was the original prod repo until 2026-06-01 and is now retired: its publish workflow is disabled, it holds no commits this one lacks, and the local `prod` remote was removed 2026-08-27. Manual run: `gh workflow run publish.yml --repo xabilon18-ctrl/SwingPulse --ref main` |
 
 ---
@@ -146,11 +151,12 @@ Everything below about 4H/3D/Weekly/alignment is HISTORY.
   instruments: 98% hold the 50 monthly bars MA50 needs; **0%** hold 250 or 500 (that is ~21
   and ~42 YEARS, against a cache whose median is 244 monthly bars). MA250/MA500 would be
   blank on every instrument, so this is a data limit, not a style choice.
-- **Published depth is ~158 bars, not 244.** The 244-month figure above is a long-lived
-  LOCAL cache; CI fetches `HISTORY_YEARS = 13`, so the live feed carries ~158 monthly bars
-  (from 2013-07) and about 108 usable months — ~9 years of drawn chart once MA50 has warmed
-  up. Verified on R2 2026-09-12. Don't quote the local number as what the app shows; it only
-  strengthens the MA250/MA500 conclusion.
+- **Published depth is the whole Yahoo history (since 2026-10-19).** `tools/publish_htf.py`
+  (its own job, `publish-htf.yml`, the 3rd-5th of each month) downloads each instrument's
+  `period='max'` daily history, not the 13-year Daily cache. Measured on R2 2026-10-28:
+  783 of 805 instruments have a Monthly chart, median first bar 2000, 58% start in or
+  before 2000, US500 from 1927, BTCUSD from 2015. The ~158-bar (from 2013-07) figure that
+  stood here was the hourly feed's depth before that job existed.
 - **It is the one builder that ignores `MIN_RIBBON_LINES`** — that floor rejects a ribbon too
   short to be worth drawing, and would reject a deliberately single-line chart instead. An
   instrument without 50 monthly bars still gets no monthly chart.
