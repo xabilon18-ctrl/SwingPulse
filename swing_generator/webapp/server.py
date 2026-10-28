@@ -638,6 +638,35 @@ def api_alerts():
     return jsonify(out)
 
 
+@app.route('/api/activity/<tf>')
+def api_activity(tf):
+    """Active sectors at the last close (activity_feed): the published file
+    when there is one, else built from the local chart bundles."""
+    import activity_feed
+    from instruments import load_instruments
+    if tf not in ('D', 'W', 'M'):
+        return jsonify(None), 404
+    for base in (OUTPUT_DIR, os.path.join(BASE_DIR, 'publish', 'data_ma500'),
+                 os.path.join(BASE_DIR, 'publish', 'htf-release')):
+        path = os.path.join(base, 'activity', f'{tf}.json')
+        if os.path.exists(path):
+            raw = open(path, 'rb').read()
+            if raw[:2] == b'\x1f\x8b':
+                raw = gzip.decompress(raw)
+            return app.response_class(raw, mimetype='application/json')
+    builder = {'D': chart_feed.build_daily, 'W': chart_feed.build_weekly,
+               'M': chart_feed.build_monthly}[tf]
+    bundles = {}
+    for name, t in get_ticker_map().items():
+        try:
+            b = builder(CACHE_DIR, t)
+        except Exception:
+            b = None
+        if b:
+            bundles[name] = b
+    return jsonify(activity_feed.build_activity(bundles, load_instruments(), tf))
+
+
 @app.route('/api/market')
 def api_market():
     import market_feed

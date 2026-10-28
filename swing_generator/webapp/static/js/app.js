@@ -18,6 +18,7 @@
   // and Weekly radars went with those timeframes; the 10m chart has no radar
   // and the card says so rather than letting a daily reading pass for a 10m one.
   let sectorRadarByTf = { D: null };
+  let activityByTf = { D: null, W: null, M: null };   // activity/<tf>.json (activity_feed.py)
   // Chart-shape lookalikes + families (shape_similarity.py). DESCRIPTIVE, not
   // predictive: it says which charts have moved alike, which is how the app can
   // warn that five "separate" buys are one bet. Never feeds confidence.
@@ -1522,9 +1523,88 @@
     return (v > 0 ? '+' : v < 0 ? '−' : '') + a.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   }
 
+  // ── ACTIVE AT LAST CLOSE (2026-10-28) ─────────────────────────────────
+  // User: "I spend most of my time looking at my ... watch list, and then I
+  // miss the active markets", Forex above all. One row per timeframe (Day,
+  // Week, Month) naming the radar sectors that were busy at the last close:
+  // big moves against each market's own typical move (activity/<tf>.json,
+  // webapp/activity_feed.py), and on Day also the radar's signal fires and
+  // volume spikes (sector_radar.json). Weekly and Monthly carry no signals, so
+  // moves are all they have. A tap opens that sector's markets on Charts, on
+  // that timeframe, biggest movers first. A timeframe with nothing active has
+  // no row; six or more sectors at once is the market moving, shown as one
+  // chip that opens into the list.
+  const ACT_TFS = [['D', 'Day'], ['W', 'Week'], ['M', 'Month']];
+  const ACT_MARKET_WIDE = 6;
+  const actWideOpen = new Set();
+  function activeSectorsOf(tf) {
+    const a = activityByTf[tf];
+    if (!a) return [];
+    const out = new Map();
+    a.sectors.forEach(s => { if (s.hot) out.set(s.sector, { sector: s.sector, mv: s }); });
+    const r = tf === 'D' ? sectorRadarByTf.D : null;
+    (r ? r.sectors : []).forEach(s => {
+      if (!s.hot) return;
+      const e = out.get(s.sector) || { sector: s.sector };
+      e.sig = s;
+      out.set(s.sector, e);
+    });
+    return [...out.values()].sort((x, y) => ((y.mv && y.mv.z) || 0) - ((x.mv && x.mv.z) || 0) || x.sector.localeCompare(y.sector));
+  }
+  function actDir(e) {
+    const t = e.mv && e.mv.tilt;
+    if (t === 'up' || t === 'down') return t;
+    const s = e.sig && e.sig.tilt;
+    return s === 'buy' ? 'up' : s === 'sell' ? 'down' : '';
+  }
+  function actPeriodLabel(tf, p) {
+    if (!p) return '';
+    const d = new Date(p.slice(0, 10) + 'T00:00:00Z');
+    if (tf === 'M') return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const dm = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    return tf === 'W' ? 'wk of ' + dm : dm;
+  }
+  function actChipHtml(tf, e) {
+    const dir = actDir(e), arrow = dir === 'up' ? ' ▲' : dir === 'down' ? ' ▼' : '';
+    const why = [];
+    if (e.mv) why.push(`${e.mv.big} big move${e.mv.big === 1 ? '' : 's'}`);
+    if (e.sig && e.sig.buys + e.sig.sells) why.push(`${e.sig.buys + e.sig.sells} signal${e.sig.buys + e.sig.sells === 1 ? '' : 's'}`);
+    if (e.sig && e.sig.vol_spikes) why.push(`${e.sig.vol_spikes} vol`);
+    return `<button class="wl2-act-chip${dir ? ' ' + dir : ''}" data-act-tf="${tf}" data-act-sector="${escText(e.sector)}">`
+      + `<b>${escText(e.sector)}${arrow}</b><span>${why.join(' · ')}</span></button>`;
+  }
+  function renderActiveStrip() {
+    const box = document.getElementById('wl2Active');
+    if (!box) return;
+    const rows = ACT_TFS.map(([tf, lbl]) => {
+      const list = activeSectorsOf(tf);
+      if (!list.length) return '';
+      let chips;
+      if (list.length >= ACT_MARKET_WIDE && !actWideOpen.has(tf)) {
+        const up = list.filter(e => actDir(e) === 'up').length, down = list.filter(e => actDir(e) === 'down').length;
+        const lean = down >= 2 * Math.max(up, 1) ? ' ▼ mostly down' : up >= 2 * Math.max(down, 1) ? ' ▲ mostly up' : '';
+        chips = `<button class="wl2-act-chip wide${lean.includes('down') ? ' down' : lean.includes('up') ? ' up' : ''}" data-act-wide="${tf}"><b>Market-wide · ${list.length} sectors</b><span>${lean.trim() || 'both ways'} · tap to list</span></button>`;
+      } else chips = list.map(e => actChipHtml(tf, e)).join('');
+      return `<div class="wl2-act-row"><span class="wl2-act-tf">${lbl}<em>${escText(actPeriodLabel(tf, activityByTf[tf].period))}</em></span><div class="wl2-act-chips">${chips}</div></div>`;
+    }).join('');
+    box.hidden = !rows;
+    box.innerHTML = rows ? `<div class="wl2-act-hd">Active at last close</div>${rows}` : '';
+  }
+  function openActiveSector(tf, sector) {
+    const a = activityByTf[tf];
+    const s = a && a.sectors.find(x => x.sector === sector);
+    const known = new Set(allData.map(d => d.instrument_name));
+    const names = ((s && s.order) || []).filter(n => known.has(n));
+    if (!names.length) return;
+    navigateToTab('charts');
+    setTimeframe(tf);
+    openChartFor(names[0], { label: `${sector} · ${(ACT_TFS.find(([k]) => k === tf) || [, tf])[1]}`, names, kind: 'active' });
+  }
+
   function renderWatchlist() {
     const body = document.getElementById('wl2Body');
     if (!body) return;
+    renderActiveStrip();
     const asOf = document.getElementById('wl2AsOf');
     if (asOf) asOf.textContent = wlAsOfText();
     // List pills: All markets + the reader's own lists + New.
@@ -1854,6 +1934,10 @@
       const t = e.target;
       const row = t.closest('[data-wl-row]');
       if (row) return wlOpenSheet(row.dataset.wlRow);
+      const ac = t.closest('[data-act-sector]');
+      if (ac) return openActiveSector(ac.dataset.actTf, ac.dataset.actSector);
+      const aw = t.closest('[data-act-wide]');
+      if (aw) { actWideOpen.add(aw.dataset.actWide); return renderActiveStrip(); }
       const lp = t.closest('[data-wl-list]');
       if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
@@ -3359,7 +3443,7 @@
     if (_dataLoadInFlight) return;
     _dataLoadInFlight = true;
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes, ...actRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -3379,6 +3463,7 @@
         fetchJson('/api/alerts', null),
         fetchJson('/api/market', null),
         fetchJson('/api/trend-channels', null),
+        ...ACT_TFS.map(([tf]) => fetchJson('/api/activity/' + tf, null)),
       ]);
       // Preserve the previous board during a transient failure instead of
       // replacing it with an empty market that looks like a valid result.
@@ -3402,6 +3487,7 @@
       ledgerData = ldgRes?.rule_version === 'daily500-4h-v1' && ldgRes.totals ? ldgRes : null;
       const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
       sectorRadarByTf = { D: _okRadar(srRes) };
+      ACT_TFS.forEach(([tf], i) => { activityByTf[tf] = _okRadar(actRes[i]); });
       syncRadarTf();
       instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
       flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
@@ -13168,7 +13254,7 @@
     if (!bar || !nm) return;
     bar.hidden = !reel.similarTo && !reel.listSet;
     const txt = bar.querySelector('.reel-simbar-txt');
-    if (reel.listSet) { if (txt) txt.firstChild.textContent = 'Watchlist: '; nm.textContent = reel.listSet.label + ' · ' + reel.listSet.names.length; }
+    if (reel.listSet) { if (txt) txt.firstChild.textContent = reel.listSet.kind === 'active' ? 'Active: ' : 'Watchlist: '; nm.textContent = reel.listSet.label + ' · ' + reel.listSet.names.length; }
     else if (reel.similarTo) { if (txt) txt.firstChild.textContent = 'Charts like '; nm.textContent = reel.similarTo; }
   }
 

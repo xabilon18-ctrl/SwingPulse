@@ -1160,6 +1160,20 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     except Exception as exc:
         print(f'  WARN alerts.json not built: {exc}')
 
+    # Active sectors at the last Daily close (2026-10-28, activity_feed): big
+    # moves against each market's own typical move, per radar sector. Weekly
+    # and Monthly are written by tools/publish_htf.py with their charts. A
+    # failure costs the Watchlist strip, never the chart feed.
+    try:
+        from activity_feed import build_activity
+        from instruments import load_instruments
+        act = build_activity(built.get('D', {}), load_instruments(), 'D')
+        os.makedirs(os.path.join(output_dir, 'activity'), exist_ok=True)
+        _write_gz(os.path.join(output_dir, 'activity', 'D.json'), act)
+        stats['activity'] = act['active']
+    except Exception as exc:
+        print(f'  WARN activity/D.json not built: {exc}')
+
     # The user's trend read (2026-10-04: "this is how i see trends ... not any other
     # way"): up / down / neutral per instrument per timeframe from channel_rule, the
     # same rule that draws the auto channels. The app's effectiveTrend() reads it, so

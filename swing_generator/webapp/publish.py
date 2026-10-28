@@ -794,7 +794,10 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                   'shape_similarity.json',
                   'instrument_flavours.json', 'status.json',
                   'rotation.json', 'rotation_paper.json', 'quotes.json',
-                  'alerts.json', 'market.json', 'trend_channels.json']:
+                  'alerts.json', 'market.json', 'trend_channels.json',
+                  # D from the hourly run, W/M from tools/publish_htf.py: each
+                  # job's output holds only its own.
+                  'activity/D.json', 'activity/W.json', 'activity/M.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
@@ -920,6 +923,7 @@ def build_ui():
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/quotes'",       f"'{base}/quotes.json'")
     js = js.replace("'/api/alerts'",       f"'{base}/alerts.json'")
+    js = js.replace("'/api/activity/' + tf", f"'{base}/activity/' + tf + '.json'")
     js = js.replace("'/api/market'",       f"'{base}/market.json'")
     js = js.replace("'/api/trend-channels'", f"'{base}/trend_channels.json'")
     js = js.replace("'/api/explanations'", f"'{base}/explanations.json'")
