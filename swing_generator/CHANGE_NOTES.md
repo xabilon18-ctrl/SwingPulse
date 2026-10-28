@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 WEEKLY 10Y TIME GRID: app.js v547, chart-preferences.js v8. User:
+"apply 10y time grid on weekly". The 10Y choice (a line on every decade,
+2000, 2010, 2020, 2030) is offered on Weekly as well as Monthly, after T, so
+Weekly's menu reads M Q H Y / ½T T 10Y. 20Y stays Monthly only. Same
+geometry as Monthly's 10Y; app.js LONG_GRID_TFS names where each long
+division is offered. Weekly opens on four terms (2013-2029), so the opening
+view shows the 2020 line, with 2010 and 2030 just outside it. Test:
+time_grid_test.cjs.
+
 2026-10-28 MONTHLY 20Y REPLACES 5Y: app.js v546, chart-preferences.js v7,
 grid-geometry.js v9, sync worker. User: "Replace the monthy time grid 5y for
 Mothly with 20y". Monthly's menu now reads M Q H Y / ½T T 10Y 20Y. 20Y (code

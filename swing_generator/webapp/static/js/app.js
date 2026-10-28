@@ -10551,8 +10551,9 @@
   // The Term and Half-term divisions (four- and two-year) are offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
   const TERM_GRID_CODES = new Set(['T', 'T2']);
-  // Ten and twenty years are offered on the Monthly chart only.
-  const MONTHLY_GRID_CODES = new Set(['Y10', 'Y20']);
+  // Ten years on Weekly and Monthly (user, 2026-10-28: "apply 10y time grid on
+  // weekly"), twenty on Monthly only.
+  const LONG_GRID_TFS = { Y10: new Set(['W', 'M']), Y20: new Set(['M']) };
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
@@ -10576,7 +10577,7 @@
     const selected = reelGridDivision(timeframe, scope).code, label = GRID_SCOPE_LABELS[scope];
     return `<span class="reel-time-grid-label">Time grid · ${label}</span><div class="reel-time-grid-options" role="group" aria-label="${label}: time grid for all ${tfMeta().label} charts">`
       + GRID_DIVISIONS.filter(d => (!TERM_GRID_CODES.has(d.code) || TERM_GRID_TFS.has(timeframe))
-        && (!MONTHLY_GRID_CODES.has(d.code) || timeframe === 'M')).map(d => {
+        && (!LONG_GRID_TFS[d.code] || LONG_GRID_TFS[d.code].has(timeframe))).map(d => {
         const what = d.code === 'T' ? 'one equal part per four-year administration term'
           : d.code === 'T2' ? 'two equal parts per administration term, two years each'
           : d.code === 'Y10' ? 'one equal part per ten years'
