@@ -10611,10 +10611,22 @@
   // per market, and US100 (quarters) and DAX (half-years) both show the
   // previous part shaded and the current one plain. Year and Term stay.
   const REEL_SESSION_GRID = {
-    M: { code: 'M2', name: 'Two months', parts: 6 },
+    M: { code: 'M2', name: 'Two months', parts: 6, label: '2M' },
     Q: { code: 'H', name: 'Half-year', parts: 2 },
     H: { code: 'Y', name: 'Year', parts: 1 },
   };
+  // The time grid in use, after the timeframe in the full-screen header (user,
+  // 2026-10-28: "i just need to see what time grid i am on when the app is on
+  // full screen"). Read off the lines just drawn, so a session-only 4H chart
+  // that draws one size up from the market's choice names what is on screen.
+  function reelSyncGridTag(host, lines) {
+    const tag = host.closest('#chartFull') && document.querySelector('#chartFull [data-cf-grid]');
+    if (!tag) return;
+    const code = (lines.find(l => !l.fixedOnly) || {}).division;
+    const d = [...GRID_DIVISIONS, ...Object.values(REEL_SESSION_GRID)].find(x => x.code === code);
+    tag.textContent = d ? '· ' + (d.label || d.code) : '';
+    tag.title = d ? `Time grid: ${d.name}` : '';
+  }
   function reelTimeGrid(b, tf, item) {
     const scope = reelGridScope(item);
     const session = tf === '4H' && reelSessionOnly(b._src || b, tf);
@@ -11143,6 +11155,7 @@
     // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
     host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L) };
     updateChartFreshness(host, bundle, name);
+    reelSyncGridTag(host, tg);
 
     // Park the tool bar just above the trend strip and the date row.
     //
@@ -11591,6 +11604,7 @@
         <div class="cf-title">
           <span class="reel-name" title="${escText(name)}">${escText(name)}</span>
           <span class="reel-group">${tfMeta().label}</span>
+          <span class="reel-group cf-grid-tag" data-cf-grid></span>
         </div>
         <div class="cf-actions">
         ${viewMarkBtns(name)}

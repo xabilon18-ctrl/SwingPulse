@@ -164,8 +164,14 @@ const assert = require('node:assert/strict');
   await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'attached' });
   assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '6px', 'Yearly stroke is bold');
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
+  // The time grid in use sits after the timeframe in the header (2026-10-28)
+  // and follows a new choice at once. A session-only 4H feed draws Month as
+  // two-month blocks, so the tag may read 2M.
+  const gridTag = () => page.locator('#chartFull [data-cf-grid]').innerText();
+  assert.match(await gridTag(), /^· \S+$/, 'full screen names its time grid');
   await page.locator('#chartFull [data-act="grid-menu"]').click();
   await page.locator('.reel-grid-menu [data-division="M"]').click();
+  await page.waitForFunction(() => /^· (M|2M)$/.test(document.querySelector('#chartFull [data-cf-grid]').textContent));
   // Swap shaded gaps is kept per market (2026-10-17; 'other' split into
   // energy, commodities, crypto, currency and rates 2026-10-21). The swap
   // lands on the open chart's market only (TEST offline is a stock; live, the
