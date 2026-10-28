@@ -1542,6 +1542,7 @@
     'Consumer Defensive': 'Staples', 'Financial Services': 'Financials', 'Basic Materials': 'Materials',
     'Technology': 'Tech', 'Index': 'Indices' };
   const actWideOpen = new Set();
+  let actPanelOpen = false;   // the numbers panel under the line (actPanelHtml)
   function activeSectorsOf(tf) {
     const a = activityByTf[tf];
     if (!a) return [];
@@ -1600,7 +1601,35 @@
     const items = wide.map(([tf, n]) => `<span class="wl2-act-g"><button class="wl2-act-s" data-act-wide="${tf}" title="${n} sectors busy at once on the ${tfLbl(tf)}: the market moved. Tap to list them">Market-wide</button><span class="wl2-act-tf">${tf}</span></span>`)
       .concat([...bySector].map(([sec, tfs]) => `<span class="wl2-act-g"><button class="wl2-act-s" data-act-tf="${tfs[0][0]}" data-act-sector="${escText(sec)}">${escText(ACT_SHORT[sec] || sec)}</button>${tfs.map(([tf, e]) => letter(tf, e)).join('')}</span>`));
     box.hidden = !items.length;
-    box.innerHTML = items.length ? `<span class="wl2-act-hd">Active</span>${items.join('')}` : '';
+    box.innerHTML = items.length
+      ? `<div class="wl2-act-line"><button class="wl2-act-hd${actPanelOpen ? ' on' : ''}" data-act-panel aria-expanded="${actPanelOpen}" title="Show the numbers">Active<i>▾</i></button>${items.join('')}</div>`
+        + (actPanelOpen ? actPanelHtml() : '')
+      : '';
+  }
+  // The numbers behind the line (user, 2026-10-28: the details sat in a hover
+  // title, which a phone never shows). Tapping ACTIVE opens it under the line,
+  // per timeframe with its date, every busy sector (market-wide days listed in
+  // full) and what made it busy; tap again to close. Not remembered: the line
+  // stays as clean as it was on every visit (actPanelOpen, above).
+  function actPanelHtml() {
+    const rows = ACT_TFS.map(([tf, lbl]) => {
+      const list = activeSectorsOf(tf);
+      if (!list.length) return '';
+      const short = e => {
+        const out = [];
+        if (e.mv) out.push(`${e.mv.big} big move${e.mv.big === 1 ? '' : 's'}`);
+        if (e.sig && e.sig.buys + e.sig.sells) out.push(`${e.sig.buys + e.sig.sells} signal${e.sig.buys + e.sig.sells === 1 ? '' : 's'}`);
+        if (e.sig && e.sig.vol_spikes) out.push(`${e.sig.vol_spikes} vol`);
+        return out.join(' · ');
+      };
+      return `<div class="wl2-act-p-row"><span class="wl2-act-p-tf">${lbl}<em>${escText(actPeriodLabel(tf, activityByTf[tf].period))}</em></span><div class="wl2-act-p-list">`
+        + (list.length >= ACT_MARKET_WIDE ? `<span class="wl2-act-p-wide">Market-wide · ${list.length} sectors</span>` : '')
+        + list.map(e => {
+          const dir = actDir(e);
+          return `<button class="wl2-act-p-e" data-act-tf="${tf}" data-act-sector="${escText(e.sector)}"><b class="${dir}">${escText(ACT_SHORT[e.sector] || e.sector)}${dir === 'up' ? ' ▲' : dir === 'down' ? ' ▼' : ''}</b><span>${short(e)}</span></button>`;
+        }).join('') + '</div></div>';
+    }).join('');
+    return `<div class="wl2-act-panel">${rows}</div>`;
   }
   function openActiveSector(tf, sector) {
     const a = activityByTf[tf];
@@ -1950,6 +1979,7 @@
       if (ac) return openActiveSector(ac.dataset.actTf, ac.dataset.actSector);
       const aw = t.closest('[data-act-wide]');
       if (aw) { actWideOpen.add(aw.dataset.actWide); return renderActiveStrip(); }
+      if (t.closest('[data-act-panel]')) { actPanelOpen = !actPanelOpen; return renderActiveStrip(); }
       const lp = t.closest('[data-wl-list]');
       if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');

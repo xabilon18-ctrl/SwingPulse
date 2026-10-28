@@ -9676,10 +9676,29 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Active at last close (2026-10-28): ONE quiet line, plain words coloured
    by direction (user: "I hate clutter"). Scrolls sideways if it ever overflows. */
-.wl2-active { display: flex; align-items: baseline; gap: 11px; margin: 2px 0 8px; overflow-x: auto;
-  scrollbar-width: none; white-space: nowrap; font-size: .74rem; }
-.wl2-active::-webkit-scrollbar { display: none; }
-.wl2-act-hd { flex: none; font-size: .62rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.wl2-active { margin: 2px 0 8px; font-size: .74rem; }
+.wl2-act-line { display: flex; align-items: baseline; gap: 11px; overflow-x: auto;
+  scrollbar-width: none; white-space: nowrap; }
+.wl2-act-line::-webkit-scrollbar { display: none; }
+.wl2-act-hd { flex: none; appearance: none; background: none; border: 0; padding: 2px 0; font: inherit; cursor: pointer;
+  font-size: .62rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.wl2-act-hd i { font-style: normal; margin-left: 3px; display: inline-block; transition: transform .15s; }
+.wl2-act-hd.on { color: var(--text-secondary); }
+.wl2-act-hd.on i { transform: rotate(180deg); }
+/* The numbers behind the line, opened from ACTIVE: plain rows, no boxes. */
+.wl2-act-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 8px 0 2px;
+  border-top: 1px solid var(--border); }
+.wl2-act-p-row { display: flex; gap: 10px; align-items: baseline; }
+.wl2-act-p-tf { flex: none; width: 76px; font-weight: 700; color: var(--text-secondary); font-size: .72rem; }
+.wl2-act-p-tf em { display: block; font-style: normal; font-weight: 600; font-size: .64rem; color: var(--text-muted); white-space: nowrap; }
+.wl2-act-p-list { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wl2-act-p-wide { font-size: .68rem; color: var(--text-muted); }
+.wl2-act-p-e { appearance: none; background: none; border: 0; padding: 1px 0; font: inherit; cursor: pointer;
+  display: flex; gap: 10px; align-items: baseline; text-align: left; color: var(--text-primary); }
+.wl2-act-p-e b { font-weight: 600; min-width: 92px; }
+.wl2-act-p-e b.up { color: var(--buy); }
+.wl2-act-p-e b.down { color: var(--sell); }
+.wl2-act-p-e span { color: var(--text-muted); font-size: .7rem; }
 .wl2-act-g { flex: none; display: inline-flex; align-items: baseline; gap: 4px; }
 .wl2-act-s { appearance: none; background: none; border: 0; padding: 2px 0; font: inherit; font-weight: 600;
   color: var(--text-primary); cursor: pointer; }
