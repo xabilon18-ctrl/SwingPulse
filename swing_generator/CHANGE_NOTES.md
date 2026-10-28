@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 CHART RANGE MOVED TO THE GRID MENU: app.js v536. User: "move these
+buttons to the time grid window and put below time grid". The Chart range
+buttons left the Charts Sort menu (#reelRangeOpts removed from index.html)
+and are now a row in the chart's Grid menu directly under Time grid, laid out
+like it (reelRangeSwitch, REEL_RANGE_STEPS): Full · 260 · 130 · 65 bars,
+"Remembered · <TF> only". Same behaviour as v535: per timeframe, remembered.
+The Sort pill no longer shows "N bars"; instead the Grid button is lit while
+a range is set on the timeframe (gridBtnOn), so a zoom keeps a visible cause.
+The menu is reachable from full screen too, which repaints on a change.
+Test: app_smoke.cjs drives the range through the Grid menu.
+
 2026-10-28 CHART RANGE PER TIMEFRAME: app.js v534. User, after the v533 fix:
 "Keep it but the tab must apply only in monthly if i tab it or weekly if i do
 weekly and so forth". `reel.range` (one number for every timeframe) is now
