@@ -140,6 +140,7 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
+  assert.equal(await page.locator('#chartFull .cf-fullname').innerText(), 'Test instrument', 'full name under the symbol');
   for (let i = 0; i < 2; i++) {
     // Repainting replaces the SVG node, so read visibility and coordinates
     // together instead of racing waitFor() against a separate boundingBox().

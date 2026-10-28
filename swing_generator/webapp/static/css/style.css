@@ -9589,6 +9589,8 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull .cf-title { flex-direction:row; align-items:baseline; gap:6px; overflow:hidden; }
 #chartFull .cf-title .reel-name { flex:0 1 auto; min-width:0; font-size:16px; }
 #chartFull .cf-title .reel-group { flex:0 0 auto; font-size:11px; }
+#chartFull .cf-fullname { margin-top: -2px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cf-actions { display:flex; align-items:center; gap:1px; flex:0 0 auto; }
 .cf-actions > .reel-share-btn, .cf-actions-more > summary, .cf-actions > .cf-close {
   display:flex; align-items:center; justify-content:center; width:32px; height:34px; padding:0;

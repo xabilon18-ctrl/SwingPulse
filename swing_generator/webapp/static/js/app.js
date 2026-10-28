@@ -11556,6 +11556,10 @@
     // Neither button is ever disabled (2026-09-12): the list WRAPS. Back from
     // chart 1 goes to the last one and counts down from there, which is what
     // the reader asked for — a dead ‹ on the first chart just looked broken.
+    // The instrument's full name under the symbol (user, 2026-10-28: "add the
+    // instrument full name here"); left out when it is just the symbol again.
+    const full = instName(name);
+    const fullRow = full && full !== name ? `<div class="cf-fullname" title="${escText(full)}">${escText(full)}</div>` : '';
     const steps = pos < 0 ? '' :
       `<button class="cf-step" data-act="chart-full-step" data-dir="-1" aria-label="Previous chart">‹</button>`
       + `<span class="cf-pos">${pos + 1}/${list.length}</span>`
@@ -11581,6 +11585,7 @@
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
         </div>
         </div>
+        ${fullRow}
         <details class="reel-data-status cf-info" data-freshness-name="${escText(name)}">
           <summary title="Chart information: moving average clusters and candle times">
             <span class="cf-info-trend">${trendContextHtml(item, timeframe, true)}</span>

@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 FULL NAME IN THE FULL-SCREEN CHART HEADER: app.js v541 / style.css
+v388. User, on MPWR 4H: "add the instrument full name here". The full-screen
+header gets a line under the symbol with the instrument's full name
+(instName, from names.json: "Monolithic Power Systems"), one line, ellipsis
+when long; left out when the name is only the symbol again. Test:
+app_smoke.cjs ("Test instrument" on the fixture).
+
 2026-10-28 SELECTED WATCHLIST TAB AS A GOLD PILL: style.css v387. User: "put
 a background that compliments the tab section", then, pointing at the bottom
 bar, "Some like the selection at the bottom". The selected list tab (All
