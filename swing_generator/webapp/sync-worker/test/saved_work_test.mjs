@@ -53,4 +53,5 @@ assert.equal(legacy.notes.B,'legacy edit','A cached older app still saves unstam
 assert.equal(legacy.notes.A,'phone edit','but cannot erase stamped ones');
 assert.equal(mergeSavedWork(laptop,{lastModified:999}).notes.C,'laptop note','A save without notes keeps them');
 assert.ok(!Object.hasOwn(mergeSavedWork({},{notes:{constructor:'bad'},notesMod:{constructor:5}}).notes,'constructor'),'Prototype keys are refused');
+for(const division of ['Y5','Y10'])assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{M:{division,modifiedAt:5}}}}).chartPrefs.grids.M.division,division,'Monthly five and ten years sync');
 console.log('PASS: authenticated saved-work merging, newer charts and grids, deletion tombstones, retained server backup');
