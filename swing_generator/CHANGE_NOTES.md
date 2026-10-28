@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 MONTHLY OVERLAY FROM THE WHOLE HISTORY: app.js v549. User: "Add the
+500ma and where it shows it show and where it does not it doesn't really
+matter", then "like on the monthly MAs". The Monthly overlay on Daily, 4H, 1H
+(every chart but Weekly, whose own `mo` is already whole-history, and Monthly)
+was rolled over the 13-year Daily cache, so only its 50 ever warmed. With the
+Monthly overlay on, the app now also loads the instrument's Monthly chart
+chunk (publish_htf, whole Yahoo history) and rolls the overlay's Monthly
+lines from its closes (ovDeepMonthly / ovHtfView), appending the months the
+Daily feed has that the Monthly job has not published yet, the one in
+progress included, labelled as chart_feed._htf_mas labels them. Every set
+(3/5/9 MA) draws each period the history warms: on R2, 104 instruments warm
+the Monthly 500 and 550 the 250. The overlay menu lists the whole set for
+Monthly (was cut at 200). Checked against the Monthly chart's own MAs on
+US500, LLY, KO, AAPL: worst difference 0.0005% (rounding). The lines join the
+opening view's capped price fit like the Weekly ones; a line beyond the cap
+is named off-screen. The MA-clusters filter still counts only the Monthly 50
+(server side, from the Daily feed). Test: app_smoke.cjs (Monthly overlay on
+Daily draws an M250 the fixture's Daily bundle cannot; menu lists 500).
+
 2026-10-28 FULL SCREEN NAMES ITS TIME GRID: app.js v548. User: "i just need
 to see what time grid i am on when the app is on full screen", then chose
 "beside the timeframe". The full-screen header reads e.g. "AAPL Monthly · 10Y":
