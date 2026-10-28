@@ -140,7 +140,11 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
-  assert.equal(await page.locator('#chartFull .cf-fullname').innerText(), 'Test instrument', 'full name under the symbol');
+  // The full name under the symbol: the fixture's own name offline; live, the
+  // first chart is any market (ABSA reads "Absa"), so only that it is not blank.
+  const fullName = page.locator('#chartFull .cf-fullname');
+  if (!live) assert.equal(await fullName.innerText(), 'Test instrument', 'full name under the symbol');
+  else if (await fullName.count()) assert.ok((await fullName.innerText()).trim(), 'full name is not blank');
   for (let i = 0; i < 2; i++) {
     // Repainting replaces the SVG node, so read visibility and coordinates
     // together instead of racing waitFor() against a separate boundingBox().
