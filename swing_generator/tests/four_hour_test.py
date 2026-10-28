@@ -98,6 +98,25 @@ class FourHourTests(unittest.TestCase):
         self.assertEqual(bundle['p'], [50, 250])
         self.assertEqual(bundle['c'][-1], round(frame['Close'].iloc[-1], 4))
 
+    def test_young_listing_draws_with_ma50_alone(self):
+        # CEREBRAS (listed May 2026): under 250 four-hour bars, so no MA250
+        # yet. It used to get no 4H chart at all; it draws with MA50, as Daily
+        # does, and runs through the feed's context and trend read.
+        hourly = hourly_frame()
+        frame = main._frame_4h(hourly)
+        since = lambda k: hourly[hourly.index >= pd.Timestamp(frame.index[-k]).tz_localize(hourly.index.tz)]
+        young = since(120)
+        with patch.object(chart_feed, 'load_1h', return_value=young):
+            bundle = chart_feed.build_4h_live('', 'YOUNG')
+        self.assertEqual(bundle['p'], [50])
+        self.assertGreater(len(bundle['c']), 60)
+        from channel_rule import read as channel_read
+        chart_feed.attach_setup_context({'4H': {'YOUNG': bundle}})
+        self.assertIn(channel_read(bundle, '4H')[0], ('UPTREND', 'DOWNTREND', 'NEUTRAL'))
+        # Under 50 bars there is no MA to draw: still no chart.
+        with patch.object(chart_feed, 'load_1h', return_value=since(40)):
+            self.assertIsNone(chart_feed.build_4h_live('', 'NEW'))
+
     def test_targeted_release_preserves_index_and_other_timeframes(self):
         hourly = hourly_frame()
         with patch.object(chart_feed, 'load_1h', return_value=hourly):
