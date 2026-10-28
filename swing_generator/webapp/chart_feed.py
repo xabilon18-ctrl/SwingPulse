@@ -453,7 +453,11 @@ def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
     if len(frame) < 2:
         return None
     periods = _m4h_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
+    # A young listing draws with MA50 alone, as on Daily (user, 2026-10-28:
+    # "fix cerebras 4h it shows no data"). CEREBRAS, listed May 2026, held
+    # ~230 four-hour bars: MA250 not warm yet, and the MIN_RIBBON_LINES floor
+    # dropped the whole chart. Only no MA at all (under 50 bars) means none.
+    if not periods:
         return None
     warm_cap = len(frame) - max(periods)
     bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))

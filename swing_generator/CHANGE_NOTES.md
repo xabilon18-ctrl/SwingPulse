@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 4H CHART FOR YOUNG LISTINGS: chart_feed.build_4h_live. User: "fix
+cerebras 4h it shows no data". CEREBRAS (listed May 2026) holds ~230
+four-hour bars, so only MA50 is warm, and build_4h_live dropped any chart with
+fewer than MIN_RIBBON_LINES (2) MAs: no 4H bundle at all ("No chart data").
+It now draws with MA50 alone, as build_daily already did (CEREBRAS Daily:
+115 bars, MA50); only under 50 bars is there still no chart. MA250 joins
+by itself once 250 bars exist. Other builders keep the floor. Golden
+identical. Test: four_hour_test.py (young listing draws with [50] and runs
+through setup context and channel_rule; under 50 bars none).
+
 2026-10-28 FULL NAME IN THE FULL-SCREEN CHART HEADER: app.js v541 / style.css
 v388. User, on MPWR 4H: "add the instrument full name here". The full-screen
 header gets a line under the symbol with the instrument's full name
