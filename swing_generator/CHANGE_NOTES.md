@@ -12,9 +12,12 @@ grid-geometry.js v9, sync worker. User: "Replace the monthy time grid 5y for
 Mothly with 20y". Monthly's menu now reads M Q H Y / ½T T 10Y 20Y. 20Y (code
 Y20, "Twenty years") puts a line on 2000, 2020, 2040, the same equal-year
 geometry as 10Y. Y5 is no longer a choice: a Monthly grid saved as 5Y falls
-back to the default Term, and the sync worker no longer stores it. On the
-published Monthly depth (from ~2013) 20Y shows the 2020 line and the
-projected 2040. Tests: time_grid_test.cjs, sync-worker saved_work_test.mjs.
+back to the default Term, and the sync worker no longer stores it. The
+Monthly charts are deep enough for it: tools/publish_htf.py builds them from
+each instrument's whole Yahoo history (measured on R2 2026-10-28: 783 of 805
+instruments, median first bar 2000, 58% start in or before 2000, US500 from
+1927), and Monthly opens on all of it. Tests: time_grid_test.cjs,
+sync-worker saved_work_test.mjs.
 
 2026-10-28 HOURLY RUNS: HEALTH CHECK RETRIES, :35 BACKUP RETRIES A FAILED
 RUN. tools/health_check.py, cron-worker. User: "My hourly updates keep
