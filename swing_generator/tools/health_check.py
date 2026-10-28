@@ -150,6 +150,12 @@ MAX_INSTRUMENT_STALE_DAYS = 10
 # 2, a different set each time); shape_audit got the same retry that morning.
 FETCH_TRIES = 3
 FETCH_WAIT = 5
+# A read that keeps trickling bytes never trips urlopen's per-read timeout, so
+# each try also has a deadline for the whole body. The 10:05 check spent 12
+# minutes reading, and at 14:23 the release check's first read sat for 13
+# until it was cancelled. The largest file (trend_channels.json, ~2 MB) reads
+# in under a second on a healthy link.
+READ_DEADLINE_S = 90
 
 
 def _fetch(fname, tries=FETCH_TRIES, wait=FETCH_WAIT, sleep=time.sleep):
@@ -169,6 +175,18 @@ def _fetch(fname, tries=FETCH_TRIES, wait=FETCH_WAIT, sleep=time.sleep):
             wait *= 2
 
 
+def _read_all(response, deadline_s=READ_DEADLINE_S, clock=time.monotonic):
+    """The whole body, or TimeoutError once it has taken `deadline_s`."""
+    end, parts = clock() + deadline_s, []
+    while True:
+        chunk = response.read(65536)
+        if not chunk:
+            return b''.join(parts)
+        parts.append(chunk)
+        if clock() > end:
+            raise TimeoutError(f'body still arriving after {deadline_s}s')
+
+
 def _fetch_once(fname):
     """GET a published file, bypassing every cache between here and the bucket."""
     url = f'{R2_BASE}/{fname}?_hc={int(datetime.now(timezone.utc).timestamp())}'
@@ -178,7 +196,7 @@ def _fetch_once(fname):
         'Pragma': 'no-cache',
     })
     with urllib.request.urlopen(req, timeout=30) as r:
-        body = r.read()
+        body = _read_all(r)
         # signals/trends/backtest are published gzipped (2026-09-11), and urllib
         # does not undo Content-Encoding the way a browser does.
         if body[:2] == b'\x1f\x8b':

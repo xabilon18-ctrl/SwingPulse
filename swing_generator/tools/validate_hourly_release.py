@@ -6,22 +6,41 @@ import re
 from pathlib import Path
 import sys
 import time
+import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'webapp')]
 from publish import R2_BASE_URL
+# The same slow-R2 handling as the publish health check (2026-10-28: this
+# check's first live read hung for 13 minutes and held the release lock).
+from tools.health_check import FETCH_TRIES, FETCH_WAIT, _read_all
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--live', action='store_true')
 args = parser.parse_args()
 
-def read(relative):
-    if args.live:
+def read_live(relative):
+    """A slow or stalled R2 read is retried; an HTTP error fails at once."""
+    wait = FETCH_WAIT
+    for n in range(1, FETCH_TRIES + 1):
         req = urllib.request.Request(f'{R2_BASE_URL}/{relative}?releasecheck={time.time_ns()}',
                                      headers={'User-Agent': 'SwingPulse-releasecheck/1.0'})
-        with urllib.request.urlopen(req, timeout=60) as response:
-            raw = response.read()
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                return _read_all(response)
+        except urllib.error.HTTPError:
+            raise
+        except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
+            if n == FETCH_TRIES:
+                raise
+            print(f'{relative}: read failed ({exc}), try {n + 1} of {FETCH_TRIES} in {wait}s', flush=True)
+            time.sleep(wait)
+            wait *= 2
+
+def read(relative):
+    if args.live:
+        raw = read_live(relative)
     else:
         raw = (ROOT / 'webapp' / 'publish' / 'data_ma500' / relative).read_bytes()
     if raw[:2] == b'\x1f\x8b':

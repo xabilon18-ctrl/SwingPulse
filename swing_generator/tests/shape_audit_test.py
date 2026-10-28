@@ -146,6 +146,23 @@ class HealthCheckFetchRetryTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             self._run([err, {'data': []}])
 
+    def test_trickling_body_hits_the_deadline(self):
+        """A body that keeps arriving a little at a time never trips the
+        per-read socket timeout; the whole-body deadline stops it."""
+        from tools import health_check
+        class Trickle:
+            def read(self, n):
+                return b'x'
+        ticks = iter(range(0, 10_000, 10))   # each read costs 10 s
+        with self.assertRaises(TimeoutError):
+            health_check._read_all(Trickle(), deadline_s=90, clock=lambda: next(ticks))
+
+    def test_read_all_returns_the_whole_body(self):
+        from tools import health_check
+        import io
+        body = b'{"ok": 1}' * 20000
+        self.assertEqual(health_check._read_all(io.BytesIO(body)), body)
+
 
 if __name__ == '__main__':
     unittest.main()
