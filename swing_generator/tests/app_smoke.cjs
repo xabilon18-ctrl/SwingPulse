@@ -233,6 +233,40 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('#reelSimBar').innerText(), /Active: Technology · Week · 1/);
     assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
     assert.equal(errors.length, 0, errors.join('\n'));
+
+    // Swipe between lists (2026-10-28): left = next tab, right = previous;
+    // nothing past the ends, and a vertical drag never switches.
+    await page.evaluate(() => localStorage.setItem('sp-watchlists', JSON.stringify({ mod: Date.now(),
+      lists: [{ id: 'a', name: 'Mine', items: ['TEST'] }, { id: 'b', name: 'Other', items: [] }] })));
+    await page.reload({ waitUntil: 'networkidle' });
+    if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
+    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await page.locator('#wl2Lists [data-wl-list="all"]').click();
+    const onList = () => page.locator('#wl2Lists .wl2-pill.on').getAttribute('data-wl-list');
+    const swipe = (dx, dy = 0) => page.evaluate(([dx, dy]) => {
+      const el = document.getElementById('wl2Body'), r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + 40;
+      const fire = (type, cx, cy) => {
+        const t = new Touch({ identifier: 1, target: el, clientX: cx, clientY: cy });
+        el.dispatchEvent(new TouchEvent(type, { bubbles: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] }));
+      };
+      fire('touchstart', x, y);
+      for (let k = 1; k <= 6; k++) fire('touchmove', x + dx * k / 6, y + dy * k / 6);
+      fire('touchend', x + dx, y + dy);
+    }, [dx, dy]);
+    await swipe(-120);
+    assert.equal(await onList(), 'a', 'swipe left opens the next list');
+    await swipe(-120);
+    assert.equal(await onList(), 'b');
+    await swipe(-120);
+    assert.equal(await onList(), 'b', 'nothing past the last list');
+    await swipe(120);
+    assert.equal(await onList(), 'a', 'swipe right goes back');
+    await swipe(30, 160);
+    assert.equal(await onList(), 'a', 'a vertical drag is a scroll, not a switch');
+    await swipe(-40);
+    assert.equal(await onList(), 'a', 'a short nudge does not switch');
+    assert.equal(errors.length, 0, errors.join('\n'));
   }
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();

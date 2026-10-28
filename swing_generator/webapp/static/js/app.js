@@ -1500,6 +1500,60 @@
     pane.addEventListener('touchcancel', end);
   })();
 
+  // SWIPE BETWEEN LISTS (2026-10-28, user: "an option to scroll left and right
+  // in between price lists"): a sideways swipe on the list itself moves to the
+  // next (left) or previous (right) list tab, in tab order: All markets, then
+  // the reader's lists. The list follows the finger and the new one slides in;
+  // past the first or last tab it only gives a little. Vertical scrolling stays
+  // the browser's (touch-action: pan-y on #wl2Body) and a downward pull is
+  // still the price refresh above. Not while editing a list or on a drag grip.
+  const WL_SWIPE_AT = 60;
+  const wlListOrder = () => ['all', ...wlStore.lists.map(l => l.id)];
+  function wlStepList(dir) {
+    const order = wlListOrder(), i = order.indexOf(wlUi.list), j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return false;
+    wlUi.list = order[j]; wlEdit = false; wlSaveUi(); renderWatchlist();
+    const pill = document.querySelector('#wl2Lists .wl2-pill.on');
+    if (pill) pill.scrollIntoView({ inline: 'center', block: 'nearest' });
+    return true;
+  }
+  (function wlSwipeWire() {
+    const body = document.getElementById('wl2Body');
+    if (!body) return;
+    let x0 = null, y0 = 0, dx = 0, horiz = null;
+    body.addEventListener('touchstart', ev => {
+      if (ev.touches.length !== 1 || body.classList.contains('wl2-editing') || ev.target.closest('.wl2-grip')) { x0 = null; return; }
+      x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; dx = 0; horiz = null;
+      body.style.transition = 'none';
+    }, { passive: true });
+    body.addEventListener('touchmove', ev => {
+      if (x0 == null) return;
+      const mx = ev.touches[0].clientX - x0, my = ev.touches[0].clientY - y0;
+      if (horiz == null && Math.abs(mx) + Math.abs(my) > 10) horiz = Math.abs(mx) > 1.5 * Math.abs(my);
+      if (!horiz) return;
+      const order = wlListOrder(), i = order.indexOf(wlUi.list);
+      const edge = (mx > 0 && i <= 0) || (mx < 0 && i >= order.length - 1);
+      dx = mx;
+      body.style.transform = `translateX(${(mx * (edge ? 0.15 : 0.5)).toFixed(1)}px)`;
+    }, { passive: true });
+    const end = () => {
+      if (x0 == null) return;
+      x0 = null;
+      const moved = horiz && Math.abs(dx) >= WL_SWIPE_AT && wlStepList(dx < 0 ? 1 : -1);
+      if (moved) {
+        // The new list comes in from the side the finger moved away from.
+        body.style.transition = 'none';
+        body.style.transform = `translateX(${dx < 0 ? 40 : -40}px)`;
+        void body.offsetWidth;
+        if ((window.scrollY || 0) > 0) window.scrollTo({ top: 0 });
+      }
+      body.style.transition = 'transform .18s ease-out';
+      body.style.transform = '';
+    };
+    body.addEventListener('touchend', end);
+    body.addEventListener('touchcancel', end);
+  })();
+
   let wlScrollT = 0;
   window.addEventListener('scroll', () => {
     if (currentTab !== 'watchlist') return;

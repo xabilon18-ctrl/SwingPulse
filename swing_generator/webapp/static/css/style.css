@@ -9126,6 +9126,8 @@ body.chart-full-open { overflow: hidden; }
 
 /* Watchlist drag to reorder (2026-09-26) — the grip replaces the ▲▼ buttons */
 .wl2-body.wl2-editing { column-count: 1; }
+/* Sideways swipes switch lists (wlSwipeWire); vertical scrolling stays native. */
+#wl2Body { touch-action: pan-y; }
 .wl2-grip { flex: none; width: 44px; height: 40px; display: flex; align-items: center; justify-content: center;
   color: var(--text-muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
 .wl2-grip:active { cursor: grabbing; color: var(--accent); }

@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 SWIPE BETWEEN WATCHLIST LISTS: app.js v540 / style.css v386. User:
+"here i need an option to scroll left and right in between price lists". A
+sideways swipe on the price list (#wl2Body) moves to the next list tab (swipe
+left) or the previous one (swipe right), in tab order: All markets, then the
+reader's lists (wlSwipeWire, wlStepList). The list follows the finger at half
+speed, the new list slides in, the tab row scrolls its tab into view and the
+page goes back to the top of the list. Past the first or last tab it gives
+only a little and stays. Needs 60px and a mostly sideways move (|dx| > 1.5
+|dy|), so vertical scrolling and the pull-to-refresh are unchanged
+(touch-action: pan-y). Off while editing a list or on a drag grip. Test:
+app_smoke.cjs (left, right, the ends, a vertical drag, a short nudge).
+
 2026-10-28 ACTIVE: TAP FOR THE NUMBERS: app.js v539 / style.css v385. User,
 on the one-line strip: "how do u check per time frame?", then "Yes add it and
 deploy". The counts and dates had gone into hover titles, which a phone never
