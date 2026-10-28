@@ -10,6 +10,17 @@ const assert = require('node:assert/strict');
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  // Chart range lives in the first chart's Grid menu, under Time grid
+  // (2026-10-28). Each helper opens the menu and closes it again.
+  const gridMenu = async fn => {
+    const btn = page.locator('#chartReel [data-act="grid-menu"]').first();
+    await btn.click();
+    await page.locator('.reel-grid-menu').waitFor();
+    try { return await fn(page.locator('.reel-grid-menu')); }
+    finally { await btn.click(); }
+  };
+  const rangeOn = () => gridMenu(m => m.locator('[data-act="range-set"].on').getAttribute('data-range'));
+  const setRange = bars => gridMenu(m => m.locator(`[data-act="range-set"][data-range="${bars}"]`).click());
   let summaries = 0, chunks = 0, revision = 0;
   const live = process.env.SMOKE_LIVE === '1';
   if (!live) {
@@ -54,7 +65,7 @@ const assert = require('node:assert/strict');
   await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
   assert.equal(errors.length, 0, errors.join('\n'));
   assert.equal(await page.evaluate(() => localStorage.getItem('swingpulse-reel-range')), null, 'stored Chart range is dropped');
-  assert.equal(await page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range'), '0', 'charts open on their frames, not a stored range');
+  assert.equal(await rangeOn(), '0', 'charts open on their frames, not a stored range');
   if (!live) {
     assert.ok(chunks > 0, '1H chart chunk was fetched');
     const oldSummaries = summaries, oldChunks = chunks;
@@ -103,14 +114,14 @@ const assert = require('node:assert/strict');
     // zooms Monthly only; Weekly keeps its opening frame, and Monthly keeps
     // the range when the reader comes back to it.
     const firstShown = () => page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
-    const rangeOn = () => page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range');
     const toTf = async tf => {
       await page.locator(`#tfBtn${tf}`).click();
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
       await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
     };
     assert.ok(shownBars.M > 65 && shownBars.W > 65, 'both charts open on more than 65 bars: ' + JSON.stringify(shownBars));
-    await page.evaluate(() => document.querySelector('#reelRangeOpts [data-range="65"]').click());
+    assert.equal(await page.locator('#reelMenuSort [data-range]').count(), 0, 'Chart range is no longer in the Sort menu');
+    await setRange(65);
     await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.b.c.length === 65);
     await toTf('W');
     assert.equal(await rangeOn(), '0', 'Weekly shows no range');
@@ -120,7 +131,8 @@ const assert = require('node:assert/strict');
     assert.equal(await firstShown(), 65, 'Monthly is still zoomed to 65 bars');
     const storedRanges = () => page.evaluate(() => JSON.parse(localStorage.getItem('swingpulse-reel-ranges')));
     assert.deepEqual(await storedRanges(), { M: 65 }, 'only the Monthly range is remembered');
-    await page.evaluate(() => document.querySelector('#reelRangeOpts [data-range="0"]').click());
+    assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
+    await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
@@ -195,7 +207,7 @@ const assert = require('node:assert/strict');
       await page.locator(`#tfBtn${tf}`).click();
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
       await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
-      assert.equal(await page.locator('#reelRangeOpts .reel-opt.active').getAttribute('data-range'), want, `${tf} range after reload`);
+      assert.equal(await rangeOn(), want, `${tf} range after reload`);
     }
     assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Weekly is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));

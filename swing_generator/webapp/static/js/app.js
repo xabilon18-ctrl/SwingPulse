@@ -8812,6 +8812,12 @@
   // The Chart range set on the timeframe on screen; 0 = its opening frame.
   function reelRange() { return reel.ranges[timeframe] || 0; }
   const REEL_RANGE_STORE = 'swingpulse-reel-ranges';
+  // The Chart range choices, in the Grid menu under Time grid since
+  // 2026-10-28 (user: "move these buttons to the time grid window and put
+  // below time grid"); they were in the Charts Sort menu. Bars, not months:
+  // 130 bars is three weeks of 4H on crypto and ten years of Monthly.
+  const REEL_RANGE_STEPS = [[0, 'Full', 'the opening frame'], [260, '260', 'last 260 bars'],
+                            [130, '130', 'last 130 bars'], [65, '65', 'last 65 bars']];
   function reelRangesSave() {
     try { localStorage.setItem(REEL_RANGE_STORE, JSON.stringify(reel.ranges)); } catch (_) {}
   }
@@ -10381,6 +10387,14 @@
   function reelTimeGridSwitch(name) {
     return `<div class="reel-time-grid-switch">${reelTimeGridSwitchHtml(name)}</div>`;
   }
+  // Chart range, laid out like the Time grid row above it.
+  function reelRangeSwitch() {
+    const cur = reelRange(), tf = tfMeta().label;
+    return `<div class="reel-time-grid-switch"><span class="reel-time-grid-label">Chart range · bars</span><div class="reel-time-grid-options" role="group" aria-label="Chart range for ${tf} charts">`
+      + REEL_RANGE_STEPS.map(([v, lbl, what]) =>
+        `<button type="button" class="reel-tool reel-time-grid-opt${cur === v ? ' on' : ''}" data-act="range-set" data-range="${v}" aria-pressed="${cur === v}" aria-label="${lbl}: ${what}" title="${what}">${lbl}</button>`).join('')
+      + `</div><span class="reel-time-grid-scope">${tf}</span><span class="reel-time-grid-note">Remembered · ${tf} only</span></div>`;
+  }
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '4H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
@@ -10996,8 +11010,11 @@
   // strength, and shading of every other gap between grid lines, as big
   // one-tap choices. Applies to all timeframes.
   const GRID_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><rect x="15" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  // Lit while anything in the Grid menu is set on this timeframe, the Chart
+  // range included, so a zoom always has a visible cause.
+  function gridBtnOn() { return !!gridBand() || ribShade(timeframe).on || !!reelRange(); }
   function gridBtnHtml(name) {
-    return `<button class="reel-share-btn reel-grid-btn${gridBand() || ribShade(timeframe).on ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
+    return `<button class="reel-share-btn reel-grid-btn${gridBtnOn() ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
   function reelGridMenuHtml(name) {
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
@@ -11005,6 +11022,7 @@
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
     let h = `${reelTimeGridSwitch(name)}
+      ${reelRangeSwitch()}
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
         <span>Shade every other gap<em>${TF_BY_CODE[timeframe].label} chart</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
@@ -11027,7 +11045,7 @@
   }
   function reelGridMenuClose() {
     document.querySelectorAll('.reel-grid-menu').forEach(m => m.remove());
-    document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+    document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn()));
   }
   function reelGridMenuToggle(btn) {
     const open = document.querySelector('.reel-grid-menu');
@@ -13156,12 +13174,6 @@
 
   function reelSyncPills() {
     reelSyncSimBar();
-    // The Chart range buttons show the CURRENT timeframe's range.
-    const rbox = document.getElementById('reelRangeOpts');
-    if (rbox) rbox.querySelectorAll('.reel-opt').forEach(b =>
-      b.classList.toggle('active', (+b.dataset.range || 0) === reelRange()));
-    const rtf = document.getElementById('reelRangeTf');
-    if (rtf) rtf.textContent = tfMeta().label + ' only';
     const clusterHost = document.getElementById('reelClusters');
     if (clusterHost) clusterHost.innerHTML = clusterMenuHtml('charts', reel.cluster);
     const tfEl = document.getElementById('reelStackTf');
@@ -13189,7 +13201,6 @@
     if (reel.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[reel.near] || reel.near) + ' MA');
     const sortLbl = { recent: 'Newest', up: 'Gainers ' + moveLbl(reel.movePeriod), down: 'Losers ' + moveLbl(reel.movePeriod), name: 'A–Z' };
     if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
-    if (reelRange()) sort.push(reelRange() + ' bars');
     return {
       reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
       reelDdClass: reel.cat ? [cat ? cat.textContent.trim() : reel.cat] : [],
@@ -13206,7 +13217,7 @@
     // carried over. Only values the buttons offer, on timeframes that exist.
     try {
       localStorage.removeItem('swingpulse-reel-range');
-      const offered = new Set([...document.querySelectorAll('#reelRangeOpts [data-range]')].map(b => +b.dataset.range).filter(v => v > 0));
+      const offered = new Set(REEL_RANGE_STEPS.map(([v]) => v).filter(v => v > 0));
       const stored = JSON.parse(localStorage.getItem(REEL_RANGE_STORE) || '{}') || {};
       for (const [tf, bars] of Object.entries(stored)) if (isTf(tf) && offered.has(bars)) reel.ranges[tf] = bars;
     } catch (_) {}
@@ -13260,27 +13271,6 @@
     }
     optGroup('reelSortOpts',  'sort',  'sort');
     optGroup('reelMoveOpts',  'movePeriod', 'mp');
-
-    // Range is the only filter that changes nothing about WHICH instruments
-    // are listed — just how much history each card draws — so it repaints in
-    // place instead of rebuilding the list.
-    const rangeBox = document.getElementById('reelRangeOpts');
-    if (rangeBox) {
-      rangeBox.addEventListener('click', e => {
-        const btn = e.target.closest('.reel-opt');
-        if (!btn) return;
-        rangeBox.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const bars = +btn.dataset.range || 0;
-        if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
-        reelRangesSave();
-        reelResetPan();       // a different window width makes old offsets meaningless
-        const pill = btn.closest('.filter-pill');
-        if (pill) pill.open = false;
-        reelRepaintAll();
-        reelSyncPills();
-      });
-    }
 
     const chips = document.getElementById('reelCatChips');
     if (chips) {
@@ -13367,6 +13357,23 @@
         if (host && host._reelCtx) reelRepaint(host);
         return true;
       }
+      if (btn.dataset.act === 'range-set') {
+        const bars = +btn.dataset.range || 0;
+        if (bars && !REEL_RANGE_STEPS.some(([v]) => v === bars)) return true;
+        if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
+        reelRangesSave();
+        reelResetPan();       // a different window width makes old offsets meaningless
+        document.querySelectorAll('.reel-grid-menu').forEach(menu => {
+          menu.innerHTML = reelGridMenuHtml(menu._name);
+          reelGridMenuPlace(menu);
+        });
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn()));
+        reelRepaintAll();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
       if (btn.dataset.act === 'rib-set') {
         const v = +btn.dataset.v, part = btn.dataset.part, r = ribShade(timeframe);
         if (part === 'on') r.on = !r.on;
@@ -13383,7 +13390,7 @@
         }
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
-        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn()));
         return true;
       }
       if (btn.dataset.act === 'grid-set') {
@@ -13407,7 +13414,7 @@
         ovApplyVars();
         const menu = btn.closest('.reel-grid-menu');
         if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
-        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', !!gridBand() || ribShade(timeframe).on));
+        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn()));
         return true;
       }
       if (btn.dataset.act === 'ov-proj' || btn.dataset.act === 'ov-pjw') {
