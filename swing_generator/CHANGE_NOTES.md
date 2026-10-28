@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 HALF-TERM TIME GRID: app.js v543, chart-preferences.js v5,
+grid-geometry.js v7, sync worker. User: "add 1/2 a term under time grid". A
+new Time grid choice, ½T (code T2, "Half term"), on Daily, Weekly and Monthly
+only, like T: one equal division every two years from 2025 (2021, 2023, 2025,
+2027 ...), labelled with the administration on a term year ("2025 · Trump
+II") and "2027 · 2nd half" between. Shading alternates half by half. It
+sits before T, so the menu's second row is the two term choices. Daily keeps
+its bold term lines on top. The sync worker accepts T2, so the choice
+syncs across devices. Test: time_grid_test.cjs (lines, labels, equal gaps,
+alternating shading, offered on D/W/M only).
 2026-10-28 SHAPE AUDIT RETRIES A SLOW R2 READ: tools/shape_audit._fetch_json.
 User: "Yes do it". Twice today (#82, #83) the golden job's `shape_audit --only
 code` went red on an R2 read TimeoutError with the code unchanged, and one

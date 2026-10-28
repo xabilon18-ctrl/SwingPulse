@@ -4,9 +4,12 @@
   const ADMINISTRATIONS = { 2009: 'Obama I', 2013: 'Obama II', 2017: 'Trump I', 2021: 'Biden', 2025: 'Trump II' };
   const isTermYear = y => ((y - 2025) % 4 + 4) % 4 === 0;
   function termLabel(year) { return ADMINISTRATIONS[year] ? `${year} · ${ADMINISTRATIONS[year]}` : String(year); }
+  // A half term starts on a term year or two years after one (2027 = Trump II's second half).
+  function halfTermLabel(year) { return isTermYear(year) ? termLabel(year) : `${year} · 2nd half`; }
   function partLabel(year, part, division) {
     if (division === 'Y') return String(year);
     if (division === 'T') return termLabel(year);
+    if (division === 'T2') return halfTermLabel(year);
     if (division === 'M' || division === 'M2') return new Date(Date.UTC(year, division === 'M2' ? 2 * part : part, 1))
       .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
     return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
@@ -58,17 +61,19 @@
     const step = yearBars / parts;
     const firstYear = new Date(first).getUTCFullYear() - 1;
     const out = [];
-    if (division.code === 'T') {
-      // One equal division per administration term, on the same equal-year
-      // geometry; shading alternates term by term.
+    const termly = division.code === 'T' || division.code === 'T2';
+    if (termly) {
+      // One equal division per administration term (T) or half term (T2), on
+      // the same equal-year geometry; shading alternates part by part.
+      const span = division.code === 'T' ? 4 : 2;
       for (let y = firstYear - 3; y <= year + 8; y++) {
-        if (!isTermYear(y)) continue;
+        if ((((y - 2025) % span) + span) % span) continue;
         const fi = anchor + (y - year) * yearBars - from;
-        out.push({ fi, label: termLabel(y), future: fi > n - 1 - from,
-          par: (((y - 2025) / 4) % 2 + 2) % 2, year: y, part: 0, division: 'T' });
+        out.push({ fi, label: partLabel(y, 0, division.code), future: fi > n - 1 - from,
+          par: (((y - 2025) / span) % 2 + 2) % 2, year: y, part: 0, division: division.code });
       }
     }
-    for (let y = firstYear; division.code !== 'T' && y <= year + 4; y++) {
+    for (let y = firstYear; !termly && y <= year + 4; y++) {
       for (let k = 0; k < parts; k++) {
         const fi = anchor + ((y - year) * parts + k) * step - from;
         out.push({ fi, label: partLabel(y, k, division.code),

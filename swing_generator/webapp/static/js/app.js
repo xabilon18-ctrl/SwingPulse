@@ -10547,8 +10547,9 @@
 
   // One equal grid for every chart in a market group/timeframe, saved and synced.
   const GRID_DIVISIONS = modules.chartPreferences.choices;
-  // The Term division (four-year administrations) is offered on the slow charts only.
+  // The Term and Half-term divisions (four- and two-year) are offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
+  const TERM_GRID_CODES = new Set(['T', 'T2']);
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
@@ -10571,10 +10572,11 @@
     const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
     const selected = reelGridDivision(timeframe, scope).code, label = GRID_SCOPE_LABELS[scope];
     return `<span class="reel-time-grid-label">Time grid · ${label}</span><div class="reel-time-grid-options" role="group" aria-label="${label}: time grid for all ${tfMeta().label} charts">`
-      + GRID_DIVISIONS.filter(d => d.code !== 'T' || TERM_GRID_TFS.has(timeframe)).map(d => {
+      + GRID_DIVISIONS.filter(d => !TERM_GRID_CODES.has(d.code) || TERM_GRID_TFS.has(timeframe)).map(d => {
         const what = d.code === 'T' ? 'one equal part per four-year administration term'
+          : d.code === 'T2' ? 'two equal parts per administration term, two years each'
           : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
-        return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.code}</button>`;
+        return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.label || d.code}</button>`;
       }).join('')
       + `</div><span class="reel-time-grid-scope">${tfMeta().label}</span><span class="reel-time-grid-note">Saved for ${label.toLowerCase()} · ${tfMeta().label} only</span>`;
   }
