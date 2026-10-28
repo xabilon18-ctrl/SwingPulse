@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 MONTHLY 5Y AND 10Y TIME GRIDS: app.js v545, chart-preferences.js v6,
+grid-geometry.js v8, sync worker. User: "Add 5 and 10 time grids for months
+only". Two new Time grid choices, 5Y (code Y5, "Five years") and 10Y (Y10,
+"Ten years"), offered on the Monthly chart only, after T, so Monthly's menu
+reads M Q H Y / ½T T 5Y 10Y. Five years fall on 2010, 2015, 2020, 2025 ...
+and ten on the decades (2000, 2010, 2020, 2030), labelled with the plain
+year. Same equal-year geometry as Term, shading alternating part by part,
+the next line projected. grid-geometry's term loop now takes any multi-year
+span; T and T2 draw exactly as before. The sync worker accepts Y5/Y10.
+Tests: time_grid_test.cjs (Monthly only, order, lines, labels, equal gaps,
+shading, saved), sync-worker saved_work_test.mjs (Y5/Y10 sync).
+
 2026-10-28 WEEKLY OVERLAY PURPLE: app.js v544 / style.css v389. User: "The
 orange for the weekly MAs looks close to red… can we find another tone that
 is far from red?" `--reel-ov-w` goes from orange #ea580c to purple #9333ea.

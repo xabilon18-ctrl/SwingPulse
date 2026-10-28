@@ -7,7 +7,7 @@
   // A half term starts on a term year or two years after one (2027 = Trump II's second half).
   function halfTermLabel(year) { return isTermYear(year) ? termLabel(year) : `${year} · 2nd half`; }
   function partLabel(year, part, division) {
-    if (division === 'Y') return String(year);
+    if (division === 'Y' || division === 'Y5' || division === 'Y10') return String(year);
     if (division === 'T') return termLabel(year);
     if (division === 'T2') return halfTermLabel(year);
     if (division === 'M' || division === 'M2') return new Date(Date.UTC(year, division === 'M2' ? 2 * part : part, 1))
@@ -61,16 +61,20 @@
     const step = yearBars / parts;
     const firstYear = new Date(first).getUTCFullYear() - 1;
     const out = [];
-    const termly = division.code === 'T' || division.code === 'T2';
+    // Divisions longer than a year: [span in years, a year a line falls on].
+    // Terms count from 2025; five years fall on 2020, 2025, 2030 and ten on
+    // the decades.
+    const multi = { T: [4, 2025], T2: [2, 2025], Y5: [5, 2020], Y10: [10, 2020] }[division.code];
+    const termly = !!multi;
     if (termly) {
-      // One equal division per administration term (T) or half term (T2), on
-      // the same equal-year geometry; shading alternates part by part.
-      const span = division.code === 'T' ? 4 : 2;
-      for (let y = firstYear - 3; y <= year + 8; y++) {
-        if ((((y - 2025) % span) + span) % span) continue;
+      // One equal division per span, on the same equal-year geometry;
+      // shading alternates part by part.
+      const [span, base] = multi;
+      for (let y = firstYear - Math.max(3, span - 1); y <= year + Math.max(8, 2 * span); y++) {
+        if ((((y - base) % span) + span) % span) continue;
         const fi = anchor + (y - year) * yearBars - from;
         out.push({ fi, label: partLabel(y, 0, division.code), future: fi > n - 1 - from,
-          par: (((y - 2025) / span) % 2 + 2) % 2, year: y, part: 0, division: division.code });
+          par: (((y - base) / span) % 2 + 2) % 2, year: y, part: 0, division: division.code });
       }
     }
     for (let y = firstYear; !termly && y <= year + 4; y++) {

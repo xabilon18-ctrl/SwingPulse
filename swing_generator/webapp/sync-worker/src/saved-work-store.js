@@ -5,7 +5,7 @@ const stamp = v => Number.isFinite(v) && v >= 0 ? v : 0;
 function grids(value, field) {
   const out = {};
   for (const [tf, row] of Object.entries(object(value?.[field]) ? value[field] : {})) {
-    if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y', 'T2', 'T'].includes(row.division)) continue;
+    if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y', 'T2', 'T', 'Y5', 'Y10'].includes(row.division)) continue;
     if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
     out[tf] = { division: row.division, modifiedAt: row.modifiedAt };
   }

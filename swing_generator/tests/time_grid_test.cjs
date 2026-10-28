@@ -183,4 +183,30 @@ for (const [tf, t] of [['W', weeks], ['M', months], ['D', weeks]]) {
   half.slice(1).forEach((l, i) => assert.notEqual(l.par, half[i].par, `${tf} shading alternates`));
 }
 assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its bold term lines under half terms');
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms and half terms, saved choices and shading');
+// Five and ten years (user, 2026-10-28: "Add 5 and 10 time grids for months
+// only"): Monthly only, after T; five years on 2020/2025/2030, ten on decades.
+c.timeframe = 'M';
+const mHtml = c.reelTimeGridSwitchHtml();
+assert.match(mHtml, /data-division="Y5"[^>]*>5Y</);
+assert.match(mHtml, /data-division="Y10"[^>]*>10Y</);
+assert.ok(mHtml.indexOf('data-division="T"') < mHtml.indexOf('data-division="Y5"')
+  && mHtml.indexOf('data-division="Y5"') < mHtml.indexOf('data-division="Y10"'), 'T, 5Y, 10Y in order');
+for (const tf of ['W', 'D', '4H', '1H']) {
+  c.timeframe = tf;
+  assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="Y5"|data-division="Y10"/, `no 5Y/10Y on ${tf}`);
+}
+for (const [code, want] of [['Y5', [2005, 2010, 2015, 2020, 2025, 2030]], ['Y10', [2000, 2010, 2020, 2030]]]) {
+  assert.equal(c.reelSetGridDivision('M', code), true);
+  assert.equal(context().reelGridDivision('M').code, code, `${code} is saved`);
+  const lines = c.reelTimeGrid({ t: months }, 'M');
+  assert.ok(lines.every(l => l.division === code && !l.fixedOnly && !l.admin), `${code}: its own lines only`);
+  assert.deepEqual(lines.map(l => l.year).filter(y => y >= 2000 && y <= 2030), want);
+  assert.equal(lines.find(l => l.year === 2020).label, '2020');
+  const y2020 = lines.find(l => l.year === 2020);
+  assert.ok(Math.abs(y2020.fi - months.indexOf('2020-01-01')) < 1, `${code} 2020 line on its bar`);
+  assert.ok(lines.some(l => l.future), `${code}: the next line is projected`);
+  const gap = lines[1].fi - lines[0].fi;
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, `${code} parts are equal`));
+  lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, `${code} shading alternates`));
+}
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms, half terms and Monthly 5Y/10Y, saved choices and shading');
