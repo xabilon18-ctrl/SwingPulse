@@ -194,9 +194,29 @@ assert.match(mHtml, /data-division="Y10"[^>]*>10Y</);
 assert.match(mHtml, /data-division="Y20"[^>]*>20Y</);
 assert.ok(mHtml.indexOf('data-division="T"') < mHtml.indexOf('data-division="Y10"')
   && mHtml.indexOf('data-division="Y10"') < mHtml.indexOf('data-division="Y20"'), 'T, 10Y, 20Y in order');
-for (const tf of ['W', 'D', '4H', '1H']) {
+for (const tf of ['D', '4H', '1H']) {
   c.timeframe = tf;
   assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="Y10"|data-division="Y20"/, `no 10Y/20Y on ${tf}`);
+}
+// 10Y on Weekly too (user, 2026-10-28: "apply 10y time grid on weekly"); 20Y
+// stays Monthly only. Weekly bars are Monday-stamped, so a decade line lands
+// on the first week of its year.
+c.timeframe = 'W';
+const wHtml = c.reelTimeGridSwitchHtml();
+assert.match(wHtml, /data-division="Y10"[^>]*>10Y</, '10Y on Weekly');
+assert.doesNotMatch(wHtml, /data-division="Y20"/, 'no 20Y on Weekly');
+assert.ok(wHtml.indexOf('data-division="T"') < wHtml.indexOf('data-division="Y10"'), 'Weekly: T before 10Y');
+assert.equal(c.reelSetGridDivision('W', 'Y10'), true);
+assert.equal(context().reelGridDivision('W').code, 'Y10', 'Weekly 10Y is saved');
+{
+  const lines = c.reelTimeGrid({ t: weeks }, 'W');
+  assert.ok(lines.every(l => l.division === 'Y10' && !l.fixedOnly && !l.admin), 'Weekly 10Y: its own lines only');
+  assert.deepEqual(lines.map(l => l.year).filter(y => y >= 2000 && y <= 2040), [2000, 2010, 2020, 2030, 2040]);
+  const y2020 = lines.find(l => l.year === 2020);
+  assert.ok(Math.abs(y2020.fi - weeks.findIndex(d => d >= '2020-01-01')) < 1, 'Weekly 2020 line on its week');
+  const gap = lines[1].fi - lines[0].fi;
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, 'Weekly decades are equal'));
+  lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, 'Weekly shading alternates'));
 }
 for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [2000, 2020, 2040]]]) {
   assert.equal(c.reelSetGridDivision('M', code), true);
@@ -212,4 +232,4 @@ for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [20
   lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, `${code} parts are equal`));
   lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, `${code} shading alternates`));
 }
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms, half terms and Monthly 10Y/20Y, saved choices and shading');
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal quarters/admins, equal Weekly/Monthly terms, half terms, Weekly 10Y and Monthly 10Y/20Y, saved choices and shading');
