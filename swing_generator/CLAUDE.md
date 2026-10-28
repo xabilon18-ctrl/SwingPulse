@@ -4,6 +4,11 @@
 > Update this file whenever the architecture, profile, rules or instruments count changes.
 > History (dated feature notes, per-version notes) goes in `CHANGE_NOTES.md`, not here.
 
+**TIME ZONE: SAST (user, 2026-10-28: "Please always use my time zone").** Give every
+time in SAST (Africa/Johannesburg, UTC+2, no daylight saving). GitHub, Actions logs,
+R2 and cron are UTC: add 2 hours before saying a time, and label UTC wherever it
+has to be quoted as the code's own value.
+
 **ALWAYS DEPLOY (user, 2026-10-19: "when we make changes just deploy always").**
 Every change goes all the way to production without asking: push the branch,
 open the PR, merge it once CI is green on the PR (golden AND "Validate and
