@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 CHART RANGE PER TIMEFRAME: app.js v534. User, after the v533 fix:
+"Keep it but the tab must apply only in monthly if i tab it or weekly if i do
+weekly and so forth". `reel.range` (one number for every timeframe) is now
+`reel.ranges` (timeframe → bars), read through reelRange(). A range tapped on
+one chart timeframe replaces that timeframe's opening frame only; the others
+keep theirs, and coming back to it finds the range still set. The Chart range
+buttons show the current timeframe's choice and the heading names it ("4H
+only", reelSyncPills). Reset clears every timeframe's. Checked on live data:
+Quarter on 4H gave 130 bars on SOLUSDT and AAPL 4H, with 1H, Daily, Weekly and
+Monthly on their frames.
+REMEMBERED (v535, same PR, user: "it must always remember where it was last
+saved"): the per-timeframe ranges are kept in localStorage
+(`swingpulse-reel-ranges`, {timeframe: bars}) and restored on load, which
+reverses v533's visit-only rule for the per-timeframe choice. The old single
+`swingpulse-reel-range` is still dropped, not carried over, and only values
+the buttons offer on known timeframes are restored. Live check: a stored 4H
+130 reopened SOLUSDT 4H on 130 bars and every other timeframe on its frame.
+Tests: app_smoke.cjs (Close up on Monthly leaves Weekly; reload restores it on
+Monthly only), stock_view_test.cjs.
+
 2026-10-27 CHART RANGE NO LONGER SAVED: app.js v533. User: "The zoom frames
 for all instruments for the 1 hour, 4 hour, the daily, weekly, and the
 monthly have been messed up ... Now there's a zoom". The Sort menu's Chart
