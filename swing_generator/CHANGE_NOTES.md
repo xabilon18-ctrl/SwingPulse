@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 MONTHLY 20Y REPLACES 5Y: app.js v546, chart-preferences.js v7,
+grid-geometry.js v9, sync worker. User: "Replace the monthy time grid 5y for
+Mothly with 20y". Monthly's menu now reads M Q H Y / ½T T 10Y 20Y. 20Y (code
+Y20, "Twenty years") puts a line on 2000, 2020, 2040, the same equal-year
+geometry as 10Y. Y5 is no longer a choice: a Monthly grid saved as 5Y falls
+back to the default Term, and the sync worker no longer stores it. On the
+published Monthly depth (from ~2013) 20Y shows the 2020 line and the
+projected 2040. Tests: time_grid_test.cjs, sync-worker saved_work_test.mjs.
+
 2026-10-28 HOURLY RUNS: HEALTH CHECK RETRIES, :35 BACKUP RETRIES A FAILED
 RUN. tools/health_check.py, cron-worker. User: "My hourly updates keep
 breaking and the 30m back up fails please fix". The 10:05 and 11:05 publish

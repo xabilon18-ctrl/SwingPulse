@@ -3,10 +3,11 @@
   'use strict';
   // T = one part per four-year US administration term (2025, 2029, ...);
   // T2 = half a term, two years (2025, 2027, 2029, ...; user, 2026-10-28:
-  // "add 1/2 a term under time grid"). Y5/Y10 = five and ten years, on the
+  // "add 1/2 a term under time grid"). Y10/Y20 = ten and twenty years, on the
   // Monthly chart only (user, 2026-10-28: "Add 5 and 10 time grids for months
-  // only"). `label` is the button text.
-  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y5', name: 'Five years', parts: 0.2, label: '5Y' }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }];
+  // only", then "Replace the monthy time grid 5y for Mothly with 20y").
+  // `label` is the button text.
+  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' }];
   // Weekly and Monthly are divided by administration term, every line equal
   // (user, 2026-10-19: "divided by administration and not by year. All must
   // be equal").

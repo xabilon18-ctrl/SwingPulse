@@ -10551,8 +10551,8 @@
   // The Term and Half-term divisions (four- and two-year) are offered on the slow charts only.
   const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
   const TERM_GRID_CODES = new Set(['T', 'T2']);
-  // Five and ten years are offered on the Monthly chart only.
-  const MONTHLY_GRID_CODES = new Set(['Y5', 'Y10']);
+  // Ten and twenty years are offered on the Monthly chart only.
+  const MONTHLY_GRID_CODES = new Set(['Y10', 'Y20']);
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
@@ -10579,8 +10579,8 @@
         && (!MONTHLY_GRID_CODES.has(d.code) || timeframe === 'M')).map(d => {
         const what = d.code === 'T' ? 'one equal part per four-year administration term'
           : d.code === 'T2' ? 'two equal parts per administration term, two years each'
-          : d.code === 'Y5' ? 'one equal part per five years'
           : d.code === 'Y10' ? 'one equal part per ten years'
+          : d.code === 'Y20' ? 'one equal part per twenty years'
           : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
         return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.label || d.code}</button>`;
       }).join('')

@@ -7,7 +7,7 @@
   // A half term starts on a term year or two years after one (2027 = Trump II's second half).
   function halfTermLabel(year) { return isTermYear(year) ? termLabel(year) : `${year} · 2nd half`; }
   function partLabel(year, part, division) {
-    if (division === 'Y' || division === 'Y5' || division === 'Y10') return String(year);
+    if (division === 'Y' || division === 'Y10' || division === 'Y20') return String(year);
     if (division === 'T') return termLabel(year);
     if (division === 'T2') return halfTermLabel(year);
     if (division === 'M' || division === 'M2') return new Date(Date.UTC(year, division === 'M2' ? 2 * part : part, 1))
@@ -62,9 +62,9 @@
     const firstYear = new Date(first).getUTCFullYear() - 1;
     const out = [];
     // Divisions longer than a year: [span in years, a year a line falls on].
-    // Terms count from 2025; five years fall on 2020, 2025, 2030 and ten on
-    // the decades.
-    const multi = { T: [4, 2025], T2: [2, 2025], Y5: [5, 2020], Y10: [10, 2020] }[division.code];
+    // Terms count from 2025; ten years fall on the decades and twenty on
+    // 2000, 2020, 2040.
+    const multi = { T: [4, 2025], T2: [2, 2025], Y10: [10, 2020], Y20: [20, 2020] }[division.code];
     const termly = !!multi;
     if (termly) {
       // One equal division per span, on the same equal-year geometry;
