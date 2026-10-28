@@ -220,6 +220,13 @@ const assert = require('node:assert/strict');
     // One entry per sector, then the timeframes it is busy on (none for M).
     assert.deepEqual(await strip.locator('.wl2-act-s').allInnerTexts(), ['Tech']);
     assert.deepEqual(await strip.locator('.wl2-act-tf.up').allInnerTexts(), ['D▲', 'W▲']);
+    // Tapping ACTIVE opens the numbers (a phone never shows the hover title).
+    assert.equal(await strip.locator('.wl2-act-panel').count(), 0);
+    await strip.locator('.wl2-act-hd').click();
+    assert.deepEqual(await strip.locator('.wl2-act-p-tf').evaluateAll(es => es.map(e => e.firstChild.textContent)), ['Day', 'Week']);
+    assert.match(await strip.locator('.wl2-act-panel').innerText(), /Tech ▲\s+4 big moves/);
+    await strip.locator('.wl2-act-hd').click();
+    assert.equal(await strip.locator('.wl2-act-panel').count(), 0, 'tapping ACTIVE again closes it');
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
     await page.waitForFunction(() => document.querySelector('#tfBtnW').getAttribute('aria-selected') === 'true');
     await page.locator('#chartReel .reel-card').first().waitFor();

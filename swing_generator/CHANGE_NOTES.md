@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 ACTIVE: TAP FOR THE NUMBERS: app.js v539 / style.css v385. User,
+on the one-line strip: "how do u check per time frame?", then "Yes add it and
+deploy". The counts and dates had gone into hover titles, which a phone never
+shows. Tapping ACTIVE (now a button with ▾) opens a plain panel under the
+line: per timeframe its date, every busy sector (a market-wide timeframe is
+listed in full, under a "Market-wide · N sectors" note) and what made it busy
+("14 big moves", "7 signals · 6 vol"); each entry opens that sector on that
+timeframe like the line's letters. Tap ACTIVE again to close; the state is not
+remembered, so every visit opens on the one line. Test: app_smoke.cjs.
+
 2026-10-28 ACTIVE STRIP DOWN TO ONE LINE: app.js v538 / style.css v384. User,
 off the three-row version: "Is this the best you can do ? I hate clutter".
 Three rows of boxed chips (sector, arrow, counts) took ~a third of the phone
