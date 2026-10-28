@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-28 ACTIVE STRIP ON A CARD: style.css v387. User: "put a background that
+compliments the tab section on the active watchlist". The ACTIVE line (and its
+panel when open) sits on a soft card: the filter buttons' colour
+(--bg-elevated), a faint gold wash from the top (--accent-glow) and a gold
+left edge (--accent), echoing the selected tab's underline; 12px radius,
+--border outline. Spacing tightened (gaps 9/3px) so the line still fits at
+390px. CSS only, theme variables throughout.
+
 2026-10-28 SWIPE BETWEEN WATCHLIST LISTS: app.js v540 / style.css v386. User:
 "here i need an option to scroll left and right in between price lists". A
 sideways swipe on the price list (#wl2Body) moves to the next list tab (swipe

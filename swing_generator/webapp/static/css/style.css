@@ -9678,8 +9678,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Active at last close (2026-10-28): ONE quiet line, plain words coloured
    by direction (user: "I hate clutter"). Scrolls sideways if it ever overflows. */
-.wl2-active { margin: 2px 0 8px; font-size: .74rem; }
-.wl2-act-line { display: flex; align-items: baseline; gap: 11px; overflow-x: auto;
+/* A soft card in the filter buttons' colour, with the tabs' gold as a faint
+   edge, so the strip reads as part of the list header (user, 2026-10-28: "a
+   background that compliments the tab section"). */
+.wl2-active { margin: 4px 0 10px; padding: 8px 10px 8px 12px; font-size: .74rem; border-radius: 12px;
+  background: linear-gradient(180deg, var(--accent-glow), transparent 70%), var(--bg-elevated);
+  border: 1px solid var(--border); box-shadow: inset 3px 0 0 var(--accent); }
+.wl2-act-line { display: flex; align-items: baseline; gap: 9px; overflow-x: auto;
   scrollbar-width: none; white-space: nowrap; }
 .wl2-act-line::-webkit-scrollbar { display: none; }
 .wl2-act-hd { flex: none; appearance: none; background: none; border: 0; padding: 2px 0; font: inherit; cursor: pointer;
@@ -9701,7 +9706,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .wl2-act-p-e b.up { color: var(--buy); }
 .wl2-act-p-e b.down { color: var(--sell); }
 .wl2-act-p-e span { color: var(--text-muted); font-size: .7rem; }
-.wl2-act-g { flex: none; display: inline-flex; align-items: baseline; gap: 4px; }
+.wl2-act-g { flex: none; display: inline-flex; align-items: baseline; gap: 3px; }
 .wl2-act-s { appearance: none; background: none; border: 0; padding: 2px 0; font: inherit; font-weight: 600;
   color: var(--text-primary); cursor: pointer; }
 .wl2-act-tf { appearance: none; background: none; border: 0; padding: 2px 1px; font: inherit; font-size: .64rem;
