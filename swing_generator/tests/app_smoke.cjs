@@ -312,6 +312,20 @@ const assert = require('node:assert/strict');
     await page.locator('#wl2MenuMode [data-wl-mode="sector"]').click();
     await wlRow.locator('[data-wl-sector]:not([data-wl-sector=""])').first().click();
     assert.ok(await wlRow.locator('.wl2-sub[data-wl-industry]').count() >= 1, 'a picked sector opens its industries in the row');
+    assert.ok(await wlRow.evaluate(r => { const on = r.querySelector('[data-wl-step].on'); return on.offsetLeft >= r.scrollLeft; }), 'the picked sector is not cut off on the left');
+    await page.locator('#wl2Clear').click();
+    // A filter view with one of the reader's lists open says so in the row,
+    // and an empty result offers all markets (2026-10-29).
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="lists"]').click();
+    await wlRow.locator('[data-wl-list="a"]').click();
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="cls"]').click();
+    assert.match(await page.locator('#wl2InList').innerText(), /Mine/);
+    await wlRow.locator('[data-wl-cls="Crypto"]').click();
+    assert.match(await page.locator('#wl2Body .wl2-empty').innerText(), /Nothing in Mine matches/);
+    await page.locator('#wl2Body .wl2-empty-btn').click();
+    assert.equal(await page.locator('#wl2InList').isHidden(), true, 'Search all markets leaves the list');
     await page.locator('#wl2Clear').click();
     assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').isHidden(), true, 'reset clears every view');
     await page.locator('#wl2DdMode').click();

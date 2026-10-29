@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-29 (later) WATCHLIST: FILTER VIEWS SAY WHICH LIST THEY SEARCH:
+app.js v551, style.css v391. User screenshot: Sector · Basic Materials (34)
+read "Nothing matches". The filter counted 1, so the cause was the open
+list: a filter view searches the list that is open, and with one of the
+reader's own lists open nothing on screen said so. Now a chip beside the
+dropdown names that list ("Mine ✕"; a tap goes back to All markets), and an
+empty result reads "Nothing in Mine matches" with a Search all markets
+button. Same screenshot: the picked sector was cut off on the left, because
+a new view centred its pick and "Basic Materials 34" is wider than the row
+on a phone. The pick is now scrolled only when it is not wholly in view, a
+too-wide one lines up with the row's left edge, and a new view starts from
+the left. Test: app_smoke.cjs. Not merged with #99 (one Filters button),
+which the user paused.
+
 2026-10-29 WATCHLIST: ONE ROW, FIVE VIEWS: app.js v550, style.css v390.
 User: "remove class, sector trend, clusters and put them in a dropdown menu
 with all markets ... if i select class then i should have all the class in

@@ -9697,6 +9697,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   text-transform: uppercase; color: var(--text-muted); }
 .wl2-sep:first-child { padding-left: 2px; }
 .wl2-cscope { display: contents; }
+#pane-watchlist .wl2-pill.wl2-inlist { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 9px; color: var(--text-secondary); font-size: .8rem; }
+#pane-watchlist .wl2-pill.wl2-inlist[hidden] { display: none; }
+#pane-watchlist .wl2-pill.wl2-inlist b { font-size: .68rem; opacity: .7; }
+#pane-watchlist .wl2-empty .wl2-empty-btn { margin-top: 12px; border: 1px solid rgba(251,191,36,.45); background: var(--accent-glow);
+  color: var(--accent); font-weight: 700; }
 /* A picked sector's industries follow it in the row, smaller and outlined. */
 #pane-watchlist .wl2-pill.wl2-sub { align-self: center; padding: 4px 10px; font-size: .78rem; border: 1px solid var(--border); }
 #pane-watchlist .wl2-pill.wl2-sub.on { background: var(--accent-glow); color: var(--accent); border-color: rgba(251,191,36,.45);
