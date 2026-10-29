@@ -31,6 +31,16 @@ there. This file holds only what is true now. The entry goes in the SAME PR as
 the change it describes and merges with it under ALWAYS DEPLOY (user,
 2026-10-21): it is history, not a rule, so it needs no separate review PR.
 
+**SAVED CHART FRAMES ARE THE USER'S TEACHING (user, 2026-10-29).** They frame
+charts by hand and press Save, then expect to ask "put all charts in a range
+similar to the one I save". When they ask: get their saves (Saved work ->
+Download backup, uploaded to the session; this session's Cloudflare access
+cannot read the sync KV, and the repo is PUBLIC, so never print saves in an
+Actions log), run `python3 research/read_views.py --file <backup>`, and set
+the opening frames (reelStockView / REEL_*_VIEW in app.js) from its medians
+per timeframe and class. A chart's own saved view still wins over a frame.
+Format and history: CHANGE_NOTES.md 2026-10-29 "CHART SAVE KEEPS THE EXACT FRAME".
+
 ## What is SwingPulse?
 
 **Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and
