@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=389">
+  <link rel="stylesheet" href="/static/css/style.css?v=390">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -564,9 +564,11 @@
 
     <!-- ========== TRENDS TAB ========== -->
     <!-- ===== WATCHLIST (2026-09-24, replaced Trends in the nav) ===== -->
-    <!-- Filters (2026-10-18, user: "neat drop down designs that fit"): search,
-         the lists as tabs, then ONE row of dropdown buttons. Each button shows
-         its value when set; the menus live in #wl2Menus at body level. -->
+    <!-- Filters (2026-10-29, user: "remove class, sector, trend, clusters and
+         put them in a dropdown menu with all markets"): search with Sort and
+         reset beside it, then ONE row: a dropdown that picks what the row
+         holds (the lists, or one filter's choices), scrolling sideways. The
+         menus live in #wl2Menus at body level. -->
     <section class="tab-pane active" id="pane-watchlist">
       <div class="wl2-head">
         <div class="search-wrap fsearch">
@@ -574,16 +576,13 @@
           <input type="text" id="wl2Search" class="search-input" placeholder="Search instruments…" autocomplete="off">
           <button class="fsearch-clear" id="wl2SearchClear" type="button" aria-label="Clear search" hidden>×</button>
         </div>
+        <button class="fdrop-btn wl2-sortbtn" type="button" id="wl2DdSort" data-fdrop="wl2MenuSort" aria-haspopup="menu" aria-expanded="false" aria-label="Sort"><svg class="wl2-sort-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span></button>
+        <button class="fdrop-reset" id="wl2Clear" type="button" aria-label="Reset filters" title="Reset filters" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       </div>
       <div class="wl2-active" id="wl2Active" hidden></div>
-      <div class="wl2-lists" id="wl2Lists"></div>
-      <div class="fdrop-row" id="wl2Drops">
-        <button class="fdrop-btn" type="button" id="wl2DdClass" data-fdrop="wl2MenuClass" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Class</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <button class="fdrop-btn" type="button" id="wl2DdSector" data-fdrop="wl2MenuSector" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sector</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <button class="fdrop-btn" type="button" id="wl2DdTrend" data-fdrop="wl2MenuTrend" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Trend</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <button class="fdrop-btn" type="button" id="wl2DdClusters" data-fdrop="wl2MenuClusters" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Clusters</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <button class="fdrop-btn" type="button" id="wl2DdSort" data-fdrop="wl2MenuSort" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <button class="fdrop-reset" id="wl2Clear" type="button" aria-label="Reset filters" title="Reset filters" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+      <div class="wl2-bar2">
+        <button class="fdrop-btn wl2-mode" type="button" id="wl2DdMode" data-fdrop="wl2MenuMode" aria-haspopup="menu" aria-expanded="false"><span class="wl2-mode-lbl">Lists</span><span class="wl2-mode-n" hidden></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <div class="wl2-lists" id="wl2Lists"></div>
       </div>
       <div class="wl2-asof" id="wl2AsOf"></div>
       <div id="wl2Body" class="wl2-body"></div>
@@ -734,19 +733,9 @@
      each one under its button. data-fdrop-autoclose: one pick and it closes.
      Menus with several sections stay open until a tap outside. -->
   <div class="fdrop-layer" id="wl2Menus">
-    <div class="fdrop-menu" id="wl2MenuClass" role="menu" hidden data-fdrop-autoclose>
-      <div class="fdrop-sec"><div class="fdrop-opts" id="wl2Classes"></div></div>
-    </div>
-    <!-- Sector, then that sector's industries: two picks, so it stays open. -->
-    <div class="fdrop-menu fdrop-wide" id="wl2MenuSector" role="menu" hidden>
-      <div id="wl2Sector"></div>
-    </div>
-    <div class="fdrop-menu" id="wl2MenuTrend" role="menu" hidden>
-      <div class="fdrop-sec"><div class="fdrop-hd">Main trend <small>Daily</small></div><div class="fdrop-opts" id="wl2Trend"></div></div>
-      <div class="fdrop-sec"><div class="fdrop-hd">4H direction</div><div class="fdrop-opts" id="wl2Relation"></div></div>
-    </div>
-    <div class="fdrop-menu" id="wl2MenuClusters" role="menu" hidden>
-      <div class="fdrop-sec" id="wl2Clusters"></div>
+    <!-- What the row under the search holds; each shows its value when set. -->
+    <div class="fdrop-menu" id="wl2MenuMode" role="menu" hidden data-fdrop-autoclose>
+      <div class="fdrop-sec"><div class="fdrop-hd">Show in the row</div><div class="fdrop-opts" id="wl2ModeOpts"></div></div>
     </div>
     <div class="fdrop-menu" id="wl2MenuSort" role="menu" hidden data-fdrop-autoclose>
       <div class="fdrop-sec"><div class="fdrop-opts" id="wl2SortOpts"></div></div>
@@ -924,7 +913,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=4"></script>
   <script src="/static/js/modules/grid-geometry.js?v=9"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=549"></script>
+  <script src="/static/js/app.js?v=550"></script>
 </body>
 </html>
 
