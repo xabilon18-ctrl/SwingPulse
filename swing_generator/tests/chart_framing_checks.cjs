@@ -72,11 +72,21 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await card.locator('[data-act="chart-expand"]').click();
     await host.locator('svg').waitFor();
     const restored=await read(host);
+    // A saved view is the exact frame (app.js v553): same first candle, same
+    // window and the same price window, on full screen and on the card.
+    assert.equal(saved.v,2,tf+' saves the exact frame');
     near(restored.slots,adjusted.slots,tf+' saved time window restores');
-    near(restored.pctPerPx,saved.pctPerPx,tf+' saved zoom restores');
-    near(restored.mid,saved.mid,tf+' saved vertical placement restores');
+    assert.equal(await host.evaluate(h=>h._reelCtx.b.t[0]),saved.start,tf+' saved first candle restores');
+    near(restored.lo,saved.lo,tf+' saved price floor restores');
+    near(restored.hi,saved.hi,tf+' saved price top restores');
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),stored,'Viewing never rewrites saved frames');
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    const onCard=await read(card.locator('.reel-chart'));
+    near(onCard.lo,saved.lo,tf+' card shows the saved price floor');
+    near(onCard.hi,saved.hi,tf+' card shows the saved price top');
+    // Tapping Save again keeps the view (it used to toggle it off).
+    await card.locator('[data-act="chart-view-save"]').click();
+    assert.equal(await card.locator('[data-act="chart-view-save"]').getAttribute('aria-pressed'),'true',tf+' a second tap keeps the view');
   }
   console.log('PASS: 1H/4H/Daily default full-screen framing and saved-frame restoration');
 };

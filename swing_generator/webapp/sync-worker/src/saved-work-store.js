@@ -42,6 +42,24 @@ export function mergeNotes(previous, incoming) {
   }
   return { notes, notesMod: mods };
 }
+// Saved chart views ("name|tf") merge view by view on viewsMod, like notes.
+// A stamp with no view is a forget. A save without viewsMod (an app before
+// v553 never sent views) leaves the stored views alone.
+export function mergeViews(previous, incoming) {
+  const views = { ...(object(previous.views) ? previous.views : {}) };
+  const mods = { ...(object(previous.viewsMod) ? previous.viewsMod : {}) };
+  if (!object(incoming.viewsMod)) return { views, viewsMod: mods };
+  const nextViews = object(incoming.views) ? incoming.views : {};
+  for (const [key, at] of Object.entries(incoming.viewsMod)) {
+    if (!safeKey(key) || !/^.+\|(?:\d+[mHDW]|D|W|M)$/.test(key)) continue;
+    const nextAt = stamp(at);
+    if (!(nextAt > stamp(mods[key]))) continue;
+    const view = nextViews[key];
+    if (object(view)) views[key] = view; else delete views[key];
+    mods[key] = nextAt;
+  }
+  return { views, viewsMod: mods };
+}
 export function mergeSavedWork(previous, incoming) {
   const merged = { ...previous, ...incoming };
   merged.chartPrefs = { version: 2 };
@@ -82,6 +100,7 @@ export function mergeSavedWork(previous, incoming) {
   merged.channels = channels; merged.channelsMod = mods;
   if (!object(incoming.watchlists) || stamp(previous.watchlists?.mod) > stamp(incoming.watchlists.mod)) merged.watchlists = previous.watchlists;
   Object.assign(merged, mergeNotes(previous, incoming));
+  Object.assign(merged, mergeViews(previous, incoming));
   merged.lastModified = Math.max(stamp(previous.lastModified), stamp(incoming.lastModified));
   return merged;
 }
