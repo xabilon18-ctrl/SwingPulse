@@ -1216,7 +1216,7 @@
     try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null'); wlStore = v && Array.isArray(v.lists) ? v : { lists: [], mod: 0 }; }
     catch (_) { wlStore = { lists: [], mod: 0 }; }
   }
-  const wlUi = { cluster: 'all', list: 'all', cls: 'all', sector: '', industry: '', q: '', sort: 'group', trend: 'all', ttf: 'D', mode: 'lists' };
+  const wlUi = { cluster: 'all', list: 'all', cls: 'all', sector: '', industry: '', q: '', sort: 'group', trend: 'all', ttf: 'D' };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
   if (wlUi.ttf === '30m') wlUi.ttf = '1H';
@@ -1252,69 +1252,58 @@
   const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
   const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
   const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
-  const WL_FILTER_DEFAULTS = { cls: 'all', sector: '', industry: '', sort: 'group', move: '1d', trend: 'all', relation: 'all', cluster: 'all' };
 
-  // ONE ROW, FIVE VIEWS (user, 2026-10-29: "remove class, sector, trend,
-  // clusters and put them in a dropdown menu with all markets"). The
-  // dropdown at the start of the row picks what the row holds: the lists
-  // (All markets and the reader's own) or one filter's choices, scrolling
-  // sideways. A filter set in another view still applies, so the menu names
-  // each one's value and the dropdown counts how many are set.
-  const WL_MODES = [['lists', 'Lists'], ['cls', 'Class'], ['sector', 'Sector'], ['trend', 'Trend'], ['cluster', 'Clusters']];
-  if (!WL_MODES.some(([k]) => k === wlUi.mode)) wlUi.mode = 'lists';
-
-  // What each view's filter is set to ('' when it is not), for the menu.
-  function wlModeValues() {
+  // ONE FILTERS BUTTON (user, 2026-10-29). The row that swapped between
+  // Lists / Class / Sector / Trend / Clusters (v550, same day) was "not user
+  // friendly": hard to spot, and only one filter in view at a time. Now
+  // Search · Sort · Filters share one line; Filters opens ONE panel with every
+  // filter in view, so they combine, and each filter that is set shows under
+  // the lists as a chip that removes it. The lists row holds only the lists.
+  function wlActiveFilters() {
     const pick = (list, k) => (list.find(([v]) => v === k) || [, k])[1];
-    const trend = [];
+    const out = [];
+    if (wlUi.cls && wlUi.cls !== 'all') out.push(['cls', pick(WL_CLASSES, wlUi.cls)]);
+    if (wlUi.sector) out.push(['sector', wlUi.sector]);
+    if (wlUi.industry) out.push(['industry', wlUi.industry]);
     if (wlUi.trend && wlUi.trend !== 'all')
-      trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[wlUi.trend] || wlUi.trend);
-    if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '4H aligned' : '4H minor');
-    const cur = wlStore.lists.find(l => l.id === wlUi.list);
-    return {
-      lists: cur ? cur.name : 'All markets',
-      cls: wlUi.cls && wlUi.cls !== 'all' ? pick(WL_CLASSES, wlUi.cls) : '',
-      sector: sectorDropValue(wlUi.sector, wlUi.industry).join(''),
-      trend: trend.join(' · '),
-      cluster: wlUi.cluster && wlUi.cluster !== 'all' ? CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster : '',
-    };
+      out.push(['trend', { UPTREND: '▲ Uptrend', DOWNTREND: '▼ Downtrend', NEUTRAL: 'Trend n/a' }[wlUi.trend] || wlUi.trend]);
+    if (wlUi.relation && wlUi.relation !== 'all') out.push(['relation', wlUi.relation === 'aligned' ? '4H aligned' : '4H minor against']);
+    if (wlUi.cluster && wlUi.cluster !== 'all') out.push(['cluster', CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster]);
+    return out;
+  }
+  // What removing each chip clears; 'all' clears every filter (not Sort,
+  // which shows on its own button).
+  const WL_UNSET = { cls: { cls: 'all' }, sector: { sector: '', industry: '' }, industry: { industry: '' },
+                     trend: { trend: 'all' }, relation: { relation: 'all' }, cluster: { cluster: 'all' } };
+  function wlUnset(k) {
+    (k === 'all' ? Object.values(WL_UNSET) : [WL_UNSET[k] || {}]).forEach(v => Object.assign(wlUi, v));
+    wlSaveUi(); renderWatchlist();
   }
   function wlSortValue() {
     const mv = { up: 'Gainers ', down: 'Losers ' }[wlUi.sort];
     return wlUi.sort && wlUi.sort !== 'group' ? [mv ? mv + moveLbl(wlUi.move) : { name: 'A–Z' }[wlUi.sort] || wlUi.sort] : [];
   }
-
-  // The row's chips for the current view. data-wl-step marks the ones a
-  // sideways swipe on the list steps through.
-  function wlRowHtml(lists) {
-    const pill = (on, attrs, label, extra = '') => `<button class="wl2-pill${extra}${on ? ' on' : ''}" ${attrs}>${label}</button>`;
-    const sep = t => `<span class="wl2-sep">${t}</span>`;
-    if (wlUi.mode === 'cls')
-      return WL_CLASSES.map(([k, l]) => pill(wlUi.cls === k, `data-wl-cls="${k}" data-wl-step`, l)).join('');
-    if (wlUi.mode === 'sector') {
-      // A picked sector opens its industries right after it, in the row.
-      const { sectors, industries } = sectorLists(wlUi.sector);
-      return pill(!wlUi.sector, 'data-wl-sector="" data-wl-step', 'All')
-        + sectors.map(([s, n]) => pill(s === wlUi.sector, `data-wl-sector="${escText(s)}" data-wl-step`, `${escText(s)} <span class="wl2-n">${n}</span>`)
-          + (s === wlUi.sector ? pill(!wlUi.industry, 'data-wl-industry=""', 'Any industry', ' wl2-sub')
-            + industries.map(([v, m]) => pill(v === wlUi.industry, `data-wl-industry="${escText(v)}"`, `${escText(v)} <span class="wl2-n">${m}</span>`, ' wl2-sub')).join('') : '')).join('');
-    }
-    if (wlUi.mode === 'trend')
-      return sep('Daily') + WL_TRENDS.map(([k, l]) => pill(wlUi.trend === k, `data-wl-trend="${k}" data-wl-step`, l)).join('')
-        + sep('4H') + WL_RELATIONS.map(([k, l]) => pill((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, { all: 'Any', aligned: 'Aligned', minor: 'Minor against' }[k] || l)).join('');
-    if (wlUi.mode === 'cluster')
-      return `<span class="wl2-cscope" data-cluster-scope="watchlist">`
-        + CLUSTER_OPTIONS.map(([k, l]) => pill(wlUi.cluster === k, `data-cluster-mode="${k}" data-wl-step`, k === 'all' ? 'Any' : l)).join('')
-        + sep('Width') + [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => pill(clusterWidth === v, `data-cluster-width="${v}"`, l)).join('')
-        + '</span>';
-    return [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all" data-wl-step>All markets</button>`]
-      .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}" data-wl-step>${escText(l.name)} <span class="wl2-n">${wlCount(l)}</span></button>`))
-      .concat(wlUi.list !== 'all' ? [wlEdit
-        ? `<button class="wl2-pill wl2-done" data-wl-edit>Done</button>`
-        : `<button class="wl2-pill wl2-edit" data-wl-edit>Edit list</button>`] : [])
-      .concat([`<button class="wl2-pill wl2-new" data-wl-new>+ New list</button>`]).join('');
+  // The Filters panel: every filter as wrapping chips, one section each. A
+  // picked sector adds its industries; the panel stays open between picks.
+  function wlFilterPanelHtml() {
+    const chip = (on, attrs, label) => `<button class="wl2-chip${on ? ' on' : ''}" ${attrs}>${label}</button>`;
+    const sec = (hd, body) => `<div class="fdrop-sec"><div class="fdrop-hd">${hd}</div><div class="wl2-fchips">${body}</div></div>`;
+    const { sectors, industries } = sectorLists(wlUi.sector);
+    const count = n => ` <i>${n}</i>`;
+    return sec('Class', WL_CLASSES.map(([k, l]) => chip(wlUi.cls === k, `data-wl-cls="${k}"`, k === 'all' ? 'Any' : l)).join(''))
+      + sec('Sector', chip(!wlUi.sector, 'data-wl-sector=""', 'Any')
+        + sectors.map(([v, n]) => chip(v === wlUi.sector, `data-wl-sector="${escText(v)}"`, escText(v) + count(n))).join(''))
+      + (wlUi.sector ? sec(`Industry <small>${escText(wlUi.sector)}</small>`, chip(!wlUi.industry, 'data-wl-industry=""', 'Any')
+        + industries.map(([v, n]) => chip(v === wlUi.industry, `data-wl-industry="${escText(v)}"`, escText(v) + count(n))).join('')) : '')
+      + sec('Main trend <small>Daily</small>', WL_TRENDS.map(([k, l]) => chip(wlUi.trend === k, `data-wl-trend="${k}"`, l)).join(''))
+      + sec('4H direction', WL_RELATIONS.map(([k, l]) => chip((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, l)).join(''))
+      + `<div data-cluster-scope="watchlist">`
+      + sec('MA clusters', CLUSTER_OPTIONS.map(([k, l]) => chip(wlUi.cluster === k, `data-cluster-mode="${k}"`, k === 'all' ? 'Any' : l)).join(''))
+      + sec('Cluster width', [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => chip(clusterWidth === v, `data-cluster-width="${v}"`, l)).join(''))
+      + '</div>'
+      + `<div class="wl2-ffoot">${wlActiveFilters().length ? '<button class="wl2-fclear-all" data-wl-unset="all">Clear all</button>' : ''}`
+      + `<button class="wl2-fdone" data-wl-fdone>Done</button></div>`;
   }
-  let wlRowShownMode = null;
 
   // ── FILTER DROPDOWNS (2026-10-18; user: "neat drop down designs that fit
   // and complement" — a bottom sheet tried first felt clumsy) ─────────────
@@ -1554,8 +1543,6 @@
   // the browser's (touch-action: pan-y on #wl2Body) and a downward pull is
   // still the price refresh above. Not while editing a list or on a drag grip.
   const WL_SWIPE_AT = 60;
-  // Since 2026-10-29 the swipe steps through whatever the row holds (the
-  // lists, the classes, the sectors...), so it never changes a hidden pick.
   const wlStepChips = () => [...document.querySelectorAll('#wl2Lists [data-wl-step]')];
   const wlStepAt = chips => chips.findIndex(c => c.classList.contains('on'));
   function wlStepList(dir) {
@@ -1751,29 +1738,31 @@
     renderActiveStrip();
     const asOf = document.getElementById('wl2AsOf');
     if (asOf) asOf.textContent = wlAsOfText();
-    // The row: the dropdown picks the view, the chips scroll sideways.
+    // List pills: All markets + the reader's own lists + New. data-wl-step
+    // marks the ones a sideways swipe on the list steps through.
     const lists = wlStore.lists;
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
-    const rowEl = document.getElementById('wl2Lists');
-    rowEl.innerHTML = wlRowHtml(lists);
-    rowEl.dataset.mode = wlUi.mode;
-    if (wlRowShownMode !== wlUi.mode) {
-      // A new view opens scrolled to its current pick (no page scroll).
-      wlRowShownMode = wlUi.mode;
-      const on = rowEl.querySelector('.wl2-pill.on');
-      rowEl.scrollLeft = on ? Math.max(0, on.offsetLeft - (rowEl.clientWidth - on.offsetWidth) / 2) : 0;
+    document.getElementById('wl2Lists').innerHTML = [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all" data-wl-step>All markets</button>`]
+      .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}" data-wl-step>${escText(l.name)} <span class="wl2-n">${wlCount(l)}</span></button>`))
+      .concat(wlUi.list !== 'all' ? [wlEdit
+        ? `<button class="wl2-pill wl2-done" data-wl-edit>Done</button>`
+        : `<button class="wl2-pill wl2-edit" data-wl-edit>Edit list</button>`] : [])
+      .concat([`<button class="wl2-pill wl2-new" data-wl-new>+ New list</button>`]).join('');
+    // Filters: the panel, the count on its button, and a chip per filter set.
+    const active = wlActiveFilters();
+    const panel = document.getElementById('wl2FilterBody');
+    if (panel) panel.innerHTML = wlFilterPanelHtml();
+    const fbtn = document.getElementById('wl2DdFilters');
+    if (fbtn) {
+      const badge = fbtn.querySelector('.wl2-fcount');
+      badge.hidden = !active.length; badge.textContent = active.length || '';
+      fbtn.classList.toggle('set', active.length > 0);
     }
-    const vals = wlModeValues();
-    const modeOpts = document.getElementById('wl2ModeOpts');
-    if (modeOpts) modeOpts.innerHTML = WL_MODES.map(([k, l]) =>
-      `<button class="fdrop-opt${wlUi.mode === k ? ' on' : ''}" data-wl-mode="${k}">${l}${vals[k] ? `<i${k !== 'lists' ? ' class="set"' : ''}>${escText(vals[k])}</i>` : ''}</button>`).join('');
-    const modeBtn = document.getElementById('wl2DdMode');
-    const nSet = WL_MODES.filter(([k]) => k !== 'lists' && vals[k]).length;
-    if (modeBtn) {
-      modeBtn.querySelector('.wl2-mode-lbl').textContent = WL_MODES.find(([k]) => k === wlUi.mode)[1];
-      const badge = modeBtn.querySelector('.wl2-mode-n');
-      badge.hidden = !nSet; badge.textContent = nSet || '';
-      modeBtn.title = nSet ? `${nSet} filter${nSet > 1 ? 's' : ''} set` : '';
+    const chipsEl = document.getElementById('wl2Chips');
+    if (chipsEl) {
+      chipsEl.hidden = !active.length;
+      chipsEl.innerHTML = active.map(([k, l]) => `<button class="wl2-fchip" data-wl-unset="${k}" aria-label="Remove ${escText(l)}">${escText(l)}<b aria-hidden="true">✕</b></button>`).join('')
+        + (active.length > 1 ? `<button class="wl2-fchip wl2-fclear" data-wl-unset="all">Clear all</button>` : '');
     }
     // Sort and the menus' options (#wl2Menus).
     const opts = (id, attr, cur, choices) => {
@@ -1790,8 +1779,6 @@
         `<button class="wl2-chip${(wlUi.move || '1d') === k ? ' on' : ''}" data-wl-move="${k}">${l}</button>`).join('')}</div>`;
     }
     fdropSync({ wl2DdSort: wlSortValue() }, null);
-    const reset = document.getElementById('wl2Clear');
-    if (reset) reset.hidden = !nSet && !wlSortValue().length;
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
     const searchClear = document.getElementById('wl2SearchClear'); if (searchClear) searchClear.hidden = !wlUi.q;
 
@@ -2106,18 +2093,14 @@
       if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
-      // Tapping the picked sector again closes it back to All.
-      const sec = t.closest('[data-wl-sector]');
-      if (sec) { const v = sec.dataset.wlSector; wlUi.sector = v === wlUi.sector ? '' : v; wlUi.industry = ''; wlSaveUi(); return renderWatchlist(); }
-      const ind = t.closest('[data-wl-industry]');
-      if (ind) { wlUi.industry = ind.dataset.wlIndustry; wlSaveUi(); return renderWatchlist(); }
       const tp = t.closest('[data-wl-trend]');
       if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
       const rp = t.closest('[data-wl-relation]');
       if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
       const ttp = t.closest('[data-wl-ttf]');
       if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
-      if (t.closest('#wl2Clear')) { Object.assign(wlUi, WL_FILTER_DEFAULTS); wlSaveUi(); return renderWatchlist(); }
+      const un = t.closest('[data-wl-unset]');
+      if (un) return wlUnset(un.dataset.wlUnset);
       if (t.closest('#wl2SearchClear')) { wlUi.q = ''; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
       if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
@@ -2168,12 +2151,24 @@
     const s = document.getElementById('wl2Search');
     if (s) s.addEventListener('input', () => { wlUi.q = s.value; wlSaveUi(); renderWatchlist(); });
     // The dropdown menus sit outside the pane (body level), so they have their
-    // own listener. MA cluster chips in the row go through the shared cluster handler.
+    // own listener. MA cluster chips in the Filters panel go through the shared cluster handler.
     const menus = document.getElementById('wl2Menus');
     if (menus) menus.addEventListener('click', e => {
       const t = e.target;
-      const md = t.closest('[data-wl-mode]');
-      if (md) { wlUi.mode = md.dataset.wlMode; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
+      const cp = t.closest('[data-wl-cls]');
+      if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      // Tapping the picked sector again closes it back to Any.
+      const sec = t.closest('[data-wl-sector]');
+      if (sec) { const v = sec.dataset.wlSector; wlUi.sector = v === wlUi.sector ? '' : v; wlUi.industry = ''; wlSaveUi(); return renderWatchlist(); }
+      const ind = t.closest('[data-wl-industry]');
+      if (ind) { wlUi.industry = ind.dataset.wlIndustry; wlSaveUi(); return renderWatchlist(); }
+      const tp = t.closest('[data-wl-trend]');
+      if (tp) { wlUi.trend = tp.dataset.wlTrend; wlSaveUi(); return renderWatchlist(); }
+      const rp = t.closest('[data-wl-relation]');
+      if (rp) { wlUi.relation = rp.dataset.wlRelation; wlSaveUi(); return renderWatchlist(); }
+      const un = t.closest('[data-wl-unset]');
+      if (un) return wlUnset(un.dataset.wlUnset);
+      if (t.closest('[data-wl-fdone]')) return fdropClose();
       const sp = t.closest('[data-wl-sort]');
       if (sp) { wlUi.sort = sp.dataset.wlSort; wlSaveUi(); return renderWatchlist(); }
       const mp = t.closest('[data-wl-move]');

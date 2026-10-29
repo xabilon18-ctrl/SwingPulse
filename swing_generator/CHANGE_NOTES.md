@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-29 (later) WATCHLIST: ONE FILTERS BUTTON: app.js v551, style.css
+v391. Replaces the one-row switcher below, same day. User: "It's not user
+friendly", then chose a single Filters button. The switcher was hard to spot
+and showed one filter at a time, so filters could not be seen or set
+together. Now Search · Sort · Filters share one line (Sort drops its word
+under 360px). Filters opens one panel (#wl2MenuFilters) with every filter as
+wrapping chips: Class, Sector, Industry (once a sector is picked), Main trend
+(Daily), 4H direction, MA clusters, cluster width; it stays open between
+picks and closes on Done. Each filter set shows under the lists as a chip
+that removes it (#wl2Chips, Clear all from two). The button counts them.
+The lists row holds only the lists again and the swipe steps lists only.
+The reset button is gone: Clear all resets the filters and leaves Sort,
+which shows on its own button. Test: app_smoke.cjs.
+
 2026-10-29 WATCHLIST: ONE ROW, FIVE VIEWS: app.js v550, style.css v390.
 User: "remove class, sector trend, clusters and put them in a dropdown menu
 with all markets ... if i select class then i should have all the class in
