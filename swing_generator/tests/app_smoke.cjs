@@ -333,6 +333,7 @@ const assert = require('node:assert/strict');
     assert.equal(await onList(), 'all', 'the list pick survives the other views');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
+  if (!live) await require('./dollar_index_checks.cjs')(browser);
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

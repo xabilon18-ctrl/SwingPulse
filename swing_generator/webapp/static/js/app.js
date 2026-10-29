@@ -11,6 +11,15 @@
   let savedWork = null, workBackupTimer = 0;
   let syncLastSuccess = 0, syncPending = false, syncUnavailable = false;
   let allData = [];
+  // ONE DOLLAR INDEX (user, 2026-10-29: "Make the one with drawing the only
+  // one"). USD_IDX, the app's equal-weight USD basket (currency_index.py), was
+  // taken for USDX, ICE's dollar index, which holds the user's drawings. The
+  // board leaves USD_IDX out, so the Watchlist, Charts, search and Alerts never
+  // show it; it is still built and published, and still ranks USD in the
+  // Market currency card (trend_channels.json `ccy`, built server side). USDX
+  // joins the Currency Index group in its place.
+  const HIDDEN_INSTRUMENTS = new Set(['USD_IDX']);
+  const GROUP_OVERRIDE = { USDX: 'Currency Index' };
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
@@ -1226,7 +1235,7 @@
   // array so it moves, syncs and orders exactly like one.
   const WL_DIV = '§';
   const wlIsDiv = x => typeof x === 'string' && x.startsWith(WL_DIV);
-  const wlCount = l => l.items.filter(x => !wlIsDiv(x)).length;
+  const wlCount = l => l.items.filter(x => !wlIsDiv(x) && !HIDDEN_INSTRUMENTS.has(x)).length;
 
   function wlSave() {
     scheduleWorkBackup();
@@ -2663,7 +2672,7 @@
     const hasLists = Object.keys(lists).length > 0;
     const scope = hasLists ? alUi.scope : 'all';
     const ev = (alertsData && alertsData.workflow_ev) || [];
-    const keep = e => (scope !== 'mine' || e[0] in lists)
+    const keep = e => !HIDDEN_INSTRUMENTS.has(e[0]) && (scope !== 'mine' || e[0] in lists)
       && clusterMatches(allData.find(row => row.instrument_name === e[0]), alUi.cluster)
       && SPTrendContext.matches(allData.find(row => row.instrument_name === e[0]), channelTrend, {main:alUi.main, relationship:alUi.relation})
       && AL_TFS.includes(e[1])
@@ -3654,7 +3663,8 @@
       if (!Array.isArray(sigRes.data) || !sigRes.data.length || !sumRes.fetched_at) {
         throw new Error('Signal data unavailable');
       }
-      allData = sigRes.data;
+      allData = sigRes.data.filter(d => !HIDDEN_INSTRUMENTS.has(d.instrument_name));
+      allData.forEach(d => { const g = GROUP_OVERRIDE[d.instrument_name]; if (g) d.group = g; });
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
       summaryData = sumRes;
       // Before renderAll() below rebuilds the reel out of them. The chart
