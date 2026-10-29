@@ -15,8 +15,12 @@ with drawing the only one", then chose to hide USD_IDX rather than delete it,
 because the Market tab's Currency strength card ranks the 8 baskets and USDX
 (57.6% EUR) cannot stand in for USD there. app.js HIDDEN_INSTRUMENTS leaves
 USD_IDX off the board (allData), so the Watchlist, Charts, search, a list's
-count and Alerts never show it; GROUP_OVERRIDE puts USDX in the Currency
-Index group (both are Index class, so it sorts in with the seven). Nothing
+count and Alerts never show it. USDX shows in the Currency Index group AS
+WELL AS its own US Index (user: "should appear in both"): app.js
+ALSO_IN_GROUP adds a copy of its row under each extra heading in All
+markets (a list holds it once), and the Ccy Index class, the Charts class
+chip and search (matchesSearch's group haystack) find it under either. Live
+prices repaint every row of a name, not just the first. Nothing
 server side changed: USD_IDX is still built and published, and still ranks
 USD in trend_channels.json `ccy`. Test: dollar_index_checks.cjs, run from
 app_smoke.cjs.
