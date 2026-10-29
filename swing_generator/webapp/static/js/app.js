@@ -11,6 +11,18 @@
   let savedWork = null, workBackupTimer = 0;
   let syncLastSuccess = 0, syncPending = false, syncUnavailable = false;
   let allData = [];
+  // ONE DOLLAR INDEX (user, 2026-10-29: "Make the one with drawing the only
+  // one"). USD_IDX, the app's equal-weight USD basket (currency_index.py), was
+  // taken for USDX, ICE's dollar index, which holds the user's drawings. The
+  // board leaves USD_IDX out, so the Watchlist, Charts, search and Alerts never
+  // show it; it is still built and published, and still ranks USD in the
+  // Market currency card (trend_channels.json `ccy`, built server side). USDX
+  // ALSO shows in the Currency Index group, keeping its own (user: "should
+  // appear in both"): All markets lists it under both headings, and the Ccy
+  // Index class, the Charts class chip and search find it under either.
+  const HIDDEN_INSTRUMENTS = new Set(['USD_IDX']);
+  const ALSO_IN_GROUP = { USDX: ['Currency Index'] };
+  const alsoInGroup = (d, g) => !!(d && (ALSO_IN_GROUP[d.instrument_name] || []).includes(g));
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
   let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
@@ -1226,7 +1238,7 @@
   // array so it moves, syncs and orders exactly like one.
   const WL_DIV = '§';
   const wlIsDiv = x => typeof x === 'string' && x.startsWith(WL_DIV);
-  const wlCount = l => l.items.filter(x => !wlIsDiv(x)).length;
+  const wlCount = l => l.items.filter(x => !wlIsDiv(x) && !HIDDEN_INSTRUMENTS.has(x)).length;
 
   function wlSave() {
     scheduleWorkBackup();
@@ -1431,7 +1443,7 @@
     return [...document.querySelectorAll('#wl2Body .wl2-row')].filter(r => {
       const b = r.getBoundingClientRect();
       return b.bottom > -h && b.top < 2 * h;
-    }).map(r => r.dataset.wlRow).slice(0, 90);
+    }).map(r => r.dataset.wlRow).filter((n, i, a) => a.indexOf(n) === i).slice(0, 90);
   }
   async function wlPollLive() { return livePrices.poll(); }
   function quoteInfo(name) {
@@ -1459,10 +1471,10 @@
 
   // Re-price rows in place — no re-render, so scroll position and taps survive.
   function wlPaintLive(names) {
-    names.forEach(n => {
-      const row = document.querySelector(`#wl2Body .wl2-row[data-wl-row="${CSS.escape(n)}"]`);
+    // querySelectorAll: an instrument in two groups (USDX) has two rows.
+    names.forEach(n => document.querySelectorAll(`#wl2Body .wl2-row[data-wl-row="${CSS.escape(n)}"]`).forEach(row => {
       const x = wlQuote(n);
-      if (!row || !x) return;
+      if (!x) return;
       row.title = freshness.quote(x.t, quoteInfo(n)).detail;
       const pe = row.querySelector('.wl2-price'), ce = row.querySelector('.wl2-chg'), te = row.querySelector('.wl2-tagslot');
       const txt = wlFmtPrice(x.p);
@@ -1477,7 +1489,7 @@
       if (te) te.innerHTML = wlAgeTag(x, n);
       const me = row.querySelector('.wl2-move');
       if (me) me.outerHTML = wlMoveTag(allData.find(d => d.instrument_name === n), wlUi.move);
-    });
+    }));
     const a = document.getElementById('wl2AsOf');
     if (a) a.textContent = wlAsOfText();
     refreshFreshnessLabels();
@@ -1850,9 +1862,12 @@
     // Rows.
     let rows = allData.slice();
     if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
+    // All markets lists an instrument under each extra group too (USDX under
+    // Currency Index as well as US Index); a list holds it once.
+    else rows = rows.flatMap(d => [d, ...(ALSO_IN_GROUP[d.instrument_name] || []).map(g => ({ ...d, group: g }))]);
     // 'CcyIndex' is a browse group (the 8 currency indices), not an asset class —
     // they score as Index, so they also appear under Indices.
-    if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index');
+    if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index' || (cur && alsoInGroup(d, 'Currency Index')));
     else if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
     if (wlUi.sector) rows = rows.filter(d => sectorMatches(d, wlUi.sector, wlUi.industry));
     if (wlUi.trend && wlUi.trend !== 'all')
@@ -1929,7 +1944,7 @@
       });
     }
     body.innerHTML = html;
-    wlShown = rows.map(d => d.instrument_name);
+    wlShown = [...new Set(rows.map(d => d.instrument_name))];
     if (livePrices.running) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
   }
 
@@ -2663,7 +2678,7 @@
     const hasLists = Object.keys(lists).length > 0;
     const scope = hasLists ? alUi.scope : 'all';
     const ev = (alertsData && alertsData.workflow_ev) || [];
-    const keep = e => (scope !== 'mine' || e[0] in lists)
+    const keep = e => !HIDDEN_INSTRUMENTS.has(e[0]) && (scope !== 'mine' || e[0] in lists)
       && clusterMatches(allData.find(row => row.instrument_name === e[0]), alUi.cluster)
       && SPTrendContext.matches(allData.find(row => row.instrument_name === e[0]), channelTrend, {main:alUi.main, relationship:alUi.relation})
       && AL_TFS.includes(e[1])
@@ -3654,7 +3669,7 @@
       if (!Array.isArray(sigRes.data) || !sigRes.data.length || !sumRes.fetched_at) {
         throw new Error('Signal data unavailable');
       }
-      allData = sigRes.data;
+      allData = sigRes.data.filter(d => !HIDDEN_INSTRUMENTS.has(d.instrument_name));
       detectMaPeriodsFromData(allData);   // auto-detect from actual data columns
       summaryData = sumRes;
       // Before renderAll() below rebuilds the reel out of them. The chart
@@ -3876,7 +3891,7 @@
     // Category alias check — "crypto", "indices", "banks", etc.
     for (const [cat, targets] of Object.entries(CATEGORY_ALIASES)) {
       if (q === cat || cat.startsWith(q) && q.length >= 3) {
-        const haystack = ((item.group || '') + ' ' + (item.sector || '') + ' ' + (item.industry || '')).toLowerCase();
+        const haystack = ([item.group || '', ...(ALSO_IN_GROUP[item.instrument_name] || [])].join(' ') + ' ' + (item.sector || '') + ' ' + (item.industry || '')).toLowerCase();
         if (targets.some(t => haystack.includes(t))) return true;
       }
     }
