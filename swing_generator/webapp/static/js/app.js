@@ -1289,6 +1289,9 @@
   function wlRowHtml(lists) {
     const pill = (on, attrs, label, extra = '') => `<button class="wl2-pill${extra}${on ? ' on' : ''}" ${attrs}>${label}</button>`;
     const sep = t => `<span class="wl2-sep">${t}</span>`;
+    return wlRowChips(pill, sep, wlUi.mode === 'lists' ? lists : null);
+  }
+  function wlRowChips(pill, sep, lists) {
     if (wlUi.mode === 'cls')
       return WL_CLASSES.map(([k, l]) => pill(wlUi.cls === k, `data-wl-cls="${k}" data-wl-step`, l)).join('');
     if (wlUi.mode === 'sector') {
@@ -1307,6 +1310,7 @@
         + CLUSTER_OPTIONS.map(([k, l]) => pill(wlUi.cluster === k, `data-cluster-mode="${k}" data-wl-step`, k === 'all' ? 'Any' : l)).join('')
         + sep('Width') + [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => pill(clusterWidth === v, `data-cluster-width="${v}"`, l)).join('')
         + '</span>';
+    if (!lists) return '';
     return [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all" data-wl-step>All markets</button>`]
       .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}" data-wl-step>${escText(l.name)} <span class="wl2-n">${wlCount(l)}</span></button>`))
       .concat(wlUi.list !== 'all' ? [wlEdit
@@ -1756,12 +1760,26 @@
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
     const rowEl = document.getElementById('wl2Lists');
     rowEl.innerHTML = wlRowHtml(lists);
+    // A filter view searches the list that is open. When that is one of the
+    // reader's lists, a chip beside the dropdown says so and a tap goes back
+    // to All markets (2026-10-29: Sector read "Nothing matches" with "Mine"
+    // open and nothing on screen saying so).
+    const inList = document.getElementById('wl2InList');
+    const curList = lists.find(l => l.id === wlUi.list);
+    if (inList) {
+      inList.hidden = wlUi.mode === 'lists' || !curList;
+      inList.innerHTML = curList ? `${escText(curList.name)} <b aria-hidden="true">✕</b>` : '';
+      inList.title = curList ? `Searching ${curList.name} only. Tap to search all markets` : '';
+    }
     rowEl.dataset.mode = wlUi.mode;
-    if (wlRowShownMode !== wlUi.mode) {
-      // A new view opens scrolled to its current pick (no page scroll).
-      wlRowShownMode = wlUi.mode;
-      const on = rowEl.querySelector('.wl2-pill.on');
-      rowEl.scrollLeft = on ? Math.max(0, on.offsetLeft - (rowEl.clientWidth - on.offsetWidth) / 2) : 0;
+    // The current pick is scrolled into view only when it is not wholly in
+    // view (a new view starts from the left, so "In <list>" shows when it
+    // can). A pick wider than the row ("Basic Materials 34" on a phone) lines
+    // up with the row's left edge, never past it. No page scroll either way.
+    const on = rowEl.querySelector('[data-wl-step].on');
+    if (wlRowShownMode !== wlUi.mode) { wlRowShownMode = wlUi.mode; rowEl.scrollLeft = 0; }
+    if (on && (on.offsetLeft < rowEl.scrollLeft || on.offsetLeft + on.offsetWidth > rowEl.scrollLeft + rowEl.clientWidth)) {
+      rowEl.scrollLeft = Math.max(0, on.offsetWidth >= rowEl.clientWidth ? on.offsetLeft - 4 : on.offsetLeft + on.offsetWidth - rowEl.clientWidth + 4);
     }
     const vals = wlModeValues();
     const modeOpts = document.getElementById('wl2ModeOpts');
@@ -1898,7 +1916,9 @@
     if (!rows.length) {
       html = cur && !wlCount(cur)
         ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
-        : `<div class="wl2-empty">Nothing matches.</div>`;
+        : cur
+          ? `<div class="wl2-empty">Nothing in <b>${escText(cur.name)}</b> matches.<br><button class="wl2-pill wl2-empty-btn" data-wl-list="all">Search all markets</button></div>`
+          : `<div class="wl2-empty">Nothing matches.</div>`;
     } else {
       // A list's division whose instruments are all filtered out (class chip,
       // search) is hidden with them; rows before a list's first division have
