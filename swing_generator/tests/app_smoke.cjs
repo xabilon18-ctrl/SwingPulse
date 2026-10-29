@@ -295,6 +295,28 @@ const assert = require('node:assert/strict');
     await page.locator('#wl2Lists [data-wl-list="all"]').click();
     assert.ok(await page.locator('#wl2Body .wl2-group').count() >= 1, 'All markets keeps its group headings when sorted');
     await page.evaluate(() => document.querySelector('[data-wl-sort="group"]').click());
+    // One row, five views (2026-10-29): the dropdown before the lists swaps
+    // the row for a filter's choices; Sort sits beside the search.
+    const wlRow = page.locator('#wl2Lists');
+    assert.equal(await page.locator('#wl2Drops').count(), 0, 'the old dropdown row is gone');
+    assert.ok(await page.locator('.wl2-head #wl2DdSort').isVisible(), 'Sort sits beside the search');
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="cls"]').click();
+    assert.equal(await page.locator('#wl2DdMode .wl2-mode-lbl').innerText(), 'Class');
+    assert.deepEqual(await wlRow.locator('.wl2-pill').allInnerTexts(), ['All', 'Indices', 'Stocks', 'Forex', 'Ccy Index', 'Commodities', 'Crypto']);
+    await swipe(-120);
+    assert.equal(await wlRow.locator('.wl2-pill.on').getAttribute('data-wl-cls'), 'Index', 'the swipe steps what the row holds');
+    assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').innerText(), '1', 'the dropdown counts the filters set');
+    await page.locator('#wl2DdMode').click();
+    assert.match(await page.locator('#wl2MenuMode [data-wl-mode="cls"]').innerText(), /Indices/, 'the menu names a set filter');
+    await page.locator('#wl2MenuMode [data-wl-mode="sector"]').click();
+    await wlRow.locator('[data-wl-sector]:not([data-wl-sector=""])').first().click();
+    assert.ok(await wlRow.locator('.wl2-sub[data-wl-industry]').count() >= 1, 'a picked sector opens its industries in the row');
+    await page.locator('#wl2Clear').click();
+    assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').isHidden(), true, 'reset clears every view');
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="lists"]').click();
+    assert.equal(await onList(), 'all', 'the list pick survives the other views');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');

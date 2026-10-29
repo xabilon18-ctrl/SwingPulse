@@ -9681,6 +9681,28 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #pane-watchlist .wl2-new { color: var(--accent); }
 #pane-watchlist .wl2-edit { color: var(--text-secondary); }
 #pane-watchlist .wl2-done { color: var(--accent); font-weight: 700; }
+/* One row, five views (2026-10-29): search with Sort and reset beside it;
+   under it the view dropdown, then that view's chips scrolling sideways. */
+#pane-watchlist .wl2-head { flex-direction: row; align-items: center; gap: 6px; }
+#pane-watchlist .wl2-head .fsearch { flex: 1; }
+.wl2-sortbtn { flex: none; height: 38px; padding: 0 11px; gap: 5px; border-radius: 11px; }
+.wl2-sort-ic { flex: none; opacity: .75; }
+.wl2-bar2 { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.wl2-mode { flex: none; height: 32px; gap: 5px; }
+.wl2-mode-n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #0a0a0f;
+  font-size: .66rem; font-weight: 800; line-height: 16px; text-align: center; }
+.wl2-mode-n[hidden] { display: none; }
+#pane-watchlist .wl2-bar2 .wl2-lists { position: relative; flex: 1; min-width: 0; margin: 0; padding: 6px 4px 8px; }
+.wl2-sep { flex: none; align-self: center; padding: 0 2px 0 8px; font-size: .62rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-muted); }
+.wl2-sep:first-child { padding-left: 2px; }
+.wl2-cscope { display: contents; }
+/* A picked sector's industries follow it in the row, smaller and outlined. */
+#pane-watchlist .wl2-pill.wl2-sub { align-self: center; padding: 4px 10px; font-size: .78rem; border: 1px solid var(--border); }
+#pane-watchlist .wl2-pill.wl2-sub.on { background: var(--accent-glow); color: var(--accent); border-color: rgba(251,191,36,.45);
+  box-shadow: none; font-weight: 700; }
+#pane-watchlist .wl2-pill.wl2-sub.on .wl2-n { color: var(--accent); }
+.fdrop-menu .fdrop-opts > button i.set { color: var(--accent); opacity: 1; font-weight: 600; }
 #pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Active at last close (2026-10-28): ONE quiet line, plain words coloured
    by direction (user: "I hate clutter"). Scrolls sideways if it ever overflows. */

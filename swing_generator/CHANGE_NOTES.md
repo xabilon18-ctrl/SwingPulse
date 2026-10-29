@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-29 WATCHLIST: ONE ROW, FIVE VIEWS: app.js v550, style.css v390.
+User: "remove class, sector trend, clusters and put them in a dropdown menu
+with all markets ... if i select class then i should have all the class in
+the same line as all markets ... i can scroll left or right". The row of
+Class / Sector / Trend / Clusters / Sort dropdown buttons is gone. The lists
+row now starts with a dropdown (Lists · Class · Sector · Trend · Clusters)
+that picks what the row holds; the chips scroll sideways and a new view opens
+scrolled to its current pick. Sector opens its industries right after the
+picked sector, in the row; tapping the sector again closes it. Trend shows
+Daily then 4H; Clusters shows the modes then the width. Filters set in
+another view still apply, so the menu names each one's value and the dropdown
+carries a count of the filters set. The swipe on the list steps through what
+the row holds (it switched lists only, which would change a hidden pick in
+the other views). Sort and the reset button moved beside the search. The
+view is remembered (wlUi.mode); reset clears the filters and keeps the view.
+sectorLists() is shared by the Charts sector menu and the row. Tests:
+app_smoke.cjs (views, swipe, count, menu value, industries, reset),
+stock_view_test.cjs loads sectorLists.
+
 2026-10-28 MONTHLY OVERLAY FROM THE WHOLE HISTORY: app.js v549. User: "Add the
 500ma and where it shows it show and where it does not it doesn't really
 matter", then "like on the monthly MAs". The Monthly overlay on Daily, 4H, 1H

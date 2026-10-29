@@ -197,7 +197,7 @@ const sx = vm.createContext({
     { sector: 'Crypto', industry: 'Coin' }, { sector: 'Index', industry: 'US Index' },
   ],
 });
-vm.runInContext(fn('sectorMenuHtml') + fn('sectorMatches') + fn('sectorDropValue'), sx);
+vm.runInContext(fn('sectorLists') + fn('sectorMenuHtml') + fn('sectorMatches') + fn('sectorDropValue'), sx);
 const menu = sx.sectorMenuHtml('wl', '', '');
 assert.ok(/data-wl-sector="Technology">Technology<i>3<\/i>/.test(menu) && /data-wl-sector="Healthcare"/.test(menu), menu);
 assert.ok(!/Crypto|US Index/.test(menu), 'Class covers crypto and indices');
