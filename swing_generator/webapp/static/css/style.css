@@ -9681,28 +9681,33 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #pane-watchlist .wl2-new { color: var(--accent); }
 #pane-watchlist .wl2-edit { color: var(--text-secondary); }
 #pane-watchlist .wl2-done { color: var(--accent); font-weight: 700; }
-/* One row, five views (2026-10-29): search with Sort and reset beside it;
-   under it the view dropdown, then that view's chips scrolling sideways. */
+/* One Filters button (2026-10-29): Search · Sort · Filters on one line,
+   a chip under the lists for each filter set, every filter in one panel. */
 #pane-watchlist .wl2-head { flex-direction: row; align-items: center; gap: 6px; }
 #pane-watchlist .wl2-head .fsearch { flex: 1; }
-.wl2-sortbtn { flex: none; height: 38px; padding: 0 11px; gap: 5px; border-radius: 11px; }
+.wl2-sortbtn, .wl2-filtbtn { flex: none; height: 38px; padding: 0 11px; gap: 5px; border-radius: 11px; }
 .wl2-sort-ic { flex: none; opacity: .75; }
-.wl2-bar2 { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
-.wl2-mode { flex: none; height: 32px; gap: 5px; }
-.wl2-mode-n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #0a0a0f;
-  font-size: .66rem; font-weight: 800; line-height: 16px; text-align: center; }
-.wl2-mode-n[hidden] { display: none; }
-#pane-watchlist .wl2-bar2 .wl2-lists { position: relative; flex: 1; min-width: 0; margin: 0; padding: 6px 4px 8px; }
-.wl2-sep { flex: none; align-self: center; padding: 0 2px 0 8px; font-size: .62rem; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--text-muted); }
-.wl2-sep:first-child { padding-left: 2px; }
-.wl2-cscope { display: contents; }
-/* A picked sector's industries follow it in the row, smaller and outlined. */
-#pane-watchlist .wl2-pill.wl2-sub { align-self: center; padding: 4px 10px; font-size: .78rem; border: 1px solid var(--border); }
-#pane-watchlist .wl2-pill.wl2-sub.on { background: var(--accent-glow); color: var(--accent); border-color: rgba(251,191,36,.45);
-  box-shadow: none; font-weight: 700; }
-#pane-watchlist .wl2-pill.wl2-sub.on .wl2-n { color: var(--accent); }
-.fdrop-menu .fdrop-opts > button i.set { color: var(--accent); opacity: 1; font-weight: 600; }
+.wl2-filtbtn.set { background: var(--accent-glow); border-color: rgba(251,191,36,.4); color: var(--accent); }
+.wl2-fcount { min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: #0a0a0f;
+  font-size: .68rem; font-weight: 800; line-height: 17px; text-align: center; }
+.wl2-fcount[hidden] { display: none; }
+.wl2-chips { display: flex; gap: 6px; margin: -2px 0 6px; overflow-x: auto; scrollbar-width: none; }
+.wl2-chips::-webkit-scrollbar { display: none; }
+.wl2-chips[hidden] { display: none; }
+.wl2-fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px 0 11px;
+  border-radius: 999px; border: 1px solid rgba(251,191,36,.45); background: var(--accent-glow); color: var(--accent);
+  font: inherit; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.wl2-fchip b { font-size: .7rem; opacity: .75; }
+.wl2-fchip.wl2-fclear { border-color: var(--border); background: none; color: var(--text-secondary); font-weight: 600; }
+.fdrop-menu.wl2-fpanel { width: min(360px, calc(100vw - 20px)); padding: 4px 6px 8px; }
+.wl2-fchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 4px 6px; }
+.wl2-fchips .wl2-chip { padding: 6px 11px; }
+.wl2-fchips .wl2-chip i { font-style: normal; font-size: .72rem; opacity: .6; margin-left: 2px; }
+.wl2-ffoot { position: sticky; bottom: -8px; display: flex; gap: 8px; margin: 4px -6px -8px; padding: 8px 10px 10px;
+  background: #1c1c1b; border-top: 1px solid rgba(255,255,255,.07); }
+.wl2-fclear-all, .wl2-fdone { flex: 1; height: 38px; border-radius: 10px; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
+.wl2-fclear-all { border: 1px solid var(--border); background: none; color: var(--text-secondary); }
+.wl2-fdone { border: 0; background: var(--accent); color: #0a0a0f; }
 #pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Active at last close (2026-10-28): ONE quiet line, plain words coloured
    by direction (user: "I hate clutter"). Scrolls sideways if it ever overflows. */
@@ -9789,3 +9794,5 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
 .fdrop-note { margin: 4px 10px 8px; font-size: .7rem; line-height: 1.4; color: var(--text-muted); }
 @media (prefers-reduced-motion: reduce) { .fdrop-menu { animation: none; } }
+/* Small phones: Sort drops its word so the search keeps room (2026-10-29). */
+@media (max-width: 359px) { .wl2-sortbtn .fdrop-lbl { display: none; } .wl2-sortbtn, .wl2-filtbtn { padding: 0 9px; } }
