@@ -609,6 +609,7 @@
       // timestamp says — see channelMergeRemote.
       const drawingsChanged = channelMergeRemote(remote, remote.lastModified > localMod);
       const notesChanged = notesMergeRemote(remote, remote.lastModified > localMod);
+      viewsMergeRemote(remote);
       if (notesChanged && !(remote.lastModified > localMod) && allData.length) renderAll();
       if (drawingsChanged && !(remote.lastModified > localMod)) {
         try { reelRepaintVisible(); } catch (_) {}
@@ -617,9 +618,10 @@
       // flush that never landed. Send it now rather than waiting for the next
       // edit; this is what rescued the phone drawings stranded by the 64 KB
       // keepalive cap. Costs a save only when something is actually missing.
-      const rMod = remote.channelsMod || {}, rNotes = remote.notesMod || {};
+      const rMod = remote.channelsMod || {}, rNotes = remote.notesMod || {}, rViews = remote.viewsMod || {};
       if (!syncDrawTimer && (Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)) ||
                              Object.keys(notesMod).some(k => (+notesMod[k] || 0) > (+rNotes[k] || 0)) ||
+                             Object.keys(viewsMod).some(k => (+viewsMod[k] || 0) > (+rViews[k] || 0)) ||
                              chartPreferences.pending(remote.chartPrefs)))
         syncPushNow();
       if (remote.lastModified > localMod) {
@@ -671,6 +673,7 @@
         try { reelRepaintVisible(); } catch (_) {}
       }
       if (notesMergeRemote(remote, false) && allData.length) renderAll();
+      viewsMergeRemote(remote);
     } catch (e) {
       if (syncUser === user) {
         syncUnavailable = true; savedWork?.updateStatus();
@@ -682,7 +685,7 @@
     const stars = [...userStarred];
     const payload = { notes: instrumentNotes, notesMod, channels: instChannels,
                       channelsMod: channelMod, watchlists: wlStore, chartPrefs: chartPreferences.snapshot(),
-                      lastModified: Date.now() };
+                      views: savedViews, viewsMod, lastModified: Date.now() };
     if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
     const body = JSON.stringify(payload);
@@ -861,6 +864,8 @@
     // Saved chart views live in the user's own bucket too.
     try { savedViews = JSON.parse(localStorage.getItem(sk('sp-views')) || '{}') || {}; }
     catch (_) { savedViews = {}; }
+    try { viewsMod = JSON.parse(localStorage.getItem(sk('sp-views-mod')) || '{}') || {}; }
+    catch (_) { viewsMod = {}; }
     channelSnapAll();
     updateSyncBadge();
     // A device that has never synced this user needs the password once; after
@@ -3526,10 +3531,13 @@
     const nextNotesMod = { ...notesMod };
     for (const n of new Set([...Object.keys(instrumentNotes), ...Object.keys(data.notes || {})]))
       nextNotesMod[n] = Math.max(now, (+nextNotesMod[n] || 0) + 1);
+    const nextViewsMod = { ...viewsMod };
+    for (const k of new Set([...Object.keys(savedViews), ...Object.keys(data.views || {})]))
+      nextViewsMod[k] = Math.max(now, (+nextViewsMod[k] || 0) + 1);
     const writes = {
       [sk('sp-channels')]: nextChannels, [sk('sp-channels-mod')]: nextMods,
       [sk('sp-notes')]: data.notes, [sk('sp-notes-mod')]: nextNotesMod, [sk(WL_KEY)]: nextLists,
-      [sk(VIEW_STORE)]: data.views, [sk('sp-overlay')]: data.overlay,
+      [sk(VIEW_STORE)]: data.views, [sk(VIEW_MOD_STORE)]: nextViewsMod, [sk('sp-overlay')]: data.overlay,
       [sk('sp-chart-prefs')]: chartPreferences.previewRestore(data.grids),
     };
     const prior = Object.fromEntries(Object.keys(writes).map(k => [k, localStorage.getItem(k)]));
@@ -3539,7 +3547,7 @@
       throw new Error('Browser storage is full. Your current work was kept; download a backup before freeing space.');
     }
     instChannels = nextChannels; channelMod = nextMods;
-    instrumentNotes = data.notes; notesMod = nextNotesMod; wlStore = nextLists; savedViews = data.views;
+    instrumentNotes = data.notes; notesMod = nextNotesMod; wlStore = nextLists; savedViews = data.views; viewsMod = nextViewsMod;
     for (const k of Object.keys(tfOverlay)) delete tfOverlay[k];
     Object.assign(tfOverlay, data.overlay); ovApplyVars(); chartPreferences.reload();
     drawUndo.clear(); drawRedo.clear(); reel.editing = null; channelSnapAll();
@@ -9362,24 +9370,53 @@
 
   // ── SAVED VIEWS (user, 2026-09-25: "can the view that i save be the one
   // used for that chart when i open it again") ──────────────────────────
-  // One per instrument AND timeframe, on this device only (localStorage). A
-  // view is kept RELATIVE TO THE LATEST BAR, not as dates and prices, so it
-  // opens on today's candles framed the way it was saved: `bars` (time zoom),
-  // `pan` (bars back from the newest; negative = blank future on the right),
-  // `pctPerPx` (price zoom as a share of the close per plot pixel, so a card
-  // and full screen agree) and `mid` (where the close sits: the window's
-  // centre as a share of the close above/below it). Saved only by the button;
-  // double-tap returns to it; pressing the button on an unchanged saved view
-  // forgets it.
-  const VIEW_STORE = 'sp-views';
+  // One per instrument AND timeframe. Since app.js v553 (user, 2026-10-29:
+  // "After I click save, it must capture the frame, the way it is, where I put
+  // it, and it should open right there") a view is the EXACT FRAME on screen:
+  // `start` (the first candle in view), `slots` (window width, blank future
+  // included) and the price window `lo`/`hi`. It opens on those dates and
+  // prices on the card and in full screen alike; new candles fill the blank
+  // space on the right. Version 1 views (bars/pan/pctPerPx/mid, relative to
+  // the newest bar and the plot's height) still open the old way until saved
+  // again. The rest of each record (close, last, where, plotPx...) is not read
+  // back: it is the context research/read_views.py needs to learn how the
+  // reader frames a chart. Views sync per key on `viewsMod`, like notes.
+  // Tap Save to save (again); hold it to forget the view.
+  const VIEW_STORE = 'sp-views', VIEW_MOD_STORE = 'sp-views-mod';
   let savedViews = (() => {
     try { return JSON.parse(localStorage.getItem(sk(VIEW_STORE)) || '{}') || {}; }
+    catch (_) { return {}; }
+  })();
+  let viewsMod = (() => {
+    try { return JSON.parse(localStorage.getItem(sk(VIEW_MOD_STORE)) || '{}') || {}; }
     catch (_) { return {}; }
   })();
   const viewKey = name => name + '|' + timeframe;
   function viewStoreSave() {
     scheduleWorkBackup();
-    try { localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews)); } catch (_) {}
+    try {
+      localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews));
+      localStorage.setItem(sk(VIEW_MOD_STORE), JSON.stringify(viewsMod));
+    } catch (_) {}
+  }
+  // Merge a remote copy view by view: a newer stamp wins, a stamp with no
+  // view is a forget. Returns true if anything changed.
+  function viewsMergeRemote(remote) {
+    const rMod = remote && remote.viewsMod && typeof remote.viewsMod === 'object' ? remote.viewsMod : {};
+    const rViews = remote && remote.views && typeof remote.views === 'object' ? remote.views : {};
+    let changed = false;
+    for (const [k, at] of Object.entries(rMod)) {
+      if (!((+at || 0) > (+viewsMod[k] || 0))) continue;
+      const v = rViews[k];
+      if (v && typeof v === 'object') savedViews[k] = v; else delete savedViews[k];
+      viewsMod[k] = +at;
+      changed = true;
+    }
+    if (changed) {
+      viewStoreSave();
+      try { document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name)); } catch (_) {}
+    }
+    return changed;
   }
   function bundleLastClose(bundle) {
     for (let i = bundle.c.length - 1; i >= 0; i--) if (bundle.c[i] > 0) return bundle.c[i];
@@ -9387,24 +9424,37 @@
   }
   function reelViewCapture(host) {
     const ctx = host && host._reelCtx;
-    if (!ctx) return null;
-    const c = bundleLastClose(ctx.bundle), px = ctx.plotPx || plotPixelHeight(host, ctx.L);
-    if (!(c > 0) || !(px > 0)) return null;
+    if (!ctx || !ctx.b || !ctx.b.t.length) return null;
+    const lo = ctx.sc.lo, hi = ctx.sc.hi;
+    if (!(isFinite(lo) && isFinite(hi) && hi > lo)) return null;
+    const slots = reelWindowBars(ctx.bundle, ctx.name), pan = reelPanOf(ctx.name, ctx.bundle);
+    const src = ctx.bundle, n = src.c.length;
     return {
-      bars: reelWindowBars(ctx.bundle, ctx.name),
-      pan:  reelPanOf(ctx.name, ctx.bundle),
-      pctPerPx: (ctx.sc.hi - ctx.sc.lo) / c / px,
-      mid: ((ctx.sc.hi + ctx.sc.lo) / 2 - c) / c,
+      v: 2, start: ctx.b.t[0], slots, lo, hi,
+      // Context for learning, not read back.
+      tf: timeframe, end: ctx.b.t[ctx.b.t.length - 1], last: src.t[n - 1],
+      close: bundleLastClose(src), pan, future: Math.max(0, -pan),
+      where: host.closest('#chartFull') ? 'full' : 'card',
+      plotPx: Math.round(ctx.plotPx || plotPixelHeight(host, ctx.L)) || null,
+      savedAt: Date.now(),
     };
   }
-  const viewSame = (a, b) => a && b && a.bars === b.bars && a.pan === b.pan
-    && Math.abs(a.pctPerPx - b.pctPerPx) <= b.pctPerPx * 0.01
-    && Math.abs(a.mid - b.mid) <= 0.001;
   // Time half: before the slice is cut. Only when the chart has no view of the
   // reader's own this session — the saved view is where it OPENS.
   function reelViewSeedTime(name, bundle) {
     const v = savedViews[viewKey(name)];
     if (!v || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
+    if (v.v === 2) {
+      const n = bundle.c.length;
+      reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.slots, reelMaxBars(bundle, name))));
+      const W = reelWindowBars(bundle, name), ts = reelParseTs(v.start), times = reelBarTimes(bundle);
+      let from = times.findIndex(t => t >= ts);
+      if (from < 0) from = n - 1;
+      reel.pan.set(name, 0);
+      // first bar in view = n - W - pan (reelSlice), so pan = n - W - from.
+      reelSetPan(name, n - W - from, bundle);
+      return true;
+    }
     reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, reelMaxBars(bundle, name))));
     reel.pan.set(name, 0);
     reelSetPan(name, v.pan, bundle);
@@ -9416,10 +9466,15 @@
   // the price half WAITS (viewPricePending) and is applied on the next paint.
   // It used to be dropped, while the time half had already been applied and
   // blocked any retry: "the save only saves the time scale but not the price".
+  // A version 2 view is absolute prices and needs no height.
   const viewPricePending = new Set();
   function reelViewSeedPrice(name, bundle, host, L) {
     const v = savedViews[viewKey(name)];
     if (!v) return true;
+    if (v.v === 2) {
+      if (isFinite(v.lo) && isFinite(v.hi) && v.hi > v.lo) reel.lockY.set(name, { lo: v.lo, hi: v.hi, _saved: true });
+      return true;
+    }
     const c = bundleLastClose(bundle), px = plotPixelHeight(host, L);
     if (!(c > 0) || !(px > 0)) return false;
     const span = v.pctPerPx * c * px, mid = c * (1 + v.mid);
@@ -9430,6 +9485,7 @@
   // and done"): one pill, Save on the left, the Drawing/Edit/Done button on
   // the right. Save reads "Saved" (accent) while this chart has a saved view.
   const viewBtnInner = on => VIEW_ICON + `<span>${on ? 'Saved' : 'Save'}</span>`;
+  const viewBtnTitle = on => on ? 'View saved — tap to save again, hold to forget it' : 'Save this view';
   function reelViewBtnSync(name) {
     const on = !!savedViews[viewKey(name)];
     // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
@@ -9438,26 +9494,58 @@
       b.classList.toggle('on', on);
       b.innerHTML = viewBtnInner(on);
       b.setAttribute('aria-pressed', String(on));
-      b.title = on ? 'View saved — tap again to forget it' : 'Save this view';
+      b.title = viewBtnTitle(on);
     });
   }
   function reelCapsuleHtml(name) {
     const on = !!savedViews[viewKey(name)];
     return `<span class="reel-capsule">`
-      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${on ? 'View saved — tap again to forget it' : 'Save this view'}">${viewBtnInner(on)}</button>`
+      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
       + `<button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
+  // A tap ALWAYS saves. It used to toggle, so tapping Save again on a chart
+  // that already looked right — to make sure — silently forgot the view.
   function reelViewToggle(name, host) {
-    const k = viewKey(name), cur = reelViewCapture(host);
-    if (savedViews[k] && (!cur || viewSame(cur, savedViews[k]))) {
-      delete savedViews[k];
-    } else if (cur) {
-      savedViews[k] = cur;
-    } else return;
+    const cur = reelViewCapture(host);
+    if (!cur) return;
+    const k = viewKey(name);
+    savedViews[k] = cur;
+    viewsMod[k] = Math.max(Date.now(), (+viewsMod[k] || 0) + 1);
+    // Hold the chart on exactly what was saved, so closing or opening full
+    // screen shows the same frame instead of rescaling it to the other plot.
+    reel.lockY.set(name, { lo: cur.lo, hi: cur.hi, _saved: true });
     viewStoreSave();
+    syncPush();
     reelViewBtnSync(name);
   }
+  function reelViewForget(name) {
+    const k = viewKey(name);
+    if (!savedViews[k]) return;
+    delete savedViews[k];
+    viewsMod[k] = Math.max(Date.now(), (+viewsMod[k] || 0) + 1);
+    viewStoreSave();
+    syncPush();
+    reelViewBtnSync(name);
+  }
+  // Hold Save to forget. The click that ends the hold is swallowed.
+  const VIEW_FORGET_HOLD_MS = 700;
+  let viewHold = null, viewHoldFired = false;
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest && e.target.closest('[data-act="chart-view-save"]');
+    if (!b) return;
+    viewHoldFired = false;
+    clearTimeout(viewHold);
+    viewHold = setTimeout(() => { viewHold = null; viewHoldFired = true; reelViewForget(b.dataset.name); }, VIEW_FORGET_HOLD_MS);
+  }, true);
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+    document.addEventListener(type, () => { clearTimeout(viewHold); viewHold = null; }, true);
+  }
+  document.addEventListener('click', e => {
+    if (!viewHoldFired || !(e.target.closest && e.target.closest('[data-act="chart-view-save"]'))) return;
+    viewHoldFired = false;
+    e.stopPropagation(); e.preventDefault();
+  }, true);
 
   // Unset = the timeframe's opening position: 0 (newest bar at the right
   // edge), except where an opening view applies (1H, 4H, Daily, Weekly, Monthly),
@@ -11585,7 +11673,8 @@
     // When the card is still waiting to apply a SAVED price window, full
     // screen applies it itself (reelViewSeedPrice on its own plot) rather than
     // copying the card's un-applied default and marking the view done.
-    if (src && chartFullPrevLock && !viewPricePending.has(name)) {
+    // A SAVED frame is absolute prices and opens as it was saved.
+    if (src && chartFullPrevLock && !chartFullPrevLock._saved && !viewPricePending.has(name)) {
       const srcPlot  = plotPixelHeight(src.host, src.ctx.L);
       const fullPlot = plotPixelHeight(host, reelLayout(host));
       if (srcPlot > 0 && fullPlot > 0) {
@@ -11693,7 +11782,8 @@
       // amount and leave the chart somewhere they never put it.
       const shift = owned ? ((cur.hi + cur.lo) / 2 - chartFullOpenMid) / chartFullOpenSpan : 0;
 
-      if (chartFullPrevLock === undefined) reel.lockY.delete(chartFullName);
+      if (cur && cur._saved) reel.lockY.set(chartFullName, cur);
+      else if (chartFullPrevLock === undefined) reel.lockY.delete(chartFullName);
       else reel.lockY.set(chartFullName, chartFullPrevLock);
 
       if (Math.abs(ratio - 1) > 0.005 || Math.abs(shift) > 0.005) {

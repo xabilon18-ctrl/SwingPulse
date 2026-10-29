@@ -7,6 +7,32 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-29 (later) CHART SAVE KEEPS THE EXACT FRAME: app.js v553. User: "After
+I click save, it must capture the frame, the way it is, where I put it, and it
+should open right there." A saved view was relative: bars back from the newest
+bar and price per PIXEL around the latest close (2026-09-25 design). So it
+moved with every new candle and every close, and a frame saved on the card
+opened in full screen with over twice the price range (Daily test chart:
+73-142 on the card, 33-182 full screen; saved full screen 78-137, card
+94-121). Now a save (`v: 2`) is the first candle in view (`start`), the window
+width (`slots`, blank future included) and the price window (`lo`/`hi`), and
+it opens on exactly that on the card and in full screen; new candles fill the
+blank space. The held window is `_saved` in reel.lockY, which full screen no
+longer rescales and hands back to the card on close. A tap on Save always
+saves (it toggled, so a second tap "to make sure" forgot the view); hold Save
+0.7s to forget. Views now SYNC (`views`/`viewsMod`, merged view by view in the
+Worker's mergeViews like notes); they were on one device only, and an iPhone
+home-screen app and Safari do not share storage. Old v1 views open the old way
+until saved again. Each save also records context that is never read back
+(close, newest bar, blank bars, card/full, plot height) so
+research/read_views.py can report how the user frames each timeframe and
+class (from the Saved work backup file or the synced copy). Not done: the
+opening frames are unchanged until the user asks to set them from those
+medians. Tests: chart_framing_checks.cjs (exact restore, second tap keeps),
+sync-worker saved_work_test.mjs (views merge). Also checked by hand in the
+browser: save on card or full screen, reload, both match on 1H/4H/D/W; a new
+candle after the save keeps the same dates and prices.
+
 2026-10-29 (later) ONE DOLLAR INDEX: app.js v552. User asked why the dollar
 index had drawings in one list and none under Currency Index: they were two
 instruments, USDX (ICE's DXY, Yahoo DX-Y.NYB, the one with the drawings) and

@@ -55,3 +55,19 @@ assert.equal(mergeSavedWork(laptop,{lastModified:999}).notes.C,'laptop note','A 
 assert.ok(!Object.hasOwn(mergeSavedWork({},{notes:{constructor:'bad'},notesMod:{constructor:5}}).notes,'constructor'),'Prototype keys are refused');
 for(const division of ['Y10','Y20'])assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{M:{division,modifiedAt:5}}}}).chartPrefs.grids.M.division,division,'Monthly ten and twenty years sync');
 console.log('PASS: authenticated saved-work merging, newer charts and grids, deletion tombstones, retained server backup');
+// Saved chart views merge view by view (2026-10-29): one device's save keeps
+// another's, an older stamp loses, a stamp without a view forgets it, and a
+// client that sends no viewsMod leaves them alone.
+{
+  const a={v:2,start:'2026-01-02',slots:300,lo:90,hi:120},b={v:2,start:'2025-06-02',slots:500,lo:10,hi:40};
+  let m=mergeSavedWork({},{views:{'AAPL|D':a},viewsMod:{'AAPL|D':100}});
+  m=mergeSavedWork(m,{views:{'BTC|4H':b},viewsMod:{'BTC|4H':200}});
+  assert.deepEqual(m.views,{'AAPL|D':a,'BTC|4H':b});
+  assert.deepEqual(mergeSavedWork(m,{views:{'AAPL|D':b},viewsMod:{'AAPL|D':50}}).views['AAPL|D'],a,'older view loses');
+  const gone=mergeSavedWork(m,{views:{},viewsMod:{'AAPL|D':300}});
+  assert.equal(gone.views['AAPL|D'],undefined);assert.equal(gone.viewsMod['AAPL|D'],300);
+  assert.deepEqual(mergeSavedWork(gone,{views:{'AAPL|D':a},viewsMod:{'AAPL|D':150}}).views['AAPL|D'],undefined,'older device cannot resurrect a forgotten view');
+  assert.deepEqual(mergeSavedWork(m,{notes:{}}).views,m.views,'a save without viewsMod keeps views');
+  assert.deepEqual(mergeSavedWork(m,{views:{'X|bad':a},viewsMod:{'X|bad':999,'__proto__':999}}).views,m.views,'bad keys ignored');
+  console.log('PASS: saved views merge per view');
+}
