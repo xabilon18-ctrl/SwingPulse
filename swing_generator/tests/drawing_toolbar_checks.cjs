@@ -28,6 +28,14 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await lock.click();
     assert.equal(await lock.getAttribute('aria-pressed'),'false','Collapsed strip can unlock the drawing');
     assert.ok(await page.locator('#chartFull .reel-draw.is-sel [data-h]').count()>0,'Unlock restores drag handles');
+    // Duplicate and Delete sit in the bar (2026-10-30), not under More.
+    const drawings=()=>page.locator('#chartFull .reel-draw').count();
+    const nDraw=await drawings();
+    await toolbar.locator('[data-draw-strip] [data-act="draw-dup"]').click();
+    assert.equal(await drawings(),nDraw+1,'Duplicate in the bar copies the drawing');
+    await toolbar.locator('[data-draw-strip] [data-act="draw-delete"]').click();
+    assert.equal(await drawings(),nDraw,'Delete in the bar removes the copy');
+    assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')),'Duplicate and Delete do not expand the panel');
     if (screenshots) await page.screenshot({path:`${screenshots}/drawing-toolbar-collapsed-v488.png`});
     const collapsedHeight=await toolbar.evaluate(el=>el.getBoundingClientRect().height);
     const unlocked=await saved();
@@ -40,6 +48,7 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     assert.equal(new Set(palettes).size,2,'Palette uses neutral buttons plus one selected highlight');
     assert.ok(palettes.every(c=>c==='rgb(241, 243, 245)'||c==='rgb(32, 37, 43)'),'Drawing tool palette is monochrome');
     await toolbar.locator('[data-act="draw-more"]').click();
+    assert.equal(await toolbar.locator('.reel-draw-more [data-act="draw-dup"], .reel-draw-more [data-act="draw-delete"]').count(),0,'More no longer repeats Duplicate and Delete');
     await toolbar.locator('[data-act="draw-fill-toggle"]').click();
     assert.equal(await toolbar.locator('[data-act="draw-fill-toggle"]').getAttribute('aria-checked'),'true');
     if (screenshots) await page.screenshot({path:`${screenshots}/drawing-toolbar-more-v488.png`});

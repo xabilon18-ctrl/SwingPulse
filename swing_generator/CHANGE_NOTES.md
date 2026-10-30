@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 DRAWING BAR: DUPLICATE AND DELETE: drawing-toolbar.js v5,
+style.css v394. User (screenshot of the drawing bar: Drawing · lock · undo ·
+redo · ⌄ · Done): "put the delete and duplicate icon here". They moved out
+of More (•••) into the bar, as icons after Lock, greyed out like Lock while
+no drawing is selected; More keeps the ladder's remove-stack buttons, Show
+on and the line intensity. The bar now holds up to seven buttons, so under
+420px the tool's name gives way to its icon (the redo button already hides
+while the panel is folded). Test: drawing_toolbar_checks.cjs (Duplicate and
+Delete from the bar, not repeated in More; the 320px fit check passes).
+
 2026-10-30 TRADINGVIEW REMOVED: app.js v555, style.css v393. User: "We no
 longer need tradingview we can remove all connections to it". Gone: the
 TradingView button on every chart card and its Web/App picker
