@@ -9247,6 +9247,15 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw-current span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 105px; }
 .reel-draw-current svg { flex-shrink: 0; }
 .reel-draw-strip .reel-hist { background: #f1f3f5; color: #424851; }
+/* Duplicate and Delete sit in the bar (2026-10-30, user: "put the delete and
+   duplicate icon here"), greyed out like Lock while nothing is selected. On a
+   phone the bar holds seven buttons, so the tool's name gives way to its icon. */
+.reel-draw-strip .reel-draw-act { color: #424851; }
+.reel-draw-strip .reel-draw-act:disabled { opacity: .28; cursor: default; }
+@media (max-width: 420px) {
+  .reel-draw-compact .reel-draw-current span { display: none; }
+  .reel-draw-compact .reel-draw-current { padding: 5px 4px; }
+}
 .reel-draw-compact .reel-draw-done { background: #20252b; color: #fff; padding: 5px 10px; min-width: 48px; }
 .reel-draw-compact.is-collapsed [data-act="draw-redo"] { display: none; }
 .reel-draw-body { display: flex; flex-direction: column; gap: 7px; min-width: 0; }

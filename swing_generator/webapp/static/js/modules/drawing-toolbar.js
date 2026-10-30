@@ -25,6 +25,8 @@
     const lockLabel = locked ? 'Unlock this drawing' : 'Lock this drawing';
     return `<button class="reel-tool reel-draw-current" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}">${icon}<span>${label}</span></button>
       <button class="reel-tool reel-draw-lock${locked ? ' on' : ''}" data-act="draw-lock" data-name="${name}" aria-label="${lockLabel}" title="${lockLabel}" aria-pressed="${locked}"${drawing ? '' : ' disabled'}>${locked ? ICON_LOCK : ICON_UNLOCK}</button>
+      <button class="reel-tool reel-draw-act" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing" title="Duplicate"${drawing ? '' : ' disabled'}>${ICON_COPY}</button>
+      <button class="reel-tool reel-draw-act reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing" title="Delete"${drawing ? '' : ' disabled'}>${ICON_TRASH}</button>
       <button class="reel-tool reel-hist" data-act="draw-undo" data-name="${name}" aria-label="Undo drawing" title="Undo"${drawCanStep(name, -1) ? '' : ' disabled'}>${ICON_UNDO}</button>
       <button class="reel-tool reel-hist" data-act="draw-redo" data-name="${name}" aria-label="Redo drawing" title="Redo"${drawCanStep(name, 1) ? '' : ' disabled'}>${ICON_REDO}</button>
       <button class="reel-tool reel-draw-fold" data-act="draw-tools-toggle" data-name="${name}" aria-label="${toggle}" aria-expanded="${!collapsed}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="${collapsed ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}"/></svg></button>
@@ -136,10 +138,7 @@
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
     return `<div class="reel-props-main">${lineStyle}${pct}${ext}${bold}
       <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
-    </div>${more ? `<div class="reel-draw-more"><div class="reel-draw-actions">${less}
-      <button class="reel-tool" data-act="draw-dup" data-name="${name}" aria-label="Duplicate this drawing">${ICON_COPY}<span>Duplicate</span></button>
-      <button class="reel-tool reel-tool-del" data-act="draw-delete" data-name="${name}" aria-label="Delete this drawing">${ICON_TRASH}<span>Delete</span></button>
-    </div>${showOn}${intensity}</div>` : ''}`;
+    </div>${more ? `<div class="reel-draw-more">${less ? `<div class="reel-draw-actions">${less}</div>` : ''}${showOn}${intensity}</div>` : ''}`;
   }
 
 
