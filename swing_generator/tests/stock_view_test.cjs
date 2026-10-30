@@ -33,39 +33,31 @@ const hours = [13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5];
 // The grid's months and quarters are equal parts of the year, so a line can
 // fall a day either side of the calendar date.
 const near = (iso, day) => Math.abs(Date.parse(iso) - Date.parse(day)) < 2.5 * 864e5;
-// 1H (2026-10-22): previous + current MONTH round the clock; a session-only
-// feed takes previous + current TWO-MONTH block (2026-10-30: a month of 1H on
-// DAX or a US stock holds a third of US100's candles). Six months of 1H bars
-// to mid-October: 7 a weekday on a stock, 9 on a European index, 24 round
+// 1H, every market (2026-10-22): previous + current MONTH. Six months of 1H
+// bars to mid-October: 7 a weekday on a stock, 9 on a European index, 24 round
 // the clock.
 const round = [];
 for (let ms = Date.UTC(2026, 3, 17); ms <= Date.UTC(2026, 9, 17, 18); ms += 36e5) round.push(new Date(ms).toISOString());
-for (const [market, b1, first, firstPart] of [
-  ['STOCK', hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), '2026-07-01', 6],
-  ['IDX', hourly(Date.UTC(2026, 3, 20), Date.UTC(2026, 9, 16), [8, 9, 10, 11, 12, 13, 14, 15, 16]), '2026-07-01', 6],
-  ['BTC', { t: round, c: round.map(() => 1) }, '2026-09-01', 8], ['FX', { t: round, c: round.map(() => 1) }, '2026-09-01', 8],
-  ['EUR', { t: round, c: round.map(() => 1) }, '2026-09-01', 8]]) {
+for (const [market, b1] of [['STOCK', hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours)],
+  ['IDX', hourly(Date.UTC(2026, 3, 20), Date.UTC(2026, 9, 16), [8, 9, 10, 11, 12, 13, 14, 15, 16])],
+  ['BTC', { t: round, c: round.map(() => 1) }], ['FX', { t: round, c: round.map(() => 1) }],
+  ['EUR', { t: round, c: round.map(() => 1) }]]) {
   const v1 = ctx.reelStockView(b1, market);
   const f1 = b1.t.length - (v1.bars - v1.future);
-  assert.ok(near(b1.t[f1], first), market + ' ' + b1.t[f1]);
+  assert.ok(near(b1.t[f1], '2026-09-01'), market + ' ' + b1.t[f1]);
   // The window ends on the November line, the grid's own: its slot is the last one.
   const lines = geometry.timeGrid(b1, '1H', { barTimes: bt, getDivision: () => ({ parts: 12, code: 'M' }) });
   const month = k => lines.find(l => l.year === 2026 && l.part === k);
-  const nov = month(10), left = month(firstPart);
-  assert.ok(nov.fi - f1 > v1.bars - 2 && nov.fi - f1 <= v1.bars, market + ' next block line at the right edge');
-  assert.ok(left.fi - f1 >= 0 && left.fi - f1 < 1, market + ' previous block line at the left edge');
+  const nov = month(10), sep = month(8);
+  assert.ok(nov.fi - f1 > v1.bars - 2 && nov.fi - f1 <= v1.bars, market + ' next month line at the right edge');
+  assert.ok(sep.fi - f1 >= 0 && sep.fi - f1 < 1, market + ' previous month line at the left edge');
   assert.ok(v1.future > 0 && v1.future < v1.bars * 0.9, market);
   assert.equal(v1.fit, 'centre', market);
 }
-// A new block moves the frame on: on 5 Nov a stock (session-only) shows
-// September-October and November-December; round the clock, October and November.
+// A new month moves the frame on: on 5 Nov it is October and November.
 const nv = hourly(Date.UTC(2026, 5, 1), Date.UTC(2026, 10, 5), hours);
 const qn = ctx.reelStockView(nv, 'STOCK');
-assert.ok(near(nv.t[nv.t.length - (qn.bars - qn.future)], '2026-09-01'));
-const rn = [];
-for (let ms = Date.UTC(2026, 5, 1); ms <= Date.UTC(2026, 10, 5, 18); ms += 36e5) rn.push(new Date(ms).toISOString());
-const qr = ctx.reelStockView({ t: rn, c: rn.map(() => 1) }, 'BTC');
-assert.ok(near(rn[rn.length - (qr.bars - qr.future)], '2026-10-01'));
+assert.ok(near(nv.t[nv.t.length - (qn.bars - qn.future)], '2026-10-01'));
 
 // 4H, every market: previous + current quarter on a round-the-clock feed —
 // six bars a day on crypto, five on a weekday futures feed.
