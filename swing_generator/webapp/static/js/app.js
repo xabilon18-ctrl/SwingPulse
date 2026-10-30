@@ -1252,6 +1252,16 @@
     try { syncPush(); } catch (_) {}
   }
   function wlSaveUi() { try { localStorage.setItem('swingpulse-wl-ui', JSON.stringify(wlUi)); } catch (_) {} }
+  // FILTERS BELONG TO THE LIST (user, 2026-10-30: "when switching between
+  // lists the filter must go off and only work within the selected group and
+  // not from an old list"). Opening another list switches every filter off;
+  // Sort and search stay. The one exception is "Search all markets" on an
+  // empty result, which asks for the same filters in All markets (keep).
+  const WL_LIST_FILTERS = { cls: 'all', sector: '', industry: '', trend: 'all', relation: 'all', cluster: 'all' };
+  function wlSetList(id, keep = false) {
+    if (id !== wlUi.list && !keep) Object.assign(wlUi, WL_LIST_FILTERS);
+    wlUi.list = id; wlEdit = false; wlSaveUi();
+  }
   // Newest wins, whole store — lists are edited a few times a week, never
   // concurrently on two devices in any way worth a per-item merge.
   function wlMergeRemote(remote) {
@@ -1774,7 +1784,7 @@
     if (asOf) asOf.textContent = wlAsOfText();
     // The row: the dropdown picks the view, the chips scroll sideways.
     const lists = wlStore.lists;
-    if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlUi.list = 'all';
+    if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlSetList('all');
     const rowEl = document.getElementById('wl2Lists');
     rowEl.innerHTML = wlRowHtml(lists);
     // A filter view searches the list that is open. When that is one of the
@@ -1937,7 +1947,7 @@
       html = cur && !wlCount(cur)
         ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
         : cur
-          ? `<div class="wl2-empty">Nothing in <b>${escText(cur.name)}</b> matches.<br><button class="wl2-pill wl2-empty-btn" data-wl-list="all">Search all markets</button></div>`
+          ? `<div class="wl2-empty">Nothing in <b>${escText(cur.name)}</b> matches.<br><button class="wl2-pill wl2-empty-btn" data-wl-list="all" data-wl-keep>Search all markets</button></div>`
           : `<div class="wl2-empty">Nothing matches.</div>`;
     } else {
       // A list's division whose instruments are all filtered out (class chip,
@@ -2143,7 +2153,7 @@
       if (aw) { actWideOpen.add(aw.dataset.actWide); return renderActiveStrip(); }
       if (t.closest('[data-act-panel]')) { actPanelOpen = !actPanelOpen; return renderActiveStrip(); }
       const lp = t.closest('[data-wl-list]');
-      if (lp) { wlUi.list = lp.dataset.wlList; wlEdit = false; wlSaveUi(); return renderWatchlist(); }
+      if (lp) { wlSetList(lp.dataset.wlList, lp.hasAttribute('data-wl-keep')); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
       if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
       // Tapping the picked sector again closes it back to All.
@@ -2159,7 +2169,7 @@
       if (ttp) { wlUi.ttf = ttp.dataset.wlTtf; wlSaveUi(); return renderWatchlist(); }
       if (t.closest('#wl2Clear')) { Object.assign(wlUi, WL_FILTER_DEFAULTS); wlSaveUi(); return renderWatchlist(); }
       if (t.closest('#wl2SearchClear')) { wlUi.q = ''; wlSaveUi(); return renderWatchlist(); }
-      if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) { wlUi.list = l.id; wlSaveUi(); } return renderWatchlist(); }
+      if (t.closest('[data-wl-new]')) { const l = wlNewList(); if (l) wlSetList(l.id); return renderWatchlist(); }
       if (t.closest('[data-wl-edit]')) { wlEdit = !wlEdit; return renderWatchlist(); }
       const l = wlStore.lists.find(x => x.id === wlUi.list);
       if (l) {
@@ -2200,8 +2210,8 @@
         }
         if (t.closest('[data-wl-dellist]')) {
           if (!confirm(`Delete the list "${l.name}"? The instruments stay in All markets.`)) return;
-          wlStore.lists = wlStore.lists.filter(x => x.id !== l.id); wlUi.list = 'all'; wlEdit = false;
-          wlSaveUi(); wlSave(); return renderWatchlist();
+          wlStore.lists = wlStore.lists.filter(x => x.id !== l.id); wlSetList('all');
+          wlSave(); return renderWatchlist();
         }
       }
     });
@@ -5367,7 +5377,8 @@
   // in the Charts search box; typing there or Reset clears it.
   function openChartsFiltered({ gp = null, cls = '', search = '', trend = 'all', label = '' } = {}) {
     reel.similarTo = ''; reel.listSet = null;
-    reel.gp = gp; reel.cls = cls; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = trend;
+    reelFiltersOff();
+    reel.gp = gp; reel.cls = cls; reel.trend = trend;
     reel.search = (search || '').toLowerCase();
     const inp = document.getElementById('reelSearch'), clr = document.getElementById('reelSearchClear');
     if (inp) inp.value = label || search || cls || '';
@@ -13561,14 +13572,27 @@
   // Open the Charts tab ON this instrument. Clears any "lookalikes" filter
   // first — landing inside a comparison set you did not ask for is disorienting
   // — then rebuilds and scrolls the reel to the card.
+  // FILTERS BELONG TO THE SET (user, 2026-10-30, as on the Watchlist): the
+  // Charts filters work inside the charts in view, a watchlist opened here or
+  // a "charts like X" set, and switch off when that set changes. Opening
+  // another chart of the same set keeps them; Sort and search stay.
+  function reelFiltersOff() {
+    reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all';
+    reel.relation = 'all'; reel.cluster = 'all'; reel.stack = 'all'; reel.near = 'all';
+  }
+  const reelSetKey = () => reel.similarTo ? 'like:' + reel.similarTo
+    : reel.listSet ? 'list:' + reel.listSet.label + '|' + reel.listSet.names.join(',') : '';
+
   function openChartFor(name, listSet) {
     if (!name) return;
     // data-act buttons call this as (arg, element) — only a real set counts.
     if (!(listSet && Array.isArray(listSet.names))) listSet = null;
     if (!listSet && wlModalFrom && wlModalFrom.name === name && currentTab === 'watchlist') listSet = wlModalFrom.set;
     wlModalFrom = null;
+    const before = reelSetKey();
     reel.similarTo = '';
     reel.listSet = listSet && listSet.names && listSet.names.length ? listSet : null;
+    if (reelSetKey() !== before) reelFiltersOff();
     closeModal();
     navigateToTab('charts');
     buildReel();
@@ -13595,6 +13619,7 @@
 
   function showSimilarCharts(name) {
     if (!name || !shapeNeighbours(name).length) return;
+    if (reel.similarTo !== name) reelFiltersOff();
     reel.similarTo = name;
     reel.listSet = null;
     closeModal();
@@ -13609,6 +13634,7 @@
   function clearSimilarCharts() {
     if (!reel.similarTo && !reel.listSet) return;
     reel.similarTo = ''; reel.listSet = null;
+    reelFiltersOff();
     buildReel();
     const el = document.getElementById('chartReel');
     if (el) el.scrollTop = 0;

@@ -326,8 +326,18 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('#wl2Body .wl2-empty').innerText(), /Nothing in Mine matches/);
     await page.locator('#wl2Body .wl2-empty-btn').click();
     assert.equal(await page.locator('#wl2InList').isHidden(), true, 'Search all markets leaves the list');
-    await page.locator('#wl2Clear').click();
-    assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').isHidden(), true, 'reset clears every view');
+    assert.equal(await wlRow.locator('.wl2-pill.on').getAttribute('data-wl-cls'), 'Crypto', 'Search all markets keeps the filter');
+    // Filters belong to the list (2026-10-30): opening another list switches
+    // them off, here through the list's own chip.
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="lists"]').click();
+    await wlRow.locator('[data-wl-list="a"]').click();
+    assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').isHidden(), true, 'another list starts with no filter');
+    await page.locator('#wl2DdMode').click();
+    await page.locator('#wl2MenuMode [data-wl-mode="cls"]').click();
+    await wlRow.locator('[data-wl-cls="Equity"]').click();
+    await page.locator('#wl2InList').click();
+    assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').isHidden(), true, 'back to All markets: the filter went off');
     await page.locator('#wl2DdMode').click();
     await page.locator('#wl2MenuMode [data-wl-mode="lists"]').click();
     assert.equal(await onList(), 'all', 'the list pick survives the other views');

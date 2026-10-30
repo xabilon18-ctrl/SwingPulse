@@ -43,6 +43,25 @@ module.exports = async page => {
   assert.equal(await page.locator('#reelDdMode .wl2-mode-n').isHidden(), true);
   assert.equal(await count(), all, 'reset brings every chart back');
   assert.equal(await page.locator('#reelDdMode .wl2-mode-lbl').innerText(), 'MA');
+  // Filters belong to the set of charts (2026-10-30): opening a watchlist's
+  // charts switches them off; another chart of the same set keeps them.
+  await page.locator('#reelDdMode').click();
+  await page.locator('#reelMenuMode [data-reel-mode="cat"]').click();
+  await row.locator('[data-rk="cat"][data-rv="tech"]').click();
+  assert.equal(await page.locator('#reelDdMode .wl2-mode-n').innerText(), '1');
+  await page.locator('.nav-tab[data-tab="watchlist"]').click();
+  await page.locator('#wl2Body .wl2-row').first().click();
+  await page.locator('.wl2-sheet [data-wl-act="chart"]').click();
+  await page.locator('#chartReel .reel-card').first().waitFor();
+  assert.equal(await page.locator('#reelDdMode .wl2-mode-n').isHidden(), true, 'a new set of charts starts with no filter');
+  await row.locator('[data-rk="cat"][data-rv="tech"]').click();
+  await page.locator('.nav-tab[data-tab="watchlist"]').click();
+  await page.locator('#wl2Body .wl2-row').first().click();
+  await page.locator('.wl2-sheet [data-wl-act="chart"]').click();
+  await page.locator('#chartReel .reel-card').first().waitFor();
+  assert.equal(await page.locator('#reelDdMode .wl2-mode-n').innerText(), '1', 'the same set keeps its filter');
+  await page.locator('#reelSimClear').click();
+  assert.equal(await page.locator('#reelDdMode .wl2-mode-n').isHidden(), true, 'leaving the set switches it off');
   await page.locator('#reelDdMode').click();
   await page.locator('#reelMenuMode [data-reel-mode="scope"]').click();
   console.log('PASS: Charts one row, five views');

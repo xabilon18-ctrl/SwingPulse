@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 FILTERS BELONG TO THE LIST: app.js v554 (same release as the
+Charts row below). User: "when switching between lists the filter must go
+off and only work within the selected group and not from an old list", and
+"keep the filter but works within the selected group or list and when I move
+to another list it goes off". Watchlist: wlSetList() switches every filter
+off (class, sector, industry, trend, 4H direction, MA clusters) whenever
+another list opens: a list chip, the swipe, the "Mine ✕" chip, a new or
+deleted list. Sort and search stay. "Search all markets" on an empty result
+keeps them (data-wl-keep), since it asks for the same filters everywhere.
+Charts: the filters work inside the set in view (a watchlist opened there,
+"charts like X") and reelFiltersOff() runs when that set changes
+(reelSetKey); opening another chart of the same set keeps them, and a
+Market tap starts from none. Tests: app_smoke.cjs, charts_row_checks.cjs,
+dollar_index_checks.cjs.
+
 2026-10-30 CHARTS: ONE ROW, FIVE VIEWS: app.js v554, style.css v392. User:
 "Can we apply this to the charts as well?", then chose the Watchlist row
 layout. The Charts row of Show / Class / Sector / Trend / MA / Sort dropdown
