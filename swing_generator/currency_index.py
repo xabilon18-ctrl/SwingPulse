@@ -20,9 +20,8 @@ OTHER CURRENCIES (2026-10-30, MINORS below): ZAR, MXN, SGD, SEK, NOK, TRY, PLN,
 HUF, CZK and CNY, each against all 8 majors through its USD pair. They are charts
 and Watchlist rows only: the currency focus below still ranks the 8 majors.
 
-These are equal-weight indices, NOT TradingView's TVC:DXY family (DXY is a 6-currency
-basket, 57.6% EUR), so the levels differ; the TradingView link points at the nearest
-published index for a cross-check of direction.
+These are equal-weight indices, NOT the ICE dollar index family (DXY is a 6-currency
+basket, 57.6% EUR), so the levels differ.
 """
 from __future__ import annotations
 
@@ -36,8 +35,6 @@ PREFIX = 'CCY_'                                   # synthetic tickers: CCY_USD .
 # Every index = 100 on this date, so a rebuilt cache (CI keeps 13 years) gives the same levels.
 BASE_DATE = '2015-01-02'
 _ORDER = ['EUR', 'GBP', 'AUD', 'NZD', 'USD', 'CAD', 'CHF', 'JPY']   # market convention: base first
-TV_SYMBOL = {'USD': 'TVC:DXY', 'EUR': 'TVC:EXY', 'GBP': 'TVC:BXY', 'JPY': 'TVC:JXY',
-             'CHF': 'TVC:SXY', 'CAD': 'TVC:CXY', 'AUD': 'TVC:AXY', 'NZD': 'TVC:ZXY'}
 
 # OTHER CURRENCIES (2026-10-30, user: "can we build currency index for other
 # currencies"). Each is measured against all 8 majors, equal weight, through its
