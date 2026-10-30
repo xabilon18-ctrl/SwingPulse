@@ -13626,26 +13626,102 @@
     else if (reel.similarTo) { if (txt) txt.firstChild.textContent = 'Charts like '; nm.textContent = reel.similarTo; }
   }
 
-  function reelSyncPills() {
-    reelSyncSimBar();
-    const clusterHost = document.getElementById('reelClusters');
-    if (clusterHost) clusterHost.innerHTML = clusterMenuHtml('charts', reel.cluster);
-    const tfEl = document.getElementById('reelStackTf');
-    if (tfEl) tfEl.textContent = tfMeta().label;
-    document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c =>
-      c.classList.toggle('active', c.dataset.cat === (reel.cat || '')));
-    const sectors = document.getElementById('reelSectorMenu');
-    if (sectors) sectors.innerHTML = sectorMenuHtml('reel', reel.sector, reel.industry);
-    fdropSync(reelDropValues(), 'reelReset');
+  // ONE ROW, FIVE VIEWS on Charts (user, 2026-10-30: apply the Watchlist row
+  // to the charts). The dropdown before the row picks what it holds: Show,
+  // Class, Sector, Trend or MA, as chips scrolling sideways; Sort and reset
+  // sit beside the search. A filter set in another view still applies, so the
+  // menu names each one's value and the dropdown counts how many are set.
+  // The row is drawn from `reel` on every buildReel (reelSyncPills).
+  const REEL_MODES = [['scope', 'Show'], ['cat', 'Class'], ['sector', 'Sector'], ['trend', 'Trend'], ['ma', 'MA']];
+  const REEL_SCOPES = [['all', 'Everything'], ['views', 'My Buy / Sell markers'], ['views-buy', 'My Buy markers'],
+    ['views-sell', 'My Sell markers'], ['today', 'Fired today'], ['signal', 'Any open signal'], ['buy', 'Buys only'],
+    ['sell', 'Sells only'], ['watch', 'Minor 4H swings'], ['m15sig', '4H B1 / S1 · 2 sessions'],
+    ['dxpre', '1H touched a Daily MA'], ['dxafter', '1H crossed a Daily MA']];
+  const REEL_CATS = [['', 'All classes'], ['crypto', 'Crypto'], ['indices', 'Indices'], ['commodity', 'Commodity'],
+    ['currency', 'Currency'], ['ccyindex', 'Ccy Index'], ['us100', 'US100'], ['us500', 'US500'], ['banks', 'Banks'],
+    ['energy', 'Energy'], ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
+  const REEL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
+  const REEL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned'], ['minor', 'Minor against']];
+  const REEL_STACKS = [['all', 'Any'], ['bull', 'Bull 50›250›500'], ['bear', 'Bear 500›250›50'], ['mixed', 'Mixed'],
+    ['near', 'Near cross'], ['fresh', 'Just flipped']];
+  const REEL_NEARS = [['all', 'Any'], ['D', 'Daily MA'], ['W', 'Weekly MA'], ['M', 'Monthly MA'], ['any', 'D, W or M']];
+  let reelMode = 'scope', reelRowShownMode = null;
+  try { const m = localStorage.getItem('swingpulse-reel-mode'); if (REEL_MODES.some(([k]) => k === m)) reelMode = m; } catch (_) {}
+
+  // The row's chips. data-rk/data-rv name the reel key and value a tap sets;
+  // data-wl-step marks the main choices (the ones the row scrolls to).
+  function reelRowHtml() {
+    const pill = (on, attrs, label, extra = '') => `<button class="wl2-pill${extra}${on ? ' on' : ''}" ${attrs}>${label}</button>`;
+    const set = (k, v) => `data-rk="${k}" data-rv="${escText(v)}"`;
+    const sep = t => `<span class="wl2-sep">${t}</span>`;
+    if (reelMode === 'cat')
+      return REEL_CATS.map(([k, l]) => pill((reel.cat || '') === k, set('cat', k) + ' data-wl-step', l)).join('');
+    if (reelMode === 'sector') {
+      const { sectors, industries } = sectorLists(reel.sector);
+      return pill(!reel.sector, set('sector', '') + ' data-wl-step', 'All')
+        + sectors.map(([v, n]) => pill(v === reel.sector, set('sector', v) + ' data-wl-step', `${escText(v)} <span class="wl2-n">${n}</span>`)
+          + (v === reel.sector ? pill(!reel.industry, set('industry', ''), 'Any industry', ' wl2-sub')
+            + industries.map(([w, m]) => pill(w === reel.industry, set('industry', w), `${escText(w)} <span class="wl2-n">${m}</span>`, ' wl2-sub')).join('') : '')).join('');
+    }
+    if (reelMode === 'trend')
+      return sep('Daily') + REEL_TRENDS.map(([k, l]) => pill(reel.trend === k, set('trend', k) + ' data-wl-step', l)).join('')
+        + sep('4H') + REEL_RELATIONS.map(([k, l]) => pill(reel.relation === k, set('relation', k), l)).join('');
+    if (reelMode === 'ma')
+      return sep(`Order ${escText(tfMeta().label)}`) + REEL_STACKS.map(([k, l]) => pill(reel.stack === k, set('stack', k) + ' data-wl-step', l)).join('')
+        + sep('Clusters') + `<span class="wl2-cscope" data-cluster-scope="charts">`
+        + CLUSTER_OPTIONS.map(([k, l]) => pill(reel.cluster === k, `data-cluster-mode="${k}"`, k === 'all' ? 'Any' : l)).join('')
+        + sep('Width') + [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => pill(clusterWidth === v, `data-cluster-width="${v}"`, l)).join('')
+        + '</span>'
+        + sep('Near MA') + REEL_NEARS.map(([k, l]) => pill(reel.near === k, set('near', k), l)).join('')
+        + sep('Within') + [[0.5, '½ day'], [1, '1 day']].map(([v, l]) => pill(reel.nearWithin === v, set('nearWithin', String(v)), l)).join('');
+    return REEL_SCOPES.map(([k, l]) => pill(reel.scope === k, set('scope', k) + ' data-wl-step', l)).join('');
   }
 
-  // What each Charts dropdown button shows when its filters are set.
-  // Search and the "charts like X" set have their own clear controls.
+  function reelSyncPills() {
+    reelSyncSimBar();
+    const rowEl = document.getElementById('reelRow');
+    if (rowEl) {
+      rowEl.innerHTML = reelRowHtml();
+      // As on the Watchlist: a new view starts from the left; the pick is
+      // scrolled only when it is not wholly in view, a too-wide one lining up
+      // with the row's left edge. No page scroll.
+      const on = rowEl.querySelector('[data-wl-step].on');
+      if (reelRowShownMode !== reelMode) { reelRowShownMode = reelMode; rowEl.scrollLeft = 0; }
+      if (on && (on.offsetLeft < rowEl.scrollLeft || on.offsetLeft + on.offsetWidth > rowEl.scrollLeft + rowEl.clientWidth))
+        rowEl.scrollLeft = Math.max(0, on.offsetWidth >= rowEl.clientWidth ? on.offsetLeft - 4 : on.offsetLeft + on.offsetWidth - rowEl.clientWidth + 4);
+    }
+    const vals = reelModeValues();
+    const nSet = REEL_MODES.filter(([k]) => vals[k]).length;
+    const modeOpts = document.getElementById('reelModeOpts');
+    if (modeOpts) modeOpts.innerHTML = REEL_MODES.map(([k, l]) =>
+      `<button class="fdrop-opt${reelMode === k ? ' on' : ''}" data-reel-mode="${k}">${l}${vals[k] ? `<i class="set">${escText(vals[k])}</i>` : ''}</button>`).join('');
+    const modeBtn = document.getElementById('reelDdMode');
+    if (modeBtn) {
+      modeBtn.querySelector('.wl2-mode-lbl').textContent = REEL_MODES.find(([k]) => k === reelMode)[1];
+      const badge = modeBtn.querySelector('.wl2-mode-n');
+      badge.hidden = !nSet; badge.textContent = nSet || '';
+      modeBtn.title = nSet ? `${nSet} filter${nSet > 1 ? 's' : ''} set` : '';
+    }
+    const sort = reelDropValues().reelDdSort;
+    fdropSync({ reelDdSort: sort }, null);
+    const rst = document.getElementById('reelReset');
+    if (rst) rst.hidden = !nSet && !sort.length;
+  }
+
+  // What each view's filters are set to ('' when none), for the view menu.
+  function reelModeValues() {
+    const v = reelDropValues();
+    return { scope: v.reelDdShow.join(' · '), cat: v.reelDdClass.join(' · '), sector: v.reelDdSector.join(' · '),
+             trend: v.reelDdTrend.join(' · '), ma: v.reelDdMa.join(' · ') };
+  }
+
+  // What each Charts filter reads when set. Search and the "charts like X"
+  // set have their own clear controls.
   function reelDropValues() {
     const scopeLbl = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
                        today: 'Today', signal: 'Signals', buy: 'Buys', sell: 'Sells',
                        watch: 'Minor 4H', m15sig: '4H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
-    const cat = reel.cat && document.querySelector(`#reelCatChips [data-cat="${CSS.escape(reel.cat)}"]`);
+    const cat = reel.cat && REEL_CATS.find(([k]) => k === reel.cat);
     const trend = [], ma = [], sort = [];
     if (reel.trend !== 'all') trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[reel.trend] || reel.trend);
     if (reel.relation !== 'all') trend.push(reel.relation === 'aligned' ? '4H aligned' : '4H minor');
@@ -13657,7 +13733,7 @@
     if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
     return {
       reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
-      reelDdClass: reel.cat ? [cat ? cat.textContent.trim() : reel.cat] : [],
+      reelDdClass: reel.cat ? [cat ? cat[1] : reel.cat] : [],
       reelDdSector: sectorDropValue(reel.sector, reel.industry),
       reelDdTrend: trend, reelDdMa: ma, reelDdSort: sort,
     };
@@ -13739,14 +13815,29 @@
         buildReel();
       });
     }
-    const sectorMenu = document.getElementById('reelMenuSector');
-    if (sectorMenu) {
-      sectorMenu.addEventListener('click', e => {
-        const sec = e.target.closest('[data-reel-sector]'), ind = e.target.closest('[data-reel-industry]');
-        if (sec) { reel.sector = sec.dataset.reelSector; reel.industry = ''; }
-        else if (ind) reel.industry = ind.dataset.reelIndustry;
-        else return;
+    // The row (2026-10-30). MA cluster chips go through the shared cluster
+    // handler (data-cluster-scope="charts"), which rebuilds the reel itself.
+    const row = document.getElementById('reelRow');
+    if (row) {
+      row.addEventListener('click', e => {
+        const btn = e.target.closest('[data-rk]');
+        if (!btn) return;
+        const k = btn.dataset.rk, v = btn.dataset.rv;
+        if (k === 'nearWithin') { reel.nearWithin = +v; if (reel.near !== 'all') buildReel(); else reelSyncPills(); return; }
+        // Tapping the picked sector again closes it back to All.
+        if (k === 'sector') { reel.sector = v === reel.sector ? '' : v; reel.industry = ''; }
+        else reel[k] = v;
         buildReel();
+      });
+    }
+    const modeOpts = document.getElementById('reelModeOpts');
+    if (modeOpts) {
+      modeOpts.addEventListener('click', e => {
+        const b = e.target.closest('[data-reel-mode]');
+        if (!b) return;
+        reelMode = b.dataset.reelMode;
+        try { localStorage.setItem('swingpulse-reel-mode', reelMode); } catch (_) {}
+        reelSyncPills();
       });
     }
 

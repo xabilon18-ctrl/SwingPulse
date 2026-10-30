@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 CHARTS: ONE ROW, FIVE VIEWS: app.js v554, style.css v392. User:
+"Can we apply this to the charts as well?", then chose the Watchlist row
+layout. The Charts row of Show / Class / Sector / Trend / MA / Sort dropdown
+buttons is gone. A dropdown (#reelDdMode) before the row picks what it holds
+(Show, Class, Sector, Trend, MA) as chips scrolling sideways, drawn from
+`reel` in reelSyncPills on every buildReel; taps go through one handler on
+#reelRow (data-rk / data-rv), MA clusters through the shared cluster handler.
+Sector opens its industries after the picked sector; Trend shows Daily then
+4H; MA shows order, clusters, width, near MA and within. The view menu names
+each filter's value and the dropdown counts them; the view is remembered
+(swingpulse-reel-mode). Sort and reset moved beside the search (.reel-head2).
+The Show / Class / Sector / Trend / MA menus are gone from #reelMenus; Sort's
+stays. Fixed with it: the "Daily" / "4H" labels in the Trend view (Watchlist
+too) ran into the first chip, because an old 1px-divider `.wl2-sep` rule set
+their width. Test: charts_row_checks.cjs, run from app_smoke.cjs.
+
 2026-10-29 (later) CHART SAVE KEEPS THE EXACT FRAME: app.js v553. User: "After
 I click save, it must capture the frame, the way it is, where I put it, and it
 should open right there." A saved view was relative: bars back from the newest
