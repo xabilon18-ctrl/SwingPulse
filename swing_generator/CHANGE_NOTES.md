@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 (later) 1H TWO-MONTH BLOCKS UNDONE: app.js v557. User: "Please
+undo 108". The entry below is reverted in full: 1H opens on the previous +
+current month and draws the market's grid choice on every chart again,
+session-only or not (REEL_FRAME_VIEW['1H'] has no sessionUnit; reelTimeGrid
+scales up on 4H only). It came after a screenshot of DAX 1H (2M grid,
+candles in the left third, 21,000-32,000 price scale), which was a SAVED
+VIEW, not the new opening frame: a saved view opens instead of the opening
+frame, and that one's price range matched the old (pre-v553) card-saved view
+opened full screen. v557, not back to v555, so phones fetch the reverted code.
+
 2026-10-30 1H: SHORT-SESSION CHARTS IN TWO-MONTH BLOCKS: app.js v556. User:
 "Separate the us indices from eu and other small ones ... we have us longer
 than eu so month is good for 1h us but not good on eu and other small ones",

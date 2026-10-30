@@ -9050,14 +9050,6 @@
   //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
   //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
   //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
-  //   1H — MONTHS on a round-the-clock feed; a SESSION-ONLY 1H chart takes
-  //        TWO-MONTH blocks instead (user, 2026-10-30: "we have us longer
-  //        than eu so month is good for 1h us but not good on eu and other
-  //        small ones", then "two months" for "all short-session charts"):
-  //        the futures-fed US indices carry ~23 bars a day, the European
-  //        indices ~9, the Asian ~6 and US stocks ~7, so a month held ~480
-  //        candles on US100 against ~190 on DAX and ~125 on an Asian index.
-  //        Previous + current block: 1 Jul to 1 Nov on 30 Oct.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
@@ -9072,7 +9064,7 @@
   // 2-3).
   const REEL_SESSION_HOURS = 16;
   const REEL_FRAME_VIEW = {
-    '1H': { unit: 1 / 12,  sessionUnit: 1 / 6, fit: 'centre' },
+    '1H': { unit: 1 / 12,  fit: 'centre' },
     '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
@@ -10771,8 +10763,6 @@
   // choice (user, 2026-10-24, "your recommendation sounds good"): one setting
   // per market, and US100 (quarters) and DAX (half-years) both show the
   // previous part shaded and the current one plain. Year and Term stay.
-  // Session-only 1H does the same since 2026-10-30 (two-month blocks where
-  // the market chose months): US100 draws months, DAX and Apple two months.
   const REEL_SESSION_GRID = {
     M: { code: 'M2', name: 'Two months', parts: 6, label: '2M' },
     Q: { code: 'H', name: 'Half-year', parts: 2 },
@@ -10792,7 +10782,7 @@
   }
   function reelTimeGrid(b, tf, item) {
     const scope = reelGridScope(item);
-    const session = (tf === '4H' || tf === '1H') && reelSessionOnly(b._src || b, tf);
+    const session = tf === '4H' && reelSessionOnly(b._src || b, tf);
     return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => {
       const d = reelGridDivision(code, scope);
       return (session && REEL_SESSION_GRID[d.code]) || d;
