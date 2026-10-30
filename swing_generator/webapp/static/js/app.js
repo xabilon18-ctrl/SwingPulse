@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SwingPulse — Interactive Trading Dashboard  (TradingView Integration)
+   SwingPulse — Interactive Trading Dashboard
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -48,7 +48,6 @@
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
-  let tvMap = {};            // instrument_name → TradingView symbol
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
   let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
@@ -138,17 +137,6 @@
     return t ? { ...(extra || {}), 'Authorization': `Bearer ${t}` } : (extra || {});
   }
 
-  // Per-user TV layout defaults for this profile — injected by publish.py at build time
-  const TV_LAYOUT_DEFAULTS = {
-    'zabs': 'ZABS_TV_LAYOUT_ID',
-    'hemi': 'HEMI_TV_LAYOUT_ID',
-  };
-  function userTvLayout() {
-    // User's saved layout takes priority; fall back to their profile default
-    return localStorage.getItem(sk('sp-tv-layout'))
-      || TV_LAYOUT_DEFAULTS[syncUser]
-      || '';
-  }
   let syncPushTimer = null;
 
   // Storage key namespaced by active user so Zabs & Hemi never share local state
@@ -174,8 +162,8 @@
   let charts = {};
   // ── The timeframe table — ONE definition, ordered fast to slow ────────
   // Mirrors config.TIMEFRAMES on the Python side. Every per-timeframe fact
-  // lives on the row: the column prefix f() applies, the button label, the
-  // TradingView interval, and the word for one bar. Before Weekly these were
+  // lives on the row: the column prefix f() applies, the button label, and
+  // the word for one bar. Before Weekly these were
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
   const TIMEFRAMES = [
@@ -185,14 +173,14 @@
     // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
     // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
     // 30m retired from the app; historical drawings and data remain stored.
-    { code: '1H', prefix: 'h1_', label: '1H', tv: '60', bar: 'hourly bars', barShort: '25-bar' },
+    { code: '1H', prefix: 'h1_', label: '1H', bar: 'hourly bars', barShort: '25-bar' },
     // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
     // "Remove 2 h"); a saved 2H chart choice opens on Daily.
-    { code: '4H', prefix: 'h4_', label: '4H', tv: '240', bar: '4-hour bars', barShort: '25-bar' },
+    { code: '4H', prefix: 'h4_', label: '4H', bar: '4-hour bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
-    { code: 'D',  prefix: '',    label: 'Daily',  tv: 'D',   bar: 'days',    barShort: '25-day'  },
+    { code: 'D',  prefix: '',    label: 'Daily',    bar: 'days',    barShort: '25-day'  },
     // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
     // Weekly (removed 2026-09-24) and Monthly (removed 2026-09-14) are BACK
     // 2026-10-19 as CHARTS ONLY (user: "add back weekly and monthly chart"):
@@ -201,8 +189,8 @@
     // weeks and months. No prefixed columns exist for them, so prefix '' reads
     // the Daily row (price, filters) as the Charts tab does on any chart view.
     // Drawings saved on the old Weekly chart were kept and show again.
-    { code: 'W',  prefix: '',    label: 'Weekly',  tv: 'W',  bar: 'weeks',   barShort: '25-week',  chartOnly: true },
-    { code: 'M',  prefix: '',    label: 'Monthly', tv: 'M',  bar: 'months',  barShort: '25-month', chartOnly: true },
+    { code: 'W',  prefix: '',    label: 'Weekly',   bar: 'weeks',   barShort: '25-week',  chartOnly: true },
+    { code: 'M',  prefix: '',    label: 'Monthly',  bar: 'months',  barShort: '25-month', chartOnly: true },
   ];
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
@@ -1217,11 +1205,11 @@
   }
 
   // ── WATCHLIST TAB (2026-09-24, replaces Trends in the nav) ───────────────
-  // A TradingView-style price list: every instrument's latest price and its
+  // A price list: every instrument's latest price and its
   // change on the previous close (quotes.json, rebuilt every run), grouped by
   // market, filterable by class, sortable by move — plus the reader's OWN
   // lists, which sync across devices with notes and drawings. A row opens an
-  // action sheet: chart in the app, TradingView, details, add to / remove
+  // action sheet: chart in the app, details, add to / remove
   // from a list.
   const WL_KEY = 'sp-watchlists';
   let wlStore = (() => {
@@ -1986,7 +1974,6 @@
       <div class="wl2-sheet-hd"><b>${escText(name)}</b> <span>${escText(namesData[name] || '')}</span>
         ${x ? `<div class="wl2-sheet-px">${wlFmtPrice(x.p)} <span class="wl2-chg${x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : ''}">${wlFmtPct(x.pct)}</span></div>` : ''}</div>
       <button class="wl2-act" data-wl-act="chart">Open chart in app</button>
-      <a class="wl2-act" href="${tvUrl(name)}" target="_blank" rel="noopener">Open in TradingView</a>
       <button class="wl2-act" data-wl-act="details">Details &amp; signal</button>
       ${lists.map(l => l.items.includes(name)
         ? `<button class="wl2-act" data-wl-act="rm" data-id="${escText(l.id)}">Remove from ${escText(l.name)}</button>`
@@ -3089,7 +3076,7 @@
   }
 
   function cardActionsHtml(name) {
-    return `<div class="scanner-actions">${wlMarkBtn(name, 'share-btn', 'wlPick')}${chartBtn(name)}${tvBtn(name, '')}${shareBtn(name)}</div>`;
+    return `<div class="scanner-actions">${wlMarkBtn(name, 'share-btn', 'wlPick')}${chartBtn(name)}${shareBtn(name)}</div>`;
   }
 
   // "Looks like" — the charts that have moved most like this one. Tapping one
@@ -3187,21 +3174,6 @@
     };
   }
 
-  const TV_ICON = `<svg class="tv-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
-
-  // ── TradingView Helpers ──────────────────────────────────────────────
-  function tvUrl(name) {
-    const sym = tvMap[name] || name;
-    const interval = '&interval=' + tfMeta().tv;
-    const layout = userTvLayout();
-    return `https://www.tradingview.com/chart/${layout ? layout + '/' : ''}?symbol=${encodeURIComponent(sym)}${interval}`;
-  }
-
-  function tvBtn(name, label) {
-    return `<button class="tv-link tv-picker-trigger" title="Open ${name} on TradingView" onclick="event.stopPropagation();window.SP.openTvPicker(this,'${name}')">${TV_ICON}${label ? `<span>${label}</span>` : ''}</button>`;
-  }
-
-
 
   // ── Theme — single dark theme ────────────────────────────────────────
   document.documentElement.setAttribute('data-theme', 'dark');
@@ -3293,8 +3265,8 @@
     // ribbon periods, different signal row. Redraw it on the same instrument
     // rather than bouncing the reader to the top of 700 charts.
     if (currentTab === 'charts') { tabDirty.charts = false; reelRebuildKeepingPlace(reelAnchor); }
-    // If an instrument modal is open, rebuild it so its signal data AND the
-    // TradingView interval (Daily→D / 4H→240) match the newly selected timeframe.
+    // If an instrument modal is open, rebuild it so its signal data matches
+    // the newly selected timeframe.
     if (openModalName && typeof overlay !== 'undefined' && overlay.classList.contains('open')) {
       openModal(openModalName);
     }
@@ -3660,11 +3632,10 @@
     if (_dataLoadInFlight) return;
     _dataLoadInFlight = true;
     try {
-      const [sigRes, sumRes, statusRes, tvRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes, ...actRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes, ...actRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
-        fetchJson('/api/tv-map', {}),
         fetchJson('/api/ai-instruments', []),
         fetchJson('/api/trends', {}),
         fetchJson('/api/explanations', {}),
@@ -3695,7 +3666,6 @@
       // pulled per chunk as cards scroll into view — so this is where a new
       // publish has to reach them. See reelInvalidateCache.
       reelInvalidateCache(sumRes.fetched_at || '');
-      tvMap = tvRes || {};
       aiSet = new Set(aiRes || []);
       trendsData = trendsRes || {};
       explanationsData = explRes || {};
@@ -5539,7 +5509,6 @@
             ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
           </div>
         </div>
-        ${tvBtn(item.instrument_name, '')}
         <span class="feed-group">${item.group || ''}</span>
       </div>`;
     }).join('');
@@ -5565,7 +5534,7 @@
       return `<div class="signal-feed-item" data-act="openModal" data-arg="${item.instrument_name}" style="border-left:3px solid var(--volume)">
         <span class="compression-alert">SQUEEZE</span>
         <div class="feed-info">
-          <div class="feed-name">${item.instrument_name} ${tvBtn(item.instrument_name, '')}</div>
+          <div class="feed-name">${item.instrument_name}</div>
           <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}%</div>
         </div>
         <span class="feed-group">${item.group || ''}</span>
@@ -6720,8 +6689,6 @@
       return `<span class="ma-pill ${above ? 'above' : 'below'}">${p}: ${formatPrice(val)}</span>`;
     }).join('');
 
-    const tvChartUrl = tvUrl(item.instrument_name);
-
     // Count MAs above/below for ribbon gauge
     let masAbove = 0, masBelow = 0;
     periods.forEach(p => {
@@ -6761,14 +6728,10 @@
           <div class="mh-price">${formatPrice(item[f('close')])}</div>
           <div class="mh-price-meta">
             ${changeStr ? `<span class="mh-change ${changeClass}">${priceChange >= 0 ? '▲' : '▼'} ${changeStr}</span>` : ''}
-            <button class="mh-tv-link mh-chart-link" data-act="openChartFor" data-arg="${item.instrument_name}" data-stop="1">
+            <button class="mh-link mh-chart-link" data-act="openChartFor" data-arg="${item.instrument_name}" data-stop="1">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
               Chart
             </button>
-            <a href="${tvChartUrl}" target="_blank" rel="noopener" class="mh-tv-link" onclick="event.stopPropagation()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              TradingView
-            </a>
           </div>
         </div>
       </div>
@@ -7264,7 +7227,7 @@
       ${backBtn}
 
       <div class="trend-detail-header">
-        <div class="trend-detail-name">${name} ${tvBtn(name, '')}</div>
+        <div class="trend-detail-name">${name}</div>
         <div class="trend-detail-meta">
           <span class="est-trend ${estCls}">${established === 'UPTREND' ? 'Uptrend' : established === 'DOWNTREND' ? 'Downtrend' : 'Neutral'}</span>
           <span>${item ? [item.group, item.sector].filter(Boolean).join(' · ') : ''}</span>
@@ -7364,55 +7327,6 @@
   document.getElementById('trendsListSort').addEventListener('change', () => buildTrendsCards());
 
   // ── Public API ───────────────────────────────────────────────────────
-  function openTvPicker(btn, name) {
-    // Remove any existing picker (toggle off if same button tapped again)
-    const existing = document.getElementById('tvPicker');
-    if (existing) { existing.remove(); return; }
-
-    const webUrl = tvUrl(name);
-    // Build tradingview:// deep link with exchange and symbol as separate params
-    const tvSym  = tvMap[name] || name;
-    const ivl    = tfMeta().tv;
-    const layoutId = userTvLayout();
-    let appUrl;
-    if (tvSym.includes(':')) {
-      const [exchange, symbol] = tvSym.split(':');
-      appUrl = `tradingview://chart${layoutId ? '/' + layoutId : ''}?symbol=${symbol}&exchange=${exchange}&interval=${ivl}`;
-    } else {
-      appUrl = `tradingview://chart${layoutId ? '/' + layoutId : ''}?symbol=${tvSym}&interval=${ivl}`;
-    }
-
-    const picker = document.createElement('div');
-    picker.id    = 'tvPicker';
-    picker.className = 'tv-picker';
-    picker.innerHTML = `
-      <div class="tv-picker-label">${name}</div>
-      <button class="tv-picker-btn" onclick="window.open('${webUrl}','_blank');document.getElementById('tvPicker')?.remove()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        Open in Web
-      </button>
-      <button class="tv-picker-btn" onclick="window.location.href='${appUrl}';document.getElementById('tvPicker')?.remove()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-        Open in App
-      </button>`;
-
-    // Position: below the button, clamped to viewport
-    const rect = btn.getBoundingClientRect();
-    const pickerW = 160;
-    let left = rect.left;
-    if (left + pickerW > window.innerWidth - 8) left = window.innerWidth - pickerW - 8;
-    let top = rect.bottom + 6;
-    if (top + 110 > window.innerHeight) top = rect.top - 116;
-
-    picker.style.cssText = `position:fixed;top:${top}px;left:${left}px;`;
-    document.body.appendChild(picker);
-
-    // Close on outside click
-    setTimeout(() => document.addEventListener('click', () => document.getElementById('tvPicker')?.remove(), { once: true }), 0);
-  }
-
-
-
   // ── Share card ────────────────────────────────────────────────────────
   const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = window.SwingPulseModules.drawingIcons;
 
@@ -7492,7 +7406,6 @@
     const item = allData.find(d => d.instrument_name === name);
     if (!item) return;
 
-    const tv      = tvUrl(name);
     const fn      = instName(name);
     const title   = fn ? `${name} · ${fn}` : name;
     const price   = formatPrice(item[f('close')]);
@@ -7529,7 +7442,6 @@
     if (volSpk) lines.push(`📊 Volume Spike`);
 
     lines.push('───────────────');
-    lines.push(`🔗 TradingView: ${tv}`);
     lines.push(`\nvia SwingPulse`);
 
     if (navigator.share) {
@@ -7735,7 +7647,7 @@
     if (host && host._reelCtx) reelRepaint(host);
   }
 
-  window.SP = { openModal, openTvPicker, wlPick, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
+  window.SP = { openModal, wlPick, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
                 showSimilarCharts, clearSimilarCharts, openChartFor, openChartAt };
 
   // ── Init ─────────────────────────────────────────────────────────────
@@ -10227,7 +10139,7 @@
     const ch = activeChannel(name);
     if (reel.editing === name)  return 'Done';
     // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
-    // Details and TradingView, which moved the chart every time one appeared.
+    // Details, which moved the chart every time one appeared.
     // 'Drawing', not 'Channel' (2026-09-12): the button opens FOUR tools —
     // channel, trend line, level and the 10 price lines — so naming it after one
     // of them described a quarter of what it does.
@@ -10253,8 +10165,7 @@
       }
       reelSyncProps(card, name);
       // Edit mode is modal, so the card shows only the controls that belong to
-      // it. Five buttons do not fit a phone footer — TradingView was clipped —
-      // and Details/TradingView are the wrong thing to hit mid-drag anyway.
+      // it. Details is the wrong thing to hit mid-drag.
       card.classList.toggle('ch-editing', reel.editing === name);
     });
   }
@@ -11986,7 +11897,6 @@
         <div class="reel-foot-actions">
           ${reelCapsuleHtml(name)}
           <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
-          <button class="reel-act tv" data-act="tv" data-name="${name}">TradingView</button>
         </div>
       </footer>
     </article>`;
@@ -14041,7 +13951,6 @@
         return true;
       }
       if (btn.dataset.act === 'wl-pick') { wlPick(name); return true; }
-      if (btn.dataset.act === 'tv')     { window.SP.openTvPicker(btn, name); return true; }
       if (btn.dataset.act === 'detail') { window.SP.openModal(name); return true; }
       const cardEl = btn.closest('.reel-card');
       const chHost = cardEl && cardEl.querySelector('.reel-chart');

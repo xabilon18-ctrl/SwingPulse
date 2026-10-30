@@ -2,7 +2,7 @@
 
 The exchanges' replies are canned here; what is checked is that their bars
 reach the caches shaped like Yahoo's, that every crypto instrument reads the
-pair its TradingView chart shows, that nothing else changes source, and that a
+exchange pair crypto_exchanges.py names, that nothing else changes source, and that a
 Yahoo cache is replaced — never topped up — the first time a coin moves.
 """
 import os
@@ -21,7 +21,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / 'webapp')]
 import data_fetcher
 import exchange_feed
 from instruments import load_instruments
-from tv_symbols import TV_BY_NAME
+from crypto_exchanges import CRYPTO_EXCHANGE
 
 DAY = 86_400_000
 T0 = 1_500_000_000_000 - 1_500_000_000_000 % DAY      # a UTC midnight in 2017
@@ -34,12 +34,12 @@ def kline(t, close):
 
 
 class SourceTests(unittest.TestCase):
-    def test_every_crypto_reads_its_tradingview_pair(self):
+    def test_every_crypto_reads_its_exchange_pair(self):
         crypto = [i for i in load_instruments(include_retired=True) if i.get('group') == 'Crypto']
         self.assertGreater(len(crypto), 50)
         for inst in crypto:
-            self.assertEqual(exchange_feed.source(inst['ticker']), TV_BY_NAME[inst['name']], inst['name'])
-        # Renamed coins follow the chart, not the old name.
+            self.assertEqual(exchange_feed.source(inst['ticker']), CRYPTO_EXCHANGE[inst['name']], inst['name'])
+        # Renamed coins read the new market, not the old name.
         self.assertEqual(exchange_feed.source('POL28321-USD'), 'BINANCE:POLUSDT')
         self.assertEqual(exchange_feed.source('BTC-USD'), 'COINBASE:BTCUSD')
 

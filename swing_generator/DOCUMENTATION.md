@@ -394,4 +394,3 @@ openpyxl             # Excel output
 5. Add columns to `OUTPUT_COLUMNS` in `config.py` using `_tf_signal_columns('xx_')`
 6. Add the prefix mapping in `app.js` `f()` function
 7. Add the toggle button in `index.html`
-8. Add the TradingView interval in `tvUrl()` and `tvWidgetUrl()`

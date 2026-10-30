@@ -1,8 +1,9 @@
-"""Crypto prices from the exchanges the user's TradingView charts read.
+"""Crypto prices from each coin's own exchange market.
 
-User, 2026-10-19: the app's prices should match TradingView. For crypto
-TradingView shows one exchange's own market — BINANCE:XRPUSDT, COINBASE:BTCUSD
-(tv_symbols.py) — while Yahoo serves a blended USD price. So every crypto
+User, 2026-10-19: the app's crypto prices should be one exchange's own market,
+BINANCE:XRPUSDT or COINBASE:BTCUSD (crypto_exchanges.py, which held them in
+tv_symbols.py until the TradingView links were removed on 2026-10-30), while
+Yahoo serves a blended USD price. So every crypto
 download (Daily, 1H, 5m and the whole-history Weekly/Monthly pull) comes from
 that exchange's public market data instead: free, no key, and theirs to give.
 
@@ -42,20 +43,19 @@ _sources: dict[str, str] | None = None
 def source(ticker: str) -> str | None:
     """'BINANCE:XRPUSDT' / 'COINBASE:BTCUSD' for a crypto ticker, else None.
 
-    Read from the TradingView table so the price source and the user's chart
-    can never disagree — including renamed coins (MATIC is BINANCE:POLUSDT,
-    FTM is BINANCE:SUSDT). Retired instruments are included: their caches
-    still exist and must not mix sources if they come back.
+    Read from crypto_exchanges.py, including renamed coins (MATIC is
+    BINANCE:POLUSDT, FTM is BINANCE:SUSDT). Retired instruments are included:
+    their caches still exist and must not mix sources if they come back.
     """
     global _sources
     if _sources is None:
         from instruments import load_instruments
-        from tv_symbols import TV_BY_NAME
+        from crypto_exchanges import CRYPTO_EXCHANGE
         found = {}
         for inst in load_instruments(include_retired=True):
-            tv = TV_BY_NAME.get(inst['name'], '')
-            if inst.get('group') == 'Crypto' and tv.startswith(('BINANCE:', 'COINBASE:')):
-                found[inst['ticker']] = tv
+            sym = CRYPTO_EXCHANGE.get(inst['name'], '')
+            if inst.get('group') == 'Crypto' and sym.startswith(('BINANCE:', 'COINBASE:')):
+                found[inst['ticker']] = sym
         _sources = found
     return _sources.get(ticker)
 
