@@ -59,16 +59,6 @@ def get_ticker_map() -> dict[str, str]:
     return _ticker_map
 
 
-# Display-name → TradingView symbol overrides live in tv_symbols.py (the
-# data layer reads them too: exchange_feed.py takes crypto prices from them).
-from tv_symbols import TV_BY_NAME as _TV_BY_NAME  # noqa: E402
-
-# NYSE stocks that appear under different ticker in TV
-_NYSE_SET = {
-    'BA','CVX','IBM','JPM','AXP','CRM','GS','KO','PG','HD','V','DOW',
-    'TRV','DIS','CAT','NKE','JNJ','VZ','MCD','MRK','MMM','UNH','WMT','BUD',
-}
-
 # ---------------------------------------------------------------------------
 # Artificial Intelligence universe — instruments with material AI exposure
 # Add new names here; they get picked up automatically by the app.
@@ -161,114 +151,6 @@ _AI_INSTRUMENTS: set[str] = {
 def build_ai_set() -> list[str]:
     """Return sorted list of AI-flagged instrument names."""
     return sorted(_AI_INSTRUMENTS)
-
-
-def build_tv_map() -> dict[str, str]:
-    """Return display-name → TradingView symbol mapping.
-
-    Priority:
-      1. Explicit _TV_BY_NAME override (indices, crypto, NYSE, commodities)
-      2. German stocks (.DE tickers)  → XETR:name
-      3. Forex (=X tickers)           → FX:name
-      4. Remaining US stocks           → NASDAQ:name (or name alone)
-    """
-    tm = get_ticker_map()           # {display_name: yahoo_ticker}
-    result: dict[str, str] = {}
-
-    for name, yf_ticker in tm.items():
-        # 1. Exact override
-        if name in _TV_BY_NAME:
-            result[name] = _TV_BY_NAME[name]
-            continue
-
-        # 2. German stocks: *.DE → XETR:name
-        #    Strip _DE suffix from display names (e.g. SAP_DE → XETR:SAP)
-        if yf_ticker.endswith('.DE'):
-            tv_sym = name[:-3] if name.endswith('_DE') else name
-            result[name] = f'XETR:{tv_sym}'
-            continue
-
-        # 2b. Spanish stocks: *.MC → BME:name
-        if yf_ticker.endswith('.MC'):
-            result[name] = f'BME:{name}'
-            continue
-
-        # 2c. Canadian stocks: *.TO → TSX:name
-        if yf_ticker.endswith('.TO'):
-            result[name] = f'TSX:{name}'
-            continue
-
-        # 2d. UK stocks: *.L → LSE:name  (strip _UK suffix if present)
-        if yf_ticker.endswith('.L'):
-            tv_sym = name[:-3] if name.endswith('_UK') else name
-            result[name] = f'LSE:{tv_sym}'
-            continue
-
-        # 2e. French stocks: *.PA → EURONEXT:name  (strip _FR suffix if present)
-        if yf_ticker.endswith('.PA'):
-            tv_sym = name[:-3] if name.endswith('_FR') else name
-            result[name] = f'EURONEXT:{tv_sym}'
-            continue
-
-        # 2f. Italian stocks: *.MI → MIL:name  (strip _IT suffix if present)
-        if yf_ticker.endswith('.MI'):
-            tv_sym = name[:-3] if name.endswith('_IT') else name
-            result[name] = f'MIL:{tv_sym}'
-            continue
-
-        # 2g. Dutch stocks: *.AS → EURONEXT:name  (strip _NL suffix if present)
-        if yf_ticker.endswith('.AS'):
-            tv_sym = name[:-3] if name.endswith('_NL') else name
-            result[name] = f'EURONEXT:{tv_sym}'
-            continue
-
-        # 2h. Swiss stocks: *.SW → SIX:name  (strip _SW suffix if present)
-        if yf_ticker.endswith('.SW'):
-            tv_sym = name[:-3] if name.endswith('_SW') else name
-            result[name] = f'SIX:{tv_sym}'
-            continue
-
-        # 2i. Australian stocks: *.AX → ASX:name  (strip _AX suffix if present)
-        if yf_ticker.endswith('.AX'):
-            tv_sym = name[:-3] if name.endswith('_AX') else name
-            result[name] = f'ASX:{tv_sym}'
-            continue
-
-        # 2j. Japanese stocks: *.T → TSE:name
-        if yf_ticker.endswith('.T'):
-            result[name] = f'TSE:{name}'
-            continue
-
-        # 2k. South African stocks: *.JO → JSE:name  (strip _ZA suffix if present)
-        if yf_ticker.endswith('.JO'):
-            tv_sym = name[:-3] if name.endswith('_ZA') else name
-            result[name] = f'JSE:{tv_sym}'
-            continue
-
-        # 2l. Swedish stocks: *.ST → STO:name
-        if yf_ticker.endswith('.ST'):
-            result[name] = f'STO:{name}'
-            continue
-
-        # 2m. Norwegian stocks: *.OL → OSL:name
-        if yf_ticker.endswith('.OL'):
-            result[name] = f'OSL:{name}'
-            continue
-
-        # 2n. Danish stocks: *.CO → CPH:name
-        if yf_ticker.endswith('.CO'):
-            result[name] = f'CPH:{name}'
-            continue
-
-        # 3. Forex pairs: *=X → FX:name
-        if yf_ticker.endswith('=X'):
-            result[name] = f'FX:{name}'
-            continue
-
-        # 4. Remaining US stocks — default to NASDAQ (NYSE ones are in _TV_BY_NAME)
-        result[name] = f'NASDAQ:{name}'
-
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -406,12 +288,6 @@ def api_summary():
 def api_ticker_map():
     """Return the display-name → ticker mapping so the frontend can resolve chart requests."""
     return jsonify(get_ticker_map())
-
-
-@app.route('/api/tv-map')
-def api_tv_map():
-    """Return display-name → TradingView symbol mapping."""
-    return jsonify(build_tv_map())
 
 
 @app.route('/api/ai-instruments')

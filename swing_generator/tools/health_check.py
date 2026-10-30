@@ -95,7 +95,7 @@ TIMESTAMPED = [
 # scratch every run, so there is no freeze mode to catch — only a broken upload.
 PARSEABLE = [
     'signals.json', 'trends.json', 'names.json',
-    'explanations.json', 'tv-map.json', 'ai-instruments.json',
+    'explanations.json', 'ai-instruments.json',
 ]
 
 # Deliberately unchecked, so that "not in this list" always means "should move":

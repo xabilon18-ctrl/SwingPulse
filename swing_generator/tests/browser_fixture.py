@@ -63,7 +63,7 @@ summary['fetched_at'] = stamp
 for filename, payload in {
     'signals.json': {'data': [row], 'date': str(d.index[-1].date())},
     'summary.json': summary, 'status.json': {'state': 'ok', 'at': stamp},
-    'tv-map.json': {'TEST': 'NASDAQ:TEST'}, 'ai-instruments.json': [],
+    'ai-instruments.json': [],
     'trends.json': {'TEST': trends}, 'names.json': {'TEST': 'Test instrument'},
 }.items():
     (out / filename).write_text(json.dumps(payload))

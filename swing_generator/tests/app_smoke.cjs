@@ -333,6 +333,24 @@ const assert = require('node:assert/strict');
     assert.equal(await onList(), 'all', 'the list pick survives the other views');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
+  if (!live) {
+    // TradingView removed (2026-10-30, user: "We no longer need tradingview"):
+    // no button, link or text on the chart cards, the instrument sheet or the
+    // details modal, and no tv-map.json request.
+    const tvRequests = [];
+    page.on('request', r => { if (/tradingview|tv-map/i.test(r.url())) tvRequests.push(r.url()); });
+    await page.locator('.nav-tab[data-tab="charts"]').click();
+    await page.locator('#chartReel .reel-card footer').first().waitFor();
+    assert.equal(await page.locator('[data-act="tv"], a[href*="tradingview"]').count(), 0, 'no TradingView button on Charts');
+    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await page.locator('#wl2Body .wl2-row').first().click();
+    assert.doesNotMatch(await page.locator('.wl2-sheet').innerText(), /tradingview/i, 'no TradingView in the instrument sheet');
+    await page.locator('.wl2-sheet [data-wl-act="details"]').click();
+    await page.waitForTimeout(300);
+    assert.doesNotMatch(await page.content(), /tradingview/i, 'no TradingView anywhere on the page');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
+  }
   if (!live) await require('./dollar_index_checks.cjs')(browser);
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();

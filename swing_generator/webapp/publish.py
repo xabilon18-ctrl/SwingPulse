@@ -50,10 +50,6 @@ R2_PUBLIC_URL  = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev'
 PAGES_PROJECT  = 'swingpulse200'
 R2_DATA_PREFIX = 'ma500'
 R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma500'
-TV_LAYOUTS = {
-    'zabs': 'xvj4Xt7h',
-    'hemi': '86bzFCIC',
-}
 
 # ---------------------------------------------------------------------------
 # Project imports
@@ -61,7 +57,7 @@ TV_LAYOUTS = {
 sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments, load_retired
-from server import build_tv_map, build_ai_set, get_ticker_map, _ticker_to_filename
+from server import build_ai_set, get_ticker_map, _ticker_to_filename
 from chart_feed import build_chart_feed
 
 
@@ -448,10 +444,6 @@ def build_data(output_dir, src_signals_dir=None):
         json.dump({'state': 'ok', 'at': fetched_at, 'date': dt},
                   f, separators=(',', ':'))
 
-    tv_map = build_tv_map()
-    with open(os.path.join(output_dir, 'tv-map.json'), 'w') as f:
-        json.dump(tv_map, f, separators=(',', ':'))
-
     ai_set = build_ai_set()
     with open(os.path.join(output_dir, 'ai-instruments.json'), 'w') as f:
         json.dump(ai_set, f, separators=(',', ':'))
@@ -786,7 +778,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
     files = []
 
     # Core data files
-    for fname in ['signals.json', 'summary.json', 'tv-map.json', 'ai-instruments.json',
+    for fname in ['signals.json', 'summary.json', 'ai-instruments.json',
                   'trends.json', 'explanations.json', 'names.json',
                   'backtest.json', 'flow_volumes.json',
                   'signal_ledger.json', 'ledger_summary.json',
@@ -918,7 +910,6 @@ def build_ui():
     js = js.replace("'/api/signals'",      f"'{base}/signals.json'")
     js = js.replace("'/api/summary'",      f"'{base}/summary.json'")
     js = js.replace("'/api/status'",       f"'{base}/status.json'")
-    js = js.replace("'/api/tv-map'",          f"'{base}/tv-map.json'")
     js = js.replace("'/api/ai-instruments'",  f"'{base}/ai-instruments.json'")
     js = js.replace("'/api/trends'",       f"'{base}/trends.json'")
     js = js.replace("'/api/quotes'",       f"'{base}/quotes.json'")
@@ -967,10 +958,6 @@ def build_ui():
         "await fetch('/api/refresh', { method: 'POST' })",
         "window.location.reload(); return"
     )
-
-    # Inject per-user TV layout IDs for this profile
-    for user, layout_id in TV_LAYOUTS.items():
-        js = js.replace(f'{user.upper()}_TV_LAYOUT_ID', layout_id)
 
     with open(app_js_path, 'w') as f:
         f.write(js)

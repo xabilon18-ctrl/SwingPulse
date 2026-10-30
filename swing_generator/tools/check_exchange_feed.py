@@ -1,7 +1,7 @@
 """Live check: every crypto pair answers from its exchange, at every timeframe.
 
 Run by the deploy workflow before a release (it needs the network). A pair the
-exchange does not know — a delisting, a rename the TradingView table missed —
+exchange does not know — a delisting, a rename crypto_exchanges.py missed —
 fails the release instead of silently falling back to a stale cache.
 
     python3 tools/check_exchange_feed.py

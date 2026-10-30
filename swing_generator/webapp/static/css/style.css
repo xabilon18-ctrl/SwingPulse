@@ -2047,85 +2047,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .level-touches { font-size: .65rem; color: var(--text-muted); }
 .level-date { font-size: .65rem; color: var(--text-muted); }
 
-/* ── TradingView Hero Card ────────────────────────────────────────────── */
-.tv-hero-card {
-  display: flex;
-  position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  margin-bottom: 16px;
-  text-decoration: none;
-  color: #fff;
-  min-height: 120px;
-  transition: all var(--transition);
-  cursor: pointer;
-}
-.tv-hero-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(26,115,232,.35); }
-.tv-hero-card:active { transform: translateY(0); }
-
-.tv-hero-bg {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 30%, #0f3460 60%, #1a73e8 100%);
-  z-index: 0;
-}
-.tv-hero-bg::after {
-  content: '';
-  position: absolute;
-  top: -40%;
-  right: -10%;
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, rgba(26,115,232,.3), transparent 65%);
-  pointer-events: none;
-}
-
-.tv-hero-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 20px 24px;
-  gap: 16px;
-}
-
-.tv-hero-left { flex: 1; min-width: 0; }
-.tv-hero-name { font-size: 1.3rem; font-weight: 800; letter-spacing: -.02em; }
-.tv-hero-sub { font-size: .72rem; opacity: .6; margin-top: 2px; }
-.tv-hero-price { font-size: 1.6rem; font-weight: 700; margin-top: 8px; font-variant-numeric: tabular-nums; }
-
-.tv-hero-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
-.tv-hero-signal {
-  font-size: .68rem;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 6px;
-  color: #fff;
-}
-.tv-hero-cta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.15);
-  backdrop-filter: blur(8px);
-  font-size: .82rem;
-  font-weight: 600;
-  transition: background var(--transition);
-  white-space: nowrap;
-}
-.tv-hero-card:hover .tv-hero-cta { background: rgba(255,255,255,.25); }
-.tv-hero-hint { font-size: .62rem; opacity: .45; text-align: right; }
-
-@media (max-width: 480px) {
-  .tv-hero-content { flex-direction: column; align-items: flex-start; padding: 16px 18px; }
-  .tv-hero-right { align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 6px; }
-  .tv-hero-hint { display: none; }
-}
-
 /* ── MA Ribbon Gauge ──────────────────────────────────────────────────── */
 .ribbon-gauge { padding: 8px 0; }
 .ribbon-gauge-track {
@@ -2173,87 +2094,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .status-main { font-size: .82rem; color: var(--text-secondary); }
 .status-sub { font-size: .72rem; color: var(--text-muted); margin-top: 4px; }
 
-/* ── TradingView Integration ──────────────────────────────────────────── */
-
-/* Inline TV icon link (small, appears next to instrument names) */
-.tv-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--accent);
-  text-decoration: none;
-  padding: 3px 6px;
-  border-radius: 4px;
-  transition: all var(--transition);
-  font-size: .68rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.tv-link:hover {
-  background: var(--accent-glow);
-  color: var(--accent);
-  transform: scale(1.08);
-}
-.tv-link .tv-icon { flex-shrink: 0; }
-
-/* Full-width TV button (in modal) */
-.tv-btn-full {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, #1a73e8, #6c5ce7);
-  color: #fff;
-  font-size: .82rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: all var(--transition);
-  box-shadow: 0 4px 12px rgba(26,115,232,.3);
-}
-.tv-btn-full:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(26,115,232,.4);
-}
-.tv-btn-full:active { transform: translateY(0); }
-
-.modal-tv-bar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-/* TradingView iframe chart in modal */
-.modal-tv-chart-wrap {
-  width: 100%;
-  height: 380px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-}
-.modal-tv-chart-wrap iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-
-/* Inline "Open full chart" link in section title */
-.tv-link-inline {
-  font-size: .68rem;
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 4px;
-  transition: all var(--transition);
-}
-.tv-link-inline:hover { background: var(--accent-glow); }
-
-/* Heatmap cell actions (TV + info buttons) */
+/* Heatmap cell actions (info buttons) */
 .heatmap-cell-actions {
   position: absolute;
   top: 2px;
@@ -2283,11 +2124,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .hm-star-btn.starred { color: #3b82f6; background: rgba(59,130,246,.18); }
 .hm-star-btn:hover { color: #3b82f6; }
 
-.heatmap-cell .tv-link {
-  padding: 1px 3px;
-  font-size: .58rem;
-}
-.heatmap-cell .tv-link .tv-icon { width: 11px; height: 11px; }
 
 /* Scanner card actions — top-right cluster of icons + radar chip */
 .scanner-actions {
@@ -2300,16 +2136,12 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   max-width: 56%;         /* never let actions eat more than half the card width */
 }
 
-/* Signal row TV link alignment */
+/* Signal row name */
 .signal-row-name {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.signal-row-name .tv-link { padding: 2px 4px; }
-
-/* Watchlist TV link */
-.watchlist-item .tv-link { padding: 2px 4px; }
 
 /* ── Morning Brief ───────────────────────────────────────────────────── */
 .morning-brief-card {
@@ -2333,50 +2165,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 }
 .wl-signal-perf.perf-pos { background: var(--buy-soft);  color: var(--buy); }
 .wl-signal-perf.perf-neg { background: var(--sell-soft); color: var(--sell); }
-
-/* ── TradingView Picker Popover ──────────────────────────────────────── */
-.tv-picker {
-  z-index: 9999;
-  background: var(--bg-card);
-  border: 1px solid var(--border-active);
-  border-radius: 12px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.55);
-  min-width: 160px;
-  animation: pop-in .12s cubic-bezier(.34,1.56,.64,1);
-}
-.tv-picker-label {
-  font-size: .65rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  padding: 4px 10px 2px;
-}
-.tv-picker-btn {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: .82rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: background var(--transition);
-}
-.tv-picker-btn:hover { background: var(--bg-hover); }
-.tv-picker-btn svg { flex-shrink: 0; color: var(--text-muted); }
-
-/* Make tv-link button look identical to the old anchor */
-button.tv-link { border: none; cursor: pointer; background: transparent; }
 
 /* ── Loading States ───────────────────────────────────────────────────── */
 .skeleton {
@@ -3991,7 +3779,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
 }
 .mh-change.pos { color: var(--buy); }
 .mh-change.neg { color: var(--sell); }
-.mh-tv-link {
+.mh-link {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -4006,7 +3794,7 @@ button.tv-link { border: none; cursor: pointer; background: transparent; }
   transition: all .15s;
   white-space: nowrap;
 }
-.mh-tv-link:hover { color: var(--accent); border-color: rgba(79,158,255,.3); }
+.mh-link:hover { color: var(--accent); border-color: rgba(79,158,255,.3); }
 
 /* ── Tab bar ── */
 .mh-tabs {
@@ -8152,7 +7940,6 @@ body {
 .reel-card.ch-editing .reel-act[data-act="detail"],
 .reel-card.ch-editing .reel-act[data-act="tv"] { display: none; }
 .reel-act-clr[hidden] { display: none; }
-.reel-act.tv { color: var(--accent); }
 
 .reel-empty {
   padding: 40px 20px; text-align: center;
@@ -8698,8 +8485,7 @@ body.chart-full-open { overflow: hidden; }
 
 
 /* Jump to the chart, from any instrument card or the modal. Sits with the
-   TradingView and share buttons because it answers the same question — "let me
-   look at this" — just without leaving the app. */
+   share button: "let me look at this", without leaving the app. */
 .chart-jump-btn {
   appearance: none; border: 1px solid var(--border); background: transparent;
   color: var(--accent); border-radius: var(--radius-sm, 8px);
@@ -8709,7 +8495,7 @@ body.chart-full-open { overflow: hidden; }
 .chart-jump-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
 .chart-jump-btn:active { transform: scale(.94); }
 .chart-jump-btn svg { display: block; }
-/* In the modal it is a button styled as the TradingView link beside it. */
+/* In the modal it is a button styled as a modal link (.mh-link). */
 .mh-chart-link { border: 0; background: transparent; cursor: pointer; font: inherit; }
 
 /* ── Sector rotation wheel + Market ranking (2026-09-11, rotation.py) ─────────
@@ -8837,7 +8623,7 @@ body.chart-full-open { overflow: hidden; }
 .cf-pos { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .cf-title .reel-trendline { font-size: .78rem; }
 
-/* ── Watchlist tab (2026-09-24) — TradingView-style price list ─────────── */
+/* ── Watchlist tab (2026-09-24) — price list ────────────────────────────── */
 .wl2-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .wl2-asof { font-size: .72rem; color: var(--text-muted); }
 .wl2-lists, .wl2-classes { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }

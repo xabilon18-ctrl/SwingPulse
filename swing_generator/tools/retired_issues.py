@@ -97,7 +97,7 @@ def _issue_body(r, owner, newest, threshold):
             'takeover or a ticker change. Nothing was edited. The instrument is '
             'still in `Instruments.txt` and is checked again every run, so if its '
             'data resumes it returns on its own and this issue closes itself.\n\n'
-            '**What to do:** confirm what happened (TradingView or Yahoo). If it is '
+            '**What to do:** confirm what happened (the exchange or Yahoo). If it is '
             'gone for good, delete its line from `Instruments.txt` (this issue then '
             'closes itself). If it moved to a new ticker, replace the ticker there. '
             'Closing this issue by hand is fine too: it will not be reopened for '

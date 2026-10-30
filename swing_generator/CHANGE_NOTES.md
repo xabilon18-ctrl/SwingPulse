@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 TRADINGVIEW REMOVED: app.js v554, style.css v392. User: "We no
+longer need tradingview we can remove all connections to it". Gone: the
+TradingView button on every chart card and its Web/App picker
+(openTvPicker, tradingview:// deep links), "Open in TradingView" in the
+Watchlist sheet, the link in the details modal, the TradingView line in a
+shared card, the icon buttons on the old feed/trend cards, the per-user
+layout ids (publish.py TV_LAYOUTS, app.js userTvLayout), the `tv` interval
+on app.js TIMEFRAMES, tv-map.json (server /api/tv-map + build_tv_map,
+publish, health_check PARSEABLE, the browser fixture) and the CSS for all
+of it. The old tv-map.json object is left on R2, unreferenced. KEPT, under a
+new name: the crypto exchange pairs (BINANCE:XRPUSDT, COINBASE:BTCUSD) that
+set where crypto prices come from. They lived in tv_symbols.py; they are now
+crypto_exchanges.py CRYPTO_EXCHANGE (the 55 crypto instruments, generated
+from the old table, so identical), read by exchange_feed.py; the live
+worker still reads them from quotes.json. tv_symbols.py is deleted. Comments
+that cite TradingView as the reference a chart's geometry was matched to
+are left as history. Test: app_smoke.cjs (no TradingView button, text or
+request), exchange_feed_test.py (every crypto reads its exchange pair).
+
 2026-10-29 (later) CHART SAVE KEEPS THE EXACT FRAME: app.js v553. User: "After
 I click save, it must capture the frame, the way it is, where I put it, and it
 should open right there." A saved view was relative: bars back from the newest

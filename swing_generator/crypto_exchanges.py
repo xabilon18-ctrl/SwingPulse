@@ -1,0 +1,70 @@
+"""Crypto instrument -> the exchange market its prices come from.
+
+exchange_feed.py reads each crypto instrument's prices from this exchange's own
+market ('BINANCE:XRPUSDT' is Binance's XRP/USDT pair, 'COINBASE:BTCUSD' Coinbase's
+BTC/USD), not from Yahoo's blended USD price. The live worker (cron-worker)
+reads the same symbol from quotes.json. Renamed coins keep their old display
+name here (MATIC is BINANCE:POLUSDT, FTM is BINANCE:SUSDT).
+
+Moved out of tv_symbols.py on 2026-10-30, when the TradingView links were
+removed (user: "We no longer need tradingview"); this table was the one part
+of it that set a price source.
+"""
+
+CRYPTO_EXCHANGE: dict[str, str] = {
+    'ADAUSDT': 'BINANCE:ADAUSDT',
+    'ALGOUSDT': 'BINANCE:ALGOUSDT',
+    'APEUSDT': 'BINANCE:APEUSDT',
+    'APTUSDT': 'BINANCE:APTUSDT',
+    'ARBUSDT': 'BINANCE:ARBUSDT',
+    'ATOMUSDT': 'BINANCE:ATOMUSDT',
+    'AVAXUSDT': 'BINANCE:AVAXUSDT',
+    'BCHUSDT': 'BINANCE:BCHUSDT',
+    'BNBUSDT': 'BINANCE:BNBUSDT',
+    'BTCUSD': 'COINBASE:BTCUSD',
+    'CFXUSDT': 'BINANCE:CFXUSDT',
+    'CHZUSDT': 'BINANCE:CHZUSDT',
+    'CRVUSDT': 'BINANCE:CRVUSDT',
+    'DASHUSDT': 'BINANCE:DASHUSDT',
+    'DOGEUSDT': 'BINANCE:DOGEUSDT',
+    'DOTUSDT': 'BINANCE:DOTUSDT',
+    'DYDXUSDT': 'BINANCE:DYDXUSDT',
+    'EGLDUSDT': 'BINANCE:EGLDUSDT',
+    'ENJUSDT': 'BINANCE:ENJUSDT',
+    'ETCUSDT': 'BINANCE:ETCUSDT',
+    'ETHUSD': 'COINBASE:ETHUSD',
+    'FILUSDT': 'BINANCE:FILUSDT',
+    'FLOWUSDT': 'BINANCE:FLOWUSDT',
+    'FTMUSDT': 'BINANCE:SUSDT',
+    'GALAUSDT': 'BINANCE:GALAUSDT',
+    'GRTUSDT': 'BINANCE:GRTUSDT',
+    'HBARUSDT': 'BINANCE:HBARUSDT',
+    'HOTUSDT': 'BINANCE:HOTUSDT',
+    'IMXUSDT': 'BINANCE:IMXUSDT',
+    'IOTAUSDT': 'BINANCE:IOTAUSDT',
+    'KAVAUSDT': 'BINANCE:KAVAUSDT',
+    'LDOUSDT': 'BINANCE:LDOUSDT',
+    'LINKUSD': 'COINBASE:LINKUSD',
+    'LTCUSDT': 'BINANCE:LTCUSDT',
+    'MANAUSDT': 'BINANCE:MANAUSDT',
+    'MASKUSDT': 'BINANCE:MASKUSDT',
+    'MATICUSDT': 'BINANCE:POLUSDT',
+    'NEARUSDT': 'BINANCE:NEARUSDT',
+    'ONEUSDT': 'BINANCE:ONEUSDT',
+    'OPUSDT': 'BINANCE:OPUSDT',
+    'ROSEUSDT': 'BINANCE:ROSEUSDT',
+    'SANDUSDT': 'BINANCE:SANDUSDT',
+    'SHIBUSDT': 'BINANCE:SHIBUSDT',
+    'SOLUSDT': 'BINANCE:SOLUSDT',
+    'STXUSDT': 'BINANCE:STXUSDT',
+    'THETAUSDT': 'BINANCE:THETAUSDT',
+    'TRXUSDT': 'BINANCE:TRXUSDT',
+    'TWTUSDT': 'BINANCE:TWTUSDT',
+    'UNIUSDT': 'BINANCE:UNIUSDT',
+    'VETUSDT': 'BINANCE:VETUSDT',
+    'XLMUSDT': 'BINANCE:XLMUSDT',
+    'XRPUSDT': 'BINANCE:XRPUSDT',
+    'XTZUSDT': 'BINANCE:XTZUSDT',
+    'ZECUSDT': 'BINANCE:ZECUSDT',
+    'ZILUSDT': 'BINANCE:ZILUSDT',
+}
