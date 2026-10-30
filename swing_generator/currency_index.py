@@ -16,6 +16,10 @@ Open and Close are exact; High/Low average the components' highs/lows (inverted 
 swap them), which slightly overstates the bar's true range — components do not all
 peak in the same minute. Volume is 0.
 
+OTHER CURRENCIES (2026-10-30, MINORS below): ZAR, MXN, SGD, SEK, NOK, TRY, PLN,
+HUF, CZK and CNY, each against all 8 majors through its USD pair. They are charts
+and Watchlist rows only: the currency focus below still ranks the 8 majors.
+
 These are equal-weight indices, NOT TradingView's TVC:DXY family (DXY is a 6-currency
 basket, 57.6% EUR), so the levels differ; the TradingView link points at the nearest
 published index for a cross-check of direction.
@@ -34,6 +38,15 @@ BASE_DATE = '2015-01-02'
 _ORDER = ['EUR', 'GBP', 'AUD', 'NZD', 'USD', 'CAD', 'CHF', 'JPY']   # market convention: base first
 TV_SYMBOL = {'USD': 'TVC:DXY', 'EUR': 'TVC:EXY', 'GBP': 'TVC:BXY', 'JPY': 'TVC:JXY',
              'CHF': 'TVC:SXY', 'CAD': 'TVC:CXY', 'AUD': 'TVC:AXY', 'NZD': 'TVC:ZXY'}
+
+# OTHER CURRENCIES (2026-10-30, user: "can we build currency index for other
+# currencies"). Each is measured against all 8 majors, equal weight, through its
+# USD pair: ln(M in Y) = ln(M in USD) + ln(USD in Y), the no-arbitrage cross the
+# market quotes, from pairs already downloaded. HKD is left out: pegged to the
+# dollar, its index would be the dollar's. Value: the USD pair, quoted USD/M.
+MINORS = {'ZAR': 'USDZAR=X', 'MXN': 'USDMXN=X', 'SGD': 'USDSGD=X', 'SEK': 'USDSEK=X',
+          'NOK': 'USDNOK=X', 'TRY': 'USDTRY=X', 'PLN': 'USDPLN=X', 'HUF': 'USDHUF=X',
+          'CZK': 'USDCZK=X', 'CNY': 'CNY=X'}
 
 
 def is_synthetic(ticker: str) -> bool:
@@ -83,19 +96,42 @@ def _build(read, base: dict | None = None, ffill_limit: int = 3):
     common = union[ok]
     if len(common) < 10:
         return {}, base
+    built_here = base is None
     if base is None:                       # daily build: a FIXED base date, else the first shared bar
         at = common[common >= pd.Timestamp(BASE_DATE)]
         b0 = at[0] if len(at) else common[0]
         base = {k: float(f.loc[b0, 'Close']) for k, f in comps.items()}
     out = {}
-    for a in MAJORS:
-        parts = [comps[(a, b)].loc[common] - base[(a, b)] for b in MAJORS if b != a]
-        m = sum(parts) / len(parts)
+    def finish(m):
         frame = 100 * np.exp(m)
         frame['High'] = frame[['High', 'Open', 'Close']].max(axis=1)
         frame['Low'] = frame[['Low', 'Open', 'Close']].min(axis=1)
         frame['Volume'] = 0
-        out[a] = frame
+        return frame
+    for a in MAJORS:
+        parts = [comps[(a, b)].loc[common] - base[(a, b)] for b in MAJORS if b != a]
+        out[a] = finish(sum(parts) / len(parts))
+    # Other currencies: M against the 8 majors = M in USD, plus USD in each major
+    # (zero for USD itself), averaged over 8. Each is built on its own: a missing
+    # or short pair costs that one index, never the eight.
+    usd = sum(comps[('USD', b)].loc[common] - base[('USD', b)] for b in MAJORS if b != 'USD') / len(MAJORS)
+    for m, t in MINORS.items():
+        df = read(t)
+        if df is None or df.empty or not {'Open', 'High', 'Low', 'Close'} <= set(df.columns):
+            continue
+        df = df[['Open', 'High', 'Low', 'Close']].replace([np.inf, -np.inf], np.nan).dropna()
+        df = df[(df > 0).all(axis=1)]
+        mu = _logs(df, True)                   # USD/M quoted: M in USD is its inverse
+        mu = mu.reindex(mu.index.union(common)).ffill(limit=limit).loc[common].dropna()
+        if len(mu) < 10:
+            continue
+        key = (m, 'USD')
+        if key not in base:                    # a daily build fixes it; an intraday one without it skips M
+            if not built_here:
+                continue
+            at = mu.index[mu.index >= pd.Timestamp(BASE_DATE)]
+            base[key] = float(mu.loc[at[0] if len(at) else mu.index[0], 'Close'])
+        out[m] = finish((mu - base[key]) + usd.loc[mu.index])
     return out, base
 
 

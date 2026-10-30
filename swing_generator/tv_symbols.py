@@ -77,6 +77,18 @@ TV_BY_NAME: dict[str, str] = {
     'CAD_IDX':  'TVC:CXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
     'AUD_IDX':  'TVC:AXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
     'NZD_IDX':  'TVC:ZXY',   # currency_index.py: equal-weight, NOT the same basket — direction check only
+    # Other currencies (2026-10-30): TradingView publishes no index for them; the
+    # link opens the dollar pair, which moves the OPPOSITE way to the index.
+    'ZAR_IDX':  'FX_IDC:USDZAR',
+    'MXN_IDX':  'FX_IDC:USDMXN',
+    'SGD_IDX':  'FX_IDC:USDSGD',
+    'SEK_IDX':  'FX_IDC:USDSEK',
+    'NOK_IDX':  'FX_IDC:USDNOK',
+    'TRY_IDX':  'FX_IDC:USDTRY',
+    'PLN_IDX':  'FX_IDC:USDPLN',
+    'HUF_IDX':  'FX_IDC:USDHUF',
+    'CZK_IDX':  'FX_IDC:USDCZK',
+    'CNY_IDX':  'FX_IDC:USDCNH',
     'FRA40':    'FX:FRA40',
     'NETH25':   'ICMARKETS:NETH25',
     'RUSSELL':  'CAPITALCOM:RTY',
