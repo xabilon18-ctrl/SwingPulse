@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 CURRENCY INDICES FOR TEN MORE CURRENCIES: currency_index.py,
+Instruments.txt (#812-821). User: "can we build currency index
+for other currencies". ZAR, MXN, SGD, SEK, NOK, TRY, PLN, HUF, CZK and CNY
+(CNY=X, the USD/CNH quote), as CCY_<X> / <X>_IDX in the Currency Index group.
+Each is the currency against all 8 majors, equal weight, through its USD
+pair: ln(M in Y) = ln(M in USD) + ln(USD in Y), the no-arbitrage cross, from
+pairs already downloaded (no new download). 100 on the first bar on or after
+BASE_DATE; that base is stored with the majors' in CCY_BASE.json so the 5m
+and 1h frames match the daily level; a stored base without it skips the
+minor rather than invent one. A missing or short USD pair costs that one
+index, never the eight majors, which are byte-identical with or without the
+minors. HKD is left out: pegged to the dollar, its index would be the
+dollar's. The Market currency focus still ranks the 8 majors only. The
+unused TV_SYMBOL table goes with the TradingView links (removed the same
+day). Instruments: 805 -> 815. Test:
+htf_feed_test.py CurrencyIndexTests (synthetic consistent prices).
 2026-10-30 FILTERS BELONG TO THE LIST: app.js v554 (same release as the
 Charts row below). User: "when switching between lists the filter must go
 off and only work within the selected group and not from an old list", and

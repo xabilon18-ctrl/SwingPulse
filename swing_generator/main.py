@@ -1514,7 +1514,8 @@ def main():
 
     # The 8 major currency indices (2026-10-05): built from the 28 major pairs just
     # downloaded, written into the daily cache like any instrument. A failure costs
-    # the eight indices, never the run.
+    # the eight indices, never the run. Ten other currencies (2026-10-30,
+    # currency_index.MINORS) are built with them, each through its USD pair.
     try:
         from currency_index import build_daily as _ccy_daily
         from data_fetcher import _cache_path as _cp

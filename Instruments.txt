@@ -1092,6 +1092,20 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 810  | CCY_AUD       | AUD_IDX       | Currency Index | Currency                  | Australian Dollar index vs 7 majors (equal-weight)
 811  | CCY_NZD       | NZD_IDX       | Currency Index | Currency                  | New Zealand Dollar index vs 7 majors (equal-weight)
 
+  OTHER CURRENCIES (10) — added 2026-10-30 (user: "can we build currency index for
+  other currencies"). Each vs the 8 majors, equal-weight, through its USD pair
+  (currency_index.MINORS). HKD left out: pegged to the dollar.
+812  | CCY_ZAR       | ZAR_IDX       | Currency Index | Currency                  | South African Rand index vs 8 majors (equal-weight)
+813  | CCY_MXN       | MXN_IDX       | Currency Index | Currency                  | Mexican Peso index vs 8 majors (equal-weight)
+814  | CCY_SGD       | SGD_IDX       | Currency Index | Currency                  | Singapore Dollar index vs 8 majors (equal-weight)
+815  | CCY_SEK       | SEK_IDX       | Currency Index | Currency                  | Swedish Krona index vs 8 majors (equal-weight)
+816  | CCY_NOK       | NOK_IDX       | Currency Index | Currency                  | Norwegian Krone index vs 8 majors (equal-weight)
+817  | CCY_TRY       | TRY_IDX       | Currency Index | Currency                  | Turkish Lira index vs 8 majors (equal-weight)
+818  | CCY_PLN       | PLN_IDX       | Currency Index | Currency                  | Polish Zloty index vs 8 majors (equal-weight)
+819  | CCY_HUF       | HUF_IDX       | Currency Index | Currency                  | Hungarian Forint index vs 8 majors (equal-weight)
+820  | CCY_CZK       | CZK_IDX       | Currency Index | Currency                  | Czech Koruna index vs 8 majors (equal-weight)
+821  | CCY_CNY       | CNY_IDX       | Currency Index | Currency                  | Chinese Yuan index vs 8 majors (equal-weight)
+
 ═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
