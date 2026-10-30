@@ -53,6 +53,9 @@ module.exports = async browser => {
   await page.locator('#wl2Lists [data-wl-list="fx"]').click();
   await page.locator('#wl2DdMode').click();
   await page.locator('#wl2MenuMode [data-wl-mode="cls"]').click();
+  // Another list switches the filters off (2026-10-30); set it again there.
+  assert.equal(await page.locator('#wl2Lists [data-wl-cls="all"]').getAttribute('class'), 'wl2-pill on', 'a new list starts unfiltered');
+  await page.locator('#wl2Lists [data-wl-cls="CcyIndex"]').click();
   assert.deepEqual(await rows(), ['USDX'], 'Ccy Index inside a list finds USDX');
   await page.locator('#wl2InList').click();
   // Search cannot find it either.
