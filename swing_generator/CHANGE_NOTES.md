@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-30 1H: SHORT-SESSION CHARTS IN TWO-MONTH BLOCKS: app.js v556. User:
+"Separate the us indices from eu and other small ones ... we have us longer
+than eu so month is good for 1h us but not good on eu and other small ones",
+then "two months" for "all short-session charts". The US indices' 1H feed is
+the futures (~23 bars a day), so a month held ~480 candles on US100 against
+~190 on DAX, ~125 on an Asian index and ~140 on a US stock. A session-only 1H
+chart (reelSessionOnly, under REEL_SESSION_HOURS of bars a day) now works as
+session-only 4H already did: REEL_FRAME_VIEW['1H'].sessionUnit = 1/6 opens it
+on the previous + current two-month block (1 Jul to 1 Nov on 30 Oct), and
+reelTimeGrid draws one size up from the market's choice (Month -> two
+months, Quarter -> half-year). Round-the-clock 1H charts (US indices, crypto,
+forex, commodities) are unchanged. Tests: time_grid_test.cjs (its 1H
+geometry checks moved to a 24h hourly feed; the old "session-only 1H keeps
+the market's choice" check is now the reverse), stock_view_test.cjs.
+
 2026-10-30 DRAWING BAR: DUPLICATE AND DELETE: drawing-toolbar.js v5,
 style.css v394. User (screenshot of the drawing bar: Drawing · lock · undo ·
 redo · ⌄ · Done): "put the delete and duplicate icon here". They moved out
