@@ -9454,13 +9454,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 /* The selected list is a gold pill like the bottom bar's selected tab (user,
    2026-10-28: "Some like the selection at the bottom"); it was an underline.
    The row pads its edges so the pill's glow is not clipped by the scroller. */
-#pane-watchlist .wl2-lists { gap: 6px; margin: 0 -4px 6px; padding: 6px 4px 8px; }
-#pane-watchlist .wl2-pill { background: none; border: 0; border-radius: 999px; padding: 7px 14px;
+:is(#pane-watchlist, #pane-charts) .wl2-lists { gap: 6px; margin: 0 -4px 6px; padding: 6px 4px 8px; }
+:is(#pane-watchlist, #pane-charts) .wl2-pill { background: none; border: 0; border-radius: 999px; padding: 7px 14px;
   color: var(--text-muted); font-size: .88rem; font-weight: 600; transition: background .2s, color .2s; }
-#pane-watchlist .wl2-pill.on { background: #fbbf24; color: #0a0a0f; font-weight: 800;
+:is(#pane-watchlist, #pane-charts) .wl2-pill.on { background: #fbbf24; color: #0a0a0f; font-weight: 800;
   box-shadow: 0 0 14px rgba(251,191,36,.4), 0 2px 6px rgba(0,0,0,.3); }
-#pane-watchlist .wl2-pill .wl2-n { font-size: .76rem; margin-left: 2px; }
-#pane-watchlist .wl2-pill.on .wl2-n { color: #0a0a0f; opacity: .7; }
+:is(#pane-watchlist, #pane-charts) .wl2-pill .wl2-n { font-size: .76rem; margin-left: 2px; }
+:is(#pane-watchlist, #pane-charts) .wl2-pill.on .wl2-n { color: #0a0a0f; opacity: .7; }
 /* Edit / Done / + New are actions, not lists: smaller, no tab underline. */
 #pane-watchlist .wl2-new, #pane-watchlist .wl2-edit, #pane-watchlist .wl2-done { align-self: center; padding: 4px 8px;
   margin-bottom: 0; border-bottom: 0; font-size: .78rem; }
@@ -9471,6 +9471,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    under it the view dropdown, then that view's chips scrolling sideways. */
 #pane-watchlist .wl2-head { flex-direction: row; align-items: center; gap: 6px; }
 #pane-watchlist .wl2-head .fsearch { flex: 1; }
+/* Charts (2026-10-30): the same head line and row as the Watchlist. */
+.reel-head2 { display: flex; align-items: center; gap: 6px; }
+.reel-head2 .fsearch { flex: 1; }
+.reel-bar2 { margin: 8px 0 0; }
 .wl2-sortbtn { flex: none; height: 38px; padding: 0 11px; gap: 5px; border-radius: 11px; }
 .wl2-sort-ic { flex: none; opacity: .75; }
 .wl2-bar2 { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
@@ -9478,22 +9482,22 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .wl2-mode-n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #0a0a0f;
   font-size: .66rem; font-weight: 800; line-height: 16px; text-align: center; }
 .wl2-mode-n[hidden] { display: none; }
-#pane-watchlist .wl2-bar2 .wl2-lists { position: relative; flex: 1; min-width: 0; margin: 0; padding: 6px 4px 8px; }
-.wl2-sep { flex: none; align-self: center; padding: 0 2px 0 8px; font-size: .62rem; font-weight: 700; letter-spacing: .06em;
+:is(#pane-watchlist, #pane-charts) .wl2-bar2 .wl2-lists { position: relative; flex: 1; min-width: 0; margin: 0; padding: 6px 4px 8px; }
+.wl2-sep { flex: none; align-self: center; width: auto; margin: 0; background: none; padding: 0 2px 0 8px; font-size: .62rem; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--text-muted); }
 .wl2-sep:first-child { padding-left: 2px; }
 .wl2-cscope { display: contents; }
-#pane-watchlist .wl2-pill.wl2-inlist { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-inlist { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
   border: 1px solid var(--border); border-radius: 9px; color: var(--text-secondary); font-size: .8rem; }
-#pane-watchlist .wl2-pill.wl2-inlist[hidden] { display: none; }
-#pane-watchlist .wl2-pill.wl2-inlist b { font-size: .68rem; opacity: .7; }
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-inlist[hidden] { display: none; }
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-inlist b { font-size: .68rem; opacity: .7; }
 #pane-watchlist .wl2-empty .wl2-empty-btn { margin-top: 12px; border: 1px solid rgba(251,191,36,.45); background: var(--accent-glow);
   color: var(--accent); font-weight: 700; }
 /* A picked sector's industries follow it in the row, smaller and outlined. */
-#pane-watchlist .wl2-pill.wl2-sub { align-self: center; padding: 4px 10px; font-size: .78rem; border: 1px solid var(--border); }
-#pane-watchlist .wl2-pill.wl2-sub.on { background: var(--accent-glow); color: var(--accent); border-color: rgba(251,191,36,.45);
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-sub { align-self: center; padding: 4px 10px; font-size: .78rem; border: 1px solid var(--border); }
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-sub.on { background: var(--accent-glow); color: var(--accent); border-color: rgba(251,191,36,.45);
   box-shadow: none; font-weight: 700; }
-#pane-watchlist .wl2-pill.wl2-sub.on .wl2-n { color: var(--accent); }
+:is(#pane-watchlist, #pane-charts) .wl2-pill.wl2-sub.on .wl2-n { color: var(--accent); }
 .fdrop-menu .fdrop-opts > button i.set { color: var(--accent); opacity: 1; font-weight: 600; }
 #pane-watchlist .wl2-asof { margin-top: 10px; font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Active at last close (2026-10-28): ONE quiet line, plain words coloured

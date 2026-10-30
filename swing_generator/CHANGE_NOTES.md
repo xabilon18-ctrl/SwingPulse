@@ -7,7 +7,7 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
-2026-10-30 TRADINGVIEW REMOVED: app.js v554, style.css v392. User: "We no
+2026-10-30 TRADINGVIEW REMOVED: app.js v555, style.css v393. User: "We no
 longer need tradingview we can remove all connections to it". Gone: the
 TradingView button on every chart card and its Web/App picker
 (openTvPicker, tradingview:// deep links), "Open in TradingView" in the
@@ -25,6 +25,52 @@ worker still reads them from quotes.json. tv_symbols.py is deleted. Comments
 that cite TradingView as the reference a chart's geometry was matched to
 are left as history. Test: app_smoke.cjs (no TradingView button, text or
 request), exchange_feed_test.py (every crypto reads its exchange pair).
+2026-10-30 CURRENCY INDICES FOR TEN MORE CURRENCIES: currency_index.py,
+Instruments.txt (#812-821). User: "can we build currency index
+for other currencies". ZAR, MXN, SGD, SEK, NOK, TRY, PLN, HUF, CZK and CNY
+(CNY=X, the USD/CNH quote), as CCY_<X> / <X>_IDX in the Currency Index group.
+Each is the currency against all 8 majors, equal weight, through its USD
+pair: ln(M in Y) = ln(M in USD) + ln(USD in Y), the no-arbitrage cross, from
+pairs already downloaded (no new download). 100 on the first bar on or after
+BASE_DATE; that base is stored with the majors' in CCY_BASE.json so the 5m
+and 1h frames match the daily level; a stored base without it skips the
+minor rather than invent one. A missing or short USD pair costs that one
+index, never the eight majors, which are byte-identical with or without the
+minors. HKD is left out: pegged to the dollar, its index would be the
+dollar's. The Market currency focus still ranks the 8 majors only. The
+unused TV_SYMBOL table goes with the TradingView links (removed the same
+day). Instruments: 805 -> 815. Test:
+htf_feed_test.py CurrencyIndexTests (synthetic consistent prices).
+2026-10-30 FILTERS BELONG TO THE LIST: app.js v554 (same release as the
+Charts row below). User: "when switching between lists the filter must go
+off and only work within the selected group and not from an old list", and
+"keep the filter but works within the selected group or list and when I move
+to another list it goes off". Watchlist: wlSetList() switches every filter
+off (class, sector, industry, trend, 4H direction, MA clusters) whenever
+another list opens: a list chip, the swipe, the "Mine ✕" chip, a new or
+deleted list. Sort and search stay. "Search all markets" on an empty result
+keeps them (data-wl-keep), since it asks for the same filters everywhere.
+Charts: the filters work inside the set in view (a watchlist opened there,
+"charts like X") and reelFiltersOff() runs when that set changes
+(reelSetKey); opening another chart of the same set keeps them, and a
+Market tap starts from none. Tests: app_smoke.cjs, charts_row_checks.cjs,
+dollar_index_checks.cjs.
+
+2026-10-30 CHARTS: ONE ROW, FIVE VIEWS: app.js v554, style.css v392. User:
+"Can we apply this to the charts as well?", then chose the Watchlist row
+layout. The Charts row of Show / Class / Sector / Trend / MA / Sort dropdown
+buttons is gone. A dropdown (#reelDdMode) before the row picks what it holds
+(Show, Class, Sector, Trend, MA) as chips scrolling sideways, drawn from
+`reel` in reelSyncPills on every buildReel; taps go through one handler on
+#reelRow (data-rk / data-rv), MA clusters through the shared cluster handler.
+Sector opens its industries after the picked sector; Trend shows Daily then
+4H; MA shows order, clusters, width, near MA and within. The view menu names
+each filter's value and the dropdown counts them; the view is remembered
+(swingpulse-reel-mode). Sort and reset moved beside the search (.reel-head2).
+The Show / Class / Sector / Trend / MA menus are gone from #reelMenus; Sort's
+stays. Fixed with it: the "Daily" / "4H" labels in the Trend view (Watchlist
+too) ran into the first chip, because an old 1px-divider `.wl2-sep` rule set
+their width. Test: charts_row_checks.cjs, run from app_smoke.cjs.
 
 2026-10-29 (later) CHART SAVE KEEPS THE EXACT FRAME: app.js v553. User: "After
 I click save, it must capture the frame, the way it is, where I put it, and it

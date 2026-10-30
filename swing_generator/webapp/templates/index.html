@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=392">
+  <link rel="stylesheet" href="/static/css/style.css?v=393">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
   <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
        4.x release: a bad or tampered publish would have executed on this page
@@ -670,11 +670,15 @@
            when set. The menus live in #reelMenus at body level with the same
            option ids and handlers as the old pills. -->
       <div class="reel-filter-bar" id="reelFilterBar">
-        <div class="search-wrap reel-search-wrap fsearch">
-          <svg class="fsearch-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" class="search-input" id="reelSearch" placeholder="Search charts…" autocomplete="off">
-          <span class="reel-count" id="reelCount">—</span>
-          <button class="fsearch-clear" id="reelSearchClear" type="button" style="display:none" aria-label="Clear search">×</button>
+        <div class="reel-head2">
+          <div class="search-wrap reel-search-wrap fsearch">
+            <svg class="fsearch-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="reelSearch" placeholder="Search charts…" autocomplete="off">
+            <span class="reel-count" id="reelCount">—</span>
+            <button class="fsearch-clear" id="reelSearchClear" type="button" style="display:none" aria-label="Clear search">×</button>
+          </div>
+          <button class="fdrop-btn wl2-sortbtn" type="button" id="reelDdSort" data-fdrop="reelMenuSort" aria-haspopup="menu" aria-expanded="false" aria-label="Sort"><svg class="wl2-sort-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span></button>
+          <button class="fdrop-reset" id="reelReset" type="button" aria-label="Reset filters" title="Reset filters" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
         </div>
 
         <!-- Active "similar to X" set. Its own row, not a dropdown: it REPLACES
@@ -685,14 +689,11 @@
           <button class="reel-simbar-clear" id="reelSimClear">Clear</button>
         </div>
 
-        <div class="fdrop-row" id="reelDrops">
-          <button class="fdrop-btn" type="button" id="reelDdShow" data-fdrop="reelMenuShow" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Show</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-btn" type="button" id="reelDdClass" data-fdrop="reelMenuClass" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Class</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-btn" type="button" id="reelDdSector" data-fdrop="reelMenuSector" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sector</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-btn" type="button" id="reelDdTrend" data-fdrop="reelMenuTrend" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Trend</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-btn" type="button" id="reelDdMa" data-fdrop="reelMenuMa" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">MA</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-btn" type="button" id="reelDdSort" data-fdrop="reelMenuSort" aria-haspopup="menu" aria-expanded="false"><span class="fdrop-lbl">Sort</span><span class="fdrop-val"></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <button class="fdrop-reset" id="reelReset" type="button" aria-label="Reset filters" title="Reset filters" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        <!-- One row, five views (2026-10-30, the Watchlist's row on Charts):
+             the dropdown picks what the row holds, chips scroll sideways. -->
+        <div class="wl2-bar2 reel-bar2">
+          <button class="fdrop-btn wl2-mode" type="button" id="reelDdMode" data-fdrop="reelMenuMode" aria-haspopup="menu" aria-expanded="false"><span class="wl2-mode-lbl">Show</span><span class="wl2-mode-n" hidden></span><svg class="fdrop-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="wl2-lists" id="reelRow"></div>
         </div>
       </div>
 
@@ -745,100 +746,9 @@
   </div>
 
   <div class="fdrop-layer" id="reelMenus">
-    <div class="fdrop-menu fdrop-wide" id="reelMenuShow" role="menu" hidden data-fdrop-autoclose>
-      <div class="fdrop-sec">
-        <div class="reel-opts fdrop-opts" id="reelScopeOpts">
-          <button class="reel-opt active" data-scope="all">Everything</button>
-          <button class="reel-opt" data-scope="views">My Buy / Sell markers</button>
-          <button class="reel-opt" data-scope="views-buy">My Buy markers</button>
-          <button class="reel-opt" data-scope="views-sell">My Sell markers</button>
-          <button class="reel-opt" data-scope="today">Fired today</button>
-          <button class="reel-opt" data-scope="signal">Any open signal</button>
-          <button class="reel-opt" data-scope="buy">Buys only</button>
-          <button class="reel-opt" data-scope="sell">Sells only</button>
-          <button class="reel-opt" data-scope="watch">Minor 4H swings</button>
-          <button class="reel-opt" data-scope="m15sig">4H B1 / S1<i>last 2 sessions</i></button>
-          <button class="reel-opt" data-scope="dxpre">1H touched a Daily MA<i>last 2 sessions</i></button>
-          <button class="reel-opt" data-scope="dxafter">1H crossed a Daily MA<i>last 2 sessions</i></button>
-        </div>
-      </div>
-    </div>
-
-    <div class="fdrop-menu" id="reelMenuClass" role="menu" hidden data-fdrop-autoclose>
-      <div class="fdrop-sec">
-        <div class="scanner-cat-chips fdrop-opts" id="reelCatChips">
-          <button class="s-cat-chip active" data-cat="">All classes</button>
-          <button class="s-cat-chip" data-cat="crypto">Crypto</button>
-          <button class="s-cat-chip" data-cat="indices">Indices</button>
-          <button class="s-cat-chip" data-cat="commodity">Commodity</button>
-          <button class="s-cat-chip" data-cat="currency">Currency</button>
-          <button class="s-cat-chip" data-cat="ccyindex">Ccy Index</button>
-          <button class="s-cat-chip" data-cat="us100">US100</button>
-          <button class="s-cat-chip" data-cat="us500">US500</button>
-          <button class="s-cat-chip" data-cat="banks">Banks</button>
-          <button class="s-cat-chip" data-cat="energy">Energy</button>
-          <button class="s-cat-chip" data-cat="tech">Tech</button>
-          <button class="s-cat-chip" data-cat="semi">Semis</button>
-          <button class="s-cat-chip" data-cat="ai">AI</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="fdrop-menu fdrop-wide" id="reelMenuSector" role="menu" hidden>
-      <div id="reelSectorMenu"></div>
-    </div>
-
-    <div class="fdrop-menu" id="reelMenuTrend" role="menu" hidden>
-      <div class="fdrop-sec">
-        <div class="fdrop-hd">Main trend <small>Daily</small></div>
-        <div class="reel-opts fdrop-opts" id="reelTrendOpts">
-          <button class="reel-opt active" data-trend="all">Any</button>
-          <button class="reel-opt" data-trend="UPTREND">▲ Uptrend</button>
-          <button class="reel-opt" data-trend="DOWNTREND">▼ Downtrend</button>
-          <button class="reel-opt" data-trend="NEUTRAL">Unavailable</button>
-        </div>
-      </div>
-      <div class="fdrop-sec">
-        <div class="fdrop-hd">4H direction</div>
-        <div class="reel-opts fdrop-opts" id="reelRelationOpts">
-          <button class="reel-opt active" data-relation="all">Any</button>
-          <button class="reel-opt" data-relation="aligned">Aligned with main trend</button>
-          <button class="reel-opt" data-relation="minor">Minor trend against main</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="fdrop-menu fdrop-wide" id="reelMenuMa" role="menu" hidden>
-      <div class="fdrop-sec">
-        <div class="fdrop-hd">MA order <small id="reelStackTf"></small></div>
-        <div class="reel-opts fdrop-opts" id="reelStackOpts">
-          <button class="reel-opt active" data-stack="all">Any</button>
-          <button class="reel-opt" data-stack="bull">Bull<i>50 › 250 › 500</i></button>
-          <button class="reel-opt" data-stack="bear">Bear<i>500 › 250 › 50</i></button>
-          <button class="reel-opt" data-stack="mixed">Mixed</button>
-          <button class="reel-opt" data-stack="near">Near cross<i>under 0.5%</i></button>
-          <button class="reel-opt" data-stack="fresh">Just flipped<i>inside 10 bars</i></button>
-        </div>
-      </div>
-      <div class="fdrop-sec" id="reelClusters"></div>
-      <!-- Near MA (2026-09-28): price within half a day's / one day's range
-           (14-day ATR) of a Daily, Weekly or Monthly MA, nearest first.
-           Read from chart/index.json `near`, built by chart_feed.near_ma. -->
-      <div class="fdrop-sec">
-        <div class="fdrop-hd">Price near MA <small>overlay MA set</small></div>
-        <div class="reel-opts fdrop-opts" id="reelNearOpts">
-          <button class="reel-opt active" data-near="all">Any</button>
-          <button class="reel-opt" data-near="D">Daily MA</button>
-          <button class="reel-opt" data-near="W">Weekly MA</button>
-          <button class="reel-opt" data-near="M">Monthly MA</button>
-          <button class="reel-opt" data-near="any">Daily, Weekly or Monthly</button>
-        </div>
-        <div class="fdrop-seg reel-near-within" id="reelNearWithin">
-          <span>Within</span>
-          <button class="s-cat-chip active" data-within="0.5">½ day's range</button>
-          <button class="s-cat-chip" data-within="1">1 day's range</button>
-        </div>
-      </div>
+    <!-- What the Charts row holds; each shows its value when set. -->
+    <div class="fdrop-menu" id="reelMenuMode" role="menu" hidden data-fdrop-autoclose>
+      <div class="fdrop-sec"><div class="fdrop-hd">Show in the row</div><div class="fdrop-opts" id="reelModeOpts"></div></div>
     </div>
 
     <div class="fdrop-menu" id="reelMenuSort" role="menu" hidden>
@@ -914,7 +824,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=4"></script>
   <script src="/static/js/modules/grid-geometry.js?v=9"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=554"></script>
+  <script src="/static/js/app.js?v=555"></script>
 </body>
 </html>
 

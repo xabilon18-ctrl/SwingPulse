@@ -291,5 +291,82 @@ class ActivityFeedTests(unittest.TestCase):
             self.assertFalse((out / 'activity' / 'D.json').exists())
 
 
+
+class CurrencyIndexTests(unittest.TestCase):
+    """currency_index.py: the 8 majors and, since 2026-10-30, the other
+    currencies (MINORS) built through their USD pair. Synthetic prices: every
+    major and minor has a fixed value in dollars that drifts day by day, and
+    each pair is the ratio of the two, so every cross is consistent."""
+
+    @staticmethod
+    def _pairs(minors=True, drop=()):
+        import currency_index as ci
+        import numpy as np
+        idx = pd.bdate_range('2014-12-01', periods=120)
+        rng = np.random.default_rng(7)
+        usd_val = {c: np.exp(np.cumsum(rng.normal(0, 0.004, len(idx)))) * (1 + k)
+                   for k, c in enumerate(ci.MAJORS + list(ci.MINORS))}
+        usd_val['USD'] = np.ones(len(idx))
+        frame = lambda v: pd.DataFrame({'Open': v, 'High': v * 1.001, 'Low': v / 1.001, 'Close': v}, index=idx)
+        out = {}
+        for a in ci.MAJORS:
+            for b in ci.MAJORS:
+                if a != b:
+                    t, inv = ci._pair(a, b)
+                    x, y = (b, a) if inv else (a, b)       # the pair quotes x in y
+                    out[t] = frame(usd_val[x] / usd_val[y])
+        if minors:
+            for m, t in ci.MINORS.items():
+                if t not in drop:
+                    out[t] = frame(1 / usd_val[m])          # USD/M: M per dollar
+        return out, usd_val, idx
+
+    def test_majors_unchanged_by_minors(self):
+        import currency_index as ci
+        with_m, _, _ = self._pairs(True)
+        without, _, _ = self._pairs(False)
+        a, _ = ci._build(with_m.get)
+        b, _ = ci._build(without.get)
+        for c in ci.MAJORS:
+            pd.testing.assert_frame_equal(a[c], b[c])
+        self.assertEqual(set(b), set(ci.MAJORS))
+        self.assertEqual(set(a), set(ci.MAJORS) | set(ci.MINORS))
+
+    def test_minor_is_its_value_against_the_eight_majors(self):
+        import currency_index as ci
+        import numpy as np
+        pairs, usd_val, idx = self._pairs()
+        out, _ = ci._build(pairs.get)
+        b0 = list(idx).index(idx[idx >= pd.Timestamp(ci.BASE_DATE)][0])
+        for m in ('ZAR', 'TRY', 'CNY'):
+            # M in Y = value(M) / value(Y); equal-weight geometric mean over the 8.
+            logs = sum(np.log(usd_val[m] / usd_val[y]) - np.log(usd_val[m][b0] / usd_val[y][b0]) for y in ci.MAJORS) / 8
+            self.assertEqual(len(out[m]), len(idx))
+            np.testing.assert_allclose(out[m]['Close'].values, 100 * np.exp(logs), rtol=1e-9)
+            self.assertAlmostEqual(out[m]['Close'].loc[idx[b0]], 100.0)
+            self.assertTrue((out[m]['High'] >= out[m][['Open', 'Close']].max(axis=1)).all())
+
+    def test_missing_minor_pair_costs_only_that_index(self):
+        import currency_index as ci
+        pairs, _, _ = self._pairs(drop=('USDZAR=X',))
+        out, base = ci._build(pairs.get)
+        self.assertNotIn('ZAR', out)
+        self.assertIn('MXN', out)
+        self.assertEqual(set(ci.MAJORS) - set(out), set())
+
+    def test_intraday_uses_the_daily_base(self):
+        import currency_index as ci
+        pairs, _, idx = self._pairs()
+        daily, base = ci._build(pairs.get)
+        later = {t: f.iloc[-30:] for t, f in pairs.items()}     # an intraday window, no base date in it
+        intra, _ = ci._build(later.get, base=base)
+        pd.testing.assert_series_equal(intra['ZAR']['Close'], daily['ZAR']['Close'].iloc[-30:])
+        # A stored base from before the minors existed skips them, never invents one.
+        old = {k: v for k, v in base.items() if k[1] != 'USD' or k[0] in ci.MAJORS}
+        intra_old, _ = ci._build(later.get, base=old)
+        self.assertNotIn('ZAR', intra_old)
+        self.assertIn('USD', intra_old)
+
+
 if __name__ == '__main__':
     unittest.main()
