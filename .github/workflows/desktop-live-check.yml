@@ -1,0 +1,105 @@
+name: Verify approved desktop release live
+
+on:
+  pull_request:
+    paths: ['.github/workflows/desktop-live-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/desktop-live-check-20261031'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 10b485eaaa90970f1b2046a538633abcd16014a3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install verification dependencies
+        run: |
+          pip install -r swing_generator/requirements.txt
+          npm install --no-save @playwright/test@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Wait for the exact production release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          url = 'https://api.github.com/repos/xabilon18-ctrl/SwingPulse/actions/runs/41177737276'
+          for attempt in range(90):
+              req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  run = json.load(response)
+              assert run['head_sha'] == '10b485eaaa90970f1b2046a538633abcd16014a3'
+              if run['status'] == 'completed':
+                  if run['conclusion'] != 'success':
+                      raise SystemExit('Production release did not pass: ' + str(run['conclusion']))
+                  print('Exact production deployment passed.')
+                  break
+              print('Waiting for production release:', run['status'], flush=True)
+              time.sleep(20)
+          else:
+              raise SystemExit('Timed out waiting for production release; no live verification claimed.')
+          PY
+      - name: Compare production assets and verify normal sync configuration
+        run: |
+          python3 swing_generator/webapp/publish.py --ui-only --build-only
+          python3 - <<'PY'
+          import hashlib, json, re, urllib.request
+          from pathlib import Path
+          base = 'https://swingpulse200.pages.dev'
+          def get(path):
+              with urllib.request.urlopen(base + path + '?release=10b485eaaa90970f1b2046a538633abcd16014a3', timeout=30) as r:
+                  return r.read()
+          html = get('/').decode()
+          assert 'app.js?v=558' in html and 'style.css?v=395' in html
+          assert 'review-sandbox.js' not in html and '__preview-sync' not in html
+          app = get('/static/js/app.js').decode()
+          expected = Path('swing_generator/webapp/publish/ui/static/js/app.js').read_text()
+          normalize = lambda s: re.sub(r'\?v=\d+', '?v=BUILD', s)
+          assert normalize(app) == normalize(expected), 'Production JS differs from approved source'
+          assert "const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';" in app
+          assert '__preview-sync' not in app
+          css = get('/static/css/style.css')
+          assert css == Path('swing_generator/webapp/publish/ui/static/css/style.css').read_bytes()
+          assert 'navigator.serviceWorker.register' in app
+          print('PASS production approved assets, real sync URL, normal service worker, no preview bridge')
+          print('Production CSS SHA256:', hashlib.sha256(css).hexdigest())
+          Path('production-asset-evidence.json').write_text(json.dumps({'revision':'10b485eaaa90970f1b2046a538633abcd16014a3','reviewed':'fdaa08769ee64f4c44b36f9abda130fe26744f14','css_sha256':hashlib.sha256(css).hexdigest(),'sync':'production','preview_bridge':False},indent=2))
+          PY
+      - name: Exercise live desktop, phone transitions, drawing and saved-view behavior
+        env:
+          DESKTOP_LIVE: '1'
+          DESKTOP_URL: https://swingpulse200.pages.dev
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('swing_generator/tests/desktop_workspace.cjs')
+          source = p.read_text()
+          start = source.index('      const metadata=')
+          end = source.index('\n    }\n    const report=', start)
+          # Preview-only provenance and fake-sync checks must NEVER run on
+          # production. Asset/sync validation above replaces them. Test as a
+          # guest: drawings/saves remain in this disposable browser profile.
+          source = source[:start] + source[end:]
+          source = source.replace('if(!live) {', 'if(true) {')
+          p.with_name('desktop_live_verify.cjs').write_text(source)
+          PY
+          node swing_generator/tests/desktop_live_verify.cjs
+      - name: Retain verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-desktop-verification
+          path: |
+            production-asset-evidence.json
+            desktop-review-results/
+          retention-days: 14
