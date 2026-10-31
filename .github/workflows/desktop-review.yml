@@ -1,0 +1,103 @@
+name: Desktop workspace review preview
+
+on:
+  pull_request:
+    paths:
+      - 'swing_generator/**'
+      - '.github/workflows/desktop-review.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.repository == 'xabilon18-ctrl/SwingPulse' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/desktop-workspace-preview-20261031'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and app dependencies
+        run: |
+          pip install -r swing_generator/requirements.txt
+          npm install --no-save @playwright/test@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Validate source and chart regressions
+        working-directory: swing_generator
+        run: |
+          test "$(git rev-parse HEAD)" = "$REVIEW_SHA"
+          node --check webapp/static/js/app.js
+          node tests/time_grid_test.cjs
+          node tests/stock_view_test.cjs
+          node tests/chart_refresh_test.cjs
+          node tests/chart_framing_test.cjs
+          node tests/saved_work_test.cjs
+          python3 webapp/publish.py --ui-only --build-only
+          python3 tests/browser_fixture.py
+      - name: Phone regression and desktop interaction checks
+        run: |
+          python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/desktop-review-server.log 2>&1 &
+          node swing_generator/tests/app_smoke.cjs
+          node swing_generator/tests/saved_work_browser.cjs
+          node swing_generator/tests/desktop_workspace.cjs
+      - name: Build isolated review package with real published data
+        run: python3 swing_generator/tools/build_desktop_review.py
+      - name: Publish review branch only
+        id: pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test "${{ github.head_ref }}" = "codex/desktop-workspace-preview-20261031"
+          test "$(git rev-parse HEAD)" = "$REVIEW_SHA"
+          npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch desktop-workspace-review --commit-hash "$REVIEW_SHA" | tee /tmp/desktop-pages.log
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          matches = re.findall(r'https://[a-f0-9]+\.swingpulse200\.pages\.dev', Path('/tmp/desktop-pages.log').read_text())
+          if not matches:
+              raise SystemExit('Pages did not return an immutable preview URL')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('url=' + matches[-1] + '\n')
+          print('Review URL:', matches[-1])
+          PY
+      - name: Verify exact hosted package and real market charts
+        env:
+          DESKTOP_LIVE: '1'
+          DESKTOP_URL: ${{ steps.pages.outputs.url }}
+        run: node swing_generator/tests/desktop_workspace.cjs
+      - name: Review details
+        env:
+          PREVIEW_URL: ${{ steps.pages.outputs.url }}
+        run: |
+          python3 - <<'PY'
+          import os
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('Desktop review: ' + os.environ['PREVIEW_URL'] + '\n\n')
+              f.write('Revision: ' + os.environ['REVIEW_SHA'] + '\n\n')
+              f.write('Production was not released. Saves remain on the preview browser only.\n')
+          PY
+      - name: Keep screenshots and layout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-review-evidence
+          path: |
+            desktop-review-results/
+            hourly-chart-mobile.png
+          retention-days: 7

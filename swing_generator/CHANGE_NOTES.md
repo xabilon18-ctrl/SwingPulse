@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-31 DESKTOP WORKSPACE REVIEW: app.js v558, style.css v395. At widths
+1024px and above, Charts embeds the existing white chart on the left and
+moves its existing filters and instrument list to a collapsible right panel.
+Expand uses the white viewing area; Restore/Escape returns to the prior panel
+state. Chart rendering, data, saved views, drawing tools and timeframe rules
+are reused. Guide strokes are thinner only in the desktop workspace. Below
+1024px the existing phone/tablet UI is retained. A dedicated review workflow
+checks phone regressions and desktop sizes/interactions, then publishes only
+to a Pages preview branch with browser-local saves and production sync blocked.
+This is a review build: production release requires the user's later approval.
+
+
 2026-10-30 (later) 1H TWO-MONTH BLOCKS UNDONE: app.js v557. User: "Please
 undo 108". The entry below is reverted in full: 1H opens on the previous +
 current month and draws the market's grid choice on every chart again,

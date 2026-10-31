@@ -50,6 +50,8 @@
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
+  const desktopChartMedia = window.matchMedia('(min-width: 1024px)');
+  const desktopChart = { active: false, expanded: false, collapsed: false, name: null, tf: null, frame: 0 };
   let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
   let activeStatFilter = '';      // stat card rearrange filter
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
@@ -3334,6 +3336,7 @@
 
   function doTabSwitch(btn) {
     const tab = btn.dataset.tab;
+    if (tab !== 'charts' && desktopChart.active) desktopChartExit();
     // Leaving the charts: send any held drawing changes now (see
     // syncPushDrawings) instead of waiting out the batch clock.
     if (currentTab === 'charts' && tab !== 'charts') syncFlushDrawings();
@@ -3366,7 +3369,7 @@
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
     if (tab === 'watchlist') { renderWatchlist(); wlLiveStart(); } else wlLiveStop();
-    if (tab === 'charts') renderChartsLazy();
+    if (tab === 'charts') { renderChartsLazy(); desktopChartSchedule(); }
     if (tab === 'scanner') renderAlerts();
     if (tab === 'dashboard') renderMarketToday();
   }
@@ -11536,6 +11539,162 @@
 
   // Expanded charts have their own host, outside the list renderAll rebuilds.
   // Replace its bundle after a data refresh while retaining pan and price scale.
+  // Desktop is an arrangement of the existing chart, not a second renderer.
+  function desktopChartEligible() { return desktopChartMedia.matches && currentTab === 'charts'; }
+  function desktopChartMount() {
+    if (!desktopChartEligible()) return null;
+    let workspace = document.getElementById('desktopChartWorkspace');
+    if (!workspace) {
+      workspace = document.createElement('div');
+      workspace.id = 'desktopChartWorkspace';
+      workspace.innerHTML = '<section id="desktopChartStage" aria-label="Selected chart"></section>'
+        + '<aside id="desktopChartWatchlist" aria-label="Chart watchlist">'
+        + '<div class="dc-list-head"><strong>Watchlist</strong><button type="button" data-desktop-toggle aria-label="Collapse watchlist" title="Collapse watchlist">›</button></div>'
+        + '<div id="desktopChartFilters"></div><nav id="desktopChartList" aria-label="Instruments"></nav></aside>';
+      document.getElementById('pane-charts').appendChild(workspace);
+      workspace.addEventListener('click', e => {
+        const row = e.target.closest('[data-desktop-name]');
+        if (row) desktopChartSelect(row.dataset.desktopName);
+        if (e.target.closest('[data-desktop-toggle]')) desktopChartToggleList();
+      });
+    }
+    if (!desktopChart.active) {
+      desktopChart.active = true;
+      try { desktopChart.collapsed = localStorage.getItem(sk('sp-desktop-watchlist')) === 'collapsed'; } catch (_) {}
+    }
+    document.getElementById('pane-charts').classList.add('desktop-workspace-active');
+    document.body.classList.add('desktop-workspace-open');
+    const filters = document.getElementById('desktopChartFilters'), bar = document.getElementById('reelFilterBar');
+    if (bar.parentNode !== filters) filters.appendChild(bar);
+    workspace.classList.toggle('watchlist-collapsed', desktopChart.collapsed);
+    return workspace;
+  }
+  function desktopChartControls() {
+    if (!desktopChartEligible()) return '';
+    return '<button class="dc-action" data-act="desktop-list-toggle" aria-controls="desktopChartWatchlist" aria-expanded="' + !desktopChart.collapsed + '" title="Show or hide watchlist">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M16 4v16"/></svg><span>Watchlist</span></button>'
+      + '<button class="dc-action dc-expand" data-act="desktop-expand" aria-label="' + (desktopChart.expanded ? 'Restore workspace' : 'Expand chart') + '">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>'
+      + '<span>' + (desktopChart.expanded ? 'Restore' : 'Expand') + '</span></button>';
+  }
+  function desktopChartPlace(el) {
+    if (!desktopChart.active || !el) return;
+    el.classList.add('desktop-chart');
+    el.classList.toggle('desktop-expanded', desktopChart.expanded);
+    (desktopChart.expanded ? document.body : document.getElementById('desktopChartStage')).appendChild(el);
+    document.body.classList.toggle('chart-full-open', desktopChart.expanded);
+    document.body.classList.toggle('desktop-chart-expanded', desktopChart.expanded);
+    const expand = el.querySelector('[data-act="desktop-expand"]');
+    if (expand) {
+      expand.setAttribute('aria-label', desktopChart.expanded ? 'Restore workspace' : 'Expand chart');
+      expand.querySelector('span').textContent = desktopChart.expanded ? 'Restore' : 'Expand';
+    }
+    const list = el.querySelector('[data-act="desktop-list-toggle"]');
+    if (list) {
+      list.hidden = desktopChart.expanded;
+      list.setAttribute('aria-expanded', String(!desktopChart.collapsed));
+    }
+    const close = el.querySelector('[data-act="chart-full-close"]');
+    if (close) close.hidden = true;
+  }
+  function desktopChartToggleExpand(force) {
+    if (!desktopChart.active) return;
+    desktopChart.expanded = typeof force === 'boolean' ? force : !desktopChart.expanded;
+    desktopChartPlace(chartFullEl());
+    requestAnimationFrame(() => {
+      const host = chartFullEl()?.querySelector('.reel-chart');
+      if (host?._reelCtx) reelRepaint(host);
+      chartFullEl()?.querySelector('[data-act="desktop-expand"]')?.focus();
+    });
+  }
+  function desktopChartToggleList() {
+    if (!desktopChart.active || desktopChart.expanded) return;
+    desktopChart.collapsed = !desktopChart.collapsed;
+    try { localStorage.setItem(sk('sp-desktop-watchlist'), desktopChart.collapsed ? 'collapsed' : 'open'); } catch (_) {}
+    document.getElementById('desktopChartWorkspace').classList.toggle('watchlist-collapsed', desktopChart.collapsed);
+    desktopChartPlace(chartFullEl());
+  }
+  function desktopChartHighlight() {
+    const list = document.getElementById('desktopChartList');
+    if (!list) return;
+    list.querySelectorAll('[data-desktop-name]').forEach(row => {
+      const selected = row.dataset.desktopName === chartFullName;
+      row.classList.toggle('selected', selected);
+      if (selected) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+    });
+  }
+  function desktopChartSelect(name, force = false) {
+    if (!desktopChartEligible() || !(reel.list || []).some(d => d.instrument_name === name)) return;
+    desktopChart.name = name;
+    desktopChartMount();
+    if (!force && chartFullName === name && desktopChart.tf === timeframe && chartFullEl()?.classList.contains('open')) {
+      desktopChartHighlight(); return;
+    }
+    if (chartFullName) chartFullClose();
+    desktopChart.tf = timeframe;
+    chartFullOpen(name);
+    desktopChartHighlight();
+  }
+  function desktopChartRender() {
+    if (!desktopChartMount()) return;
+    const list = document.getElementById('desktopChartList'), top = list.scrollTop;
+    list.innerHTML = (reel.list || []).map(item => {
+      const name = item.instrument_name, quote = wlQuote(name), price = quote?.p ?? item.close;
+      const move = quote?.pct ?? (item.pct_1d == null ? NaN : Number(item.pct_1d));
+      return '<button type="button" class="dc-instrument" data-desktop-name="' + escText(name) + '">'
+        + '<span class="dc-instrument-name"><strong>' + escText(name) + '</strong><small>' + escText(instName(name) || item.group || '') + '</small></span>'
+        + '<span class="dc-instrument-price"><strong>' + escText(wlFmtPrice(price)) + '</strong>'
+        + '<small class="' + (move >= 0 ? 'up' : 'dn') + '">' + (Number.isFinite(move) ? escText(wlFmtPct(move)) : '—') + '</small></span></button>';
+    }).join('');
+    list.scrollTop = top;
+    if (!reel.list.length) {
+      if (desktopChart.expanded) desktopChartToggleExpand(false);
+      if (chartFullName) chartFullClose();
+      desktopChart.collapsed = false;
+      document.getElementById('desktopChartWorkspace').classList.remove('watchlist-collapsed');
+      document.getElementById('desktopChartStage').innerHTML = '<div class="dc-empty">No instruments match these filters.</div>';
+      return;
+    }
+    document.querySelector('#desktopChartStage > .dc-empty')?.remove();
+    const name = reel.list.some(d => d.instrument_name === desktopChart.name) ? desktopChart.name : reel.list[0].instrument_name;
+    desktopChartSelect(name);
+  }
+  function desktopChartSchedule() {
+    if (!desktopChartEligible()) return;
+    cancelAnimationFrame(desktopChart.frame);
+    desktopChart.frame = requestAnimationFrame(desktopChartRender);
+  }
+  function desktopChartExit() {
+    if (!desktopChart.active) return;
+    cancelAnimationFrame(desktopChart.frame);
+    const el = chartFullEl();
+    if (chartFullName) chartFullClose();
+    if (el) { el.classList.remove('desktop-chart', 'desktop-expanded'); document.body.appendChild(el); }
+    const pane = document.getElementById('pane-charts');
+    pane.insertBefore(document.getElementById('reelFilterBar'), document.getElementById('chartReel'));
+    document.getElementById('desktopChartWorkspace')?.remove();
+    pane.classList.remove('desktop-workspace-active');
+    document.body.classList.remove('desktop-workspace-open', 'desktop-chart-expanded', 'chart-full-open');
+    desktopChart.active = false; desktopChart.expanded = false;
+  }
+  desktopChartMedia.addEventListener('change', () => {
+    if (currentTab !== 'charts') return;
+    const name = chartFullName || desktopChart.name, expanded = desktopChart.expanded;
+    if (!desktopChartMedia.matches) {
+      desktopChartExit();
+      reelRebuildKeepingPlace(name);
+      if (expanded && name) chartFullOpen(name);
+    } else {
+      desktopChart.name = name;
+      desktopChartRender();
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !desktopChart.active || !desktopChart.expanded) return;
+    if (document.querySelector('.sheet.open, .modal.open, .reel-grid-menu, .reel-tf-menu, .share-prev, .saved-work-panel, #chartFull details[open]')) return;
+    e.preventDefault(); e.stopImmediatePropagation(); desktopChartToggleExpand(false);
+  }, true);
+
   async function chartFullRefresh() {
     const name = chartFullName;
     const tf = timeframe;
@@ -11554,11 +11713,13 @@
     chartFullSyncButtons();
   }
 
+
   async function chartFullOpen(name) {
     const item = (reel.list || []).find(d => d.instrument_name === name)
               || allData.find(d => d.instrument_name === name);
     if (!item) return;
     chartFullName = name;
+    if (desktopChartEligible()) { desktopChart.name = name; desktopChart.tf = timeframe; desktopChartMount(); }
 
     let el = chartFullEl();
     if (!el) {
@@ -11567,6 +11728,8 @@
       document.body.appendChild(el);
       el.addEventListener('click', e => {
         if (e.target.closest('[data-act]')) el.querySelectorAll('.cf-actions-more[open]').forEach(box => { box.open = false; });
+        if (e.target.closest('[data-act="desktop-expand"]')) { desktopChartToggleExpand(); return; }
+        if (e.target.closest('[data-act="desktop-list-toggle"]')) { desktopChartToggleList(); return; }
         if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
         const step = e.target.closest('[data-act="chart-full-step"]');
         if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
@@ -11578,10 +11741,12 @@
     el.innerHTML = chartFullHtml(item);
     chartHistNote(name);
     document.body.classList.add('chart-full-open');
+    if (desktopChart.active) desktopChartPlace(el);
 
-    const host = el.querySelector('.reel-chart');
-    const data = await reelLoadChunk(name);
+    const host = el.querySelector('.reel-chart'), openTf = timeframe;
+    const data = await reelLoadChunk(name, openTf);
     await ovLoadHtf(name);
+    if (chartFullName !== name || timeframe !== openTf || el.querySelector('.reel-chart') !== host) return;
     const bundle = data && data[name];
     if (!bundle) { host.innerHTML = '<div class="reel-nodata">No chart data</div>'; return; }
     host._reelItem = item;
@@ -11619,15 +11784,16 @@
     // the SVG layout were measured for the old box, so the bar slid down over
     // the date row (overlay on, 2026-09-26). Repaint when the box resizes.
     chartFullRO.disconnect();
-    chartFullROh = 0;
+    chartFullROh = 0; chartFullROw = 0;
     chartFullRO.observe(host);
   }
-  let chartFullROh = 0;
+  let chartFullROh = 0, chartFullROw = 0;
   const chartFullRO = typeof ResizeObserver === 'function'
     ? new ResizeObserver(ents => {
         const host = ents[0] && ents[0].target, h = Math.round(ents[0].contentRect.height);
-        if (!host || !host.isConnected || h === chartFullROh) return;
-        const first = chartFullROh === 0; chartFullROh = h;
+        const w = Math.round(ents[0]?.contentRect.width || 0);
+        if (!host || !host.isConnected || h === chartFullROh && (!desktopChart.active || w === chartFullROw)) return;
+        const first = chartFullROh === 0; chartFullROh = h; chartFullROw = w;
         if (!first) requestAnimationFrame(() => reelRepaint(host));
       })
     : { observe() {}, disconnect() {} };
@@ -11666,6 +11832,7 @@
     const j = (i + dir + n) % n;
     if (j === i) return;                     // a one-chart list has nowhere to go
     const next = list[j];
+    if (desktopChart.active) { desktopChartSelect(next.instrument_name); return; }
     chartFullClose();
     // Put the reel behind on the SAME card. reelStepBy() scrolls exactly one
     // screen, which is right for a neighbour and wrong for a wrap: stepping
@@ -11688,7 +11855,7 @@
     const el = chartFullEl();
     // Put the reader's own price scale back — the one full screen imposed was
     // ours, not theirs, and leaving it would zoom the card out on return.
-    if (chartFullName) {
+    if (chartFullName && !el?.classList.contains('desktop-chart')) {
       // ...UNLESS the reader stretched or pinched the scale themselves while
       // it was open (_userY). That IS theirs and has to survive the close —
       // but not as an absolute price window: the card's plot is shorter, so
@@ -11727,6 +11894,7 @@
       chartFullOpenSpan = 0;
       chartFullOpenMid  = 0;
     }
+    chartFullPrevLock = undefined; chartFullOpenSpan = 0; chartFullOpenMid = 0;
     if (el) { el.classList.remove('open'); el.innerHTML = ''; }
     document.body.classList.remove('chart-full-open');
     chartFullName = null;
@@ -11771,6 +11939,7 @@
             <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}<span>Share chart</span></button>
           </div>
         </details>
+        ${desktopChartControls()}
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
         </div>
         </div>
@@ -12148,7 +12317,7 @@
   // original rather than trying to ship the stylesheet with the image.
   const SHARE_STYLE_PROPS = [
     'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity',
-    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
+    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'vector-effect',
     'opacity', 'font-size', 'font-family', 'font-weight', 'text-anchor',
     // The overlay's MA tags are haloed (white stroke painted UNDER the fill);
     // without this the halo paints over the text and the tag vanishes.
@@ -13168,6 +13337,12 @@
     if (count) {
       count.textContent = reel.list.length + (reel.list.length === 1 ? ' chart' : ' charts');
     }
+    if (desktopChartEligible()) {
+      host.innerHTML = '';
+      if (empty) empty.style.display = 'none';
+      reelSyncPills(); desktopChartSchedule();
+      return;
+    }
     if (!reel.list.length) {
       host.innerHTML = '';
       if (empty) {
@@ -13247,6 +13422,7 @@
   }
 
   function reelVisibleName() {
+    if (desktopChart.active) return chartFullName || desktopChart.name;
     const cards = document.querySelectorAll('#chartReel .reel-card');
     for (const c of cards) {
       const r = c.getBoundingClientRect();
@@ -13264,6 +13440,7 @@
   // source of truth — a flick, a wheel, a key and a tap all move the same thing,
   // and nothing can drift out of sync with a separately tracked index.
   function reelStepBy(dir) {
+    if (desktopChart.active) { chartFullStep(dir); return; }
     const el = document.getElementById('chartReel');
     if (!el || !el.clientHeight) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -13513,7 +13690,7 @@
     // A search or pill left on the Charts tab can hide the very chart asked
     // for, and the reel then sat on whatever was first — "Chart" on MSFT
     // showed AVGO (2026-09-15). Clear the filters in that case, and only then.
-    if (!el) {
+    if (!el && !(desktopChartEligible() && reel.list.some(d => d.instrument_name === name))) {
       const rst = document.getElementById('reelReset');
       if (rst) rst.click();
       el = find();
@@ -13525,6 +13702,7 @@
     }
     reelPaintVisible();
     reelSyncNav();
+    if (desktopChartEligible()) desktopChartSelect(name);
   }
 
   function showSimilarCharts(name) {
