@@ -1,4 +1,4 @@
-name: Desktop workspace review preview
+name: Chart readability review preview
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   preview:
-    if: github.repository == 'xabilon18-ctrl/SwingPulse' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/desktop-workspace-preview-20261031'
+    if: github.repository == 'xabilon18-ctrl/SwingPulse' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/chart-readability-20261031'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -42,6 +42,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$REVIEW_SHA"
           node --check webapp/static/js/app.js
+          node tests/chart_readability_test.cjs
           node tests/time_grid_test.cjs
           node tests/stock_view_test.cjs
           node tests/chart_refresh_test.cjs
@@ -55,6 +56,7 @@ jobs:
           node swing_generator/tests/app_smoke.cjs
           node swing_generator/tests/saved_work_browser.cjs
           node swing_generator/tests/desktop_workspace.cjs
+          node swing_generator/tests/chart_readability_browser.cjs
       - name: Build isolated review package with real published data
         run: python3 swing_generator/tools/build_desktop_review.py
       - name: Publish review branch only
@@ -63,9 +65,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          test "${{ github.head_ref }}" = "codex/desktop-workspace-preview-20261031"
+          test "${{ github.head_ref }}" = "codex/chart-readability-20261031"
           test "$(git rev-parse HEAD)" = "$REVIEW_SHA"
-          npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch desktop-workspace-review --commit-hash "$REVIEW_SHA" | tee /tmp/desktop-pages.log
+          npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch chart-readability-review --commit-hash "$REVIEW_SHA" | tee /tmp/desktop-pages.log
           python3 - <<'PY'
           import os, re
           from pathlib import Path
@@ -80,7 +82,9 @@ jobs:
         env:
           DESKTOP_LIVE: '1'
           DESKTOP_URL: ${{ steps.pages.outputs.url }}
-        run: node swing_generator/tests/desktop_workspace.cjs
+        run: |
+          node swing_generator/tests/desktop_workspace.cjs
+          node swing_generator/tests/chart_readability_browser.cjs
       - name: Review details
         env:
           PREVIEW_URL: ${{ steps.pages.outputs.url }}
@@ -99,5 +103,6 @@ jobs:
           name: desktop-review-evidence
           path: |
             desktop-review-results/
+            readability-review-results/
             hourly-chart-mobile.png
           retention-days: 7

@@ -60,9 +60,9 @@ def build():
     revision = os.environ["REVIEW_SHA"]
     assert len(revision) == 40
     assets = {str(path.relative_to(ui)): hashlib.sha256(path.read_bytes()).hexdigest()
-              for path in [app, ui / "static/css/style.css", html]}
+              for path in [app, ui / "static/css/style.css", html, *sorted((ui / "static/js/modules").glob("*.js"))]}
     (ui / "preview.json").write_text(json.dumps({
-        "revision": revision, "base": "718d4d5c7529686a99f6d77c0b3fdb2af7d0adf1",
+        "revision": revision, "base": "10b485eaaa90970f1b2046a538633abcd16014a3",
         "production": False, "saves": "this browser only", "assets": assets
     }, indent=2))
     assert worker not in app.read_text()

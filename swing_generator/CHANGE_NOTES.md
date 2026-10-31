@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-31 UNIVERSAL READABILITY REVIEW: app.js v559, style.css v396.
+Phone and laptop share Thin / Medium / Thick for native chart MAs, overlays,
+projections, calendar guides and every drawing tool. Native Thick retains
+7-unit dots; Thin and Medium use 35% and 60%. Explicit old channel weights,
+bold drawings and overlay multipliers remain valid; new choices are saved
+without changing drawing geometry, hit targets or saved chart frames.
+The price axis uses actual plot height and nice 1/2/2.5/5/10 steps, omits
+labels beneath the current-price badge, and preserves instrument precision.
+No new horizontal grid lines or trading/data changes. The user approved
+production release after implementation; both device suites and exact served
+production assets are verified by the release workflow.
+
 2026-10-31 DESKTOP WORKSPACE REVIEW: app.js v558, style.css v395. At widths
 1024px and above, Charts embeds the existing white chart on the left and
 moves its existing filters and instrument list to a collapsible right panel.
