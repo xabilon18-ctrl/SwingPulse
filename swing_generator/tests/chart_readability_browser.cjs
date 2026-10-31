@@ -22,11 +22,11 @@ async function axis(page){return page.locator('#chartFullHost').evaluate(h=>{
 });}
 function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>=a.texts[i-1].bottom+1,JSON.stringify(a));}
 (async()=>{
- const browser=await chromium.launch(),report=[];
+ const browser=await chromium.launch(),report=[];let currentPage;
  try{
   for(const [w,h] of [[1366,900],[390,844],[320,640]]){
    const context=await browser.newContext({viewport:{width:w,height:h}}),page=await context.newPage(),errors=[];
-   page.on('pageerror',e=>errors.push(e.message));
+   currentPage=page;page.on('pageerror',e=>errors.push(e.message));
    if(!live)await page.route('**/ma500/**',async r=>{
     const relative=decodeURIComponent(new URL(r.request().url()).pathname.split('/ma500/')[1]);
     const f=path.join(__dirname,'../webapp/publish/browser-data',relative);
@@ -115,5 +115,5 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
   }
   fs.writeFileSync(out+'/checks.json',JSON.stringify(report,null,2));
   console.log('PASS universal weights, native/overlay/projection, all 10 tools, hit targets, saved settings/drawings, price framing, expanded/card views and adaptive axis');
- }finally{await browser.close();}
+ }catch(e){if(currentPage&&!currentPage.isClosed()){await currentPage.screenshot({path:out+'/failure.png'});console.log('READABILITY_FAILURE='+(await currentPage.screenshot({type:'jpeg',quality:55})).toString('base64'));}throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

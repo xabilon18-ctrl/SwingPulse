@@ -9753,3 +9753,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-svg[data-grid-weight="3"] .reel-tgrid { vector-effect: none !important; stroke-width: 2.6 !important; }
 .reel-svg[data-grid-weight="3"] .reel-tgrid-month { stroke-width: 3 !important; }
 .reel-svg[data-grid-weight="3"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin, .reel-zero) { stroke-width: 6 !important; }
+
+/* Safe centering keeps the first property reachable when a phone scrolls. */
+.reel-props-main { justify-content: flex-start; justify-content: safe center; }
+.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 0.9 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 1.7 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 2.6 !important; }

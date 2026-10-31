@@ -8612,7 +8612,7 @@
     ovHtfChoices().forEach(([tf, name, periods, weight]) => {
       const on = ovHtfOn(tf);
       h += `<div class="reel-ov-block"><button class="reel-tf-opt reel-ov-switch reel-ov-htf${on ? ' on' : ''}" role="menuitemcheckbox" aria-checked="${on}" data-act="ov-htf" data-tf="${tf}">
-          <span>${name}<i>${ovPeriodsTxt(tf)} · ${weight}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
+          <span>${name}<i>${ovPeriodsTxt(tf)}</i></span><i class="reel-ov-knob" aria-hidden="true"></i></button>` +
         (on ? slider('o' + tf, 'ma', 'MAs', name) : '') + '</div>';
     });
     if (!ovAny()) return h;
@@ -14278,9 +14278,9 @@
         }
         return true;
       }
-      // Channel line weight: thin (the default, stored as no field), thick or
-      // thicker (user, 2026-10-20). Channels only — the time grid and the other
-      // drawings keep their own weights.
+      // Every drawing gets an explicit three-level stroke choice. Legacy weight
+      // and bold fields remain intact for geometry/older backups; strokeWeight
+      // takes precedence for visible strokes without shrinking hit targets.
       if (btn.dataset.act === 'draw-weight') {
         const d = activeChannel(name), v = +btn.dataset.v;
         if (d && [1, 2, 3].includes(v)) {

@@ -173,7 +173,7 @@ const assert = require('node:assert/strict');
     await page.mouse.up();
   }
   await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'attached' });
-  assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '6px', 'Yearly stroke is bold');
+  assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '2px', 'Thin yearly guide retains a stronger boundary than ordinary grid lines');
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   // The time grid in use sits after the timeframe in the header (2026-10-28)
   // and follows a new choice at once. A session-only 4H feed draws Month as
