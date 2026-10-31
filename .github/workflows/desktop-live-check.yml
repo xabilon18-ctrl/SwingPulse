@@ -53,29 +53,39 @@ jobs:
       - name: Compare production assets and verify normal sync configuration
         run: |
           python3 swing_generator/webapp/publish.py --ui-only --build-only
-          python3 - <<'PY'
-          import hashlib, json, re, urllib.request
-          from pathlib import Path
-          base = 'https://swingpulse200.pages.dev'
-          def get(path):
-              with urllib.request.urlopen(base + path + '?release=10b485eaaa90970f1b2046a538633abcd16014a3', timeout=30) as r:
-                  return r.read()
-          html = get('/').decode()
-          assert 'app.js?v=558' in html and 'style.css?v=395' in html
-          assert 'review-sandbox.js' not in html and '__preview-sync' not in html
-          app = get('/static/js/app.js').decode()
-          expected = Path('swing_generator/webapp/publish/ui/static/js/app.js').read_text()
-          normalize = lambda s: re.sub(r'\?v=\d+', '?v=BUILD', s)
-          assert normalize(app) == normalize(expected), 'Production JS differs from approved source'
-          assert "const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';" in app
-          assert '__preview-sync' not in app
-          css = get('/static/css/style.css')
-          assert css == Path('swing_generator/webapp/publish/ui/static/css/style.css').read_bytes()
-          assert 'navigator.serviceWorker.register' in app
-          print('PASS production approved assets, real sync URL, normal service worker, no preview bridge')
-          print('Production CSS SHA256:', hashlib.sha256(css).hexdigest())
-          Path('production-asset-evidence.json').write_text(json.dumps({'revision':'10b485eaaa90970f1b2046a538633abcd16014a3','reviewed':'fdaa08769ee64f4c44b36f9abda130fe26744f14','css_sha256':hashlib.sha256(css).hexdigest(),'sync':'production','preview_bridge':False},indent=2))
-          PY
+          node <<'JS'
+          const {chromium}=require('@playwright/test');
+          const fs=require('node:fs'), assert=require('node:assert/strict'), crypto=require('node:crypto');
+          (async()=>{
+            const browser=await chromium.launch();
+            try {
+              const context=await browser.newContext();
+              const page=await context.newPage();
+              await page.goto('https://swingpulse200.pages.dev/?release=10b485eaaa90970f1b2046a538633abcd16014a3',{waitUntil:'domcontentloaded'});
+              const get=path=>page.evaluate(async path=>{
+                const r=await fetch(path+'?release=10b485eaaa90970f1b2046a538633abcd16014a3',{cache:'no-store'});
+                if(!r.ok)throw new Error(path+' returned '+r.status);
+                return r.text();
+              },path);
+              const html=await get('/');
+              assert.ok(html.includes('app.js?v=558') && html.includes('style.css?v=395'));
+              assert.ok(!html.includes('review-sandbox.js') && !html.includes('__preview-sync'));
+              const app=await get('/static/js/app.js');
+              const expected=fs.readFileSync('swing_generator/webapp/publish/ui/static/js/app.js','utf8');
+              const normalize=s=>s.replace(/\?v=\d+/g,'?v=BUILD');
+              assert.equal(normalize(app),normalize(expected),'production JS matches approved source');
+              assert.ok(app.includes("const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';"));
+              assert.ok(!app.includes('__preview-sync'));
+              assert.ok(app.includes('navigator.serviceWorker.register'));
+              const css=await get('/static/css/style.css');
+              assert.equal(css,fs.readFileSync('swing_generator/webapp/publish/ui/static/css/style.css','utf8'));
+              const hash=crypto.createHash('sha256').update(css).digest('hex');
+              console.log('PASS production approved assets, real sync URL, normal service worker, no preview bridge');
+              console.log('Production CSS SHA256:',hash);
+              fs.writeFileSync('production-asset-evidence.json',JSON.stringify({revision:'10b485eaaa90970f1b2046a538633abcd16014a3',reviewed:'fdaa08769ee64f4c44b36f9abda130fe26744f14',css_sha256:hash,sync:'production',preview_bridge:false},null,2));
+            } finally {await browser.close();}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
       - name: Exercise live desktop, phone transitions, drawing and saved-view behavior
         env:
           DESKTOP_LIVE: '1'
