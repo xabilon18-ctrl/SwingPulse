@@ -16,6 +16,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -113,8 +114,192 @@ def daily_level_scale(ticker: str, daily: pd.DataFrame) -> float:
         return 1.0
 
 
+# ── Daily bars repaired from the hourly feed (2026-10-31) ─────────────────
+# User, PALLADIUM Daily screenshot: "Why palladium platinum and silver candles
+# or bars look like they breaking up." Measured on the live Daily chart feed:
+#   * FLAT BARS. Yahoo's daily PA=F / PL=F print one price for the day
+#     (open = high = low = close) on 72% / 59% of days since 2025 — a dot, not
+#     a bar; a row of dots at different levels reads as a dashed line. Across
+#     814 instruments the others with >= 10% are USDCNH 73%, COCOA 25%,
+#     COTTON 17%, COFFEE 15%, OATMEAL 14% (SILVER 8%, GOLD 3%).
+#   * TRUNCATED METAL FUTURES. Even on the days Yahoo gives a range, the COMEX
+#     metals' daily bar covers about HALF of what traded: the hourly feed's
+#     range over the same trade date is 1.98x the daily on SILVER, 2.14x
+#     PALLADIUM, 2.00x PLATINUM, 1.85x COPPER, 1.50x GC=F (raw fixture). The
+#     median instrument is 1.00x, and so are CL=F, WHEAT, COCOA and OATMEAL.
+#   * WEEKEND STUBS. Since the weekend runs went hourly (late Aug/Sep), a run
+#     on Saturday/Sunday captures Yahoo's live weekend snapshot of a currency or
+#     futures contract as a bar dated that day, and the cache keeps it: 91
+#     non-crypto instruments carry 5-19 of them, none before 2026-08-29. Their
+#     13 years of history hold none, so each is an extra bar the ribbon counts
+#     (PALLADIUM's "Downtrend since 27 Sep 2026" is dated on one: a Sunday).
+# The hourly feed is clean (PALLADIUM 0 flat bars of 2,921, PLATINUM 2, SILVER
+# 5), so a daily bar is rebuilt from the instrument's OWN hourly file (its own
+# ticker, never the h4_ticker redirect: a cash index's hourly is its future).
+# Hourly bars are grouped by CME TRADE DATE — 18:00 New York opens the next
+# date. On the raw CL=F fixture that reproduces Yahoo's daily high/low exactly
+# on 75% of days and its open on 75%, against 53% / 1% for UTC days; a session
+# that never trades across 18:00 New York (equities, ICE softs) is unaffected.
+# The hourly series runs at an offset from the daily (another contract month,
+# dividend adjustment): ~+0.5% on the metals, 3-10% on the softs' flat days,
+# which fall where Yahoo's daily sits on a near-expiry month that no longer
+# trades while the hourly has moved on. The bars are scaled by
+# the rolling median of daily close / hourly close over the previous
+# DAILY_REPAIR_BASIS_DAYS trade dates (trailing — no look-ahead), snapped to
+# exactly 1 within DAILY_REPAIR_SNAP so a feed that already agrees stays put.
+#   flat bar (any instrument):  open/high/low from the hourly, close KEPT
+#                               (Yahoo's close is the settlement)
+#   futures (=F), other days:   high/low widened to every hourly print; never
+#                               narrowed, open and close kept — ONLY when the
+#                               feed is measurably truncated: the median hourly
+#                               range over the frame's own non-flat days is
+#                               >= DAILY_REPAIR_TRUNCATED x the daily (gold
+#                               1.50x, other metals 1.85-2.14x). CL=F (1.00x)
+#                               is left alone: widening it anyway moved 54
+#                               bars, clustered on its roll
+#                               dates (16th-22nd) where the hourly and daily
+#                               feeds briefly quote different contract months.
+# Hourly history is ~729 days, so bars older than that are left as they are.
+DAILY_REPAIR_MIN_HOURS  = 3      # hourly bars a trade date needs to rebuild a bar
+DAILY_REPAIR_BASIS_DAYS = 20     # trade dates in the rolling close/close median
+DAILY_REPAIR_MAX_BASIS  = 0.10   # largest daily/hourly level gap accepted: a contract-month
+                                 # spread (softs 3-10% near expiry), never a split (50%+)
+DAILY_REPAIR_MAX_DEV    = 0.03   # skip a date whose own close ratio is this far off the scale
+DAILY_REPAIR_SNAP       = 0.0025 # a scale within 0.25% of 1 is the same series: use 1 exactly
+DAILY_REPAIR_TRUNCATED  = 1.3    # hourly/daily range median at which a futures feed is truncated
+                                 # (measured: GC=F 1.50, metals 1.85-2.14 | COFFEE 1.19, CL/WHEAT/COCOA 1.00)
+DAILY_REPAIR_MIN_DAYS   = 20     # shared non-flat days needed to measure that ratio
+DAILY_REPAIR_LOOKBACK   = 800    # daily bars searched for flat ones (hourly reaches ~729 days)
+# A frame trades weekends when weekend bars are a real share of it (crypto
+# 2/7 = 29%). Weekend stubs on a currency are 19 bars in ~3,300 (0.6%).
+WEEKEND_TRADER_SHARE    = 0.15
+
+
+def drop_weekend_stubs(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop Saturday/Sunday daily bars from a market that does not trade weekends.
+
+    Crypto keeps them. The test is the frame's own history, not a ticker list:
+    weekend bars are 29% of a coin's days and under 1% of a currency's."""
+    if df is None or df.empty:
+        return df
+    weekend = pd.DatetimeIndex(df.index).day_of_week >= 5
+    n = int(weekend.sum())
+    if n == 0 or n / len(df) >= WEEKEND_TRADER_SHARE:
+        return df
+    return df[~weekend]
+
+
+def _trade_dates(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """CME trade date of each UTC-naive hourly timestamp: 18:00 New York (the
+    Globex open) starts the next date. A bar earlier in the New York day keeps
+    its date, so a session that does not cross 18:00 NY is grouped by its own day."""
+    ny = pd.DatetimeIndex(idx).tz_localize('UTC').tz_convert('America/New_York')
+    return (ny + pd.Timedelta(hours=6)).tz_localize(None).normalize()
+
+
+def repair_daily(ticker: str, df: pd.DataFrame,
+                 hourly: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Weekend stubs dropped, then flat (and, on futures, truncated) daily bars
+    rebuilt from the instrument's own hourly bars. Returns a new frame when
+    anything changed; the cache on disk is never touched. See the note above."""
+    if df is None or df.empty or not {'Open', 'High', 'Low', 'Close'} <= set(df.columns):
+        return df
+    out = drop_weekend_stubs(df)
+    if out.empty:
+        return out
+    future = str(ticker).endswith('=F')
+    rng = (out['High'] - out['Low']).to_numpy(dtype=float)
+    flat = rng <= 0                         # NaN compares False: left alone
+    flat[:-DAILY_REPAIR_LOOKBACK] = False
+    if not future and not flat.any():
+        return out
+    try:
+        if hourly is None:
+            hourly = _read_5m_raw(ticker, suffix='1h')
+        if hourly is None or hourly.empty:
+            return out
+        h = hourly.dropna(subset=['Open', 'High', 'Low', 'Close'])
+        if getattr(h.index, 'tz', None) is not None:
+            h = h.copy()
+            h.index = h.index.tz_convert('UTC').tz_localize(None)
+        if h.empty:
+            return out
+        g = h.groupby(_trade_dates(h.index)).agg(
+            o=('Open', 'first'), hi=('High', 'max'), lo=('Low', 'min'),
+            c=('Close', 'last'), n=('Close', 'size'))
+        g = g[g['n'] >= DAILY_REPAIR_MIN_HOURS]
+
+        didx = pd.DatetimeIndex(out.index)
+        if didx.tz is not None:
+            didx = didx.tz_convert('UTC').tz_localize(None)
+        dates = didx.normalize()
+        if dates.has_duplicates:
+            return out
+        close = pd.Series(out['Close'].to_numpy(dtype=float), index=dates)
+        common = g.index.intersection(dates)
+        if len(common) == 0:
+            return out
+        ratio = close.reindex(common) / g.loc[common, 'c']
+        scale = ratio.rolling(DAILY_REPAIR_BASIS_DAYS, min_periods=5).median()
+        # Same series (CL=F: hourly and daily print the same highs on 75% of
+        # days): a 0.03% settlement-vs-last-hour wobble must not widen them.
+        scale = scale.mask((scale - 1).abs() <= DAILY_REPAIR_SNAP, 1.0)
+        ok = (scale.notna() & ((scale - 1).abs() <= DAILY_REPAIR_MAX_BASIS)
+              & ((ratio / scale - 1).abs() <= DAILY_REPAIR_MAX_DEV))
+        use = scale.index[ok.to_numpy()]
+        if len(use) == 0:
+            return out
+
+        # Widen only a futures feed that is measurably truncated, judged on
+        # the days both feeds call a real bar (see DAILY_REPAIR_TRUNCATED).
+        widen = False
+        if future:
+            at = pd.Series(np.arange(len(dates)), index=dates)
+            real = common[rng[at.reindex(common).to_numpy()] > 0]
+            if len(real) >= DAILY_REPAIR_MIN_DAYS:
+                ratio_r = ((g.loc[real, 'hi'] - g.loc[real, 'lo']).to_numpy()
+                           / rng[at.reindex(real).to_numpy()])
+                widen = float(np.median(ratio_r)) >= DAILY_REPAIR_TRUNCATED
+        if not widen and not flat.any():
+            return out
+
+        pos = pd.Series(range(len(dates)), index=dates).reindex(use).to_numpy()
+        s = scale.loc[use].to_numpy()
+        ho = g.loc[use, 'o'].to_numpy() * s
+        hh = g.loc[use, 'hi'].to_numpy() * s
+        hl = g.loc[use, 'lo'].to_numpy() * s
+
+        o = out['Open'].to_numpy(dtype=float).copy()
+        hi = out['High'].to_numpy(dtype=float).copy()
+        lo = out['Low'].to_numpy(dtype=float).copy()
+        c = out['Close'].to_numpy(dtype=float)
+        f = flat[pos] & np.isfinite(c[pos])
+        fp = pos[f]
+        o[fp] = ho[f]
+        hi[fp] = np.maximum.reduce([hh[f], ho[f], c[fp]])
+        lo[fp] = np.minimum.reduce([hl[f], ho[f], c[fp]])
+        if widen:
+            w = ~f & np.isfinite(hi[pos]) & np.isfinite(lo[pos])
+            wp = pos[w]
+            hi[wp] = np.maximum(hi[wp], hh[w])
+            lo[wp] = np.minimum(lo[wp], hl[w])
+        if not len(fp) and not widen:
+            return out
+        out = out.copy()
+        out['Open'], out['High'], out['Low'] = o, hi, lo
+        return out
+    except Exception as exc:
+        print(f'    WARN [{ticker}] daily repair from hourly skipped: {exc}')
+        return out
+
+
 def scale_daily(ticker: str, df: pd.DataFrame) -> pd.DataFrame:
-    """df with OHLC multiplied by daily_level_scale (a copy; Volume untouched)."""
+    """df with OHLC multiplied by daily_level_scale (a copy; Volume untouched).
+
+    Also the one place every daily reader passes through (signals, chart feed,
+    ledger, backtest, market), so it applies repair_daily first: weekend stubs
+    out, flat/truncated bars rebuilt from the hourly feed. See repair_daily."""
+    df = repair_daily(ticker, df)
     f = daily_level_scale(ticker, df)
     if f == 1.0:
         return df
