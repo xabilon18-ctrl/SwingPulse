@@ -8377,7 +8377,7 @@
         a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
         let run = [], down = null, prev = null, before = null, firstVis = null;
         const flush = () => {
-          if (run.length >= 2) ribbon += `<polyline class="reel-native-ma" points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
+          if (run.length >= 2) ribbon += `<polyline class="reel-overlay-ma" points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
           run = [];
         };
         for (let j = a; j <= z; j++) {
