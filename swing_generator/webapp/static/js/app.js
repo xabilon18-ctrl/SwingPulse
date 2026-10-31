@@ -507,7 +507,7 @@
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
-    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div',
+    'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
 
   // Commit this chart's seeds into the store, by REFERENCE — a drag already
@@ -8022,7 +8022,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8097,11 +8097,11 @@
   // thicker"), per overlay timeframe. A width multiplier on its ribbon.
   // 2026-09-30 (user: "remove thicker and replace with lighter"): Light /
   // Normal / Thick. A saved Thicker (2.5) reads as Thick.
-  const OV_MA_WIDTHS = [[0.6, 'Light'], [1, 'Normal'], [1.7, 'Thick']];
+  const OV_MA_WIDTHS = [[0.6, 'Thin'], [1, 'Medium'], [1.7, 'Thick']];
   function ovMaW(tf) {
     const w = (tfOverlay.maW || {})[tf];
     if (w > 1.7) return 1.7;
-    return OV_MA_WIDTHS.some(([v]) => v === w) ? w : 1;
+    return OV_MA_WIDTHS.some(([v]) => v === w) ? w : 0.6;
   }
   // PROJECTED MAs (user, 2026-09-30: "a button that can add predicted MAs that
   // can continue into the next time division depending on the time frame ...
@@ -8115,7 +8115,8 @@
   function ovProj() {
     const g = tfOverlay.proj || (tfOverlay.proj = {});
     g.on = !!g.on;
-    if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 1;
+    if (g.w > 1.7) g.w = 1.7;
+    if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 0.6;
     return g;
   }
   const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
@@ -8376,7 +8377,7 @@
         a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
         let run = [], down = null, prev = null, before = null, firstVis = null;
         const flush = () => {
-          if (run.length >= 2) ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
+          if (run.length >= 2) ribbon += `<polyline class="reel-native-ma" points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
           run = [];
         };
         for (let j = a; j <= z; j++) {
@@ -8591,13 +8592,18 @@
 
   // The overlay part of the timeframe menu: the switch, then the shown chart's
   // sliders, the Daily MAs (intraday charts), and a Weekly and a Monthly switch.
+  function reelWeightMenu(key, label) {
+    const selected = modules.chartReadability.level((tfOverlay[key] || {})[timeframe]);
+    return `<div class="reel-ov-block"><div class="reel-ov-row reel-ov-maw"><span>${label}</span><div class="reel-ov-maw-btns" role="group" aria-label="${label} thickness">${modules.chartReadability.levels.map(([v, text]) =>
+      `<button class="reel-tf-opt reel-ov-maw-btn${selected === v ? ' on' : ''}" data-act="chart-weight" data-part="${key}" data-v="${v}" aria-pressed="${selected === v}">${text}</button>`).join('')}</div></div></div>`;
+  }
   function reelOvMenuHtml() {
     const g = ovLayer(timeframe).grid;
     const slider = (tf, k, lbl, name) => {
       const v = ovLayer(tf)[k];
       return `<label class="reel-ov-row"><span>${lbl}</span><input type="range" min="0" max="100" step="5" value="${v}" data-ov-tf="${tf}" data-ov-part="${k}" aria-label="${name} ${lbl} contrast"><b>${v}%</b></label>`;
     };
-    let h = `<div class="reel-ov-sep"></div>
+    let h = reelWeightMenu('nativeW', 'Chart MAs') + reelWeightMenu('gridW', 'Grid lines') + `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
       <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
         <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
@@ -8876,13 +8882,7 @@
 
   // Round gridline levels — 1/2/5 x 10^n, the steps a price axis is read in.
   function reelTicks(lo, hi, want) {
-    const raw  = (hi - lo) / Math.max(1, want);
-    const mag  = Math.pow(10, Math.floor(Math.log10(raw)));
-    const norm = raw / mag;
-    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
-    const out  = [];
-    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
-    return out;
+    return modules.chartReadability.ticks(lo, hi, want);
   }
 
   // Trim a bundle to its last `bars` bars. The ribbon is stored decimated with
@@ -10209,7 +10209,7 @@
       if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
-      return `<g class="reel-draw${sel ? ' is-sel' : ''}" style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
+      return `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
     }).join('');
   }
@@ -10944,9 +10944,10 @@
     // panning or zooming made lines appear and disappear under the price —
     // movement that reads as the chart doing something when nothing happened.
     // The numbers still sit in the gutter, which is where a level is read.
-    const _want = L.H > 700 ? 8 : 6;
-    const grid = reelTicks(sc.lo, sc.hi, _want).map(v =>
-      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis">${reelFmtPrice(v)}</text>`
+    const axisUnit = (host.clientWidth || 360) / L.W;
+    const _want = modules.chartReadability.axisTarget((L.py1 - L.py0) * axisUnit, 24 * axisUnit);
+    const grid = modules.chartReadability.axisLabels(sc.lo, sc.hi, _want, reelFmtPrice, sc.y, axisUnit, b.c[n - 1]).map(v =>
+      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis reel-price-tick">${reelFmtPrice(v)}</text>`
     ).join('');
 
     // ── MA ribbon ──
@@ -10983,29 +10984,16 @@
       const series = b.m[k];
       const isAnchor = k === nMa - 1;
       const isKey    = isAnchor || k === 0 || k === midIdx;
-      // Weights raised 2026-09-09 with the cut to three lines. 3.4 / 1.9 was
-      // sized to keep three named lines findable inside twenty; with nothing
-      // else on the panel the dots can carry real weight, and the slope colour
-      // — the actual trend read — is only legible once they do.
-      // Sized against the PHONE render, which is where these are actually
-      // read: the reel card is ~370pt wide, so a weight that looks ample in a
-      // desktop viewport still comes out hairline on the device.
-      //
-      // All three lines carry the SAME weight, deliberately. An earlier pass
-      // tapered them (anchor heaviest, fast edge lightest) to keep a sense of
-      // depth, but with only three lines the taper just made the fast edge —
-      // the one B2/S2 actually fire on — the hardest of the three to see. The
-      // period labels and the slope colour carry the distinction instead.
-      // The 2.4 branch is dead on a 3-MA ribbon (all three are 'key'); it
-      // survives for a wider ribbon, should one ever come back.
-      const wid  = isKey ? 7.0 : 2.4;
+      // Thick retains the original 7-unit native ribbon; two lighter choices
+      // share its slope colours and dotted pattern on every device.
+      const wid = (isKey ? 7.0 : 2.4) * modules.chartReadability.nativeScale((tfOverlay.nativeW || {})[timeframe]);
       const dash = isKey ? `${wid * 0.46} ${wid * 1.7}` : `${wid * 0.6} ${wid * 2.4}`;
 
       let run = [], runDown = null;
       const flush = () => {
         if (run.length >= 2) {
           const col = runDown ? 'var(--sell)' : 'var(--reel-ma-up)';
-          ribbon += `<polyline points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isKey ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
+          ribbon += `<polyline class="reel-native-ma" points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isKey ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
         }
         run = [];
       };
@@ -11365,7 +11353,7 @@
     // same size sharing one id resolve to identical rectangles.
     const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}`;
 
-    return `<svg class="reel-svg" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
+    return `<svg class="reel-svg" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
       <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
@@ -14091,6 +14079,18 @@
         if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
       }
+      if (btn.dataset.act === 'chart-weight') {
+        const v = +btn.dataset.v, key = btn.dataset.part;
+        if (!['nativeW', 'gridW'].includes(key) || !modules.chartReadability.valid(v)) return true;
+        (tfOverlay[key] || (tfOverlay[key] = {}))[timeframe] = v;
+        ovSave();
+        const panel = btn.closest('.reel-ov-panel');
+        if (panel) panel.innerHTML = reelOvMenuHtml();
+        reelRepaintVisible();
+        const full = chartFullEl(), fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
       if (btn.dataset.act === 'ov-maw') {
         const v = +btn.dataset.v, tf = btn.dataset.tf;
         if (!OV_MA_WIDTHS.some(([a]) => a === v) || !isTf(tf)) return true;
@@ -14283,8 +14283,8 @@
       // drawings keep their own weights.
       if (btn.dataset.act === 'draw-weight') {
         const d = activeChannel(name), v = +btn.dataset.v;
-        if (d && d.kind === 'channel' && [1, 2, 3].includes(v)) {
-          if (v === 1) delete d.weight; else d.weight = v;
+        if (d && [1, 2, 3].includes(v)) {
+          d.strokeWeight = v;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

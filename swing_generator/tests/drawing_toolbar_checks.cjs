@@ -110,13 +110,13 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     const edgeW=()=>page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge').first().evaluate(el=>parseFloat(getComputedStyle(el).strokeWidth));
     const thin=await edgeW();
     await toolbar.locator('[data-act="draw-weight"][data-v="3"]').click();
-    assert.equal((await channelOn()).weight,3,'Thicker is saved on the channel');
-    assert.ok(await edgeW()>thin*2,'Thicker draws the channel edges heavier');
+    assert.equal((await channelOn()).strokeWeight,3,'Thick is saved on the channel');
+    assert.ok(await edgeW()>thin*2,'Thick draws the channel edges heavier');
     await toolbar.locator('[data-act="draw-weight"][data-v="2"]').click();
     const thick=await edgeW();
-    assert.ok(thick>thin&&(await channelOn()).weight===2,'Thick sits between');
+    assert.ok(thick>thin&&(await channelOn()).strokeWeight===2,'Medium sits between');
     await toolbar.locator('[data-act="draw-weight"][data-v="1"]').click();
-    assert.ok(!('weight' in (await channelOn())),'Thin stores no field');
+    assert.equal((await channelOn()).strokeWeight,1,'Thin is an explicit saved choice');
     assert.equal(await edgeW(),thin,'…and draws as before');
     assert.ok(await toolbar.evaluate(el=>el.getBoundingClientRect().right<=innerWidth),'Weight buttons fit a narrow phone');
     // Channel ten divisions (2026-10-21): a switch, off by default.

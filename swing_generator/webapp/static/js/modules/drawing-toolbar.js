@@ -94,13 +94,6 @@
       + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
       + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
       + `</span>`
-      // Line weight: thin (default), thick, thicker (user, 2026-10-20).
-      + `<span class="reel-dash-seg reel-weight-seg" role="group" aria-label="Line weight">`
-      + [[1, 'Thin', 1.5], [2, 'Thick', 3.5], [3, 'Thicker', 6]].map(([v, label, w]) => {
-        const on = (d.weight || 1) === v;
-        return `<button class="reel-tool reel-dash-btn${on ? ' on' : ''}" data-act="draw-weight" data-v="${v}" data-name="${name}" aria-pressed="${on}" aria-label="${label} lines" title="${label}"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="2" y1="5" x2="20" y2="5" stroke="currentColor" stroke-width="${w}" stroke-linecap="round"/></svg></button>`;
-      }).join('')
-      + `</span>`
       // Ten divisions on / off (user, 2026-10-21). Off is the default.
       + `<button class="reel-tool reel-grid-switch reel-fill-switch reel-div-switch${d.div ? ' on' : ''}" data-act="draw-div" data-name="${name}" role="switch" aria-checked="${!!d.div}" aria-label="Ten divisions" title="10 divisions"><span>÷10</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     // The ladder alone gets a "%" switch: show or hide its 0%–100% labels
@@ -115,11 +108,11 @@
         + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="1" data-name="${name}" title="Build another block below" aria-label="Build another block below">+▼</button>`
         + `</span>`
       : '';
-    // A BOLD switch on entry markers (user, 2026-09-15) and on horizontal and
-    // vertical lines (user, 2026-09-19).
-    const bold = DRAW_BOLDABLE.has(d.kind)
-      ? `<button class="reel-tool reel-tool-pct${d.bold ? ' on' : ''}" data-act="draw-bold" data-name="${name}" aria-pressed="${!!d.bold}" aria-label="${d.bold ? 'Normal weight' : 'Make bold'}" title="Bold">B</button>`
-      : '';
+    const weight = `<span class="reel-dash-seg reel-weight-seg" role="group" aria-label="Line thickness">`
+      + root.SwingPulseModules.chartReadability.levels.map(([v, label]) => {
+        const on = root.SwingPulseModules.chartReadability.drawingLevel(d) === v;
+        return `<button class="reel-tool reel-weight-btn${on ? ' on' : ''}" data-act="draw-weight" data-v="${v}" data-name="${name}" aria-pressed="${on}" aria-label="${label} lines">${label}</button>`;
+      }).join('') + '</span>';
     // Buy/Sell markers: run the line to the chart's left / right edge.
     const ext = d.kind === 'entry' && d.side
       ? `<button class="reel-tool reel-tool-pct${d.extL ? ' on' : ''}" data-act="draw-ext" data-dir="L" data-name="${name}" aria-pressed="${!!d.extL}" aria-label="Extend the line left" title="Extend left">⟵</button>`
@@ -136,7 +129,7 @@
     const less = d.kind !== 'ladder' ? '' : `<span class="reel-stack" role="group" aria-label="Remove ladder stacks">`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
-    return `<div class="reel-props-main">${lineStyle}${pct}${ext}${bold}
+    return `<div class="reel-props-main">${weight}${lineStyle}${pct}${ext}
       <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
     </div>${more ? `<div class="reel-draw-more">${less ? `<div class="reel-draw-actions">${less}</div>` : ''}${showOn}${intensity}</div>` : ''}`;
   }
