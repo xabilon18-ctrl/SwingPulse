@@ -9594,3 +9594,104 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
 .fdrop-note { margin: 4px 10px 8px; font-size: .7rem; line-height: 1.4; color: var(--text-muted); }
 @media (prefers-reduced-motion: reduce) { .fdrop-menu { animation: none; } }
+
+
+/* Laptop workspace: the existing white chart and controls, beside its list.
+   All rules stay above the phone/tablet breakpoint; chart data/scales are shared. */
+@media (min-width: 1024px) {
+  body.desktop-workspace-open { overflow: hidden; }
+  #pane-charts.desktop-workspace-active {
+    top: calc(var(--reel-top, 100px) + 48px); bottom: 0;
+    padding: 10px 12px 12px; background: var(--bg-primary, #080909);
+    gap: 0; overflow: hidden;
+  }
+  #pane-charts.desktop-workspace-active > #chartReel,
+  #pane-charts.desktop-workspace-active > #reelNav,
+  #pane-charts.desktop-workspace-active > #reelEmpty { display: none; }
+  #desktopChartWorkspace {
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(260px, 23vw, 324px);
+    gap: 12px; flex: 1 1 auto; min-height: 0; min-width: 0;
+  }
+  #desktopChartWorkspace.watchlist-collapsed { grid-template-columns: minmax(0, 1fr); }
+  #desktopChartWorkspace.watchlist-collapsed #desktopChartWatchlist { display: none; }
+  #desktopChartStage {
+    display: flex; flex-direction: column; min-width: 0; min-height: 0;
+    position: relative; overflow: hidden; background: #fff;
+    border: 1px solid #d9dcdf; border-radius: 8px;
+  }
+  #desktopChartWatchlist {
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-card, #111314); overflow: hidden;
+  }
+  .dc-list-head { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; gap: 8px; }
+  .dc-list-head strong { font-size: .88rem; color: var(--text-primary); }
+  .dc-list-head button {
+    width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 24px; line-height: 1;
+  }
+  #desktopChartFilters { flex: 0 0 auto; min-width: 0; }
+  #desktopChartFilters #reelFilterBar { padding: 4px 10px 10px; border-bottom: 1px solid var(--border); }
+  #desktopChartFilters .reel-top { gap: 6px; flex-wrap: wrap; }
+  #desktopChartFilters .reel-search { min-width: 0; }
+  #desktopChartFilters .reel-filter-bar { width: 100%; }
+  #desktopChartList { overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1 1 auto; }
+  .dc-instrument {
+    display: flex; justify-content: space-between; gap: 8px; width: 100%; min-height: 57px;
+    padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent; background: transparent; text-align: left;
+    color: var(--text-primary); font: inherit; cursor: pointer;
+  }
+  .dc-instrument:hover { background: var(--bg-hover); }
+  .dc-instrument.selected { border-left-color: #ffc21a; background: rgba(255,194,26,.09); }
+  .dc-instrument-name, .dc-instrument-price { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .dc-instrument-name { flex: 1; }
+  .dc-instrument-price { flex: 0 0 auto; text-align: right; }
+  .dc-instrument strong { font-size: .84rem; font-weight: 650; }
+  .dc-instrument small { font-size: .71rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dc-instrument .up { color: var(--buy); }
+  .dc-instrument .dn { color: var(--sell); }
+  .dc-instrument:focus-visible, .dc-list-head button:focus-visible { outline: 2px solid #ffc21a; outline-offset: -3px; }
+  .dc-empty { display: grid; place-items: center; flex: 1; color: #62666c; font-size: .9rem; }
+  #chartFull.desktop-chart {
+    max-width: none; width: 100%; margin: 0; padding: 0; border: 0;
+    border-radius: 0; box-shadow: none; background: #fff; min-height: 0;
+  }
+  #chartFull.desktop-chart:not(.desktop-expanded) { position: relative; inset: auto; z-index: 1; height: 100%; flex: 1 1 auto; }
+  #chartFull.desktop-expanded { position: fixed; inset: 0; width: auto; height: auto; z-index: 4000; }
+  body.desktop-chart-expanded > .topbar-stack,
+  body.desktop-chart-expanded .bottom-nav { visibility: hidden; }
+  body.desktop-chart-expanded #pane-charts { visibility: hidden; }
+  #chartFull.desktop-chart .cf-head { padding: 8px 12px 4px; }
+  #chartFull.desktop-chart .cf-main-row { flex-wrap: nowrap; }
+  #chartFull.desktop-chart .cf-title { flex: 1; min-width: 0; }
+  #chartFull.desktop-chart .cf-actions { flex-shrink: 0; gap: 5px; }
+  #chartFull.desktop-chart .reel-foot { padding: 5px 12px 8px; }
+  #chartFull.desktop-chart .dc-action {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    height: 30px; padding: 0 8px; color: #34383c; background: #fff;
+    border: 1px solid #d6d9dc; border-radius: 6px; font: inherit; font-size: 11px;
+    cursor: pointer; white-space: nowrap;
+  }
+  #chartFull.desktop-chart .dc-action:hover { background: #f5f6f7; border-color: #b6bcc2; }
+  #chartFull.desktop-chart .dc-action:focus-visible { outline: 2px solid #a87500; outline-offset: 2px; }
+  #chartFull.desktop-chart [hidden] { display: none !important; }
+  /* Keep the hierarchy of permanent references and chosen line weights,
+     while physical stroke widths stay subtle as a wide chart resizes. */
+  #chartFull.desktop-chart .reel-tgrid,
+  #chartFull.desktop-chart .reel-ch-edge,
+  #chartFull.desktop-chart .reel-ch-mid,
+  #chartFull.desktop-chart .reel-ladder-key { vector-effect: non-scaling-stroke; }
+  #chartFull.desktop-chart .reel-tgrid { stroke-width: .7px; opacity: .38; }
+  #chartFull.desktop-chart .reel-tgrid-year,
+  #chartFull.desktop-chart .reel-tgrid-quarter,
+  #chartFull.desktop-chart .reel-tgrid-admin { stroke-width: 1.1px; opacity: .65; }
+  #chartFull.desktop-chart .reel-ch-edge { stroke-width: 1px; opacity: .72; }
+  #chartFull.desktop-chart .reel-ch-mid { stroke-width: .8px; opacity: .48; }
+  #chartFull.desktop-chart .is-w2 .reel-ch-edge { stroke-width: 1.4px; }
+  #chartFull.desktop-chart .is-w3 .reel-ch-edge { stroke-width: 1.8px; }
+  #chartFull.desktop-chart .is-w2 .reel-ch-mid { stroke-width: 1px; }
+  #chartFull.desktop-chart .is-w3 .reel-ch-mid { stroke-width: 1.3px; }
+  #chartFull.desktop-chart .is-selected .reel-ch-edge { opacity: 1; }
+  #chartFull.desktop-chart .reel-ladder-key { stroke-width: 1.4px; opacity: .72; }
+}
