@@ -4,10 +4,11 @@ const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
 
+let debugPage;
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await context.newPage();
+  const page = await context.newPage(); debugPage=page;
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   // Chart range lives in the first chart's Grid menu, under Time grid
@@ -365,4 +366,4 @@ const assert = require('node:assert/strict');
   if (!live) await require('./dollar_index_checks.cjs')(browser);
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch(async e => { console.error(e); if(debugPage&&!debugPage.isClosed()){console.log('SMOKE_FAILURE='+(await debugPage.screenshot({type:'jpeg',quality:55})).toString('base64'));console.log('TOOLBAR_BOXES',await debugPage.locator('#chartFull .reel-toolbar, #chartFull .reel-props-main, #chartFull [data-act=draw-more]').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,width:e.clientWidth}))));} process.exit(1); });
