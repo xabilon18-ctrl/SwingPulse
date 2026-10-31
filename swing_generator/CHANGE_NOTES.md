@@ -7,6 +7,36 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-10-31 DAILY BARS REPAIRED FROM THE HOURLY FEED (data_fetcher.repair_daily,
+applied inside scale_daily so signals, every chart, the ledger, the backtest and
+Market all read the same bars). User, PALLADIUM Daily: "Why palladium platinum
+and silver candles or bars look like they breaking up." Three causes, measured
+on the live chart feed:
+- Flat bars: Yahoo's PA=F / PL=F daily print open = high = low = close on 72% /
+  59% of days since 2025 (USDCNH 73%, COCOA 25%, COTTON 17%, COFFEE 15%,
+  OATMEAL 14%, SILVER 8%). A dot per day reads as a dashed line.
+- Truncated metal futures: on their non-flat days the COMEX metals' daily bar
+  is ~half the traded range (hourly/daily range 1.98x SILVER, 2.14x PALLADIUM,
+  2.00x PLATINUM, 1.85x COPPER, 1.50x GC=F; median instrument 1.00x).
+- Weekend stubs: 91 currency/futures instruments carry 5-19 Saturday/Sunday
+  bars, all since 2026-08-29 (weekend runs capturing Yahoo's live snapshot).
+Rule: weekend bars dropped unless they are >= 15% of the frame (crypto 29%);
+flat bars get open/high/low from the instrument's OWN hourly file, grouped by
+CME trade date (18:00 New York opens the next date) and scaled by the trailing
+20-date median of daily/hourly close; futures whose hourly range is >= 1.3x the
+daily (metals only) also get high/low widened to every hourly print. Closes are
+never changed, bars are never narrowed, the cache on disk is not touched, and
+bars older than the ~729-day hourly history stay as they were.
+Simulated on the live feed since May: PALLADIUM flat bars 90 -> 2 and bars
+that miss the previous close 88% -> 23%; PLATINUM 79 -> 3, 85% -> 26%; SILVER
+66% -> 20%; COPPER 61% -> 24%. 25 instruments have a bar rebuilt; equities,
+indices, CL=F, wheat and crypto unchanged apart from weekend stubs. Golden
+snapshot identical (36 frames, 1,588 fires); new checks in golden_test
+(_daily_repair_checks) fail if the repair is switched off or widens CL=F.
+Daily signals on the affected instruments can change (B3/B4/S3/S4 need a wick).
+The backtest/confidence map was NOT re-run: no CI job runs it and it needs
+the local cache.
+
 2026-10-31 UNIVERSAL READABILITY REVIEW: app.js v559, style.css v396.
 Phone and laptop share Thin / Medium / Thick for native chart MAs, overlays,
 projections, calendar guides and every drawing tool. Native Thick retains

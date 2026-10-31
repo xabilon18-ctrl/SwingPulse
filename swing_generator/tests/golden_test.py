@@ -309,6 +309,81 @@ def unit_checks() -> list:
         failures.append(f'shallow pullback below the fast MA no longer reads '
                         f'UPTREND (got {lbl})')
 
+    failures += _daily_repair_checks()
+    return failures
+
+
+def _daily_repair_checks() -> list:
+    """data_fetcher.repair_daily (2026-10-31, PALLADIUM/PLATINUM/SILVER "bars
+    breaking up"): flat and truncated daily bars rebuilt from the hourly feed,
+    weekend stubs dropped. Real fixtures first, then synthetic shapes."""
+    import numpy as np
+    import data_fetcher as dfm
+    failures = []
+
+    def _fx(name):
+        d = pd.read_parquet(_fixture_path(name, 'D'))
+        h = pd.read_parquet(_fixture_path(name, '1h'))
+        return d, h
+
+    # Real raw Yahoo data. CL=F's daily already matches its hourly (1.00x):
+    # nothing but its one weekend stub may move. GC=F's is truncated (1.50x)
+    # and carries flat bars: widened, never narrowed, closes untouched.
+    for tk, want_change in (('CL=F', False), ('GC=F', True), ('AAPL', False),
+                            ('EURUSD=X', False), ('BTC-USD', False)):
+        d, h = _fx(tk)
+        r = dfm.repair_daily(tk, d, hourly=h)
+        a = d.loc[r.index]
+        moved = int(((a['High'] != r['High']) | (a['Low'] != r['Low'])
+                     | (a['Open'] != r['Open'])).sum())
+        if not (a['Close'] == r['Close']).all():
+            failures.append(f'repair_daily changed a {tk} close')
+        if (r['High'] < a['High'] - 1e-9).any() or (r['Low'] > a['Low'] + 1e-9).any():
+            failures.append(f'repair_daily narrowed a {tk} bar')
+        if want_change and moved < 100:
+            failures.append(f'repair_daily left the truncated {tk} feed alone ({moved} bars)')
+        if not want_change and moved:
+            failures.append(f'repair_daily moved {moved} {tk} bars whose feed is not broken')
+    d, h = _fx('BTC-USD')
+    if len(dfm.repair_daily('BTC-USD', d, hourly=h)) != len(d):
+        failures.append('repair_daily dropped crypto weekend bars')
+
+    # Synthetic: weekdays, a flat bar, two weekend stubs, a 24h hourly feed.
+    days = pd.bdate_range('2026-01-05', periods=60)
+    daily = pd.DataFrame({'Open': 100.0, 'High': 101.0, 'Low': 99.0,
+                          'Close': 100.0, 'Volume': 10}, index=days)
+    flat_day = days[40]
+    daily.loc[flat_day, ['Open', 'High', 'Low']] = 100.0
+    fridays = days[days.day_of_week == 4]
+    stubs = pd.DatetimeIndex([fridays[2] + pd.Timedelta(days=1),   # a Saturday
+                              fridays[4] + pd.Timedelta(days=2)])  # a Sunday
+    stub_rows = pd.DataFrame({'Open': 100.0, 'High': 100.0, 'Low': 100.0,
+                              'Close': 100.0, 'Volume': 0}, index=stubs)
+    daily = pd.concat([daily, stub_rows]).sort_index()
+    hours = pd.date_range(days[0] - pd.Timedelta(hours=6), days[-1] + pd.Timedelta(hours=20), freq='h')
+    hours = hours[hours.day_of_week < 5]
+    hourly = pd.DataFrame({'Open': 100.0, 'High': 103.0, 'Low': 97.0, 'Close': 100.0}, index=hours)
+    for tk, widen in (('XX=X', False), ('XX=F', True)):
+        r = dfm.repair_daily(tk, daily, hourly=hourly)
+        if (r.index.day_of_week >= 5).any():
+            failures.append(f'{tk}: weekend stubs not dropped from a weekday market')
+        if r.loc[flat_day, 'High'] - r.loc[flat_day, 'Low'] < 5.9:
+            failures.append(f'{tk}: flat bar not rebuilt from the hourly range')
+        if r.loc[flat_day, 'Close'] != 100.0:
+            failures.append(f'{tk}: flat-bar repair moved the close')
+        other = days[30]
+        wide = r.loc[other, 'High'] - r.loc[other, 'Low']
+        if widen and wide < 5.9:
+            failures.append(f'{tk}: truncated futures bar (hourly 3x wider) not widened')
+        if not widen and abs(wide - 2.0) > 1e-9:
+            failures.append(f'{tk}: a non-futures bar with a range was widened')
+    # Equity with no flat bar: returned as-is (no hourly read at all).
+    clean = daily[daily.index.day_of_week < 5].copy()
+    clean.loc[flat_day, ['High', 'Low']] = [101.0, 99.0]
+    if not dfm.repair_daily('AAPL', clean, hourly=hourly).equals(clean):
+        failures.append('repair_daily changed a clean equity frame')
+    if not np.isfinite(dfm.repair_daily('XX=F', daily, hourly=hourly.iloc[:0])['High']).all():
+        failures.append('repair_daily broke a frame with no hourly bars')
     return failures
 
 
