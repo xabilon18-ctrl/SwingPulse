@@ -12317,7 +12317,7 @@
   // original rather than trying to ship the stylesheet with the image.
   const SHARE_STYLE_PROPS = [
     'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity',
-    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
+    'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'vector-effect',
     'opacity', 'font-size', 'font-family', 'font-weight', 'text-anchor',
     // The overlay's MA tags are haloed (white stroke painted UNDER the fill);
     // without this the halo paints over the text and the tag vanishes.

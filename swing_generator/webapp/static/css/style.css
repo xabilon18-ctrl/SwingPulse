@@ -9688,10 +9688,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   #chartFull.desktop-chart .reel-tgrid-admin { stroke-width: 1.1px; opacity: .65; }
   #chartFull.desktop-chart .reel-ch-edge { stroke-width: 1px; opacity: .72; }
   #chartFull.desktop-chart .reel-ch-mid { stroke-width: .8px; opacity: .48; }
-  #chartFull.desktop-chart .is-w2 .reel-ch-edge { stroke-width: 1.4px; }
-  #chartFull.desktop-chart .is-w3 .reel-ch-edge { stroke-width: 1.8px; }
-  #chartFull.desktop-chart .is-w2 .reel-ch-mid { stroke-width: 1px; }
-  #chartFull.desktop-chart .is-w3 .reel-ch-mid { stroke-width: 1.3px; }
-  #chartFull.desktop-chart .is-selected .reel-ch-edge { opacity: 1; }
+  #chartFull.desktop-chart .reel-ch-edge.is-w2 { stroke-width: 1.4px; }
+  #chartFull.desktop-chart .reel-ch-edge.is-w3 { stroke-width: 1.8px; }
+  #chartFull.desktop-chart .reel-ch-mid.is-w2 { stroke-width: 1px; }
+  #chartFull.desktop-chart .reel-ch-mid.is-w3 { stroke-width: 1.3px; }
+  #chartFull.desktop-chart .is-sel .reel-ch-edge { opacity: 1; }
   #chartFull.desktop-chart .reel-ladder-key { stroke-width: 1.4px; opacity: .72; }
 }

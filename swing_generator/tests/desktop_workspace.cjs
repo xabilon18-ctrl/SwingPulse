@@ -89,6 +89,11 @@ async function layout(page) {
     }
     await page.setViewportSize({width:1366,height:768});await ready(page);
     await page.screenshot({path:output+'/desktop-workspace.png'});
+    console.log('REVIEW_IMAGE_WORKSPACE='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
+    await page.locator('#chartFull [data-act="chart-view-save"]').click();
+    const savedFrame=await page.evaluate(()=>localStorage.getItem('sp-views'));
+    const priceFrame=()=>page.locator('#chartFullHost').evaluate(h=>({lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi}));
+    const prices=await priceFrame();
     const before=await layout(page);
     await page.locator('[data-act="desktop-list-toggle"]').click(); await ready(page);
     assert.equal(await page.locator('#desktopChartWatchlist').isVisible(),false);
@@ -100,8 +105,11 @@ async function layout(page) {
     assert.equal(expanded.chart.x,0);assert.equal(expanded.chart.y,0);
     assert.equal(expanded.chart.w,1366);assert.equal(expanded.chart.h,768);
     await page.screenshot({path:output+'/desktop-expanded.png'});
+    console.log('REVIEW_IMAGE_EXPANDED='+(await page.screenshot({type:'jpeg',quality:45})).toString('base64'));
     await page.keyboard.press('Escape');await ready(page);
     assert.equal(await page.locator('.topbar-stack').isVisible(),true);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),savedFrame,'saved view survives expand/restore');
+    assert.deepEqual(await priceFrame(),prices,'absolute saved prices survive resizing');
     assert.equal(await page.locator('#desktopChartWatchlist').isVisible(),false,'restore remembers collapsed list');
     await page.locator('[data-act="desktop-list-toggle"]').click();
     for(const tf of ['4H','D','1H']) {
@@ -168,6 +176,7 @@ async function layout(page) {
   } catch(error) {
     await page.screenshot({path:output+'/failure.png'}).catch(()=>{});
     console.error('Page errors:', errors);
+    console.log('REVIEW_IMAGE_FAILURE='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
     throw error;
   } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});
