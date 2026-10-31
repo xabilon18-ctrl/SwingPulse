@@ -68,7 +68,8 @@ jobs:
                   # These validators only read published data. Updating an
                   # audit must not start an extra full Yahoo fetch/rebuild.
                   validation_paths = ('swing_generator/tools/validate_hourly_release.py',
-                                      'swing_generator/tools/shape_audit.py')
+                                      'swing_generator/tools/shape_audit.py',
+                                      'swing_generator/tools/build_desktop_review.py')
                   data_paths = [path for path in paths if path.startswith('swing_generator/')
                                 and not path.startswith(ui_paths)
                                 and not path.endswith('.md')
@@ -236,10 +237,19 @@ jobs:
         run: |
           python3 swing_generator/tools/validate_hourly_release.py --live
           node swing_generator/tests/app_smoke.cjs
+      - name: Verify released chart weights and exact production assets
+        if: github.ref == 'refs/heads/main'
+        env:
+          DESKTOP_LIVE: '1'
+          DESKTOP_URL: https://swingpulse200.pages.dev
+          READABILITY_PRODUCTION: '1'
+        run: node swing_generator/tests/chart_readability_browser.cjs
       - name: Retain mobile verification screenshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hourly-mobile-verification
-          path: hourly-chart-mobile.png
+          path: |
+            hourly-chart-mobile.png
+            readability-review-results/
           retention-days: 3

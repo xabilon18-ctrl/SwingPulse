@@ -1,6 +1,25 @@
 const {chromium}=require('@playwright/test');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib');
 const url=process.env.DESKTOP_URL||'http://127.0.0.1:8000',live=process.env.DESKTOP_LIVE==='1';
+const crypto=require('node:crypto');
+async function verifyProduction(page) {
+ const paths=['index.html','static/js/app.js','static/css/style.css','static/js/modules/chart-readability.js','static/js/modules/drawing-toolbar.js','sw.js'];
+ const hashes=await page.evaluate(async paths=>{
+  const result={};
+  for(const p of paths){
+   const r=await fetch('/'+(p==='index.html'?'':p)+'?verify='+Date.now(),{cache:'no-store'});
+   if(!r.ok)throw Error(p+' HTTP '+r.status);
+   const bytes=await r.arrayBuffer();
+   result[p]=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }return result;
+ },paths);
+ for(const p of paths)assert.equal(hashes[p],crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname,'../webapp/publish/ui',p))).digest('hex'),p+' exact released package');
+ const app=fs.readFileSync(path.join(__dirname,'../webapp/publish/ui/static/js/app.js'),'utf8');
+ assert.ok(app.includes('https://swingpulse-sync.xabilon18.workers.dev'),'normal production sync');
+ assert.ok(!app.includes('/__preview-sync'),'no review isolation in production');
+ assert.equal(await page.locator('script[src*="review-sandbox"]').count(),0);
+ console.log('PASS exact production assets, normal sync and service-worker package');
+}
 const out='readability-review-results';fs.mkdirSync(out,{recursive:true});
 async function ready(page){await page.waitForFunction(()=>document.querySelector('#chartFullHost')?._reelCtx&&document.querySelector('#chartFullHost .reel-native-ma'),{timeout:60000});}
 async function open(page,width){
@@ -34,6 +53,7 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     await r.fulfill({contentType:'application/json',body:b});
    });
    await open(page,w);
+   if(process.env.READABILITY_PRODUCTION==='1'&&w===1366)await verifyProduction(page);
    await page.locator('#chartFull [data-act="chart-view-save"]').click();
    const before=await frame(page),saved=await page.evaluate(()=>localStorage.getItem('sp-views'));
    const native=[];
