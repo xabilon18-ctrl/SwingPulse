@@ -122,7 +122,26 @@ async function layout(page) {
     // Existing save action and drawing gestures, including restored absolute scale.
     if(!live) {
       await page.locator('#tfBtn4H').click();await ready(page);
-      await require('./drawing_toolbar_checks.cjs')(page);
+      const full=page.locator('#chartFull');
+      await full.locator('[data-act="channel"]').click();
+      await full.locator('.reel-toolbar [data-kind="ladder"]').click();
+      assert.equal(await full.locator('.reel-draw.is-sel .reel-ladder').count(),11);
+      const saved=()=>page.evaluate(()=>localStorage.getItem('sp-channels'));
+      const beforeDraw=await saved();
+      const lock=full.locator('.reel-draw-lock');
+      await lock.click();
+      assert.equal(await lock.getAttribute('aria-pressed'),'true');
+      await full.locator('[data-act="draw-undo"]').click();
+      assert.equal(await lock.getAttribute('aria-pressed'),'false');
+      const handle=await full.locator('.reel-ch-grab').last().boundingBox();
+      await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);
+      await page.mouse.down();await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2-25,{steps:8});await page.mouse.up();
+      assert.notEqual(await saved(),beforeDraw,'desktop drawing handles persist edits');
+      const drawn=await saved();
+      await full.locator('[data-act="desktop-expand"]').click();await ready(page);
+      await full.locator('[data-act="desktop-expand"]').click();await ready(page);
+      assert.equal(await saved(),drawn,'expand/restore preserves drawings');
+      await full.locator('[data-act="channel"]').click();
     }
     for(const width of [1023,390,320]) {
       await page.setViewportSize({width,height:844});await ready(page,false);

@@ -11539,25 +11539,6 @@
 
   // Expanded charts have their own host, outside the list renderAll rebuilds.
   // Replace its bundle after a data refresh while retaining pan and price scale.
-  async function chartFullRefresh() {
-    const name = chartFullName;
-    const tf = timeframe;
-    const version = reelDataVersion;
-    const el = chartFullEl();
-    const host = el && el.querySelector('.reel-chart');
-    if (!name || !host) return;
-    const data = await reelLoadChunk(name, tf);
-    await ovLoadHtf(name);
-    if (chartFullName !== name || timeframe !== tf || reelDataVersion !== version
-        || chartFullEl()?.querySelector('.reel-chart') !== host) return;
-    const bundle = data && data[name];
-    if (!bundle) return;
-    host._reelItem = allData.find(d => d.instrument_name === name) || host._reelItem;
-    host.innerHTML = reelChartSvg(bundle, host._reelItem, host);
-    chartFullSyncButtons();
-  }
-
-
   // Desktop is an arrangement of the existing chart, not a second renderer.
   function desktopChartEligible() { return desktopChartMedia.matches && currentTab === 'charts'; }
   function desktopChartMount() {
@@ -11713,6 +11694,25 @@
     if (document.querySelector('.sheet.open, .modal.open, .reel-grid-menu, .reel-tf-menu, .share-prev, .saved-work-panel, #chartFull details[open]')) return;
     e.preventDefault(); e.stopImmediatePropagation(); desktopChartToggleExpand(false);
   }, true);
+
+  async function chartFullRefresh() {
+    const name = chartFullName;
+    const tf = timeframe;
+    const version = reelDataVersion;
+    const el = chartFullEl();
+    const host = el && el.querySelector('.reel-chart');
+    if (!name || !host) return;
+    const data = await reelLoadChunk(name, tf);
+    await ovLoadHtf(name);
+    if (chartFullName !== name || timeframe !== tf || reelDataVersion !== version
+        || chartFullEl()?.querySelector('.reel-chart') !== host) return;
+    const bundle = data && data[name];
+    if (!bundle) return;
+    host._reelItem = allData.find(d => d.instrument_name === name) || host._reelItem;
+    host.innerHTML = reelChartSvg(bundle, host._reelItem, host);
+    chartFullSyncButtons();
+  }
+
 
   async function chartFullOpen(name) {
     const item = (reel.list || []).find(d => d.instrument_name === name)
