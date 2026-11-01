@@ -67,6 +67,7 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
+from chart_cache import Store, recording
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -1045,6 +1046,26 @@ def near_ma_map(daily: dict) -> dict:
     return out
 
 
+# By NAME, looked up at call time, so a test that patches a builder on this
+# module is still the builder that runs.
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
+# Below this many builds a process pool costs more to start than it saves.
+MIN_POOL_JOBS = 32
+
+
+def _build_recorded(job: tuple) -> tuple:
+    """One chart build in a worker process, with the parquet files it read."""
+    tf, cache_dir, ticker = job
+    with recording() as reads:
+        try:
+            bundle = globals()[CHART_BUILDERS[tf]](cache_dir, ticker)
+        except Exception:
+            # One unreadable parquet must not sink the whole feed. The
+            # instrument simply shows "no chart data" on its card.
+            bundle = None
+    return bundle, reads
+
+
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
                      d_fires_path: str | None = None,
@@ -1082,24 +1103,40 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # 2026-10-25 (user: "Just 2h", chart only as before): its own chunks, no
     # markers, alerts or trend context. 2H REMOVED again 2026-10-26 (user:
     # "Remove 2 h"); build_2h kept, its R2 chunks left orphaned.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live), ('D', build_daily)):
-        bundles: dict[str, dict] = {}
-
-        def _one(name):
-            try:
-                return name, builder(cache_dir, ticker_map[name])
-            except Exception:
-                # One unreadable parquet must not sink the whole feed. The
-                # instrument simply shows "no chart data" on its card.
-                return name, None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-            for name, payload in ex.map(_one, names):
-                if payload:
-                    bundles[name] = payload
-
-        stats[tf] = len(bundles)
-        built[tf] = bundles
+    #
+    # 2026-11-01: a chart whose inputs have not changed is taken from the
+    # chart cache instead of rebuilt (chart_cache.py says exactly when), and the
+    # rest are built in worker PROCESSES. The thread pool this replaced ran on
+    # one core — the builders are pure-Python loops that hold the GIL.
+    store = Store(cache_dir)
+    results: dict[tuple, dict | None] = {}
+    jobs, metas = [], {}
+    for tf in CHART_BUILDERS:
+        for name in names:
+            ticker = ticker_map[name]
+            meta = store.meta(tf, ticker, (h4_ticker(ticker), FIVE_MIN_LEVEL_REF.get(ticker),
+                                           exchange_feed.source(ticker)))
+            hit, bundle = store.load(tf, ticker, meta)
+            if hit:
+                results[(tf, name)] = bundle
+            else:
+                metas[(tf, name)] = meta
+                jobs.append((tf, cache_dir, ticker))
+    keys = list(metas)
+    procs = max(1, min(max_workers, os.cpu_count() or 1))
+    if procs > 1 and len(jobs) >= MIN_POOL_JOBS:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=procs) as ex:
+            built_jobs = list(ex.map(_build_recorded, jobs, chunksize=4))
+    else:
+        built_jobs = [_build_recorded(job) for job in jobs]
+    for key, (tf, _, ticker), (bundle, reads) in zip(keys, jobs, built_jobs):
+        store.save(tf, ticker, metas[key], reads, bundle)
+        results[key] = bundle
+    for tf in CHART_BUILDERS:
+        store.prune(tf, ticker_map.values())
+        built[tf] = {name: results[(tf, name)] for name in names if results.get((tf, name))}
+        stats[tf] = len(built[tf])
+    stats['cached'] = store.hits
 
     # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
     # two bundles. A failure here costs the markers, never the chart feed.

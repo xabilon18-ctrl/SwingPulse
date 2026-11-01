@@ -7,6 +7,40 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 CHART FEED CACHE + PROCESS POOL + UPLOAD ONLY CHANGED CHART FILES
+(webapp/chart_cache.py, chart_feed.build_chart_feed, publish.upload_to_r2).
+User: "it looks like will need more data in all time frames. how can we do this
+without affecting the code run time?" Measured first, on 12 hourly runs: the
+chart feed was 300-554s of 8-16 min runs (signals 10s, R2 upload ~75s), and it
+rebuilt all 814 x 4 charts every run, including markets closed since the last
+one. Profiled on 40 instruments: the builders are 64% of the feed and their
+cost is frame_context re-running add_workflow_signals over the WHOLE history
+(5.0 of 9.2s Daily, 2.3 of 5.4s 4H), not the bars shipped; the after-steps
+(gzip, setup context, alerts, markers, channels) are the other 36%.
+- A built chart is reused when the engine (every .py/.json in swing_generator/
+  and webapp/), the UTC date, the resolved source tickers and every parquet the
+  build read (or looked for and missed) are unchanged, AND every intraday bar it
+  read had finished (4H from 1h files, 30m from 5m). The reads are recorded, not
+  listed, so a builder that starts reading a new file is covered automatically.
+  Entries: cache_ma500/chartcache/<tf>/<ticker>.pkl (zlib pickles, ~130 MB for
+  the whole board), carried by actions/cache with the parquet files.
+- Charts that do rebuild run in worker processes (the thread pool ran on one
+  core: the builders hold the GIL). Builders are looked up by name so a test
+  patching one is the one that runs; under 32 builds it stays in-process.
+- Parity: old code, new cold cache and new warm cache produced byte-identical
+  output on all 36 feed files (40 instruments). Warm run on a Sunday: 151 of 160
+  charts reused, 15s -> 6s locally.
+- R2: every chart chunk was re-uploaded every hour — ~500k of the free 1M
+  Class A writes a month. publish.py's hourly upload now skips chart files whose
+  bytes match cache_ma500/r2_manifest.json; every upload (deploy-app included)
+  records what it sent; a full re-upload happens once 24h have passed since the
+  last full one, which bounds any drift. Core data files always upload.
+- tests/chart_cache_test.py covers reuse, invalidation (changed file, file that
+  appears later, unfinished bar, new UTC day, new engine) and the manifest.
+  NOT yet in the CI test lists — that is a workflow change for review.
+Deeper history per timeframe is the next step, sized against the CI timings
+this produces.
+
 2026-10-31 DAILY BARS REPAIRED FROM THE HOURLY FEED (data_fetcher.repair_daily,
 applied inside scale_daily so signals, every chart, the ledger, the backtest and
 Market all read the same bars). User, PALLADIUM Daily: "Why palladium platinum
