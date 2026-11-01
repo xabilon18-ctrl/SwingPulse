@@ -8956,19 +8956,21 @@
     return Math.max(REEL_MIN_WINDOW_BARS, n - k);
   }
 
-  // An opening view (reelStockView) can hold more slots than the bundle has
-  // bars — its blank future — and a zoom or a restored saved view must reach
-  // at least that far: a stock's 1H quarter frame is ~896 slots against ~880
-  // bars carried, so capping at the bar count shrank every saved 1H view and
-  // made zooming out zoom in (2026-10-17).
+  // Time slots are viewport geometry, not a request for older candles. Allow
+  // eight full-history widths (including a wider opening frame) while keeping
+  // a finite bound. Blank slots never become OHLC or moving-average samples.
   function reelMaxBars(bundle, name) {
-    const n = bundle.c.length;
     const sv = name && reelStockView(bundle, name);
-    if (sv && sv.bars > n) return sv.bars;
-    if (timeframe !== '10m' || n < 2) return n;
-    if (bundle._maxBars) return bundle._maxBars;
-    return (bundle._maxBars = reelBarsInSpan(bundle, REEL_TEN_MIN_MAX_SPAN.months,
-                                             REEL_TEN_MIN_MAX_SPAN.days));
+    return Math.max(REEL_MIN_WINDOW_BARS, bundle.c.length, sv ? sv.bars : 0) * 8;
+  }
+
+  // Keep real arrays dense. _from is the virtual left edge used by drawings,
+  // overlays and dates; _lead offsets only the real candle/ribbon samples.
+  function reelViewportSlice(bundle, bars, pan) {
+    const from = bundle.c.length - bars - pan;
+    const real = reelSlice(bundle, Math.max(2, bars - Math.max(0, -pan)), Math.max(0, pan));
+    return { ...real, _src: bundle, _from: Math.min(real._from || 0, from),
+      _lead: Math.max(0, -from), _viewBars: bars + reelRightPadBars(bars) };
   }
 
   // The window a card opens on — what a zoom override is cleared back to.
@@ -9207,11 +9209,10 @@
   function reelWindowBars(bundle, name) {
     const n = bundle.c.length;
     // The time-scale drag is per-card and beats the Range pill, which is a
-    // filter-bar default for every card at once. Clamped here rather than only
-    // where it is set, so a stale entry from a wider bundle can never ask for
-    // more bars than this one has.
+    // filter-bar default for every card at once. The bounded viewport may
+    // extend beyond loaded history; those extra time slots stay empty.
     const z = reel.tzoom.get(name);
-    if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle, name)));
+    if (Number.isFinite(z) && z > 0) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle, name)));
     const w = reelRange();
     if (w && w < n) return w;
     // 5m opens on a calendar span — see reelDefaultBars.
@@ -9356,7 +9357,7 @@
     const slots = reelWindowBars(ctx.bundle, ctx.name), pan = reelPanOf(ctx.name, ctx.bundle);
     const src = ctx.bundle, n = src.c.length;
     return {
-      v: 2, start: ctx.b.t[0], slots, lo, hi,
+      v: 2, start: ctx.b.t[0], slots, lo, hi, lead: ctx.b._lead || 0,
       // Context for learning, not read back.
       tf: timeframe, end: ctx.b.t[ctx.b.t.length - 1], last: src.t[n - 1],
       close: bundleLastClose(src), pan, future: Math.max(0, -pan),
@@ -9378,7 +9379,10 @@
       if (from < 0) from = n - 1;
       reel.pan.set(name, 0);
       // first bar in view = n - W - pan (reelSlice), so pan = n - W - from.
-      reelSetPan(name, n - W - from, bundle);
+      // Preserve empty slots BEFORE the first real candle as well as future.
+      // Older v2 saves have no lead and retain their original placement.
+      const lead = Number.isFinite(v.lead) ? Math.max(0, Math.min(v.lead, W - 2)) : 0;
+      reelSetPan(name, n - W - from + lead, bundle);
       return true;
     }
     reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, reelMaxBars(bundle, name))));
@@ -9492,6 +9496,7 @@
   const REEL_FUTURE_FRAC = 0.9;
 
   function reelSetPan(name, v, bundle) {
+    if (!Number.isFinite(v)) return false;
     const n    = bundle.c.length;
     const want = reelWindowBars(bundle, name);
     const max  = Math.max(0, n - want);                    // back through history
@@ -9583,6 +9588,14 @@
     // was saved at TODAY's date with the pointer's price — the line re-tilted
     // the moment it was released. Project a timestamp instead, with exactly the
     // spacing reelBarIndexForDate projects with, so the round trip is exact.
+    if (fi < -0.5) {
+      const bt = reelBarTimes(b), k = Math.min(n - 1, REEL_EXTRAP_BARS);
+      const per = k > 0 ? (bt[k] - bt[0]) / k : 0;
+      if (per > 0) {
+        const d = new Date(bt[0] + fi * per);
+        if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
+      }
+    }
     if (fi > n - 1 + 0.5) {
       const bt = reelBarTimes(b);
       const k = Math.max(0, n - 1 - REEL_EXTRAP_BARS);
@@ -10897,8 +10910,7 @@
     const _seeded  = reelViewSeedTime(item.instrument_name, bundle);
     const _winBars = reelWindowBars(bundle, item.instrument_name);
     const _pan     = reelPanOf(item.instrument_name, bundle);
-    const _future  = Math.max(0, -_pan);
-    const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
+    const b = reelViewportSlice(bundle, _winBars, _pan);
     const L  = reelLayout(host);
     {
       const nm = item.instrument_name;
@@ -10935,7 +10947,8 @@
     // the way a real chart does — price pinned to the scale is hard to read,
     // and the ribbon needs somewhere to run to.
     const bw = (L.x1 - L.x0) / (_winBars + reelRightPadBars(_winBars));
-    const xOf = i => L.x0 + i * bw + bw / 2;
+    const slotX = i => L.x0 + i * bw + bw / 2;
+    const xOf = i => slotX(i + (b._lead || 0));
 
     // ── Price axis ──
     // LABELS ONLY since 2026-09-11. The horizontal gridlines that used to run
@@ -11163,7 +11176,7 @@
       const placed = [];
       const pick = strong => tg.forEach((t, i) => {
         if (!t.label || !!(t.annual || t.quarter || t.admin || t.month) !== strong) return;
-        const x = xOf(t.fi);
+        const x = slotX(t.fi);
         if (x < L.x0 || x > L.x1) return;
         if ((x - L.x0) < (L.x1 - L.x0) * 0.1 || (L.x1 - x) < (L.x1 - L.x0) * 0.1) return;
         // Room by WIDTH, at least LABEL_MIN_GAP: a term label ("2013 · Obama II")
@@ -11178,7 +11191,7 @@
     // (--ov-<tf>-grid) fades the LINES only, so the dates stay readable.
     let gridLbls = '';
     const timeGrid = tg.map((t, ti) => {
-      const x = xOf(t.fi);
+      const x = slotX(t.fi);
       if (x < L.x0 || x > L.x1) return '';
       const near = !keepLbl.has(ti);
       const room = true;
@@ -11206,7 +11219,7 @@
       // "Swap" (user, 2026-09-27: "a choice in where the highlight should be")
       // moves the shading onto the gaps that were clear.
       const flip = gridFlip(timeframe, reelGridScope(item)) ? 1 : 0;
-      const lines = tg.filter(t => !t.fixedOnly).map((t, i) => ({ x: xOf(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
+      const lines = tg.filter(t => !t.fixedOnly).map((t, i) => ({ x: slotX(t.fi), odd: (((t.par != null ? t.par : i) + flip) % 2) === 1 }))
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
         const a = Math.max(L.x0, xa), z = Math.min(L.x1, xb);
@@ -11256,7 +11269,7 @@
     const dates = hasGridLabels ? '' :
       [n - 1, 0].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(i => {
         const anchor = i === 0 ? 'start' : 'end';
-        const x = i === 0 ? L.x0 : xOf(i);
+        const x = xOf(i);
         const text = reelEndStopLabel(b.t[i]);
         const w = lblW(text);
         if (!clearOfGrid(x, w, anchor)) return '';
@@ -12690,7 +12703,7 @@
     let changed = false;
 
     // Fingers apart = zoom in = FEWER bars over the same width.
-    if (base.dx0 >= MIN_SPREAD && sx >= 1) {
+    if (Number.isFinite(base.bars) && Number.isFinite(sx) && base.dx0 >= MIN_SPREAD && sx >= 1) {
       const n = reelMaxBars(ctx.bundle, ctx.name);
       let bars = Math.round(base.bars * (base.dx0 / sx));
       bars = Math.min(Math.max(bars, REEL_MIN_WINDOW_BARS), n);
@@ -12747,6 +12760,7 @@
   // the chart sideways as it scales. The pan is re-clamped afterwards because
   // a wider window has less history left to scroll back through.
   function reelApplyTZoom(host, ctx, grab, dx) {
+    if (!Number.isFinite(dx) || !Number.isFinite(grab.bars)) return false;
     const wPx = host.getBoundingClientRect().width || 0;
     const K   = Math.max(140, wPx * 0.9);
     const n   = reelMaxBars(ctx.bundle, ctx.name);
@@ -12889,6 +12903,45 @@
       raf = requestAnimationFrame(run);
       setTimeout(run, 60);
     };
+
+    // Laptop trackpads emit Ctrl+wheel in Chromium/Firefox and GestureEvents
+    // in Safari, not two touch pointers. Claim ONLY a pinch over this chart;
+    // ordinary scrolling and phone touch/browser gestures keep their paths.
+    let trackpad = null;
+    const canTrackpad = () => window.matchMedia('(min-width: 1024px)').matches && !pts.size && host._reelCtx;
+    const holdPrice = ctx => {
+      if (!reel.lockY.has(ctx.name)) reel.lockY.set(ctx.name, { lo: ctx.sc.lo, hi: ctx.sc.hi, _userY: true });
+    };
+    host.addEventListener('wheel', ev => {
+      const ctx = canTrackpad();
+      if (!ctx || !ev.ctrlKey || !Number.isFinite(ev.deltaY)) return;
+      ev.preventDefault();
+      if (trackpad || !ev.deltaY) return;
+      holdPrice(ctx);
+      const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? host.clientHeight : 1;
+      const delta = Math.max(-160, Math.min(160, ev.deltaY * unit));
+      const K = Math.max(140, host.getBoundingClientRect().width * 0.9);
+      if (reelApplyTZoom(host, ctx, { bars: reelWindowBars(ctx.bundle, ctx.name) }, delta * .005 * K)) schedule();
+      reel.lastGestureAt = Date.now();
+    }, { passive: false });
+    host.addEventListener('gesturestart', ev => {
+      const ctx = canTrackpad();
+      if (!ctx) return;
+      ev.preventDefault(); holdPrice(ctx);
+      trackpad = { bars: reelWindowBars(ctx.bundle, ctx.name), scale: 1 };
+    }, { passive: false });
+    host.addEventListener('gesturechange', ev => {
+      const ctx = canTrackpad();
+      if (!ctx || !trackpad || !Number.isFinite(ev.scale) || ev.scale <= 0) return;
+      ev.preventDefault();
+      if (reelApplyPinch(host, ctx, { bars: trackpad.bars, dx0: 100, dy0: 0 },
+        [{x: 0, y: 0}, {x: 100 * ev.scale / trackpad.scale, y: 0}])) schedule();
+      reel.lastGestureAt = Date.now();
+    }, { passive: false });
+    host.addEventListener('gestureend', ev => {
+      if (trackpad) ev.preventDefault();
+      trackpad = null;
+    }, { passive: false });
 
     host.addEventListener('pointerdown', ev => {
       const ctx = host._reelCtx;
@@ -14425,3 +14478,4 @@
   wireFilterPopClamp();
 
 })();
+

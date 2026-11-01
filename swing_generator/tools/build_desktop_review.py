@@ -62,7 +62,7 @@ def build():
     assets = {str(path.relative_to(ui)): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in [app, ui / "static/css/style.css", html, *sorted((ui / "static/js/modules").glob("*.js"))]}
     (ui / "preview.json").write_text(json.dumps({
-        "revision": revision, "base": "10b485eaaa90970f1b2046a538633abcd16014a3",
+        "revision": revision, "base": "dc6796c88e98385965361943dedc61ba95d50da1",
         "production": False, "saves": "this browser only", "assets": assets
     }, indent=2))
     assert worker not in app.read_text()
@@ -70,3 +70,4 @@ def build():
 
 if __name__ == "__main__":
     build()
+
