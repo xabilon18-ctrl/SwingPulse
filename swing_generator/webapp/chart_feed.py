@@ -67,6 +67,7 @@ from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
                   _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
+from chart_cache import Store, recording
 from _active_config import MA_PERIODS                   # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
@@ -103,6 +104,22 @@ CARRY_MONTHS_2H = 12
 # The 10m bundle (back 2026-10-03, chart only, week grid): two months, so the
 # month the chart opens on has a month of panning behind it.
 CARRY_MONTHS_10M = 2
+
+# DEEP HISTORY (2026-11-01, user: "it looks like will need more data in all
+# time frames ... without affecting the code run time"). Bars OLDER than the
+# carry above ride in the bundle's `deep` block: drawn by the app, never read by
+# the after-steps (markers, alerts, setup context, activity, trend channels),
+# which keep seeing exactly the window they always saw — so shipping more
+# history to look at changes no alert, trend or count, and costs them nothing.
+# _attach_deep stitches the block on in front just before the file is written.
+#   D  — the whole 13-year cache: ~3,300 bars against 1,300.
+#   1H — a further 6 months behind CARRY_MONTHS_1H: a year in all.
+#   4H — a further year behind its ~2-year carry, filling as the never-trimmed
+#        hourly cache grows past Yahoo's 730 days.
+# 30m stays at CARRY_MONTHS_30M: the 30m SIGNALS run over the whole 5m cache,
+# so keeping more 5m history would slow every open-market run.
+DEEP_BARS_BY_TF = {'D': 2200, '1H': 4500, '4H': 2200}
+DEEP_MONTHS_1H = 6
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
 # on its own default window (REEL_DEFAULT_WINDOW_BARS, 520) and this is the
@@ -217,7 +234,8 @@ def _ma_frame(df: pd.DataFrame, periods: list[int]) -> dict[int, pd.Series]:
 
 
 def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
-            with_volume: bool = False, bars: int = BARS, context_tf: str | None = None) -> dict | None:
+            with_volume: bool = False, bars: int = BARS, context_tf: str | None = None,
+            deep: int = 0) -> dict | None:
     """Columnar OHLC + ribbon for the last `bars` rows of an indicator-ready df.
 
     The reel draws no volume — these charts are read as price against the
@@ -239,7 +257,7 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
     if keep[-1] != n - 1:
         keep.append(n - 1)
 
-    return {
+    out = {
         't':  [d.strftime(date_fmt) for d in tail.index],
         'o':  [_round(v) for v in tail['Open']],
         'h':  [_round(v) for v in tail['High']],
@@ -261,6 +279,41 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
                   for v in tail['Volume']]}
            if with_volume and 'Volume' in tail.columns else {}),
     }
+    start = len(df) - n
+    head = df.iloc[max(0, start - deep):start] if deep > 0 else df.iloc[0:0]
+    if len(head):
+        hkeep = list(range(0, len(head), MA_STRIDE))
+        out['deep'] = {
+            't':  [d.strftime(date_fmt) for d in head.index],
+            'o':  [_round(v) for v in head['Open']],
+            'h':  [_round(v) for v in head['High']],
+            'l':  [_round(v) for v in head['Low']],
+            'c':  [_round(v) for v in head['Close']],
+            'mi': hkeep,
+            'm':  [[_round(v) for v in mas[p].iloc[start - len(head):start].iloc[hkeep]] for p in periods],
+            **({'v': [int(v) if pd.notna(v) and math.isfinite(v) else 0 for v in head['Volume']]}
+               if 'v' in out else {}),
+        }
+    return out
+
+
+def _attach_deep(bundle: dict) -> dict:
+    """Stitch the `deep` block (older bars, see DEEP_BARS_BY_TF) on in front of
+    a finished bundle, shifting every bar-position field — `mi`, and the `sg` /
+    `xm` markers the after-steps added — by the bars put in front."""
+    d = bundle.pop('deep', None)
+    if not d or not d.get('t'):
+        return bundle
+    n = len(d['t'])
+    for k in ('t', 'o', 'h', 'l', 'c', 'v'):
+        if k in bundle and k in d:
+            bundle[k] = d[k] + bundle[k]
+    bundle['m'] = [dm + bm for dm, bm in zip(d['m'], bundle['m'])]
+    bundle['mi'] = d['mi'] + [i + n for i in bundle['mi']]
+    for k in ('sg', 'xm'):
+        if k in bundle:
+            bundle[k] = [[row[0] + n, *row[1:]] for row in bundle[k]]
+    return bundle
 
 
 def build_daily(cache_dir: str, ticker: str) -> dict | None:
@@ -271,7 +324,8 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(df)]
     if not periods:
         return None
-    out = _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'], context_tf='D')
+    out = _bundle(df, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['D'], context_tf='D',
+                  deep=DEEP_BARS_BY_TF['D'])
     if out:
         out['references'] = reference_history(df)
         # Higher-timeframe MA lines for the overlay: Weekly 50/250/500 and
@@ -283,7 +337,7 @@ def build_daily(cache_dir: str, ticker: str) -> dict | None:
         # _htf_mas (Monthly 500 = ~42 years, never; 300 = 25, rarely).
         for key, resample, periods in (('w', _resample_weekly, OVERLAY_MA_PERIODS),
                                        ('mo', _resample_monthly, OVERLAY_MA_PERIODS)):
-            ma = _htf_mas(df, out['t'][0], resample, periods)
+            ma = _htf_mas(df, (out.get('deep') or out)['t'][0], resample, periods)
             if ma:
                 out[key] = ma
     return out
@@ -437,7 +491,10 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     n_carry = int((frame.index > cutoff).sum()) or len(frame)
     warm_cap = len(frame) - max(periods)
     bars = min(n_carry, BARS_BY_TF['1H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H'), df_1h, frame, 1)
+    n_deep = int((frame.index > cutoff - pd.DateOffset(months=DEEP_MONTHS_1H)).sum())
+    deep = max(0, min(n_deep, BARS_BY_TF['1H'] + DEEP_BARS_BY_TF['1H'], max(warm_cap, 1)) - bars)
+    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H', deep=deep),
+                           df_1h, frame, 1)
 
 
 def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
@@ -461,7 +518,9 @@ def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
         return None
     warm_cap = len(frame) - max(periods)
     bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='4H'), df_1h, frame, 4)
+    deep = max(0, min(len(frame), BARS_BY_TF['4H'] + DEEP_BARS_BY_TF['4H'], max(warm_cap, 1)) - bars)
+    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='4H', deep=deep),
+                           df_1h, frame, 4)
 
 
 def build_2h(cache_dir: str, ticker: str) -> dict | None:
@@ -1045,6 +1104,26 @@ def near_ma_map(daily: dict) -> dict:
     return out
 
 
+# By NAME, looked up at call time, so a test that patches a builder on this
+# module is still the builder that runs.
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
+# Below this many builds a process pool costs more to start than it saves.
+MIN_POOL_JOBS = 32
+
+
+def _build_recorded(job: tuple) -> tuple:
+    """One chart build in a worker process, with the parquet files it read."""
+    tf, cache_dir, ticker = job
+    with recording() as reads:
+        try:
+            bundle = globals()[CHART_BUILDERS[tf]](cache_dir, ticker)
+        except Exception:
+            # One unreadable parquet must not sink the whole feed. The
+            # instrument simply shows "no chart data" on its card.
+            bundle = None
+    return bundle, reads
+
+
 def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
                      max_workers: int = 8, fires_path: str | None = None,
                      d_fires_path: str | None = None,
@@ -1082,24 +1161,46 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # 2026-10-25 (user: "Just 2h", chart only as before): its own chunks, no
     # markers, alerts or trend context. 2H REMOVED again 2026-10-26 (user:
     # "Remove 2 h"); build_2h kept, its R2 chunks left orphaned.
-    for tf, builder in (('30m', build_30m), ('1H', build_1h), ('4H', build_4h_live), ('D', build_daily)):
-        bundles: dict[str, dict] = {}
-
-        def _one(name):
-            try:
-                return name, builder(cache_dir, ticker_map[name])
-            except Exception:
-                # One unreadable parquet must not sink the whole feed. The
-                # instrument simply shows "no chart data" on its card.
-                return name, None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-            for name, payload in ex.map(_one, names):
-                if payload:
-                    bundles[name] = payload
-
-        stats[tf] = len(bundles)
-        built[tf] = bundles
+    #
+    # 2026-11-01: a chart whose inputs have not changed is taken from the
+    # chart cache instead of rebuilt (chart_cache.py says exactly when), and the
+    # rest are built in worker PROCESSES. The thread pool this replaced ran on
+    # one core — the builders are pure-Python loops that hold the GIL.
+    store = Store(cache_dir)
+    results: dict[tuple, dict | None] = {}
+    jobs, metas = [], {}
+    for tf in CHART_BUILDERS:
+        for name in names:
+            ticker = ticker_map[name]
+            meta = store.meta(tf, ticker, (h4_ticker(ticker), FIVE_MIN_LEVEL_REF.get(ticker),
+                                           exchange_feed.source(ticker)))
+            hit, bundle = store.load(tf, ticker, meta)
+            if hit:
+                results[(tf, name)] = bundle
+            else:
+                metas[(tf, name)] = meta
+                jobs.append((tf, cache_dir, ticker))
+    keys = list(metas)
+    procs = max(1, min(max_workers, os.cpu_count() or 1))
+    built_jobs = None
+    if procs > 1 and len(jobs) >= MIN_POOL_JOBS:
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=procs) as ex:
+                built_jobs = list(ex.map(_build_recorded, jobs, chunksize=4))
+        except concurrent.futures.BrokenExecutor as exc:
+            # A worker killed (memory) or unable to start must cost speed,
+            # never the feed: build the lot here instead.
+            print(f'  WARN chart worker pool failed ({exc}); building in-process')
+    if built_jobs is None:
+        built_jobs = [_build_recorded(job) for job in jobs]
+    for key, (tf, _, ticker), (bundle, reads) in zip(keys, jobs, built_jobs):
+        store.save(tf, ticker, metas[key], reads, bundle)
+        results[key] = bundle
+    for tf in CHART_BUILDERS:
+        store.prune(tf, ticker_map.values())
+        built[tf] = {name: results[(tf, name)] for name in names if results.get((tf, name))}
+        stats[tf] = len(built[tf])
+    stats['cached'] = store.hits
 
     # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
     # two bundles. A failure here costs the markers, never the chart feed.
@@ -1206,6 +1307,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         # Keep phone downloads compact; display arrays remain unchanged.
         for bundle in bundles.values():
             bundle.pop('analysis', None)
+            # `am` (full-precision Daily MAs) is read only by cross_marks,
+            # above; the app never has — it was ~1/3 of every Daily chunk.
+            bundle.pop('am', None)
+            _attach_deep(bundle)
         tf_dir = os.path.join(chart_dir, tf)
         os.makedirs(tf_dir, exist_ok=True)
         grouped: dict[int, dict] = {}

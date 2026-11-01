@@ -7,6 +7,63 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 CHART FEED CACHE + PROCESS POOL + UPLOAD ONLY CHANGED CHART FILES
+(webapp/chart_cache.py, chart_feed.build_chart_feed, publish.upload_to_r2).
+User: "it looks like will need more data in all time frames. how can we do this
+without affecting the code run time?" Measured first, on 12 hourly runs: the
+chart feed was 300-554s of 8-16 min runs (signals 10s, R2 upload ~75s), and it
+rebuilt all 814 x 4 charts every run, including markets closed since the last
+one. Profiled on 40 instruments: the builders are 64% of the feed and their
+cost is frame_context re-running add_workflow_signals over the WHOLE history
+(5.0 of 9.2s Daily, 2.3 of 5.4s 4H), not the bars shipped; the after-steps
+(gzip, setup context, alerts, markers, channels) are the other 36%.
+- A built chart is reused when the engine (every .py/.json in swing_generator/
+  and webapp/), the UTC date, the resolved source tickers and every parquet the
+  build read (or looked for and missed) are unchanged, AND every intraday bar it
+  read had finished (4H from 1h files, 30m from 5m). The reads are recorded, not
+  listed, so a builder that starts reading a new file is covered automatically.
+  Entries: cache_ma500/chartcache/<tf>/<ticker>.pkl (zlib pickles, ~130 MB for
+  the whole board), carried by actions/cache with the parquet files.
+- Charts that do rebuild run in worker processes (the thread pool ran on one
+  core: the builders hold the GIL). Builders are looked up by name so a test
+  patching one is the one that runs; under 32 builds it stays in-process.
+- Parity: old code, new cold cache and new warm cache produced byte-identical
+  output on all 36 feed files (40 instruments). Warm run on a Sunday: 151 of 160
+  charts reused, 15s -> 6s locally.
+- R2: every chart chunk was re-uploaded every hour — ~500k of the free 1M
+  Class A writes a month. publish.py's hourly upload now skips chart files whose
+  bytes match cache_ma500/r2_manifest.json; every upload (deploy-app included)
+  records what it sent; a full re-upload happens once 24h have passed since the
+  last full one, which bounds any drift. Core data files always upload.
+- tests/chart_cache_test.py covers reuse, invalidation (changed file, file that
+  appears later, unfinished bar, new UTC day, new engine) and the manifest.
+  NOT yet in the CI test lists — that is a workflow change for review.
+DEEPER HISTORY, same change: builders return today's bundle UNCHANGED plus a
+`deep` block of older bars (chart_feed.DEEP_BARS_BY_TF); _attach_deep stitches
+it on in front only as the file is written, shifting mi/sg/xm. So the
+after-steps (markers, alerts, setup context, activity, trend channels) see
+exactly the window they always did — measured: deep vs current depth, all 36
+feed files identical apart from the added prefix, alerts/trends/activity/index
+byte for byte. Without the split, 2.5x the Daily bars cost the after-steps
++4s per 40 instruments and would have changed what alerts and the trend
+channels compute.
+- Daily: 1,300 bars (~5y) -> the whole 13-year cache (median +1,967 bars).
+- 1H: 6 -> 12 months (median +974 bars).
+- 4H: unchanged today (it already carries the whole ~2y hourly cache past
+  MA500's warm-up); +2,200 bars of room as that never-trimmed cache grows.
+- 30m: unchanged at 5 months — the 30m SIGNALS run over the whole 5m cache,
+  so keeping more 5m history would slow every open-market run.
+- `am` (full-precision Daily MAs) is no longer written: only cross_marks reads
+  it, before the write; the app never did. That is why the Daily chunks grew
+  only 32% (2,564 -> 3,376 KB on 40 instruments) for 2.5x the bars; 1H +89%.
+- Opening views are calendar frames (Daily: 1 year back + 2 ahead), so every
+  chart opens exactly as before; the extra history is behind it on zoom-out.
+  Checked in the app on ADP: Daily zooms out past 2017 with the ribbon
+  continuous across the join; 1H spans Q1-Q4.
+- server.py (local dev) stitches the same way.
+- A broken worker pool (worker killed, cannot start) falls back to building
+  in-process instead of failing the feed.
+
 2026-10-31 DAILY BARS REPAIRED FROM THE HOURLY FEED (data_fetcher.repair_daily,
 applied inside scale_daily so signals, every chart, the ledger, the backtest and
 Market all read the same bars). User, PALLADIUM Daily: "Why palladium platinum

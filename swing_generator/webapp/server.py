@@ -403,6 +403,11 @@ def api_chart_chunk(tf: str, cid: int):
                                              hold=chart_feed.XM_HOLD_BY_TF[tf])
         except Exception:
             pass
+    # The older bars go on in front last, as build_chart_feed writes them.
+    for b in data.values():
+        b.pop('analysis', None)
+        b.pop('am', None)
+        chart_feed._attach_deep(b)
 
     # Per-timeframe depth, matching what build_chart_feed writes into the
     # published chunk. It was the flat BARS here and BARS_BY_TF there, so the

@@ -14,6 +14,7 @@ import argparse
 import concurrent.futures
 import glob
 import gzip
+import hashlib
 import json
 import os
 import shutil
@@ -767,10 +768,45 @@ def _r2_put(local_path, r2_key, timeout=120):
         return _r2_put_wrangler(local_path, r2_key, timeout)
 
 
-def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
+# What each chart file on R2 holds, as last uploaded from a runner (2026-11-01).
+# The hourly publish rewrote all ~650 chart chunks every run — ~500k of R2's
+# 1M free Class A writes a month — though a chunk whose five instruments did
+# not trade is byte-identical to the last one (_write_gz pins the gzip mtime).
+# EVERY upload records what it sent, including deploy-app.yml's and the W/M
+# job's, so the record follows R2; only the hourly publish SKIPS
+# (skip_unchanged). Any drift — a run that uploaded and then failed before the
+# Actions cache saved, a writer that does not record — is bounded by a full
+# re-upload once R2_FULL_UPLOAD_HOURS have passed since the last full one.
+R2_MANIFEST = os.path.join(CACHE_DIR, 'r2_manifest.json')
+R2_FULL_UPLOAD_HOURS = 24
+
+
+def _load_r2_manifest() -> dict:
+    try:
+        with open(R2_MANIFEST) as fh:
+            m = json.load(fh)
+        return m if isinstance(m.get('files'), dict) else {'files': {}}
+    except Exception:
+        return {'files': {}}
+
+
+def _save_r2_manifest(m: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(R2_MANIFEST), exist_ok=True)
+        tmp = R2_MANIFEST + '.tmp'
+        with open(tmp, 'w') as fh:
+            json.dump(m, fh, separators=(',', ':'))
+        os.replace(tmp, R2_MANIFEST)
+    except OSError as e:
+        print(f'  WARN R2 manifest not saved: {e}')
+
+
+def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchanged=False):
     """Upload all files in data_dir to R2 using parallel workers with retry.
 
     r2_prefix — optional path prefix for all R2 keys (e.g. 'intraday').
+    skip_unchanged — leave out chart files R2 already holds byte for byte
+    (R2_MANIFEST). The core data files are always uploaded.
     """
     def _key(fname):
         return f'{r2_prefix}/{fname}' if r2_prefix else fname
@@ -815,8 +851,21 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
                 rel  = os.path.relpath(full, data_dir)
                 files.append((full, _key(rel)))
 
+    manifest = _load_r2_manifest()
+    digests = {key: hashlib.md5(open(path, 'rb').read()).hexdigest()
+               for path, key in files if key.startswith(_key('chart/'))}
+    full_at = manifest.get('full_at')
+    fresh = bool(full_at) and (time.time() - full_at) < R2_FULL_UPLOAD_HOURS * 3600
+    skipped = 0
+    if skip_unchanged and fresh:
+        keep = [(p, k) for p, k in files if k not in digests or manifest['files'].get(k) != digests[k]]
+        skipped = len(files) - len(keep)
+        files = keep
+
     total  = len(files)
-    print(f'  Uploading {total} files to R2...', flush=True)
+    print(f'  Uploading {total} files to R2'
+          + (f' ({skipped} chart files unchanged since the last upload, skipped)' if skipped else '')
+          + '...', flush=True)
 
     def _upload_batch(batch):
         ok, failed = 0, []
@@ -856,6 +905,16 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix=''):
         print(f'  Retry result: {retry_ok} recovered', flush=True)
 
     print(f'\n  R2 upload: {ok}/{total} files ✓')
+    failed_keys = {k for _, k in failed}
+    for _, key in files:
+        if key in digests:
+            if key in failed_keys:
+                manifest['files'].pop(key, None)
+            else:
+                manifest['files'][key] = digests[key]
+    if not skipped and not failed and _key('chart/index.json') in digests:
+        manifest['full_at'] = time.time()
+    _save_r2_manifest(manifest)
     if failed:
         keys = [k for _, k in failed]
         print(f'  Still failed ({len(failed)}): {keys[:5]}{"..." if len(failed) > 5 else ""}')
@@ -1041,7 +1100,7 @@ def main():
         print('\n  Build complete.')
         return
 
-    ok_count, fail_count = upload_to_r2(data_dir, r2_prefix=R2_DATA_PREFIX)
+    ok_count, fail_count = upload_to_r2(data_dir, r2_prefix=R2_DATA_PREFIX, skip_unchanged=True)
     pages_url = f'https://{PAGES_PROJECT}.pages.dev'
     if fail_count == 0:
         print(f'\n  ✓ App updated! {pages_url}')
