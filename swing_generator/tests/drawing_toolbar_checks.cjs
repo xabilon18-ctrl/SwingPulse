@@ -8,8 +8,8 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await toolbar.locator('[data-kind="ladder"]').click();
     // Ten divisions, not nine (2026-10-21): eleven lines, 0% up to 100%.
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),11,'A new ladder draws eleven lines');
-    assert.deepEqual(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').allTextContents(),
-      ['0%','10%','20%','30%','40%','50%','60%','70%','80%','90%','100%'],'…numbered 0% to 100%');
+    // No % labels when placed (user, 2026-11-01); the % button turns them on.
+    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels by default');
     assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));
     assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')));
     assert.ok(await page.locator('#chartFull [data-h]').count()>0,'Handles remain while collapsed');
@@ -132,6 +132,102 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await toolbar.locator('[data-act="draw-div"]').click();
     assert.ok(!('div' in (await channelOn())),'Off stores no field');
     assert.equal(await divLines(),0,'…and the divisions are gone');
+    // SELECTION (user, 2026-11-01): the selected drawing shows a halo, locked
+    // or not, is painted over the others, a tap on empty chart clears it and a
+    // tap on one of its lines picks it again. The ladder is still on the chart.
+    if (!(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')))) await toolbar.locator('.reel-draw-fold').click();
+    const sel=()=>page.locator('#chartFull .reel-draw.is-sel');
+    const halo=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>{const c=getComputedStyle(el);
+      return c.stroke!=='none'&&c.stroke!=='transparent'&&c.stroke!=='rgba(0, 0, 0, 0)'&&+c.strokeOpacity>0;});
+    assert.ok(await page.locator('#chartFull .reel-draw').count()>=2,'Ladder and channel are both on the chart');
+    assert.ok(await halo(),'The selected drawing shows a halo');
+    assert.ok(await page.locator('#chartFull .reel-draw').last().evaluate(el=>el.classList.contains('is-sel')),'…and is painted over the other drawings');
+    await toolbar.locator('.reel-draw-lock').click();
+    assert.equal(await sel().locator('[data-h]').count(),0,'Locked: no handles');
+    assert.ok(await halo(),'…but the halo still shows it is selected');
+    await toolbar.locator('.reel-draw-lock').click();
+    const chDi=await sel().locator('.reel-ch-hit').first().getAttribute('data-di');
+    // The chart repaints on every gesture, replacing its SVG: re-measure until
+    // the element is laid out again rather than reading a box mid-repaint.
+    const boxOf=async loc=>{for(let i=0;i<40;i++){const b=await loc.boundingBox({timeout:1000}).catch(()=>null);if(b)return b;await page.waitForTimeout(50);}return null;};
+    // A point on the chart where elementFromPoint hits what `want` asks for.
+    const spot=want=>page.evaluate(([want,di])=>{
+      const svg=document.querySelector('#chartFullHost svg'); const r=svg.getBoundingClientRect();
+      for(let y=r.top+r.height*.15;y<r.top+r.height*.7;y+=5) for(let x=r.left+r.width*.2;x<r.left+r.width*.75;x+=5){
+        const el=document.elementFromPoint(x,y); if(!el||!svg.contains(el)) continue;
+        const h=el.closest('[data-h]'), d=el.closest('[data-di]');
+        if(want==='empty'&&!h&&!d) return {x,y};
+        if(want==='line'&&!h&&d&&d.getAttribute('data-di')===di) return {x,y};
+        if(want==='other'&&!h&&d&&d.getAttribute('data-di')!==di) return {x,y};
+      } return null;},[want,chDi]);
+    const empty=await spot('empty');
+    assert.ok(empty,'Found empty chart to tap');
+    await page.mouse.click(empty.x,empty.y);
+    assert.equal(await sel().count(),0,'A tap on empty chart clears the selection');
+    assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),'…and Draw mode stays open');
+    assert.ok(await toolbar.locator('[data-draw-strip] [data-act="draw-delete"]').isDisabled(),'…with nothing for Delete to act on');
+    const line=await spot('line');
+    assert.ok(line,'Found a channel line to tap');
+    await page.mouse.click(line.x,line.y);
+    assert.equal(await sel().count(),1,'A tap on the channel selects it again');
+    assert.equal(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'…the channel, not the ladder');
+    // The ladder was drawn FIRST; selected, it must still come out on top.
+    const ladderPt=await spot('other');
+    assert.ok(ladderPt,'Found a ladder line to tap');
+    await page.mouse.click(ladderPt.x,ladderPt.y);
+    assert.notEqual(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'A tap on the ladder selects the ladder');
+    assert.ok(await page.locator('#chartFull .reel-draw').last().evaluate(el=>el.classList.contains('is-sel')),'The selected ladder is painted over the channel');
+    const back=await spot('line');
+    await page.mouse.click(back.x,back.y);
+    assert.equal(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'…and the channel can be picked again');
+    // CHANNEL ENDS (user, 2026-11-01): both end handles drag, and each moves its own end.
+    for (const [h,k] of [['a','p1'],['b','p2']]) {
+      const before=(await channelOn())[k];
+      const g=await boxOf(sel().locator(`.reel-ch-grab[data-h="${h}"]`));
+      assert.ok(g,`End handle ${h} is drawn`);
+      await page.mouse.move(g.x+g.width/2,g.y+g.height/2);
+      await page.mouse.down();
+      await page.mouse.move(g.x+g.width/2,g.y+g.height/2-40,{steps:8});
+      await page.mouse.up();
+      assert.notEqual((await channelOn())[k],before,`Dragging end ${h} straight up moves that end`);
+    }
+    // Both ends panned off the panel: the end handles stay on screen, on the
+    // midline, and dragging one still turns the channel. The channel is first
+    // made FLAT at the middle of the price window, on the right of the view;
+    // a pan keeps the price window, so the midline is certain to stay in view
+    // whatever the fixture's prices are (CI drew a steep one 2,000px off).
+    const drag=async(from,to)=>{await page.mouse.move(from.x,from.y);await page.mouse.down();await page.mouse.move(to.x,to.y,{steps:10});await page.mouse.up();};
+    const centre=b=>({x:b.x+b.width/2,y:b.y+b.height/2});
+    const geo=await page.evaluate(()=>{const h=document.querySelector('#chartFullHost'),c=h._reelCtx,svg=h.querySelector('svg'),m=svg.getScreenCTM();
+      const yv=c.sc.y((c.sc.lo+c.sc.hi)/2),W=c.L.x1-c.L.x0;
+      const scr=(x,y)=>{const p=svg.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(m);return {x:q.x,y:q.y};};
+      return {a:scr(c.L.x0+W*.68,yv),b:scr(c.L.x0+W*.9,yv)};});
+    await drag(centre(await boxOf(sel().locator('.reel-ch-grab[data-h="a"]'))),geo.a);
+    await drag(centre(await boxOf(sel().locator('.reel-ch-grab[data-h="b"]'))),geo.b);
+    const anchors=await channelOn();
+    const start=await page.evaluate(()=>{const svg=document.querySelector('#chartFullHost svg'),r=svg.getBoundingClientRect();
+      for(let y=r.top+r.height*.2;y<r.top+r.height*.7;y+=5){const x=r.left+r.width*.04,e=document.elementFromPoint(x,y);
+        if(e&&svg.contains(e)&&!e.closest('[data-h]'))return {x,y,w:r.width,right:r.right};}return null;});
+    assert.ok(start,'Found a place to start a pan');
+    const panDx=start.w*.55;
+    await drag(start,{x:start.x+panDx,y:start.y});
+    // The chart follows the finger 1:1, so each end is now panDx further right.
+    assert.ok(geo.a.x+panDx>start.right&&geo.b.x+panDx>start.right,'Panned past both ends');
+    assert.ok(await page.locator('#chartFull .reel-ch-note').count()===0,'No "handles are outside this range" note');
+    const svgBox=await boxOf(page.locator('#chartFullHost'));
+    for (const h of ['a','b']) {
+      const grab=sel().locator(`.reel-ch-grab[data-h="${h}"]`);
+      assert.equal(await grab.count(),1,`Panned past both ends, end handle ${h} is still drawn`);
+      const g=await boxOf(grab);
+      assert.ok(g&&g.x+g.width/2>=svgBox.x&&g.x+g.width/2<=svgBox.x+svgBox.width,`…and end handle ${h} is on screen`);
+    }
+    const ga=await boxOf(sel().locator('.reel-ch-grab[data-h="a"]'));
+    const onTop=await page.evaluate(([x,y])=>{const e=document.elementFromPoint(x,y);return e?(e.getAttribute('class')||'')+'|'+(e.dataset&&e.dataset.h||''):'none';},[ga.x+ga.width/2,ga.y+ga.height/2]);
+    assert.equal(onTop,'reel-ch-grab|a',`End handle a can be touched where it is drawn (${JSON.stringify(ga)})`);
+    await page.mouse.move(ga.x+ga.width/2,ga.y+ga.height/2); await page.mouse.down();
+    await page.mouse.move(ga.x+ga.width/2,ga.y+ga.height/2-40,{steps:8}); await page.mouse.up();
+    const turned=await channelOn();
+    assert.ok(turned.p1!==anchors.p1&&turned.t2===anchors.t2&&turned.p2===anchors.p2,'The edge handle re-anchors its end; the other end stays put: '+JSON.stringify({anchors,turned}));
     await toolbar.locator('[data-act="draw-done"]').click();
     assert.equal(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),false);
     assert.equal(await toolbar.isVisible(),false);

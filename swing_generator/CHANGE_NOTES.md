@@ -7,6 +7,71 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 FOOTER CAPSULE: SAVE | DRAW, TWO EQUAL PRESS/UNPRESS SWITCHES
+(app.js v561, style.css v397). User: "change the word edit to draw so that
+they can equally be a pill that's split into two equal parts, and then make
+both buttons pressable ... I don't want the long press to unpress. I just
+want it press, unpress ... for press, saved, give it green. And maybe give
+it an orange, but very light colors".
+- The drawing half always reads **Draw** (was Drawing / Edit / Done); its
+  pressed state is Draw mode open, shown by colour and `aria-pressed`.
+- **Save toggles**: a tap saves, a tap on a saved view forgets it. The 700ms
+  hold-to-forget (`VIEW_FORGET_HOLD_MS`) is removed. This reverses the
+  2026-09 "a tap always saves" rule by the user's call; tapping Saved again
+  "to make sure" now forgets the view, by design.
+- Equal halves: `.reel-capsule` is a `1fr 1fr` grid; a hidden second label
+  reserves "Saved"'s width so the pill never changes size.
+- Colours: light green (Saved) and light orange (Draw on). The card footer is
+  dark, so there they are faint tints with soft text; the full-screen footer
+  is white, so there they are pale fills with darker text.
+- Test: chart_framing_checks.cjs (second tap unsaves and forgets the stored
+  view, third saves again).
+
+2026-11-01 DRAWINGS: VISIBLE SELECTION, TAP-AWAY DESELECT, CHANNEL ENDS
+ALWAYS GRABBABLE (app.js v561, style.css v397). User: "the channel to move
+smoothly. Sometimes both ends, when I try to adjust the direction, it doesn't
+move ... When I select, it doesn't give any indication that it has been
+selected ... when I click away, I'd like for it not to be selected ... when I
+click on the channel and it's locked, it doesn't even give an indication".
+- **Selection shows.** `.reel-draw.is-sel .reel-ch-hit` turns the selected
+  drawing's own tap lines into a soft blue halo. The old cue (a heavier edge
+  stroke) was beaten by the `!important` line-weight levels, and a LOCKED
+  drawing has no handles, so a selected locked drawing looked idle.
+- **Tap away deselects.** A tap on empty chart in Draw mode stores -1 in
+  `reel.activeCh` (`clearActiveIdx`); `activeIdx` returns -1 for it, so
+  Lock/Duplicate/Delete grey out. Draw mode stays open. An absent entry still
+  falls back to the newest drawing, and Delete still re-selects it.
+- **Selected drawing painted last** (`reelChannelsSvg`). In list order a
+  drawing added later (a ladder's eleven 40-unit tap lines) sat over the
+  selected channel's end handles and took the touch, turning the drag into a
+  pan. Every element carries its index, so the order is free.
+- **End handles always on screen.** An end whose date was off the panel had
+  no handle, so the direction could not be changed without panning to it.
+  It now gets a handle at the panel edge on the midline (both on one edge:
+  spread to 1/4 and 3/4); dragging it re-anchors that end there and the
+  channel pivots on the other.
+- Ends can no longer be dragged onto the same bar, and
+  `reelDateForBarIndex` projects before the oldest bar (it clamped to bar 0,
+  so an end dragged left of the data stuck).
+- Tests: drawing_toolbar_checks.cjs (halo incl. locked, tap-away, ladder on
+  top when selected, both ends drag, ends reachable zoomed past both). Each
+  new check was run against the code without its fix and failed.
+
+2026-11-01 PRICE LADDER STARTS WITHOUT % LABELS; 1H BOLD LINES ARE YEARS
+(app.js v560, grid-geometry.js v10, drawing-toolbar.js v7). User: "As a
+standard, let's make sure that the percentage lines on a default when you
+place them do not have the percentage labels. Then on the 1 hour chart ...
+the bolded vertical lines should be 1 year apart."
+- A NEW price ladder is created with `hideLabels: true` (reelDefaultLadder),
+  so its 0%-100% labels are off until the % button turns them on. Ladders
+  already saved keep whatever they had: nothing rewrites stored drawings.
+- 1H's permanent bold lines are now one per calendar year (the 4H branch,
+  `annual`, labelled "2026"), replacing the bold quarter lines added
+  2026-10-08. The selected M/Q/H/Y grid and its shading are unchanged.
+  `.reel-tgrid-quarter` CSS is left in place, now unused.
+- Tests: time_grid_test.cjs (1H yearly, equal, no quarters),
+  drawing_toolbar_checks.cjs (a new ladder shows no % labels).
+
 2026-11-01 CHART FEED CACHE + PROCESS POOL + UPLOAD ONLY CHANGED CHART FILES
 (webapp/chart_cache.py, chart_feed.build_chart_feed, publish.upload_to_r2).
 User: "it looks like will need more data in all time frames. how can we do this

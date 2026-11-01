@@ -531,6 +531,10 @@
     if (!list.length) return -1;
     const k = name + '|' + timeframe;
     const i = reel.activeCh.get(k);
+    // -1 = deliberately nothing selected: a tap on empty chart clears the
+    // selection (user, 2026-11-01: "when I click away, I'd like for it not to
+    // be selected"). Only an absent entry falls back to the newest drawing.
+    if (i === -1) return -1;
     return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
   }
 
@@ -541,6 +545,7 @@
     channelSeedCommit(name);
     reel.activeCh.set(name + '|' + timeframe, i);
   }
+  function clearActiveIdx(name) { reel.activeCh.set(name + '|' + timeframe, -1); }
 
   function activeChannel(name) {
     const i = activeIdx(name);
@@ -9408,10 +9413,14 @@
     return true;
   }
   // The footer CAPSULE (user, 2026-09-25: "like a capsule half save half edit
-  // and done"): one pill, Save on the left, the Drawing/Edit/Done button on
-  // the right. Save reads "Saved" (accent) while this chart has a saved view.
-  const viewBtnInner = on => VIEW_ICON + `<span>${on ? 'Saved' : 'Save'}</span>`;
-  const viewBtnTitle = on => on ? 'View saved — tap to save again, hold to forget it' : 'Save this view';
+  // and done"): one pill, Save on the left, Draw on the right, two EQUAL
+  // halves (2026-11-01). Both are press / unpress switches: Save reads
+  // "Saved" on light green while this chart has a saved view, Draw sits on
+  // light orange while Draw mode is open.
+  // The hidden second label reserves "Saved"'s width, so the pill does not
+  // grow and shift the footer when Save turns into Saved.
+  const viewBtnInner = on => VIEW_ICON + `<span class="reel-vb-lbl"><span>${on ? 'Saved' : 'Save'}</span><span aria-hidden="true">Saved</span></span>`;
+  const viewBtnTitle = on => on ? 'View saved — tap to forget it' : 'Save this view';
   function reelViewBtnSync(name) {
     const on = !!savedViews[viewKey(name)];
     // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
@@ -9427,12 +9436,14 @@
     const on = !!savedViews[viewKey(name)];
     return `<span class="reel-capsule">`
       + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
-      + `<button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>`
+      + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${name}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
-  // A tap ALWAYS saves. It used to toggle, so tapping Save again on a chart
-  // that already looked right — to make sure — silently forgot the view.
+  // Press saves, press again forgets (user, 2026-11-01: "press, unpress,
+  // press and unpress ... I don't want the long press"). From 2026-09 a tap
+  // always saved and a 700ms HOLD forgot; that hold is gone.
   function reelViewToggle(name, host) {
+    if (savedViews[viewKey(name)]) { reelViewForget(name); return; }
     const cur = reelViewCapture(host);
     if (!cur) return;
     const k = viewKey(name);
@@ -9454,25 +9465,6 @@
     syncPush();
     reelViewBtnSync(name);
   }
-  // Hold Save to forget. The click that ends the hold is swallowed.
-  const VIEW_FORGET_HOLD_MS = 700;
-  let viewHold = null, viewHoldFired = false;
-  document.addEventListener('pointerdown', e => {
-    const b = e.target.closest && e.target.closest('[data-act="chart-view-save"]');
-    if (!b) return;
-    viewHoldFired = false;
-    clearTimeout(viewHold);
-    viewHold = setTimeout(() => { viewHold = null; viewHoldFired = true; reelViewForget(b.dataset.name); }, VIEW_FORGET_HOLD_MS);
-  }, true);
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
-    document.addEventListener(type, () => { clearTimeout(viewHold); viewHold = null; }, true);
-  }
-  document.addEventListener('click', e => {
-    if (!viewHoldFired || !(e.target.closest && e.target.closest('[data-act="chart-view-save"]'))) return;
-    viewHoldFired = false;
-    e.stopPropagation(); e.preventDefault();
-  }, true);
-
   // Unset = the timeframe's opening position: 0 (newest bar at the right
   // edge), except where an opening view applies (1H, 4H, Daily, Weekly, Monthly),
   // which opens with the rest of its frame as blank space (reelStockView).
@@ -9589,6 +9581,18 @@
       const per = (bt[n - 1] - bt[k]) / Math.max(1, n - 1 - k);
       if (per > 0 && isFinite(bt[n - 1])) {
         const d = new Date(bt[n - 1] + (fi - (n - 1)) * per);
+        if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
+      }
+    }
+    // Before the OLDEST bar, the same in reverse (2026-11-01): it clamped to
+    // bar 0, so a channel end dragged left of the data stuck at the first bar.
+    // Same spacing as reelBarIndexForDate projects backwards with.
+    if (fi < -0.5 && n > 1) {
+      const bt = reelBarTimes(b);
+      const k = Math.min(n - 1, REEL_EXTRAP_BARS);
+      const per = (bt[k] - bt[0]) / k;
+      if (per > 0 && isFinite(bt[0])) {
+        const d = new Date(bt[0] + fi * per);
         if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
       }
     }
@@ -9859,7 +9863,10 @@
     const lo = Math.min(...lows), hi = Math.max(...highs);
     if (!(hi > lo)) return null;
     const step = (hi - lo) / (LADDER_LINES - 1);
-    return { kind: 'ladder', p1: lo, p4: lo + 3 * step };
+    // A new ladder starts WITHOUT its 0%-100% labels (user, 2026-11-01: "as a
+    // standard ... the percentage lines on a default when you place them do
+    // not have the percentage labels"). The % button still shows them.
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true };
   }
 
   function reelDefaultHLine(b) {
@@ -10138,16 +10145,10 @@
     return ICON_PENCIL + `<span>${channelBtnLabel(name)}</span>`;
   }
 
-  function channelBtnLabel(name) {
-    const ch = activeChannel(name);
-    if (reel.editing === name)  return 'Done';
-    // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
-    // Details, which moved the chart every time one appeared.
-    // 'Drawing', not 'Channel' (2026-09-12): the button opens FOUR tools —
-    // channel, trend line, level and the 10 price lines — so naming it after one
-    // of them described a quarter of what it does.
-    return ch ? 'Edit' : 'Drawing';
-  }
+  // Always "Draw" (user, 2026-11-01: "change the word edit to draw"). It used
+  // to read Drawing / Edit / Done; now it is a press / unpress switch whose
+  // pressed state is its colour (light orange), like Save's light green.
+  function channelBtnLabel() { return 'Draw'; }
 
   function reelSyncChannelButtons() {
     chartFullSyncButtons();
@@ -10165,6 +10166,7 @@
         const html = channelBtnHtml(name);
         if (btn._html !== html) { btn.innerHTML = html; btn._html = html; }
         btn.classList.toggle('on', reel.editing === name);
+        btn.setAttribute('aria-pressed', String(reel.editing === name));
       }
       reelSyncProps(card, name);
       // Edit mode is modal, so the card shows only the controls that belong to
@@ -10202,16 +10204,25 @@
     // ONLY the selected drawing is editable (user, 2026-09-15): it alone grows
     // handles. The rest draw as plain lines that a tap selects, so dragging
     // near one drawing can never move another that happens to sit close by.
-    return list.map((d, i) => {
+    // The SELECTED drawing is painted last (user, 2026-11-01: channel ends
+    // "sometimes ... doesn't move"). In list order a drawing added later — a
+    // ladder's eleven fat tap lines, say — sat on top of the selected one's
+    // handles and took the touch, so the drag became a pan. Every element
+    // carries its own index (data-di / data-ci), so the order is free.
+    let selSvg = '';
+    const rest = list.map((d, i) => {
       // A linked copy shows only on the timeframes chosen for it (drawShownOn;
       // old links stay off Daily). It is kept but not drawn elsewhere, skipped
       // in place so every other drawing keeps its index for taps and edits.
       if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
-      return `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
+      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
+      if (sel) { selSvg = g; return ''; }
+      return g;
     }).join('');
+    return rest + selSvg;
   }
 
   // One entry point for every tool. Each kind renders its own geometry but they
@@ -10651,9 +10662,43 @@
       // clamped into the panel instead, so whenever the channel can be seen it
       // can be adjusted.
       const pad = 60;
-      const mx = Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad);
+      // END handles are always on screen (user, 2026-11-01: "sometimes both
+      // ends, when I try to adjust the direction, it doesn't move"). An end
+      // whose date had scrolled off the panel had NO handle, so the direction
+      // could not be changed without panning to find it. Such an end now gets
+      // its handle at the panel edge, ON the midline; dragging it re-anchors
+      // that end there — the line already passes through that point, so
+      // nothing jumps — and the channel pivots on the other end. If both ends
+      // land on the same edge they are spread to a quarter and three quarters.
+      // They go where the midline is on screen VERTICALLY too, clear of the
+      // drawing bar along the bottom: an edge handle above or below the plot
+      // is as unreachable as one off the side.
+      const inPanel = x => x >= L.x0 - 2 && x <= L.x1 + 2;
+      let vL = L.x0 + pad, vR = L.x1 - pad;
+      const ph = L.py1 - L.py0, yLo = L.py0 + ph * 0.08, yHi = L.py1 - ph * 0.22;
+      if (Math.abs(slope) > 1e-9) {
+        const xa = x1 + (yLo - dMid - y1) / slope, xb = x1 + (yHi - dMid - y1) / slope;
+        vL = Math.max(vL, Math.min(xa, xb)); vR = Math.min(vR, Math.max(xa, xb));
+      }
+      // Midline nowhere in view (price has moved far from the channel): there
+      // is no honest place for a stand-in, so none is drawn and the note below
+      // says to zoom out. A handle 2,000px off the plot only looks broken.
+      const midInView = vR >= vL;
+      const edgeX = x => midInView ? Math.min(Math.max(x, vL), vR) : NaN;
+      let ha = inPanel(x1) ? x1 : edgeX(x1), hb = inPanel(x2) ? x2 : edgeX(x2);
+      if (midInView && Math.abs(ha - hb) < 160 && !(inPanel(x1) && inPanel(x2))) {
+        const q1 = vL + (vR - vL) * 0.25, q3 = vL + (vR - vL) * 0.75;
+        if (!inPanel(x1)) ha = x1 <= x2 ? q1 : q3;
+        if (!inPanel(x2)) hb = x1 <= x2 ? q3 : q1;
+      }
+      // Width and move handles halfway between the END handles as drawn, so a
+      // stand-in end handle never lands on top of them (their r=42 grab
+      // circles overlapped, and the move handle, drawn last, took the drag).
+      const mx = (inPanel(x1) && inPanel(x2)) || !midInView
+        ? Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad)
+        : (ha + hb) / 2;
       const my = yAtX(mx);
-      handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
+      handles = hx(ha, yAtX(ha) + dMid, 'a') + hx(hb, yAtX(hb) + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
       // Move handle EXACTLY HALFWAY between the two end handles, on the
       // midline (user, 2026-09-25: "i need it to be the halfway point between
@@ -10663,7 +10708,11 @@
       // aside. Clamped into the panel like the edge handles (mx).
       if (handles) {
         const tight = Math.min(Math.abs(dUp - dMid), Math.abs(dDn - dMid)) < 40;
-        const side = !tight ? 0 : (mx + 130 <= L.x1 - 60) ? 130 : -130;
+        // Stepping aside must not land on an END handle either (grab radius
+        // 42 each, so 90 apart): take the first side that is clear of both.
+        const clear = x => Math.abs(x - ha) >= 90 && Math.abs(x - hb) >= 90 && x <= L.x1 - 60 && x >= L.x0 + 60;
+        const side = !tight ? 0 : [130, -130, 65, -65].find(o => clear(mx + o))
+          ?? ((mx + 130 <= L.x1 - 60) ? 130 : -130);
         const mvx = mx + side;
         handles += reelMoveHandle(L, mvx, yAtX(mvx) + dMid, idx, isActive);
       }
@@ -10671,8 +10720,8 @@
       // the channel still draws in the right place (it is anchored to dates and
       // prices, not to the window), it just cannot be adjusted from here. Say
       // which control brings the handles back rather than leaving it a puzzle.
-      if (!handles) {
-        handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
+      if (!handles || (!midInView && !inPanel(x1) && !inPanel(x2))) {
+        handles += `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
       }
     }
 
@@ -11966,7 +12015,7 @@
     const q = a => el.querySelector(`[data-act="${a}"]`);
     const b = q('channel');
     const add = el.querySelector('[data-tools]');
-    if (b) { b.innerHTML = channelBtnHtml(name); b.classList.toggle('on', edit); }
+    if (b) { b.innerHTML = channelBtnHtml(name); b.classList.toggle('on', edit); b.setAttribute('aria-pressed', String(edit)); }
     if (add) add.hidden = !edit;
     reelSyncProps(el, name);
     el.classList.toggle('ch-editing', edit);
@@ -12872,7 +12921,7 @@
     let moveStart = null;    // move handle: {orig, fi0, p0} captured at grab
     let tapPick = null;      // a line touched at pointerdown; selected only if it stays a tap
     const TAP_SLOP_PX = 8, TAP_MAX_MS = 600;
-    let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
+    let sx = 0, sy = 0, downAt = 0, startPan = 0, pid = null, raf = 0;
     let grab = null;         // price window captured when the scale was grabbed
     // Every finger currently down, so a second one can turn the gesture into a
     // pinch. Keyed by pointerId; the values are updated in place on move.
@@ -12915,7 +12964,7 @@
 
       if (pid !== null) return;
       pid = ev.pointerId;
-      sx = ev.clientX; sy = ev.clientY;
+      sx = ev.clientX; sy = ev.clientY; downAt = Date.now();
       startPan = reelPanOf(ctx.name, ctx.bundle);
       mode = null; handle = null;
       // Capture the price window as it stands right now. If this becomes a pan
@@ -13182,7 +13231,11 @@
         // midline should land — the spine sits (up+dn)/2 away from it.
         const d = reelDateForBarIndex(ctx.b, fi);
         const spine = price - (ch.up + ch.dn) / 2;
-        if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = spine; } else { ch.t2 = d; ch.p2 = spine; } }
+        // Never onto the OTHER end's bar: two anchors on one bar have no
+        // direction, and the edge handles stop working until they part.
+        const other = reelBarIndexForDate(ctx.b, handle === 'a' ? ch.t2 : ch.t1);
+        const clash = other != null && Math.abs(fi - other) < 0.5;
+        if (d && !clash) { if (handle === 'a') { ch.t1 = d; ch.p1 = spine; } else { ch.t2 = d; ch.p2 = spine; } }
       } else {
         // An EDGE handle. ONLY its own offset changes — the opposite edge does
         // not move, which is the whole point of storing two of them.
@@ -13234,6 +13287,16 @@
         setActiveIdx(c.name, pick.di);
         reel.editing = c.name;
         // The click that follows this pointerup must not open the instrument.
+        reel.lastGestureAt = Date.now();
+        reelRepaint(host);
+        reelSyncChannelButtons();
+      } else if (!pick && c && reel.editing === c.name && activeIdx(c.name) >= 0
+          && ev.type === 'pointerup' && mode === null
+          && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= TAP_SLOP_PX
+          && Date.now() - downAt <= TAP_MAX_MS) {
+        // A tap on EMPTY chart while drawing clears the selection (user,
+        // 2026-11-01). Draw mode stays open; tap a drawing to pick it again.
+        clearActiveIdx(c.name);
         reel.lastGestureAt = Date.now();
         reelRepaint(host);
         reelSyncChannelButtons();
