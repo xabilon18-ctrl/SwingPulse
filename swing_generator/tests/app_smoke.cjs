@@ -173,8 +173,15 @@ let debugPage;
     await page.mouse.move(grip.x + grip.width - 8, grip.y + grip.height / 2, { steps: 12 });
     await page.mouse.up();
   }
-  await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'attached' });
-  assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '2px', 'Thin yearly guide retains a stronger boundary than ordinary grid lines');
+  // A zoom repaint replaces the SVG. Inspect the connected line and style
+  // atomically: a detached old node reports an empty computed style.
+  const yearStroke = await page.waitForFunction(() => {
+    const line = document.querySelector('#chartFull .reel-tgrid-year');
+    const width = line && getComputedStyle(line).strokeWidth;
+    return line?.isConnected && width ? width : null;
+  });
+  assert.equal(await yearStroke.jsonValue(), '2px', 'Thin yearly guide retains a stronger boundary than ordinary grid lines');
+  await yearStroke.dispose();
   assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
   // The time grid in use sits after the timeframe in the header (2026-10-28)
   // and follows a new choice at once. A session-only 4H feed draws Month as
@@ -367,3 +374,4 @@ let debugPage;
   console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(async e => { console.error(e); if(debugPage&&!debugPage.isClosed()){console.log('SMOKE_FAILURE='+(await debugPage.screenshot({type:'jpeg',quality:55})).toString('base64'));console.log('TOOLBAR_BOXES',await debugPage.locator('#chartFull .reel-toolbar, #chartFull .reel-props-main, #chartFull [data-act=draw-more]').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,width:e.clientWidth}))));} process.exit(1); });
+

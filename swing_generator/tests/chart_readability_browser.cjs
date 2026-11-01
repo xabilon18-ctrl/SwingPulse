@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const url=process.env.DESKTOP_URL||'http://127.0.0.1:8000',live=process.env.DESKTOP_LIVE==='1';
 const crypto=require('node:crypto');
 async function verifyProduction(page) {
- const paths=['index.html','static/js/app.js','static/css/style.css','static/js/modules/chart-readability.js','static/js/modules/drawing-toolbar.js','sw.js'];
+ const paths=['index.html','static/js/app.js','static/css/style.css','static/js/modules/chart-readability.js','static/js/modules/grid-geometry.js','static/js/modules/drawing-toolbar.js','sw.js'];
  const hashes=await page.evaluate(async paths=>{
   const result={};
   for(const p of paths){
@@ -34,7 +34,13 @@ async function menu(page,on=true){
   if(await page.locator('#chartFull .reel-tf-menu').count()!==Number(on))await page.locator('#chartFull [data-act="tf-menu"]').click();
 }
 async function frame(page){return page.locator('#chartFullHost').evaluate(h=>({lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi,t:h._reelCtx.b.t}));}
-async function widthOf(page,selector){return page.locator('#chartFullHost '+selector).first().evaluate(e=>parseFloat(getComputedStyle(e).strokeWidth));}
+async function widthOf(page,selector){
+ const value=await page.waitForFunction(s=>{
+  const e=document.querySelector('#chartFullHost '+s),w=e&&parseFloat(getComputedStyle(e).strokeWidth);
+  return e?.isConnected&&Number.isFinite(w)&&w>0?w:null;
+ },selector,{timeout:15000});
+ const w=await value.jsonValue();await value.dispose();return w;
+}
 async function axis(page){return page.locator('#chartFullHost').evaluate(h=>{
  const texts=[...h.querySelectorAll('.reel-price-tick,.reel-axis-last')].map(e=>{const r=e.getBoundingClientRect();return {text:e.textContent,top:r.top,bottom:r.bottom};}).sort((a,b)=>a.top-b.top);
  const hrect=h.getBoundingClientRect();return {texts,height:hrect.height,plot:h._reelCtx.plotPx,lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi};
@@ -80,7 +86,7 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     await page.locator(`[data-act="ov-pjw"][data-v="${n}"]`).click();
     projection.push(await widthOf(page,'.reel-ov-proj polyline'));
    }
-   assert.ok(projection[0]<projection[1]&&projection[1]<projection[2]);
+   assert.ok(projection[0]<projection[1]&&projection[1]<projection[2],'Distinct projection widths: '+JSON.stringify(projection));
    await page.locator('[data-act="ov-pjw"][data-v="0.6"]').click();
    await page.locator('[data-act="ov-maw"][data-v="0.6"]').click();
    const grid=[];for(const n of [1,2,3]){
@@ -137,3 +143,4 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
   console.log('PASS universal weights, native/overlay/projection, all 10 tools, hit targets, saved settings/drawings, price framing, expanded/card views and adaptive axis');
  }catch(e){if(currentPage&&!currentPage.isClosed()){await currentPage.screenshot({path:out+'/failure.png'});console.log('READABILITY_FAILURE='+(await currentPage.screenshot({type:'jpeg',quality:55})).toString('base64'));}throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});
+

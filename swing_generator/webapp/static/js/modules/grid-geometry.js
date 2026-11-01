@@ -59,7 +59,12 @@
     const year = new Date(last).getUTCFullYear();
     const division = getDivision(tf), parts = division.parts;
     const step = yearBars / parts;
-    const firstYear = new Date(first).getUTCFullYear() - 1;
+    // Include empty viewport slots on both sides, without extending prices.
+    const view = Number.isFinite(b._viewBars) ? b._viewBars : 0;
+    const firstYear = Math.max(1, Math.min(new Date(first).getUTCFullYear() - 1,
+      view ? year + Math.floor((from - anchor) / yearBars) - 1 : year));
+    const lastYear = Math.min(9998, Math.max(year + 4,
+      view ? year + Math.ceil((from + view - anchor) / yearBars) + 1 : year));
     const out = [];
     // Divisions longer than a year: [span in years, a year a line falls on].
     // Terms count from 2025; ten years fall on the decades and twenty on
@@ -70,14 +75,14 @@
       // One equal division per span, on the same equal-year geometry;
       // shading alternates part by part.
       const [span, base] = multi;
-      for (let y = firstYear - Math.max(3, span - 1); y <= year + Math.max(8, 2 * span); y++) {
+      for (let y = firstYear - Math.max(3, span - 1); y <= Math.max(lastYear, year + Math.max(8, 2 * span)); y++) {
         if ((((y - base) % span) + span) % span) continue;
         const fi = anchor + (y - year) * yearBars - from;
         out.push({ fi, label: partLabel(y, 0, division.code), future: fi > n - 1 - from,
           par: (((y - base) / span) % 2 + 2) % 2, year: y, part: 0, division: division.code });
       }
     }
-    for (let y = firstYear; !termly && y <= year + 4; y++) {
+    for (let y = firstYear; !termly && y <= lastYear; y++) {
       for (let k = 0; k < parts; k++) {
         const fi = anchor + ((y - year) * parts + k) * step - from;
         out.push({ fi, label: partLabel(y, k, division.code),
@@ -97,21 +102,21 @@
       line.label = label;
     };
     if (tf === '1H') {
-      for (let y = firstYear; y <= year + 4; y++) {
+      for (let y = firstYear; y <= lastYear; y++) {
         for (let k = 0; k < 4; k++) {
           permanent(anchor + (y - year + k / 4) * yearBars - from,
             `Q${k + 1}${k === 0 ? ' ' + y : ''}`, 'quarter');
         }
       }
     } else if (tf === '4H') {
-      for (let y = firstYear; y <= year + 4; y++) {
+      for (let y = firstYear; y <= lastYear; y++) {
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
       }
     } else if (tf === 'D') {
       // Daily's bold term lines over its year grid. Weekly and Monthly have
       // none: their DIVISION is the term (chartPreferences default 'T'), so
       // every line there is the same light line.
-      for (let y = firstYear; y <= year + 4; y++) {
+      for (let y = firstYear; y <= lastYear; y++) {
         if (!isTermYear(y)) continue;
         permanent(anchor + (y - year) * yearBars - from, termLabel(y), 'admin');
       }
@@ -124,3 +129,4 @@
   (root.SwingPulseModules ||= {}).gridGeometry = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
+
