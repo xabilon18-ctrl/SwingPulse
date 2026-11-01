@@ -84,9 +84,16 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const onCard=await read(card.locator('.reel-chart'));
     near(onCard.lo,saved.lo,tf+' card shows the saved price floor');
     near(onCard.hi,saved.hi,tf+' card shows the saved price top');
-    // Tapping Save again keeps the view (it used to toggle it off).
-    await card.locator('[data-act="chart-view-save"]').click();
-    assert.equal(await card.locator('[data-act="chart-view-save"]').getAttribute('aria-pressed'),'true',tf+' a second tap keeps the view');
+    // Save is a press / unpress switch (user, 2026-11-01): a second tap
+    // forgets the view, a third saves it again. No long press.
+    const saveBtn=card.locator('[data-act="chart-view-save"]');
+    await saveBtn.click();
+    assert.equal(await saveBtn.getAttribute('aria-pressed'),'false',tf+' a second tap unsaves');
+    assert.equal(JSON.parse(await page.evaluate(()=>localStorage.getItem('sp-views'))||'{}')[name+'|'+tf],undefined,tf+' …and forgets the stored view');
+    assert.equal((await saveBtn.innerText()).trim(),'Save');
+    await saveBtn.click();
+    assert.equal(await saveBtn.getAttribute('aria-pressed'),'true',tf+' a third tap saves again');
+    assert.equal((await saveBtn.innerText()).trim(),'Saved');
   }
   console.log('PASS: 1H/4H/Daily default full-screen framing and saved-frame restoration');
 };

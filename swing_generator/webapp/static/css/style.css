@@ -7816,6 +7816,31 @@ body {
 .reel-capsule > .reel-act:last-child  { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .reel-capsule > .reel-act.on { position: relative; z-index: 1; }
 .reel-view-btn.on svg path { fill: currentColor; }
+/* Two EQUAL halves (user, 2026-11-01: "a pill that's split into two equal
+   parts"): a grid's 1fr 1fr columns both take the wider label's width. Each
+   half is a press / unpress switch in a LIGHT colour, so a pressed state reads
+   at a glance without pulling the eye off the chart: Saved light green, Draw
+   (Draw mode open) light orange. Placed after the generic .on rules and
+   doubled in specificity so the full-screen footer cannot override them. */
+.reel-capsule { display: inline-grid; grid-template-columns: 1fr 1fr; }
+.reel-capsule > .reel-act { justify-content: center; }
+/* Card footer (dark): a faint tint with soft-coloured text. */
+.reel-capsule > .reel-act.reel-view-btn.on {
+  background: rgba(74, 222, 128, .13); border-color: rgba(74, 222, 128, .38); color: #9fe3b7;
+}
+.reel-capsule > .reel-act.reel-draw-btn.on {
+  background: rgba(251, 146, 60, .13); border-color: rgba(251, 146, 60, .4); color: #f6c08f;
+}
+/* Full-screen footer (white): pale fills with darker text. */
+#chartFull .reel-capsule > .reel-act.reel-view-btn.on {
+  background: #e9f8ef; border-color: #a9dcbc; color: #23744a;
+}
+#chartFull .reel-capsule > .reel-act.reel-draw-btn.on {
+  background: #fff3e6; border-color: #f3c99d; color: #a65a1f;
+}
+.reel-vb-lbl { display: inline-grid; }
+.reel-vb-lbl > span { grid-area: 1 / 1; }
+.reel-vb-lbl > span + span { visibility: hidden; }
 /* Instant feedback the moment a finger lands (user: "it responds slow to my
    pressing") — the capsule halves darken and dip before the tap is handled. */
 .reel-capsule > .reel-act {

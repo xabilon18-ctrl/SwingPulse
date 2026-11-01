@@ -9413,10 +9413,14 @@
     return true;
   }
   // The footer CAPSULE (user, 2026-09-25: "like a capsule half save half edit
-  // and done"): one pill, Save on the left, the Drawing/Edit/Done button on
-  // the right. Save reads "Saved" (accent) while this chart has a saved view.
-  const viewBtnInner = on => VIEW_ICON + `<span>${on ? 'Saved' : 'Save'}</span>`;
-  const viewBtnTitle = on => on ? 'View saved — tap to save again, hold to forget it' : 'Save this view';
+  // and done"): one pill, Save on the left, Draw on the right, two EQUAL
+  // halves (2026-11-01). Both are press / unpress switches: Save reads
+  // "Saved" on light green while this chart has a saved view, Draw sits on
+  // light orange while Draw mode is open.
+  // The hidden second label reserves "Saved"'s width, so the pill does not
+  // grow and shift the footer when Save turns into Saved.
+  const viewBtnInner = on => VIEW_ICON + `<span class="reel-vb-lbl"><span>${on ? 'Saved' : 'Save'}</span><span aria-hidden="true">Saved</span></span>`;
+  const viewBtnTitle = on => on ? 'View saved — tap to forget it' : 'Save this view';
   function reelViewBtnSync(name) {
     const on = !!savedViews[viewKey(name)];
     // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
@@ -9432,12 +9436,14 @@
     const on = !!savedViews[viewKey(name)];
     return `<span class="reel-capsule">`
       + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
-      + `<button class="reel-act reel-act-ch" data-act="channel" data-name="${name}">${channelBtnHtml(name)}</button>`
+      + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${name}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
-  // A tap ALWAYS saves. It used to toggle, so tapping Save again on a chart
-  // that already looked right — to make sure — silently forgot the view.
+  // Press saves, press again forgets (user, 2026-11-01: "press, unpress,
+  // press and unpress ... I don't want the long press"). From 2026-09 a tap
+  // always saved and a 700ms HOLD forgot; that hold is gone.
   function reelViewToggle(name, host) {
+    if (savedViews[viewKey(name)]) { reelViewForget(name); return; }
     const cur = reelViewCapture(host);
     if (!cur) return;
     const k = viewKey(name);
@@ -9459,25 +9465,6 @@
     syncPush();
     reelViewBtnSync(name);
   }
-  // Hold Save to forget. The click that ends the hold is swallowed.
-  const VIEW_FORGET_HOLD_MS = 700;
-  let viewHold = null, viewHoldFired = false;
-  document.addEventListener('pointerdown', e => {
-    const b = e.target.closest && e.target.closest('[data-act="chart-view-save"]');
-    if (!b) return;
-    viewHoldFired = false;
-    clearTimeout(viewHold);
-    viewHold = setTimeout(() => { viewHold = null; viewHoldFired = true; reelViewForget(b.dataset.name); }, VIEW_FORGET_HOLD_MS);
-  }, true);
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
-    document.addEventListener(type, () => { clearTimeout(viewHold); viewHold = null; }, true);
-  }
-  document.addEventListener('click', e => {
-    if (!viewHoldFired || !(e.target.closest && e.target.closest('[data-act="chart-view-save"]'))) return;
-    viewHoldFired = false;
-    e.stopPropagation(); e.preventDefault();
-  }, true);
-
   // Unset = the timeframe's opening position: 0 (newest bar at the right
   // edge), except where an opening view applies (1H, 4H, Daily, Weekly, Monthly),
   // which opens with the rest of its frame as blank space (reelStockView).
@@ -10158,16 +10145,10 @@
     return ICON_PENCIL + `<span>${channelBtnLabel(name)}</span>`;
   }
 
-  function channelBtnLabel(name) {
-    const ch = activeChannel(name);
-    if (reel.editing === name)  return 'Done';
-    // Short on purpose: 'Edit channel' wrapped the footer onto two lines beside
-    // Details, which moved the chart every time one appeared.
-    // 'Drawing', not 'Channel' (2026-09-12): the button opens FOUR tools —
-    // channel, trend line, level and the 10 price lines — so naming it after one
-    // of them described a quarter of what it does.
-    return (ch || channelsFor(name).length) ? 'Edit' : 'Drawing';
-  }
+  // Always "Draw" (user, 2026-11-01: "change the word edit to draw"). It used
+  // to read Drawing / Edit / Done; now it is a press / unpress switch whose
+  // pressed state is its colour (light orange), like Save's light green.
+  function channelBtnLabel() { return 'Draw'; }
 
   function reelSyncChannelButtons() {
     chartFullSyncButtons();
@@ -10185,6 +10166,7 @@
         const html = channelBtnHtml(name);
         if (btn._html !== html) { btn.innerHTML = html; btn._html = html; }
         btn.classList.toggle('on', reel.editing === name);
+        btn.setAttribute('aria-pressed', String(reel.editing === name));
       }
       reelSyncProps(card, name);
       // Edit mode is modal, so the card shows only the controls that belong to
@@ -12011,7 +11993,7 @@
     const q = a => el.querySelector(`[data-act="${a}"]`);
     const b = q('channel');
     const add = el.querySelector('[data-tools]');
-    if (b) { b.innerHTML = channelBtnHtml(name); b.classList.toggle('on', edit); }
+    if (b) { b.innerHTML = channelBtnHtml(name); b.classList.toggle('on', edit); b.setAttribute('aria-pressed', String(edit)); }
     if (add) add.hidden = !edit;
     reelSyncProps(el, name);
     el.classList.toggle('ch-editing', edit);

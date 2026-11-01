@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 FOOTER CAPSULE: SAVE | DRAW, TWO EQUAL PRESS/UNPRESS SWITCHES
+(app.js v561, style.css v397). User: "change the word edit to draw so that
+they can equally be a pill that's split into two equal parts, and then make
+both buttons pressable ... I don't want the long press to unpress. I just
+want it press, unpress ... for press, saved, give it green. And maybe give
+it an orange, but very light colors".
+- The drawing half always reads **Draw** (was Drawing / Edit / Done); its
+  pressed state is Draw mode open, shown by colour and `aria-pressed`.
+- **Save toggles**: a tap saves, a tap on a saved view forgets it. The 700ms
+  hold-to-forget (`VIEW_FORGET_HOLD_MS`) is removed. This reverses the
+  2026-09 "a tap always saves" rule by the user's call; tapping Saved again
+  "to make sure" now forgets the view, by design.
+- Equal halves: `.reel-capsule` is a `1fr 1fr` grid; a hidden second label
+  reserves "Saved"'s width so the pill never changes size.
+- Colours: light green (Saved) and light orange (Draw on). The card footer is
+  dark, so there they are faint tints with soft text; the full-screen footer
+  is white, so there they are pale fills with darker text.
+- Test: chart_framing_checks.cjs (second tap unsaves and forgets the stored
+  view, third saves again).
+
 2026-11-01 DRAWINGS: VISIBLE SELECTION, TAP-AWAY DESELECT, CHANNEL ENDS
 ALWAYS GRABBABLE (app.js v561, style.css v397). User: "the channel to move
 smoothly. Sometimes both ends, when I try to adjust the direction, it doesn't
