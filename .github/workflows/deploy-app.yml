@@ -161,6 +161,7 @@ jobs:
           node --check webapp/static/js/app.js
           node tests/time_grid_test.cjs
           node tests/stock_view_test.cjs
+          node tests/time_zoom_test.cjs
           node tests/price_refresh_test.cjs
           node tests/chart_refresh_test.cjs
           node tests/chart_framing_test.cjs
@@ -178,6 +179,7 @@ jobs:
           python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/swingpulse-preview.log 2>&1 &
           node swing_generator/tests/app_smoke.cjs
           node swing_generator/tests/saved_work_browser.cjs
+          node swing_generator/tests/time_zoom_browser.cjs
       # Not on PRs: a PR run needs no Cloudflare secrets and deploys nothing.
       - name: Verify Pages deployment capability on an isolated preview
         if: github.ref != 'refs/heads/main' && github.event_name != 'pull_request'
@@ -243,7 +245,9 @@ jobs:
           DESKTOP_LIVE: '1'
           DESKTOP_URL: https://swingpulse200.pages.dev
           READABILITY_PRODUCTION: '1'
-        run: node swing_generator/tests/chart_readability_browser.cjs
+        run: |
+          node swing_generator/tests/chart_readability_browser.cjs
+          node swing_generator/tests/time_zoom_browser.cjs
       - name: Retain mobile verification screenshot
         if: always()
         uses: actions/upload-artifact@v4
@@ -252,4 +256,6 @@ jobs:
           path: |
             hourly-chart-mobile.png
             readability-review-results/
+            time-zoom-results/
           retention-days: 3
+

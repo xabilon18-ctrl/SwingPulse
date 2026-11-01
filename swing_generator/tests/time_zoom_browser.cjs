@@ -17,14 +17,15 @@ async function touchPinch(p,h,session,compress=true){const r=await h.boundingBox
  for(let i=1;i<=6;i++)await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(spread[0]+(spread[1]-spread[0])*i/6)});
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await settle(p);}
 async function enter(p){await p.goto(url,{waitUntil:'domcontentloaded'});await p.locator('.up-skip').click({timeout:60000});await p.locator('.nav-tab[data-tab="charts"]').click();
- await p.locator('#reelSearch').fill(name);await p.locator('#tfBtnD').click();}
+ await p.locator('#reelSearch').fill(name);await p.locator('#tfBtnD').click();
+ if(p.viewportSize().width>=1024)await p.locator('#desktopChartList [data-desktop-name="'+name+'"]').click();}
 (async()=>{const browser=await chromium.launch();try{
  for(const mobile of [false,true]){
  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1366,height:768},isMobile:mobile,hasTouch:mobile});
  const p=await context.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{if(!['GET','HEAD'].includes(r.method())&&new URL(r.url()).origin!==new URL(url).origin)writes.push(r.url());});
  if(!live)await p.route('**/ma500/**',async r=>{const rel=decodeURIComponent(new URL(r.request().url()).pathname.split('/ma500/')[1]);const f=path.join(__dirname,'../webapp/publish/browser-data',rel);let body=fs.existsSync(f)?fs.readFileSync(f):Buffer.from('null');if(body[0]===31&&body[1]===139)body=zlib.gunzipSync(body);await r.fulfill({contentType:'application/json',body});});
- await enter(p);let h=p.locator(mobile?'#chartReel .reel-chart':'#chartFullHost').first();
- await p.waitForFunction(({sel,name})=>document.querySelector(sel)?._reelCtx?.name===name,{sel:mobile?'#chartReel .reel-chart':'#chartFullHost',name},{timeout:60000});
+ await enter(p);let h=p.locator(mobile?'#chartReel .reel-card[data-name="'+name+'"] .reel-chart':'#chartFullHost').first();
+ await p.waitForFunction(({sel,name})=>document.querySelector(sel)?._reelCtx?.name===name,{sel:mobile?'#chartReel .reel-card[data-name="'+name+'"] .reel-chart':'#chartFullHost',name},{timeout:60000});
  await h.locator('svg').waitFor({timeout:60000});await settle(p);
  const opened=await read(h),session=await context.newCDPSession(p);
  if(mobile){
@@ -52,7 +53,7 @@ async function enter(p){await p.goto(url,{waitUntil:'domcontentloaded'});await p
  const safariBefore=await read(h);await h.evaluate(el=>{for(const [type,scale] of [['gesturestart',1],['gesturechange',.8],['gestureend',.8]]){const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'scale',{value:scale});el.dispatchEvent(e);}});await settle(p);assert.ok((await read(h)).view>safariBefore.view);
  }
  // Save an arranged view, then exercise Expand/Restore and a full reload.
- const panel=p.locator(mobile?'#chartReel .reel-card':'#chartFull').first();await panel.locator('[data-act="chart-view-save"]').click();await settle(p);
+ const panel=p.locator(mobile?'#chartReel .reel-card[data-name="'+name+'"]':'#chartFull').first();await panel.locator('[data-act="chart-view-save"]').click();await settle(p);
  const stored=await p.evaluate(()=>localStorage.getItem('sp-views')),saved=JSON.parse(stored)[name+'|D'];assert.ok(saved.slots>opened.n);assert.ok(saved.lead>0);
  const arranged=await read(h);
  await panel.locator(mobile?'[data-act="chart-expand"]':'[data-act="desktop-expand"]').click();h=p.locator('#chartFullHost');await h.locator('svg').waitFor();await settle(p);
@@ -61,7 +62,7 @@ async function enter(p){await p.goto(url,{waitUntil:'domcontentloaded'});await p
  assert.ok((await read(h)).view<full.view,'expanded time zoom');
  await p.locator('#chartFull '+(mobile?'[data-act="chart-full-close"]':'[data-act="desktop-expand"]')).click();await settle(p);
  assert.equal(await p.evaluate(()=>localStorage.getItem('sp-views')),stored,'gestures do not overwrite explicit save');
- await enter(p);h=p.locator(mobile?'#chartReel .reel-chart':'#chartFullHost').first();await h.locator('svg').waitFor({timeout:60000});await settle(p);
+ await enter(p);h=p.locator(mobile?'#chartReel .reel-card[data-name="'+name+'"] .reel-chart':'#chartFullHost').first();await h.locator('svg').waitFor({timeout:60000});await settle(p);
  const restored=await read(h);near(restored.view,arranged.view,'reload restores slots');near(restored.lead,arranged.lead,'reload restores leading blank slots');near(restored.lo,saved.lo,'saved price floor');near(restored.hi,saved.hi,'saved price ceiling');
  // Panning an expanded time view can reposition the actual history.
  const r=await h.boundingBox();await p.mouse.move(r.x+r.width*.45,r.y+r.height*.45);await p.mouse.down();await p.mouse.move(r.x+r.width*.6,r.y+r.height*.45,{steps:8});await p.mouse.up();await settle(p);
