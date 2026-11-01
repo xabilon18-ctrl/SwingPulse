@@ -132,19 +132,24 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await toolbar.locator('[data-act="draw-div"]').click();
     assert.ok(!('div' in (await channelOn())),'Off stores no field');
     assert.equal(await divLines(),0,'…and the divisions are gone');
-    // SELECTION (user, 2026-11-01): the selected drawing shows a halo, locked
-    // or not, is painted over the others, a tap on empty chart clears it and a
-    // tap on one of its lines picks it again. The ladder is still on the chart.
+    // SELECTION (user, 2026-11-01): the selected drawing's DOTS turn solid
+    // blue (hollow and ungrabbable when locked); the blue glow is a ladder-only
+    // option, off by default. The selected drawing is painted over the others,
+    // a tap on empty chart clears it and a tap on one of its lines picks it
+    // again. The ladder is still on the chart.
     if (!(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')))) await toolbar.locator('.reel-draw-fold').click();
     const sel=()=>page.locator('#chartFull .reel-draw.is-sel');
     const halo=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>{const c=getComputedStyle(el);
       return c.stroke!=='none'&&c.stroke!=='transparent'&&c.stroke!=='rgba(0, 0, 0, 0)'&&+c.strokeOpacity>0;});
     assert.ok(await page.locator('#chartFull .reel-draw').count()>=2,'Ladder and channel are both on the chart');
-    assert.ok(await halo(),'The selected drawing shows a halo');
+    const dotFill=()=>sel().locator('.reel-ch-h').first().evaluate(el=>getComputedStyle(el).fill);
+    assert.equal(await dotFill(),'rgb(37, 99, 235)','The selected drawing\'s dots are solid blue');
+    assert.ok(!(await halo()),'…and a channel has no glow');
     assert.ok(await page.locator('#chartFull .reel-draw').last().evaluate(el=>el.classList.contains('is-sel')),'…and is painted over the other drawings');
     await toolbar.locator('.reel-draw-lock').click();
-    assert.equal(await sel().locator('[data-h]').count(),0,'Locked: no handles');
-    assert.ok(await halo(),'…but the halo still shows it is selected');
+    assert.equal(await sel().locator('[data-h]').count(),0,'Locked: nothing to grab');
+    assert.ok(await sel().locator('.reel-ch-h.is-locked').count()>0,'…but its dots still show it is selected');
+    assert.equal(await dotFill(),'rgb(255, 255, 255)','…hollow, as a locked drawing');
     await toolbar.locator('.reel-draw-lock').click();
     const chDi=await sel().locator('.reel-ch-hit').first().getAttribute('data-di');
     // The chart repaints on every gesture, replacing its SVG: re-measure until
@@ -177,6 +182,69 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await page.mouse.click(ladderPt.x,ladderPt.y);
     assert.notEqual(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'A tap on the ladder selects the ladder');
     assert.ok(await page.locator('#chartFull .reel-draw').last().evaluate(el=>el.classList.contains('is-sel')),'The selected ladder is painted over the channel');
+    // Ladder resize dot on the 40% line (user, 2026-11-01), not 30%.
+    {
+      const lad=await ladderOn(ownTf);
+      const cy=+(await sel().locator('.reel-ch-h[data-h="l4"]').getAttribute('cy'));
+      const want=await page.evaluate(([p1,p4])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+4*(p4-p1)/3),[lad.p1,lad.p4]);
+      assert.ok(Math.abs(cy-want)<0.6,`Ladder resize dot sits on the 40% line (${cy} vs ${want})`);
+      const g=await boxOf(sel().locator('.reel-ch-grab[data-h="l4"]'));
+      await page.mouse.move(g.x+g.width/2,g.y+g.height/2); await page.mouse.down();
+      await page.mouse.move(g.x+g.width/2,g.y+g.height/2-30,{steps:6}); await page.mouse.up();
+      const moved=await ladderOn(ownTf);
+      const cy2=+(await sel().locator('.reel-ch-h[data-h="l4"]').getAttribute('cy'));
+      const want2=await page.evaluate(([p1,p4])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+4*(p4-p1)/3),[moved.p1,moved.p4]);
+      assert.ok(moved.p4!==lad.p4&&moved.p1===lad.p1,'Dragging the 40% dot resizes the ladder; 0% stays');
+      assert.ok(Math.abs(cy2-want2)<0.6,'…and the dot stays on the 40% line');
+      // Glow: off by default, a switch for the ladder only.
+      assert.ok(!(await halo()),'A ladder has no glow by default');
+      await toolbar.locator('.reel-draw-fold').click();
+      const glowBtn=toolbar.locator('[data-act="draw-glow"]');
+      assert.equal(await glowBtn.getAttribute('aria-pressed'),'false');
+      await glowBtn.click();
+      assert.ok(await halo(),'Glow on shows the blue glow');
+      assert.equal((await ladderOn(ownTf)).glow,true,'…and is saved on the ladder');
+      // Glow colour (user, 2026-11-01).
+      const haloStroke=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>getComputedStyle(el).stroke);
+      assert.equal(await haloStroke(),'rgb(37, 99, 235)','Glow starts blue');
+      await toolbar.locator('[data-act="draw-glow-color"][data-color="#22c55e"]').click();
+      assert.equal(await haloStroke(),'rgb(34, 197, 94)','Picking green turns the glow green');
+      assert.equal((await ladderOn(ownTf)).glowColor,'#22c55e','…and saves the colour');
+      await toolbar.locator('[data-act="draw-glow"]').click();
+      assert.ok(!(await halo()),'Glow off removes it');
+      assert.ok(!('glow' in (await ladderOn(ownTf))),'…and stores nothing');
+      assert.equal(await toolbar.locator('[data-act="draw-glow-color"]').count(),0,'Glow colours hide while the glow is off');
+      // "0" frames the price scale from zero (user, 2026-11-01).
+      const lo=()=>page.evaluate(()=>document.querySelector('#chartFullHost')._reelCtx.sc.lo);
+      const zeroBtn=()=>toolbar.locator('[data-act="chart-zero"]');
+      const loBefore=await lo();
+      await zeroBtn().click();
+      assert.ok(await lo()<=0,'"0" brings zero onto the price scale');
+      assert.equal(await zeroBtn().getAttribute('aria-pressed'),'true');
+      // Zero holds the ladder: dragged far down, its bottom line stops ON 0.
+      const mv=await boxOf(sel().locator('.reel-ch-grab[data-h="m"]'));
+      const plot=await boxOf(page.locator('#chartFullHost'));
+      await page.mouse.move(mv.x+mv.width/2,mv.y+mv.height/2); await page.mouse.down();
+      await page.mouse.move(mv.x+mv.width/2,plot.y+plot.height-5,{steps:12}); await page.mouse.up();
+      const held=await ladderOn(ownTf);
+      assert.equal(held.p1,0,`Moved past zero, the 0% line stops on 0 (p1 ${held.p1})`);
+      // ...a block added below lifts the ladder so the NEW block's bottom line
+      // sits on 0, and a later drag down stops it there too.
+      await toolbar.locator('[data-act="draw-stack"][data-dir="down"][data-d="1"]').click();
+      const st=await ladderOn(ownTf), stStep=(st.p4-st.p1)/3;
+      assert.ok(st.down===1&&Math.abs(st.p1-10*stStep)<1e-9,`A block added below lifts the ladder onto 0 (${st.p1-10*stStep})`);
+      await toolbar.locator('.reel-draw-fold').click();          // the open bar covers the lower chart
+      const mv2=await boxOf(sel().locator('.reel-ch-grab[data-h="m"]'));
+      await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2); await page.mouse.down();
+      await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2+60,{steps:8}); await page.mouse.up();
+      const st2=await ladderOn(ownTf), step2=(st2.p4-st2.p1)/3;
+      assert.ok(Math.abs(st2.p1-10*step2)<1e-9,`Dragged down, the bottom block still stops on 0 (${st2.p1-10*step2})`);
+      await toolbar.locator('.reel-draw-fold').click();
+      await zeroBtn().click();
+      assert.equal(await zeroBtn().getAttribute('aria-pressed'),'false','"0" again goes back to the normal scale');
+      assert.ok(await lo()>0||loBefore<=0,'…and zero leaves the scale');
+      await toolbar.locator('.reel-draw-fold').click();
+    }
     const back=await spot('line');
     await page.mouse.click(back.x,back.y);
     assert.equal(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'…and the channel can be picked again');
