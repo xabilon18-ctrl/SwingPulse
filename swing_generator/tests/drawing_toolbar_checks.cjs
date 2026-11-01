@@ -211,10 +211,12 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       assert.ok(g&&g.x+g.width/2>=svgBox.x&&g.x+g.width/2<=svgBox.x+svgBox.width,`…and end handle ${h} is on screen`);
     }
     const ga=await boxOf(sel().locator('.reel-ch-grab[data-h="a"]'));
+    const onTop=await page.evaluate(([x,y])=>{const e=document.elementFromPoint(x,y);return e?(e.getAttribute('class')||'')+'|'+(e.dataset&&e.dataset.h||''):'none';},[ga.x+ga.width/2,ga.y+ga.height/2]);
+    assert.equal(onTop,'reel-ch-grab|a',`End handle a can be touched where it is drawn (${JSON.stringify(ga)})`);
     await page.mouse.move(ga.x+ga.width/2,ga.y+ga.height/2); await page.mouse.down();
     await page.mouse.move(ga.x+ga.width/2,ga.y+ga.height/2-40,{steps:8}); await page.mouse.up();
     const turned=await channelOn();
-    assert.ok(turned.p1!==anchors.p1&&turned.t2===anchors.t2&&turned.p2===anchors.p2,'The edge handle re-anchors its end; the other end stays put');
+    assert.ok(turned.p1!==anchors.p1&&turned.t2===anchors.t2&&turned.p2===anchors.p2,'The edge handle re-anchors its end; the other end stays put: '+JSON.stringify({anchors,turned}));
     await toolbar.locator('[data-act="draw-done"]').click();
     assert.equal(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')),false);
     assert.equal(await toolbar.isVisible(),false);

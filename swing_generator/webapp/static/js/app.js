@@ -10662,8 +10662,6 @@
       // clamped into the panel instead, so whenever the channel can be seen it
       // can be adjusted.
       const pad = 60;
-      const mx = Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad);
-      const my = yAtX(mx);
       // END handles are always on screen (user, 2026-11-01: "sometimes both
       // ends, when I try to adjust the direction, it doesn't move"). An end
       // whose date had scrolled off the panel had NO handle, so the direction
@@ -10672,14 +10670,31 @@
       // that end there — the line already passes through that point, so
       // nothing jumps — and the channel pivots on the other end. If both ends
       // land on the same edge they are spread to a quarter and three quarters.
+      // They go where the midline is on screen VERTICALLY too, clear of the
+      // drawing bar along the bottom: an edge handle above or below the plot
+      // is as unreachable as one off the side.
       const inPanel = x => x >= L.x0 - 2 && x <= L.x1 + 2;
-      const edgeX = x => Math.min(Math.max(x, L.x0 + pad), L.x1 - pad);
+      let vL = L.x0 + pad, vR = L.x1 - pad;
+      const ph = L.py1 - L.py0, yLo = L.py0 + ph * 0.08, yHi = L.py1 - ph * 0.22;
+      if (Math.abs(slope) > 1e-9) {
+        const xa = x1 + (yLo - dMid - y1) / slope, xb = x1 + (yHi - dMid - y1) / slope;
+        vL = Math.max(vL, Math.min(xa, xb)); vR = Math.min(vR, Math.max(xa, xb));
+      }
+      if (!(vR >= vL)) { vL = L.x0 + pad; vR = L.x1 - pad; }   // midline not in view at all
+      const edgeX = x => Math.min(Math.max(x, vL), vR);
       let ha = inPanel(x1) ? x1 : edgeX(x1), hb = inPanel(x2) ? x2 : edgeX(x2);
       if (Math.abs(ha - hb) < 160 && !(inPanel(x1) && inPanel(x2))) {
-        const q1 = L.x0 + (L.x1 - L.x0) * 0.25, q3 = L.x0 + (L.x1 - L.x0) * 0.75;
+        const q1 = vL + (vR - vL) * 0.25, q3 = vL + (vR - vL) * 0.75;
         if (!inPanel(x1)) ha = x1 <= x2 ? q1 : q3;
         if (!inPanel(x2)) hb = x1 <= x2 ? q3 : q1;
       }
+      // Width and move handles halfway between the END handles as drawn, so a
+      // stand-in end handle never lands on top of them (their r=42 grab
+      // circles overlapped, and the move handle, drawn last, took the drag).
+      const mx = (inPanel(x1) && inPanel(x2))
+        ? Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad)
+        : (ha + hb) / 2;
+      const my = yAtX(mx);
       handles = hx(ha, yAtX(ha) + dMid, 'a') + hx(hb, yAtX(hb) + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
       // Move handle EXACTLY HALFWAY between the two end handles, on the
@@ -10690,7 +10705,11 @@
       // aside. Clamped into the panel like the edge handles (mx).
       if (handles) {
         const tight = Math.min(Math.abs(dUp - dMid), Math.abs(dDn - dMid)) < 40;
-        const side = !tight ? 0 : (mx + 130 <= L.x1 - 60) ? 130 : -130;
+        // Stepping aside must not land on an END handle either (grab radius
+        // 42 each, so 90 apart): take the first side that is clear of both.
+        const clear = x => Math.abs(x - ha) >= 90 && Math.abs(x - hb) >= 90 && x <= L.x1 - 60 && x >= L.x0 + 60;
+        const side = !tight ? 0 : [130, -130, 65, -65].find(o => clear(mx + o))
+          ?? ((mx + 130 <= L.x1 - 60) ? 130 : -130);
         const mvx = mx + side;
         handles += reelMoveHandle(L, mvx, yAtX(mvx) + dMid, idx, isActive);
       }
