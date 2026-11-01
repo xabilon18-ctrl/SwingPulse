@@ -97,7 +97,7 @@
       // Ten divisions on / off (user, 2026-10-21). Off is the default.
       + `<button class="reel-tool reel-grid-switch reel-fill-switch reel-div-switch${d.div ? ' on' : ''}" data-act="draw-div" data-name="${name}" role="switch" aria-checked="${!!d.div}" aria-label="Ten divisions" title="10 divisions"><span>÷10</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     // The ladder alone gets a "%" switch: show or hide its 0%–100% labels
-    // (user, 2026-09-15). On = labels showing, the default.
+    // (user, 2026-09-15). Off is the default for a new ladder since 2026-11-01.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
         // Reverse the numbering: 0% at the top, 100% at the bottom (user, 2026-09-25).

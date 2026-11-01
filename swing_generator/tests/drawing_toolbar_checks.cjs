@@ -8,8 +8,8 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await toolbar.locator('[data-kind="ladder"]').click();
     // Ten divisions, not nine (2026-10-21): eleven lines, 0% up to 100%.
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),11,'A new ladder draws eleven lines');
-    assert.deepEqual(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').allTextContents(),
-      ['0%','10%','20%','30%','40%','50%','60%','70%','80%','90%','100%'],'…numbered 0% to 100%');
+    // No % labels when placed (user, 2026-11-01); the % button turns them on.
+    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels by default');
     assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));
     assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')));
     assert.ok(await page.locator('#chartFull [data-h]').count()>0,'Handles remain while collapsed');

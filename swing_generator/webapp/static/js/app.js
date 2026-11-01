@@ -9859,7 +9859,10 @@
     const lo = Math.min(...lows), hi = Math.max(...highs);
     if (!(hi > lo)) return null;
     const step = (hi - lo) / (LADDER_LINES - 1);
-    return { kind: 'ladder', p1: lo, p4: lo + 3 * step };
+    // A new ladder starts WITHOUT its 0%-100% labels (user, 2026-11-01: "as a
+    // standard ... the percentage lines on a default when you place them do
+    // not have the percentage labels"). The % button still shows them.
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true };
   }
 
   function reelDefaultHLine(b) {

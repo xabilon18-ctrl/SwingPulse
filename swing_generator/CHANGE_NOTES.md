@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 PRICE LADDER STARTS WITHOUT % LABELS; 1H BOLD LINES ARE YEARS
+(app.js v560, grid-geometry.js v10, drawing-toolbar.js v7). User: "As a
+standard, let's make sure that the percentage lines on a default when you
+place them do not have the percentage labels. Then on the 1 hour chart ...
+the bolded vertical lines should be 1 year apart."
+- A NEW price ladder is created with `hideLabels: true` (reelDefaultLadder),
+  so its 0%-100% labels are off until the % button turns them on. Ladders
+  already saved keep whatever they had: nothing rewrites stored drawings.
+- 1H's permanent bold lines are now one per calendar year (the 4H branch,
+  `annual`, labelled "2026"), replacing the bold quarter lines added
+  2026-10-08. The selected M/Q/H/Y grid and its shading are unchanged.
+  `.reel-tgrid-quarter` CSS is left in place, now unused.
+- Tests: time_grid_test.cjs (1H yearly, equal, no quarters),
+  drawing_toolbar_checks.cjs (a new ladder shows no % labels).
+
 2026-11-01 CHART FEED CACHE + PROCESS POOL + UPLOAD ONLY CHANGED CHART FILES
 (webapp/chart_cache.py, chart_feed.build_chart_feed, publish.upload_to_r2).
 User: "it looks like will need more data in all time frames. how can we do this
