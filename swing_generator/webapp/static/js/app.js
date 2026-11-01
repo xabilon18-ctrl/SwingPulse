@@ -9897,7 +9897,7 @@
     while (i > 0 && b.c[i] == null) i--;
     if (b.c[i] == null) return null;
     const len = Math.max(4, Math.round(n * 0.1));
-    const t2 = reelDateForBarIndex(b, i + len);
+    const t2 = reelDateForBarIndex(b, i + (b._lead || 0) + len);
     return t2 ? { kind: 'entry', t: String(b.t[i]), p: b.c[i], t2 } : null;
   }
 

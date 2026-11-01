@@ -5,7 +5,7 @@ const c=vm.createContext({timeframe:'D',reel:{tzoom:new Map(),pan:new Map(),lock
  REEL_MIN_WINDOW_BARS:10,REEL_FUTURE_FRAC:.9,REEL_Y_ZOOM_MAX:24,REEL_EXTRAP_BARS:100,
  reelRange:()=>0,reelStockView:()=>null,reelDefaultBars:()=>520,reelRightPadBars:()=>12,bundleLastClose:b=>b.c.at(-1),viewKey:n=>n+'|D'});
 for(const name of ['reelSlice','reelMaxBars','reelViewportSlice','reelWindowBars','reelPanOf','reelSetPan','reelParseTs','reelBarTimes',
- 'reelBarIndexForDate','reelDateForBarIndex','reelViewCapture','reelViewSeedTime','reelZoomLimitHint','reelApplyTZoom','reelApplyPinch']) vm.runInContext(fn(name),c);
+ 'reelBarIndexForDate','reelDateForBarIndex','reelDefaultEntry','reelViewCapture','reelViewSeedTime','reelZoomLimitHint','reelApplyTZoom','reelApplyPinch']) vm.runInContext(fn(name),c);
 const n=1000,ts=Array.from({length:n},(_,i)=>new Date(Date.UTC(2023,0,1)+i*864e5).toISOString().slice(0,10));
 const bundle={t:ts,o:ts.map((_,i)=>100+i),h:ts.map((_,i)=>102+i),l:ts.map((_,i)=>99+i),c:ts.map((_,i)=>101+i),
  p:[50,250,500],mi:[0,100,500,999],m:[[100,200,600,1099],[90,190,590,1089],[80,180,580,1079]]};
@@ -20,6 +20,7 @@ assert.equal(b.c.length,n);assert.equal(b._from,-1000);assert.equal(b._lead,1000
 assert.equal(b.c[0],bundle.c[0]);assert.equal(b.c.at(-1),bundle.c.at(-1));
 assert.equal(c.reelBarIndexForDate(b,ts[500]),1500,'date anchored drawing follows the corresponding real candle');
 assert.equal(c.reelDateForBarIndex(b,1500),ts[500]);
+const entry=c.reelDefaultEntry(b);assert.equal(entry.t,ts[750]);assert.equal(entry.t2,ts[850],'new entry marker remains on real candles after compression');
 const emptyDate=c.reelDateForBarIndex(b,10);
 assert.ok(Math.abs(c.reelBarIndexForDate(b,emptyDate)-10)<.001,'drawing anchors round trip in empty slots');
 for(let i=0;i<12;i++)c.reelApplyTZoom(host,ctx,{bars:c.reelWindowBars(bundle,'GOLD')},900);

@@ -27,7 +27,14 @@ async function enter(p){await p.goto(url,{waitUntil:'domcontentloaded'});await p
  await p.waitForFunction(({sel,name})=>document.querySelector(sel)?._reelCtx?.name===name,{sel:mobile?'#chartReel .reel-chart':'#chartFullHost',name},{timeout:60000});
  await h.locator('svg').waitFor({timeout:60000});await settle(p);
  const opened=await read(h),session=await context.newCDPSession(p);
- if(mobile)await h.scrollIntoViewIfNeeded();
+ if(mobile){
+   let scrolled=false;
+   for(let i=0;i<6&&!scrolled;i++){
+     try{await h.scrollIntoViewIfNeeded({timeout:2000});scrolled=true;}
+     catch(e){if(i===5)throw e;await settle(p);}
+   }
+   await settle(p);
+ }
  // Repeated real time-axis drags pass the old data-length ceiling on both devices.
  for(let i=0;i<12&&(await read(h)).view<opened.n*2;i++)await axis(p,h,.55);
  const compressed=await read(h);assert.ok(compressed.view>opened.n*1.5,`beyond history on ${mobile?'phone':'laptop'}: ${compressed.view}/${opened.n}`);
