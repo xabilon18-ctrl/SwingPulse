@@ -18,7 +18,15 @@ async function touchPinch(p,h,session,compress=true){const r=await h.boundingBox
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await settle(p);}
 async function enter(p){await p.goto(url,{waitUntil:'domcontentloaded'});await p.locator('.up-skip').click({timeout:60000});await p.locator('.nav-tab[data-tab="charts"]').click();
  await p.locator('#reelSearch').fill(name);await p.locator('#tfBtnD').click();
- if(p.viewportSize().width>=1024)await p.locator('#desktopChartList [data-desktop-name="'+name+'"]').click();}
+ if(p.viewportSize().width>=1024)await p.locator('#desktopChartList [data-desktop-name="'+name+'"]').click();
+ else {
+  const card=p.locator('#chartReel .reel-card[data-name="'+name+'"]');
+  for(let i=0;i<6;i++){
+   try{await card.scrollIntoViewIfNeeded({timeout:2000});break;}
+   catch(e){if(i===5)throw e;await settle(p);}
+  }
+ }
+}
 (async()=>{const browser=await chromium.launch();try{
  for(const mobile of [false,true]){
  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1366,height:768},isMobile:mobile,hasTouch:mobile});
