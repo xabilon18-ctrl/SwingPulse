@@ -50,7 +50,16 @@
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
-  const desktopChartMedia = window.matchMedia('(min-width: 1024px)');
+  // iPad always gets the laptop workspace (user, 2026-11-01: "make the iPad
+  // always use the laptop view"), portrait included. iPadOS Safari reports
+  // itself as a Mac, so multi-touch is what tells an iPad apart (Macs report
+  // 0 touch points). The 700px floor keeps Slide Over and narrow Split View
+  // (320-680px) on the phone layout, where the 260px+ list would leave the
+  // chart almost no room; every full-screen iPad is 744px wide or more.
+  // style.css's workspace block uses the same 700px floor.
+  const isIPad = /iPad/.test(navigator.userAgent)
+    || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const desktopChartMedia = window.matchMedia(isIPad ? '(min-width: 700px)' : '(min-width: 1024px)');
   const desktopChart = { active: false, expanded: false, collapsed: false, name: null, tf: null, frame: 0 };
   let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
   let activeStatFilter = '';      // stat card rearrange filter
