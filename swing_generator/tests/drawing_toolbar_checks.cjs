@@ -191,22 +191,33 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       await page.mouse.up();
       assert.notEqual((await channelOn())[k],before,`Dragging end ${h} straight up moves that end`);
     }
-    // Zoomed in until both ends are off the panel, the end handles stay on
-    // screen, on the midline, and dragging one still turns the channel.
+    // Both ends panned off the panel: the end handles stay on screen, on the
+    // midline, and dragging one still turns the channel. The channel is first
+    // made FLAT at the middle of the price window, on the right of the view;
+    // a pan keeps the price window, so the midline is certain to stay in view
+    // whatever the fixture's prices are (CI drew a steep one 2,000px off).
+    const drag=async(from,to)=>{await page.mouse.move(from.x,from.y);await page.mouse.down();await page.mouse.move(to.x,to.y,{steps:10});await page.mouse.up();};
+    const centre=b=>({x:b.x+b.width/2,y:b.y+b.height/2});
+    const geo=await page.evaluate(()=>{const h=document.querySelector('#chartFullHost'),c=h._reelCtx,svg=h.querySelector('svg'),m=svg.getScreenCTM();
+      const yv=c.sc.y((c.sc.lo+c.sc.hi)/2),W=c.L.x1-c.L.x0;
+      const scr=(x,y)=>{const p=svg.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(m);return {x:q.x,y:q.y};};
+      return {a:scr(c.L.x0+W*.68,yv),b:scr(c.L.x0+W*.9,yv)};});
+    await drag(centre(await boxOf(sel().locator('.reel-ch-grab[data-h="a"]'))),geo.a);
+    await drag(centre(await boxOf(sel().locator('.reel-ch-grab[data-h="b"]'))),geo.b);
     const anchors=await channelOn();
-    for (let i=0;i<3;i++) {
-      const tg=await boxOf(page.locator('#chartFullHost [data-tgrip]'));
-      assert.ok(tg,'Time scale grip is on screen');
-      await page.mouse.move(tg.x+tg.width*.8,tg.y+tg.height/2); await page.mouse.down();
-      await page.mouse.move(tg.x+tg.width*.8-300,tg.y+tg.height/2,{steps:10}); await page.mouse.up();
-    }
-    const firstShown=await page.evaluate(()=>document.querySelector('#chartFullHost')._reelCtx.b.t[0]);
-    assert.ok(firstShown>anchors.t2,`Zoomed in past both ends (window starts ${firstShown})`);
+    const start=await page.evaluate(()=>{const svg=document.querySelector('#chartFullHost svg'),r=svg.getBoundingClientRect();
+      for(let y=r.top+r.height*.2;y<r.top+r.height*.7;y+=5){const x=r.left+r.width*.04,e=document.elementFromPoint(x,y);
+        if(e&&svg.contains(e)&&!e.closest('[data-h]'))return {x,y,w:r.width,right:r.right};}return null;});
+    assert.ok(start,'Found a place to start a pan');
+    const panDx=start.w*.55;
+    await drag(start,{x:start.x+panDx,y:start.y});
+    // The chart follows the finger 1:1, so each end is now panDx further right.
+    assert.ok(geo.a.x+panDx>start.right&&geo.b.x+panDx>start.right,'Panned past both ends');
     assert.ok(await page.locator('#chartFull .reel-ch-note').count()===0,'No "handles are outside this range" note');
     const svgBox=await boxOf(page.locator('#chartFullHost'));
     for (const h of ['a','b']) {
       const grab=sel().locator(`.reel-ch-grab[data-h="${h}"]`);
-      assert.equal(await grab.count(),1,`Zoomed past both ends, end handle ${h} is still drawn`);
+      assert.equal(await grab.count(),1,`Panned past both ends, end handle ${h} is still drawn`);
       const g=await boxOf(grab);
       assert.ok(g&&g.x+g.width/2>=svgBox.x&&g.x+g.width/2<=svgBox.x+svgBox.width,`…and end handle ${h} is on screen`);
     }

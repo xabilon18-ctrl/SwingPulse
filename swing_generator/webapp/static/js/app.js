@@ -10680,10 +10680,13 @@
         const xa = x1 + (yLo - dMid - y1) / slope, xb = x1 + (yHi - dMid - y1) / slope;
         vL = Math.max(vL, Math.min(xa, xb)); vR = Math.min(vR, Math.max(xa, xb));
       }
-      if (!(vR >= vL)) { vL = L.x0 + pad; vR = L.x1 - pad; }   // midline not in view at all
-      const edgeX = x => Math.min(Math.max(x, vL), vR);
+      // Midline nowhere in view (price has moved far from the channel): there
+      // is no honest place for a stand-in, so none is drawn and the note below
+      // says to zoom out. A handle 2,000px off the plot only looks broken.
+      const midInView = vR >= vL;
+      const edgeX = x => midInView ? Math.min(Math.max(x, vL), vR) : NaN;
       let ha = inPanel(x1) ? x1 : edgeX(x1), hb = inPanel(x2) ? x2 : edgeX(x2);
-      if (Math.abs(ha - hb) < 160 && !(inPanel(x1) && inPanel(x2))) {
+      if (midInView && Math.abs(ha - hb) < 160 && !(inPanel(x1) && inPanel(x2))) {
         const q1 = vL + (vR - vL) * 0.25, q3 = vL + (vR - vL) * 0.75;
         if (!inPanel(x1)) ha = x1 <= x2 ? q1 : q3;
         if (!inPanel(x2)) hb = x1 <= x2 ? q3 : q1;
@@ -10691,7 +10694,7 @@
       // Width and move handles halfway between the END handles as drawn, so a
       // stand-in end handle never lands on top of them (their r=42 grab
       // circles overlapped, and the move handle, drawn last, took the drag).
-      const mx = (inPanel(x1) && inPanel(x2))
+      const mx = (inPanel(x1) && inPanel(x2)) || !midInView
         ? Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad)
         : (ha + hb) / 2;
       const my = yAtX(mx);
@@ -10717,8 +10720,8 @@
       // the channel still draws in the right place (it is anchored to dates and
       // prices, not to the window), it just cannot be adjusted from here. Say
       // which control brings the handles back rather than leaving it a puzzle.
-      if (!handles) {
-        handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
+      if (!handles || (!midInView && !inPanel(x1) && !inPanel(x2))) {
+        handles += `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">Handles are outside this range — zoom out to adjust</text>`;
       }
     }
 
