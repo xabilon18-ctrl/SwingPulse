@@ -38,8 +38,31 @@ cost is frame_context re-running add_workflow_signals over the WHOLE history
 - tests/chart_cache_test.py covers reuse, invalidation (changed file, file that
   appears later, unfinished bar, new UTC day, new engine) and the manifest.
   NOT yet in the CI test lists — that is a workflow change for review.
-Deeper history per timeframe is the next step, sized against the CI timings
-this produces.
+DEEPER HISTORY, same change: builders return today's bundle UNCHANGED plus a
+`deep` block of older bars (chart_feed.DEEP_BARS_BY_TF); _attach_deep stitches
+it on in front only as the file is written, shifting mi/sg/xm. So the
+after-steps (markers, alerts, setup context, activity, trend channels) see
+exactly the window they always did — measured: deep vs current depth, all 36
+feed files identical apart from the added prefix, alerts/trends/activity/index
+byte for byte. Without the split, 2.5x the Daily bars cost the after-steps
++4s per 40 instruments and would have changed what alerts and the trend
+channels compute.
+- Daily: 1,300 bars (~5y) -> the whole 13-year cache (median +1,967 bars).
+- 1H: 6 -> 12 months (median +974 bars).
+- 4H: unchanged today (it already carries the whole ~2y hourly cache past
+  MA500's warm-up); +2,200 bars of room as that never-trimmed cache grows.
+- 30m: unchanged at 5 months — the 30m SIGNALS run over the whole 5m cache,
+  so keeping more 5m history would slow every open-market run.
+- `am` (full-precision Daily MAs) is no longer written: only cross_marks reads
+  it, before the write; the app never did. That is why the Daily chunks grew
+  only 32% (2,564 -> 3,376 KB on 40 instruments) for 2.5x the bars; 1H +89%.
+- Opening views are calendar frames (Daily: 1 year back + 2 ahead), so every
+  chart opens exactly as before; the extra history is behind it on zoom-out.
+  Checked in the app on ADP: Daily zooms out past 2017 with the ribbon
+  continuous across the join; 1H spans Q1-Q4.
+- server.py (local dev) stitches the same way.
+- A broken worker pool (worker killed, cannot start) falls back to building
+  in-process instead of failing the feed.
 
 2026-10-31 DAILY BARS REPAIRED FROM THE HOURLY FEED (data_fetcher.repair_daily,
 applied inside scale_daily so signals, every chart, the ledger, the backtest and
