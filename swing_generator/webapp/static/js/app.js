@@ -531,6 +531,10 @@
     if (!list.length) return -1;
     const k = name + '|' + timeframe;
     const i = reel.activeCh.get(k);
+    // -1 = deliberately nothing selected: a tap on empty chart clears the
+    // selection (user, 2026-11-01: "when I click away, I'd like for it not to
+    // be selected"). Only an absent entry falls back to the newest drawing.
+    if (i === -1) return -1;
     return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
   }
 
@@ -541,6 +545,7 @@
     channelSeedCommit(name);
     reel.activeCh.set(name + '|' + timeframe, i);
   }
+  function clearActiveIdx(name) { reel.activeCh.set(name + '|' + timeframe, -1); }
 
   function activeChannel(name) {
     const i = activeIdx(name);
@@ -9592,6 +9597,18 @@
         if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
       }
     }
+    // Before the OLDEST bar, the same in reverse (2026-11-01): it clamped to
+    // bar 0, so a channel end dragged left of the data stuck at the first bar.
+    // Same spacing as reelBarIndexForDate projects backwards with.
+    if (fi < -0.5 && n > 1) {
+      const bt = reelBarTimes(b);
+      const k = Math.min(n - 1, REEL_EXTRAP_BARS);
+      const per = (bt[k] - bt[0]) / k;
+      if (per > 0 && isFinite(bt[0])) {
+        const d = new Date(bt[0] + fi * per);
+        if (!isNaN(d)) return d.toISOString().slice(0, 16).replace('T', ' ');
+      }
+    }
     const i = Math.round(Math.min(Math.max(0, fi), n - 1));
     return String(b.t[i]);          // full label — hour-precise when drawn on 1H/4H
   }
@@ -10149,7 +10166,7 @@
     // 'Drawing', not 'Channel' (2026-09-12): the button opens FOUR tools —
     // channel, trend line, level and the 10 price lines — so naming it after one
     // of them described a quarter of what it does.
-    return ch ? 'Edit' : 'Drawing';
+    return (ch || channelsFor(name).length) ? 'Edit' : 'Drawing';
   }
 
   function reelSyncChannelButtons() {
@@ -10205,16 +10222,25 @@
     // ONLY the selected drawing is editable (user, 2026-09-15): it alone grows
     // handles. The rest draw as plain lines that a tap selects, so dragging
     // near one drawing can never move another that happens to sit close by.
-    return list.map((d, i) => {
+    // The SELECTED drawing is painted last (user, 2026-11-01: channel ends
+    // "sometimes ... doesn't move"). In list order a drawing added later — a
+    // ladder's eleven fat tap lines, say — sat on top of the selected one's
+    // handles and took the touch, so the drag became a pan. Every element
+    // carries its own index (data-di / data-ci), so the order is free.
+    let selSvg = '';
+    const rest = list.map((d, i) => {
       // A linked copy shows only on the timeframes chosen for it (drawShownOn;
       // old links stay off Daily). It is kept but not drawn elsewhere, skipped
       // in place so every other drawing keeps its index for taps and edits.
       if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
-      return `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
+      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
+      if (sel) { selSvg = g; return ''; }
+      return g;
     }).join('');
+    return rest + selSvg;
   }
 
   // One entry point for every tool. Each kind renders its own geometry but they
@@ -10656,7 +10682,23 @@
       const pad = 60;
       const mx = Math.min(Math.max((x1 + x2) / 2, L.x0 + pad), L.x1 - pad);
       const my = yAtX(mx);
-      handles = hx(x1, y1 + dMid, 'a') + hx(x2, y2 + dMid, 'b')
+      // END handles are always on screen (user, 2026-11-01: "sometimes both
+      // ends, when I try to adjust the direction, it doesn't move"). An end
+      // whose date had scrolled off the panel had NO handle, so the direction
+      // could not be changed without panning to find it. Such an end now gets
+      // its handle at the panel edge, ON the midline; dragging it re-anchors
+      // that end there — the line already passes through that point, so
+      // nothing jumps — and the channel pivots on the other end. If both ends
+      // land on the same edge they are spread to a quarter and three quarters.
+      const inPanel = x => x >= L.x0 - 2 && x <= L.x1 + 2;
+      const edgeX = x => Math.min(Math.max(x, L.x0 + pad), L.x1 - pad);
+      let ha = inPanel(x1) ? x1 : edgeX(x1), hb = inPanel(x2) ? x2 : edgeX(x2);
+      if (Math.abs(ha - hb) < 160 && !(inPanel(x1) && inPanel(x2))) {
+        const q1 = L.x0 + (L.x1 - L.x0) * 0.25, q3 = L.x0 + (L.x1 - L.x0) * 0.75;
+        if (!inPanel(x1)) ha = x1 <= x2 ? q1 : q3;
+        if (!inPanel(x2)) hb = x1 <= x2 ? q3 : q1;
+      }
+      handles = hx(ha, yAtX(ha) + dMid, 'a') + hx(hb, yAtX(hb) + dMid, 'b')
               + hx(mx, my + dUp, 'u') + hx(mx, my + dDn, 'd');
       // Move handle EXACTLY HALFWAY between the two end handles, on the
       // midline (user, 2026-09-25: "i need it to be the halfway point between
@@ -12875,7 +12917,7 @@
     let moveStart = null;    // move handle: {orig, fi0, p0} captured at grab
     let tapPick = null;      // a line touched at pointerdown; selected only if it stays a tap
     const TAP_SLOP_PX = 8, TAP_MAX_MS = 600;
-    let sx = 0, sy = 0, startPan = 0, pid = null, raf = 0;
+    let sx = 0, sy = 0, downAt = 0, startPan = 0, pid = null, raf = 0;
     let grab = null;         // price window captured when the scale was grabbed
     // Every finger currently down, so a second one can turn the gesture into a
     // pinch. Keyed by pointerId; the values are updated in place on move.
@@ -12918,7 +12960,7 @@
 
       if (pid !== null) return;
       pid = ev.pointerId;
-      sx = ev.clientX; sy = ev.clientY;
+      sx = ev.clientX; sy = ev.clientY; downAt = Date.now();
       startPan = reelPanOf(ctx.name, ctx.bundle);
       mode = null; handle = null;
       // Capture the price window as it stands right now. If this becomes a pan
@@ -13185,7 +13227,11 @@
         // midline should land — the spine sits (up+dn)/2 away from it.
         const d = reelDateForBarIndex(ctx.b, fi);
         const spine = price - (ch.up + ch.dn) / 2;
-        if (d) { if (handle === 'a') { ch.t1 = d; ch.p1 = spine; } else { ch.t2 = d; ch.p2 = spine; } }
+        // Never onto the OTHER end's bar: two anchors on one bar have no
+        // direction, and the edge handles stop working until they part.
+        const other = reelBarIndexForDate(ctx.b, handle === 'a' ? ch.t2 : ch.t1);
+        const clash = other != null && Math.abs(fi - other) < 0.5;
+        if (d && !clash) { if (handle === 'a') { ch.t1 = d; ch.p1 = spine; } else { ch.t2 = d; ch.p2 = spine; } }
       } else {
         // An EDGE handle. ONLY its own offset changes — the opposite edge does
         // not move, which is the whole point of storing two of them.
@@ -13237,6 +13283,16 @@
         setActiveIdx(c.name, pick.di);
         reel.editing = c.name;
         // The click that follows this pointerup must not open the instrument.
+        reel.lastGestureAt = Date.now();
+        reelRepaint(host);
+        reelSyncChannelButtons();
+      } else if (!pick && c && reel.editing === c.name && activeIdx(c.name) >= 0
+          && ev.type === 'pointerup' && mode === null
+          && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= TAP_SLOP_PX
+          && Date.now() - downAt <= TAP_MAX_MS) {
+        // A tap on EMPTY chart while drawing clears the selection (user,
+        // 2026-11-01). Draw mode stays open; tap a drawing to pick it again.
+        clearActiveIdx(c.name);
         reel.lastGestureAt = Date.now();
         reelRepaint(host);
         reelSyncChannelButtons();
