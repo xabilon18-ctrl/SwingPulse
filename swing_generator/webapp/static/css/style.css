@@ -9628,8 +9628,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 
 
 /* Laptop workspace: the existing white chart and controls, beside its list.
-   All rules stay above the phone/tablet breakpoint; chart data/scales are shared. */
-@media (min-width: 1024px) {
+   Every rule is gated by a class app.js adds only when the workspace is on
+   (1024px+, or 700px+ on an iPad: desktopChartMedia), so this media floor is
+   the iPad's 700px, not 1024px. Chart data/scales are shared. */
+@media (min-width: 700px) {
   body.desktop-workspace-open { overflow: hidden; }
   #pane-charts.desktop-workspace-active {
     top: calc(var(--reel-top, 100px) + 48px); bottom: 0;

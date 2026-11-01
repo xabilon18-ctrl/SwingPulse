@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 IPAD ALWAYS GETS THE LAPTOP WORKSPACE (app.js v562, style.css
+v398). User: "make the iPad always use the laptop view". The Charts
+workspace (chart left, Watchlist right) switched on at 1024px only, so an
+iPad held portrait (744-834px wide on every model but the 13" Pro) got the
+phone layout. app.js now detects an iPad (UA "iPad", or iPadOS's Mac UA with
+navigator.maxTouchPoints > 1; real Macs report 0) and uses a 700px floor for
+it; everything else keeps 1024px. The 700px floor leaves Slide Over and
+narrow Split View (320-680px) on the phone layout, where the 260px+ list
+would leave the chart almost no width. The style.css workspace block is
+gated by classes app.js adds, so its media floor moved to 700px to match.
+tests/ipad_workspace.cjs checks both UA kinds at 744/820/834/1024 portrait
+and landscape, Slide Over/Split View switching back, and that a Mac window
+and an iPhone below 1024px are unchanged. It is not wired into CI (that is a
+workflow change for review). Seen while testing, NOT changed: an iPhone in
+landscape (932x430) draws its chart card at 0 height, identically on v561.
+
 2026-11-01 FOOTER CAPSULE: SAVE | DRAW, TWO EQUAL PRESS/UNPRESS SWITCHES
 (app.js v561, style.css v397). User: "change the word edit to draw so that
 they can equally be a pill that's split into two equal parts, and then make
