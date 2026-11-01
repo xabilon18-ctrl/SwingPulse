@@ -100,6 +100,8 @@
     // (user, 2026-09-15). Off is the default for a new ladder since 2026-11-01.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+        // Blue glow while selected, off by default (user, 2026-11-01).
+        + `<button class="reel-tool reel-tool-pct reel-tool-glow${d.glow ? ' on' : ''}" data-act="draw-glow" data-name="${name}" aria-pressed="${!!d.glow}" aria-label="${d.glow ? 'Turn the blue glow off' : 'Turn the blue glow on'}" title="Glow">Glow</button>`
         // Reverse the numbering: 0% at the top, 100% at the bottom (user, 2026-09-25).
         + `<button class="reel-tool reel-tool-pct${d.reverse ? ' on' : ''}" data-act="draw-reverse" data-name="${name}" aria-pressed="${!!d.reverse}" aria-label="${d.reverse ? 'Number the percentages from the bottom' : 'Number the percentages from the top'}" title="Reverse %">%⇅</button>`
         // Stack a copy of the ladder above / below, or take one away.

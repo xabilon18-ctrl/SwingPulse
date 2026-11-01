@@ -7654,12 +7654,15 @@ body {
    millimetre on a phone and cannot be hit. pointer-events:stroke is what makes
    a transparent stroke clickable at all. */
 .reel-ch-hit { fill: none; stroke: transparent; stroke-width: 40; pointer-events: stroke; cursor: pointer; }
-/* The SELECTED drawing shows it (user, 2026-11-01: "when I select, it doesn't
-   give any indication"). Its own tap lines turn into a soft blue halo along
-   every line it has. The heavier-stroke rule further down is beaten by the
-   !important line-weight levels, and a LOCKED drawing has no handles, so
-   before this a selected locked drawing looked exactly like an idle one. */
-.reel-draw.is-sel .reel-ch-hit { stroke: #2563eb; stroke-opacity: .2; }
+/* Ladder glow (2026-11-01, option, off by default): the selected ladder's tap
+   lines turn into a faint blue band. It was the selection cue for every
+   drawing until the user found it "a little bit too much". */
+.reel-draw.is-sel.has-glow .reel-ch-hit { stroke: #2563eb; stroke-opacity: .1; }
+/* Selection shows on the DOTS (user, 2026-11-01): solid blue with a white
+   ring, whatever the drawing's colour. A locked drawing's dots are hollow and
+   cannot be grabbed. The glow above is now a ladder-only option, toned down. */
+.reel-draw.is-sel .reel-ch-h { fill: #2563eb; fill-opacity: 1; stroke: #fff; stroke-opacity: 1; stroke-width: 3; }
+.reel-draw.is-sel .reel-ch-h.is-locked { fill: #fff; stroke: #2563eb; stroke-width: 3.5; pointer-events: none; cursor: default; }
 
 /* While a channel is being edited the chart takes EVERY gesture. With the
    normal `pan-y` the browser claimed any vertical drag for scrolling the reel

@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 SELECTION SHOWS ON THE DOTS; GLOW IS A LADDER OPTION; LADDER
+RESIZE DOT ON 40% (app.js v563, style.css v399, drawing-toolbar.js v8).
+User: "that highlighted blue thing ... is a little bit too much ... don't take
+it away ... add it as a feature that I can activate and deactivate, but only
+for the percentage lines ... having their adjustment points highlighted in a
+different color ... to adjust it, it's the third one. Maybe ... the fourth".
+- A selected drawing's dots are solid blue with a white ring, whatever its
+  colour. A LOCKED selected drawing now draws its dots too, hollow and with no
+  `data-h` (`reelDrawLocked`, set around each render), so it shows it is
+  selected without anything to grab.
+- The blue glow (`.reel-ch-hit` halo) is off for every drawing; a selected
+  ladder shows it, at half the strength, only when its **Glow** switch is on
+  (`d.glow`, `draw-glow`, beside %).
+- Ladder resize dot moved from the 30% line to the 40% line (the user counts
+  10/20/30/40 up from 0%). `p4` is still the stored 30% anchor; the drag sets
+  `p4 = p1 + (pointer - p1) * 3/4`.
+- Tests: drawing_toolbar_checks.cjs (blue dots, hollow locked dots, no glow
+  on a channel, ladder glow off/on/off, 40% dot position and drag).
+
 2026-11-01 IPAD ALWAYS GETS THE LAPTOP WORKSPACE (app.js v562, style.css
 v398). User: "make the iPad always use the laptop view". The Charts
 workspace (chart left, Watchlist right) switched on at 1024px only, so an

@@ -514,7 +514,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-stack',
+    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-glow', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
@@ -10226,7 +10226,8 @@
       if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
-      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
+      const glow = sel && d.kind === 'ladder' && d.glow ? ' has-glow' : '';
+      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}${glow}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
       if (sel) { selSvg = g; return ''; }
       return g;
@@ -10237,8 +10238,18 @@
   // One entry point for every tool. Each kind renders its own geometry but they
   // share the handle shape, the active/idle styling and the min-size rules, so
   // a new tool is a case here rather than a parallel implementation.
+  // A LOCKED drawing that is selected still shows its dots, in the selection
+  // colour but hollow and with nothing to grab (user, 2026-11-01: selection
+  // shows on the adjustment points, and a locked one gave no sign at all).
+  // Set around each drawing's render; the handle helpers read it.
+  let reelDrawLocked = false;
   function reelDrawingSvg(d, b, L, sc, bw, editing, idx, isActive) {
     if (!d) return '';
+    reelDrawLocked = !!d.locked;
+    try { return reelDrawingSvgKind(d, b, L, sc, bw, editing, idx, isActive); }
+    finally { reelDrawLocked = false; }
+  }
+  function reelDrawingSvgKind(d, b, L, sc, bw, editing, idx, isActive) {
     if (d.kind === 'trend') return reelTrendSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'circle') return reelCircleSvg(d, b, L, sc, bw, editing, idx, isActive);
     if (d.kind === 'triangle') return reelTriangleSvg(d, b, L, sc, bw, editing, idx, isActive);
@@ -10252,6 +10263,7 @@
   // Shared handle markup: a visible dot plus an invisible ~30px grab target.
   function reelHandle(L, x, y, id, idx, isActive) {
     if (!(x >= L.x0 - 2 && x <= L.x1 + 2)) return '';
+    if (reelDrawLocked) return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h is-locked"/>`;
     const cls = isActive ? 'reel-ch-h' : 'reel-ch-h is-idle';
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="${cls}" data-h="${id}" data-ci="${idx}"/>` +
            `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`;
@@ -10263,6 +10275,7 @@
   // about its shape changes.
   function reelMoveHandle(L, x, y, idx, isActive) {
     if (!(x >= L.x0 - 2 && x <= L.x1 + 2)) return '';
+    if (reelDrawLocked) return `<rect x="${(x - 12).toFixed(1)}" y="${(y - 12).toFixed(1)}" width="24" height="24" rx="4" class="reel-ch-h reel-ch-move is-locked"/>`;
     const cls = isActive ? 'reel-ch-h reel-ch-move' : 'reel-ch-h reel-ch-move is-idle';
     return `<rect x="${(x - 12).toFixed(1)}" y="${(y - 12).toFixed(1)}" width="24" height="24" rx="4" class="${cls}" data-h="m" data-ci="${idx}"/>` +
            `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="m" data-ci="${idx}"/>`;
@@ -10369,7 +10382,7 @@
     const line = `<line x1="${L.x0}" y1="${yA.toFixed(1)}" x2="${L.x1}" y2="${yB.toFixed(1)}" class="reel-ch reel-ch-edge"/>`
                + reelHitLine(L.x0, yA, L.x1, yB, idx);
     let handles = '';
-    if (editing && !d.locked) {
+    if (editing) {
       handles = reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive);
       const mv = reelMoveSpot(L, x1, y1, x2, y2);
       handles += reelMoveHandle(L, mv.x, mv.y, idx, isActive);
@@ -10393,7 +10406,7 @@
     let out = (fs ? `<ellipse ${e} class="reel-fill" ${fs}/>` : '') +
               `<ellipse ${e} fill="none" class="reel-ch reel-circle${d.bold ? ' is-bold' : ''}"/>` +
               `<ellipse ${e} class="reel-ch-hit" data-di="${idx}"/>`;
-    if (editing && !d.locked) {
+    if (editing) {
       out += reelHandle(L, x1, y1, 'a', idx, isActive) + reelHandle(L, x2, y2, 'b', idx, isActive)
            + reelMoveHandle(L, cx, cy, idx, isActive);
     }
@@ -10413,7 +10426,7 @@
     let out = (fs ? `<polygon points="${pts}" class="reel-fill" ${fs}/>` : '') +
               `<polygon points="${pts}" class="reel-ch reel-ch-edge reel-tri${d.bold ? ' is-bold' : ''}"/>` +
               `<polygon points="${pts}" class="reel-ch-hit" data-di="${idx}"/>`;
-    if (editing && !d.locked) {
+    if (editing) {
       out += reelHandle(L, xs[0], ys[0], 'a', idx, isActive) + reelHandle(L, xs[1], ys[1], 'b', idx, isActive)
            + reelHandle(L, xs[2], ys[2], 'c', idx, isActive)
            + reelMoveHandle(L, (xs[0] + xs[1] + xs[2]) / 3, (ys[0] + ys[1] + ys[2]) / 3, idx, isActive);
@@ -10433,7 +10446,7 @@
     const line = `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
                + reelHitLine(L.x0, y, L.x1, y, idx);
     const tag  = `<text x="${L.gut}" y="${(y + 6).toFixed(1)}" class="reel-axis reel-ch-lvl">${reelFmtLevel(d.p, b)}</text>`;
-    const handles = (editing && !d.locked)
+    const handles = (editing)
       ? reelHandle(L, L.x0 + (L.x1 - L.x0) * 0.5, y, 'p', idx, isActive) : '';
     return line + tag + handles;
   }
@@ -10453,7 +10466,7 @@
                + reelHitLine(x, L.py0, x, L.py1, idx);
     const nearRight = x > L.x1 - (L.x1 - L.x0) * 0.2;
     const tag = `<text x="${(x + (nearRight ? -8 : 8)).toFixed(1)}" y="${(L.py0 + 20).toFixed(1)}" class="reel-axis reel-ch-lvl" text-anchor="${nearRight ? 'end' : 'start'}">${reelEndStopLabel(d.t)}</text>`;
-    const handles = (editing && !d.locked)
+    const handles = (editing)
       ? reelHandle(L, x, L.py0 + (L.py1 - L.py0) * 0.5, 't', idx, isActive) : '';
     return line + tag + handles;
   }
@@ -10521,14 +10534,17 @@
       if (bot > top) out = `<rect x="${L.x0}" y="${top.toFixed(1)}" width="${L.x1 - L.x0}" height="${(bot - top).toFixed(1)}" class="reel-fill" ${lfs}/>` + out;
     }
     let handles = '';
-    if (editing && !d.locked) {
+    if (editing) {
       const hx = L.x0 + (L.x1 - L.x0) * 0.35;
-      const y1 = sc.y(d.p1), y4 = sc.y(d.p4);
+      // The resize dot sits on the 40% line (user, 2026-11-01: "it's the
+      // third one ... put that on the fourth one", counting 10/20/30/40 up
+      // from the 0% line). It was on 30% (p4). p4 stays the stored anchor.
+      const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + 4 * step);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
       const ym = sc.y(d.p1 + 5 * step);     // the 50% line
       if (ym >= L.py0 && ym <= L.py1) handles += reelMoveHandle(L, L.x0 + (L.x1 - L.x0) * 0.65, ym, idx, isActive);
-      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and 30% lines are outside this range — zoom out to adjust</text>`;
+      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and 40% lines are outside this range — zoom out to adjust</text>`;
     }
     return out + handles;
   }
@@ -10568,7 +10584,7 @@
       const ly = up ? y + 26 : y - 12;
       const lbl = `<text x="${x1.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" class="reel-view-lbl is-${side}">${up ? 'BUY' : 'SELL'}</text>`;
       const hitV = reelHitLine(xl, y, xr, y, idx);
-      const hv = (editing && !d.locked)
+      const hv = (editing)
         ? reelHandle(L, x1, y, 'e', idx, isActive)
           + (d.extR ? '' : reelHandle(L, x2, y, 'r', idx, isActive))
           + (d.extL || !d.t0 ? '' : reelHandle(L, xl, y, 'l', idx, isActive)) : '';
@@ -10577,7 +10593,7 @@
     const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
     const hit = reelHitLine(x1 - r, y, x2, y, idx);
     let handles = '';
-    if (editing && !d.locked) {
+    if (editing) {
       handles = reelHandle(L, x1, y, 'e', idx, isActive) + reelHandle(L, x2, y, 'r', idx, isActive);
     }
     return line + cross + hit + handles;
@@ -10646,7 +10662,7 @@
       : `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`;
 
     let handles = '';
-    if (editing && !ch.locked) {
+    if (editing) {
       // TWO circles per handle. The viewBox is 1000 wide against a ~370px card,
       // so a unit is about a third of a pixel: the r=13 dot that looks right is
       // a 9px target, which is half a fingertip. The invisible r=42 circle over
@@ -10655,10 +10671,10 @@
       // data-ci carries WHICH channel the handle belongs to, so one pointer
       // handler serves any number of them.
       const hcls = isActive ? 'reel-ch-h' : 'reel-ch-h is-idle';
-      const hx = (x, y, id) => (x >= L.x0 - 2 && x <= L.x1 + 2)
-        ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="${hcls}" data-h="${id}" data-ci="${idx}"/>` +
-          `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`
-        : '';
+      const hx = (x, y, id) => !(x >= L.x0 - 2 && x <= L.x1 + 2) ? ''
+        : ch.locked ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="reel-ch-h is-locked"/>`
+        : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" class="${hcls}" data-h="${id}" data-ci="${idx}"/>` +
+          `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="42" class="reel-ch-grab" data-h="${id}" data-ci="${idx}"/>`;
       // Four: both ENDS of the midline, and both EDGES. Each edge moves on its
       // own. The end handles sit ON the midline — the spine is not drawn, and a
       // handle floating on an invisible line is not a thing you can aim at.
@@ -13215,7 +13231,8 @@
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
         const pz = Math.max(0, price);   // the anchors never go below 0 either
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
-        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = pz;
+        // The dot is on the 40% line, four steps up; p4 is three.
+        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / 4;
         schedule();
         return;
       }
@@ -14301,6 +14318,19 @@
         const d = activeChannel(name);
         if (d) {
           if (d.link) delete d.link; else d.link = drawLinkId();
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      // Blue glow on a selected ladder (user, 2026-11-01: "add it as a feature
+      // that I can activate and deactivate, but only for the percentage
+      // lines"). Off unless switched on; selection itself shows on the dots.
+      if (btn.dataset.act === 'draw-glow') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          if (d.glow) delete d.glow; else d.glow = true;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
