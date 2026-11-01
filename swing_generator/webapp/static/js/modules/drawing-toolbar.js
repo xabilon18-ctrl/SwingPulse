@@ -2,7 +2,7 @@
 (function(root) {
   'use strict';
   function create(deps) {
-    const { activeChannel, channelsFor, chKey, getTimeframe, getEditing, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack, chartTfs, drawShownTfs } = deps;
+    const { activeChannel, channelsFor, chKey, getTimeframe, getEditing, zeroShown, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack, chartTfs, drawShownTfs } = deps;
     const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = root.SwingPulseModules.drawingIcons;
   // Toolbar visibility is independent of drawing mode and selection.
   const drawToolsCollapsed = new Set(), drawMoreOpen = new Set();
@@ -102,6 +102,8 @@
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
         // Blue glow while selected, off by default (user, 2026-11-01).
         + `<button class="reel-tool reel-tool-pct reel-tool-glow${d.glow ? ' on' : ''}" data-act="draw-glow" data-name="${name}" aria-pressed="${!!d.glow}" aria-label="${d.glow ? 'Turn the blue glow off' : 'Turn the blue glow on'}" title="Glow">Glow</button>`
+        // Frame the price scale from zero, to set the ladder on 0 (user, 2026-11-01).
+        + `<button class="reel-tool reel-tool-pct reel-tool-zero${zeroShown(name) ? ' on' : ''}" data-act="chart-zero" data-name="${name}" aria-pressed="${zeroShown(name)}" aria-label="${zeroShown(name) ? 'Back to the normal price scale' : 'Show the price scale down to zero'}" title="Show 0">0</button>`
         // Reverse the numbering: 0% at the top, 100% at the bottom (user, 2026-09-25).
         + `<button class="reel-tool reel-tool-pct${d.reverse ? ' on' : ''}" data-act="draw-reverse" data-name="${name}" aria-pressed="${!!d.reverse}" aria-label="${d.reverse ? 'Number the percentages from the bottom' : 'Number the percentages from the top'}" title="Reverse %">%⇅</button>`
         // Stack a copy of the ladder above / below, or take one away.
@@ -131,9 +133,13 @@
     const less = d.kind !== 'ladder' ? '' : `<span class="reel-stack" role="group" aria-label="Remove ladder stacks">`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="up" data-d="-1" data-name="${name}" aria-label="Remove a stack above"${ladderStack(d, 'up') ? '' : ' disabled'}>−▲</button>`
       + `<button class="reel-tool reel-stack-btn" data-act="draw-stack" data-dir="down" data-d="-1" data-name="${name}" aria-label="Remove a stack below"${ladderStack(d, 'down') ? '' : ' disabled'}>−▼</button></span>`;
+    // Glow colour (user, 2026-11-01), shown while the ladder's glow is on.
+    const gc = d.glowColor || '#2563eb';
+    const glowRow = d.kind === 'ladder' && d.glow
+      ? `<div class="reel-style-cols reel-glow-cols" aria-label="Glow colour">${dots('draw-glow-color', gc, 'draw-any-glow')}</div>` : '';
     return `<div class="reel-props-main">${weight}${lineStyle}${pct}${ext}
       <button class="reel-tool reel-draw-more-btn${more ? ' on' : ''}" data-act="draw-more" data-name="${name}" aria-expanded="${more}">More <span aria-hidden="true">•••</span></button>
-    </div>${more ? `<div class="reel-draw-more">${less ? `<div class="reel-draw-actions">${less}</div>` : ''}${showOn}${intensity}</div>` : ''}`;
+    </div>${glowRow}${more ? `<div class="reel-draw-more">${less ? `<div class="reel-draw-actions">${less}</div>` : ''}${showOn}${intensity}</div>` : ''}`;
   }
 
 

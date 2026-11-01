@@ -7657,7 +7657,8 @@ body {
 /* Ladder glow (2026-11-01, option, off by default): the selected ladder's tap
    lines turn into a faint blue band. It was the selection cue for every
    drawing until the user found it "a little bit too much". */
-.reel-draw.is-sel.has-glow .reel-ch-hit { stroke: #2563eb; stroke-opacity: .1; }
+.reel-draw.is-sel.has-glow .reel-ch-hit { stroke: var(--reel-glow, #2563eb); stroke-opacity: .1; }
+.reel-glow-cols { margin-top: 6px; }
 /* Selection shows on the DOTS (user, 2026-11-01): solid blue with a white
    ring, whatever the drawing's colour. A locked drawing's dots are hollow and
    cannot be grabbed. The glow above is now a ladder-only option, toned down. */

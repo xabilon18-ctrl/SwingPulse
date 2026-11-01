@@ -7,6 +7,31 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-01 LADDER: GLOW COLOUR, ZERO HOLDS THE LADDER, "0" FRAMES FROM ZERO
+(app.js v564, style.css v400, drawing-toolbar.js v9). User: "the glow can be
+switched off and switched on only for the percentage lines, with also an
+option to change color ... the percentage line not to go below [zero] ...
+like that's a magnet ... on the US index I can't get to zero because price
+is very high on 1 hour ... I also need to be able to get to zero."
+- **Glow colour**: a colour row under the ladder bar while Glow is on
+  (`draw-glow-color`, any-colour picker `draw-any-glow`, stored `d.glowColor`,
+  drawn through `--reel-glow`). Blue when unset.
+- **Zero holds the ladder** (`ladderHoldZero`): on a move, a 0% drag or a 40%
+  drag, the lowest line (stacked blocks below included) stops on price 0 and
+  snaps onto it from 18 viewBox units above. Lines under zero used to be
+  dropped silently. **+▼ no longer refuses** a block that would sit under
+  zero: the block is added and the ladder lifts so its bottom line is on 0.
+- **"0" button** on the ladder bar (`chart-zero`): frames this chart's price
+  scale from just below 0 to the top of the visible bars (`lockY._zero`);
+  tap again for the normal fit. A view, not stored on the drawing.
+- **Price zoom can always reach 0**: zoom-out limit is now the larger of 24x
+  the visible range and 2.2x the visible high; a price pan may bring 0 just
+  inside the bottom edge. Measured need: a 25,000 index with ~1,000 points of
+  1H range stopped at 24x, well short of zero.
+- Tests: drawing_toolbar_checks.cjs (glow colour, "0" on/off, move stops on
+  0, +▼ lifts onto 0, drag keeps the bottom block on 0). The zero-stop check
+  fails without `ladderHoldZero` (p1 -40.6).
+
 2026-11-01 SELECTION SHOWS ON THE DOTS; GLOW IS A LADDER OPTION; LADDER
 RESIZE DOT ON 40% (app.js v563, style.css v399, drawing-toolbar.js v8).
 User: "that highlighted blue thing ... is a little bit too much ... don't take

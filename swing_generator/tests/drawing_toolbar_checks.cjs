@@ -204,9 +204,45 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       await glowBtn.click();
       assert.ok(await halo(),'Glow on shows the blue glow');
       assert.equal((await ladderOn(ownTf)).glow,true,'…and is saved on the ladder');
+      // Glow colour (user, 2026-11-01).
+      const haloStroke=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>getComputedStyle(el).stroke);
+      assert.equal(await haloStroke(),'rgb(37, 99, 235)','Glow starts blue');
+      await toolbar.locator('[data-act="draw-glow-color"][data-color="#22c55e"]').click();
+      assert.equal(await haloStroke(),'rgb(34, 197, 94)','Picking green turns the glow green');
+      assert.equal((await ladderOn(ownTf)).glowColor,'#22c55e','…and saves the colour');
       await toolbar.locator('[data-act="draw-glow"]').click();
       assert.ok(!(await halo()),'Glow off removes it');
       assert.ok(!('glow' in (await ladderOn(ownTf))),'…and stores nothing');
+      assert.equal(await toolbar.locator('[data-act="draw-glow-color"]').count(),0,'Glow colours hide while the glow is off');
+      // "0" frames the price scale from zero (user, 2026-11-01).
+      const lo=()=>page.evaluate(()=>document.querySelector('#chartFullHost')._reelCtx.sc.lo);
+      const zeroBtn=()=>toolbar.locator('[data-act="chart-zero"]');
+      const loBefore=await lo();
+      await zeroBtn().click();
+      assert.ok(await lo()<=0,'"0" brings zero onto the price scale');
+      assert.equal(await zeroBtn().getAttribute('aria-pressed'),'true');
+      // Zero holds the ladder: dragged far down, its bottom line stops ON 0.
+      const mv=await boxOf(sel().locator('.reel-ch-grab[data-h="m"]'));
+      const plot=await boxOf(page.locator('#chartFullHost'));
+      await page.mouse.move(mv.x+mv.width/2,mv.y+mv.height/2); await page.mouse.down();
+      await page.mouse.move(mv.x+mv.width/2,plot.y+plot.height-5,{steps:12}); await page.mouse.up();
+      const held=await ladderOn(ownTf);
+      assert.equal(held.p1,0,`Moved past zero, the 0% line stops on 0 (p1 ${held.p1})`);
+      // ...a block added below lifts the ladder so the NEW block's bottom line
+      // sits on 0, and a later drag down stops it there too.
+      await toolbar.locator('[data-act="draw-stack"][data-dir="down"][data-d="1"]').click();
+      const st=await ladderOn(ownTf), stStep=(st.p4-st.p1)/3;
+      assert.ok(st.down===1&&Math.abs(st.p1-10*stStep)<1e-9,`A block added below lifts the ladder onto 0 (${st.p1-10*stStep})`);
+      await toolbar.locator('.reel-draw-fold').click();          // the open bar covers the lower chart
+      const mv2=await boxOf(sel().locator('.reel-ch-grab[data-h="m"]'));
+      await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2); await page.mouse.down();
+      await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2+60,{steps:8}); await page.mouse.up();
+      const st2=await ladderOn(ownTf), step2=(st2.p4-st2.p1)/3;
+      assert.ok(Math.abs(st2.p1-10*step2)<1e-9,`Dragged down, the bottom block still stops on 0 (${st2.p1-10*step2})`);
+      await toolbar.locator('.reel-draw-fold').click();
+      await zeroBtn().click();
+      assert.equal(await zeroBtn().getAttribute('aria-pressed'),'false','"0" again goes back to the normal scale');
+      assert.ok(await lo()>0||loBefore<=0,'…and zero leaves the scale');
       await toolbar.locator('.reel-draw-fold').click();
     }
     const back=await spot('line');

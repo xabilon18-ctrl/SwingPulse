@@ -514,7 +514,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-glow', 'draw-stack',
+    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-glow', 'draw-glow-color', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
@@ -7394,10 +7394,11 @@
   const DRAW_BOLDABLE = new Set(['entry', 'hline', 'vline', 'circle', 'triangle']);
   const drawingToolbar = window.SwingPulseModules.drawingToolbar.create({
     activeChannel, channelsFor, chKey, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack: (d, dir) => ladderStack(d, dir),
-    getTimeframe: () => timeframe, getEditing: () => reel.editing,
+    getTimeframe: () => timeframe, getEditing: () => reel.editing, zeroShown: name => reelZeroShown(name),
     chartTfs: () => tabTfs('charts'), drawShownTfs,
   });
   const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
+  function reelZeroShown(name) { const lk = reel.lockY.get(name); return !!(lk && lk._zero); }
   function reelDrawStripHtml(name) { return drawingToolbar.stripHtml(name); }
   function reelToolbarHtml(name, edit) { return drawingToolbar.html(name, edit); }
   function reelSyncToolbar(root, name) { drawingToolbar.sync(root, name); }
@@ -10227,7 +10228,8 @@
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
       const glow = sel && d.kind === 'ladder' && d.glow ? ' has-glow' : '';
-      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}${glow}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${a < 100 ? `;opacity:${a / 100}` : ''}">`
+      const glowC = glow && DRAW_HEX.test(d.glowColor || '') ? `;--reel-glow:${d.glowColor}` : '';
+      const g = `<g class="reel-draw${sel ? ' is-sel' : ''}${glow}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${glowC}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
       if (sel) { selSvg = g; return ''; }
       return g;
@@ -10495,6 +10497,28 @@
   // is 0% and its bottom 100%, and the stacks carry on the same way.
   function ladderPct(d, k) {
     return d.reverse ? (LADDER_LINES - 1 - k) * 10 : k * 10;
+  }
+
+  // ZERO HOLDS THE LADDER (user, 2026-11-01: "the percentage line not to go
+  // below it ... like that's a magnet ... it gets there and stops"). Whatever
+  // the drag — move, 0% dot or 40% dot — the lowest line (stacks below
+  // included) stops at price 0, and snaps onto it from LADDER_ZERO_SNAP units
+  // above. Lines below zero used to be dropped silently, so a ladder dragged
+  // down lost its bottom lines.
+  const LADDER_ZERO_SNAP = 18;     // viewBox units, ~6px on a phone
+  function ladderHoldZero(ch, sc, handle, snapOn = true) {
+    const step = (ch.p4 - ch.p1) / 3;
+    if (!(step > 0)) return;
+    const snap = snapOn ? Math.abs(sc.inv(sc.y(0) - LADDER_ZERO_SNAP) - sc.inv(sc.y(0))) : 0;
+    const k = -Math.min(0, ladderKRange(ch)[0]);      // blocks' steps below 0%
+    const low = ch.p1 - k * step;
+    if (!(low < snap)) return;
+    if (handle === 'l4') {                 // the 0% line stays; only the stacks below can reach 0
+      if (k > 0 && ch.p1 > 0) ch.p4 = ch.p1 + 3 * (ch.p1 / k);
+      return;
+    }
+    if (handle === 'l1') { ch.p1 = (k * ch.p4 / 3) / (1 + k / 3); return; }
+    ch.p1 -= low; ch.p4 -= low;            // move: the whole ladder sits on zero
   }
 
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
@@ -12865,7 +12889,8 @@
 
     if (grab.ext) {
       const pad = grab.ext.span * 0.75;
-      mid = Math.min(Math.max(mid, grab.ext.lo - pad), grab.ext.hi + pad);
+      // ...and a pan may bring 0 just inside the bottom edge.
+      mid = Math.min(Math.max(mid, Math.min(grab.ext.lo - pad, span * 0.45)), grab.ext.hi + pad);
     }
     if (!isFinite(mid)) return false;
 
@@ -12895,8 +12920,11 @@
     let   span   = (grab.hi - grab.lo) * factor;
 
     if (grab.ext) {
+      // Zooming OUT may always go far enough to show 0 (user, 2026-11-01): on
+      // a 25,000 index a month of 1H bars spans ~1,000 points, and 24x that
+      // stopped well short of zero.
       span = Math.min(Math.max(span, grab.ext.span / REEL_Y_ZOOM_MAX),
-                      grab.ext.span * REEL_Y_ZOOM_MAX);
+                      Math.max(grab.ext.span * REEL_Y_ZOOM_MAX, grab.ext.hi * 2.2));
     }
     if (!isFinite(span) || span <= 0) return false;
 
@@ -13178,6 +13206,7 @@
       // The whole drawing, shape untouched.
       if (handle === 'm') {
         if (moveStart) reelShiftDrawing(ch, moveStart.orig, Math.round(fi - moveStart.fi0), price - moveStart.p0, ctx.b);
+        if (ch.kind === 'ladder') ladderHoldZero(ch, ctx.sc, 'm');
         schedule();
         return;
       }
@@ -13233,6 +13262,7 @@
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
         // The dot is on the 40% line, four steps up; p4 is three.
         else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / 4;
+        ladderHoldZero(ch, ctx.sc, handle);
         schedule();
         return;
       }
@@ -14282,11 +14312,12 @@
         if (d && d.kind === 'ladder') {
           const dir = btn.dataset.dir === 'down' ? 'down' : 'up';
           const n = ladderStack(d, dir) + (Number(btn.dataset.d) || 0);
-          // A new block with every line below price 0 would draw nothing.
-          const SPAN = LADDER_LINES - 1, step = (d.p4 - d.p1) / 3;
-          const k0 = dir === 'up' ? SPAN * n : -SPAN * (n - 1), k1 = dir === 'up' ? SPAN * (n + 1) : -SPAN * n;
-          if (n > ladderStack(d, dir) && Math.max(d.p1 + k0 * step, d.p1 + k1 * step) <= 0) return true;
           if (n > 0) d[dir] = n; else delete d[dir];
+          // A block added below a ladder near zero LIFTS the ladder so the new
+          // block's bottom line sits on 0 (user, 2026-11-01: lines must not
+          // hide under zero). It used to refuse the block without a word.
+          const ctx = chHost && chHost._reelCtx;
+          if (ctx) ladderHoldZero(d, ctx.sc, 'm', false);
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
@@ -14335,6 +14366,30 @@
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
         }
+        return true;
+      }
+      if (btn.dataset.act === 'draw-glow-color') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder' && DRAW_COLORS.includes(btn.dataset.color)) {
+          d.glowColor = btn.dataset.color;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
+        return true;
+      }
+      // "0" (user, 2026-11-01: "on the US index I can't get to zero because
+      // price is very high on 1 hour"): frames this chart's price scale from
+      // zero to the top of the visible bars, so a ladder can be set on zero.
+      // Tap again to go back to the normal fit. A view, not a drawing.
+      if (btn.dataset.act === 'chart-zero') {
+        if (reelZeroShown(name)) reel.lockY.delete(name);
+        else {
+          const ctx = chHost && chHost._reelCtx, ext = ctx && reelPriceExtent(ctx.b);
+          if (ext && ext.hi > 0) reel.lockY.set(name, { lo: -ext.hi * 0.04, hi: ext.hi * 1.04, _userY: true, _zero: true });
+        }
+        if (chHost) reelRepaint(chHost);
+        reelSyncChannelButtons();
         return true;
       }
       if (btn.dataset.act === 'draw-labels') {
@@ -14423,9 +14478,14 @@
       return card && card.querySelector('.reel-chart');
     };
     document.addEventListener('input', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-fill-a"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-any-glow"], input[data-act="draw-fill-a"]');
       if (!r) return;
       const h = drawInputHost(r);
+      if (r.dataset.act === 'draw-any-glow') {
+        const g = h && h.querySelector('.reel-draw.is-sel');
+        if (g && DRAW_HEX.test(r.value)) g.style.setProperty('--reel-glow', r.value);
+        return;
+      }
       // Background strength slider: live on the drawn shape, saved on release.
       if (r.dataset.act === 'draw-fill-a') {
         const v = Math.max(FILL_MIN, Math.min(FILL_MAX, +r.value));
@@ -14447,7 +14507,7 @@
       }
     });
     document.addEventListener('change', e => {
-      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-fill-a"]');
+      const r = e.target.closest('input[data-act="draw-any-color"], input[data-act="draw-any-fill"], input[data-act="draw-any-glow"], input[data-act="draw-fill-a"]');
       if (!r) return;
       const name = r.dataset.name;
       channelSeedCommit(name);
@@ -14462,6 +14522,7 @@
       }
       if (!d || !DRAW_HEX.test(r.value)) return;
       if (r.dataset.act === 'draw-any-fill') d.fill = r.value.toLowerCase();
+      else if (r.dataset.act === 'draw-any-glow') { if (d.kind !== 'ladder') return; d.glowColor = r.value.toLowerCase(); }
       else d.color = r.value.toLowerCase();
       channelSave();
       const h = drawInputHost(r);
