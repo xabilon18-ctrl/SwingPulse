@@ -24,9 +24,65 @@
     if (ms == null) return 'unavailable';
     return new Date(ms).toLocaleString([], date ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
   }
+  // Cash indices the Watchlist prices from the INDEX itself (2026-11-02): they
+  // print only in their exchange's regular hours, so before the open they read
+  // "Opens 10:00" instead of a red "No recent quote". [zone, [[open, close]...]]
+  // in local minutes; Hong Kong breaks for lunch. Indices priced from a
+  // near-24h future (US500 via ES=F, US100, US30, RUSSELL, NI225) are NOT
+  // here — their quote keeps printing outside cash hours. Yahoo carries no
+  // usable future for these (measured 2026-11-02, PR #120).
+  const EU = [[540, 1050]];
+  const HK = [[570, 720], [780, 960]];
+  const INDEX_SESSIONS = {
+    '^GDAXI': ['Europe/Berlin', EU], '^STOXX50E': ['Europe/Berlin', EU], '^FCHI': ['Europe/Paris', EU],
+    '^IBEX': ['Europe/Madrid', EU], '^AEX': ['Europe/Amsterdam', EU], 'FTSEMIB.MI': ['Europe/Rome', EU],
+    '^SSMI': ['Europe/Zurich', EU], '^FTSE': ['Europe/London', [[480, 990]]],
+    '^SOX': ['America/New_York', [[570, 960]]], '^GSPTSE': ['America/Toronto', [[570, 960]]],
+    '^HSI': ['Asia/Hong_Kong', HK], '^HSCE': ['Asia/Hong_Kong', HK], '2822.HK': ['Asia/Hong_Kong', HK],
+    '^TWII': ['Asia/Taipei', [[540, 810]]], '^STI': ['Asia/Singapore', [[540, 1020]]],
+    '^AXJO': ['Australia/Sydney', [[600, 960]]], '^J200.JO': ['Africa/Johannesburg', [[540, 1020]]],
+  };
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function localClock(zone, ms) {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms));
+    const get = type => parts.find(p => p.type === type).value;
+    return { day: DAYS.indexOf(get('weekday')), minute: +get('hour') * 60 + +get('minute') };
+  }
+  // The next regular open as an instant. Exchange holidays are not known.
+  function nextOpen(zone, spans, now) {
+    const at = localClock(zone, now);
+    for (let d = 0; d <= 7; d++) {
+      const day = (at.day + d) % 7;
+      if (day === 0 || day === 6) continue;
+      for (const [open] of spans) {
+        if (d === 0 && open <= at.minute) continue;
+        let ms = Math.floor(now / 60000) * 60000 + (d * 1440 + open - at.minute) * 60000;
+        // A daylight-saving change in between moves the wall clock: correct it.
+        const drift = localClock(zone, ms).minute - open;
+        if (drift) ms -= ((((drift + 720) % 1440) + 1440) % 1440 - 720) * 60000;
+        return ms;
+      }
+    }
+    return null;
+  }
+  function opensLabel(ms, now) {
+    const d = new Date(ms), sameDay = d.toDateString() === new Date(now).toDateString();
+    const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return 'Opens ' + (sameDay ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ') + hm;
+  }
   // Only claim a closed session when its regular hours are known. Quote age
   // alone cannot distinguish a closed exchange from a broken price feed.
   function session({ assetClass = '', symbol = '' } = {}, now = Date.now()) {
+    // Keyed by ticker alone: SOX lives in the US100 group, so its class is Equity.
+    const idx = INDEX_SESSIONS[symbol];
+    if (idx) {
+      const [zone, spans] = idx, at = localClock(zone, now);
+      const open = at.day > 0 && at.day < 6 && spans.some(([a, b]) => at.minute >= a && at.minute < b);
+      if (open) return { known: true, closed: false };
+      const next = nextOpen(zone, spans, now);
+      return { known: true, closed: true, label: next == null ? 'Session closed' : opensLabel(next, now),
+        note: 'Session closed · regular hours; holidays may differ' };
+    }
     if (assetClass === 'Crypto' || /-USD[T]?$/.test(symbol)) return { known: true, closed: false };
     if (assetClass === 'Currency' || symbol.endsWith('=X')) {
       // Forex trades Sunday 17:00 to Friday 17:00 NEW YORK time. Fixed UTC
