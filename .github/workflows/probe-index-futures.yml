@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - swing_generator/tools/probe_index_futures.py
+      - swing_generator/tools/list_yahoo_futures.py
       - .github/workflows/probe-index-futures.yml
 
 permissions:
@@ -19,7 +20,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -36,10 +37,18 @@ jobs:
           cd swing_generator
           python3 tools/probe_index_futures.py --report ../futures-probe.json
 
-      - name: Keep the report
+      - name: List every Yahoo future and flag the index futures
+        if: always()
+        run: |
+          cd swing_generator
+          python3 tools/list_yahoo_futures.py --report ../yahoo-futures.json
+
+      - name: Keep the reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: futures-probe
-          path: futures-probe.json
+          path: |
+            futures-probe.json
+            yahoo-futures.json
           if-no-files-found: warn
