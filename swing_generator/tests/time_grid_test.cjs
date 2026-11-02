@@ -73,17 +73,16 @@ for (const division of ['M', 'Q', 'H', 'Y']) {
   assert.ok(lines.every(l => !l.quarter && !l.admin), '4H keeps its yearly references');
 }
 // 1H bold lines are one YEAR apart, as on 4H (user, 2026-11-01; they were quarters).
-// 2H (back 2026-11-02) draws the same yearly lines as its neighbours.
-for (const tf of ['1H', '2H']) {
+for (const tf of ['1H']) {
   for (const code of ['M', 'Q', 'H', 'Y']) {
     c.reelSetGridDivision(tf, code);
     const lines = c.reelTimeGrid(b, tf);
     const refs = lines.filter(l => l.annual);
-    assert.ok(refs.length > 2, `${tf} ${code}: yearly bold lines present`);
+    assert.ok(refs.length > 2, `1H ${code}: yearly bold lines present`);
     const gap = refs[1].fi - refs[0].fi;
-    refs.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - refs[i + 1].fi - gap) < 1e-9, tf + ' permanent years must be equal'));
-    assert.ok(refs.every(l => /^\d{4}$/.test(l.label)), tf + ' bold lines are labelled by year');
-    assert.ok(lines.every(l => !l.quarter && !l.admin), tf + ' has no bold quarter lines');
+    refs.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - refs[i + 1].fi - gap) < 1e-9, 'Permanent 1H years must be equal'));
+    assert.ok(refs.every(l => /^\d{4}$/.test(l.label)), '1H bold lines are labelled by year');
+    assert.ok(lines.every(l => !l.quarter && !l.admin), '1H has no bold quarter lines');
   }
 }
 for (const code of ['M', 'Q', 'H', 'Y']) {

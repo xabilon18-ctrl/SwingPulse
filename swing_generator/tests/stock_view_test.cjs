@@ -88,25 +88,6 @@ const jr = [];
 for (let ms = Date.UTC(2026, 0, 5); ms <= Date.UTC(2027, 0, 20); ms += 4 * 36e5) jr.push(new Date(ms).toISOString());
 const kr = ctx.reelStockView({ t: jr, c: jr.map(() => 1) }, 'BTC');
 assert.ok(near(jr[jr.length - (kr.bars - kr.future)], '2026-10-01'));
-// 2H (back 2026-11-02, chart only beside 4H): previous + current TWO-MONTH
-// block round the clock (12 bars a day: Sep-Oct and Nov-Dec on 2 Nov, to the
-// 1 Jan line), FOUR-MONTH blocks on a session feed (4 a day on a US stock, 5
-// on a European index: May-Aug and Sep-Dec, to the 1 Jan line).
-ctx.timeframe = '2H';
-const r2 = [];
-for (let ms = Date.UTC(2025, 10, 2); ms <= Date.UTC(2026, 10, 2, 20); ms += 2 * 36e5) r2.push(new Date(ms).toISOString());
-const span2 = (b2, market, startDay, endParts) => {
-  const v2 = ctx.reelStockView(b2, market);
-  const f2 = b2.t.length - (v2.bars - v2.future);
-  // The first bar on or after the line: a weekend can sit between.
-  assert.ok(Math.abs(Date.parse(b2.t[f2]) - Date.parse(startDay)) < 4 * 864e5, market + ' ' + b2.t[f2]);
-  const fr2 = geometry.yearFrame(b2, bt);
-  assert.ok(Math.abs(f2 + v2.bars - 1 - (fr2.anchor + endParts * fr2.yearBars)) <= 1, market + ' ends on its line');
-  assert.equal(v2.fit, 'centre', market);
-};
-span2({ t: r2, c: r2.map(() => 1) }, 'BTC', '2026-09-01', 1);                                       // Sep → 1 Jan
-span2(hourly(Date.UTC(2025, 10, 3), Date.UTC(2026, 10, 2), [13.5, 15.5, 17.5, 19.5]), 'STOCK', '2026-05-01', 1); // May → 1 Jan
-span2(hourly(Date.UTC(2025, 10, 3), Date.UTC(2026, 10, 2), [7, 9, 11, 13, 15]), 'IDX', '2026-05-01', 1);
 // Daily, every market (2026-10-22): last year's line to two year lines ahead
 // (2025 → 2028). Round the clock (crypto) and a session a weekday.
 ctx.timeframe = 'D';

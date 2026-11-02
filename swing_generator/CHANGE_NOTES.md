@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-02 2H REMOVED AGAIN (same day): app.js v566, grid-geometry.js v12.
+User: "remove 2h". Everything the morning's "2H CHART BACK, 4H KEPT" entry
+(#119) added is taken out: the 2H button, its TIMEFRAMES row and
+REEL_FRAME_VIEW entry, its yearly bold lines, `build_2h` in CHART_BUILDERS and
+the 2H browser/unit tests. Kept from #119: the last-price line takes no
+touches (`pointer-events="none"`), so a channel handle on the current price
+stays grabbable. `build_2h` stays for research; the chart/2H R2 chunks are
+orphaned as after the 2026-10-26 removal; a saved 2H chart choice opens on
+Daily. 4H is unchanged.
 2026-11-02 CASH INDICES READ "OPENS 10:00", NOT "NO RECENT QUOTE":
 freshness.js v6. User, at 09:38 SAST: "The eu session is open and prices for
 these not updating?" It was not open: since Europe's clocks went back on 25
