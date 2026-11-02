@@ -96,10 +96,9 @@
       line[kind] = true;
       line.label = label;
     };
-    if (tf === '1H' || tf === '2H' || tf === '4H') {
-      // Bold lines one YEAR apart on 1H, 2H and 4H (1H was quarters until
+    if (tf === '1H' || tf === '4H') {
+      // Bold lines one YEAR apart on 1H and 4H (1H was quarters until
       // 2026-11-01; user: "the bolded vertical lines should be 1 year apart").
-      // 2H (back 2026-11-02) takes them too, between its two neighbours.
       for (let y = firstYear; y <= year + 4; y++) {
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
       }
