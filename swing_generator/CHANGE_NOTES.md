@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-02 2H CHART BACK, 4H KEPT: chart_feed.py + app.js v565,
+grid-geometry.js v11. User: "Since the 4h is not used replace with 2h", then,
+told that 4H also feeds the Watchlist's 4H aligned/minor tag, the relation
+filter, MA clusters and the minor-opportunity alerts (the Daily → 4H → 1H
+workflow, `daily500-4h-v1`): "Add 2h keep 4". Chart only, as on 2026-10-25:
+no signals, markers, alerts, trend channels or setup context; header and
+filters read the Daily row, as on Weekly/Monthly. 4H is unchanged.
+- Data: `build_2h` is back in `CHART_BUILDERS` (chart/2H/<chunk>.json, a year
+  of calendar, forming candle). No deep block. It goes through the chart cache
+  like the others.
+- App: a 2H button between 1H and 4H, its TIMEFRAMES row (chartOnly), and the
+  opening frame REEL_FRAME_VIEW['2H'] restored: previous + current TWO-MONTH
+  block round the clock, FOUR-MONTH blocks on session-only feeds, priced
+  'centre' like 1H. Yearly bold lines as on 1H and 4H (new for 2H).
+- Tests: stock_view_test.cjs (2H frames), time_grid_test.cjs (2H yearly
+  lines), app_smoke.cjs (button order, 2H chunk drawn, no 2H markers or
+  relation).
+
 2026-11-01 LADDER: GLOW COLOUR, ZERO HOLDS THE LADDER, "0" FRAMES FROM ZERO
 (app.js v564, style.css v400, drawing-toolbar.js v9). User: "the glow can be
 switched off and switched on only for the percentage lines, with also an

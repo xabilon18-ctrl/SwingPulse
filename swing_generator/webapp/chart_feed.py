@@ -1106,7 +1106,7 @@ def near_ma_map(daily: dict) -> dict:
 
 # By NAME, looked up at call time, so a test that patches a builder on this
 # module is still the builder that runs.
-CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '2H': 'build_2h', '4H': 'build_4h_live', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -1131,7 +1131,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, '2H': n, '4H': n, 'D': n, 'chunks': n_files}.
     Weekly and Monthly (back 2026-10-19) are published separately, by
     tools/publish_htf.py.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
@@ -1150,7 +1150,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '2H': 0, '4H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
@@ -1160,7 +1160,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # build_10m_live/build_1h/build_2h/build_12h kept for research. 2H BACK
     # 2026-10-25 (user: "Just 2h", chart only as before): its own chunks, no
     # markers, alerts or trend context. 2H REMOVED again 2026-10-26 (user:
-    # "Remove 2 h"); build_2h kept, its R2 chunks left orphaned.
+    # "Remove 2 h"); build_2h kept, its R2 chunks left orphaned. 2H BACK
+    # 2026-11-02 (user: "Add 2h keep 4"), chart only beside 4H: no markers,
+    # alerts, trend channels or setup context — 4H stays the swing layer.
     #
     # 2026-11-01: a chart whose inputs have not changed is taken from the
     # chart cache instead of rebuilt (chart_cache.py says exactly when), and the

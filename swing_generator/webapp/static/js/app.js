@@ -186,7 +186,11 @@
     // 30m retired from the app; historical drawings and data remain stored.
     { code: '1H', prefix: 'h1_', label: '1H', bar: 'hourly bars', barShort: '25-bar' },
     // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
-    // "Remove 2 h"); a saved 2H chart choice opens on Daily.
+    // "Remove 2 h"). BACK 2026-11-02 beside 4H (user: "Add 2h keep 4") as a
+    // CHART ONLY: no signals, markers, alerts or 2H trend read; the header and
+    // filters read the Daily row, as on Weekly and Monthly. 4H stays the
+    // swing/setup layer of the Daily → 4H → 1H workflow.
+    { code: '2H', prefix: '', label: '2H', bar: '2-hour bars', barShort: '25-bar', chartOnly: true },
     { code: '4H', prefix: 'h4_', label: '4H', bar: '4-hour bars', barShort: '25-bar' },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
@@ -9068,6 +9072,11 @@
   //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
   //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
   //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
+  //   2H — TWO-MONTH BLOCKS (as on 2026-10-25, back 2026-11-02 as a chart
+  //        only beside 4H): Sep-Oct shaded, Nov-Dec running into blank future
+  //        up to the 1 Jan line on 2 Nov; priced 'centre' like 1H. Session-only
+  //        feeds (4 bars a day on a US stock, 5 on a European index) take
+  //        FOUR-MONTH blocks, as 4H takes half-years.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
@@ -9079,10 +9088,11 @@
   // crypto's scale.
   // Hours of bars a calendar day carries: 20-24 on a round-the-clock or
   // futures feed, 6.5-10 on an exchange session (4H: 5-6 bars a day against
-  // 2-3).
+  // 2-3; 2H: 10-12 against 4-5).
   const REEL_SESSION_HOURS = 16;
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
+    '2H': { unit: 1 / 6,   sessionUnit: 1 / 3, fit: 'centre' },
     '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
