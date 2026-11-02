@@ -237,4 +237,46 @@ for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [20
   lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, `${code} parts are equal`));
   lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, `${code} shading alternates`));
 }
+// Quarter thirds (2026-11-02): a switch on the Q grid adds two lines per
+// quarter at exactly 1/3 and 2/3, unlabelled, outside the shading, and
+// changes nothing else.
+{
+  const q = context();
+  q.reelSetGridDivision('1H', 'Q', 'other');
+  const before = q.reelTimeGrid(b, '1H');
+  assert.equal(before.some(l => l.third), false, 'Thirds are off by default');
+  assert.equal(q.chartPreferences.setThirds('1H', true, 'other'), true);
+  const after = q.reelTimeGrid(b, '1H');
+  const thirds = after.filter(l => l.third), quarters = after.filter(l => !l.fixedOnly);
+  assert.deepEqual(after.filter(l => !l.third), before, 'Quarter lines, labels and permanent lines are unchanged');
+  assert.equal(thirds.filter(l => l.year === 2024).length, 8, 'Two lines in each of four quarters');
+  assert.ok(thirds.every(l => l.fixedOnly && !l.label), 'Thirds carry no label and no shading');
+  const step = quarters[1].fi - quarters[0].fi;
+  for (const l of thirds) {
+    const qi = quarters.find(x => x.year === l.year && x.part === l.part);
+    const off = (l.fi - qi.fi) / step;
+    assert.ok(Math.abs(off - 1 / 3) < 1e-9 || Math.abs(off - 2 / 3) < 1e-9, 'Thirds split the quarter equally');
+  }
+  // Remembered across a division change and a reload; shown on Q only.
+  q.reelSetGridDivision('1H', 'M', 'other');
+  assert.equal(q.reelTimeGrid(b, '1H').some(l => l.third), false, 'No thirds on the Month grid');
+  q.reelSetGridDivision('1H', 'Q', 'other');
+  assert.equal(context().reelTimeGrid(b, '1H').some(l => l.third), true, 'The switch is saved');
+  // Per market: a stock switch leaves the other markets alone.
+  q.chartPreferences.setThirds('1H', false, 'other');
+  q.reelSetGridDivision('1H', 'Q', 'stocks');
+  q.chartPreferences.setThirds('1H', true, 'stocks');
+  assert.equal(q.reelTimeGrid(b, '1H', { asset_class: 'Equity' }).some(l => l.third), true);
+  assert.equal(q.reelTimeGrid(b, '1H', { asset_class: 'Crypto' }).some(l => l.third), false);
+  // A session-only 4H chart draws half-years for Q, so no thirds there.
+  q.reelSetGridDivision('4H', 'Q', 'stocks');
+  q.chartPreferences.setThirds('4H', true, 'stocks');
+  assert.equal(q.reelTimeGrid(b, '4H', { asset_class: 'Equity' }).some(l => l.third), false);
+  assert.equal(q.reelTimeGrid(b24, '4H', { asset_class: 'Equity' }).filter(l => l.third && l.year === 2024).length, 8);
+  // The flag survives the sync merge and is dropped when not strictly true.
+  const snap = q.chartPreferences.snapshot();
+  assert.equal(snap.stockGrids['1H'].thirds, true);
+  assert.equal(preferences.clean({ grids: { '1H': { division: 'Q', modifiedAt: 1, thirds: 'yes' } } }).grids['1H'].thirds, undefined);
+}
+console.log('PASS: quarter thirds switch');
 console.log('PASS: equal M/Q/H/Y, removed W, permanent equal 1H/4H years and Daily admins, equal Weekly/Monthly terms, half terms, Weekly 10Y and Monthly 10Y/20Y, saved choices and shading');

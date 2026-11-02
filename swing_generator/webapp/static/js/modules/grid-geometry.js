@@ -85,6 +85,15 @@
           year: y, part: k, division: division.code });
       }
     }
+    // Quarter thirds (switch on the Q grid): two light, unlabelled lines in
+    // each quarter on the same equal-year geometry. fixedOnly keeps them out
+    // of the alternating shading, so the quarters shade exactly as before.
+    if (division.code === 'Q' && division.thirds) {
+      for (let y = firstYear; y <= year + 4; y++) for (let k = 0; k < 4; k++) for (const j of [1, 2]) {
+        const fi = anchor + ((y - year) * 4 + k + j / 3) * step - from;
+        out.push({ fi, future: fi > n - 1 - from, fixedOnly: true, third: true, year: y, part: k });
+      }
+    }
     // Permanent reference lines share exactly the same equal-year geometry.
     // They never alter the selected grid's alternating shading intervals.
     const permanent = (fi, label, kind) => {
