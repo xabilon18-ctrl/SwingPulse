@@ -71,3 +71,7 @@ console.log('PASS: authenticated saved-work merging, newer charts and grids, del
   assert.deepEqual(mergeSavedWork(m,{views:{'X|bad':a},viewsMod:{'X|bad':999,'__proto__':999}}).views,m.views,'bad keys ignored');
   console.log('PASS: saved views merge per view');
 }
+// Quarter thirds (2026-11-02) sync with their grid row; only `true` is kept.
+assert.equal(mergeSavedWork({},{chartPrefs:{version:2,stockGrids:{'1H':{division:'Q',modifiedAt:5,thirds:true}}}}).chartPrefs.stockGrids['1H'].thirds,true,'Quarter thirds sync');
+assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{'1H':{division:'Q',modifiedAt:5,thirds:1}}}}).chartPrefs.grids['1H'].thirds,undefined,'Only true is kept');
+console.log('PASS: quarter thirds sync');

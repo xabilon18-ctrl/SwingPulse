@@ -10887,7 +10887,9 @@
     const session = tf === '4H' && reelSessionOnly(b._src || b, tf);
     return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => {
       const d = reelGridDivision(code, scope);
-      return (session && REEL_SESSION_GRID[d.code]) || d;
+      // A session-only 4H draws one size up (Q → half-years), so no thirds there.
+      if (session && REEL_SESSION_GRID[d.code]) return REEL_SESSION_GRID[d.code];
+      return d.code === 'Q' && chartPreferences.thirds(code, scope) ? { ...d, thirds: true } : d;
     } });
   }
 
@@ -11483,7 +11485,13 @@
     const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
     // The switch first; strength and colour appear only once it is on (user,
     // 2026-09-27: "a matter of on and off, then adjust if on").
+    // Quarter thirds (user, 2026-11-02): an on/off switch under the Q grid only.
+    const thirdsOn = chartPreferences.thirds(timeframe, scope);
+    const thirds = reelGridDivision(timeframe, scope).code !== 'Q' ? ''
+      : `<button class="reel-tool reel-grid-switch${thirdsOn ? ' on' : ''}" data-act="time-grid-thirds" data-grid-scope="${scope}" role="menuitemcheckbox" aria-checked="${thirdsOn}">
+        <span>Split each quarter into 3<em>${timeframe === '4H' ? 'not on 4H session charts, which draw half-years' : 'two light lines per quarter'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     let h = `${reelTimeGridSwitch(name)}
+      ${thirds}
       ${reelRangeSwitch()}
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
@@ -14115,8 +14123,12 @@
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
-      if (btn.dataset.act === 'time-grid-set') {
-        if (!reelSetGridDivision(timeframe, btn.dataset.division, btn.dataset.gridScope)) return true;
+      if (btn.dataset.act === 'time-grid-set' || btn.dataset.act === 'time-grid-thirds') {
+        const scope = btn.dataset.gridScope || 'other';
+        const ok = btn.dataset.act === 'time-grid-set'
+          ? reelSetGridDivision(timeframe, btn.dataset.division, scope)
+          : !!TF_BY_CODE[timeframe] && chartPreferences.setThirds(timeframe, !chartPreferences.thirds(timeframe, scope), scope);
+        if (!ok) return true;
         document.querySelectorAll('.reel-grid-menu').forEach(menu => {
           menu.innerHTML = reelGridMenuHtml(menu._name);
           reelGridMenuPlace(menu);

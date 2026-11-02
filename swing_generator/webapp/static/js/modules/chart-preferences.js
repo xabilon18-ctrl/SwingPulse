@@ -26,6 +26,10 @@
       if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !row || !valid(row.division)) continue;
       if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
       grids[tf] = { division: row.division, modifiedAt: row.modifiedAt };
+      // Quarter thirds (user, 2026-11-02: "just a switch to turn on and off in
+      // the quarter time grid"): two light lines splitting each quarter into
+      // three equal parts. Kept on the row so it syncs and merges with it.
+      if (row.thirds === true) grids[tf].thirds = true;
     }
     return grids;
   }
@@ -66,15 +70,31 @@
     }
     function save() { try { storage.setItem(key(), JSON.stringify(state)); } catch (_) {} }
     function snapshot() { return clean(state); }
+    // The row a market reads: its own, else (split-out markets) the 'other' one.
+    function effective(tf, scope) {
+      return state[scopes[scope] || 'grids'][tf] || (fromOther.has(scope) && state.grids[tf]) || null;
+    }
     function division(tf, scope = 'other') {
-      const code = state[scopes[scope] || 'grids'][tf]?.division || (fromOther.has(scope) && state.grids[tf]?.division) || defaults[tf] || 'Y';
+      const code = effective(tf, scope)?.division || defaults[tf] || 'Y';
       return choices.find(c => c.code === code);
     }
+    function thirds(tf, scope = 'other') { return effective(tf, scope)?.thirds === true; }
     function set(tf, code, scope = 'other') {
       if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
-      const rows = state[scopes[scope]], old = rows[tf];
+      const rows = state[scopes[scope]], old = rows[tf], keepThirds = thirds(tf, scope);
       if (old && old.division === code) return true;
+      // The thirds switch survives a division change, so Q comes back as it was left.
       rows[tf] = { division: code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
+      if (keepThirds) rows[tf].thirds = true;
+      save(); onChange(); return true;
+    }
+    function setThirds(tf, on, scope = 'other') {
+      if (!Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
+      on = !!on;
+      if (thirds(tf, scope) === on) return true;
+      const rows = state[scopes[scope]], old = rows[tf];
+      rows[tf] = { division: division(tf, scope).code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
+      if (on) rows[tf].thirds = true;
       save(); onChange(); return true;
     }
     function mergeRemote(remote) {
@@ -88,12 +108,12 @@
     }
     function previewRestore(value) {
       const next = snapshot(), backup = migrate(value);
-      for (const field of Object.values(scopes)) for (const [tf, row] of Object.entries(backup[field])) next[field][tf] = { division: row.division, modifiedAt: Math.max(now(), (next[field][tf]?.modifiedAt || 0) + 1) };
+      for (const field of Object.values(scopes)) for (const [tf, row] of Object.entries(backup[field])) next[field][tf] = { ...row, modifiedAt: Math.max(now(), (next[field][tf]?.modifiedAt || 0) + 1) };
       return next;
     }
     function restore(value) { state = previewRestore(value); save(); onChange(); }
     reload();
-    return { reload, snapshot, division, set, mergeRemote, pending, restore, previewRestore };
+    return { reload, snapshot, division, thirds, set, setThirds, mergeRemote, pending, restore, previewRestore };
   }
   const api = Object.freeze({ choices, defaults, scopes, fromOther, clean, migrate, merge, create });
   (root.SwingPulseModules ||= {}).chartPreferences = api;

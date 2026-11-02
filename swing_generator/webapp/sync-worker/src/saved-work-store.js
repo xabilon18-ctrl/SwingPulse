@@ -8,6 +8,7 @@ function grids(value, field) {
     if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y', 'T2', 'T', 'Y10', 'Y20'].includes(row.division)) continue;
     if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
     out[tf] = { division: row.division, modifiedAt: row.modifiedAt };
+    if (row.thirds === true) out[tf].thirds = true;  // Q grid split into thirds (2026-11-02)
   }
   return out;
 }

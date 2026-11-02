@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-02 QUARTER THIRDS SWITCH ON THE Q TIME GRID: app.js v567,
+chart-preferences.js v9, grid-geometry.js v13, sync Worker. User: "just a
+switch to turn on and off in the quarter time grid" (shown with screenshots
+of a GOLD 1H Q chart with lines at the quarter's thirds). Grid menu → under
+the Time grid row, only while Q is selected: "Split each quarter into 3".
+On, each quarter gets two light unlabelled `reel-tgrid` lines at exactly 1/3
+and 2/3 of the quarter on the same equal-year geometry (Q4 → ~1 Nov, ~1 Dec).
+Nothing else changes: quarter lines, labels, bold year lines and the
+alternating shading are identical (the thirds are `fixedOnly`, which the
+shading skips). Saved as `thirds: true` on the market/timeframe grid row, so
+it is per market and per timeframe like the division, survives switching to
+M/H/Y and back, and syncs (the Worker's `grids()` now keeps the flag; it used
+to drop unknown fields). Not drawn on a session-only 4H chart, which shows
+half-years for Q (REEL_SESSION_GRID); the switch says so on 4H. The M grid
+draws the same line positions with month shading and month labels; this
+keeps Q's look.
 2026-11-02 2H REMOVED AGAIN (same day): app.js v566, grid-geometry.js v12.
 User: "remove 2h". Everything the morning's "2H CHART BACK, 4H KEPT" entry
 (#119) added is taken out: the 2H button, its TIMEFRAMES row and
