@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-02 FUTURES PROBE FOR CASH INDICES: tools/probe_index_futures.py +
+.github/workflows/probe-index-futures.yml. User, on the EU indices reading "No
+recent quote" before the 10:00 SAST cash open: "i want future for all
+indices". config.H4_SESSION_NORMALIZE says the non-US cash indices have "no
+usable yfinance future", but nothing recorded it being measured. The probe
+asks Yahoo search for FUTURE quotes per index plus hand-picked tickers, and
+scores each on 5m bars: UTC hours covered on the latest weekday (>= 18),
+level vs cash (within 5%), 5m return correlation with cash (>= 0.8), bar age.
+US100 (NQ=F) and NI225 (NKD=F) are controls; the job fails if they do not
+pass. Read-only, changes nothing in the app. CHINA50's cash is an ETF
+(2822.HK), so its level check cannot pass; read its correlation instead.
+
 2026-11-02 2H CHART BACK, 4H KEPT: chart_feed.py + app.js v565,
 grid-geometry.js v11. User: "Since the 4h is not used replace with 2h", then,
 told that 4H also feeds the Watchlist's 4H aligned/minor tag, the relation

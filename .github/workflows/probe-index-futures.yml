@@ -1,0 +1,45 @@
+name: Probe Yahoo futures for cash indices
+
+# One-off measurement (user, 2026-11-02: "i want future for all indices").
+# Asks Yahoo whether each cash index in the book has a near-24h future the app
+# could draw from, as the US indices already do (config.H4_SOURCE). Read-only:
+# no secrets, no deploy, nothing pushed. Lives here because Yahoo is reachable
+# from Actions and not from the Claude sandbox. Runs on the PR that adds or
+# changes the probe, and by hand. See swing_generator/tools/probe_index_futures.py.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - swing_generator/tools/probe_index_futures.py
+      - .github/workflows/probe-index-futures.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r swing_generator/requirements.txt
+
+      - name: Probe each index's futures
+        run: |
+          cd swing_generator
+          python3 tools/probe_index_futures.py --report ../futures-probe.json
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: futures-probe
+          path: futures-probe.json
+          if-no-files-found: warn
