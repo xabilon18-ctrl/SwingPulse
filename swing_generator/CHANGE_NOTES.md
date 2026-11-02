@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-02 CASH INDICES READ "OPENS 10:00", NOT "NO RECENT QUOTE":
+freshness.js v6. User, at 09:38 SAST: "The eu session is open and prices for
+these not updating?" It was not open: since Europe's clocks went back on 25
+Oct, the 09:00 CET / 08:00 GMT opens are 10:00 SAST. The Watchlist prices these
+from the cash index, which prints only in regular hours, and `session()` knew
+no index hours, so every one went red "No recent quote" an hour after the
+close and stayed red all night. `INDEX_SESSIONS` now holds regular hours for
+the 17 cash-priced indices (EU, SW20, UK100, SOX, CAN60, HK incl. its lunch
+break, CHINA50's 2822.HK, NQTW, SG30SGD, AUS200, SA40). Outside them the tag is
+grey "Opens 10:00" / "Opens Mon 10:00", in the device's time, DST-corrected
+across a clock change; the tooltip says holidays are not known. Keyed by
+ticker, not class (SOX is in the US100 group, class Equity). Futures-priced
+indices (US500, US100, US30, RUSSELL, NI225) are deliberately absent: their
+quote keeps printing out of cash hours. Why not futures for the rest: PR #120
+(closed) listed every future Yahoo's lookup/search returns, 2,119 of them, and
+found none for Eurex, ICE Europe, Euronext, HKFE, OSE or ASX; the SGX ones
+trade 5-9 hours. Tests: freshness_test.cjs.
+
 2026-11-02 2H CHART BACK, 4H KEPT: chart_feed.py + app.js v565,
 grid-geometry.js v11. User: "Since the 4h is not used replace with 2h", then,
 told that 4H also feeds the Watchlist's 4H aligned/minor tag, the relation

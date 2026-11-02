@@ -57,4 +57,30 @@ for (const [tf,word] of [['W','weekly'],['M','monthly']]) {
   assert.equal(bar.basis,'session date');
   assert.equal(bar.time,'5 Oct');
 }
-console.log('PASS: freshness, local chart times, day rollover, daylight saving, daily session dates and forex hours');
+// Cash indices priced from the index itself (2026-11-02): closed outside
+// regular hours, labelled with the next open in the device's own time.
+{
+  const prevTZ=process.env.TZ;
+  try {
+    process.env.TZ='Africa/Johannesburg';
+    const ix=(sym,t,age=3*3600000)=>f.quote(Date.parse(t)-age,{assetClass:'Index',symbol:sym},Date.parse(t));
+    // The user's screenshot: Mon 2 Nov 09:38 SAST = 07:38 UTC, Frankfurt on winter time.
+    let q=ix('^GDAXI','2026-11-02T07:38:00Z',15*3600000);
+    assert.equal(q.state,'closed'); assert.equal(q.label,'Opens 10:00','DAX opens 09:00 CET = 10:00 SAST');
+    assert.ok(q.detail.includes('holidays may differ'));
+    assert.equal(ix('^FTSE','2026-11-02T07:38:00Z').label,'Opens 10:00','FTSE opens 08:00 GMT = 10:00 SAST');
+    assert.equal(ix('^GDAXI','2026-07-13T06:30:00Z').label,'Opens 09:00','Summer: Frankfurt on CEST, opens 09:00 SAST');
+    assert.equal(ix('^GDAXI','2026-11-02T09:00:00Z',2*3600000).state,'stale','In session an old quote is still a problem');
+    assert.equal(ix('^GDAXI','2026-11-02T09:00:00Z',5*60000).state,'recent');
+    assert.equal(ix('^GDAXI','2026-11-02T16:31:00Z').label,'Opens Tue 10:00','After the 17:30 CET close: next weekday');
+    assert.equal(ix('^GDAXI','2026-10-31T10:00:00Z').label,'Opens Mon 10:00','Saturday: Monday');
+    assert.equal(ix('^GDAXI','2026-10-23T16:00:00Z').label,'Opens Mon 10:00','Friday before the Oct DST change: Monday 09:00 CET is still 10:00 SAST');
+    assert.equal(ix('^HSI','2026-11-02T04:30:00Z').label,'Opens 07:00','Hong Kong lunch: reopens 13:00 HKT');
+    assert.equal(ix('^HSI','2026-11-02T03:00:00Z',5*60000).state,'recent','Hong Kong morning session');
+    assert.equal(f.quote(Date.parse('2026-11-02T03:38:00Z'),{assetClass:'Equity',symbol:'^SOX'},Date.parse('2026-11-02T07:38:00Z')).label,'Opens 16:30','SOX (Equity class) uses the index table too');
+    // Futures-priced indices keep printing out of cash hours: no session rule.
+    assert.equal(ix('^GSPC','2026-11-02T07:38:00Z').state,'stale');
+    assert.equal(ix('^N225','2026-11-02T07:38:00Z').state,'stale');
+  } finally { if(prevTZ===undefined) delete process.env.TZ; else process.env.TZ=prevTZ; }
+}
+console.log('PASS: freshness, cash index sessions, local chart times, day rollover, daylight saving, daily session dates and forex hours');
