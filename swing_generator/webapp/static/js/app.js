@@ -11218,7 +11218,10 @@
       // black background and all but disappears as a thin stroke on white.
       // Thin again (user, same day: "don't make the price line bold") — kept
       // at full strength in the deeper amber, which is what makes it findable.
-      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="1.6" stroke-dasharray="6 5" stroke-opacity="1"/>` +
+      // It is painted over the drawings, so it takes no touches (2026-11-02):
+      // a channel end handle sitting on the current price was not grabbable
+      // through it (CI, the day the fixture's close fell on the flat channel).
+      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="1.6" stroke-dasharray="6 5" stroke-opacity="1" pointer-events="none"/>` +
       `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" fill="var(--accent)"/>` +
       `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
 

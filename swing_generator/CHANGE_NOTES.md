@@ -24,6 +24,11 @@ filters read the Daily row, as on Weekly/Monthly. 4H is unchanged.
 - Tests: stock_view_test.cjs (2H frames), time_grid_test.cjs (2H yearly
   lines), app_smoke.cjs (button order, 2H chunk drawn, no 2H markers or
   relation).
+- Fixed with it: the last-price line takes no touches (`pointer-events`
+  none). It is painted over the drawings, so a channel end handle sitting on
+  the current price could not be grabbed through it. CI found it on
+  2026-11-02, when the fixture's close fell exactly on the browser check's
+  flat channel; main failed the same check that day.
 
 2026-11-01 LADDER: GLOW COLOUR, ZERO HOLDS THE LADDER, "0" FRAMES FROM ZERO
 (app.js v564, style.css v400, drawing-toolbar.js v9). User: "the glow can be
