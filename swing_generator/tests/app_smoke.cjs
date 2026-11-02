@@ -81,6 +81,22 @@ let debugPage;
     assert.ok(chunks > oldChunks, 'new dataset invalidates and reloads chart chunks');
   }
   if (!live) {
+    // 2H (back 2026-11-02, user: "Add 2h keep 4"): a chart-only button between
+    // 1H and 4H, drawn from its own chart/2H chunk, with no 2H signal, marker
+    // or borrowed aligned/minor relation. 4H keeps its button.
+    assert.deepEqual(await page.$$eval('.tf-switch-btn:not([hidden])', bs => bs.map(b => b.dataset.tf)).then(t => t.slice(0, 3)),
+      ['1H', '2H', '4H'], '2H sits between 1H and 4H');
+    {
+      const chunk2 = page.waitForResponse(r => r.url().includes('/ma500/chart/2H/0.json'));
+      await page.locator('#tfBtn2H').click();
+      await chunk2;
+      await page.waitForFunction(() => document.querySelector('#tfBtn2H').getAttribute('aria-selected') === 'true');
+      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+      const card = await page.locator('#chartReel .reel-card').first().innerText();
+      assert.ok(!/\b2H (aligned|minor)/.test(card), '2H shows no aligned/minor relation of its own');
+      assert.equal(await page.locator('#chartReel .reel-chart').first().locator('.reel-xm, .reel-sgm').count(), 0, '2H draws no signal markers on the chart');
+      assert.ok(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) > 20, '2H draws its candles');
+    }
     // Weekly and Monthly (back 2026-10-19): chart only, each read through its own
     // chunk map, with no 4H read under their name, divided by administration
     // term with every line equal (no bold, no year lines).
