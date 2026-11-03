@@ -7,6 +7,29 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) DAILY LADDERS SUBDIVIDED ON 1H / 4H: app.js v575,
+style.css v402. The user showed how they had built it by hand on PALLADIUM
+(a Daily ladder, then on 1H a second ladder from Daily 20% to 40% splitting
+each Daily gap into five, Daily labels still on top) and asked: "build it and
+add the small labels for the small division but when i am on the 1h i should
+be able to tell which are the daily one and which are the 1h from the labels".
+- A ladder that shows on Daily (`ladderIsDaily`: linked, `tfs` includes D) is
+  a Daily ladder. On 1H and 4H (`LADDER_SUB_TFS`) it keeps its Daily lines,
+  labelled "D 20%" (big, black, as before), and each Daily gap gets
+  `LADDER_SUB` = 5 parts: `.reel-ladder-sub` lines (finer, lighter) with
+  `.reel-ladder-sublbl` labels ("22%", small grey). Drawing only: no tap
+  target, glow or price alert on the sub-lines.
+- Sub-lines are hidden when closer than `LADDER_SUB_LINE_MIN` (14 viewBox
+  units) and their labels when closer than `LADDER_SUB_LBL_MIN` (30), so a
+  zoomed-out chart is not a grey smear. The % button hides both label sets.
+- A ladder drawn on Daily is now linked to D, 1H and 4H at creation
+  (channelAdd); the timeframe chips still turn any of them off.
+- Test: ladder_daily_sub_checks.cjs (from app_smoke): drawn on Daily it is
+  linked to D/1H/4H, Daily labels plain, 1H and 4H labels "D …%", sub-lines
+  present, small labels on the 2% steps. Fails on v574.
+The user's hand-drawn 1H ladder on PALLADIUM now doubles the sub-lines; they
+can delete it.
+
 2026-11-03 (later) LADDER BACK TO 10 DIVISIONS EVERYWHERE: app.js v574.
 User: "now i feel like the 10 divisions was better than the 8. Take
 everything back to 10". `LADDER_DIVISIONS = 10` on every timeframe (v572 did

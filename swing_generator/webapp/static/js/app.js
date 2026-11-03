@@ -10128,6 +10128,12 @@
     const def = reelDefaultDrawing(kind || 'channel', ctx.b);
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
+    // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
+    // (ladderSubdivides). The timeframe chips still turn any of them off.
+    if (def.kind === 'ladder' && timeframe === 'D') {
+      def.link = drawLinkId();
+      def.tfs = tabTfs('charts').filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
+    }
     // A new circle starts ROUND on screen, about a quarter of the plot tall,
     // centred where the default put it — its price box alone came out as a
     // thin oval on a two-year view.
@@ -10565,6 +10571,22 @@
   // The resize dot's line, in stored steps above 0%: the 40% line on ten
   // divisions (2026-11-01), the 37.5% line if a timeframe ever uses eight.
   const ladderDotSteps = tf => ladderDivs(tf) === 8 ? 3.75 : 4;
+  // DAILY LADDERS ON 1H / 4H (user, 2026-11-03, shown how they had drawn it on
+  // PALLADIUM: a Daily ladder, then on 1H a second ladder splitting each Daily
+  // gap into five, with the Daily % labels still on top; "build it and add the
+  // small labels for the small division but when i am on the 1h i should be
+  // able to tell which are the daily one and which are the 1h from the
+  // labels"). A ladder that shows on Daily is a Daily ladder. On 1H and 4H it
+  // keeps its Daily lines, labelled "D 20%", and splits every Daily gap into
+  // LADDER_SUB parts: lighter lines with small labels ("22%"). The sub-lines
+  // are drawing only: no tap target, no glow, no price alert.
+  const LADDER_SUB = 5;
+  const LADDER_SUB_TFS = new Set(['1H', '4H']);
+  const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
+  const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
+  // Hide the small labels / lines once the sub-lines are this close (viewBox
+  // units): zoomed far out they would only be a grey smear.
+  const LADDER_SUB_LBL_MIN = 30, LADDER_SUB_LINE_MIN = 14;
 
   // ZERO HOLDS THE LADDER (user, 2026-11-01: "the percentage line not to go
   // below it ... like that's a magnet ... it gets there and stops"). Whatever
@@ -10594,6 +10616,23 @@
     let out = '', drawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
+    const sub = ladderSubdivides(d, timeframe);
+    let subSvg = '';
+    if (sub) {
+      for (let j = 1; j < lines.length; j++) {
+        const a = lines[j - 1], z = lines[j];
+        const gapPx = Math.abs(sc.y(a.p) - sc.y(z.p)) / LADDER_SUB;
+        if (!(gapPx >= LADDER_SUB_LINE_MIN)) break;
+        for (let s = 1; s < LADDER_SUB; s++) {
+          const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
+          if (p < -1e-9 || y < L.py0 || y > L.py1) continue;
+          const pct = Math.round((a.pct + (z.pct - a.pct) * s / LADDER_SUB) * 10) / 10;
+          subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub"/>`
+            + (d.hideLabels || gapPx < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl">${pct}%</text>`);
+        }
+      }
+    }
+    out += subSvg;
     for (const ln of lines) {
       const p = ln.p, y = sc.y(p);
       // Never below price 0 (user, 2026-09-30: "make sure the % lines do not
@@ -10603,7 +10642,7 @@
       // Block boundaries are the bold lines — the original's 0% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const key = ln.key;
-      const pctLbl = ln.pct;
+      const pctLbl = (sub ? 'D ' : '') + ln.pct;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
