@@ -26,6 +26,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await tb.locator('[data-kind="ladder"]').click();
   if (!(await tb.locator('[data-act="draw-labels"]').isVisible())) await tb.locator('.reel-draw-fold').click();
   await tb.locator('[data-act="draw-labels"]').click();
+  // A block stacked above: its 120/140/160/180% lines are bold on 1H too.
+  await tb.locator('[data-act="draw-stack"][data-dir="up"][data-d="1"]').click();
   const stored = await page.evaluate(n => {
     const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
     const list = (all[n] && all[n].D) || [];
@@ -36,14 +38,28 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   const dailyLabels = await main();
   assert.ok(dailyLabels.includes('20%'), 'Daily labels: ' + dailyLabels.join(' '));
   assert.equal(await subLines(), 0, 'no sub-lines on Daily itself');
+  assert.equal(await page.locator('#chartFull .reel-ladder-bold').count(), 0, 'no bold 20% lines on Daily itself');
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
   for (const tf of ['1H', '4H']) {
     await openFull(tf);
+    // On 1H only, the Daily 20/40/60/80% lines are bold (2026-11-03).
+    const widths = await page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder:not(.reel-ladder-key)')]
+      .map(e => ({ pct: +e.dataset.pct, bold: e.classList.contains('reel-ladder-bold'), w: parseFloat(getComputedStyle(e).strokeWidth) })));
+    const bold = widths.filter(x => x.bold), plain = widths.filter(x => !x.bold);
+    if (tf === '1H') {
+      assert.ok(bold.length && bold.every(x => x.pct % 20 === 0), '1H: the bold lines are the 20% steps: ' + JSON.stringify(widths));
+      assert.ok([20, 40, 60, 80, 120, 140, 160, 180].every(p => bold.some(x => x.pct === p)), '1H: 20-80% and the stacked 120-180% are bold: ' + JSON.stringify(bold.map(x => x.pct)));
+      assert.ok(plain.every(x => x.pct % 20 !== 0), '1H: every 20% step is bold: ' + JSON.stringify(widths));
+      assert.ok(Math.min(...bold.map(x => x.w)) > Math.max(...plain.map(x => x.w)), '1H: bold lines are thicker: ' + JSON.stringify(widths));
+    } else assert.equal(bold.length, 0, tf + ': no bold 20% lines off 1H');
     // Zoom the price scale in until the finer steps have room for labels.
     for (let i = 0; i < 6 && !(await sub()).length; i++) {
-      const g = await page.locator('#chartFull .reel-ygrip').boundingBox();
+      // The grip is rebuilt with every repaint: re-measure until it is back.
+      let g = null;
+      for (let k = 0; k < 40 && !g; k++) { g = await page.locator('#chartFull .reel-ygrip').boundingBox({ timeout: 1000 }).catch(() => null); if (!g) await page.waitForTimeout(50); }
+      assert.ok(g, tf + ': price-axis grip is on screen');
       await page.mouse.move(g.x + g.width / 2, g.y + g.height * .55); await page.mouse.down();
       await page.mouse.move(g.x + g.width / 2, g.y + g.height * .55 - 160, { steps: 8 }); await page.mouse.up();
     }

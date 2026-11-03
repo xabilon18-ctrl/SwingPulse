@@ -10645,11 +10645,14 @@
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const key = ln.key;
       const pctLbl = ln.pct;
+      // On 1H, a Daily ladder's 20 / 40 / 60 / 80% lines are bold (user,
+      // 2026-11-03: "that is a nice touch"); 0% and 100% keep their own style.
+      const bold20 = sub && timeframe === '1H' && !key && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
       if (d.glow) out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-glow"/>`;
-      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
+      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}${bold20 ? ' reel-ladder-bold' : ''}" data-pct="${ln.pct}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 0% on the bottom line up
            // to 100% on the top one (user, 2026-09-15). The price used to sit at the right

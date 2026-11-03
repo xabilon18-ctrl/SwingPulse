@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) 1H: A DAILY LADDER'S 20/40/60/80% LINES ARE BOLD:
+app.js v576, style.css v403. User: "On the 1h make 20, 40, 60 etc bold line
+only on 1h… that is a nice touch". On 1H only (not 4H, not Daily), a Daily
+ladder's lines on the 20% steps get `.reel-ladder-bold`: about twice the
+ladder's own width at every line-weight level (own `!important` rules, since
+the weight setting overrides plain ladder widths), black, dashed like the
+other ladder lines so they do not read as the 0%/100% ends. Each main line
+now carries `data-pct`. Test: ladder_daily_sub_checks.cjs (1H: bold exactly
+on the 20% steps and thicker; 4H and Daily: none). The paused "black small
+labels / bolder Daily" branch (feat/ladder-sub-contrast) is not in this.
+
 2026-11-03 (later) DAILY LADDERS SUBDIVIDED ON 1H / 4H: app.js v575,
 style.css v402. The user showed how they had built it by hand on PALLADIUM
 (a Daily ladder, then on 1H a second ladder from Daily 20% to 40% splitting
