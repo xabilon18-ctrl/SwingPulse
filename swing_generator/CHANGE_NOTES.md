@@ -7,6 +7,29 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (late night) ONE-TIME LADDER CLEANUP: app.js v581. User: "I need
+the old percentage that stood alone and not the 1h and the 4h divisions that
+go together with the daily chart to be removed. The new ones remain", and
+"Daily percentage lines must have 4 and 1 active, obviously with an option
+to deactivate still available".
+- `ladderCleanupOnce()`, once per device (flag
+  `sp-ladder-cleanup-2026-11-03`, per user via `sk`), after the first sync
+  pull of the visit (skipped if that pull fails, so an out-of-date copy is
+  never stamped as the newer edit):
+  - deletes every ladder on 1H/4H that is not a Daily ladder
+    (`!ladderIsDaily`): drawn there alone, or linked 1H+4H only;
+  - links every never-linked Daily ladder and shows it on D, 1H and 4H;
+    a linked Daily ladder keeps its chips (a 1H/4H the user switched off
+    stays off);
+  - saves through `channelSave`, so the deletions sync to other devices as
+    the newest edit of those charts.
+- New ladders drawn on 1H/4H after this are left alone (it runs once), and
+  new Daily ladders already open on D + 1H + 4H.
+- Startup: `syncCatchUpDrawings` still starts alongside the pull; only the
+  cleanup waits for it.
+- Test: `tests/ladder_cleanup_checks.cjs` (run from app_smoke, own browser
+  context with old drawings seeded).
+
 2026-11-03 (night) LADDER SCALE DOT NEAR THE PRICE: app.js v580. User,
 with USDX trading near its ladder's 200% line: "how can we move the
 adjustable points ... only affecting the rest and not zero ... adjusting

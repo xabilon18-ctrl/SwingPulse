@@ -7746,7 +7746,12 @@
   updateSyncBadge();
   if (!syncUser) showUserPicker();
   // Initial load — pull watchlist sync after data is ready
-  loadAll().then(() => { if (syncUser) { syncPull(); syncCatchUpDrawings(); } });
+  loadAll().then(async () => {
+    let pulled = true;
+    if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
+    // After the pull, never on a copy that may be out of date (see the function).
+    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} }
+  });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
   // Silently re-fetches all data in the background; if the page is hidden
@@ -10082,6 +10087,44 @@
         }
       }
     }
+  }
+
+  // ONE-TIME LADDER CLEANUP (user, 2026-11-03: "I need the old percentage
+  // that stood alone and not the 1h and the 4h divisions that go together
+  // with the daily chart to be removed. The new ones remain", and "Daily
+  // percentage lines must have 4 and 1 active, obviously with an option to
+  // deactivate"). Once per device, after its first sync pull:
+  //  - a ladder on 1H or 4H that is not a Daily ladder (drawn there on its
+  //    own, before Daily ladders showed on 1H/4H) is deleted;
+  //  - a Daily ladder that was never linked (drawn before linking) is linked
+  //    and shown on 1H and 4H; its chips can still turn them off. A linked
+  //    Daily ladder keeps whatever its chips say.
+  // It saves like any edit, so the deletions reach the other devices as the
+  // newer edit of those charts. Run only after a pull, so it never stamps an
+  // out-of-date chart as new.
+  const LADDER_CLEANUP_KEY = 'sp-ladder-cleanup-2026-11-03';
+  function ladderCleanupOnce() {
+    try { if (localStorage.getItem(sk(LADDER_CLEANUP_KEY))) return 0; } catch (_) { return 0; }
+    const all = tabTfs('charts');
+    const showOn = all.filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      for (const tf of LADDER_SUB_TFS) {
+        const list = per[tf];
+        if (!Array.isArray(list)) continue;
+        const keep = list.filter(d => !(d && d.kind === 'ladder' && !ladderIsDaily(d)));
+        if (keep.length !== list.length) { n += list.length - keep.length; per[tf] = keep; }
+      }
+      for (const d of per.D || []) {
+        if (!d || d.kind !== 'ladder' || d.link) continue;
+        d.link = drawLinkId(); d.tfs = showOn.slice(); n++;
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_CLEANUP_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    return n;
   }
 
   function channelSave() {
