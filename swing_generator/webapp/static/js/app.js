@@ -10788,7 +10788,12 @@
         // Stepping aside must not land on an END handle either (grab radius
         // 42 each, so 90 apart): take the first side that is clear of both.
         const clear = x => Math.abs(x - ha) >= 90 && Math.abs(x - hb) >= 90 && x <= L.x1 - 60 && x >= L.x0 + 60;
-        const side = !tight ? 0 : [130, -130, 65, -65].find(o => clear(mx + o))
+        // It also steps aside when the END handles are close together (a
+        // channel short on screen): halfway between them it sat on both, and
+        // being drawn last it took the touch meant for an end (2026-11-03,
+        // live ALAB 4H: ends 76 apart, move handle between them).
+        const nearEnd = Math.abs(mx - ha) < 90 || Math.abs(mx - hb) < 90;
+        const side = !(tight || nearEnd) ? 0 : [130, -130, 65, -65, 195, -195].find(o => clear(mx + o))
           ?? ((mx + 130 <= L.x1 - 60) ? 130 : -130);
         const mvx = mx + side;
         handles += reelMoveHandle(L, mvx, yAtX(mvx) + dMid, idx, isActive);
