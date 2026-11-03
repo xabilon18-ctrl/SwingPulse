@@ -10296,6 +10296,10 @@
   // shows on the adjustment points, and a locked one gave no sign at all).
   // Set around each drawing's render; the handle helpers read it.
   let reelDrawLocked = false;
+  // The ladder line whose scale dot is being dragged ({ idx, k }), so the dot
+  // stays on that line for the whole drag instead of hopping to whichever
+  // line is nearest the price as the spacing changes.
+  let ladderScaleDrag = null;
   function reelDrawingSvg(d, b, L, sc, bw, editing, idx, isActive) {
     if (!d) return '';
     reelDrawLocked = !!d.locked;
@@ -10686,6 +10690,32 @@
       const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + ladderDotSteps(timeframe) * step);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
+      // SCALE DOT near the price (user, 2026-11-03, USDX trading near the
+      // 200% line: "how can we move the adjustable points ... only affecting
+      // the rest and not zero"; zoomed out to reach the 0% and 40% dots, the
+      // candles were tiny). A third round dot on the line nearest the last
+      // close, shown when that line is below 0% or at 60% and up (the 40%
+      // dot already serves the lines near it). Dragging it re-spaces every
+      // line with 0% held, so that line follows the finger. Far from 0% it
+      // is also the fine control: moving the 200% line by one point moves
+      // the 40% line by a fifth of that.
+      let sk = ladderScaleDrag && ladderScaleDrag.idx === idx ? ladderScaleDrag.k : null;
+      if (sk == null) {
+        let last = null;
+        for (let i = (b && b.c ? b.c.length : 0) - 1; i >= 0 && last == null; i--) last = b.c[i];
+        const per = (LADDER_LINES - 1) / ladderDivs(timeframe), dot = ladderDotSteps(timeframe);
+        let best = null;
+        if (last != null) for (const ln of lines) {
+          if (ln.p < -1e-9) continue;
+          if (!best || Math.abs(ln.p - last) < Math.abs(best.p - last)) best = ln;
+        }
+        const k = best ? Math.round(best.i * per * 1000) / 1000 : null;
+        if (k != null && (k < 0 || k >= dot + 2)) sk = k;
+      }
+      if (sk != null) {
+        const ys = sc.y(d.p1 + sk * step);
+        if (ys >= L.py0 && ys <= L.py1) handles += reelHandle(L, hx, ys, 'ls:' + sk, idx, isActive);
+      }
       const ym = sc.y(d.p1 + 5 * step);     // the 50% line
       if (ym >= L.py0 && ym <= L.py1) handles += reelMoveHandle(L, L.x0 + (L.x1 - L.x0) * 0.65, ym, idx, isActive);
       if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and 40% lines are outside this range — zoom out to adjust</text>`;
@@ -13241,6 +13271,7 @@
         chIdx = +ev.target.dataset.ci;
         if (!isNaN(chIdx)) setActiveIdx(ctx.name, chIdx);
         moveStart = null;
+        ladderScaleDrag = String(handle).startsWith('ls:') ? { idx: chIdx, k: +String(handle).slice(3) } : null;
         if (handle === 'm') {
           const pt0 = reelSvgPoint(host, ev);
           const d0  = channelsFor(ctx.name)[chIdx];
@@ -13408,7 +13439,13 @@
         // The dot is on the 40% line (37.5% on eight divisions), ladderDotSteps steps
         // up; p4 is three.
         else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / ladderDotSteps(timeframe);
-        ladderHoldZero(ch, ctx.sc, handle);
+        // The scale dot near the price: its line, k steps from 0%, goes to
+        // the finger; 0% stays. Never through 0% (the spacing would flip).
+        else if (String(handle).startsWith('ls:')) {
+          const k = +String(handle).slice(3), s0 = (ch.p4 - ch.p1) / 3, s1 = k ? (pz - ch.p1) / k : NaN;
+          if (isFinite(s1) && s1 * s0 > 0 && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + 3 * s1;
+        }
+        ladderHoldZero(ch, ctx.sc, String(handle).startsWith('ls:') ? 'l4' : handle);
         schedule();
         return;
       }
@@ -13467,7 +13504,7 @@
         reel.lastGestureAt = Date.now();        // never let a pinch open the instrument
         host.classList.remove('is-pinching', 'is-yzooming', 'is-tzooming', 'is-panning');
         try { host.releasePointerCapture(ev.pointerId); } catch (_) {}
-        mode = null; pinch = null; grab = null; handle = null; chIdx = -1; pid = null;
+        mode = null; pinch = null; grab = null; handle = null; chIdx = -1; pid = null; ladderScaleDrag = null;
         return;
       }
 
@@ -13484,7 +13521,7 @@
       }
       // After a handle drag the properties row follows the drawing just moved —
       // grabbing a handle selects that drawing, and the row must say so.
-      if (mode === 'handle') { channelSave(); reelSyncChannelButtons(); }
+      if (mode === 'handle') { ladderScaleDrag = null; channelSave(); reelSyncChannelButtons(); }
       if (wasTap && c && channelsFor(c.name)[pick.di]) {
         setActiveIdx(c.name, pick.di);
         reel.editing = c.name;
