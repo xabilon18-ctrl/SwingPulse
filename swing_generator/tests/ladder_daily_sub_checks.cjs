@@ -1,9 +1,9 @@
 const assert = require('node:assert/strict');
 
 // A ladder drawn on Daily also shows on 1H and 4H, where each Daily 10% gap is
-// split into five (user, 2026-11-03): the Daily lines keep their big black
-// labels ("20%"), the finer steps get small grey ones ("22%"), and Daily
-// itself never shows the finer steps.
+// split into five on 1H and two on 4H (user, 2026-11-03): the Daily lines
+// keep their big black labels ("20%"), the finer steps get small grey ones
+// ("22%" on 1H, "25%" on 4H), and Daily itself never shows the finer steps.
 module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -52,7 +52,9 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   for (const tf of ['1H', '4H']) {
     await openFull(tf);
     // On 1H only, the Daily 20/40/60/80% lines are bold (2026-11-03).
-    const widths = await page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder:not(.reel-ladder-key)')]
+    // Only this Daily ladder's lines (.reel-ladder-daily): other tests leave
+    // their own ladders, at other line weights, on these charts.
+    const widths = await page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily:not(.reel-ladder-key)')]
       .map(e => ({ pct: +e.dataset.pct, bold: e.classList.contains('reel-ladder-bold'), w: parseFloat(getComputedStyle(e).strokeWidth) })));
     const bold = widths.filter(x => x.bold), plain = widths.filter(x => !x.bold);
     if (tf === '1H') {
@@ -86,9 +88,12 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
     assert.ok(look.small && look.big && look.small.size < look.big.size && look.small.fill !== look.big.fill, tf + ': small grey vs big black labels: ' + JSON.stringify(look));
     assert.ok(await subLines() > 0, tf + ': the Daily gaps are subdivided');
     assert.ok(s.length && s.every(t => /^-?\d+(\.\d+)?%$/.test(t)), tf + ': finer steps carry small plain labels: ' + s.join(' '));
-    // Every small label sits on a 2% step between two Daily 10% lines.
-    assert.ok(s.every(t => { const v = parseFloat(t); return Math.abs(v / 2 - Math.round(v / 2)) < 1e-6 && Math.abs(v / 10 - Math.round(v / 10)) > 1e-6; }),
-      tf + ': small labels are the 2% steps: ' + s.join(' '));
+    // Every small label sits on this timeframe's step between two Daily 10%
+    // lines: 1H every 2% (each gap in five), 4H every 5% (each gap in two).
+    const stepPct = tf === '1H' ? 2 : 5;
+    assert.ok(s.every(t => { const v = parseFloat(t); return Math.abs(v / stepPct - Math.round(v / stepPct)) < 1e-6 && Math.abs(v / 10 - Math.round(v / 10)) > 1e-6; }),
+      tf + ': small labels are the ' + stepPct + '% steps: ' + s.join(' '));
+    if (tf === '4H') assert.ok(s.every(t => Math.abs(parseFloat(t) % 10) === 5), '4H shows none of the 1H 2% steps: ' + s.join(' '));
     await close();
   }
   console.log('PASS: Daily ladder subdivided on 1H/4H with big Daily and small grey labels');

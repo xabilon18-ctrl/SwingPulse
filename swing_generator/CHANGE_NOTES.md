@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (latest) 4H SPLITS EACH DAILY LADDER GAP IN TWO: app.js v579.
+User: on 4H, how should the Daily 0-10% sections be divided, "a little bit
+bigger" than 1H's five; agreed on two after weighing 2.5 (a 4% step misses
+the 10% lines; 2.5% is nearly 1H's 2%).
+- `LADDER_SUB_BY_TF = { '1H': 5, '4H': 2 }` replaces `LADDER_SUB = 5`. A
+  Daily ladder on 4H now shows its Daily lines (big labels) plus 5, 15, 25%
+  (small labels); the 1H 2% steps no longer show on 4H, and 4H steps never
+  show on 1H. Daily unchanged. Rough reasoning: typical move grows with the
+  square root of time, so 24 one-hour bars a day ~ five parts, six 4-hour
+  bars ~ two to 2.5.
+- Alerts are unchanged: they still test every 2% (Daily lines + 1H steps),
+  so a 4H 5/15/25% step alerts only where it is also a 1H step (never).
+- Test: `ladder_daily_sub_checks.cjs` expects 5% small labels on 4H and none
+  of the 2% ones, and now measures only the Daily ladder's own lines
+  (`.reel-ladder-daily`): with wider 4H steps the sub-lines show before any
+  zoom, and another test's thinner ladder on the same chart was being
+  compared too.
+
 2026-11-03 (later) LADDER LINE ALERTS ON THE PHONE: app.js v578,
 drawing-toolbar.js v10, sw.js, sync Worker, chart_feed quotes. User: "I need
 an option to set alerts on the percentage lines daily and hourly", then
