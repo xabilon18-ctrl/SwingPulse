@@ -120,5 +120,31 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
     assert.equal(await first(),saved.start,'closing full screen leaves the card on its saved view');
   }
+  // A background data refresh must not change what the next drag starts from
+  // (user, 2026-11-03: a saved GOLD 1H / Daily view "opened up" to the default
+  // window the moment it was moved). The refresh rebuilt the reel and reset the
+  // chart behind full screen without repainting it; the drag then grew from
+  // the DEFAULT window with the saved prices.
+  {
+    const card=page.locator('.reel-card[data-name="'+name+'"]');
+    await card.locator('[data-act="chart-expand"]').click();
+    const full=page.locator('#chartFull .reel-chart');
+    await full.locator('svg').waitFor();
+    const slots=()=>full.evaluate(h=>Math.round((h._reelCtx.L.x1-h._reelCtx.L.x0)/h._reelCtx.bw));
+    const saveBtn=page.locator('#chartFull [data-act="chart-view-save"]');
+    if (await saveBtn.getAttribute('aria-pressed')==='true') await saveBtn.click();
+    const tg=await full.locator('.reel-tgrip').boundingBox();
+    await page.mouse.move(tg.x+tg.width*.5,tg.y+tg.height/2); await page.mouse.down();
+    await page.mouse.move(tg.x+tg.width*.5-70,tg.y+tg.height/2,{steps:8}); await page.mouse.up();
+    await saveBtn.click();
+    const before=await slots();
+    await page.clock.fastForward(31*60*1000);
+    await page.waitForTimeout(1500);
+    const b=await full.boundingBox(), x=b.x+b.width*.5, y=b.y+b.height*.4;
+    await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x+60,y,{steps:10}); await page.mouse.up();
+    await page.waitForTimeout(200);
+    assert.equal(await slots(),before,'after a data refresh, a drag keeps the saved window width');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
+  }
   console.log('PASS: 1H/4H/Daily default full-screen framing and saved-frame restoration');
 };
