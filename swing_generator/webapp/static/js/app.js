@@ -10538,14 +10538,15 @@
   // through — 110%, 120%... above the original, -10%, -20%... below it.
   // REVERSED (d.reverse) counts from the top instead: the original's top line
   // is 0% and its bottom 100%, and the stacks carry on the same way.
-  // DIVISIONS PER BLOCK (user, 2026-11-03: "make the percentage lines for the
-  // 1 hour to be 8 and not 10. Only for the 1h and 4h"). The block keeps its
-  // 0% and 100% prices (p1 and p1 + 10 x the stored step), so a ladder reads the
-  // same range on every timeframe; on 1H and 4H it is cut into 8 (12.5% each),
-  // elsewhere into 10. Storage, stacks and the zero hold are unchanged: they
-  // work in block edges, which both share.
-  const LADDER_DIVS = { '1H': 8, '4H': 8 };
-  const ladderDivs = tf => LADDER_DIVS[tf] || (LADDER_LINES - 1);
+  // DIVISIONS PER BLOCK: 8 on every timeframe (user, 2026-11-03: first "8 and
+  // not 10. Only for the 1h and 4h", then "Make all time frames 8 divisions
+  // instead of 10"). Lines at 0, 12.5, 25 ... 100%. The block keeps its 0% and
+  // 100% prices (p1 and p1 + 10 x the stored step, LADDER_LINES - 1 = 10
+  // stored steps), so ladders saved under ten divisions keep their range.
+  // Storage, stacks and the zero hold are unchanged: they work in block edges.
+  // Kept as a function of the timeframe so a per-timeframe count is one edit.
+  const LADDER_DIVISIONS = 8;
+  const ladderDivs = () => LADDER_DIVISIONS;
   // Every line a ladder draws on timeframe tf, low to high: its price, its %
   // label (continuous through the stacks, reversed with d.reverse) and whether
   // it is a bold block edge.
@@ -10561,8 +10562,8 @@
     }
     return out;
   }
-  // The resize dot's line, in stored steps above 0%: the 40% line on ten
-  // divisions (2026-11-01), the 37.5% line on eight (no 40% line there).
+  // The resize dot's line, in stored steps above 0%: the 37.5% line on eight
+  // divisions (it was the 40% line on ten, 2026-11-01; there is no 40% now).
   const ladderDotSteps = tf => ladderDivs(tf) === 8 ? 3.75 : 4;
 
   // ZERO HOLDS THE LADDER (user, 2026-11-01: "the percentage line not to go
@@ -13354,7 +13355,7 @@
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
         const pz = Math.max(0, price);   // the anchors never go below 0 either
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
-        // The dot is on the 40% line (37.5% on 1H/4H), ladderDotSteps steps
+        // The dot is on the 37.5% line (40% on ten divisions), ladderDotSteps steps
         // up; p4 is three.
         else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / ladderDotSteps(timeframe);
         ladderHoldZero(ch, ctx.sc, handle);

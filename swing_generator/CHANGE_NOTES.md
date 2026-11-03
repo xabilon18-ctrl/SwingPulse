@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) LADDER: 8 DIVISIONS ON EVERY TIMEFRAME: app.js v573.
+User: "Make all time frames 8 divisions instead of 10" (an hour after 1H/4H
+only, v572). `LADDER_DIVISIONS = 8` for every timeframe: nine lines, 0, 12.5
+... 100%; the resize dot sits on 37.5% everywhere. Storage is unchanged, so
+ladders saved under ten divisions keep their 0% and 100% prices. Checked on
+1H, 4H, D, W and M; drawing_toolbar_checks.cjs expects 9 lines everywhere.
+
 2026-11-03 (later) LADDER: 8 DIVISIONS ON 1H AND 4H: app.js v572. User:
 "make the percentage lines for the 1 hour to be 8 and not 10. Only for the
 1h and 4h". On 1H and 4H a ladder block is cut into 8 (lines at 0, 12.5, 25
