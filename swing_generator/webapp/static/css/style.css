@@ -9790,6 +9790,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 3.5 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 2.6 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 6 !important; }
+/* A Daily ladder on 1H: its 20/40/60/80% lines are bold (2026-11-03), about
+   twice the ladder's own weight at every line-weight level, black and dashed
+   like the other ladder lines so they do not read as the 0% / 100% ends. */
+.reel-ladder.reel-ladder-bold { stroke-width: 5; stroke-opacity: 1; stroke-dasharray: 6 6; }
+.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-bold { stroke-width: 1.8 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-bold { stroke-width: 3.4 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-bold { stroke-width: 5 !important; }
 .reel-svg[data-grid-weight="1"] .reel-tgrid { vector-effect: none !important; stroke-width: 1 !important; }
 .reel-svg[data-grid-weight="1"] .reel-tgrid-month { stroke-width: 1.4 !important; }
 .reel-svg[data-grid-weight="1"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin, .reel-zero) { stroke-width: 2 !important; }
