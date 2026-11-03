@@ -9497,6 +9497,22 @@
     viewPricePending.delete(name);
     return true;
   }
+  // A gesture starts from the frame ON SCREEN (user, 2026-11-03: a saved GOLD
+  // 1H/Daily view "opened up" to the default window the moment it was moved).
+  // The time window and offset live in reel.tzoom / reel.pan, and a reset that
+  // ran after the last paint (reelBackToSaved, which waits for the next paint
+  // to seed the saved view again) left them empty under a chart still drawn
+  // on its saved frame. The touch-down then wrote a price lock, which blocks
+  // that seed, and the drag continued from the DEFAULT window: the opening
+  // frame with the saved prices, as in the user's screenshots. Restoring the
+  // drawn window and offset first makes any such reset harmless here.
+  function reelSyncGestureState(ctx) {
+    const name = ctx.name;
+    if (!reel.tzoom.has(name) && Number.isFinite(ctx.win) && ctx.win !== reelWindowBars(ctx.bundle, name))
+      reel.tzoom.set(name, ctx.win);
+    if (!reel.pan.has(name) && Number.isFinite(ctx.pan) && ctx.pan !== reelPanOf(name, ctx.bundle))
+      reel.pan.set(name, ctx.pan);
+  }
   function reelAllBackToSaved() {
     let any = false;
     for (const name of new Set([...reel.pan.keys(), ...reel.tzoom.keys(), ...reel.lockY.keys()]))
@@ -11440,7 +11456,9 @@
     // recomputation that might drift from it, so it is stashed on the host.
     // plotPx is read HERE, while layout is already clean: reading it later in a
     // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
-    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L) };
+    // `win` / `pan` are the window and offset this paint used, so a gesture can
+    // start from exactly what is on screen (reelSyncGestureState).
+    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L), win: _winBars, pan: _pan };
     updateChartFreshness(host, bundle, name);
     reelSyncGridTag(host, tg);
 
@@ -13052,6 +13070,7 @@
     host.addEventListener('pointerdown', ev => {
       const ctx = host._reelCtx;
       if (!ctx) return;
+      reelSyncGestureState(ctx);
       pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
 
       // Second finger down: whatever this was becomes a pinch. A channel
@@ -13475,7 +13494,10 @@
     if (reel.backIo) reel.backIo.disconnect();
     reel.backIo = new IntersectionObserver(entries => {
       for (const e of entries) {
-        if (e.isIntersecting || !reelBackToSaved(e.target.dataset.name)) continue;
+        // Not the chart open in full screen: the reader is looking at it there,
+        // whatever its card behind is doing (2026-11-03).
+        if (e.isIntersecting || e.target.dataset.name === chartFullName) continue;
+        if (!reelBackToSaved(e.target.dataset.name)) continue;
         const h = e.target.querySelector('.reel-chart');
         if (h && h._reelCtx && h._reelItem) reelRepaint(h);
       }

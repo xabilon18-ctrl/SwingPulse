@@ -7,6 +7,28 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) A SAVED VIEW NO LONGER "OPENS UP" WHEN MOVED: app.js
+v571. User (GOLD 1H, then Daily, with screenshots): the saved view opened
+right, but moving it left/right or up/down widened it to about the 1H
+opening frame (previous + current quarter) while the price scale stayed as
+saved. Reproduced on live data: full screen on a chart, save, a background
+data refresh (every 30 min / on foregrounding), then a drag: 315 -> 399 bars
+on 1H, 634 -> 802 on Daily.
+- **Cause.** The refresh rebuilds the reel and re-observes every card, so
+  `reel.backIo` (v568) ran reelBackToSaved for the chart open in full screen
+  and cleared its reel.pan / tzoom / lockY without repainting full screen.
+  The next touch-down wrote a provisional price lock, which blocks the
+  saved-view seed, and the drag continued from the DEFAULT window.
+- **Fix 1 (the guard).** `reelSyncGestureState` at every touch-down: when
+  reel.tzoom / reel.pan are missing, restore the window and offset the chart
+  was DRAWN with (`ctx.win` / `ctx.pan`, stored at paint). A gesture always
+  starts from what is on screen, whatever reset ran in between. Alone it
+  fixes the repro.
+- **Fix 2.** `reel.backIo` never resets the chart open in full screen
+  (`chartFullName`).
+Test: chart_framing_checks.cjs (full screen, time zoom, save, 31-minute
+clock jump, drag: window width unchanged). Fails on v570, passes on v571.
+
 2026-11-03 (later) PROJECTION WEIGHT CHECK NO LONGER RANDOMLY RED: test
 only (chart_readability_browser.cjs). "Verify released chart weights"
 failed once on the #126 deploy at `projection[0]<projection[1]<projection[2]`
