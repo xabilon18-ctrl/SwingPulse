@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) LADDER: 8 DIVISIONS ON 1H AND 4H: app.js v572. User:
+"make the percentage lines for the 1 hour to be 8 and not 10. Only for the
+1h and 4h". On 1H and 4H a ladder block is cut into 8 (lines at 0, 12.5, 25
+... 100%, nine lines); Daily, Weekly and Monthly keep 10 (eleven lines).
+The block keeps its 0% and 100% prices, so one ladder reads the same range
+on every timeframe. Storage is unchanged (p1 = 0%, p4 = 30% of the 10-step
+block), as are stacks and the zero hold, which work in block edges.
+`ladderLines(d, tf)` is the one place that lists a ladder's lines (drawing
+and price alerts both use it; `ladderPct` is gone). The resize dot moves to
+the 37.5% line on 1H/4H (`ladderDotSteps`: 3.75 stored steps; 40% = 4 on
+ten divisions); the move handle stays on 50%. Tests:
+drawing_toolbar_checks.cjs (9 lines and 0-12.5-...-100% labels on 1H/4H,
+11 elsewhere; dot on its line). Checked by hand on 1H, 4H, D and W.
+
 2026-11-03 (later) A SAVED VIEW NO LONGER "OPENS UP" WHEN MOVED: app.js
 v571. User (GOLD 1H, then Daily, with screenshots): the saved view opened
 right, but moving it left/right or up/down widened it to about the 1H
