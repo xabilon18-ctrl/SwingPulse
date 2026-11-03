@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) LADDER BACK TO 10 DIVISIONS EVERYWHERE: app.js v574.
+User: "now i feel like the 10 divisions was better than the 8. Take
+everything back to 10". `LADDER_DIVISIONS = 10` on every timeframe (v572 did
+8 on 1H/4H, v573 on all). Resize dot back on the 40% line. Saved ladders
+never moved through any of this: the block's 0% and 100% prices are stored.
+`ladderLines` / `ladderDivs` stay, so another count is one edit.
+
 2026-11-03 (later) LADDER: 8 DIVISIONS ON EVERY TIMEFRAME: app.js v573.
 User: "Make all time frames 8 divisions instead of 10" (an hour after 1H/4H
 only, v572). `LADDER_DIVISIONS = 8` for every timeframe: nine lines, 0, 12.5
