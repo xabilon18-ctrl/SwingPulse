@@ -6,10 +6,24 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await page.locator('#chartFull [data-act="channel"]').click();
     const toolbar=page.locator('#chartFull .reel-toolbar');
     await toolbar.locator('[data-kind="ladder"]').click();
-    // Ten divisions, not nine (2026-10-21): eleven lines, 0% up to 100%.
-    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),11,'A new ladder draws eleven lines');
+    // Ten divisions, not nine (2026-10-21): eleven lines, 0% up to 100%; on
+    // 1H and 4H eight divisions, nine lines (user, 2026-11-03).
+    const chartTf=await page.evaluate(()=>localStorage.getItem('swingpulse-chart-tf'));
+    const divs=['1H','4H'].includes(chartTf)?8:10, dotSteps=divs===8?3.75:4;
+    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),divs+1,`A new ${chartTf} ladder draws ${divs+1} lines`);
     // No % labels when placed (user, 2026-11-01); the % button turns them on.
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels by default');
+    {
+      // The % labels follow the divisions: 0, 12.5, 25 ... 100 on 1H/4H.
+      const pctBtn=toolbar.locator('[data-act="draw-labels"]');
+      if (!(await pctBtn.isVisible())) await toolbar.locator('.reel-draw-fold').click();
+      await pctBtn.click();
+      const labels=await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').allTextContents();
+      const want=Array.from({length:divs+1},(_,i)=>(Math.round(i*1000/divs)/10)+'%');
+      assert.deepEqual([...labels].sort((a,b)=>parseFloat(a)-parseFloat(b)),want,'ladder labels on '+chartTf+': '+labels.join(' '));
+      await pctBtn.click();
+      if (!(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')))) await toolbar.locator('.reel-draw-fold').click();
+    }
     assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));
     assert.ok(await page.locator('#chartFull').evaluate(el=>el.classList.contains('ch-editing')));
     assert.ok(await page.locator('#chartFull [data-h]').count()>0,'Handles remain while collapsed');
@@ -190,14 +204,14 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     {
       const lad=await ladderOn(ownTf);
       const cy=+(await sel().locator('.reel-ch-h[data-h="l4"]').getAttribute('cy'));
-      const want=await page.evaluate(([p1,p4])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+4*(p4-p1)/3),[lad.p1,lad.p4]);
+      const want=await page.evaluate(([p1,p4,ds])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+ds*(p4-p1)/3),[lad.p1,lad.p4,dotSteps]);
       assert.ok(Math.abs(cy-want)<0.6,`Ladder resize dot sits on the 40% line (${cy} vs ${want})`);
       const g=await boxOf(sel().locator('.reel-ch-grab[data-h="l4"]'));
       await page.mouse.move(g.x+g.width/2,g.y+g.height/2); await page.mouse.down();
       await page.mouse.move(g.x+g.width/2,g.y+g.height/2-30,{steps:6}); await page.mouse.up();
       const moved=await ladderOn(ownTf);
       const cy2=+(await sel().locator('.reel-ch-h[data-h="l4"]').getAttribute('cy'));
-      const want2=await page.evaluate(([p1,p4])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+4*(p4-p1)/3),[moved.p1,moved.p4]);
+      const want2=await page.evaluate(([p1,p4,ds])=>document.querySelector('#chartFullHost')._reelCtx.sc.y(p1+ds*(p4-p1)/3),[moved.p1,moved.p4,dotSteps]);
       assert.ok(moved.p4!==lad.p4&&moved.p1===lad.p1,'Dragging the 40% dot resizes the ladder; 0% stays');
       assert.ok(Math.abs(cy2-want2)<0.6,'…and the dot stays on the 40% line');
       // Glow: off by default, a switch for the ladder only.

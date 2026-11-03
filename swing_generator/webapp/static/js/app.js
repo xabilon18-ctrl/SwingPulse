@@ -2409,16 +2409,12 @@
   const AL_LINE_KINDS = new Set(['hline', 'entry', 'ladder', 'trend', 'channel']);
   let alLinesCache = { key: '', rows: null };
 
-  function alLevelsOf(d, b) {
+  function alLevelsOf(d, b, tf) {
     const out = [];
     if (d.kind === 'hline') out.push([d.p, 'level']);
     else if (d.kind === 'entry' && !d.side) out.push([d.p, 'entry mark']);
     else if (d.kind === 'ladder') {
-      const step = (d.p4 - d.p1) / 3;
-      if (isFinite(step) && step) {
-        const [kMin, kMax] = ladderKRange(d);
-        for (let k = kMin; k <= kMax; k++) if (d.p1 + k * step >= -1e-9) out.push([d.p1 + k * step, `ladder ${ladderPct(d, k)}%`]);
-      }
+      for (const ln of ladderLines(d, tf)) if (ln.p >= -1e-9) out.push([ln.p, `ladder ${ln.pct}%`]);
     } else if ((d.kind === 'trend' || d.kind === 'channel') && b && b.c && b.c.length) {
       const i1 = reelBarIndexForDate(b, d.t1), i2 = reelBarIndexForDate(b, d.t2);
       if (i1 == null || i2 == null || Math.abs(i2 - i1) < 1e-6) return out;
@@ -2462,7 +2458,7 @@
           if (!d || !AL_LINE_KINDS.has(d.kind)) return;
           if (d.link) { if (seen.has(d.link)) return; seen.add(d.link); }
           let best = null;
-          for (const [lvl, what] of alLevelsOf(d, b)) {
+          for (const [lvl, what] of alLevelsOf(d, b, tf)) {
             const crossed = qq.pc != null && (qq.pc - lvl) * (q.p - lvl) < 0;
             const dist = Math.abs(q.p - lvl);
             if (!crossed && dist > atr * 0.25) continue;
@@ -10542,9 +10538,32 @@
   // through — 110%, 120%... above the original, -10%, -20%... below it.
   // REVERSED (d.reverse) counts from the top instead: the original's top line
   // is 0% and its bottom 100%, and the stacks carry on the same way.
-  function ladderPct(d, k) {
-    return d.reverse ? (LADDER_LINES - 1 - k) * 10 : k * 10;
+  // DIVISIONS PER BLOCK (user, 2026-11-03: "make the percentage lines for the
+  // 1 hour to be 8 and not 10. Only for the 1h and 4h"). The block keeps its
+  // 0% and 100% prices (p1 and p1 + 10 x the stored step), so a ladder reads the
+  // same range on every timeframe; on 1H and 4H it is cut into 8 (12.5% each),
+  // elsewhere into 10. Storage, stacks and the zero hold are unchanged: they
+  // work in block edges, which both share.
+  const LADDER_DIVS = { '1H': 8, '4H': 8 };
+  const ladderDivs = tf => LADDER_DIVS[tf] || (LADDER_LINES - 1);
+  // Every line a ladder draws on timeframe tf, low to high: its price, its %
+  // label (continuous through the stacks, reversed with d.reverse) and whether
+  // it is a bold block edge.
+  function ladderLines(d, tf) {
+    const u = (d.p4 - d.p1) / 3;
+    if (!isFinite(u) || !u) return [];
+    const SPAN = LADDER_LINES - 1, div = ladderDivs(tf);
+    const [kMin, kMax] = ladderKRange(d);
+    const out = [];
+    for (let i = kMin / SPAN * div; i <= kMax / SPAN * div; i++) {
+      const pct = (d.reverse ? div - i : i) * 100 / div;
+      out.push({ i, p: d.p1 + i * SPAN / div * u, pct: Math.round(pct * 10) / 10, key: ((i % div) + div) % div === 0 });
+    }
+    return out;
   }
+  // The resize dot's line, in stored steps above 0%: the 40% line on ten
+  // divisions (2026-11-01), the 37.5% line on eight (no 40% line there).
+  const ladderDotSteps = tf => ladderDivs(tf) === 8 ? 3.75 : 4;
 
   // ZERO HOLDS THE LADDER (user, 2026-11-01: "the percentage line not to go
   // below it ... like that's a magnet ... it gets there and stops"). Whatever
@@ -10572,19 +10591,18 @@
     const step = (d.p4 - d.p1) / 3;
     if (!isFinite(step) || step === 0) return '';
     let out = '', drawn = 0;
-    const SPAN = LADDER_LINES - 1;                 // steps per block
+    const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
-    for (let k = kMin; k <= kMax; k++) {
-      const p = d.p1 + k * step, y = sc.y(p);
+    for (const ln of lines) {
+      const p = ln.p, y = sc.y(p);
       // Never below price 0 (user, 2026-09-30: "make sure the % lines do not
       // go below it ever") — a stack reaching past zero simply stops there.
       if (p < -1e-9) continue;
       if (y < L.py0 || y > L.py1) continue;
       // Block boundaries are the bold lines — the original's 0% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
-      const j = ((k % SPAN) + SPAN) % SPAN;
-      const key = j === 0;
-      const pctLbl = ladderPct(d, k);
+      const key = ln.key;
+      const pctLbl = ln.pct;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
@@ -10614,7 +10632,7 @@
       // The resize dot sits on the 40% line (user, 2026-11-01: "it's the
       // third one ... put that on the fourth one", counting 10/20/30/40 up
       // from the 0% line). It was on 30% (p4). p4 stays the stored anchor.
-      const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + 4 * step);
+      const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + ladderDotSteps(timeframe) * step);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
       const ym = sc.y(d.p1 + 5 * step);     // the 50% line
@@ -13336,8 +13354,9 @@
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
         const pz = Math.max(0, price);   // the anchors never go below 0 either
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
-        // The dot is on the 40% line, four steps up; p4 is three.
-        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / 4;
+        // The dot is on the 40% line (37.5% on 1H/4H), ladderDotSteps steps
+        // up; p4 is three.
+        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / ladderDotSteps(timeframe);
         ladderHoldZero(ch, ctx.sc, handle);
         schedule();
         return;
