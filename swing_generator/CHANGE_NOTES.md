@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) DAILY LADDER ON 1H/4H: BLACK SMALL LABELS, BOLDER DAILY:
+app.js v576, style.css v403. User: "grey not visible enough. Maybe black and
+the daily become bolder in the 1h frame?" The finer steps' labels are black
+(400 weight, still small); on 1H/4H the Daily lines are thicker
+(`.reel-ladder-daily`, 4 vs 2.6) and their labels heavier
+(`.reel-ladder-lbl-daily`, 900). Daily itself is unchanged. Sub-lines a
+touch darker (opacity .45 -> .6). Test: ladder_daily_sub_checks.cjs checks
+size + weight difference, black small labels, bolder Daily lines.
+
 2026-11-03 (later) DAILY LADDERS SUBDIVIDED ON 1H / 4H: app.js v575,
 style.css v402. The user showed how they had built it by hand on PALLADIUM
 (a Daily ladder, then on 1H a second ladder from Daily 20% to 40% splitting

@@ -36,6 +36,7 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   const dailyLabels = await main();
   assert.ok(dailyLabels.includes('20%'), 'Daily labels: ' + dailyLabels.join(' '));
   assert.equal(await subLines(), 0, 'no sub-lines on Daily itself');
+  assert.equal(await page.locator('#chartFull .reel-ladder-daily, #chartFull .reel-ladder-lbl-daily').count(), 0, 'Daily itself draws its ladder as before');
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
@@ -50,10 +51,13 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
     const m = await main(), s = await sub();
     assert.ok(m.length && m.every(t => /^-?\d+(\.\d+)?%$/.test(t) && Math.abs(parseFloat(t) / 10 - Math.round(parseFloat(t) / 10)) < 1e-6),
       tf + ': the big labels are the Daily 10% lines: ' + m.join(' '));
-    // Big (Daily) and small (finer) labels are told apart by size and colour.
-    const look = await page.evaluate(() => { const st = q => { const e = document.querySelector('#chartFull ' + q); if (!e) return null; const c = getComputedStyle(e); return { size: parseFloat(c.fontSize), fill: c.fill }; };
-      return { big: st('.reel-ladder-lbl'), small: st('.reel-ladder-sublbl') }; });
-    assert.ok(look.small && look.big && look.small.size < look.big.size && look.small.fill !== look.big.fill, tf + ': small grey vs big black labels: ' + JSON.stringify(look));
+    // Daily and finer labels are told apart by size and weight, both black
+    // (grey was "not visible enough", 2026-11-03); Daily lines are bolder here.
+    const look = await page.evaluate(() => { const st = q => { const e = document.querySelector('#chartFull ' + q); if (!e) return null; const c = getComputedStyle(e); return { size: parseFloat(c.fontSize), weight: +c.fontWeight, fill: c.fill, stroke: parseFloat(c.strokeWidth) }; };
+      return { big: st('.reel-ladder-lbl'), small: st('.reel-ladder-sublbl'), dline: st('.reel-ladder.reel-ladder-daily:not(.reel-ladder-key)'), sline: st('.reel-ladder-sub') }; });
+    assert.ok(look.small && look.big && look.small.size < look.big.size && look.big.weight > look.small.weight, tf + ': bold Daily vs small labels: ' + JSON.stringify(look));
+    assert.equal(look.small.fill, 'rgb(0, 0, 0)', tf + ': the small labels are black');
+    assert.ok(!look.dline || look.dline.stroke > look.sline.stroke, tf + ': Daily lines are bolder than the finer ones: ' + JSON.stringify(look));
     assert.ok(await subLines() > 0, tf + ': the Daily gaps are subdivided');
     assert.ok(s.length && s.every(t => /^-?\d+(\.\d+)?%$/.test(t)), tf + ': finer steps carry small plain labels: ' + s.join(' '));
     // Every small label sits on a 2% step between two Daily 10% lines.

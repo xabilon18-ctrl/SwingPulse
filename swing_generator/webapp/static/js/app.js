@@ -10649,12 +10649,12 @@
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
       if (d.glow) out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-glow"/>`;
-      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
+      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}${sub ? ' reel-ladder-daily' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 0% on the bottom line up
            // to 100% on the top one (user, 2026-09-15). The price used to sit at the right
            // end, where it crowded the axis it duplicated.
-           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}">${pctLbl}%</text>`);
+           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}${sub ? ' reel-ladder-lbl-daily' : ''}">${pctLbl}%</text>`);
       drawn++;
     }
     if (!drawn) {

@@ -8645,11 +8645,14 @@ body.chart-full-open { overflow: hidden; }
 /* 0% and 100% — the two ends of the ladder or channel — are the bold ones (user, 2026-09-15). */
 .reel-ladder-lbl-end { font-weight: 900; }
 @media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
-/* A Daily ladder's sub-divisions on 1H / 4H (2026-11-03): lighter and finer
-   than its Daily lines, with SMALL grey labels, so Daily (the big black
-   "20%") and the finer steps (grey "22%") read apart at a glance. */
-.reel-ladder-sub { stroke: #000; stroke-width: 1.4; stroke-dasharray: 2 7; stroke-opacity: .45; pointer-events: none; }
-.reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
+/* A Daily ladder on 1H / 4H (2026-11-03): its Daily lines and labels are
+   BOLDER there, and each gap's finer steps are thinner lines with SMALL black
+   labels ("22%"). Told apart by weight and size, not colour: grey labels were
+   "not visible enough" (user, same day). */
+.reel-ladder.reel-ladder-daily { stroke-width: 4; stroke-opacity: 1; }
+.reel-ladder-lbl.reel-ladder-lbl-daily { font-weight: 900; }
+.reel-ladder-sub { stroke: #000; stroke-width: 1.4; stroke-dasharray: 2 7; stroke-opacity: .6; pointer-events: none; }
+.reel-ladder-sublbl { font-size: 22px; fill: #000; font-weight: 400; font-variant-numeric: tabular-nums; pointer-events: none; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
 /* Full-screen chart: previous / next without closing. */
 /* Bottom-right corner of the full-screen view (user request): the last thing
