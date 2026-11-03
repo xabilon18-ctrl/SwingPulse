@@ -95,5 +95,30 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     assert.equal(await saveBtn.getAttribute('aria-pressed'),'true',tf+' a third tap saves again');
     assert.equal((await saveBtn.innerText()).trim(),'Saved');
   }
+  // Coming back to a saved chart shows its saved view, even after the reader
+  // dragged it this session (user, 2026-11-03: "the chart never stay on the
+  // saved view"). It used to be applied only the first time a chart opened.
+  {
+    const card=page.locator('.reel-card[data-name="'+name+'"]'), host=card.locator('.reel-chart');
+    const saved=JSON.parse(await page.evaluate(()=>localStorage.getItem('sp-views')))[name+'|D'];
+    const first=()=>host.evaluate(h=>h._reelCtx.b.t[0]);
+    const drag=async dx=>{const b=await host.boundingBox(), x=b.x+b.width*.5, y=b.y+b.height*.4;
+      await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x+dx,y,{steps:10}); await page.mouse.up();
+      await page.waitForTimeout(200);};
+    assert.equal(await first(),saved.start,'Daily card is on its saved view');
+    await drag(-200);
+    assert.notEqual(await first(),saved.start,'a drag moves the saved chart');
+    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await page.locator('.nav-tab[data-tab="charts"]').click();
+    await host.locator('svg').waitFor();
+    assert.equal(await first(),saved.start,'back on Charts, the dragged chart is on its saved view');
+    await drag(-200);
+    await card.locator('[data-act="chart-expand"]').click();
+    const full=page.locator('#chartFull .reel-chart');
+    await full.locator('svg').waitFor();
+    assert.equal(await full.evaluate(h=>h._reelCtx.b.t[0]),saved.start,'full screen opens a dragged chart on its saved view');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    assert.equal(await first(),saved.start,'closing full screen leaves the card on its saved view');
+  }
   console.log('PASS: 1H/4H/Daily default full-screen framing and saved-frame restoration');
 };

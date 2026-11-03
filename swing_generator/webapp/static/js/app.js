@@ -3355,6 +3355,8 @@
     // Leaving the charts: send any held drawing changes now (see
     // syncPushDrawings) instead of waiting out the batch clock.
     if (currentTab === 'charts' && tab !== 'charts') syncFlushDrawings();
+    // Coming back to Charts: every saved chart goes back to its saved view.
+    const backToCharts = tab === 'charts' && currentTab !== 'charts' && reelAllBackToSaved();
     navTabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     panes.forEach(p => p.classList.remove('active'));
@@ -3384,7 +3386,7 @@
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
     if (tab === 'watchlist') { renderWatchlist(); wlLiveStart(); } else wlLiveStop();
-    if (tab === 'charts') { renderChartsLazy(); desktopChartSchedule(); }
+    if (tab === 'charts') { renderChartsLazy(); desktopChartSchedule(); if (backToCharts) reelRepaintVisible(); }
     if (tab === 'scanner') renderAlerts();
     if (tab === 'dashboard') renderMarketToday();
   }
@@ -9476,6 +9478,31 @@
     syncPush();
     reelViewBtnSync(name);
   }
+  // Back to the saved view (user, 2026-11-03: "the chart never stay on the
+  // saved view", then "Yes fix it" to "whenever you come back to a chart, it
+  // goes back to your saved view"). The saved view used to be applied only
+  // the FIRST time a chart opened in a session: one drag or zoom and the
+  // reader's in-memory position won until the app restarted, which on an
+  // installed phone app is days. Now every return drops those moves, so the
+  // next paint seeds the saved view again (reelViewSeedTime / SeedPrice).
+  // Called on: coming back to the Charts tab, a card scrolled fully out of
+  // view, full screen opening and closing. A chart with no saved view keeps
+  // the reader's moves exactly as before. Returns true if anything was reset.
+  function reelBackToSaved(name) {
+    if (!name || !savedViews[viewKey(name)]) return false;
+    if (!reel.pan.has(name) && !reel.tzoom.has(name) && !reel.lockY.has(name)) return false;
+    reel.pan.delete(name);
+    reel.tzoom.delete(name);
+    reel.lockY.delete(name);
+    viewPricePending.delete(name);
+    return true;
+  }
+  function reelAllBackToSaved() {
+    let any = false;
+    for (const name of new Set([...reel.pan.keys(), ...reel.tzoom.keys(), ...reel.lockY.keys()]))
+      if (reelBackToSaved(name)) any = true;
+    return any;
+  }
   // Unset = the timeframe's opening position: 0 (newest bar at the right
   // edge), except where an opening view applies (1H, 4H, Daily, Weekly, Monthly),
   // which opens with the rest of its frame as blank space (reelStockView).
@@ -11853,6 +11880,9 @@
     // as they do on the card. Expanding an automatic price range in proportion
     // to the extra height left the candles flat in a large empty frame.
     // Only a saved or manually held scale keeps its chosen price-per-pixel.
+    // Opening full screen is coming back to the chart: a saved one opens on
+    // its saved view, not where the card was last dragged (2026-11-03).
+    reelBackToSaved(name);
     chartFullPrevLock = reel.lockY.has(name) ? reel.lockY.get(name) : undefined;
     const src = chartFullSourceCtx(name);
     // When the card is still waiting to apply a SAVED price window, full
@@ -11993,6 +12023,9 @@
       chartFullOpenMid  = 0;
     }
     chartFullPrevLock = undefined; chartFullOpenSpan = 0; chartFullOpenMid = 0;
+    // Closing full screen returns to the card: a saved chart shows its saved
+    // view there, whatever was moved full screen (2026-11-03).
+    if (!el?.classList.contains('desktop-chart')) reelBackToSaved(chartFullName);
     if (el) { el.classList.remove('open'); el.innerHTML = ''; }
     document.body.classList.remove('chart-full-open');
     chartFullName = null;
@@ -13422,6 +13455,20 @@
     }, { root: null, rootMargin: '120% 0px', threshold: 0 });
 
     document.querySelectorAll('#chartReel .reel-card').forEach(el => reel.io.observe(el));
+
+    // A saved chart that leaves the screen entirely comes back on its saved
+    // view (2026-11-03, see reelBackToSaved). No margin: this is the real
+    // screen edge, not the pre-paint band above. It is repainted while still
+    // out of sight, so the reader never sees it jump.
+    if (reel.backIo) reel.backIo.disconnect();
+    reel.backIo = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting || !reelBackToSaved(e.target.dataset.name)) continue;
+        const h = e.target.querySelector('.reel-chart');
+        if (h && h._reelCtx && h._reelItem) reelRepaint(h);
+      }
+    }, { root: null, threshold: 0 });
+    document.querySelectorAll('#chartReel .reel-card').forEach(el => reel.backIo.observe(el));
 
     // Belt and braces: if the observer is not delivering, scrolling still
     // paints. Cheap — reelPaint early-exits on anything already drawn.

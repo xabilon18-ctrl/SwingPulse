@@ -7,6 +7,27 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 COMING BACK TO A CHART SHOWS ITS SAVED VIEW: app.js v568. User:
+"Why is it that the chart never stay on the saved view?", then "Yes fix it".
+A saved view was applied only the FIRST time a chart opened in a session
+(reelViewSeedTime skips any chart with pan / zoom / price lock in memory).
+One drag or zoom and that in-memory position won until the app restarted,
+which on an installed phone app is days. Reproduced in the browser: drag a
+saved Daily chart, leave Charts and come back → still where it was dragged;
+full screen the same; only a reload restored it. New candles did NOT move a
+saved view (checked on 1H and Daily), so that was not the cause.
+Now `reelBackToSaved(name)` drops the reader's in-session moves for a chart
+WITH a saved view whenever they come back to it, and the next paint seeds
+the saved view again: returning to the Charts tab (`reelAllBackToSaved` in
+doTabSwitch), a card scrolled fully off screen (`reel.backIo`, no margin,
+repainted while out of sight), full screen opening and closing. Moves still
+hold while you stay on the chart. Charts without a saved view are unchanged.
+Not changed: views stay per timeframe, and tapping Saved still forgets one.
+Test: chart_framing_checks.cjs (drag a saved Daily chart, then tab away and
+back, open full screen, close: each shows the saved first candle). It fails
+on v567 at "back on Charts". The scroll-off path is not browser-tested: the
+fixture has one instrument, so there is no second card to scroll to.
+
 2026-11-02 QUARTER THIRDS SWITCH ON THE Q TIME GRID: app.js v567,
 chart-preferences.js v9, grid-geometry.js v13, sync Worker. User: "just a
 switch to turn on and off in the quarter time grid" (shown with screenshots
