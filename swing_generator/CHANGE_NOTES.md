@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) LADDER GLOW STAYS ON, HALF AS THICK: app.js v570,
+style.css v401. User: "The glow for the percentage lines must stay if turned
+on and reduce the thickness by 1/2". The glow showed only while the ladder
+was SELECTED in Draw mode (`has-glow` was gated on `sel`), and it was the
+40-wide tap line (`.reel-ch-hit`) turned visible. Now each drawn % line gets
+its own `.reel-ladder-glow` band under it, 20 wide (half), shown whenever
+`d.glow` is on, selected or not, on the card and full screen. The tap lines
+are transparent again for every drawing, so the tap target is unchanged.
+Colour still from `--reel-glow` (`d.glowColor`, blue when unset). Tests:
+drawing_toolbar_checks.cjs (glow width is half the tap line's, tap line stays
+invisible, glow stays after the ladder is deselected, then reselected by a
+tap); the glow checks now read `.reel-ladder-glow`. Passes on the fixture and
+on live data; fails on v569.
+
 2026-11-03 (later) SHORT CHANNEL: MOVE HANDLE NO LONGER COVERS THE ENDS;
 LIVE TOOLBAR CHECK FIXED: app.js v569. Found when "Verify the live app"
 failed on the v568 deploy (it failed the same way on v567: not that change).
