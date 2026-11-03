@@ -10577,9 +10577,11 @@
   // small labels for the small division but when i am on the 1h i should be
   // able to tell which are the daily one and which are the 1h from the
   // labels"). A ladder that shows on Daily is a Daily ladder. On 1H and 4H it
-  // keeps its Daily lines, labelled "D 20%", and splits every Daily gap into
-  // LADDER_SUB parts: lighter lines with small labels ("22%"). The sub-lines
-  // are drawing only: no tap target, no glow, no price alert.
+  // keeps its Daily lines and their big black labels ("20%"; a "D " prefix
+  // was tried and dropped the same day) and splits every Daily gap into
+  // LADDER_SUB parts: lighter lines with small grey labels ("22%"). Daily
+  // itself never draws them. The sub-lines are drawing only: no tap target,
+  // no glow, no price alert.
   const LADDER_SUB = 5;
   const LADDER_SUB_TFS = new Set(['1H', '4H']);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
@@ -10642,7 +10644,7 @@
       // Block boundaries are the bold lines — the original's 0% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const key = ln.key;
-      const pctLbl = (sub ? 'D ' : '') + ln.pct;
+      const pctLbl = ln.pct;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.

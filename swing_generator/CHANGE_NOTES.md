@@ -14,8 +14,9 @@ each Daily gap into five, Daily labels still on top) and asked: "build it and
 add the small labels for the small division but when i am on the 1h i should
 be able to tell which are the daily one and which are the 1h from the labels".
 - A ladder that shows on Daily (`ladderIsDaily`: linked, `tfs` includes D) is
-  a Daily ladder. On 1H and 4H (`LADDER_SUB_TFS`) it keeps its Daily lines,
-  labelled "D 20%" (big, black, as before), and each Daily gap gets
+  a Daily ladder. On 1H and 4H (`LADDER_SUB_TFS`) it keeps its Daily lines
+  and their big black labels ("20%"; a "D " prefix was tried and dropped the
+  same day: "the labels doesn't need to say D"), and each Daily gap gets
   `LADDER_SUB` = 5 parts: `.reel-ladder-sub` lines (finer, lighter) with
   `.reel-ladder-sublbl` labels ("22%", small grey). Drawing only: no tap
   target, glow or price alert on the sub-lines.
@@ -25,8 +26,9 @@ be able to tell which are the daily one and which are the 1h from the labels".
 - A ladder drawn on Daily is now linked to D, 1H and 4H at creation
   (channelAdd); the timeframe chips still turn any of them off.
 - Test: ladder_daily_sub_checks.cjs (from app_smoke): drawn on Daily it is
-  linked to D/1H/4H, Daily labels plain, 1H and 4H labels "D …%", sub-lines
-  present, small labels on the 2% steps. Fails on v574.
+  linked to D/1H/4H, no sub-lines on Daily, on 1H and 4H the big labels are
+  the Daily 10% lines, sub-lines present, small grey labels on the 2% steps,
+  smaller and a different colour from the Daily ones. Fails on v574.
 The user's hand-drawn 1H ladder on PALLADIUM now doubles the sub-lines; they
 can delete it.
 

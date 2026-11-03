@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 
 // A ladder drawn on Daily also shows on 1H and 4H, where each Daily 10% gap is
-// split into five (user, 2026-11-03): the Daily lines keep big "D 20%" labels,
-// the finer steps get small "22%" labels, so the two read apart at a glance.
+// split into five (user, 2026-11-03): the Daily lines keep their big black
+// labels ("20%"), the finer steps get small grey ones ("22%"), and Daily
+// itself never shows the finer steps.
 module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -33,7 +34,7 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   assert.ok(stored && stored.link && ['D', '1H', '4H'].every(t => stored.tfs.includes(t)),
     'a ladder drawn on Daily shows on Daily, 1H and 4H: ' + JSON.stringify(stored && stored.tfs));
   const dailyLabels = await main();
-  assert.ok(dailyLabels.includes('20%') && !dailyLabels.some(t => t.startsWith('D ')), 'Daily labels are plain: ' + dailyLabels.join(' '));
+  assert.ok(dailyLabels.includes('20%'), 'Daily labels: ' + dailyLabels.join(' '));
   assert.equal(await subLines(), 0, 'no sub-lines on Daily itself');
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
@@ -47,7 +48,12 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
       await page.mouse.move(g.x + g.width / 2, g.y + g.height * .55 - 160, { steps: 8 }); await page.mouse.up();
     }
     const m = await main(), s = await sub();
-    assert.ok(m.length && m.every(t => /^D -?\d+(\.\d+)?%$/.test(t)), tf + ': Daily lines are labelled "D …%": ' + m.join(' '));
+    assert.ok(m.length && m.every(t => /^-?\d+(\.\d+)?%$/.test(t) && Math.abs(parseFloat(t) / 10 - Math.round(parseFloat(t) / 10)) < 1e-6),
+      tf + ': the big labels are the Daily 10% lines: ' + m.join(' '));
+    // Big (Daily) and small (finer) labels are told apart by size and colour.
+    const look = await page.evaluate(() => { const st = q => { const e = document.querySelector('#chartFull ' + q); if (!e) return null; const c = getComputedStyle(e); return { size: parseFloat(c.fontSize), fill: c.fill }; };
+      return { big: st('.reel-ladder-lbl'), small: st('.reel-ladder-sublbl') }; });
+    assert.ok(look.small && look.big && look.small.size < look.big.size && look.small.fill !== look.big.fill, tf + ': small grey vs big black labels: ' + JSON.stringify(look));
     assert.ok(await subLines() > 0, tf + ': the Daily gaps are subdivided');
     assert.ok(s.length && s.every(t => /^-?\d+(\.\d+)?%$/.test(t)), tf + ': finer steps carry small plain labels: ' + s.join(' '));
     // Every small label sits on a 2% step between two Daily 10% lines.
@@ -55,5 +61,5 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
       tf + ': small labels are the 2% steps: ' + s.join(' '));
     await close();
   }
-  console.log('PASS: Daily ladder subdivided on 1H/4H with D and small labels');
+  console.log('PASS: Daily ladder subdivided on 1H/4H with big Daily and small grey labels');
 };

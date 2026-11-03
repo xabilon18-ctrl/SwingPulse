@@ -8646,8 +8646,8 @@ body.chart-full-open { overflow: hidden; }
 .reel-ladder-lbl-end { font-weight: 900; }
 @media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
 /* A Daily ladder's sub-divisions on 1H / 4H (2026-11-03): lighter and finer
-   than its Daily lines, with SMALL grey labels, so Daily ("D 20%", the big
-   black labels) and the finer steps ("22%") read apart at a glance. */
+   than its Daily lines, with SMALL grey labels, so Daily (the big black
+   "20%") and the finer steps (grey "22%") read apart at a glance. */
 .reel-ladder-sub { stroke: #000; stroke-width: 1.4; stroke-dasharray: 2 7; stroke-opacity: .45; pointer-events: none; }
 .reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
