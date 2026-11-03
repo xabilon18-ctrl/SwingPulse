@@ -10255,7 +10255,10 @@
       if (d && !drawShownOn(d, timeframe)) return '';
       const sel = editing && i === activeI;
       const a = drawAlpha(d);
-      const glow = sel && d.kind === 'ladder' && d.glow ? ' has-glow' : '';
+      // A ladder's glow stays on while it is switched on, selected or not
+      // (user, 2026-11-03: "must stay if turned on"); it used to show only
+      // while the ladder was selected in Draw mode.
+      const glow = d && d.kind === 'ladder' && d.glow ? ' has-glow' : '';
       const glowC = glow && DRAW_HEX.test(d.glowColor || '') ? `;--reel-glow:${d.glowColor}` : '';
       const g = `<g class="reel-draw${sel ? ' is-sel' : ''}${glow}"${modules.chartReadability.drawingAttrs(d)} style="--reel-ch-color:${drawColor(d)}${glowC}${a < 100 ? `;opacity:${a / 100}` : ''}">`
         + reelDrawingSvg(d, b, L, sc, bw, sel, i, sel) + '</g>';
@@ -10566,6 +10569,10 @@
       const j = ((k % SPAN) + SPAN) % SPAN;
       const key = j === 0;
       const pctLbl = ladderPct(d, k);
+      // Glow: its own band under the line, HALF the tap line's width (user,
+      // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
+      // tap line itself turned visible; the tap target stays 40.
+      if (d.glow) out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-glow"/>`;
       out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 0% on the bottom line up

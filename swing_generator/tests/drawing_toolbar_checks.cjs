@@ -139,8 +139,12 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     // again. The ladder is still on the chart.
     if (!(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')))) await toolbar.locator('.reel-draw-fold').click();
     const sel=()=>page.locator('#chartFull .reel-draw.is-sel');
-    const halo=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>{const c=getComputedStyle(el);
-      return c.stroke!=='none'&&c.stroke!=='transparent'&&c.stroke!=='rgba(0, 0, 0, 0)'&&+c.strokeOpacity>0;});
+    // The glow is the ladder's own .reel-ladder-glow band (2026-11-03); the
+    // tap lines (.reel-ch-hit) stay transparent on every drawing.
+    const visibleStroke=el=>{const c=getComputedStyle(el);
+      return c.stroke!=='none'&&c.stroke!=='transparent'&&c.stroke!=='rgba(0, 0, 0, 0)'&&+c.strokeOpacity>0;};
+    const halo=async()=>{const g=sel().locator('.reel-ladder-glow');
+      return (await g.count())>0&&await g.first().evaluate(visibleStroke);};
     assert.ok(await page.locator('#chartFull .reel-draw').count()>=2,'Ladder and channel are both on the chart');
     const dotFill=()=>sel().locator('.reel-ch-h').first().evaluate(el=>getComputedStyle(el).fill);
     assert.equal(await dotFill(),'rgb(37, 99, 235)','The selected drawing\'s dots are solid blue');
@@ -205,11 +209,31 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       assert.ok(await halo(),'Glow on shows the blue glow');
       assert.equal((await ladderOn(ownTf)).glow,true,'…and is saved on the ladder');
       // Glow colour (user, 2026-11-01).
-      const haloStroke=()=>sel().locator('.reel-ch-hit').first().evaluate(el=>getComputedStyle(el).stroke);
+      const haloStroke=()=>sel().locator('.reel-ladder-glow').first().evaluate(el=>getComputedStyle(el).stroke);
       assert.equal(await haloStroke(),'rgb(37, 99, 235)','Glow starts blue');
+      // Half the tap line's thickness (user, 2026-11-03), and the tap line
+      // itself stays invisible and keeps its full width.
+      const widths=await sel().evaluate(g=>[...['.reel-ladder-glow','.reel-ch-hit']].map(q=>parseFloat(getComputedStyle(g.querySelector(q)).strokeWidth)));
+      assert.equal(widths[0]*2,widths[1],'The glow is half as thick as the tap line: '+widths);
+      assert.ok(!(await sel().locator('.reel-ch-hit').first().evaluate(visibleStroke)),'…and the tap line stays invisible');
       await toolbar.locator('[data-act="draw-glow-color"][data-color="#22c55e"]').click();
       assert.equal(await haloStroke(),'rgb(34, 197, 94)','Picking green turns the glow green');
       assert.equal((await ladderOn(ownTf)).glowColor,'#22c55e','…and saves the colour');
+      // It STAYS when the ladder is not selected (user, 2026-11-03: "must
+      // stay if turned on"): tap empty chart, the glow is still drawn; tap a
+      // ladder line to pick it again.
+      const ladDi=await sel().locator('.reel-ch-hit').first().getAttribute('data-di');
+      const off=await spot('empty');
+      assert.ok(off,'Found empty chart to tap');
+      await page.mouse.click(off.x,off.y);
+      assert.equal(await sel().count(),0,'Nothing is selected');
+      assert.ok(await page.locator(`#chartFull .reel-draw:not(.is-sel) .reel-ladder-glow`).count()>0,'…and the ladder still glows');
+      const onLad=await page.evaluate(di=>{const svg=document.querySelector('#chartFullHost svg'),r=svg.getBoundingClientRect();
+        for(let y=r.top+r.height*.1;y<r.top+r.height*.9;y+=3){const x=r.left+r.width*.5,e=document.elementFromPoint(x,y);
+          const d=e&&svg.contains(e)&&!e.closest('[data-h]')&&e.closest('[data-di]');if(d&&d.getAttribute('data-di')===di)return {x,y};}return null;},ladDi);
+      assert.ok(onLad,'Found a ladder line to tap');
+      await page.mouse.click(onLad.x,onLad.y);
+      assert.equal(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),ladDi,'The ladder is selected again');
       await toolbar.locator('[data-act="draw-glow"]').click();
       assert.ok(!(await halo()),'Glow off removes it');
       assert.ok(!('glow' in (await ladderOn(ownTf))),'…and stores nothing');
