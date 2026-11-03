@@ -10581,11 +10581,14 @@
   // labels"). A ladder that shows on Daily is a Daily ladder. On 1H and 4H it
   // keeps its Daily lines and their big black labels ("20%"; a "D " prefix
   // was tried and dropped the same day) and splits every Daily gap into
-  // LADDER_SUB parts: lighter lines with small grey labels ("22%"). Daily
+  // LADDER_SUB_BY_TF parts: lighter lines with small grey labels ("22%"). Daily
   // itself never draws them. The sub-lines are drawing only: no tap target,
   // no glow, no price alert.
-  const LADDER_SUB = 5;
-  const LADDER_SUB_TFS = new Set(['1H', '4H']);
+  // Parts per Daily gap by timeframe (user, 2026-11-03): 1H in five (every
+  // 2%), 4H in two (every 5%: a 4H bar is bigger, so wider steps). Each
+  // timeframe shows only its own steps beside the Daily lines.
+  const LADDER_SUB_BY_TF = { '1H': 5, '4H': 2 };
+  const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
   const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
   // Hide the small labels / lines once the sub-lines are this close (viewBox
@@ -10623,6 +10626,7 @@
     const sub = ladderSubdivides(d, timeframe);
     let subSvg = '';
     if (sub) {
+      const LADDER_SUB = LADDER_SUB_BY_TF[timeframe];
       for (let j = 1; j < lines.length; j++) {
         const a = lines[j - 1], z = lines[j];
         const gapPx = Math.abs(sc.y(a.p) - sc.y(z.p)) / LADDER_SUB;
