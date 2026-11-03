@@ -161,6 +161,41 @@ class QuoteRefTests(unittest.TestCase):
         self.assertEqual(q['r'], [chart_feed._round(float(c.iloc[-n])) for n in (5, 21, 252)])
 
 
+class QuoteRangeTests(unittest.TestCase):
+    """quotes.json `h` / `l` (2026-11-03): the high and low of the finished
+    5m bars in the QUOTE_RANGE_MIN minutes up to the price, for the ladder
+    line alerts. Absent on a daily price."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        shutil.copy(FIXTURES / 'AAPL_D.parquet', os.path.join(cls.dir, chart_feed._cache_name('AAPL')))
+        daily = chart_feed.scale_daily('AAPL', pd.read_parquet(FIXTURES / 'AAPL_D.parquet'))
+        cls.last = daily['Close'].dropna().index[-1]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dir, ignore_errors=True)
+
+    def test_last_hour_high_and_low(self):
+        end = self.last.normalize() + pd.offsets.BDay(1) + pd.Timedelta(hours=15)
+        idx = pd.date_range(end=end, periods=30, freq='5min')     # 2.5 hours
+        five = pd.DataFrame({'Close': 100.0, 'High': 101.0, 'Low': 99.0}, index=idx)
+        five.loc[idx[2], ['High', 'Low']] = [150.0, 50.0]          # 2h+ ago: outside the window
+        five.loc[idx[-3], 'High'] = 104.0
+        five.loc[idx[-10], 'Low'] = 96.5
+        with patch.object(chart_feed, 'load_5m', return_value=five), \
+             patch.object(chart_feed, '_frame_5m', side_effect=lambda raw: raw):
+            q = chart_feed._quote_one(self.dir, 'AAPL')
+        self.assertEqual((q['h'], q['l']), (104.0, 96.5))
+
+    def test_no_range_on_a_daily_price(self):
+        with patch.object(chart_feed, 'load_5m', return_value=None):
+            q = chart_feed._quote_one(self.dir, 'AAPL')
+        self.assertNotIn('h', q)
+        self.assertNotIn('l', q)
+
+
 class WriteTests(unittest.TestCase):
     def test_own_index_and_every_chunk_written(self):
         names = [f'N{i:02d}' for i in range(12)]   # three chunks of five

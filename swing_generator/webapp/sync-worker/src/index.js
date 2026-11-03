@@ -1,4 +1,5 @@
 import { mergeSavedWork } from './saved-work-store.js';
+import { checkAlerts } from './ladder-alerts.js';
 
 /**
  * SwingPulse Sync Worker
@@ -9,7 +10,10 @@ import { mergeSavedWork } from './saved-work-store.js';
  * GET  /sync/health                   → health check
  * POST /push/subscribe?user=zabs      → store push subscription    (Bearer)
  * DEL  /push/subscribe?user=zabs      → remove THIS device's sub   (Bearer, ?endpoint=)
- * POST /push/notify                   → fan-out empty push to all subs (X-Sync-Secret)
+ * POST /push/notify                   → after a data run (X-Sync-Secret): ladder
+ *                                        line alerts to their owner's phones, or
+ *                                        a failed run to every phone
+ * GET  /push/inbox?endpoint=…         → this device's pending alerts (once)
  *
  * AUTH (2026-07-31). The browser used to send a single shared literal,
  * `X-Sync-Secret: swingpulse2026`, that was hard-coded in the PUBLIC app.js
@@ -49,6 +53,12 @@ const ALLOWED_USERS = ['zabs', 'hemi'];
 // sit in this file in plaintext.
 const VAPID_PUBLIC  = 'BGTt0ibpBc0izJ1IsjGg9YD8SLYoQpf2jYtCpECqnWAIDDuKeiULpkJ-Ocf4Yf-oNtBJKhb1Dv4PGyuGPRmGEZc';
 const VAPID_SUBJECT = 'mailto:xabilon18@gmail.com';
+
+// Public data the alert check reads (the app reads the same files).
+const R2_BASE = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500';
+const ALERT_STATE = 'alerts:state';
+const INBOX_KEEP  = 30;
+const INBOX_RECENT_MS = 20 * 60 * 1000;   // what a push shows: this run's alerts
 
 const MAX_FAILS   = 10;          // wrong passwords per user…
 const FAIL_WINDOW = 60 * 60;     // …per hour
@@ -226,6 +236,30 @@ async function sendOne(sub, env) {
 }
 
 // ─── Subscription key helper ────────────────────────────────────────────────
+async function fetchJson(u) {
+  try {
+    const r = await fetch(u, { cf: { cacheTtl: 0 } });
+    return r.ok ? await r.json() : null;
+  } catch (_) { return null; }
+}
+
+// Empty push to every subscription under a key prefix; prunes dead ones.
+async function fanOut(env, prefix) {
+  const list = await env.USER_DATA.list({ prefix });
+  const results = { sent: 0, failed: 0, expired: 0 };
+  for (const k of list.keys) {
+    const raw = await env.USER_DATA.get(k.name);
+    if (!raw) continue;
+    const r = await sendOne(JSON.parse(raw), env);
+    if (r.ok) results.sent++;
+    else if (r.status === 410 || r.status === 404) {
+      results.expired++;
+      await env.USER_DATA.delete(k.name);
+    } else results.failed++;
+  }
+  return results;
+}
+
 function subKey(user, endpoint) {
   // Hash the endpoint to a fixed-length key
   let h = 0;
@@ -296,28 +330,61 @@ export default {
       }
     }
 
-    // ─── Push: Notify (fan-out) ─────────────────────────────────────────────
+    // ─── Push: Notify (after every data run) ────────────────────────────────
+    // Until 2026-11-03 this sent an empty push to EVERY phone after EVERY run,
+    // shown as a bare "SwingPulse updated". Now a phone hears only what it
+    // asked for: its owner's ladder line alerts, or a FAILED run (the CI
+    // failure step flips status.json first), which still goes to everyone.
     if (path === '/push/notify' && request.method === 'POST') {
       const secret = request.headers.get('X-Sync-Secret');
       if (!secret || secret !== env.SYNC_SECRET) {
         return json({ error: 'Unauthorized' }, 401);
       }
-      const list = await env.USER_DATA.list({ prefix: 'push:' });
-      const results = { sent: 0, failed: 0, expired: 0 };
-      for (const k of list.keys) {
-        const raw = await env.USER_DATA.get(k.name);
-        if (!raw) continue;
-        const sub = JSON.parse(raw);
-        const r = await sendOne(sub, env);
-        if (r.ok) results.sent++;
-        else if (r.status === 410 || r.status === 404) {
-          results.expired++;
-          await env.USER_DATA.delete(k.name);
-        } else {
-          results.failed++;
-        }
+      const status = await fetchJson(`${R2_BASE}/status.json?t=${Date.now()}`);
+      if (status && status.state === 'failed') {
+        return json({ failed: true, ...(await fanOut(env, 'push:')) });
+      }
+      const quotes = await fetchJson(`${R2_BASE}/quotes.json?t=${Date.now()}`);
+      if (!quotes || !quotes.q) return json({ alerts: 0, error: 'quotes.json unavailable' });
+      const users = {};
+      for (const u of ALLOWED_USERS) {
+        const raw = await env.USER_DATA.get(u);
+        if (raw) try { users[u] = JSON.parse(raw); } catch (_) {}
+      }
+      let state = {};
+      try { state = JSON.parse(await env.USER_DATA.get(ALERT_STATE) || '{}') || {}; } catch (_) {}
+      const run = checkAlerts({ users, quotes, state, now: Date.now() });
+      if (run.changed) await env.USER_DATA.put(ALERT_STATE, JSON.stringify(run.state));
+      const results = { alerts: 0, sent: 0, failed: 0, expired: 0 };
+      for (const [user, list] of Object.entries(run.alerts)) {
+        if (!list.length) continue;
+        results.alerts += list.length;
+        let inbox = [];
+        try { inbox = JSON.parse(await env.USER_DATA.get(`inbox:${user}`) || '[]') || []; } catch (_) {}
+        await env.USER_DATA.put(`inbox:${user}`, JSON.stringify([...inbox, ...list].slice(-INBOX_KEEP)));
+        const r = await fanOut(env, `push:${user}:`);
+        results.sent += r.sent; results.failed += r.failed; results.expired += r.expired;
       }
       return json(results);
+    }
+
+    // ─── Push: Inbox ────────────────────────────────────────────────────────
+    // The service worker asks for its alerts when a push arrives (the push
+    // itself is empty). The subscription endpoint is the credential: only
+    // that device and its push service know it. Nothing is cleared, so each
+    // of the owner's devices gets them: the run's alerts are the recent ones
+    // (runs are an hour apart), and the inbox keeps only INBOX_KEEP.
+    if (path === '/push/inbox' && request.method === 'GET') {
+      const endpoint = pushEndpoint(url.searchParams.get('endpoint'));
+      if (!endpoint) return json({ alerts: [] });
+      for (const user of ALLOWED_USERS) {
+        if (!(await env.USER_DATA.get(subKey(user, endpoint)))) continue;
+        let alerts = [];
+        try { alerts = JSON.parse(await env.USER_DATA.get(`inbox:${user}`) || '[]') || []; } catch (_) {}
+        const since = Date.now() - INBOX_RECENT_MS;
+        return json({ alerts: alerts.filter(a => a && a.at >= since) });
+      }
+      return json({ alerts: [] });
     }
 
     // ─── Sync: existing user-data store ─────────────────────────────────────

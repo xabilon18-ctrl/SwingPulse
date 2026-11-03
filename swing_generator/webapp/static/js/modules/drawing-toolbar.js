@@ -100,6 +100,8 @@
     // (user, 2026-09-15). Off is the default for a new ladder since 2026-11-01.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+        // Phone alerts on this ladder's lines, Daily and 1H steps (2026-11-03).
+        + `<button class="reel-tool reel-tool-pct reel-tool-alert${d.alert ? ' on' : ''}" data-act="draw-alert" data-name="${name}" aria-pressed="${!!d.alert}" aria-label="${d.alert ? 'Stop alerts on these lines' : 'Alert me when price reaches these lines'}" title="Alert">🔔 Alert</button>`
         // Blue glow while selected, off by default (user, 2026-11-01).
         + `<button class="reel-tool reel-tool-pct reel-tool-glow${d.glow ? ' on' : ''}" data-act="draw-glow" data-name="${name}" aria-pressed="${!!d.glow}" aria-label="${d.glow ? 'Turn the blue glow off' : 'Turn the blue glow on'}" title="Glow">Glow</button>`
         // Frame the price scale from zero, to set the ladder on 0 (user, 2026-11-01).

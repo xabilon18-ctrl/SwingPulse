@@ -515,7 +515,7 @@
   // Every props-row action that edits the drawings on a chart. The dispatcher
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
-    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-glow', 'draw-glow-color', 'draw-stack',
+    'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-alert', 'draw-glow', 'draw-glow-color', 'draw-stack',
     'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
@@ -932,6 +932,8 @@
     // so every tap landed on the dashboard and left you to go find the thing.
     navigator.serviceWorker.addEventListener('message', ev => {
       const d = ev.data || {};
+      // A ladder line alert opens its chart (2026-11-03).
+      if (d.type === 'OPEN_CHART' && d.chart) { openChartAt(d.chart, d.tf || '', ''); return; }
       if (d.type !== 'OPEN_TARGET') return;
       openFromNotification(d.ticker);
     });
@@ -14519,6 +14521,25 @@
       // Blue glow on a selected ladder (user, 2026-11-01: "add it as a feature
       // that I can activate and deactivate, but only for the percentage
       // lines"). Off unless switched on; selection itself shows on the dots.
+      // LADDER LINE ALERTS (user, 2026-11-03: alerts on the percentage lines,
+      // Daily and hourly, as phone notifications). The sync Worker checks every
+      // ladder with `alert` on after each data run: its Daily 10% lines and the
+      // 1H 2% steps. Turning it on also turns this phone's notifications on.
+      if (btn.dataset.act === 'draw-alert') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          if (d.alert) delete d.alert; else d.alert = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+          if (d.alert && !isPushEnabled()) {
+            subscribeToPush().then(ok => {
+              if (!ok) window.alert('Alert saved. To get it on this phone, sign in and allow notifications for SwingPulse (on iPhone, from the app on your home screen).');
+            });
+          }
+        }
+        return true;
+      }
       if (btn.dataset.act === 'draw-glow') {
         const d = activeChannel(name);
         if (d && d.kind === 'ladder') {

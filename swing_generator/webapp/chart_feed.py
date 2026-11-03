@@ -821,6 +821,11 @@ def build_30m(cache_dir: str, ticker: str) -> dict | None:
     return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
+# How far back quotes.json's `h` / `l` reach: a little over the hourly data
+# run spacing, so consecutive runs overlap rather than leave a gap.
+QUOTE_RANGE_MIN = 70
+
+
 def _quote_one(cache_dir: str, ticker: str) -> dict | None:
     """Latest price + previous close for the Watchlist tab (quotes.json).
 
@@ -876,6 +881,16 @@ def _quote_one(cache_dir: str, ticker: str) -> dict | None:
            # Crypto polls its exchange instead ('BINANCE:XRPUSDT'), which the
            # live Worker routes there (exchange_feed, 2026-10-19).
            'y': exchange_feed.source(ticker) or src}
+    # The last hour's range (2026-11-03, ladder line alerts): the sync Worker
+    # checks the user's alert lines against it after every data run, so a
+    # wick through a line between two runs still counts. Finished 5m bars in
+    # the QUOTE_RANGE_MIN minutes up to the price; the same feed as `p`.
+    if srcname == '5m':
+        win = five[five.index > ts - pd.Timedelta(minutes=QUOTE_RANGE_MIN)]
+        hi = win['High'] if 'High' in win else win['Close']
+        lo = win['Low'] if 'Low' in win else win['Close']
+        if len(win):
+            out['h'], out['l'] = _round(float(hi.max())), _round(float(lo.min()))
     ref = FIVE_MIN_LEVEL_REF.get(ticker)
     if ref:
         try:
