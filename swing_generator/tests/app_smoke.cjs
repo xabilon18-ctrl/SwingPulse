@@ -219,6 +219,7 @@ let debugPage;
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) await require('./chart_framing_checks.cjs')(page);
   if (!live) await require('./ladder_daily_sub_checks.cjs')(page);
+  if (!live) await require('./ladder_scale_dot_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) {
     // A remembered range comes back after a reload on its own timeframe only;

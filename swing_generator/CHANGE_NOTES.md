@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (night) LADDER SCALE DOT NEAR THE PRICE: app.js v580. User,
+with USDX trading near its ladder's 200% line: "how can we move the
+adjustable points ... only affecting the rest and not zero ... adjusting
+from 0 it's a problem as candles look small" (to reach the 0% and 40% dots
+they had to zoom far out).
+- A third round dot (`data-h="ls:<k>"`, k = stored steps from 0%) on the
+  ladder line nearest the last close, shown when that line is below 0% or at
+  60% and up (the 40% dot already serves the lines near it). Dragging it
+  sets the step so that line lands under the finger; 0% stays
+  (`ladderHoldZero` treats it like the 40% dot). It refuses a drag through
+  0% (the spacing would flip).
+- `ladderScaleDrag` pins the dot to its line for the whole drag; without it
+  the dot hopped to whichever line was now nearest the price. Cleared on
+  release.
+- Far from 0% it is also a fine control: the 200% line moved one point
+  moves the 40% line a fifth of a point.
+- Test: `tests/ladder_scale_dot_checks.cjs` (run from app_smoke): the dot
+  shows, keeps its line mid-drag, 0% does not move, spacing widens, and the
+  dragged line ends under the finger (within 2%).
+
 2026-11-03 (latest) 4H SPLITS EACH DAILY LADDER GAP IN TWO: app.js v579.
 User: on 4H, how should the Daily 0-10% sections be divided, "a little bit
 bigger" than 1H's five; agreed on two after weighing 2.5 (a 4% step misses
