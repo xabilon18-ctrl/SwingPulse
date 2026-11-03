@@ -75,12 +75,25 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
    }
    assert.ok(overlay[0].length>0);for(let i=0;i<overlay[0].length;i++)assert.ok(overlay[0][i]<overlay[1][i]&&overlay[1][i]<overlay[2][i],'each overlay family changes width');
    const pj=page.locator('[data-act="ov-proj"]');if(await pj.getAttribute('aria-checked')!=='true')await pj.click();
+   // Compare each projection FAMILY with itself (keyed by its stroke: the
+   // monthly line takes the MA colours, weekly and daily their own), after the
+   // set of lines stops changing. Reading only the FIRST polyline compared
+   // different lines whenever the monthly (thickest) one was missing on one
+   // read and present on the next: a random red on 2026-11-03 that passed on
+   // the re-run.
+   const projByFamily=()=>page.locator('#chartFullHost .reel-ov-proj polyline').evaluateAll(es=>{const o={};
+    es.forEach(e=>{const k=e.getAttribute('stroke');o[k]=Math.max(o[k]||0,parseFloat(getComputedStyle(e).strokeWidth));});return o;});
+   const settled=async()=>{let prev='';for(let i=0;i<50;i++){const cur=JSON.stringify(await projByFamily());
+    if(cur!=='{}'&&cur===prev)return JSON.parse(cur);prev=cur;await page.waitForTimeout(100);}return JSON.parse(prev||'{}');};
    const projection=[];
    for(const n of [.6,1,1.7]){
     await page.locator(`[data-act="ov-pjw"][data-v="${n}"]`).click();
-    projection.push(await widthOf(page,'.reel-ov-proj polyline'));
+    projection.push(await settled());
    }
-   assert.ok(projection[0]<projection[1]&&projection[1]<projection[2]);
+   const families=Object.keys(projection[0]).filter(k=>projection.every(p=>k in p));
+   assert.ok(families.length>0,'a projection line is drawn at every weight: '+JSON.stringify(projection));
+   for(const k of families)assert.ok(projection[0][k]<projection[1][k]&&projection[1][k]<projection[2][k],
+    'each projection family changes width: '+k+' '+JSON.stringify(projection.map(p=>p[k])));
    await page.locator('[data-act="ov-pjw"][data-v="0.6"]').click();
    await page.locator('[data-act="ov-maw"][data-v="0.6"]').click();
    const grid=[];for(const n of [1,2,3]){

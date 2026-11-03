@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) PROJECTION WEIGHT CHECK NO LONGER RANDOMLY RED: test
+only (chart_readability_browser.cjs). "Verify released chart weights"
+failed once on the #126 deploy at `projection[0]<projection[1]<projection[2]`
+and passed on the re-run. The check read only the FIRST projection polyline
+at each weight, and which line is first depends on which overlay families
+are drawn at that instant: monthly (MA colours, 1.6x, thickest), weekly,
+daily. A read with the monthly or weekly line missing compared a different
+line, so the three numbers could go down. Now it waits until the set of
+lines stops changing, keys widths by family (stroke), and asserts every
+family present at all three weights grows. Simulated the race (monthly and
+weekly lines removed at the second read): old check fails with the CI
+error, new one passes; also passes normally on live data and the fixture.
+
 2026-11-03 (later) LADDER GLOW STAYS ON, HALF AS THICK: app.js v570,
 style.css v401. User: "The glow for the percentage lines must stay if turned
 on and reduce the thickness by 1/2". The glow showed only while the ladder
