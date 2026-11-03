@@ -28,11 +28,18 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await tb.locator('[data-act="draw-labels"]').click();
   // A block stacked above: its 120/140/160/180% lines are bold on 1H too.
   await tb.locator('[data-act="draw-stack"][data-dir="up"][data-d="1"]').click();
+  // Phone alerts on its lines (2026-11-03): the bell is a press / unpress
+  // switch stored on the ladder, which the sync Worker reads after each run.
+  const bell = tb.locator('[data-act="draw-alert"]');
+  assert.equal(await bell.getAttribute('aria-pressed'), 'false', 'alerts start off');
+  await bell.click();
+  assert.equal(await tb.locator('[data-act="draw-alert"]').getAttribute('aria-pressed'), 'true', 'the bell turns alerts on');
   const stored = await page.evaluate(n => {
     const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
     const list = (all[n] && all[n].D) || [];
     return list.filter(d => d && d.kind === 'ladder').pop();
   }, name);
+  assert.equal(stored && stored.alert, true, 'the ladder is saved with its alert on');
   assert.ok(stored && stored.link && ['D', '1H', '4H'].every(t => stored.tfs.includes(t)),
     'a ladder drawn on Daily shows on Daily, 1H and 4H: ' + JSON.stringify(stored && stored.tfs));
   const dailyLabels = await main();

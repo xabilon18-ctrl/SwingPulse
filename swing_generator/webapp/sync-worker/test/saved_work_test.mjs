@@ -75,3 +75,4 @@ console.log('PASS: authenticated saved-work merging, newer charts and grids, del
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,stockGrids:{'1H':{division:'Q',modifiedAt:5,thirds:true}}}}).chartPrefs.stockGrids['1H'].thirds,true,'Quarter thirds sync');
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{'1H':{division:'Q',modifiedAt:5,thirds:1}}}}).chartPrefs.grids['1H'].thirds,undefined,'Only true is kept');
 console.log('PASS: quarter thirds sync');
+await import('./ladder_alerts_test.mjs');

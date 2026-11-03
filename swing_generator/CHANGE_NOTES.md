@@ -7,6 +7,44 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) LADDER LINE ALERTS ON THE PHONE: app.js v578,
+drawing-toolbar.js v10, sw.js, sync Worker, chart_feed quotes. User: "I need
+an option to set alerts on the percentage lines daily and hourly", then
+chose phone notifications, on the Daily lines AND the 1H steps.
+- **Switch**: a ladder's toolbar has a 🔔 Alert press/unpress button
+  (`draw-alert`, stored `d.alert`, synced like any drawing). Turning it on
+  also subscribes this phone to push if it is not yet (a note if that fails:
+  sign in and allow notifications, on iPhone from the home-screen app).
+- **Check**: CI already POSTs `/push/notify` after every data run. The Worker
+  now reads quotes.json and each allowed user's blob, and for every ladder
+  with `alert` (a linked copy once) tests its lines every 2% (Daily 10% lines
+  + the 1H 2% steps, stacks included, none below 0) against the range since
+  the previous run: [min(l, prev p, p), max(h, prev p, p)]. A market whose
+  quote time did not change is skipped. The same line does not alert again
+  for 6 hours; at most 12 alerts per user per run. State in KV
+  `alerts:state` (one write per run), alerts in `inbox:<user>` (last 30).
+  Pure logic in `sync-worker/src/ladder-alerts.js`.
+- **Delivery**: an empty push to the OWNER's phones only. The service worker
+  asks `/push/inbox?endpoint=` (the subscription endpoint is the credential)
+  and shows the alerts from the last 20 minutes: "GOLD · 1H 22%", "Up to
+  3,897, through your 1H 22% line at 3,896"; up to 4, the last saying
+  "+N more". Tapping opens that chart on 1H or Daily (`OPEN_CHART` /
+  `?chart=`). Every device of the owner gets them (nothing is cleared).
+- **Behaviour change**: /push/notify used to push EVERY phone after EVERY
+  run ("SwingPulse updated"). Now a phone hears only its owner's alerts, or
+  a FAILED run (status.json `failed`), which still reaches everyone.
+- **quotes.json** gains `h` / `l`: high and low of the finished 5m bars in
+  the `QUOTE_RANGE_MIN` (70) minutes up to `p`, so a wick through a line
+  between runs counts. Absent on a daily price.
+- Known limit: alerts compare against the quote feed (`p`), which for
+  futures-redirected indices (US100 etc.) is the futures contract; a ladder
+  drawn on the cash Daily chart can be a basis away.
+- Tests: sync-worker/test/ladder_alerts_test.mjs (run from
+  saved_work_test.mjs, so CI runs it without a workflow change): levels,
+  crossings, repeat guard, stale quotes, owner-only push, inbox for all of
+  the owner's devices, failed-run fan-out. htf_feed_test.py QuoteRangeTests.
+  ladder_daily_sub_checks.cjs: the bell toggles and is stored.
+
 2026-11-03 (later) DAILY LADDER ON 1H/4H: DARKER FINER LINES: style.css v404.
 User (US100 1H screenshot): "The lines too light". Cause: the line-weight
 levels draw ladder lines 0.9 / 1.7 / 2.6 units wide, and under ~2.4 units
