@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) DAILY LADDER ON 1H/4H: DARKER FINER LINES: style.css v404.
+User (US100 1H screenshot): "The lines too light". Cause: the line-weight
+levels draw ladder lines 0.9 / 1.7 / 2.6 units wide, and under ~2.4 units
+(1 CSS px on a phone) a line antialiases to grey whatever its colour (the
+default level, 1, is 0.9). A Daily ladder on 1H/4H now gets FIXED widths
+(`.reel-ladder-daily` on its main lines, selectors that outrank the weight
+rules): finer steps 2.2 (opacity .9, was 1.4 @ .45) < Daily 10% lines 3.2 <
+bold 20s and the 0%/100% ends 6. Daily itself still follows the drawing's
+weight. Labels unchanged. app.js v577. Test: ladder_daily_sub_checks.cjs
+(opacity >= .8, finer lines thinner than the Daily lines, bold thicker).
+
 2026-11-03 (later) 1H: A DAILY LADDER'S 20/40/60/80% LINES ARE BOLD:
 app.js v576, style.css v403. User: "On the 1h make 20, 40, 60 etc bold line
 only on 1h… that is a nice touch". On 1H only (not 4H, not Daily), a Daily
