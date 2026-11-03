@@ -54,6 +54,13 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
       assert.ok(plain.every(x => x.pct % 20 !== 0), '1H: every 20% step is bold: ' + JSON.stringify(widths));
       assert.ok(Math.min(...bold.map(x => x.w)) > Math.max(...plain.map(x => x.w)), '1H: bold lines are thicker: ' + JSON.stringify(widths));
     } else assert.equal(bold.length, 0, tf + ': no bold 20% lines off 1H');
+    // The finer lines are clearly visible (2026-11-03: "The lines too light")
+    // yet thinner than the Daily 10% lines.
+    const subLook = await page.evaluate(() => { const e = document.querySelector('#chartFull .reel-ladder-sub'); if (!e) return null; const c = getComputedStyle(e); return { w: parseFloat(c.strokeWidth), o: +c.strokeOpacity }; });
+    if (subLook) {
+      assert.ok(subLook.o >= 0.8, tf + ': the finer lines are dark enough: ' + JSON.stringify(subLook));
+      assert.ok(plain.length && subLook.w < Math.min(...plain.map(x => x.w)), tf + ': finer lines thinner than the Daily lines: ' + JSON.stringify({ subLook, plain }));
+    }
     // Zoom the price scale in until the finer steps have room for labels.
     for (let i = 0; i < 6 && !(await sub()).length; i++) {
       // The grip is rebuilt with every repaint: re-measure until it is back.

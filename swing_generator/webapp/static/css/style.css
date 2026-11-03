@@ -8648,7 +8648,19 @@ body.chart-full-open { overflow: hidden; }
 /* A Daily ladder's sub-divisions on 1H / 4H (2026-11-03): lighter and finer
    than its Daily lines, with SMALL grey labels, so Daily (the big black
    "20%") and the finer steps (grey "22%") read apart at a glance. */
-.reel-ladder-sub { stroke: #000; stroke-width: 1.4; stroke-dasharray: 2 7; stroke-opacity: .45; pointer-events: none; }
+.reel-ladder-sub { stroke: #000; stroke-width: 2.2; stroke-dasharray: 2 6; stroke-opacity: .9; pointer-events: none; }
+/* "The lines too light" (user, 2026-11-03, US100 1H). The line-weight levels
+   draw a ladder 0.9 / 1.7 / 2.6 units wide, and under ~2.4 units (1 CSS px on
+   a phone) a line antialiases to grey whatever its colour. So a Daily ladder
+   on 1H / 4H gets FIXED widths instead, in one clear order: finer steps 2.2 <
+   Daily 10% lines 3.2 < bold 20s and the 0% / 100% ends 6. Daily itself
+   still follows the drawing's weight. Selectors outrank the weight rules. */
+.reel-ladder.reel-ladder-daily,
+.reel-draw[data-stroke][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily { stroke-width: 3.2 !important; stroke-opacity: 1; }
+.reel-ladder.reel-ladder-daily.reel-ladder-bold,
+.reel-ladder.reel-ladder-daily.reel-ladder-key,
+.reel-draw[data-stroke][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-bold,
+.reel-draw[data-stroke][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 6 !important; }
 .reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
 /* Full-screen chart: previous / next without closing. */
