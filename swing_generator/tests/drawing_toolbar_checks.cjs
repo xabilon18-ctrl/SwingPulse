@@ -234,12 +234,29 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       const st=await ladderOn(ownTf), stStep=(st.p4-st.p1)/3;
       assert.ok(st.down===1&&Math.abs(st.p1-10*stStep)<1e-9,`A block added below lifts the ladder onto 0 (${st.p1-10*stStep})`);
       await toolbar.locator('.reel-draw-fold').click();          // the open bar covers the lower chart
+      // The added block lifts the ladder, so its move handle (the 50% line)
+      // can now sit above the price scale and is, correctly, not drawn: on
+      // live ALAB 4H (2026-11-03) it was at ~708 under a 519 top. Widen the
+      // price window with the axis grip until the handle is on screen,
+      // instead of assuming the data leaves room for it.
+      let widened=false;
+      for(let i=0;i<8&&!(await sel().locator('.reel-ch-grab[data-h="m"]').count());i++){
+        widened=true;
+        const yg=await boxOf(page.locator('#chartFull .reel-ygrip'));
+        const gx=yg.x+yg.width/2, gy=yg.y+yg.height*.3;
+        await page.mouse.move(gx,gy); await page.mouse.down();
+        await page.mouse.move(gx,gy+yg.height*.25,{steps:8}); await page.mouse.up();
+      }
       const mv2=await boxOf(sel().locator('.reel-ch-grab[data-h="m"]'));
+      assert.ok(mv2,'The ladder\'s move handle is on screen to drag');
       await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2); await page.mouse.down();
       await page.mouse.move(mv2.x+mv2.width/2,mv2.y+mv2.height/2+60,{steps:8}); await page.mouse.up();
       const st2=await ladderOn(ownTf), step2=(st2.p4-st2.p1)/3;
       assert.ok(Math.abs(st2.p1-10*step2)<1e-9,`Dragged down, the bottom block still stops on 0 (${st2.p1-10*step2})`);
       await toolbar.locator('.reel-draw-fold').click();
+      // A manual price zoom replaces the zero window (reel.lockY), so put "0"
+      // back on before checking that it turns off again.
+      if (widened && await zeroBtn().getAttribute('aria-pressed')!=='true') await zeroBtn().click();
       await zeroBtn().click();
       assert.equal(await zeroBtn().getAttribute('aria-pressed'),'false','"0" again goes back to the normal scale');
       assert.ok(await lo()>0||loBefore<=0,'…and zero leaves the scale');
@@ -258,6 +275,23 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
       await page.mouse.move(g.x+g.width/2,g.y+g.height/2-40,{steps:8});
       await page.mouse.up();
       assert.notEqual((await channelOn())[k],before,`Dragging end ${h} straight up moves that end`);
+    }
+    // SHORT CHANNEL (2026-11-03): with both ends close together on screen the
+    // move handle sat halfway between them, on top of both, and took the touch
+    // meant for an end (found on live ALAB 4H). Each end must be on top where
+    // it is drawn.
+    {
+      const ga0=await boxOf(sel().locator('.reel-ch-grab[data-h="a"]'));
+      const gb0=await boxOf(sel().locator('.reel-ch-grab[data-h="b"]'));
+      const mid=b=>({x:b.x+b.width/2,y:b.y+b.height/2}), ca=mid(ga0), cb=mid(gb0);
+      await page.mouse.move(cb.x,cb.y); await page.mouse.down();
+      await page.mouse.move(ca.x+18,ca.y,{steps:10}); await page.mouse.up();
+      for (const h of ['a','b']) {
+        const g=await boxOf(sel().locator(`.reel-ch-grab[data-h="${h}"]`));
+        assert.ok(g,`Short channel: end handle ${h} is drawn`);
+        const top=await page.evaluate(([x,y])=>{const e=document.elementFromPoint(x,y);return e&&e.dataset?e.dataset.h||'':'none';},[g.x+g.width/2,g.y+g.height/2]);
+        assert.equal(top,h,`Short channel: end handle ${h} can be touched where it is drawn (got "${top}")`);
+      }
     }
     // Both ends panned off the panel: the end handles stay on screen, on the
     // midline, and dragging one still turns the channel. The channel is first

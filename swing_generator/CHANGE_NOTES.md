@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-03 (later) SHORT CHANNEL: MOVE HANDLE NO LONGER COVERS THE ENDS;
+LIVE TOOLBAR CHECK FIXED: app.js v569. Found when "Verify the live app"
+failed on the v568 deploy (it failed the same way on v567: not that change).
+- **App bug.** When a channel's two ends sat close together on screen, the
+  move handle went halfway between them, on top of both, and took the touch
+  meant for an end (live ALAB 4H: ends 76 units apart, grab radius 42). It
+  only stepped aside when the channel was too NARROW (`tight`); it now also
+  steps aside when it is within 90 of an end handle (`nearEnd`).
+- **Test bug** (drawing_toolbar_checks.cjs). After "a block added below"
+  the ladder's move handle (50% line) can sit above the price scale and is,
+  correctly, not drawn (ALAB 4H: ~708 under a 519 top), so the next drag
+  read a null box. The test now widens the price window with the axis grip
+  until the handle is on screen, then turns "0" back on (a manual price zoom
+  replaces the zero window) before the "0 again" check.
+- New check: a SHORT channel (end b dragged next to end a) must have each
+  end on top where it is drawn. Fails on v568 ("got m"), passes on v569.
+Verified against live R2 data locally (app_smoke.cjs SMOKE_LIVE=1) and on
+the fixture.
+
 2026-11-03 COMING BACK TO A CHART SHOWS ITS SAVED VIEW: app.js v568. User:
 "Why is it that the chart never stay on the saved view?", then "Yes fix it".
 A saved view was applied only the FIRST time a chart opened in a session
