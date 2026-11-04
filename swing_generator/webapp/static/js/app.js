@@ -7940,7 +7940,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} }
+    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -10293,7 +10293,7 @@
     let n = 0;
     for (const name of Object.keys(instChannels)) {
       const per = instChannels[name] || {};
-      for (const tf of LADDER_SUB_TFS) {
+      for (const tf of ['1H', '4H']) {
         const list = per[tf];
         if (!Array.isArray(list)) continue;
         const keep = list.filter(d => !(d && d.kind === 'ladder' && !ladderIsDaily(d)));
@@ -10306,6 +10306,32 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_CLEANUP_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    return n;
+  }
+
+  // DAILY LADDERS OFF 4H, ONCE PER DEVICE (user, 2026-11-04: "remove 4h").
+  // Every Daily ladder (linked, shown on Daily) stops showing on 4H: '4H' is
+  // taken out of its `tfs` on every copy, after the first sync pull of the
+  // visit like ladderCleanupOnce, and saved through channelSave so the other
+  // devices get it. Ladders drawn on 4H itself are left alone, and the 4H
+  // chip on a Daily ladder still turns it back on there.
+  const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-04';
+  function ladderNo4hOnce() {
+    try { if (localStorage.getItem(sk(LADDER_NO4H_KEY))) return 0; } catch (_) { return 0; }
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      for (const list of Object.values(per)) {
+        if (!Array.isArray(list)) continue;
+        for (const d of list) {
+          if (!d || d.kind !== 'ladder' || !ladderIsDaily(d) || !d.tfs.includes('4H')) continue;
+          d.tfs = d.tfs.filter(t => t !== '4H'); n++;
+        }
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_NO4H_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (_) {} }
     return n;
   }
@@ -10356,8 +10382,9 @@
     const def = reelDefaultDrawing(kind || 'channel', ctx.b);
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
-    // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
-    // (ladderSubdivides). The timeframe chips still turn any of them off.
+    // A ladder drawn on Daily also shows on 1H, subdivided there
+    // (ladderSubdivides); not on 4H since 2026-11-04. The timeframe chips
+    // still turn any of them on or off.
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
       def.tfs = tabTfs('charts').filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
@@ -10808,18 +10835,20 @@
   // gap into five, with the Daily % labels still on top; "build it and add the
   // small labels for the small division but when i am on the 1h i should be
   // able to tell which are the daily one and which are the 1h from the
-  // labels"). A ladder that shows on Daily is a Daily ladder. On 1H and 4H it
+  // labels"). A ladder that shows on Daily is a Daily ladder. On 1H (and 4H until
+  // 2026-11-04) it
   // keeps its Daily lines and their big black labels ("20%"; a "D " prefix
   // was tried and dropped the same day) and splits every Daily gap into
   // LADDER_SUB_BY_TF parts: lighter lines with small grey labels ("22%"). Daily
   // itself never draws them. The sub-lines are drawing only: no tap target,
   // no glow, no price alert.
   // Parts per Daily gap by timeframe: 1H in four (every 2.5%; user,
-  // 2026-11-04: five, every 2%, looked "too tight"), 4H in two (every 5%: a
-  // 4H bar is bigger, so wider steps). The steps nest: every Daily line is a
-  // 4H line and every 4H line a 1H line. Each timeframe shows only its own
-  // steps beside the Daily lines. Keep sync-worker LADDER_SUB equal to 1H's.
-  const LADDER_SUB_BY_TF = { '1H': 4, '4H': 2 };
+  // 2026-11-04: five, every 2%, looked "too tight"). DAILY AND 1H ONLY (user,
+  // 2026-11-04: "Take it back to when it was 1h and daily only with 10
+  // division and remove 4h"): 4H, which split each gap in two (every 5%)
+  // since 2026-11-03, no longer shows Daily ladders (ladderNo4hOnce takes it
+  // off the saved ones). Keep sync-worker LADDER_SUB equal to 1H's.
+  const LADDER_SUB_BY_TF = { '1H': 4 };
   const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
   const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);

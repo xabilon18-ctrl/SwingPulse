@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 DAILY LADDERS ON DAILY AND 1H ONLY (4H REMOVED): app.js v584.
+User, after seeing a 12.5% version (never deployed): "Take it back to when it
+was 1h and daily only with10 division and remove 4h". Ten divisions stay
+(every 10%), 1H keeps its four parts (every 2.5%).
+- `LADDER_SUB_BY_TF = { '1H': 4 }` (4H's two parts, every 5%, are gone), so
+  a ladder drawn on Daily is linked to D and 1H only.
+- `ladderNo4hOnce()` (flag `sp-ladder-no4h-2026-11-04`, per user), after the
+  first sync pull of the visit, next to `ladderCleanupOnce`: takes '4H' out
+  of every Daily ladder's `tfs` on every copy and saves through
+  `channelSave`, so other devices follow. Ladders drawn on 4H itself are
+  untouched; a Daily ladder's 4H chip still turns it back on there.
+- `ladderCleanupOnce` (2026-11-03) keeps its own 1H/4H list for what it
+  deletes, so a device that never ran it behaves as before.
+- Alerts (paused since PR #142) unchanged: Daily 10% lines + 1H 2.5% steps.
+- Tests: ladder_daily_sub_checks (linked D + 1H, nothing on 4H),
+  ladder_cleanup_checks (no Daily ladder keeps 4H after both cleanups).
+
 2026-11-04 PHONE ALERTS PAUSED: sync Worker. User: "Switch off all phone
 alerts till we get this right" (while the ladder steps are reworked, 12.5%
 Daily under discussion). `wrangler.toml` `[vars] PUSH_PAUSED = "1"`:
