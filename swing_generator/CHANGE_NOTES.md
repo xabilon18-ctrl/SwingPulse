@@ -7,6 +7,22 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 DAILY: SPLIT EACH TERM INTO 4: app.js v587, chart-preferences.js
+v10, grid-geometry.js v14, sync Worker. User: "Just like we have a split for
+a quarter by 3. Create one for daily by 4", then (asked what to split) "Each
+term into 4".
+- A switch in the Grid menu under the Term (T) grid, Daily only: three
+  light, unlabelled lines in each four-year term, one on each year that is
+  not a term year (2026, 2027, 2028 in the 2025 term). Outside the shading,
+  like the quarter thirds; the term lines and their bold administration
+  lines are unchanged.
+- Stored as `fourths: true` on the grid row, per market, beside `thirds`;
+  `chartPreferences.fourths` / `setFourths` (one `setSplit` behind both
+  switches); both flags survive a division change. The sync Worker's
+  saved-work-store keeps it (only `true`).
+- Tests: time_grid_test (three lines a term on its years, no label or
+  shading, off under Y, saved, Daily only, flag cleaning), saved_work_test.
+
 2026-11-04 PHONE ALERTS BACK ON: sync Worker. User: "Turn phone alerts back
 on". `wrangler.toml` `PUSH_PAUSED = "0"`: `/push/notify` checks the ladder
 lines again (Daily 10% lines and the 1H 2% steps) and sends failed-run

@@ -9,6 +9,7 @@ function grids(value, field) {
     if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
     out[tf] = { division: row.division, modifiedAt: row.modifiedAt };
     if (row.thirds === true) out[tf].thirds = true;  // Q grid split into thirds (2026-11-02)
+    if (row.fourths === true) out[tf].fourths = true;  // T grid split into its four years (2026-11-04)
   }
   return out;
 }

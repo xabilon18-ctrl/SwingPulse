@@ -11300,7 +11300,10 @@
       const d = reelGridDivision(code, scope);
       // A session-only 4H draws one size up (Q → half-years), so no thirds there.
       if (session && REEL_SESSION_GRID[d.code]) return REEL_SESSION_GRID[d.code];
-      return d.code === 'Q' && chartPreferences.thirds(code, scope) ? { ...d, thirds: true } : d;
+      if (d.code === 'Q' && chartPreferences.thirds(code, scope)) return { ...d, thirds: true };
+      // Term fourths: Daily only (user, 2026-11-04).
+      if (d.code === 'T' && code === 'D' && chartPreferences.fourths(code, scope)) return { ...d, fourths: true };
+      return d;
     } });
   }
 
@@ -11903,8 +11906,14 @@
     const thirds = reelGridDivision(timeframe, scope).code !== 'Q' ? ''
       : `<button class="reel-tool reel-grid-switch${thirdsOn ? ' on' : ''}" data-act="time-grid-thirds" data-grid-scope="${scope}" role="menuitemcheckbox" aria-checked="${thirdsOn}">
         <span>Split each quarter into 3<em>${timeframe === '4H' ? 'not on 4H session charts, which draw half-years' : 'two light lines per quarter'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    // Term fourths (user, 2026-11-04, "Each term into 4"): under the T grid,
+    // on Daily only.
+    const fourthsOn = chartPreferences.fourths(timeframe, scope);
+    const fourths = timeframe !== 'D' || reelGridDivision(timeframe, scope).code !== 'T' ? ''
+      : `<button class="reel-tool reel-grid-switch${fourthsOn ? ' on' : ''}" data-act="time-grid-fourths" data-grid-scope="${scope}" role="menuitemcheckbox" aria-checked="${fourthsOn}">
+        <span>Split each term into 4<em>three light lines per term, one a year</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     let h = `${reelTimeGridSwitch(name)}
-      ${thirds}
+      ${thirds}${fourths}
       ${reelRangeSwitch()}
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
@@ -14345,11 +14354,13 @@
       if (btn.dataset.act === 'tf-menu') { reelTfMenuToggle(btn); return true; }
       if (btn.dataset.act === 'tf-set')  { reelTfMenuClose(); reelSwitchTf(name, btn.dataset.tf); return true; }
       if (btn.dataset.act === 'grid-menu') { reelGridMenuToggle(btn); return true; }
-      if (btn.dataset.act === 'time-grid-set' || btn.dataset.act === 'time-grid-thirds') {
+      if (btn.dataset.act === 'time-grid-set' || btn.dataset.act === 'time-grid-thirds' || btn.dataset.act === 'time-grid-fourths') {
         const scope = btn.dataset.gridScope || 'other';
         const ok = btn.dataset.act === 'time-grid-set'
           ? reelSetGridDivision(timeframe, btn.dataset.division, scope)
-          : !!TF_BY_CODE[timeframe] && chartPreferences.setThirds(timeframe, !chartPreferences.thirds(timeframe, scope), scope);
+          : btn.dataset.act === 'time-grid-fourths'
+            ? timeframe === 'D' && chartPreferences.setFourths(timeframe, !chartPreferences.fourths(timeframe, scope), scope)
+            : !!TF_BY_CODE[timeframe] && chartPreferences.setThirds(timeframe, !chartPreferences.thirds(timeframe, scope), scope);
         if (!ok) return true;
         document.querySelectorAll('.reel-grid-menu').forEach(menu => {
           menu.innerHTML = reelGridMenuHtml(menu._name);

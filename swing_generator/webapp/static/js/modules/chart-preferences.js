@@ -30,6 +30,10 @@
       // the quarter time grid"): two light lines splitting each quarter into
       // three equal parts. Kept on the row so it syncs and merges with it.
       if (row.thirds === true) grids[tf].thirds = true;
+      // Term fourths (user, 2026-11-04: "Just like we have a split for a
+      // quarter by 3. Create one for daily by 4", then "Each term into 4"):
+      // three light lines splitting each four-year term into its years.
+      if (row.fourths === true) grids[tf].fourths = true;
     }
     return grids;
   }
@@ -79,24 +83,32 @@
       return choices.find(c => c.code === code);
     }
     function thirds(tf, scope = 'other') { return effective(tf, scope)?.thirds === true; }
+    function fourths(tf, scope = 'other') { return effective(tf, scope)?.fourths === true; }
     function set(tf, code, scope = 'other') {
       if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
-      const rows = state[scopes[scope]], old = rows[tf], keepThirds = thirds(tf, scope);
+      const rows = state[scopes[scope]], old = rows[tf], keepThirds = thirds(tf, scope), keepFourths = fourths(tf, scope);
       if (old && old.division === code) return true;
-      // The thirds switch survives a division change, so Q comes back as it was left.
+      // The split switches survive a division change, so Q and T come back as they were left.
       rows[tf] = { division: code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
       if (keepThirds) rows[tf].thirds = true;
+      if (keepFourths) rows[tf].fourths = true;
       save(); onChange(); return true;
     }
-    function setThirds(tf, on, scope = 'other') {
+    // One switch flag on a grid row: 'thirds' (Q) or 'fourths' (T).
+    function setSplit(key, tf, on, scope = 'other') {
       if (!Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
       on = !!on;
-      if (thirds(tf, scope) === on) return true;
+      const now_ = { thirds: thirds(tf, scope), fourths: fourths(tf, scope) };
+      if (now_[key] === on) return true;
       const rows = state[scopes[scope]], old = rows[tf];
       rows[tf] = { division: division(tf, scope).code, modifiedAt: Math.max(now(), (old?.modifiedAt || 0) + 1) };
-      if (on) rows[tf].thirds = true;
+      const next = { ...now_, [key]: on };
+      if (next.thirds) rows[tf].thirds = true;
+      if (next.fourths) rows[tf].fourths = true;
       save(); onChange(); return true;
     }
+    const setThirds = (tf, on, scope) => setSplit('thirds', tf, on, scope);
+    const setFourths = (tf, on, scope) => setSplit('fourths', tf, on, scope);
     function mergeRemote(remote) {
       const next = merge(state, remote), changed = JSON.stringify(next) !== JSON.stringify(state);
       if (changed) { state = next; save(); }
@@ -113,7 +125,7 @@
     }
     function restore(value) { state = previewRestore(value); save(); onChange(); }
     reload();
-    return { reload, snapshot, division, thirds, set, setThirds, mergeRemote, pending, restore, previewRestore };
+    return { reload, snapshot, division, thirds, fourths, set, setThirds, setFourths, mergeRemote, pending, restore, previewRestore };
   }
   const api = Object.freeze({ choices, defaults, scopes, fromOther, clean, migrate, merge, create });
   (root.SwingPulseModules ||= {}).chartPreferences = api;

@@ -279,4 +279,43 @@ for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [20
   assert.equal(preferences.clean({ grids: { '1H': { division: 'Q', modifiedAt: 1, thirds: 'yes' } } }).grids['1H'].thirds, undefined);
 }
 console.log('PASS: quarter thirds switch');
+// Term fourths (2026-11-04, user: "Each term into 4"): a switch on Daily's
+// T grid adds a light, unlabelled line on each year inside a term, outside
+// the shading; nothing else moves. Daily only.
+{
+  const q = context();
+  const days = [];
+  for (let ms = Date.UTC(2016, 0, 1); ms < Date.UTC(2026, 10, 1); ms += 864e5) {
+    const d = new Date(ms);
+    if (![0, 6].includes(d.getUTCDay())) days.push(d.toISOString().slice(0, 10));
+  }
+  const bd = { t: days };
+  q.reelSetGridDivision('D', 'T', 'other');
+  const before = q.reelTimeGrid(bd, 'D');
+  assert.equal(before.some(l => l.fourth), false, 'Fourths are off by default');
+  assert.equal(q.chartPreferences.setFourths('D', true, 'other'), true);
+  const after = q.reelTimeGrid(bd, 'D');
+  const fourths = after.filter(l => l.fourth), terms = after.filter(l => !l.fixedOnly);
+  assert.deepEqual(after.filter(l => !l.fourth), before, 'Term lines, labels and bold term lines are unchanged');
+  assert.deepEqual(fourths.filter(l => l.year >= 2025 && l.year < 2029).map(l => l.year), [2026, 2027, 2028], 'Three lines in the 2025 term, one a year');
+  assert.ok(fourths.every(l => l.fixedOnly && !l.label), 'Fourths carry no label and no shading');
+  const step = terms[1].fi - terms[0].fi;
+  for (const l of fourths) {
+    const start = terms.filter(x => x.fi <= l.fi + 1e-9).pop();
+    if (!start) continue;
+    const off = (l.fi - start.fi) / step;
+    assert.ok([0.25, 0.5, 0.75].some(v => Math.abs(off - v) < 1e-9), 'Fourths split the term equally: ' + off);
+  }
+  // Under another grid, or on another timeframe, no fourths and no switch.
+  q.reelSetGridDivision('D', 'Y', 'other');
+  assert.equal(q.reelTimeGrid(bd, 'D').some(l => l.fourth), false, 'No fourths on the Year grid');
+  q.reelSetGridDivision('D', 'T', 'other');
+  assert.equal(context().reelTimeGrid(bd, 'D').some(l => l.fourth), true, 'The switch is saved and survives a division change');
+  q.reelSetGridDivision('W', 'T', 'other');
+  q.chartPreferences.setFourths('W', true, 'other');
+  assert.equal(q.reelTimeGrid(bd, 'W').some(l => l.fourth), false, 'Daily only');
+  assert.equal(q.chartPreferences.snapshot().grids['D'].fourths, true);
+  assert.equal(preferences.clean({ grids: { D: { division: 'T', modifiedAt: 1, fourths: 'yes' } } }).grids['D'].fourths, undefined);
+}
+console.log('PASS: term fourths switch');
 console.log('PASS: equal M/Q/H/Y, removed W, permanent equal 1H/4H years and Daily admins, equal Weekly/Monthly terms, half terms, Weekly 10Y and Monthly 10Y/20Y, saved choices and shading');
