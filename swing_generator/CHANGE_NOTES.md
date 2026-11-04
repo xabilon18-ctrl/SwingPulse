@@ -11,7 +11,9 @@ before relying on one. Add new entries at the top of the first section.
 on". `wrangler.toml` `PUSH_PAUSED = "0"`: `/push/notify` checks the ladder
 lines again (Daily 10% lines and the 1H 2% steps) and sends failed-run
 pushes. The alert state was left untouched while paused, so the first run
-alerts only on lines crossed since the last run's price.
+compares with the last price checked BEFORE the pause: lines crossed during
+the pause (about 13:15-14:00 UTC) can alert once then, capped at
+MAX_PER_RUN (12) per user.
 
 2026-11-04 4H REMOVED AS A TIMEFRAME; ITS SIGNALS MOVE TO 1H: app.js v586,
 trend-context.js v3, chart feed. User: "Remove 4h as a time frame and take
