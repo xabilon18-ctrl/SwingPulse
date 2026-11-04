@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 PHONE ALERTS PAUSED: sync Worker. User: "Switch off all phone
+alerts till we get this right" (while the ladder steps are reworked, 12.5%
+Daily under discussion). `wrangler.toml` `[vars] PUSH_PAUSED = "1"`:
+`/push/notify` answers `{paused: true}` after the secret check and does
+nothing else, so no ladder line alert and no failed-run push reaches any
+phone. Subscriptions, the ladders' bell settings and the alert state are
+untouched. To resume: `PUSH_PAUSED = "0"` (or remove it) and redeploy; the
+first run after that only alerts on lines crossed since the previous run.
+Test: auth_test.mjs (paused notify still needs the secret, sends nothing).
+
 2026-11-04 CHARTS FOLLOW THE WATCHLIST; CHART CARD MADE BIGGER: app.js
 v583, style.css v405. User: remove the Charts drop-downs and lists, move the
 ones the Watchlist lacks to it, keep only the instrument name, full name and
