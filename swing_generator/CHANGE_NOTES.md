@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 CIRCLE AND TOKENIZATION STOCKS: Instruments.txt 815 → 821. User:
+"Add circle in the instrument list and other new add to xm tech and
+tokenization related to the instrument list". New section after #821, group
+`Blockchain` (so they sit with COIN/HOOD under the Crypto class and the
+Blockchain filter; no app code change): #822 CIRCLE (CRCL), #823 GALAXY
+(GLXY), #824 BULLISH (BLSH), #825 GEMINI (GEMI), #826 FIGURE (FIGR),
+#827 ETORO (ETOR). XM's own list could not be read from the session (xm.com
+outside the network allowlist), so the five besides Circle are the US-listed
+stablecoin/tokenization names, NOT confirmed as XM symbols. All listed
+2025 (May-Sep), so ~290-380 daily bars: MA50 and MA250 draw, MA500 does not
+exist yet and B4/S4 cannot fire until it does (same as CEREBRAS). Industry
+labels are placeholders; the weekly yahoo-industries job overwrites them.
+
 2026-11-03 (late night) ONE-TIME LADDER CLEANUP: app.js v581. User: "I need
 the old percentage that stood alone and not the 1h and the 4h divisions that
 go together with the daily chart to be removed. The new ones remain", and

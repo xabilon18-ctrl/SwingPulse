@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (793)
+  GANN SCANNER — FULL INSTRUMENT LIST (821)
   Generated: 11 Jul 2026   |   Currency restored: 25 Aug 2026 (57 pairs, #742-798)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1107,6 +1107,16 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 821  | CCY_CNY       | CNY_IDX       | Currency Index | Currency                  | Chinese Yuan index vs 8 majors (equal-weight)
 
 ═══════════════════════════════════════════════════════════════════════════════
+  BLOCKCHAIN — STABLECOINS & TOKENIZATION (6)  (added 2026-11-04)
+═══════════════════════════════════════════════════════════════════════════════
+822  | CRCL          | CIRCLE        | Blockchain    | Financial Services        | Capital Markets
+823  | GLXY          | GALAXY        | Blockchain    | Financial Services        | Capital Markets
+824  | BLSH          | BULLISH       | Blockchain    | Financial Services        | Financial Data & Stock Exchanges
+825  | GEMI          | GEMINI        | Blockchain    | Financial Services        | Financial Data & Stock Exchanges
+826  | FIGR          | FIGURE        | Blockchain    | Financial Services        | Credit Services
+827  | ETOR          | ETORO         | Blockchain    | Financial Services        | Capital Markets
+
+═══════════════════════════════════════════════════════════════════════════════
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)
@@ -1140,7 +1150,8 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   Currency Scandinavian ......   5  (restored 2026-08-25)
   Currency Exotic ............  24  (restored 2026-08-25 — EMEA 12 / Americas 4 / Asia 8)
   AI Theme ................   5  (C3AI, SOUN, BBAI, CEREBRAS, CRWV)
-  Blockchain ..............   9  (COIN, MARA, RIOT, MSTR, CLSK, HUT, WULF, IREN, HOOD)
+  Blockchain ..............  15  (COIN, MARA, RIOT, MSTR, CLSK, HUT, WULF, IREN, HOOD,
+                                 CIRCLE, GALAXY, BULLISH, GEMINI, FIGURE, ETORO — 2026-11-04)
   Space ...................   8  (RKLB, ASTS, LUNR, IRDM, PLANET, GSAT, VSAT, RDW)
   Quantum .................   4  (IONQ, RGTI, QBTS, QUBT)
   Robotics ................   6  (PATH, SYM, ROK, CGNX, SERV, GMED)
@@ -1149,5 +1160,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 793  (load_instruments() count, 2026-08-25)
+  TOTAL .................. 821  (load_instruments() count, 2026-11-04)
 ═══════════════════════════════════════════════════════════════════════════════
