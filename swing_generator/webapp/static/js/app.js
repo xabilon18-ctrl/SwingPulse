@@ -10783,15 +10783,21 @@
   // p1 + 10 x the stored step), so changing this never moves a saved ladder.
   // Storage, stacks and the zero hold work in block edges and do not depend
   // on it. A function of the timeframe so a per-timeframe count is one edit.
+  // DAILY LADDERS EVERY 12.5% (user, 2026-11-04: "Let's do 12.5 25 on
+  // daily"): eight divisions on Daily, 1H and 4H, and on any ladder that
+  // shows on Daily wherever it is drawn, so a Daily ladder's main lines are
+  // the same 0, 12.5, 25 ... 100% on every chart it shows on. Weekly and
+  // Monthly ladders keep ten (every 10%).
   const LADDER_DIVISIONS = 10;
-  const ladderDivs = () => LADDER_DIVISIONS;
+  const LADDER_DIVISIONS_BY_TF = { D: 8, '1H': 8, '4H': 8 };
+  const ladderDivs = (tf, d) => (d && ladderIsDaily(d)) ? 8 : LADDER_DIVISIONS_BY_TF[tf] || LADDER_DIVISIONS;
   // Every line a ladder draws on timeframe tf, low to high: its price, its %
   // label (continuous through the stacks, reversed with d.reverse) and whether
   // it is a bold block edge.
   function ladderLines(d, tf) {
     const u = (d.p4 - d.p1) / 3;
     if (!isFinite(u) || !u) return [];
-    const SPAN = LADDER_LINES - 1, div = ladderDivs(tf);
+    const SPAN = LADDER_LINES - 1, div = ladderDivs(tf, d);
     const [kMin, kMax] = ladderKRange(d);
     const out = [];
     for (let i = kMin / SPAN * div; i <= kMax / SPAN * div; i++) {
@@ -10802,7 +10808,7 @@
   }
   // The resize dot's line, in stored steps above 0%: the 40% line on ten
   // divisions (2026-11-01), the 37.5% line if a timeframe ever uses eight.
-  const ladderDotSteps = tf => ladderDivs(tf) === 8 ? 3.75 : 4;
+  const ladderDotSteps = (tf, d) => ladderDivs(tf, d) === 8 ? 3.75 : 4;
   // DAILY LADDERS ON 1H / 4H (user, 2026-11-03, shown how they had drawn it on
   // PALLADIUM: a Daily ladder, then on 1H a second ladder splitting each Daily
   // gap into five, with the Daily % labels still on top; "build it and add the
@@ -10814,12 +10820,14 @@
   // LADDER_SUB_BY_TF parts: lighter lines with small grey labels ("22%"). Daily
   // itself never draws them. The sub-lines are drawing only: no tap target,
   // no glow, no price alert.
-  // Parts per Daily gap by timeframe: 1H in four (every 2.5%; user,
-  // 2026-11-04: five, every 2%, looked "too tight"), 4H in two (every 5%: a
-  // 4H bar is bigger, so wider steps). The steps nest: every Daily line is a
-  // 4H line and every 4H line a 1H line. Each timeframe shows only its own
-  // steps beside the Daily lines. Keep sync-worker LADDER_SUB equal to 1H's.
-  const LADDER_SUB_BY_TF = { '1H': 4, '4H': 2 };
+  // Parts per Daily gap by timeframe (2026-11-04, Daily every 12.5%): 1H in
+  // five, every 2.5% (the same 2.5% grid as before); 4H in ONE, i.e. the
+  // Daily lines only, no finer steps: 12.5 has no clean split between 2.5
+  // and 12.5 (5% does not divide it; halves are 6.25%), and the user chose
+  // Daily lines only on 4H. Every Daily line is a 1H line. 4H stays a key
+  // here because it still shows Daily ladders (linking, the Daily styling).
+  // Keep sync-worker LADDER_SUB equal to 1H's.
+  const LADDER_SUB_BY_TF = { '1H': 5, '4H': 1 };
   const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
   const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
@@ -10883,9 +10891,11 @@
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const key = ln.key;
       const pctLbl = ln.pct;
-      // On 1H, a Daily ladder's 20 / 40 / 60 / 80% lines are bold (user,
-      // 2026-11-03: "that is a nice touch"); 0% and 100% keep their own style.
-      const bold20 = sub && timeframe === '1H' && !key && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9;
+      // On 1H, every second Daily line of a Daily ladder is bold (user,
+      // 2026-11-03: "that is a nice touch"): 25 / 50 / 75% since the Daily
+      // lines went to 12.5% (2026-11-04: "12.5 25"); it was 20 / 40 / 60 /
+      // 80% on 10% lines. 0% and 100% keep their own style.
+      const bold20 = sub && timeframe === '1H' && !key && Math.abs(ln.pct / 25 - Math.round(ln.pct / 25)) < 1e-9;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
@@ -10915,7 +10925,7 @@
       // The resize dot sits on the 40% line (user, 2026-11-01: "it's the
       // third one ... put that on the fourth one", counting 10/20/30/40 up
       // from the 0% line). It was on 30% (p4). p4 stays the stored anchor.
-      const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + ladderDotSteps(timeframe) * step);
+      const y1 = sc.y(d.p1), y4 = sc.y(d.p1 + ladderDotSteps(timeframe, d) * step);
       if (y1 >= L.py0 && y1 <= L.py1) handles += reelHandle(L, hx, y1, 'l1', idx, isActive);
       if (y4 >= L.py0 && y4 <= L.py1) handles += reelHandle(L, hx, y4, 'l4', idx, isActive);
       // SCALE DOT near the price (user, 2026-11-03, USDX trading near the
@@ -10931,7 +10941,7 @@
       if (sk == null) {
         let last = null;
         for (let i = (b && b.c ? b.c.length : 0) - 1; i >= 0 && last == null; i--) last = b.c[i];
-        const per = (LADDER_LINES - 1) / ladderDivs(timeframe), dot = ladderDotSteps(timeframe);
+        const per = (LADDER_LINES - 1) / ladderDivs(timeframe, d), dot = ladderDotSteps(timeframe, d);
         let best = null;
         if (last != null) for (const ln of lines) {
           if (ln.p < -1e-9) continue;
@@ -10946,7 +10956,7 @@
       }
       const ym = sc.y(d.p1 + 5 * step);     // the 50% line
       if (ym >= L.py0 && ym <= L.py1) handles += reelMoveHandle(L, L.x0 + (L.x1 - L.x0) * 0.65, ym, idx, isActive);
-      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and 40% lines are outside this range — zoom out to adjust</text>`;
+      if (!handles) handles = `<text x="${((L.x0 + L.x1) / 2).toFixed(1)}" y="${(L.py0 + 22).toFixed(1)}" class="reel-ch-note" text-anchor="middle">The 0% and ${ladderDotSteps(timeframe, d) * 10}% lines are outside this range — zoom out to adjust</text>`;
     }
     return out + handles;
   }
@@ -13605,7 +13615,7 @@
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
         // The dot is on the 40% line (37.5% on eight divisions), ladderDotSteps steps
         // up; p4 is three.
-        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / ladderDotSteps(timeframe);
+        else if (handle === 'l4' && Math.abs(pz - ch.p1) >= minGap) ch.p4 = ch.p1 + (pz - ch.p1) * 3 / ladderDotSteps(timeframe, ch);
         // The scale dot near the price: its line, k steps from 0%, goes to
         // the finger; 0% stays. Never through 0% (the spacing would flip).
         else if (String(handle).startsWith('ls:')) {

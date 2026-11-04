@@ -133,7 +133,7 @@ async function layout(page) {
       const full=page.locator('#chartFull');
       await full.locator('[data-act="channel"]').click();
       await full.locator('.reel-toolbar [data-kind="ladder"]').click();
-      assert.equal(await full.locator('.reel-draw.is-sel .reel-ladder').count(),11);
+      assert.equal(await full.locator('.reel-draw.is-sel .reel-ladder').count(),9);   // 4H: every 12.5% (2026-11-04)
       const saved=()=>page.evaluate(()=>localStorage.getItem('sp-channels'));
       const beforeDraw=await saved();
       const lock=full.locator('.reel-draw-lock');

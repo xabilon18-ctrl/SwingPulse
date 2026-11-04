@@ -10,7 +10,12 @@ const lv = ladderAlertLevels(ladder);
 assert.equal(lv.length, 41, 'a block has 41 alert lines: every 2.5%');
 assert.deepEqual([lv[0].price, lv[0].pct, lv[0].daily], [100, 0, true]);
 assert.deepEqual([lv[1].price, lv[1].pct, lv[1].daily], [102.5, 2.5, false], 'the 1H steps are every 2.5%');
-assert.deepEqual([lv[4].price, lv[4].pct, lv[4].daily], [110, 10, true], 'the Daily lines every 10%');
+assert.deepEqual([lv[4].price, lv[4].pct, lv[4].daily], [110, 10, false], '10% is a 1H step since the Daily lines went to 12.5%');
+assert.deepEqual([lv[5].price, lv[5].pct, lv[5].daily], [112.5, 12.5, true], 'the Daily lines every 12.5% (2026-11-04)');
+assert.deepEqual(lv.filter(l => l.daily).map(l => l.pct), [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100]);
+// A ladder only on Weekly keeps ten divisions: the same 2.5% lines, 10% main ones.
+assert.deepEqual(ladderAlertLevels(ladder, 'W').filter(l => l.daily).map(l => l.pct), [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+assert.deepEqual(ladderAlertLevels(ladder, 'W').map(l => l.price), lv.map(l => l.price), 'same alert prices either way');
 assert.equal(lv.at(-1).price, 200);
 const stacked = ladderAlertLevels({ ...ladder, up: 1, down: 1 });
 assert.equal(stacked[0].pct, -100); assert.equal(stacked.at(-1).pct, 200, 'stacks carry the numbering on');
@@ -35,9 +40,10 @@ const again = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 101
 assert.deepEqual(again.alerts, {}, 'the same lines do not fire again within 6 hours');
 const stale = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 150, t: 'b' } } }, state: run.state, now: t0 + 3600e3 });
 assert.deepEqual(stale.alerts, {}, 'unchanged quote time: no new data, no alert');
-const later = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 110, h: 110, l: 109, t: 'd' } } }, state: again.state, now: t0 + 2 * 3600e3 + REPEAT_MS });
-assert.ok(later.alerts.zabs.some(a => a.pct === 10 && a.daily), 'a Daily line alerts, marked Daily');
-assert.equal(alertTitle(later.alerts.zabs.find(a => a.pct === 10)), 'GOLD · Daily 10%');
+const later = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 112.5, h: 113, l: 109, t: 'd' } } }, state: again.state, now: t0 + 2 * 3600e3 + REPEAT_MS });
+assert.ok(later.alerts.zabs.some(a => a.pct === 12.5 && a.daily), 'a Daily line alerts, marked Daily');
+assert.equal(alertTitle(later.alerts.zabs.find(a => a.pct === 12.5)), 'GOLD · Daily 12.5%');
+assert.equal(alertTitle(later.alerts.zabs.find(a => a.pct === 10)), 'GOLD · 1H 10%');
 
 // The Worker: /push/notify checks the alerts, stores them for the owner and
 // pushes ONLY the owner's phones; a failed run still reaches every phone;

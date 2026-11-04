@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 DAILY LADDER EVERY 12.5%: app.js v584, sync Worker. User: "Let's
+do 12.5 25 on daily", then option (a): Daily lines every 12.5%, 1H every
+2.5%, 4H the Daily lines only.
+- `ladderDivs(tf, d)`: 8 divisions on Daily, 1H and 4H, and on any ladder
+  that shows on Daily (ladderIsDaily) wherever it is drawn; Weekly and
+  Monthly keep 10. Resize dot on 37.5% (`ladderDotSteps`), scale-dot and
+  move handle unchanged. Saved ladders do not move (0% and 100% stored).
+- `LADDER_SUB_BY_TF`: 1H 5 (every 2.5%, the same 2.5% grid as before), 4H 1
+  (no finer steps: 12.5 has no clean split between 2.5 and 12.5; 4H keeps
+  its key so Daily ladders still show and link there).
+- 1H bold lines: every second Daily line, 25/50/75% (were 20/40/60/80%).
+- Alerts (paused, PR #142): `ladder-alerts.js` LADDER_SUB 5 x DAILY_DIVS 8
+  = the same 41 lines a block, every 2.5%; `daily` now marks the 12.5%
+  lines (10% on a Weekly/Monthly-only ladder, `ladderDivsFor`).
+- Tests: drawing_toolbar_checks (9 lines on D/1H/4H, 11 on W/M),
+  desktop_workspace (9 on 4H), ladder_scale_dot_checks (dot from 57.5%),
+  ladder_daily_sub_checks (12.5% labels, 1H 2.5% steps and bold 25s, 4H no
+  sub-lines), ladder_alerts_test.
+
 2026-11-04 PHONE ALERTS PAUSED: sync Worker. User: "Switch off all phone
 alerts till we get this right" (while the ladder steps are reworked, 12.5%
 Daily under discussion). `wrangler.toml` `[vars] PUSH_PAUSED = "1"`:

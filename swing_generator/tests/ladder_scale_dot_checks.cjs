@@ -22,7 +22,8 @@ module.exports = async function checkLadderScaleDot(page, name = 'TEST') {
   const dot = page.locator('#chartFull .reel-ch-h[data-h^="ls:"]:not(.is-idle)');
   assert.equal(await dot.count(), 1, 'a scale dot sits near the price');
   const k = +(await dot.getAttribute('data-h')).slice(3);
-  assert.ok(k >= 6, 'the scale dot is on a line at 60% or up here: ' + k);
+  // Shown from two stored steps past the 37.5% dot (Daily lines every 12.5%).
+  assert.ok(k >= 5.75, 'the scale dot is on a line at 57.5% or up here: ' + k);
 
   const before = await stored();
   const box = await dot.boundingBox();

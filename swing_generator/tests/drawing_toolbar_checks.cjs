@@ -6,10 +6,10 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await page.locator('#chartFull [data-act="channel"]').click();
     const toolbar=page.locator('#chartFull .reel-toolbar');
     await toolbar.locator('[data-kind="ladder"]').click();
-    // Ten divisions on every timeframe (2026-10-21; eight was tried and
-    // undone on 2026-11-03): eleven lines, 0% up to 100% in 10% steps.
+    // Eight divisions on Daily, 1H and 4H (2026-11-04, every 12.5%: nine
+    // lines, resize dot on 37.5%); ten on Weekly and Monthly (every 10%).
     const chartTf=await page.evaluate(()=>localStorage.getItem('swingpulse-chart-tf'));
-    const divs=10, dotSteps=4;
+    const divs=['D','1H','4H'].includes(chartTf)?8:10, dotSteps=divs===8?3.75:4;
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),divs+1,`A new ${chartTf} ladder draws ${divs+1} lines`);
     // No % labels when placed (user, 2026-11-01); the % button turns them on.
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels by default');

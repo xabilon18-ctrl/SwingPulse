@@ -6,10 +6,22 @@
 // the previous run (quotes.json `p`, `h`, `l`) and notifies that user's
 // phones. Pure functions here so they can be tested without a Worker.
 
-// A ladder block is 0..100%. Its Daily lines are every 10%; on 1H each Daily
-// gap is split into LADDER_SUB steps (app.js LADDER_SUB_BY_TF['1H']), so the
-// alert lines are every 100 / (10 * LADDER_SUB) = 2.5% (2% until 2026-11-04).
-export const LADDER_SUB = 4;
+// A ladder block is 0..100%. A Daily ladder's main lines are every 12.5%
+// (DAILY_DIVS, app.js ladderDivs, since 2026-11-04; every 10% before); on 1H
+// each Daily gap is split into LADDER_SUB steps (app.js LADDER_SUB_BY_TF['1H']),
+// so the alert lines are every 100 / (8 * 5) = 2.5%, the same lines as under
+// 10 x 4. A ladder only on Weekly / Monthly keeps ten divisions (every 10%):
+// the same 2.5% alert lines, with its 10% lines as its main ones.
+export const LADDER_SUB = 5;
+export const DAILY_DIVS = 8;
+const OTHER_DIVS = 10;
+const LINE_STEP_PCT = 100 / (DAILY_DIVS * LADDER_SUB);   // 2.5
+// app.js ladderDivs: eight divisions on a ladder that shows on Daily, or one
+// drawn on Daily / 1H / 4H; ten on Weekly and Monthly.
+export function ladderDivsFor(d, tf) {
+  if (d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D')) return DAILY_DIVS;
+  return ['D', '1H', '4H'].includes(tf) || tf == null ? DAILY_DIVS : OTHER_DIVS;
+}
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;
 // Safety cap per user per run: a huge move through a wide stack of ladders
@@ -19,20 +31,23 @@ export const MAX_PER_RUN = 12;
 const stack = (d, dir) => Math.max(0, Math.floor(Number(d && d[dir]) || 0));
 
 // Every alert line of one ladder: { price, pct, daily }. Mirrors app.js
-// ladderLines (p1 = 0%, p4 = 30%, the stored step u = (p4 - p1) / 3, ten
-// steps a block, stacks continue the numbering) at the 1H 2.5% resolution.
-export function ladderAlertLevels(d) {
+// ladderLines (p1 = 0%, p4 = 30%, the stored step u = (p4 - p1) / 3, a block
+// is ten stored steps whatever its divisions, stacks continue the numbering)
+// at the 1H 2.5% resolution. `daily` marks the ladder's main lines.
+export function ladderAlertLevels(d, tf) {
   if (!d || d.kind !== 'ladder') return [];
   const u = (Number(d.p4) - Number(d.p1)) / 3;
   if (!Number.isFinite(u) || !u || !Number.isFinite(Number(d.p1))) return [];
-  const per = 10 * LADDER_SUB;                       // lines per block
+  const per = 100 / LINE_STEP_PCT;                   // lines per block (40)
+  const mainPct = 100 / ladderDivsFor(d, tf);        // 12.5, or 10 on W/M
   const lo = -per * stack(d, 'down'), hi = per * (1 + stack(d, 'up'));
   const out = [];
   for (let j = lo; j <= hi; j++) {
-    const price = Number(d.p1) + j * u / LADDER_SUB;
+    const price = Number(d.p1) + j * 10 * u / per;
     if (price < 0) continue;
-    const pct = Math.round((d.reverse ? per - j : j) * (100 / per) * 10) / 10 + 0;   // + 0: never -0
-    out.push({ price, pct, daily: Math.abs(pct / 10 - Math.round(pct / 10)) < 1e-9 });
+    const exact = (d.reverse ? per - j : j) * LINE_STEP_PCT;
+    const pct = Math.round(exact * 10) / 10 + 0;     // + 0: never -0
+    out.push({ price, pct, daily: Math.abs(exact / mainPct - Math.round(exact / mainPct)) < 1e-9 });
   }
   return out;
 }
@@ -53,7 +68,7 @@ export function alertLadders(blob) {
         const k = name + '|' + id;
         if (seen.has(k)) continue;
         seen.add(k);
-        out.push({ name, id, d });
+        out.push({ name, id, d, tf });
       }
     }
   }
@@ -71,7 +86,7 @@ export function checkAlerts({ users, quotes, state, now }) {
   for (const [k, at] of Object.entries(prevState.fired || {})) if (now - at < REPEAT_MS) fired[k] = at;
   const alerts = {}, watched = new Set();
   for (const user of Object.keys(users || {})) {
-    for (const { name, id, d } of alertLadders(users[user])) {
+    for (const { name, id, d, tf } of alertLadders(users[user])) {
       watched.add(name);
       const quote = q[name];
       if (!quote || !(quote.p > 0)) continue;
@@ -81,7 +96,7 @@ export function checkAlerts({ users, quotes, state, now }) {
       const before = prev[name];
       const lo = Math.min(quote.l ?? quote.p, before ?? quote.p, quote.p);
       const hi = Math.max(quote.h ?? quote.p, before ?? quote.p, quote.p);
-      for (const lv of ladderAlertLevels(d)) {
+      for (const lv of ladderAlertLevels(d, tf)) {
         if (lv.price < lo || lv.price > hi) continue;
         const key = `${user}|${name}|${id}|${lv.pct}`;
         if (fired[key]) continue;
