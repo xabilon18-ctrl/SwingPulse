@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 MONTHLY OVERLAY ALL ORANGE: app.js v589, style.css v406. User:
+"The monthly make all orange". The Monthly MA overlay (on Daily, 1H and
+Weekly) takes one colour, `--reel-ov-m` #ea580c, both directions, like the
+Daily (blue) and Weekly (purple); it kept the slope colours (black up / red
+down) until now. Its projection lines follow. The Monthly chart's own MA50
+keeps black/red by slope. Note: Weekly was orange until 2026-10-28 and moved
+to purple because orange read too close to the falling red; this orange is
+darker (orange-600) and the overlay lines are dashed and thicker than the
+native red ones.
+
+2026-11-04 DAILY OVERLAY DRAWN LIKE THE WEEKLY, STILL BLUE: app.js v588.
+User: "Make the daily over lay the same as the weekly but still blue". The
+Daily MA overlay (on 1H) now uses the Weekly overlay's width (`wW`: 6 / 10 /
+12.9 at Thin / Medium / Thick, was 2.5 / 4.2 / 7.1), its dash in proportion
+to that width (`2.4w 1.1w`, was a fixed 14/9 or 18/10), the last closed value
+carried flat to the newest bar (`hold`, was stopping at the last daily
+close), and the Weekly projection width (10 x, was 4.2 x). Colour unchanged
+(`--reel-ov-d`, blue); the Weekly stays purple. Tests: chart_readability
+(each overlay family still widens with its weight), app_smoke.
+
 2026-11-04 DAILY: SPLIT EACH TERM INTO 4: app.js v587, chart-preferences.js
 v10, grid-geometry.js v14, sync Worker. User: "Just like we have a split for
 a quarter by 3. Create one for daily by 4", then (asked what to split) "Each

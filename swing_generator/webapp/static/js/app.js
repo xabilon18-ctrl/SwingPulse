@@ -8660,7 +8660,9 @@
     const projG = inner => inner ? `<g class="reel-ov-proj" ${ovLayerStyle('oP', 'ma')}>${inner}</g>` : '';
     const lastXp = L.x0 + (n - from) * bw;
     let under = '';
-    const OV_COLOUR = { D: 'var(--reel-ov-d)', W: 'var(--reel-ov-w)' };
+    // Monthly all orange (user, 2026-11-04: "The monthly make all orange"); it
+    // kept the slope colours (black up / red down) until then.
+    const OV_COLOUR = { D: 'var(--reel-ov-d)', W: 'var(--reel-ov-w)', M: 'var(--reel-ov-m)' };
     // Thickest first, so the thinner lines sit on top of it.
     [['M', 'mo', wW * 1.6], ['W', 'w', wW]].forEach(([tf, key, width]) => {
       const h = htf && ovHtfOn(tf) && htf[key];
@@ -8699,10 +8701,16 @@
         const x0 = xT(at(0));
         ps.forEach(p => {
           const vals = ovProjVals(ob.c, p, k => at(k) > horizon);
-          if (vals && x0 != null) proj += projSvg(x0, vals, k => at(k), 4.2 * pj.w, OV_COLOUR.D);
+          if (vals && x0 != null) proj += projSvg(x0, vals, k => at(k), 10 * pj.w, OV_COLOUR.D);
         });
       }
-      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', dW, ovMaW('D') > 1 ? '18 10' : '14 9', false, OV_COLOUR.D)}${projG(proj)}</g>`;
+      // DRAWN LIKE THE WEEKLY (user, 2026-11-04: "Make the daily over lay the
+      // same as the weekly but still blue"): the Weekly's width, its long
+      // dash in proportion to that width, the last closed value carried flat
+      // to the newest bar, and the Weekly's projection width. Colour stays
+      // blue (--reel-ov-d). It was thinner (dW), dashed 14/9 or 18/10, and
+      // stopped at the last daily close.
+      under += `<g class="reel-ov" ${ovLayerStyle('oD', 'ma')}>${ribbonSvg(ot, mi, ps, ms, 'D', wW, `${Math.round(wW * 2.4)} ${Math.round(wW * 1.1)}`, true, OV_COLOUR.D)}${projG(proj)}</g>`;
     }
     return { under, draw: '' };
   }
