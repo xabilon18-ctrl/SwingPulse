@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 DAILY OVERLAY DRAWN LIKE THE WEEKLY, STILL BLUE: app.js v588.
+User: "Make the daily over lay the same as the weekly but still blue". The
+Daily MA overlay (on 1H) now uses the Weekly overlay's width (`wW`: 6 / 10 /
+12.9 at Thin / Medium / Thick, was 2.5 / 4.2 / 7.1), its dash in proportion
+to that width (`2.4w 1.1w`, was a fixed 14/9 or 18/10), the last closed value
+carried flat to the newest bar (`hold`, was stopping at the last daily
+close), and the Weekly projection width (10 x, was 4.2 x). Colour unchanged
+(`--reel-ov-d`, blue); the Weekly stays purple. Tests: chart_readability
+(each overlay family still widens with its weight), app_smoke.
+
 2026-11-04 DAILY: SPLIT EACH TERM INTO 4: app.js v587, chart-preferences.js
 v10, grid-geometry.js v14, sync Worker. User: "Just like we have a split for
 a quarter by 3. Create one for daily by 4", then (asked what to split) "Each
