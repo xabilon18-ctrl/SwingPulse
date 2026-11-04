@@ -8671,23 +8671,43 @@
       const want = ovPeriods(tf);
       const ks = h.p.map((p, k) => want.includes(p) ? k : -1).filter(k => k >= 0);
       if (!ks.length) return;
+      // Period k after the last one closes: a week on its Friday, a month
+      // on its last day — placed at that day's close, like the line itself.
+      const tl = ht[ht.length - 1], dl = new Date(tl);
+      const end = tf === 'W'
+        ? (k => tl + (((5 - dl.getUTCDay() + 7) % 7) + 7 * k) * 864e5 + 864e5)
+        : (k => Date.UTC(dl.getUTCFullYear(), dl.getUTCMonth() + 1 + k, 1));
+      // THE PERIOD IN PROGRESS, PRO RATA (user, 2026-11-04, BTCUSD 1H: "The
+      // monthly 250ma has this funny bend on the one day overlap all chart
+      // have it"). The feed's last point is the week / month still open,
+      // valued as if it closed at today's price and dated today (_htf_mas).
+      // Drawn at today, the whole period's MA step appeared within the few
+      // days since the last close: a kink up or down at the right edge. Every
+      // other point sits at its period's CLOSE, so this one belongs at the
+      // period's end too; at today the line shows the elapsed share of that
+      // step (4 Nov: 4/30 of November's), a straight continuation. A closed
+      // last point (today is the period end) is left as it is.
+      const n2 = ht.length;
+      const frac = n2 > 1 ? Math.max(0, Math.min(1, (tl - ht[n2 - 2]) / (end(0) - OV_TF_MS.D - ht[n2 - 2]))) : 1;
+      const series = ks.map(k => {
+        const m = h.m[k], a = m[m.length - 2], z = m[m.length - 1];
+        if (frac >= 1 || m.length < 2 || a == null || z == null) return m;
+        const out = m.slice(); out[out.length - 1] = a + (z - a) * frac;
+        return out;
+      });
       let proj = '';
       if (pj.on && h.c && h.c.length) {
-        // Period k after the last one closes: a week on its Friday, a month
-        // on its last day — placed at that day's close, like the line itself.
-        const tl = ht[ht.length - 1], dl = new Date(tl);
-        const end = tf === 'W'
-          ? (k => tl + (((5 - dl.getUTCDay() + 7) % 7) + 7 * k) * 864e5 + 864e5)
-          : (k => Date.UTC(dl.getUTCFullYear(), dl.getUTCMonth() + 1 + k, 1));
         const pw = (tf === 'W' ? 10 : 16) * pj.w;
-        ks.forEach(k => {
+        ks.forEach((k, j) => {
           // vals[k] = the MA at the close of period k (0 = the one in
-          // progress); it is held flat from the newest bar to that close.
+          // progress). The projection starts where the line ends (the pro
+          // rata value) and reaches vals[0] at the period's close.
           const vals = ovProjVals(h.c, h.p[k], j => end(j) > horizon);
-          if (vals) proj += projSvg(lastXp, [vals[0], ...vals], j => end(j - 1), pw, OV_COLOUR[tf]);
+          const from = series[j][series[j].length - 1];
+          if (vals) proj += projSvg(lastXp, [from == null ? vals[0] : from, ...vals], j => end(j - 1), pw, OV_COLOUR[tf]);
         });
       }
-      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), ks.map(k => h.m[k]), tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true, OV_COLOUR[tf])}${projG(proj)}</g>`;
+      under += `<g class="reel-ov" ${ovLayerStyle('o' + tf, 'ma')}>${ribbonSvg(ht, null, ks.map(k => h.p[k]), series, tf, width, `${Math.round(width * 2.4)} ${Math.round(width * 1.1)}`, true, OV_COLOUR[tf])}${projG(proj)}</g>`;
     });
     if (ob && ob.m && ob.m.length) {
       const { ot, mi, ps, ms } = ovDailyLines(ob);
