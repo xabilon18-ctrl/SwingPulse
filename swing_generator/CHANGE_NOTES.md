@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 1H SPLITS EACH DAILY LADDER GAP IN FOUR: app.js v582, sync
+Worker. User: the 1H steps (five per Daily gap, every 2%) look "too tight"
+after drawing the Daily ladder; asked for four. `LADDER_SUB_BY_TF['1H']`
+5 → 4: a Daily ladder on 1H now shows small labels at 2.5, 5, 7.5% (then
+12.5, 15, 17.5…) between its Daily 10% lines. Daily (10% lines) and 4H (two
+parts, every 5%) are unchanged.
+- The steps now nest: every Daily line is a 4H line and every 4H line is a
+  1H line (with five, the 4H 5/15/25% fell between the 1H 2% steps).
+- Counting on 1H: two Daily gaps are 8 steps (0→20%, the bold lines), so
+  10 steps end at Daily 25%, not on a Daily line. Discussed with the user
+  before the change.
+- Alerts follow: `sync-worker/src/ladder-alerts.js` `LADDER_SUB` 5 → 4, so
+  the bell tests every 2.5% (41 lines a block, was 51) and never alerts on
+  a 2/4/6% line the chart no longer draws. A 6-hour repeat key on an old 2%
+  line simply expires.
+- Tests: ladder_alerts_test.mjs (2.5% levels and crossings),
+  ladder_daily_sub_checks.cjs (1H small labels on the 2.5% steps, at least
+  one ".5%"; 4H still only the 5% ones).
+
 2026-11-04 CIRCLE AND TOKENIZATION STOCKS: Instruments.txt 815 → 821. User:
 "Add circle in the instrument list and other new add to xm tech and
 tokenization related to the instrument list". New section after #821, group

@@ -7,10 +7,10 @@ import { ladderAlertLevels, alertLadders, checkAlerts, alertTitle, REPEAT_MS } f
 // A 0..100 ladder: p1 = 100, p4 = 130 → step u = 10, block 100..200.
 const ladder = { kind: 'ladder', p1: 100, p4: 130, alert: true, link: 'L1' };
 const lv = ladderAlertLevels(ladder);
-assert.equal(lv.length, 51, 'a block has 51 alert lines: every 2%');
+assert.equal(lv.length, 41, 'a block has 41 alert lines: every 2.5%');
 assert.deepEqual([lv[0].price, lv[0].pct, lv[0].daily], [100, 0, true]);
-assert.deepEqual([lv[1].price, lv[1].pct, lv[1].daily], [102, 2, false], 'the 1H steps are every 2%');
-assert.deepEqual([lv[5].price, lv[5].pct, lv[5].daily], [110, 10, true], 'the Daily lines every 10%');
+assert.deepEqual([lv[1].price, lv[1].pct, lv[1].daily], [102.5, 2.5, false], 'the 1H steps are every 2.5%');
+assert.deepEqual([lv[4].price, lv[4].pct, lv[4].daily], [110, 10, true], 'the Daily lines every 10%');
 assert.equal(lv.at(-1).price, 200);
 const stacked = ladderAlertLevels({ ...ladder, up: 1, down: 1 });
 assert.equal(stacked[0].pct, -100); assert.equal(stacked.at(-1).pct, 200, 'stacks carry the numbering on');
@@ -28,9 +28,9 @@ const t0 = Date.parse('2026-11-03T10:00:00Z');
 let run = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 101, t: 'a' } } }, state: {}, now: t0 });
 assert.deepEqual(run.alerts, {}, 'the first run only remembers the price (101 is not on a line)');
 run = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 104.5, h: 105, l: 100.5, t: 'b' } } }, state: run.state, now: t0 + 3600e3 });
-assert.deepEqual(run.alerts.zabs.map(a => a.pct), [2, 4], '101 → 104.5 (high 105) crosses the 2% and 4% lines');
+assert.deepEqual(run.alerts.zabs.map(a => a.pct), [2.5, 5], '101 → 104.5 (high 105) crosses the 2.5% and 5% lines');
 assert.equal(run.alerts.zabs[0].dir, 'up');
-assert.equal(alertTitle(run.alerts.zabs[0]), 'GOLD · 1H 2%');
+assert.equal(alertTitle(run.alerts.zabs[0]), 'GOLD · 1H 2.5%');
 const again = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 101, h: 105, l: 101, t: 'c' } } }, state: run.state, now: t0 + 2 * 3600e3 });
 assert.deepEqual(again.alerts, {}, 'the same lines do not fire again within 6 hours');
 const stale = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 150, t: 'b' } } }, state: run.state, now: t0 + 3600e3 });
@@ -74,10 +74,10 @@ try {
   const inbox = q => worker.fetch(new Request('https://worker/push/inbox?endpoint=' + encodeURIComponent(q)), env).then(x => x.json());
   assert.deepEqual((await inbox(hemiSub)).alerts, [], 'another user\'s phone sees nothing');
   const got = (await inbox(zabsSub)).alerts;
-  assert.deepEqual(got.map(a => a.pct), [2, 4]);
+  assert.deepEqual(got.map(a => a.pct), [2.5, 5]);
   const zabsTablet = 'https://web.push.apple.com/zabs-tablet';
   disk.set(subKey('zabs', zabsTablet), JSON.stringify({ endpoint: zabsTablet }));
-  assert.deepEqual((await inbox(zabsTablet)).alerts.map(a => a.pct), [2, 4], 'every one of the owner\'s devices gets them');
+  assert.deepEqual((await inbox(zabsTablet)).alerts.map(a => a.pct), [2.5, 5], 'every one of the owner\'s devices gets them');
   assert.deepEqual((await inbox('https://example.com/x')).alerts, [], 'an unknown endpoint gets nothing');
   status = { state: 'failed' };
   r = await notify();

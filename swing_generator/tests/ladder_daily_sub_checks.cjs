@@ -1,9 +1,9 @@
 const assert = require('node:assert/strict');
 
 // A ladder drawn on Daily also shows on 1H and 4H, where each Daily 10% gap is
-// split into five on 1H and two on 4H (user, 2026-11-03): the Daily lines
+// split into four on 1H (five until 2026-11-04) and two on 4H (user, 2026-11-03): the Daily lines
 // keep their big black labels ("20%"), the finer steps get small grey ones
-// ("22%" on 1H, "25%" on 4H), and Daily itself never shows the finer steps.
+// ("22.5%" on 1H, "25%" on 4H), and Daily itself never shows the finer steps.
 module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -89,11 +89,12 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
     assert.ok(await subLines() > 0, tf + ': the Daily gaps are subdivided');
     assert.ok(s.length && s.every(t => /^-?\d+(\.\d+)?%$/.test(t)), tf + ': finer steps carry small plain labels: ' + s.join(' '));
     // Every small label sits on this timeframe's step between two Daily 10%
-    // lines: 1H every 2% (each gap in five), 4H every 5% (each gap in two).
-    const stepPct = tf === '1H' ? 2 : 5;
+    // lines: 1H every 2.5% (each gap in four), 4H every 5% (each gap in two).
+    const stepPct = tf === '1H' ? 2.5 : 5;
     assert.ok(s.every(t => { const v = parseFloat(t); return Math.abs(v / stepPct - Math.round(v / stepPct)) < 1e-6 && Math.abs(v / 10 - Math.round(v / 10)) > 1e-6; }),
       tf + ': small labels are the ' + stepPct + '% steps: ' + s.join(' '));
-    if (tf === '4H') assert.ok(s.every(t => Math.abs(parseFloat(t) % 10) === 5), '4H shows none of the 1H 2% steps: ' + s.join(' '));
+    if (tf === '4H') assert.ok(s.every(t => Math.abs(parseFloat(t) % 10) === 5), '4H shows none of the in-between 1H 2.5% steps: ' + s.join(' '));
+    if (tf === '1H') assert.ok(s.some(t => /\.5%$/.test(t)), '1H shows the 2.5% steps (2.5, 7.5…): ' + s.join(' '));
     await close();
   }
   console.log('PASS: Daily ladder subdivided on 1H/4H with big Daily and small grey labels');
