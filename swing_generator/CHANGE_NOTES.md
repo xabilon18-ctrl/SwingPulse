@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 MONTHLY OVERLAY ALL ORANGE: app.js v589, style.css v406. User:
+"The monthly make all orange". The Monthly MA overlay (on Daily, 1H and
+Weekly) takes one colour, `--reel-ov-m` #ea580c, both directions, like the
+Daily (blue) and Weekly (purple); it kept the slope colours (black up / red
+down) until now. Its projection lines follow. The Monthly chart's own MA50
+keeps black/red by slope. Note: Weekly was orange until 2026-10-28 and moved
+to purple because orange read too close to the falling red; this orange is
+darker (orange-600) and the overlay lines are dashed and thicker than the
+native red ones.
+
 2026-11-04 DAILY OVERLAY DRAWN LIKE THE WEEKLY, STILL BLUE: app.js v588.
 User: "Make the daily over lay the same as the weekly but still blue". The
 Daily MA overlay (on 1H) now uses the Weekly overlay's width (`wW`: 6 / 10 /

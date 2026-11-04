@@ -8660,7 +8660,9 @@
     const projG = inner => inner ? `<g class="reel-ov-proj" ${ovLayerStyle('oP', 'ma')}>${inner}</g>` : '';
     const lastXp = L.x0 + (n - from) * bw;
     let under = '';
-    const OV_COLOUR = { D: 'var(--reel-ov-d)', W: 'var(--reel-ov-w)' };
+    // Monthly all orange (user, 2026-11-04: "The monthly make all orange"); it
+    // kept the slope colours (black up / red down) until then.
+    const OV_COLOUR = { D: 'var(--reel-ov-d)', W: 'var(--reel-ov-w)', M: 'var(--reel-ov-m)' };
     // Thickest first, so the thinner lines sit on top of it.
     [['M', 'mo', wW * 1.6], ['W', 'w', wW]].forEach(([tf, key, width]) => {
       const h = htf && ovHtfOn(tf) && htf[key];
