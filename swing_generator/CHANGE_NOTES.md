@@ -7,6 +7,51 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 CHARTS FOLLOW THE WATCHLIST; CHART CARD MADE BIGGER: app.js
+v583, style.css v405. User: remove the Charts drop-downs and lists, move the
+ones the Watchlist lacks to it, keep only the instrument name, full name and
+up/down on the chart card so the chart gets the room, make Charts work "hand
+in hand" with the Watchlist (back to the sector or list you were in), an
+option to reset to all instruments, and a count next to every list.
+- Charts header is ONE row: the search (with its "N charts" count) and, when
+  a set is in view, a bar naming it with its count and "Show all". The
+  Show/Class/Sector/Trend/MA row, its view dropdown, Sort and reset are gone
+  (`#reelMenus` too). `reel` keeps only gp/cls/trend (Market taps), search
+  and the set.
+- Moved to the Watchlist (only what it did not have): Class groups US100,
+  US500, Banks, Energy, Tech, Semis, AI (`wlUi.grp`, a `matchesSearch` word as
+  `reel.cat` was) after the classes; a Signals view (`wlUi.scope`: Everything,
+  My Buy/Sell markers, Fired today, open signal, buys, sells, minor 4H, 4H
+  B1/S1, 1H touched/crossed a Daily MA); the Clusters view is now MA:
+  Clusters + Width, Order (`wlUi.stack`), Near MA + Within (`wlUi.near`,
+  `wlUi.nearWithin`); Sort gains Signals first and Newest signal. All of them
+  are list filters (off when another list opens). One pipeline,
+  `wlApplyFilters`; Near MA and the intraday scopes wait for the chart index
+  ("Loading…"). Ranked filters (markers newest, intraday newest, nearest MA)
+  keep their order under By group.
+- Counts: every chip in the row says how many the list in view would show
+  with it picked (other filters as they are); All markets has its total; the
+  line under the row starts "N instruments".
+- Follow: the reel shows the Watchlist's view (`wlShownSet`, kind 'wl') when
+  that view has changed since the reel last took it (`wlViewSig` vs
+  `reelWlSig`): on opening a chart from it, or on tapping Charts in the tab
+  bar. A set opened on purpose (Active sector, Market list, charts like X)
+  holds until the Watchlist changes; a lone chart (alert, details) does not.
+  "Show all" = every instrument, signals first, until the Watchlist changes.
+  Charts never changes the Watchlist, and coming back from Charts scrolls the
+  list to the chart last on screen (`reelLastSeen`).
+- Search on Charts finds inside the set; with no hit there it searches every
+  instrument (`reel.searchAll`, set bar hidden meanwhile).
+- Card header: line 1 ticker + full name, line 2 `Main ▲ Up` (`reelTrendMini`)
+  and the day's move (or the Watchlist's longer move period) with the chart
+  buttons. Removed from the card: group, trend detail sentence, MA cluster
+  badge, signal badge, "% alike", Near-MA badge and the bar/data time line.
+  Full screen keeps all of it. On a 390x844 phone the plot went from ~330 to
+  ~510 px tall.
+- Desktop/iPad side panel: the set bar sits under the search.
+- Tests: charts_row_checks.cjs rewritten for the above; app_smoke.cjs class
+  chips with counts and groups, Active bar text, no bar-time line on cards.
+
 2026-11-04 1H SPLITS EACH DAILY LADDER GAP IN FOUR: app.js v582, sync
 Worker. User: the 1H steps (five per Daily gap, every 2%) look "too tight"
 after drawing the Daily ladder; asked for four. `LADDER_SUB_BY_TF['1H']`
