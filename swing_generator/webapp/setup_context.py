@@ -1,4 +1,5 @@
-"""Completed higher-timeframe references and 4H swing context.
+"""Completed higher-timeframe references and 1H swing context (4H until
+2026-11-04, when 4H was removed and its setup moved to 1H).
 
 Chart overlay projections never enter these calculations. W50 means fifty
 weekly closes; M50 means fifty monthly closes. No substitute periods are used.
@@ -91,13 +92,14 @@ def attach_setup_context(built, now=None):
         history = daily.get('references', {})
         if not history:
             continue
-        h4 = built.get('4H', {}).get(name)
+        # The setup runs on 1H since 2026-11-04 (it was 4H's).
+        h4 = built.get('1H', {}).get(name)
         if not h4:
             continue
         bars = []
         for i, stamp in enumerate(h4['t']):
             t = pd.Timestamp(stamp, tz='UTC')
-            end = t + pd.Timedelta(hours=4)
+            end = t + pd.Timedelta(hours=1)
             if end > now or end < now-pd.Timedelta(days=85):
                 continue
             refs = _at(history, end)
@@ -120,7 +122,7 @@ def attach_setup_context(built, now=None):
                                'direction':'UPTREND' if up else 'DOWNTREND',
                                'price':cur['close'], 'level':after})
         # Smaller swings against the main trend can begin at D50, before
-        # the native 4H MA500 is crossed. This never changes the Daily trend.
+        # the native 1H MA500 is crossed. This never changes the Daily trend.
         main = daily.get('context', {}).get('direction')
         d50 = refs.get('D50')
         candidate = None
@@ -139,7 +141,5 @@ def attach_setup_context(built, now=None):
                       for k,v in refs.items() if k != 'ATR'],
             'minorOpportunity':candidate,
             'events':[e for e in events if pd.Timestamp(e['at'],tz='UTC') >= now-pd.Timedelta(days=5)]}
-        context['setup']['interactions'] = level_interactions(h4, history, 4, now)[-40:]
-        h1 = built.get('1H', {}).get(name)
-        if h1:
-            h1.setdefault('context', {})['entries'] = level_interactions(h1, history, 1, now)[-40:]
+        context['setup']['interactions'] = level_interactions(h4, history, 1, now)[-40:]
+        context['entries'] = context['setup']['interactions']

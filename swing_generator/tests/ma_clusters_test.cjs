@@ -1,7 +1,8 @@
 const assert=require('node:assert/strict');
 const ctx=require('../webapp/static/js/modules/trend-context.js');
 const row={instrument_name:'X',close:110,ma_500:100};
-function feed(levels,other={}){return {workflow:{'4H':{X:{direction:'UPTREND',setup:{atr:4,price:101,previousClose:99,high:102,low:98,levels,...other}}}}};}
+// Clusters read the 1H setup since 4H was removed (2026-11-04).
+function feed(levels,other={}){return {workflow:{'1H':{X:{direction:'UPTREND',setup:{atr:4,price:101,previousClose:99,high:102,low:98,levels,...other}}}}};}
 const level=(id,value)=>({id,tf:id[0],value,previous:value});
 let channels=feed([level('W250',100),level('M50',100.8)]);
 let result=ctx.clusters(row,channels,0.25);
@@ -16,6 +17,7 @@ channels=feed([level('W250',100),level('M50',100.8)],{price:99,previousClose:98,
 assert.equal(ctx.clusters(row,channels).zones[0].state,'rejected');
 assert.equal(ctx.clusters(row,feed([],{atr:null})).available,false);
 assert.equal(ctx.matchesCluster(row,{},'any'),false);
-channels.workflow['4H'].X.swingDirection='DOWNTREND';
-assert.equal(ctx.context(row,channels).h4Relation,'minor','Minor opportunity is allowed before native MA500 crossing');
+channels.workflow['1H'].X.swingDirection='DOWNTREND';
+assert.equal(ctx.context(row,channels).h1Relation,'minor','Minor opportunity is allowed before native MA500 crossing');
+assert.equal(ctx.clusters(row,{workflow:{'4H':{X:{setup:{atr:4,price:101,levels:[level('W250',100),level('M50',100.8)]}}}}}).available,false,'a 4H setup is no longer read');
 console.log('PASS: cross-timeframe clusters, bounded widths, crossings, rejections and minor-swing visibility');

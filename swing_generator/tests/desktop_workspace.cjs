@@ -112,7 +112,7 @@ async function layout(page) {
     assert.deepEqual(await priceFrame(),prices,'absolute saved prices survive resizing');
     assert.equal(await page.locator('#desktopChartWatchlist').isVisible(),false,'restore remembers collapsed list');
     await page.locator('[data-act="desktop-list-toggle"]').click();
-    for(const tf of ['4H','D','1H']) {
+    for(const tf of ['D','1H']) {   // 4H removed 2026-11-04
       await page.locator('#tfBtn'+tf).click();await ready(page);
       assert.ok((await page.locator('#chartFull .cf-title').innerText()).includes(tf==='D'?'Daily':tf));
       assert.equal(await page.locator('#desktopChartWorkspace').count(),1);
@@ -129,7 +129,7 @@ async function layout(page) {
     await page.locator('#reelSearch').fill('');await ready(page);
     // Existing save action and drawing gestures, including restored absolute scale.
     if(!live) {
-      await page.locator('#tfBtn4H').click();await ready(page);
+      await page.locator('#tfBtn1H').click();await ready(page);
       const full=page.locator('#chartFull');
       await full.locator('[data-act="channel"]').click();
       await full.locator('.reel-toolbar [data-kind="ladder"]').click();

@@ -59,7 +59,8 @@ def frame_context(frame, tf, now=None):
         flip = len(closed) - 1 - closed.index.get_loc(changed[-1]) if len(changed) else None
         stack = {'state': state, 'gap': gap, 'pair': pair, 'flip': flip}
     # The chart feed and production rows use the exact same signal engine.
-    if tf in ('D', '4H'):
+    # 1H took 4H's place on 2026-11-04 (4H removed).
+    if tf in ('D', '1H', '4H'):
         from workflow_signals import add_workflow_signals
         signalled = add_workflow_signals(closed, tf=tf)
         events = [{'at': pd.Timestamp(stamp).strftime('%Y-%m-%d' if tf == 'D' else '%Y-%m-%d %H:%M'),
@@ -73,15 +74,16 @@ def frame_context(frame, tf, now=None):
 def workflow_context(built):
     """Compact all-instrument context; no per-chart downloads needed for filters."""
     return {tf: {name: b['context'] for name, b in built.get(tf, {}).items() if b.get('context')}
-            for tf in ('D', '4H', '1H')}
+            for tf in ('D', '1H')}
 
 
 def workflow_alerts(built, now=None):
-    """Independent Daily/4H signals; 1H MA interactions are entry context."""
+    """Independent Daily/1H signals (1H took 4H's place on 2026-11-04); 1H MA
+    interactions in the 1H direction are entry context."""
     now = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz='UTC')
     now = now.tz_localize('UTC') if now.tzinfo is None else now.tz_convert('UTC')
     ev = []
-    for tf in ('D', '4H'):
+    for tf in ('D', '1H'):
         cutoff = now - pd.Timedelta(days=10 if tf == 'D' else 5)
         for name, b in built.get(tf, {}).items():
             for e in b.get('context', {}).get('events', []):
@@ -94,8 +96,8 @@ def workflow_alerts(built, now=None):
     # These are completed 1H interactions, not a second independent signal stream.
     entries = {}
     for name, b in built.get('1H', {}).items():
-        h4 = built.get('4H', {}).get(name, {}).get('context', {})
-        direction = h4.get('swingDirection') or h4.get('direction')
+        h1 = b.get('context', {})
+        direction = h1.get('swingDirection') or h1.get('direction')
         if direction not in (UP, DOWN):
             continue
         if 'entries' in b.get('context', {}):

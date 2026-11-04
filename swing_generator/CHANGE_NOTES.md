@@ -7,6 +7,43 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 4H REMOVED AS A TIMEFRAME; ITS SIGNALS MOVE TO 1H: app.js v586,
+trend-context.js v3, chart feed. User: "Remove 4h as a time frame and take
+all it's signals to 1h" (after the plan: Daily main trend, 1H setup + entry).
+- Charts: no 4H button (`TIMEFRAMES`, index.html); a saved 4H choice opens on
+  Daily. Drawings saved on 4H stay in the store, not shown.
+- Pipeline (`chart_feed`): no 4H chart is built (`CHART_BUILDERS`); its chunks
+  and `trend_channels.tf['4H']` are no longer written (old R2 chunks are left
+  orphaned). `attach_setup_context` runs on the 1H bundle (1-hour bars):
+  `setup` (levels, ATR, D50 crossings, interactions), `swingDirection`,
+  `minorOpportunity`; `entries` = the same 1H interactions.
+  `frame_context` runs the workflow signal engine on 1H (B1-S4, MA500 rule
+  4H used); `workflow_context` / `workflow_alerts` are Daily + 1H, and 1H
+  entries follow the 1H direction. `events_by_tf['1H'].s` is the latest
+  workflow B1/S1 on the last two dates (was 4H's). The 1H chart's own `sg`
+  markers (h1 fires) are unchanged.
+- App: `SPTrendContext.context` returns `h1` / `h1Relation` only (no h4);
+  1H's native direction includes `swingDirection`; clusters read the 1H
+  setup. Everywhere "4H" was the setup it is 1H: Watchlist rows and Trend
+  view, Signals "Minor 1H swings" and "1H B1 / S1 · 2 sessions", MA cluster
+  labels, Market counts, Alerts (chips Daily / 1H setups, relation "1H",
+  setup and level cards on 1H, entry cards follow the 1H direction).
+  `SIGNAL_TFS = {1H, D}`; `workflowRowValues` writes the 1H workflow read to
+  the `h1_` columns (as it did `h4_`). A saved Alerts 4H chip opens on 1H.
+- NOT changed (step 2, its own PR when wanted): `main.py` still computes the
+  `h4_` CSV columns and 4H ledger fires; `.github/workflows` still lists
+  `publish_four_hour.py` / `four_hour_test.py` (workflow edits go to the user
+  for review); the dev server keeps its 4H builder.
+- Measured cost: frame_context on a 24h market's 1H history ~0.46 s vs 0.19 s
+  on its 4H; equities less; unchanged markets come from the chart cache.
+- Validators: validate_workflow_release (Daily/1H, no 4H context),
+  validate_hourly_release (no 4H trend read, events or button live).
+- Tests: trend_context_feed_test, workflow_setup_test, trend_context_test,
+  ma_clusters_test, app_smoke (full-screen checks on 1H, Alerts without 4H;
+  the 4H yearly-line check dropped: the fixture's 1H is under a year, and
+  time_grid_test covers 1H years), saved_work_checks/browser, desktop_workspace,
+  chart_framing_checks, ladder checks.
+
 2026-11-04 1H SPLITS EACH DAILY LADDER GAP IN FIVE AGAIN: app.js v585, sync
 Worker. User: "Bring back the old division of dividing daily ladder by 5 and
 not 4". `LADDER_SUB_BY_TF = { '1H': 5 }`: small labels every 2% (2, 4, 6, 8,

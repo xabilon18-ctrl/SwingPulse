@@ -17,7 +17,7 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   if (await page.locator('#reelReset').isVisible()) await page.locator('#reelReset').click();
   await page.locator('#reelSearch').fill(name);
-  for (const tf of ['1H','4H','D']) {
+  for (const tf of ['1H','D']) {   // 4H removed 2026-11-04
     // Changing timeframe clears transient zoom/pan but restores saved views.
     await page.locator('#tfBtn'+(tf==='D'?'1H':'D')).click();
     await page.locator('#tfBtn'+tf).click();

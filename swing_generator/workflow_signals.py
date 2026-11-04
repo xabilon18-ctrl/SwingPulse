@@ -37,7 +37,7 @@ def add_workflow_signals(frame, tf='D'):
                 if candidate in CODES - {'B1', 'S1'}:
                     if (candidate.startswith('B') and close > anchor) or (candidate.startswith('S') and close < anchor):
                         code = candidate
-            role = 'Daily main trend' if tf == 'D' else '4H direction'
+            role = 'Daily main trend' if tf == 'D' else f'{tf} direction'
             description = f'{role}: {direction.lower() or "unavailable"}'
             if code in ('B1', 'S1'):
                 description += ' — completed close crossed MA500'

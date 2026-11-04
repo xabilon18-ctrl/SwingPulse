@@ -150,8 +150,10 @@ let debugPage;
     await page.locator('#chartReel [data-act="tf-menu"]').first().click();
     assert.equal(errors.length, 0, errors.join('\n'));
   }
-  await page.locator('#tfBtn4H').click();
-  await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
+  // 4H was removed 2026-11-04: no button, and the full-screen checks run on 1H.
+  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H timeframe');
+  await page.locator('#tfBtn1H').click();
+  await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
   // The full name under the symbol: the fixture's own name offline; live, the
@@ -175,12 +177,11 @@ let debugPage;
     await page.mouse.move(grip.x + grip.width - 8, grip.y + grip.height / 2, { steps: 12 });
     await page.mouse.up();
   }
-  await page.locator('#chartFull .reel-tgrid-year').first().waitFor({ state: 'attached' });
-  assert.equal(await page.locator('#chartFull .reel-tgrid-year').first().evaluate(line => getComputedStyle(line).strokeWidth), '2px', 'Thin yearly guide retains a stronger boundary than ordinary grid lines');
-  assert.ok(await page.locator('#chartFull .reel-tgrid-year').count() > 0, 'Permanent yearly references render on 4H');
+  // The yearly-reference checks that stood here ran on 4H (removed
+  // 2026-11-04). The fixture's 1H history is under a year, so no year line
+  // can show; time_grid_test.cjs covers the 1H yearly lines.
   // The time grid in use sits after the timeframe in the header (2026-10-28)
-  // and follows a new choice at once. A session-only 4H feed draws Month as
-  // two-month blocks, so the tag may read 2M.
+  // and follows a new choice at once.
   const gridTag = () => page.locator('#chartFull [data-cf-grid]').innerText();
   assert.match(await gridTag(), /^· \S+$/, 'full screen names its time grid');
   await page.locator('#chartFull [data-act="grid-menu"]').click();
@@ -193,13 +194,13 @@ let debugPage;
   await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
   const bandXs = () => page.locator('#chartFull .reel-band-g rect').evaluateAll(rs => rs.map(r => r.getAttribute('x')).join(','));
   const unswapped = await bandXs();
-  assert.ok(unswapped.length > 0, 'Shading draws bands on 4H');
+  assert.ok(unswapped.length > 0, 'Shading draws bands on 1H');
   const market = await page.locator('.reel-grid-menu [data-division="M"]').getAttribute('data-grid-scope');
   assert.ok(await page.evaluate(m => Object.hasOwn(window.SwingPulseModules.chartPreferences.scopes, m), market), 'The menu names a known market');
   if (!live) assert.equal(market, 'stocks', 'TEST is a stock');
   await page.locator('.reel-grid-menu [data-part="flip"]').click();
   await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') !== before, unswapped);
-  const shade4h = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sp-overlay')))).shade['4H']);
+  const shade4h = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sp-overlay')))).shade['1H']);
   assert.deepEqual(Object.keys(shade4h.flipBy), [market], 'Only the open chart\'s market is swapped');
   assert.equal(shade4h.flipBy[market], true);
   await page.locator('.reel-grid-menu [data-part="flip"]').click();
@@ -211,10 +212,12 @@ let debugPage;
   await page.locator('#tfBtn1H').click();
   await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });
   await page.locator('.nav-tab[data-tab="scanner"]').click();
-  await page.locator('.al-chips [data-al-tf="4H"]').waitFor();
+  // Alerts: Daily and 1H since 4H went (2026-11-04).
+  await page.locator('.al-chips [data-al-tf="1H"]').waitFor();
   await page.locator('.al-chips [data-al-tf="D"]').waitFor();
-  assert.equal(await page.locator('.al-chips [data-al-tf="1H"]').count(), 0, '1H is linked entry context, not a standalone signal stream');
-  assert.ok((await page.locator('#alertsPane').innerText()).includes('linked 1H entry detail'));
+  assert.equal(await page.locator('[data-al-tf="4H"]').count(), 0, 'no 4H in Alerts');
+  assert.ok((await page.locator('#alertsPane').innerText()).includes('1H setups and entry detail'));
+  assert.ok(!/\b4H\b/.test(await page.locator('#alertsPane').innerText()), 'Alerts never names 4H');
   assert.equal(await page.locator('[data-al-tf="30m"]').count(), 0);
   await page.locator('.nav-tab[data-tab="watchlist"]').click();
   assert.equal(await page.locator('[data-wl-ttf="30m"]').count(), 0);
@@ -372,6 +375,6 @@ let debugPage;
     assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
   }
   if (!live) await require('./dollar_index_checks.cjs')(browser);
-  console.log('PASS: mobile 1H/4H/Weekly/Monthly charts, removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
+  console.log('PASS: mobile 1H/Daily/Weekly/Monthly charts (no 4H), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(async e => { console.error(e); if(debugPage&&!debugPage.isClosed()){console.log('SMOKE_FAILURE='+(await debugPage.screenshot({type:'jpeg',quality:55})).toString('base64'));console.log('TOOLBAR_BOXES',await debugPage.locator('#chartFull .reel-toolbar, #chartFull .reel-props-main, #chartFull [data-act=draw-more]').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,width:e.clientWidth}))));} process.exit(1); });
