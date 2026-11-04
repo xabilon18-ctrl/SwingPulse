@@ -34,13 +34,16 @@ module.exports = async function checkLadderCleanup(page) {
     localStorage.setItem('sp-channels', JSON.stringify(s));
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03'), null, { timeout: 60000 });
+  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder');
   const d = ladders('D');
   assert.equal(d.length, 3, 'no Daily ladder is deleted: ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
-  assert.ok(was.link && ['D', '1H', '4H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily, 1H and 4H: ' + JSON.stringify(was));
+  assert.ok(was.link && ['D', '1H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily and 1H: ' + JSON.stringify(was));
+  // Daily ladders off 4H (2026-11-04): '4H' is out of every copy's tfs.
+  for (const tf of ['D', '1H', '4H'])
+    assert.ok(ladders(tf).filter(x => x.link && x.tfs.includes('D')).every(x => !x.tfs.includes('4H')), tf + ': no Daily ladder shows on 4H: ' + JSON.stringify(ladders(tf)));
   assert.deepEqual(d.find(x => x.p1 === 30).tfs, ['D'], 'a Daily ladder whose 1H/4H were switched off stays that way');
   for (const tf of ['1H', '4H']) {
     const l = ladders(tf);
@@ -60,5 +63,5 @@ module.exports = async function checkLadderCleanup(page) {
   assert.ok(again.some(x => x.kind === 'ladder' && x.p1 === 70), 'the cleanup runs once per device');
   assert.equal(errors.length, 0, errors.join('\n'));
   await context.close();
-  console.log('PASS: one-time ladder cleanup (standalone 1H/4H ladders removed, Daily ladders on 1H/4H)');
+  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H)');
 };
