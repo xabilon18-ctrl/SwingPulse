@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 WEEKLY / MONTHLY OVERLAY: NO KINK AT THE RIGHT EDGE: app.js v590.
+User (BTCUSD 1H screenshot, the Monthly MA bending up over the last day):
+"The monthly 250ma has this funny bend on the one day overlap all chart have
+it. Fix this".
+- Cause: the overlay feed's last point is the week / month IN PROGRESS
+  (`_htf_mas`, since 2026-09-28), valued as if it closed at today's price and
+  dated today. Every other point sits at its period's close, so the whole
+  period's MA step was drawn in the few days since the last close. Measured
+  on live BTCUSD 1H: the Monthly's last segment sloped 8x its previous one
+  (-1.73 vs -0.21 px/px); the Weekly lines 1.3-1.8x.
+- Fix (client, no data change): that last point is drawn PRO RATA, the
+  elapsed share of the period's step (4 Nov: 4/30 of November's), i.e. on
+  the straight line to where the value belongs at the period's close. After:
+  -0.23 vs -0.21 (Monthly), Weekly 1.0-1.3x. A closed last point (today is
+  the period end) is drawn as it is. The projection starts from that same
+  point and reaches the in-progress value at the period's close.
+- The Daily overlay is not affected (its bundle ships closed days only).
+
 2026-11-04 MONTHLY OVERLAY ALL ORANGE: app.js v589, style.css v406. User:
 "The monthly make all orange". The Monthly MA overlay (on Daily, 1H and
 Weekly) takes one colour, `--reel-ov-m` #ea580c, both directions, like the
