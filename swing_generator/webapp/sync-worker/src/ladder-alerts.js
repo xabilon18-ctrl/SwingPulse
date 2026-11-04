@@ -8,8 +8,9 @@
 
 // A ladder block is 0..100%. Its Daily lines are every 10%; on 1H each Daily
 // gap is split into LADDER_SUB steps (app.js LADDER_SUB_BY_TF['1H']), so the
-// alert lines are every 100 / (10 * LADDER_SUB) = 2.5% (2% until 2026-11-04).
-export const LADDER_SUB = 4;
+// alert lines are every 100 / (10 * LADDER_SUB) = 2% (2.5% for part of
+// 2026-11-04, then back to 2% at the user's request).
+export const LADDER_SUB = 5;
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;
 // Safety cap per user per run: a huge move through a wide stack of ladders
@@ -20,7 +21,7 @@ const stack = (d, dir) => Math.max(0, Math.floor(Number(d && d[dir]) || 0));
 
 // Every alert line of one ladder: { price, pct, daily }. Mirrors app.js
 // ladderLines (p1 = 0%, p4 = 30%, the stored step u = (p4 - p1) / 3, ten
-// steps a block, stacks continue the numbering) at the 1H 2.5% resolution.
+// steps a block, stacks continue the numbering) at the 1H 2% resolution.
 export function ladderAlertLevels(d) {
   if (!d || d.kind !== 'ladder') return [];
   const u = (Number(d.p4) - Number(d.p1)) / 3;
