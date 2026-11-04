@@ -10842,13 +10842,11 @@
   // LADDER_SUB_BY_TF parts: lighter lines with small grey labels ("22%"). Daily
   // itself never draws them. The sub-lines are drawing only: no tap target,
   // no glow, no price alert.
-  // Parts per Daily gap by timeframe: 1H in four (every 2.5%; user,
-  // 2026-11-04: five, every 2%, looked "too tight"). DAILY AND 1H ONLY (user,
-  // 2026-11-04: "Take it back to when it was 1h and daily only with 10
-  // division and remove 4h"): 4H, which split each gap in two (every 5%)
-  // since 2026-11-03, no longer shows Daily ladders (ladderNo4hOnce takes it
-  // off the saved ones). Keep sync-worker LADDER_SUB equal to 1H's.
-  const LADDER_SUB_BY_TF = { '1H': 4 };
+  // Parts per Daily gap: 1H in FIVE, every 2% (user, 2026-11-04: "Bring back
+  // the old division of dividing daily ladder by 5 and not 4"; four, every
+  // 2.5%, was live for part of the day). Daily and 1H only: 4H no longer
+  // shows Daily ladders (ladderNo4hOnce). Keep sync-worker LADDER_SUB equal.
+  const LADDER_SUB_BY_TF = { '1H': 5 };
   const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
   const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
@@ -14598,7 +14596,7 @@
       // LADDER LINE ALERTS (user, 2026-11-03: alerts on the percentage lines,
       // Daily and hourly, as phone notifications). The sync Worker checks every
       // ladder with `alert` on after each data run: its Daily 10% lines and the
-      // 1H 2.5% steps. Turning it on also turns this phone's notifications on.
+      // 1H 2% steps. Turning it on also turns this phone's notifications on.
       if (btn.dataset.act === 'draw-alert') {
         const d = activeChannel(name);
         if (d && d.kind === 'ladder') {

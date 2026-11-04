@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 1H SPLITS EACH DAILY LADDER GAP IN FIVE AGAIN: app.js v585, sync
+Worker. User: "Bring back the old division of dividing daily ladder by 5 and
+not 4". `LADDER_SUB_BY_TF = { '1H': 5 }`: small labels every 2% (2, 4, 6, 8,
+12 ...) between the Daily 10% lines, as before #140. Alerts (still paused)
+follow: `ladder-alerts.js` LADDER_SUB 5, 51 lines a block, every 2%. Tests:
+ladder_daily_sub_checks (2% steps), ladder_alerts_test.
+
 2026-11-04 DAILY LADDERS ON DAILY AND 1H ONLY (4H REMOVED): app.js v584.
 User, after seeing a 12.5% version (never deployed): "Take it back to when it
 was 1h and daily only with10 division and remove 4h". Ten divisions stay
