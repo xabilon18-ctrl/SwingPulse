@@ -94,6 +94,16 @@
         out.push({ fi, future: fi > n - 1 - from, fixedOnly: true, third: true, year: y, part: k });
       }
     }
+    // Term fourths (switch on the T grid, Daily): three light, unlabelled
+    // lines in each four-year term, on its years, outside the shading, like
+    // the quarter thirds.
+    if (division.code === 'T' && division.fourths) {
+      for (let y = firstYear - 3; y <= year + 8; y++) {
+        if (isTermYear(y)) continue;
+        const fi = anchor + (y - year) * yearBars - from;
+        out.push({ fi, future: fi > n - 1 - from, fixedOnly: true, fourth: true, year: y, part: 0 });
+      }
+    }
     // Permanent reference lines share exactly the same equal-year geometry.
     // They never alter the selected grid's alternating shading intervals.
     const permanent = (fi, label, kind) => {
