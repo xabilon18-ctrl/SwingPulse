@@ -6,7 +6,8 @@ compatibility_date = "2025-01-01"
 binding = "USER_DATA"
 id      = "567b56a128dd4aee9c861d7653846acb"
 
-# Phone alerts switched off (user, 2026-11-04: "Switch off all phone alerts
-# till we get this right"). "1" = /push/notify sends nothing. "0" to resume.
+# Phone alerts: "1" = /push/notify sends nothing (switched off 2026-11-04,
+# user: "Switch off all phone alerts till we get this right"); back on the
+# same day (user: "Turn phone alerts back on").
 [vars]
-PUSH_PAUSED = "1"
+PUSH_PAUSED = "0"

@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-04 PHONE ALERTS BACK ON: sync Worker. User: "Turn phone alerts back
+on". `wrangler.toml` `PUSH_PAUSED = "0"`: `/push/notify` checks the ladder
+lines again (Daily 10% lines and the 1H 2% steps) and sends failed-run
+pushes. The alert state was left untouched while paused, so the first run
+alerts only on lines crossed since the last run's price.
+
 2026-11-04 4H REMOVED AS A TIMEFRAME; ITS SIGNALS MOVE TO 1H: app.js v586,
 trend-context.js v3, chart feed. User: "Remove 4h as a time frame and take
 all it's signals to 1h" (after the plan: Daily main trend, 1H setup + entry).
