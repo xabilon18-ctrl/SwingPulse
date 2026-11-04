@@ -48,7 +48,9 @@ module.exports = async function checkLadderCleanup(page) {
   for (const tf of ['1H', '4H']) {
     const l = ladders(tf);
     assert.ok(l.every(x => x.link && x.tfs.includes('D')), tf + ': only Daily ladders remain: ' + JSON.stringify(l));
-    assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
+    // 1H holds the Daily ladders' copies; 4H is no longer a chart timeframe
+    // (2026-11-04), so no new copy is written there.
+    if (tf === '1H') assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
   }
   assert.equal((got['1H'] || []).filter(x => x.kind === 'trend').length, 1, 'other drawings are untouched');
   // Once only: a ladder drawn on 1H after the cleanup survives a reload.

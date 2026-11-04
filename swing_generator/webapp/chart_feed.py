@@ -1121,7 +1121,12 @@ def near_ma_map(daily: dict) -> dict:
 
 # By NAME, looked up at call time, so a test that patches a builder on this
 # module is still the builder that runs.
-CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
+# 4H REMOVED 2026-11-04 (user: "Remove 4h as a time frame and take all it's
+# signals to 1h"): no 4H chart is built; its setup context, workflow signals
+# and B1/S1 filter events are computed on the 1H bundles instead
+# (attach_setup_context, trend_context_feed). build_4h_live is kept for
+# research; the 4H chunks on R2 are left orphaned.
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -1165,7 +1170,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
@@ -1253,17 +1258,27 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         raise RuntimeError('Hourly chart markers could not be built') from exc
 
     attach_setup_context(built)
-    four_hour_events = {}
-    for tf in ('D', '4H'):
-        for name, bundle in built.get(tf, {}).items():
-            positions = {t: i for i, t in enumerate(bundle['t'])}
-            bundle['sg'] = [[positions[e['at']], e['code']] for e in bundle.get('context', {}).get('events', []) if e['at'] in positions]
-            if tf == '4H':
-                dates = sorted({str(t)[:10] for t in bundle['t']})
-                since = dates[-2] if len(dates) > 1 else dates[-1]
-                recent = [e for e in bundle.get('context', {}).get('events', []) if e['code'] in ('B1', 'S1') and e['at'][:10] >= since]
-                if recent:
-                    four_hour_events[name] = {'s': [recent[-1]['code'], recent[-1]['at']]}
+    for name, bundle in built.get('D', {}).items():
+        positions = {t: i for i, t in enumerate(bundle['t'])}
+        bundle['sg'] = [[positions[e['at']], e['code']] for e in bundle.get('context', {}).get('events', []) if e['at'] in positions]
+    # The "B1 / S1 · 2 sessions" filter reads 1H since 4H went (2026-11-04):
+    # the latest workflow B1/S1 (completed close across the 1H MA500, the rule
+    # 4H used) on the 1H bundle's last two trading dates, the same events the
+    # Alerts tab lists. It replaces the h1-fires `s` from the marker pass.
+    for name, bundle in built.get('1H', {}).items():
+        dates = sorted({str(t)[:10] for t in bundle['t']})
+        if not dates:
+            continue
+        since = dates[-2] if len(dates) > 1 else dates[-1]
+        recent = [e for e in bundle.get('context', {}).get('events', []) if e['code'] in ('B1', 'S1') and e['at'][:10] >= since]
+        ev = hourly_events.get(name, {})
+        ev.pop('s', None)
+        if recent:
+            ev['s'] = [recent[-1]['code'], recent[-1]['at']]
+        if ev:
+            hourly_events[name] = ev
+        else:
+            hourly_events.pop(name, None)
 
     # Alerts tab (2026-09-27): every marker above as a listed alert, with what
     # price did after it. A failure costs the Alerts tab, never the chart feed.
@@ -1303,7 +1318,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import read as channel_read
-        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', '4H', 'D')}
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
@@ -1342,7 +1357,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
                'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
-               'events_by_tf': {'30m': events, '1H': hourly_events, '4H': four_hour_events},
+               'events_by_tf': {'30m': events, '1H': hourly_events},
                'near': near_ma_map(built.get('D', {}))})
 
     return stats

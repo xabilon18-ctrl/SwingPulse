@@ -39,25 +39,29 @@ class ContextTests(unittest.TestCase):
         out=frame_context(self.frame(values),'D',now='2030-01-01')
         self.assertEqual(out['direction'],'UPTREND')
     def test_all_instruments_use_same_rule_without_channel_fallback(self):
-        up=frame_context(self.frame([100]*500+[110]),'4H',now='2030-01-01')
-        down=frame_context(self.frame([100]*500+[90]),'4H',now='2030-01-01')
-        result=workflow_context({'4H':{'A':{'context':up},'B':{'context':down},'C':{}}})
-        self.assertEqual(result['4H']['A']['direction'],'UPTREND')
-        self.assertEqual(result['4H']['B']['direction'],'DOWNTREND')
-        self.assertNotIn('C',result['4H'])
+        up=frame_context(self.frame([100]*500+[110]),'1H',now='2030-01-01')
+        down=frame_context(self.frame([100]*500+[90]),'1H',now='2030-01-01')
+        result=workflow_context({'1H':{'A':{'context':up},'B':{'context':down},'C':{}},'4H':{'A':{'context':up}}})
+        self.assertEqual(result['1H']['A']['direction'],'UPTREND')
+        self.assertEqual(result['1H']['B']['direction'],'DOWNTREND')
+        self.assertNotIn('C',result['1H'])
+        self.assertNotIn('4H',result,'4H was removed (2026-11-04)')
     def test_daily_reversal_priority_and_no_independent_hourly_stream(self):
         daily={'context':{'events':[{'at':'2026-10-08','code':'S1','price':90}]}}
-        h4={'context':{'direction':'UPTREND','events':[{'at':'2026-10-10 04:00','code':'B1','price':101}]}}
+        # 1H carries the setup signals since 4H was removed (2026-11-04); a
+        # 4H bundle, if one turned up, is ignored.
+        h4={'context':{'direction':'DOWNTREND','events':[{'at':'2026-10-10 04:00','code':'S1','price':99}]}}
         h1={'t':['2026-10-10 03:00','2026-10-10 04:00','2026-10-10 05:00'],
-            'c':[99,101,102],'sg':[[1,'B1']],'xm':[[1,'after',50,'up',100]]}
+            'c':[99,101,102],'sg':[[1,'B1']],'xm':[[1,'after',50,'up',100]],
+            'context':{'direction':'UPTREND','events':[{'at':'2026-10-10 04:00','code':'B1','price':101}]}}
         out=workflow_alerts({'D':{'A':daily},'4H':{'A':h4},'1H':{'A':h1}},now='2026-10-11')
-        self.assertEqual([e[1] for e in out['workflow_ev']],['D','4H'])
+        self.assertEqual([e[1] for e in out['workflow_ev']],['D','1H'])
         self.assertEqual(out['linked_entries']['A'][0]['at'],'2026-10-10 05:00')
         self.assertEqual(out['linked_entries']['A'][0]['kind'],'cross')
     def test_current_hour_cannot_be_a_confirmed_entry(self):
         h1={'t':['2026-10-10 04:00','2026-10-10 05:00'],'c':[101,102],
-            'xm':[[0,'after',50,'up',100]]}
-        out=workflow_alerts({'4H':{'A':{'context':{'direction':'UPTREND'}}},'1H':{'A':h1}},now='2026-10-10 05:30')
+            'xm':[[0,'after',50,'up',100]],'context':{'direction':'UPTREND'}}
+        out=workflow_alerts({'1H':{'A':h1}},now='2026-10-10 05:30')
         self.assertEqual(out['linked_entries'],{})
     def test_daily_analytic_levels_do_not_read_future_ribbon_points(self):
         from chart_feed import cross_marks

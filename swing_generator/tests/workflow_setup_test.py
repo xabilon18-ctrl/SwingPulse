@@ -49,14 +49,16 @@ class WorkflowTests(unittest.TestCase):
         for main, native, prices, expected in [('UPTREND','UPTREND',[101,99],'DOWNTREND'),('DOWNTREND','DOWNTREND',[99,101],'UPTREND')]:
             t=int(pd.Timestamp('2026-10-01',tz='UTC').timestamp())
             daily={'context':{'direction':main},'references':{'D50':[[t,100]],'ATR':[[t,2]],'W250':[[t,95]],'M50':[[t,95.1]]}}
-            hourly={'t':['2026-10-09 00:00','2026-10-09 04:00','2026-10-09 08:00'],
+            # The setup runs on 1H since 4H was removed (2026-11-04).
+            hourly={'t':['2026-10-09 00:00','2026-10-09 01:00','2026-10-09 02:00'],
                     'c':prices+[0], 'h':[102]*3,'l':[98]*3,'context':{'direction':native}}
-            built={'D':{'X':daily},'4H':{'X':hourly}}
-            attach_setup_context(built,now='2026-10-09 08:30')
+            built={'D':{'X':daily},'1H':{'X':hourly}}
+            attach_setup_context(built,now='2026-10-09 02:30')
             self.assertEqual(hourly['context']['swingDirection'],expected)
             self.assertEqual(hourly['context']['setup']['price'],prices[-1])
             self.assertEqual(daily['context']['direction'],main)
-            self.assertEqual(hourly['context']['setup']['minorOpportunity']['at'],'2026-10-09 04:00')
+            self.assertEqual(hourly['context']['setup']['minorOpportunity']['at'],'2026-10-09 01:00')
+            self.assertEqual(hourly['context']['entries'],hourly['context']['setup']['interactions'])
     def test_ledger_separates_rules_and_exact_four_hour_fires(self):
         records={'old':{'id':'old','instrument':'X','fire_date':'2026-10-01','tf':'D','code':'B1','trade':None}}
         row={'instrument_name':'X','group':'Crypto','signal_rule_version':RULE_VERSION,

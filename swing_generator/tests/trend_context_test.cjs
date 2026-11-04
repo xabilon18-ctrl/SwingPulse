@@ -2,16 +2,20 @@ const assert = require('node:assert/strict');
 const t = require('../webapp/static/js/modules/trend-context.js');
 const gold = { instrument_name: 'GOLD', date: '2026-10-09', close: 4216.299805, ma_500: 3794.025993, trend_direction: 'DOWNTREND', h1_close: 4185.20, h1_ma_500: 4245.18 };
 const pound = { instrument_name: 'GBPMXN', date: '2026-10-09', close: 24.311399, ma_500: 24.559292, trend_direction: 'NEUTRAL', h1_close: 24.31, h1_ma_500: 23.49 };
-const channels = { workflow:{'4H':{GOLD:{direction:'DOWNTREND'},GBPMXN:{direction:'UPTREND'}}}, tf: { D: { GOLD: 'UPTREND', GBPMXN: 'DOWNTREND' }, '4H': { GOLD: 'DOWNTREND', GBPMXN: 'UPTREND' }, '1H': { GOLD: 'DOWNTREND', GBPMXN: 'UPTREND' } } };
+// 1H is the setup timeframe since 4H was removed (2026-11-04).
+const channels = { workflow:{'1H':{GOLD:{direction:'DOWNTREND'},GBPMXN:{direction:'UPTREND'}}}, tf: { D: { GOLD: 'UPTREND', GBPMXN: 'DOWNTREND' }, '4H': { GOLD: 'DOWNTREND', GBPMXN: 'UPTREND' }, '1H': { GOLD: 'DOWNTREND', GBPMXN: 'UPTREND' } } };
 assert.equal(t.main(gold), t.UP, 'Main trend follows the completed Daily close against Daily MA500, not an existing ribbon label');
 assert.equal(t.main(pound), t.DOWN);
-for (const tf of ['D', '4H', '1H']) {
+for (const tf of ['D', '1H']) {
   assert(t.matches(gold, channels, {main:t.UP,tf}));
   assert(!t.matches(gold, channels, {main:t.DOWN,tf}));
   assert(t.matches(pound, channels, {main:t.DOWN,tf}));
 }
-assert.equal(t.context(gold, channels).h4Relation, 'minor');
-assert.equal(t.context(pound, channels).h4Relation, 'minor');
+assert.equal(t.context(gold, channels).h1Relation, 'minor');
+assert.equal(t.context(pound, channels).h1Relation, 'minor');
+assert.equal(t.context(gold, channels).h4Relation, undefined, 'no 4H relation any more');
+// A minor swing that began at the Daily 50 counts on 1H (swingDirection).
+assert.equal(t.native(gold,'1H',{workflow:{'1H':{GOLD:{direction:'UPTREND',swingDirection:'DOWNTREND'}}}}),t.DOWN);
 assert.equal(t.relationship(t.UP,t.UP),'aligned');
 assert.equal(t.relationship(t.DOWN,t.DOWN),'aligned');
 assert.equal(t.native(gold,'4H',{tf:{D:channels.tf.D}}),t.UNKNOWN,'Missing native data cannot fall back to Daily');

@@ -78,11 +78,11 @@ const { pathToFileURL } = require('node:url');
   const prefs=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('sp-chart-prefs__zabs')));
   try {
     const first=await device(),second=await device();
-    const field=await grid(first,'4H','H'); await sync(first); await sync(second);
-    assert.equal((await prefs(second))[field]['4H'].division,'H','Second device receives first device grid');
+    const field=await grid(first,'D','H'); await sync(first); await sync(second);
+    assert.equal((await prefs(second))[field]['D'].division,'H','Second device receives first device grid');
     await grid(second,'1H','Y'); await sync(second); await sync(first);
     assert.equal((await prefs(first))[field]['1H'].division,'Y');
-    assert.equal((await prefs(first))[field]['4H'].division,'H','Editing 1H preserves 4H');
+    assert.equal((await prefs(first))[field]['D'].division,'H','Editing 1H preserves Daily');
     await first.locator('#chartReel [data-act="chart-expand"]').first().click();
     await first.locator('#chartFull [data-act="channel"]').click();
     await first.locator('#chartFull [data-act="channel-add"][data-kind="hline"]').click();

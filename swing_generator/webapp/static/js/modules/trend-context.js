@@ -24,7 +24,9 @@
     if (tf !== '1H' && tf !== '4H') return UNKNOWN;
     const measured = snapshot(row, tf, channels);
     if (measured) {
-      const direction = tf === '4H' ? measured.swingDirection || measured.direction : measured.direction;
+      // The setup timeframe's direction includes a minor swing that started
+      // at the Daily 50 (swingDirection): 1H since 2026-11-04, 4H before.
+      const direction = measured.swingDirection || measured.direction;
       return isDirection(direction) ? direction : UNKNOWN;
     }
     const prefix = tf === '4H' ? 'h4_' : 'h1_';
@@ -47,11 +49,13 @@
   }
   function label(direction) { return direction === UP ? 'Up' : direction === DOWN ? 'Down' : 'Unavailable'; }
   function glyph(direction) { return direction === UP ? '▲' : direction === DOWN ? '▼' : '—'; }
+  // 4H REMOVED 2026-11-04 (user: "take all its signals to 1h"): 1H is the
+  // setup and entry timeframe, so the relation every screen shows is 1H's.
   function context(row, channels) {
-    const mainDirection = daily(row, channels), h4 = native(row, '4H', channels), h1 = native(row, '1H', channels);
-    return { main: mainDirection, h4, h1, h4Relation: relationship(mainDirection, h4), h1Relation: relationship(mainDirection, h1), asOf: snapshot(row,'D',channels)?.asOf || row && row.date || null };
+    const mainDirection = daily(row, channels), h1 = native(row, '1H', channels);
+    return { main: mainDirection, h1, h1Relation: relationship(mainDirection, h1), asOf: snapshot(row,'D',channels)?.asOf || row && row.date || null };
   }
-  function relationText(mainDirection, direction, tf = '4H') {
+  function relationText(mainDirection, direction, tf = '1H') {
     const relation = relationship(mainDirection, direction);
     if (relation === 'unknown') return tf + ' direction unavailable';
     return tf + ' ' + (relation === 'minor' ? 'minor ' : 'aligned ') + label(direction).toLowerCase();
@@ -59,7 +63,7 @@
   function matches(row, channels, filters = {}) {
     const c = context(row, channels);
     if (filters.main && filters.main !== 'all' && c.main !== filters.main) return false;
-    const relation = filters.tf === '1H' ? c.h1Relation : c.h4Relation;
+    const relation = c.h1Relation;
     return !filters.relationship || filters.relationship === 'all' || relation === filters.relationship;
   }
   function distance(price, average) {
@@ -67,7 +71,7 @@
     return p === null || m === null || m === 0 ? null : 100 * (p - m) / Math.abs(m);
   }
   function clusters(row, channels, width = 0.25) {
-    const setup = snapshot(row, '4H', channels)?.setup;
+    const setup = snapshot(row, '1H', channels)?.setup;
     if (!setup || !(number(setup.atr) > 0)) return {available:false, zones:[]};
     const levels = (setup.levels || []).filter(l => number(l.value) !== null).slice().sort((a,b) => a.value-b.value);
     const span = setup.atr * width, zones = [];

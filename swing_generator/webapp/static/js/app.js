@@ -188,7 +188,10 @@
     // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
     // "Remove 2 h"); back 2026-11-02 (user: "Add 2h keep 4") and REMOVED the
     // same day (user: "remove 2h"). A saved 2H chart choice opens on Daily.
-    { code: '4H', prefix: 'h4_', label: '4H', bar: '4-hour bars', barShort: '25-bar' },
+    // 4H REMOVED 2026-11-04 (user: "Remove 4h as a time frame and take all
+    // it's signals to 1h"): its setup direction, workflow signals, MA
+    // clusters, Alerts and filters read 1H now. A saved 4H chart choice opens
+    // on Daily; drawings saved on 4H stay in the store, not shown.
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
@@ -214,7 +217,8 @@
   // the signal tabs and Trends are Daily.
   // Charts and the signal tabs remember their timeframe separately, so zooming
   // a chart to 4H never turns the Signals tab into 4H.
-  const SIGNAL_TFS = new Set(['4H', 'D']);
+  // 1H took 4H's place as the signal timeframe beside Daily on 2026-11-04.
+  const SIGNAL_TFS = new Set(['1H', 'D']);
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -1302,11 +1306,11 @@
                      ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
   const WL_SCOPES = [['all', 'Everything'], ['views', 'My Buy / Sell markers'], ['views-buy', 'My Buy markers'],
     ['views-sell', 'My Sell markers'], ['today', 'Fired today'], ['signal', 'Any open signal'], ['buy', 'Buys only'],
-    ['sell', 'Sells only'], ['watch', 'Minor 4H swings'], ['m15sig', '4H B1 / S1 · 2 sessions'],
+    ['sell', 'Sells only'], ['watch', 'Minor 1H swings'], ['m15sig', '1H B1 / S1 · 2 sessions'],
     ['dxpre', '1H touched a Daily MA'], ['dxafter', '1H crossed a Daily MA']];
   const WL_SCOPE_SHORT = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
                            today: 'Today', signal: 'Signals', buy: 'Buys', sell: 'Sells',
-                           watch: 'Minor 4H', m15sig: '4H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
+                           watch: 'Minor 1H', m15sig: '1H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
   const WL_STACKS = [['all', 'Any'], ['bull', 'Bull 50›250›500'], ['bear', 'Bear 500›250›50'], ['mixed', 'Mixed'],
     ['near', 'Near cross'], ['fresh', 'Just flipped']];
   const WL_STACK_SHORT = { bull: 'MA bull', bear: 'MA bear', mixed: 'MA mixed', near: 'MA near cross', fresh: 'MA flipped' };
@@ -1329,7 +1333,7 @@
     const trend = [];
     if (wlUi.trend && wlUi.trend !== 'all')
       trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[wlUi.trend] || wlUi.trend);
-    if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '4H aligned' : '4H minor');
+    if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '1H aligned' : '1H minor');
     const cur = wlStore.lists.find(l => l.id === wlUi.list);
     const cls = [], ma = [];
     if (wlUi.cls && wlUi.cls !== 'all') cls.push(pick(WL_CLASSES, wlUi.cls));
@@ -1377,7 +1381,7 @@
     }
     if (wlUi.mode === 'trend')
       return sep('Daily') + WL_TRENDS.map(([k, l]) => pill(wlUi.trend === k, `data-wl-trend="${k}" data-wl-step`, l + n({ trend: k }))).join('')
-        + sep('4H') + WL_RELATIONS.map(([k, l]) => pill((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, ({ all: 'Any', aligned: 'Aligned', minor: 'Minor against' }[k] || l) + n({ relation: k }))).join('');
+        + sep('1H') + WL_RELATIONS.map(([k, l]) => pill((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, ({ all: 'Any', aligned: 'Aligned', minor: 'Minor against' }[k] || l) + n({ relation: k }))).join('');
     if (wlUi.mode === 'scope')
       return WL_SCOPES.map(([k, l]) => pill((wlUi.scope || 'all') === k, `data-wl-scope="${k}" data-wl-step`, l + n({ scope: k }))).join('');
     if (wlUi.mode === 'cluster')
@@ -1881,9 +1885,9 @@
         ranked = true;
       }
       if (WL_EV_KEY[scope]) {
-        // 4H B1/S1 or a 1H mark at a Daily MA on the last two trading dates,
+        // 1H B1/S1 (4H's until 2026-11-04) or a 1H mark at a Daily MA on the last two trading dates,
         // from the chart index (`events_by_tf`, the marks the chart draws).
-        const ev = idx.events_by_tf && idx.events_by_tf[scope === 'm15sig' ? '4H' : '1H'];
+        const ev = idx.events_by_tf && idx.events_by_tf['1H'];
         const k = WL_EV_KEY[scope];
         rows = ev ? rows.filter(d => ev[d.instrument_name] && ev[d.instrument_name][k]) : [];
         if (!ranked) rows.sort((a, b) => String(ev[b.instrument_name][k].slice(-1)[0]).localeCompare(String(ev[a.instrument_name][k].slice(-1)[0])));
@@ -1916,7 +1920,7 @@
         case 'signal': return rows.filter(d => !!d[f('primary_signal')]);
         case 'buy':    return rows.filter(isBuy);
         case 'sell':   return rows.filter(isSell);
-        default:       return rows.filter(d => SPTrendContext.context(d, channelTrend).h4Relation === 'minor');
+        default:       return rows.filter(d => SPTrendContext.context(d, channelTrend).h1Relation === 'minor');
       }
     });
     return { rows, ranked };
@@ -2090,7 +2094,7 @@
       const dir = !x || x.ch == null ? '' : x.ch > 0 ? ' up' : x.ch < 0 ? ' down' : '';
       return `<button class="wl2-row" data-wl-row="${escText(n)}">
         ${wlBadge(n, d.asset_class)}
-        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span>${trendContextHtml(d, '4H', true)}${clusterBadgeHtml(d)}</span>
+        <span class="wl2-names"><span class="wl2-sym">${escText(n)}<span class="wl2-tagslot">${wlAgeTag(x, n)}</span></span><span class="wl2-full">${escText(namesData[n] || d.group || '')}</span>${trendContextHtml(d, '1H', true)}${clusterBadgeHtml(d)}</span>
         <span class="wl2-px"><span class="wl2-price">${x ? wlFmtPrice(x.p) : '—'}</span>
           <span class="wl2-chg${dir}">${x && x.ch != null ? wlFmtChange(x.ch, x.p) + ' ' + wlFmtPct(x.pct) : ''}</span>${byMove && move !== '1d' ? wlMoveTag(d, move) : ''}</span>
       </button>`;
@@ -2516,17 +2520,18 @@
   }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
-  const AL_TFS = ['4H', 'D'];
-  const AL_LINE_TFS = ['1H', '4H', 'D'];
+  // Daily and 1H since 4H was removed (2026-11-04).
+  const AL_TFS = ['1H', 'D'];
+  const AL_LINE_TFS = ['1H', 'D'];
   const alUi = { cluster: 'all', scope: 'mine', tf: 'all', kind: 'all', more: 0, main: 'all', relation: 'all' };
   try { Object.assign(alUi, JSON.parse(localStorage.getItem('swingpulse-al-ui') || '{}')); } catch (_) {}
-  if (alUi.tf === '30m' || alUi.tf === '1H') alUi.tf = '4H';
+  if (alUi.tf === '30m' || alUi.tf === '4H') alUi.tf = '1H';
   alUi.more = 0;
   const alTfOk = () => { if (alUi.tf !== 'all' && !AL_TFS.includes(alUi.tf)) alUi.tf = 'all'; };
   alTfOk();   // a saved 15m/1H/4H chip would otherwise match nothing
   const alSaveUi = () => { try { localStorage.setItem('swingpulse-al-ui', JSON.stringify({ scope: alUi.scope, tf: alUi.tf, kind: alUi.kind, main: alUi.main, relation: alUi.relation, cluster: alUi.cluster })); } catch (_) {} };
   const AL_PAGE = 120;
-  const AL_TF_LBL = { '1H': '1H entry', '4H': '4H setup', 'D': 'Daily' };
+  const AL_TF_LBL = { '1H': '1H setup', 'D': 'Daily' };
 
   // name -> first list it is in (for the tag), and the set of every listed name.
   function alListIndex() {
@@ -2558,8 +2563,8 @@
 
   // Plain-English line for one alert.
   function alText(kind, p, dir, tf) {
-    if (kind === 'B1') return `<b class="al-up">B1 · ${tf === 'D' ? 'Main trend turns up' : '4H direction turns up'}</b>`;
-    if (kind === 'S1') return `<b class="al-dn">S1 · ${tf === 'D' ? 'Main trend turns down' : '4H direction turns down'}</b>`;
+    if (kind === 'B1') return `<b class="al-up">B1 · ${tf === 'D' ? 'Main trend turns up' : tf + ' direction turns up'}</b>`;
+    if (kind === 'S1') return `<b class="al-dn">S1 · ${tf === 'D' ? 'Main trend turns down' : tf + ' direction turns down'}</b>`;
     if (/^[BS][234]$/.test(kind)) return `<b class="${kind[0] === 'B' ? 'al-up' : 'al-dn'}">${kind} pullback</b> · ${AL_TF_LBL[tf]}`;
     if (kind === 'X')  return dir > 0 ? `<b class="al-up">Crossed up through D${p}</b> · held 1h`
                                       : `<b class="al-dn">Crossed down through D${p}</b> · held 1h`;
@@ -2655,8 +2660,8 @@
   let clusterWidth = 0.25;
   try { const saved=Number(localStorage.getItem('swingpulse-cluster-width')); if ([0.25,0.5,1].includes(saved)) clusterWidth=saved; } catch (_) {}
   // Button-sized names for the same modes (the dropdown shows the full ones).
-  const CLUSTER_SHORT = { any: 'Has cluster', multi: 'Mixed TF', near: 'Near cluster', crossed: '4H crossed', rejected: '4H rejected' };
-  const CLUSTER_OPTIONS = [['all','All instruments'],['any','Has MA cluster'],['multi','Mixed timeframes'],['near','Price near cluster'],['crossed','4H crossed cluster'],['rejected','4H rejected cluster']];
+  const CLUSTER_SHORT = { any: 'Has cluster', multi: 'Mixed TF', near: 'Near cluster', crossed: '1H crossed', rejected: '1H rejected' };
+  const CLUSTER_OPTIONS = [['all','All instruments'],['any','Has MA cluster'],['multi','Mixed timeframes'],['near','Price near cluster'],['crossed','1H crossed cluster'],['rejected','1H rejected cluster']];
   function clusterMatches(row, mode) { return SPTrendContext.matchesCluster(row, channelTrend, mode, clusterWidth); }
   function clusterFilterHtml(scope, mode) {
     const label=CLUSTER_OPTIONS.find(([k])=>k===mode)?.[1] || 'All instruments';
@@ -2712,27 +2717,27 @@
   function clusterBadgeHtml(row, detailed=false) {
     const found=SPTrendContext.clusters(row,channelTrend,clusterWidth), zone=found.zones[0];
     if (!zone) return '';
-    const status={crossed:'4H crossed '+zone.side,rejected:'4H rejected '+(zone.side==='up'?'upward':'downward'),touched:'4H touched',near:'Price nearby',away:'Away from price'}[zone.state];
+    const status={crossed:'1H crossed '+zone.side,rejected:'1H rejected '+(zone.side==='up'?'upward':'downward'),touched:'1H touched',near:'Price nearby',away:'Away from price'}[zone.state];
     return `<span class="sp-cluster-badge" title="Confirmed higher-timeframe averages · ${escText(found.asOf)}">MA cluster · ${zone.members.map(m=>m.id).join(' + ')}${detailed?`<span>${wlFmtPrice(zone.lo)}–${wlFmtPrice(zone.hi)} · ${status}</span>`:''}</span>`;
   }
   function clusterMarketHtml() {
     const covered=allData.filter(row=>SPTrendContext.clusters(row,channelTrend,clusterWidth).available).length;
-    const choices=[['any','With clusters'],['near','Near price'],['crossed','4H crossings'],['rejected','4H rejections']];
+    const choices=[['any','With clusters'],['near','Near price'],['crossed','1H crossings'],['rejected','1H rejections']];
     const counts=choices.map(([mode,label])=>`<button class="sp-main-count" data-cluster-open="${mode}"><span>${label}</span><b>${allData.filter(row=>clusterMatches(row,mode)).length}</b></button>`).join('');
     const rows=allData.filter(row=>clusterMatches(row,mkUi.cluster));
     return `<section class="card sp-cluster-market"><div class="card-header"><h3>Moving-average clusters</h3></div><div class="sp-cluster-counts">${counts}</div>
       ${clusterFilterHtml('market',mkUi.cluster)}<p class="mk-note">Available for ${covered} of ${allData.length} instruments. Daily main trend stays separate.</p>
-      ${rows.slice(0,8).map(row=>`<button class="sp-cluster-row" data-cluster-instrument="${escText(row.instrument_name)}"><b>${escText(row.instrument_name)}</b>${trendContextHtml(row,'4H',true)}${clusterBadgeHtml(row,true)}</button>`).join('')}
+      ${rows.slice(0,8).map(row=>`<button class="sp-cluster-row" data-cluster-instrument="${escText(row.instrument_name)}"><b>${escText(row.instrument_name)}</b>${trendContextHtml(row,'1H',true)}${clusterBadgeHtml(row,true)}</button>`).join('')}
     </section>`;
   }
   function minorSwingCards(lists, scope) {
     if (alUi.tf==='D' || !['all','ma'].includes(alUi.kind)) return '';
-    return allData.filter(row=>SPTrendContext.snapshot(row,'4H',channelTrend)?.setup?.minorOpportunity &&
+    return allData.filter(row=>SPTrendContext.snapshot(row,'1H',channelTrend)?.setup?.minorOpportunity &&
       (scope!=='mine'||row.instrument_name in lists) && clusterMatches(row,alUi.cluster) &&
       SPTrendContext.matches(row,channelTrend,{main:alUi.main,relationship:alUi.relation})).slice(0,30).map(row=>{
-      const event=SPTrendContext.snapshot(row,'4H',channelTrend).setup.minorOpportunity;
+      const event=SPTrendContext.snapshot(row,'1H',channelTrend).setup.minorOpportunity;
       return `<article class="sp-setup-card"><b>${escText(row.instrument_name)} · Minor ${event.direction==='UPTREND'?'buy':'sell'} setup</b>${setupContextHtml(row)}
-        <p>4H crossed Daily 50 ${event.direction==='UPTREND'?'upward':'downward'} · ${alWhen(event.at)}. Check the 1H entry and space to the next average.</p>
+        <p>1H crossed Daily 50 ${event.direction==='UPTREND'?'upward':'downward'} · ${alWhen(event.at)}. Check the space to the next average.</p>
         <button class="al-row" data-al-open="${escText(row.instrument_name)}" data-al-tf="1H" data-al-at="${escText(event.at)}">1H entry detail ›</button></article>`;
     }).join('');
   }
@@ -2758,13 +2763,13 @@
   });
 
   function mainTrendOf(item) { return SPTrendContext.daily(item, channelTrend); }
-  function trendContextHtml(item, tf = '4H', compact = false, prefix = 'Main') {
+  function trendContextHtml(item, tf = '1H', compact = false, prefix = 'Main') {
     const c = SPTrendContext.context(item, channelTrend);
     const main = `${prefix} ${SPTrendContext.glyph(c.main)} ${SPTrendContext.label(c.main)}`;
-    const dir = tf === '1H' ? c.h1 : c.h4;
+    const dir = c.h1;
     // Weekly and Monthly have no setup read of their own; like Daily they
-    // show the main trend alone, never the 4H relation under their name.
-    const detail = tf !== '1H' && tf !== '4H' ? 'Daily · confirmed close' :
+    // show the main trend alone, never the 1H relation under their name.
+    const detail = tf !== '1H' ? 'Daily · confirmed close' :
       (dir === 'NEUTRAL' ? `${tf} direction unclear` : SPTrendContext.relationText(c.main, dir, tf));
     const color = c.main === 'UPTREND' ? 'up' : c.main === 'DOWNTREND' ? 'down' : 'flat';
     return `<span class="sp-trend-context${compact ? ' compact' : ''}" data-main-trend="${c.main}" title="Daily main trend as of ${escText(c.asOf || 'unavailable')}"><b class="${color}">${main}</b><span>${detail}</span></span>`;
@@ -2774,27 +2779,27 @@
     const options = [['UPTREND', 'Main uptrend'], ['DOWNTREND', 'Main downtrend'], ['NEUTRAL', 'Unavailable']];
     const counts = options.map(([direction, label]) => {
       const rows = allData.filter(row => mainTrendOf(row) === direction);
-      const aligned = rows.filter(row => SPTrendContext.context(row, channelTrend).h4Relation === 'aligned').length;
-      const minor = rows.filter(row => SPTrendContext.context(row, channelTrend).h4Relation === 'minor').length;
-      return `<button class="sp-main-count" data-mk-main="${direction}"><span>${label}</span><b>${rows.length}</b><small>${direction === 'NEUTRAL' ? 'Daily history needed' : `4H · ${aligned} aligned · ${minor} minor${rows.length - aligned - minor ? ' · ' + (rows.length - aligned - minor) + ' unavailable' : ''}`}</small></button>`;
+      const aligned = rows.filter(row => SPTrendContext.context(row, channelTrend).h1Relation === 'aligned').length;
+      const minor = rows.filter(row => SPTrendContext.context(row, channelTrend).h1Relation === 'minor').length;
+      return `<button class="sp-main-count" data-mk-main="${direction}"><span>${label}</span><b>${rows.length}</b><small>${direction === 'NEUTRAL' ? 'Daily history needed' : `1H · ${aligned} aligned · ${minor} minor${rows.length - aligned - minor ? ' · ' + (rows.length - aligned - minor) + ' unavailable' : ''}`}</small></button>`;
     }).join('');
-    return `<section class="card sp-main-summary"><div class="card-header"><h3>Daily main trends</h3></div><div class="sp-main-counts">${counts}</div><p class="mk-note">Daily sets the main trend. 4H shows the setup direction; 1H shows the entry detail.</p></section>`;
+    return `<section class="card sp-main-summary"><div class="card-header"><h3>Daily main trends</h3></div><div class="sp-main-counts">${counts}</div><p class="mk-note">Daily sets the main trend. 1H shows the setup direction and the entry detail.</p></section>`;
   }
 
   function workflowRowValues() {
     if (!channelTrend?.workflow_version) return;
-    for (const row of allData) for (const tf of ['D', '4H']) {
+    for (const row of allData) for (const tf of ['D', '1H']) {
       const snapshot = SPTrendContext.snapshot(row, tf, channelTrend);
-      const prefix = tf === 'D' ? '' : 'h4_';
+      const prefix = tf === 'D' ? '' : 'h1_';
       // Old full-ribbon B1/S1 must not be presented as Daily-500 reversals.
       row[prefix + 'primary_signal'] = '';
       row[prefix + 'signal_confidence'] = '';
       if (!snapshot) continue;
       const events = snapshot.events || [], last = events[events.length - 1];
-      if (tf === '4H') {
-        row.h4_close = snapshot.close;
-        row.h4_date = snapshot.asOf;
-        for (const [p, value] of Object.entries(snapshot.mas || {})) row['h4_ma_' + p] = value;
+      if (tf === '1H') {
+        row.h1_close = snapshot.close;
+        row.h1_date = snapshot.asOf;
+        for (const [p, value] of Object.entries(snapshot.mas || {})) row['h1_ma_' + p] = value;
       }
       row[prefix + 'trend_direction'] = snapshot.direction;
       row[prefix + 'last_signal'] = last?.code || '';
@@ -2806,17 +2811,16 @@
 
   function setupContextHtml(item) {
     const c = SPTrendContext.context(item, channelTrend);
-    const h4 = SPTrendContext.snapshot(item, '4H', channelTrend);
-    const price = h4?.close;
-    const levels = h4?.setup?.levels || [50,250,500].map(p=>({id:'D'+p,value:item['ma_'+p]}));
+    const h1 = SPTrendContext.snapshot(item, '1H', channelTrend);
+    const price = h1?.close;
+    const levels = h1?.setup?.levels || [50,250,500].map(p=>({id:'D'+p,value:item['ma_'+p]}));
     const positions = levels.map(level => {
       const value = Number(level.value);
       if (!Number.isFinite(price) || !Number.isFinite(value) || !value) return '';
       const distance = SPTrendContext.distance(price, value);
       return `<span>${price >= value ? 'Above' : 'Below'} ${escText(level.id)} · ${Math.abs(distance).toFixed(1)}%</span>`;
     }).filter(Boolean).join('');
-    return `${trendContextHtml(item, '4H', true)}${clusterBadgeHtml(item, true)}<span class="sp-setup-levels">${positions}</span>
-      <span class="sp-entry-direction">${SPTrendContext.relationText(c.main, c.h1, '1H')}</span>`;
+    return `${trendContextHtml(item, '1H', true)}${clusterBadgeHtml(item, true)}<span class="sp-setup-levels">${positions}</span>`;
   }
 
   function levelContextCards(lists, scope) {
@@ -2825,19 +2829,18 @@
     for (const row of allData) {
       if (scope==='mine' && !(row.instrument_name in lists)) continue;
       if (!clusterMatches(row,alUi.cluster) || !SPTrendContext.matches(row,channelTrend,{main:alUi.main,relationship:alUi.relation})) continue;
-      const setup=SPTrendContext.snapshot(row,'4H',channelTrend)?.setup;
+      const setup=SPTrendContext.snapshot(row,'1H',channelTrend)?.setup;
       if (!setup?.interactions?.length) continue;
       const last=setup.interactions[setup.interactions.length-1];
       const members=setup.interactions.filter(e=>e.at===last.at && e.kind===last.kind && e.direction===last.direction);
       const name=row.instrument_name;
-      cards.push({at:last.at,html:`<article class="sp-setup-card"><b>${escText(name)}</b>${trendContextHtml(row,'4H',true,'Main now')}
-        <p>4H ${last.kind==='cross'?'closed across':'rejected'} ${members.map(e=>escText(e.reference)).join(' + ')} ${last.direction==='UPTREND'?'upward':'downward'}</p>
-        <small>${alWhen(last.at)} · Completed 4H candle</small>${clusterBadgeHtml(row,true)}
-        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="4H" data-al-at="${escText(last.at)}">4H level interaction</button>
-        <button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(last.at)}">1H entry detail ›</button></div></article>`});
+      cards.push({at:last.at,html:`<article class="sp-setup-card"><b>${escText(name)}</b>${trendContextHtml(row,'1H',true,'Main now')}
+        <p>1H ${last.kind==='cross'?'closed across':'rejected'} ${members.map(e=>escText(e.reference)).join(' + ')} ${last.direction==='UPTREND'?'upward':'downward'}</p>
+        <small>${alWhen(last.at)} · Completed 1H candle</small>${clusterBadgeHtml(row,true)}
+        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(last.at)}">1H chart ›</button></div></article>`});
     }
     cards.sort((a,b)=>b.at.localeCompare(a.at));
-    return cards.length ? '<div class="al-day">4H at Daily, Weekly and Monthly levels</div>'+cards.slice(0,24).map(c=>c.html).join('') : '';
+    return cards.length ? '<div class="al-day">1H at Daily, Weekly and Monthly levels</div>'+cards.slice(0,24).map(c=>c.html).join('') : '';
   }
 
   function entryContextCards(lists, scope) {
@@ -2847,13 +2850,12 @@
       (scope !== 'mine' || row.instrument_name in lists) &&
       SPTrendContext.matches(row, channelTrend, {main:alUi.main, relationship:alUi.relation}));
     if (!rows.length) return '';
-    return '<div class="al-day">1H entry context · current 4H direction</div>' + rows.slice(0, 40).map(row => {
+    return '<div class="al-day">1H entry context · current 1H direction</div>' + rows.slice(0, 40).map(row => {
       const name = row.instrument_name, entry = entries[name][0];
       return `<article class="sp-setup-card"><b>${escText(name)}</b>${setupContextHtml(row)}
         <p>1H ${entry.kind === 'cross' ? 'closed across' : entry.kind === 'rejection' ? 'rejected' : 'touched'} ${escText(entry.reference || 'D' + entry.period)} · ${wlFmtPrice(entry.level)}</p>
-        <small>${alWhen(entry.at)} · matches the current 4H direction</small>
-        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="4H" data-al-at="">4H setup</button>
-        <button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(entry.at)}">1H entry detail ›</button></div></article>`;
+        <small>${alWhen(entry.at)} · matches the current 1H direction</small>
+        <div class="sp-setup-actions"><button class="al-row" data-al-open="${escText(name)}" data-al-tf="1H" data-al-at="${escText(entry.at)}">1H entry detail ›</button></div></article>`;
     }).join('');
   }
 
@@ -2873,17 +2875,17 @@
     const shown = alUi.kind === 'lines' ? [] : ev.filter(keep);
     const lim = AL_PAGE * (1 + alUi.more);
 
-    let h = `<div class="al-head"><h2>Alerts</h2><span>Daily main trend · 4H setups · linked 1H entry detail</span></div>
+    let h = `<div class="al-head"><h2>Alerts</h2><span>Daily main trend · 1H setups and entry detail</span></div>
       <div class="al-chips">
         ${hasLists ? alChipRow('scope', [['mine', 'My lists'], ['all', 'All']], scope) + '<i class="al-sep"></i>' : ''}
-        ${alChipRow('tf', [['all', 'All'], ['4H', '4H setups'], ['D', 'Daily']], alUi.tf)}
+        ${alChipRow('tf', [['all', 'All'], ['1H', '1H setups'], ['D', 'Daily']], alUi.tf)}
       </div>
       <div class="al-chips">${alChipRow('main', [['all', 'Main: All'], ['UPTREND', 'Main ▲'], ['DOWNTREND', 'Main ▼'], ['NEUTRAL', 'Unavailable']], alUi.main)}</div>
-      <div class="al-chips">${alChipRow('relation', [['all', '4H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']], alUi.relation)}</div>
+      <div class="al-chips">${alChipRow('relation', [['all', '1H: All'], ['aligned', 'Aligned'], ['minor', 'Minor trend']], alUi.relation)}</div>
       <div class="al-chips">${alChipRow('kind', [['all', 'Everything'], ['sig', 'Signals & pullbacks'], ['ma', '1H entry context'], ['lines', 'My lines']], alUi.kind)}</div>
       ${clusterFilterHtml('alerts', alUi.cluster)}<div id="alLines" class="al-lines"></div>`;
     if (!alertsData?.workflow_version) {
-      h += `<div class="al-empty">Updated Daily and 4H alerts arrive with the next data run.</div>`;
+      h += `<div class="al-empty">Updated Daily and 1H alerts arrive with the next data run.</div>`;
     } else if (alUi.kind !== 'lines' && alUi.kind !== 'ma') {
       if (!shown.length) {
         h += `<div class="al-empty">No alerts ${scope === 'mine' ? 'on your lists ' : ''}in the last few days${alUi.tf !== 'all' ? ' on ' + AL_TF_LBL[alUi.tf] : ''}.${scope === 'mine' ? ' <button class="al-link" data-al-scope="all">Show all instruments</button>' : ''}</div>`;
@@ -2898,7 +2900,7 @@
           .map(([k, v]) => `<span class="${v > 0 ? 'al-good' : 'al-bad'}">${k} ${wlFmtPct(v)}</span>`).join('');
         h += `<button class="al-row" data-al-open="${escText(name)}" data-al-tf="${tf}" data-al-at="${escText(t)}">
           <span class="al-r1"><b class="al-name">${escText(name)}</b>${lists[name] ? `<i class="al-list">${escText(lists[name])}</i>` : ''}<span class="al-when">${alWhen(t)}</span></span>
-          ${trendContextHtml(allData.find(row => row.instrument_name === name), '4H', true, 'Main now')}
+          ${trendContextHtml(allData.find(row => row.instrument_name === name), '1H', true, 'Main now')}
           <span class="al-r2">${alText(kind, p, dir, tf)} <span class="al-px">at ${wlFmtPrice(px)}</span></span>
           <span class="al-r3">${since != null ? `<span class="${since > 0 ? 'al-good' : 'al-bad'}">since ${wlFmtPct(since)}</span>` : ''}${outs}</span>
         </button>`;
@@ -4211,10 +4213,10 @@
   function trendSentence(item) {
     const c = SPTrendContext.context(item, channelTrend);
     const dir = c.main, head = 'Main trend ' + SPTrendContext.label(dir).toLowerCase();
-    const native = timeframe === '1H' || timeframe === '4H';   // as trendContextHtml
+    const native = timeframe === '1H';   // as trendContextHtml
     const now = !native ? 'Daily close vs Daily MA500' :
-      SPTrendContext.relationText(dir, timeframe === '1H' ? c.h1 : c.h4, timeframe);
-    return {dir, head, now, against: native && (timeframe === '1H' ? c.h1Relation === 'minor' : c.h4Relation === 'minor'),
+      SPTrendContext.relationText(dir, c.h1, timeframe);
+    return {dir, head, now, against: native && c.h1Relation === 'minor',
       glyph: SPTrendContext.glyph(dir), text: head + ' · ' + now};
   }
 
