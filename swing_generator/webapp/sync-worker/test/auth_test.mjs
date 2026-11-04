@@ -108,5 +108,11 @@ await check('notify with browser token → 401', await call('POST', '/push/notif
 KV.set('fail:zabs', '0');
 await check('notify with CI secret → 200', await call('POST', '/push/notify', { secret: 'ci-only-secret' }), 200, { sent: 0 });
 
+console.log('\nPhone alerts paused (PUSH_PAUSED = "1")');
+env.PUSH_PAUSED = '1';
+await check('paused notify without secret → 401', await call('POST', '/push/notify'), 401);
+await check('paused notify sends nothing   → 200', await call('POST', '/push/notify', { secret: 'ci-only-secret' }), 200, { paused: true, sent: 0 });
+delete env.PUSH_PAUSED;
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

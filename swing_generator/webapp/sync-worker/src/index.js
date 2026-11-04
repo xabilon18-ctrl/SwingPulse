@@ -340,6 +340,12 @@ export default {
       if (!secret || secret !== env.SYNC_SECRET) {
         return json({ error: 'Unauthorized' }, 401);
       }
+      // PHONE ALERTS PAUSED (user, 2026-11-04: "Switch off all phone alerts
+      // till we get this right", while the ladder steps are being reworked).
+      // wrangler.toml [vars] PUSH_PAUSED = "1": nothing is checked, stored or
+      // pushed, failed-run pushes included, and the alert state is left as it
+      // was. Set it to "0" (or remove it) and redeploy to switch them back on.
+      if (env.PUSH_PAUSED === '1') return json({ paused: true, alerts: 0, sent: 0 });
       const status = await fetchJson(`${R2_BASE}/status.json?t=${Date.now()}`);
       if (status && status.state === 'failed') {
         return json({ failed: true, ...(await fanOut(env, 'push:')) });
