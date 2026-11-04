@@ -9824,3 +9824,35 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 0.9 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 1.7 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-div { stroke-width: 2.6 !important; }
+
+/* ── Charts: the chart first (2026-11-04) ───────────────────────────────────
+   One header row (search, then the set in view with its count and Show all),
+   and a two-line card header: ticker + full name, then the Daily main trend
+   and the day's move with the chart buttons. */
+.reel-filter-bar { padding: 6px 12px; }
+.reel-head2 { gap: 6px; }
+.reel-head2 .fsearch { min-width: 0; }
+.reel-head2 .reel-simbar { flex: 0 1 auto; min-width: 0; max-width: 58%; margin: 0; height: 38px; padding: 0 4px 0 11px; gap: 6px; }
+.reel-filter-bar .reel-head2 .reel-simbar { margin-top: 0; }
+.reel-simbar-txt { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.reel-simbar-txt b { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.reel-simbar-pre { font-style: normal; flex: none; }
+.reel-simbar-pre:empty { display: none; }
+.reel-simbar-n { flex: none; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.reel-simbar-n:empty { display: none; }
+.reel-simbar-clear { padding: 5px 9px; }
+.reel-simbar-clear[hidden] { display: none; }
+.reel-simbar:has(.reel-simbar-clear[hidden]) { padding-right: 11px; }
+
+.reel-card { padding-top: 8px; }
+.reel-head { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 2px; }
+.reel-head .reel-head-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.reel-head .reel-head-line .reel-fullname { flex: 1 1 auto; min-width: 0; font-size: .74rem; }
+.reel-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.reel-head-trend { display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; }
+.sp-trend-context.reel-trend-mini { margin-top: 0; font-size: .74rem; }
+.reel-head-row .reel-head-meta { gap: 4px; }
+/* The desktop/iPad side panel is narrow: the set bar goes under the search. */
+#desktopChartFilters .reel-head2 { flex-wrap: wrap; }
+#desktopChartFilters .reel-head2 .fsearch { flex: 1 1 100%; }
+#desktopChartFilters .reel-head2 .reel-simbar { flex: 1 1 100%; max-width: 100%; height: 34px; }

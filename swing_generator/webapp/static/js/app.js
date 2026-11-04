@@ -1240,7 +1240,10 @@
     try { const v = JSON.parse(localStorage.getItem(sk(WL_KEY)) || 'null'); wlStore = v && Array.isArray(v.lists) ? v : { lists: [], mod: 0 }; }
     catch (_) { wlStore = { lists: [], mod: 0 }; }
   }
-  const wlUi = { cluster: 'all', list: 'all', cls: 'all', sector: '', industry: '', q: '', sort: 'group', trend: 'all', ttf: 'D', mode: 'lists' };
+  // grp/scope/stack/near/nearWithin came over from the Charts tab with its
+  // filters (2026-11-04): Class groups, Signals, MA order and Near MA.
+  const wlUi = { cluster: 'all', list: 'all', cls: 'all', grp: '', sector: '', industry: '', q: '', sort: 'group', trend: 'all', ttf: 'D', mode: 'lists',
+                 scope: 'all', stack: 'all', near: 'all', nearWithin: 0.5 };
   let wlEdit = false;   // list edit mode — never persisted
   try { Object.assign(wlUi, JSON.parse(localStorage.getItem('swingpulse-wl-ui') || '{}')); } catch (_) {}
   if (wlUi.ttf === '30m') wlUi.ttf = '1H';
@@ -1264,7 +1267,8 @@
   // not from an old list"). Opening another list switches every filter off;
   // Sort and search stay. The one exception is "Search all markets" on an
   // empty result, which asks for the same filters in All markets (keep).
-  const WL_LIST_FILTERS = { cls: 'all', sector: '', industry: '', trend: 'all', relation: 'all', cluster: 'all' };
+  const WL_LIST_FILTERS = { cls: 'all', grp: '', sector: '', industry: '', trend: 'all', relation: 'all', cluster: 'all',
+                            scope: 'all', stack: 'all', near: 'all' };
   function wlSetList(id, keep = false) {
     if (id !== wlUi.list && !keep) Object.assign(wlUi, WL_LIST_FILTERS);
     wlUi.list = id; wlEdit = false; wlSaveUi();
@@ -1283,10 +1287,32 @@
                       ['Currency', 'Forex'], ['CcyIndex', 'Ccy Index'], ['Commodity', 'Commodities'], ['Crypto', 'Crypto']];
   const WL_CLASS_COL = { Index: '#3b6fd8', Equity: '#6b5bd6', Currency: '#1f9d8b',
                          Commodity: '#c98a12', Crypto: '#d4602c' };
-  const WL_SORTS = [['group', 'By group'], ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
+  // Signals first / Newest signal were the Charts tab's own sorts until it
+  // lost its filters (2026-11-04); the reel now follows this order.
+  const WL_SORTS = [['group', 'By group'], ['signal', 'Signals first'], ['recent', 'Newest signal'],
+                    ['up', 'Top gainers'], ['down', 'Top losers'], ['name', 'A–Z']];
   const WL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
   const WL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned with main trend'], ['minor', 'Minor trend against main']];
-  const WL_FILTER_DEFAULTS = { cls: 'all', sector: '', industry: '', sort: 'group', move: '1d', trend: 'all', relation: 'all', cluster: 'all' };
+  const WL_FILTER_DEFAULTS = { ...WL_LIST_FILTERS, sort: 'group', move: '1d' };
+  // FROM THE CHARTS TAB (2026-11-04, user: "move the ones that do not show on
+  // the watch list"): the Class groups the Watchlist lacked, the Show scopes
+  // (as Signals), and MA order + Near MA (beside Clusters, in MA). Same
+  // meanings as on Charts: a group is a matchesSearch() word, as reel.cat was.
+  const WL_GROUPS = [['us100', 'US100'], ['us500', 'US500'], ['banks', 'Banks'], ['energy', 'Energy'],
+                     ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
+  const WL_SCOPES = [['all', 'Everything'], ['views', 'My Buy / Sell markers'], ['views-buy', 'My Buy markers'],
+    ['views-sell', 'My Sell markers'], ['today', 'Fired today'], ['signal', 'Any open signal'], ['buy', 'Buys only'],
+    ['sell', 'Sells only'], ['watch', 'Minor 4H swings'], ['m15sig', '4H B1 / S1 · 2 sessions'],
+    ['dxpre', '1H touched a Daily MA'], ['dxafter', '1H crossed a Daily MA']];
+  const WL_SCOPE_SHORT = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
+                           today: 'Today', signal: 'Signals', buy: 'Buys', sell: 'Sells',
+                           watch: 'Minor 4H', m15sig: '4H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
+  const WL_STACKS = [['all', 'Any'], ['bull', 'Bull 50›250›500'], ['bear', 'Bear 500›250›50'], ['mixed', 'Mixed'],
+    ['near', 'Near cross'], ['fresh', 'Just flipped']];
+  const WL_STACK_SHORT = { bull: 'MA bull', bear: 'MA bear', mixed: 'MA mixed', near: 'MA near cross', fresh: 'MA flipped' };
+  const WL_NEARS = [['all', 'Any'], ['D', 'Daily MA'], ['W', 'Weekly MA'], ['M', 'Monthly MA'], ['any', 'D, W or M']];
+  // Scopes and Near MA that read the chart index (built for the Charts reel).
+  const WL_EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
 
   // ONE ROW, FIVE VIEWS (user, 2026-10-29: "remove class, sector, trend,
   // clusters and put them in a dropdown menu with all markets"). The
@@ -1294,7 +1320,7 @@
   // (All markets and the reader's own) or one filter's choices, scrolling
   // sideways. A filter set in another view still applies, so the menu names
   // each one's value and the dropdown counts how many are set.
-  const WL_MODES = [['lists', 'Lists'], ['cls', 'Class'], ['sector', 'Sector'], ['trend', 'Trend'], ['cluster', 'Clusters']];
+  const WL_MODES = [['lists', 'Lists'], ['cls', 'Class'], ['sector', 'Sector'], ['trend', 'Trend'], ['scope', 'Signals'], ['cluster', 'MA']];
   if (!WL_MODES.some(([k]) => k === wlUi.mode)) wlUi.mode = 'lists';
 
   // What each view's filter is set to ('' when it is not), for the menu.
@@ -1305,17 +1331,24 @@
       trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[wlUi.trend] || wlUi.trend);
     if (wlUi.relation && wlUi.relation !== 'all') trend.push(wlUi.relation === 'aligned' ? '4H aligned' : '4H minor');
     const cur = wlStore.lists.find(l => l.id === wlUi.list);
+    const cls = [], ma = [];
+    if (wlUi.cls && wlUi.cls !== 'all') cls.push(pick(WL_CLASSES, wlUi.cls));
+    if (wlUi.grp) cls.push(pick(WL_GROUPS, wlUi.grp));
+    if (wlUi.cluster && wlUi.cluster !== 'all') ma.push(CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster);
+    if (wlUi.stack && wlUi.stack !== 'all') ma.push(WL_STACK_SHORT[wlUi.stack] || wlUi.stack);
+    if (wlUi.near && wlUi.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[wlUi.near] || wlUi.near) + ' MA');
     return {
       lists: cur ? cur.name : 'All markets',
-      cls: wlUi.cls && wlUi.cls !== 'all' ? pick(WL_CLASSES, wlUi.cls) : '',
+      cls: cls.join(' · '),
       sector: sectorDropValue(wlUi.sector, wlUi.industry).join(''),
       trend: trend.join(' · '),
-      cluster: wlUi.cluster && wlUi.cluster !== 'all' ? CLUSTER_SHORT[wlUi.cluster] || wlUi.cluster : '',
+      scope: wlUi.scope && wlUi.scope !== 'all' ? WL_SCOPE_SHORT[wlUi.scope] || wlUi.scope : '',
+      cluster: ma.join(' · '),
     };
   }
   function wlSortValue() {
     const mv = { up: 'Gainers ', down: 'Losers ' }[wlUi.sort];
-    return wlUi.sort && wlUi.sort !== 'group' ? [mv ? mv + moveLbl(wlUi.move) : { name: 'A–Z' }[wlUi.sort] || wlUi.sort] : [];
+    return wlUi.sort && wlUi.sort !== 'group' ? [mv ? mv + moveLbl(wlUi.move) : { name: 'A–Z', signal: 'Signals', recent: 'Newest' }[wlUi.sort] || wlUi.sort] : [];
   }
 
   // The row's chips for the current view. data-wl-step marks the ones a
@@ -1326,8 +1359,14 @@
     return wlRowChips(pill, sep, wlUi.mode === 'lists' ? lists : null);
   }
   function wlRowChips(pill, sep, lists) {
+    // COUNTS ON EVERY CHIP (user, 2026-11-04: "a number next to it to show how
+    // many instruments are in a list"): how many the list in view would show
+    // with that chip picked and every other filter as it is.
+    const n = patch => { const c = wlCountWith(patch); return c == null ? '' : ` <span class="wl2-n">${c}</span>`; };
     if (wlUi.mode === 'cls')
-      return WL_CLASSES.map(([k, l]) => pill(wlUi.cls === k, `data-wl-cls="${k}" data-wl-step`, l)).join('');
+      return WL_CLASSES.map(([k, l]) => pill(wlUi.cls === k && (k !== 'all' || !wlUi.grp), `data-wl-cls="${k}" data-wl-step`,
+          l + n(k === 'all' ? { cls: 'all', grp: '' } : { cls: k }))).join('')
+        + sep('Groups') + WL_GROUPS.map(([k, l]) => pill(wlUi.grp === k, `data-wl-grp="${k}"`, l + n({ grp: k }))).join('');
     if (wlUi.mode === 'sector') {
       // A picked sector opens its industries right after it, in the row.
       const { sectors, industries } = sectorLists(wlUi.sector);
@@ -1337,15 +1376,20 @@
             + industries.map(([v, m]) => pill(v === wlUi.industry, `data-wl-industry="${escText(v)}"`, `${escText(v)} <span class="wl2-n">${m}</span>`, ' wl2-sub')).join('') : '')).join('');
     }
     if (wlUi.mode === 'trend')
-      return sep('Daily') + WL_TRENDS.map(([k, l]) => pill(wlUi.trend === k, `data-wl-trend="${k}" data-wl-step`, l)).join('')
-        + sep('4H') + WL_RELATIONS.map(([k, l]) => pill((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, { all: 'Any', aligned: 'Aligned', minor: 'Minor against' }[k] || l)).join('');
+      return sep('Daily') + WL_TRENDS.map(([k, l]) => pill(wlUi.trend === k, `data-wl-trend="${k}" data-wl-step`, l + n({ trend: k }))).join('')
+        + sep('4H') + WL_RELATIONS.map(([k, l]) => pill((wlUi.relation || 'all') === k, `data-wl-relation="${k}"`, ({ all: 'Any', aligned: 'Aligned', minor: 'Minor against' }[k] || l) + n({ relation: k }))).join('');
+    if (wlUi.mode === 'scope')
+      return WL_SCOPES.map(([k, l]) => pill((wlUi.scope || 'all') === k, `data-wl-scope="${k}" data-wl-step`, l + n({ scope: k }))).join('');
     if (wlUi.mode === 'cluster')
-      return `<span class="wl2-cscope" data-cluster-scope="watchlist">`
-        + CLUSTER_OPTIONS.map(([k, l]) => pill(wlUi.cluster === k, `data-cluster-mode="${k}" data-wl-step`, k === 'all' ? 'Any' : l)).join('')
+      return sep('Clusters') + `<span class="wl2-cscope" data-cluster-scope="watchlist">`
+        + CLUSTER_OPTIONS.map(([k, l]) => pill(wlUi.cluster === k, `data-cluster-mode="${k}" data-wl-step`, (k === 'all' ? 'Any' : l) + n({ cluster: k }))).join('')
         + sep('Width') + [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => pill(clusterWidth === v, `data-cluster-width="${v}"`, l)).join('')
-        + '</span>';
+        + '</span>'
+        + sep('Order D') + WL_STACKS.map(([k, l]) => pill((wlUi.stack || 'all') === k, `data-wl-stack="${k}"`, l + n({ stack: k }))).join('')
+        + sep('Near MA') + WL_NEARS.map(([k, l]) => pill((wlUi.near || 'all') === k, `data-wl-near="${k}"`, l + n({ near: k }))).join('')
+        + sep('Within') + [[0.5, '½ day'], [1, '1 day']].map(([v, l]) => pill(+wlUi.nearWithin === v, `data-wl-within="${v}"`, l)).join('');
     if (!lists) return '';
-    return [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all" data-wl-step>All markets</button>`]
+    return [`<button class="wl2-pill${wlUi.list === 'all' ? ' on' : ''}" data-wl-list="all" data-wl-step>All markets <span class="wl2-n">${wlAllCount()}</span></button>`]
       .concat(lists.map(l => `<button class="wl2-pill${wlUi.list === l.id ? ' on' : ''}" data-wl-list="${escText(l.id)}" data-wl-step>${escText(l.name)} <span class="wl2-n">${wlCount(l)}</span></button>`))
       .concat(wlUi.list !== 'all' ? [wlEdit
         ? `<button class="wl2-pill wl2-done" data-wl-edit>Done</button>`
@@ -1473,6 +1517,11 @@
     const q = quotesData && quotesData.q && quotesData.q[name] || {};
     return { assetClass: d.asset_class || '', symbol: q.yc || q.y || d.ticker || '' };
   }
+  // The count of what the list shows, then the quotes' age.
+  function wlAsOfLine() {
+    const n = wlShown.length;
+    return (wlShownPending ? '' : `${n} instrument${n === 1 ? '' : 's'} · `) + wlAsOfText();
+  }
   function wlAsOfText() {
     const data = freshness.dataset(summaryData.fetched_at, false);
     const checked = wlLiveAt ? 'Quotes checked ' + freshness.time(wlLiveAt) : 'Quotes load with published data';
@@ -1513,7 +1562,7 @@
       if (me) me.outerHTML = wlMoveTag(allData.find(d => d.instrument_name === n), wlUi.move);
     }));
     const a = document.getElementById('wl2AsOf');
-    if (a) a.textContent = wlAsOfText();
+    if (a) a.textContent = wlAsOfLine();
     refreshFreshnessLabels();
   }
 
@@ -1778,10 +1827,109 @@
     const known = new Set(allData.map(d => d.instrument_name));
     const names = ((s && s.order) || []).filter(n => known.has(n));
     if (!names.length) return;
+    reelHoldSet();
     navigateToTab('charts');
     setTimeframe(tf);
     openChartFor(names[0], { label: `${sector} · ${(ACT_TFS.find(([k]) => k === tf) || [, tf])[1]}`, names, kind: 'active' });
   }
+
+  // ── WATCHLIST FILTERS, ONE PIPELINE (2026-11-04) ─────────────────────────
+  // The rows a list would show under a filter state `st` (wlUi, or wlUi with
+  // one chip changed, for the chip counts). Returns { rows, ranked } — ranked
+  // when the filter put its matches in its own order — or { rows: null } while
+  // the chart index those filters read is still loading.
+  function wlBaseRows(cur) {
+    if (cur) { const set = new Set(cur.items); return allData.filter(d => set.has(d.instrument_name)); }
+    // All markets lists an instrument under each extra group too (USDX under
+    // Currency Index as well as US Index); a list holds it once.
+    return allData.flatMap(d => [d, ...(ALSO_IN_GROUP[d.instrument_name] || []).map(g => ({ ...d, group: g }))]);
+  }
+  // `reel` is declared further down this file and the Watchlist renders once
+  // before it exists (the opening tab switch): read it defensively.
+  function wlChartIndex() { try { return reel.index; } catch (_) { return null; } }
+  function wlLoadIndex() { try { return reelLoadIndex(); } catch (_) { return Promise.resolve(null); } }
+  function wlApplyFilters(rows, st, cur) {
+    // 'CcyIndex' is a browse group (the 8 currency indices), not an asset class —
+    // they score as Index, so they also appear under Indices.
+    if (st.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index' || (cur && alsoInGroup(d, 'Currency Index')));
+    else if (st.cls && st.cls !== 'all') rows = rows.filter(d => d.asset_class === st.cls);
+    if (st.grp) rows = rows.filter(d => matchesSearch(d, st.grp));
+    if (st.sector) rows = rows.filter(d => sectorMatches(d, st.sector, st.industry));
+    if (st.trend && st.trend !== 'all')
+      rows = rows.filter(d => mainTrendOf(d) === st.trend);
+    if (st.relation && st.relation !== 'all')
+      rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:st.relation}));
+    rows = rows.filter(row => clusterMatches(row, st.cluster));
+    const q = (st.q || '').trim().toLowerCase();
+    if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
+      || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
+      || String(d.group || '').toLowerCase().includes(q));
+    // Same predicate the Signals sheet uses, so "near cross" cannot come to
+    // mean two different things on two tabs.
+    if (st.stack && st.stack !== 'all') rows = withSignalTf(() => rows.filter(d => matchesStackFilter(d, st.stack)));
+    let ranked = false;
+    const scope = st.scope || 'all', near = st.near || 'all';
+    if (near !== 'all' || WL_EV_KEY[scope]) {
+      const idx = wlChartIndex();
+      if (!idx) return { rows: null };
+      if (near !== 'all') {
+        // Nearest first, whatever the Sort says: the point of the filter is
+        // the one sitting on the line.
+        const hit = new Map();
+        rows = rows.filter(d => { const h = reelNearHit(d.instrument_name, st); if (h) hit.set(d.instrument_name, Math.abs(h.atr)); return !!h; });
+        rows.sort((a, b) => hit.get(a.instrument_name) - hit.get(b.instrument_name));
+        ranked = true;
+      }
+      if (WL_EV_KEY[scope]) {
+        // 4H B1/S1 or a 1H mark at a Daily MA on the last two trading dates,
+        // from the chart index (`events_by_tf`, the marks the chart draws).
+        const ev = idx.events_by_tf && idx.events_by_tf[scope === 'm15sig' ? '4H' : '1H'];
+        const k = WL_EV_KEY[scope];
+        rows = ev ? rows.filter(d => ev[d.instrument_name] && ev[d.instrument_name][k]) : [];
+        if (!ranked) rows.sort((a, b) => String(ev[b.instrument_name][k].slice(-1)[0]).localeCompare(String(ev[a.instrument_name][k].slice(-1)[0])));
+        ranked = true;
+      }
+    }
+    // MY BUY / SELL MARKERS: every instrument carrying a Buy or Sell view
+    // marker on any timeframe, the most recently placed first.
+    if (scope === 'views' || scope === 'views-buy' || scope === 'views-sell') {
+      const want = scope === 'views' ? null : scope.slice(6);
+      const latest = name => {
+        let best = '';
+        for (const list of Object.values(instChannels[name] || {}))
+          for (const d of Array.isArray(list) ? list : [])
+            if (d && d.side && (!want || d.side === want)) {
+              const k = String(d.made || d.t || '');
+              if (k > best || !best) best = k || '0';
+            }
+        return best;
+      };
+      const keyed = rows.map(d => [d, latest(d.instrument_name)]).filter(([, k]) => k);
+      if (!ranked) keyed.sort((a, b) => b[1].localeCompare(a[1]));
+      rows = keyed.map(([d]) => d);
+      ranked = true;
+    }
+    // Signal scopes read the signal timeframe.
+    if (['today', 'signal', 'buy', 'sell', 'watch'].includes(scope)) rows = withSignalTf(() => {
+      switch (scope) {
+        case 'today':  return rows.filter(firedOnLatestBar);
+        case 'signal': return rows.filter(d => !!d[f('primary_signal')]);
+        case 'buy':    return rows.filter(isBuy);
+        case 'sell':   return rows.filter(isSell);
+        default:       return rows.filter(d => SPTrendContext.context(d, channelTrend).h4Relation === 'minor');
+      }
+    });
+    return { rows, ranked };
+  }
+  // Chip counts: the list in view under wlUi with `patch` applied. null when
+  // that needs the chart index and it has not loaded (no number, not a 0).
+  let wlCountBase = null;
+  function wlCountWith(patch) {
+    if (!wlCountBase) return null;
+    const r = wlApplyFilters(wlCountBase.rows, { ...wlUi, ...patch }, wlCountBase.cur).rows;
+    return r ? new Set(r.map(d => d.instrument_name)).size : null;
+  }
+  function wlAllCount() { return new Set(allData.map(d => d.instrument_name)).size; }
 
   function renderWatchlist() {
     const body = document.getElementById('wl2Body');
@@ -1793,7 +1941,9 @@
     const lists = wlStore.lists;
     if (wlUi.list !== 'all' && !lists.some(l => l.id === wlUi.list)) wlSetList('all');
     const rowEl = document.getElementById('wl2Lists');
+    { const c = lists.find(l => l.id === wlUi.list); wlCountBase = { cur: c, rows: wlBaseRows(c) }; }
     rowEl.innerHTML = wlRowHtml(lists);
+    wlCountBase = null;
     // A filter view searches the list that is open. When that is one of the
     // reader's lists, a chip beside the dropdown says so and a tap goes back
     // to All markets (2026-10-29: Sector read "Nothing matches" with "Mine"
@@ -1882,26 +2032,17 @@
     }
 
     // Rows.
-    let rows = allData.slice();
-    if (cur) { const set = new Set(cur.items); rows = rows.filter(d => set.has(d.instrument_name)); }
-    // All markets lists an instrument under each extra group too (USDX under
-    // Currency Index as well as US Index); a list holds it once.
-    else rows = rows.flatMap(d => [d, ...(ALSO_IN_GROUP[d.instrument_name] || []).map(g => ({ ...d, group: g }))]);
-    // 'CcyIndex' is a browse group (the 8 currency indices), not an asset class —
-    // they score as Index, so they also appear under Indices.
-    if (wlUi.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index' || (cur && alsoInGroup(d, 'Currency Index')));
-    else if (wlUi.cls !== 'all') rows = rows.filter(d => d.asset_class === wlUi.cls);
-    if (wlUi.sector) rows = rows.filter(d => sectorMatches(d, wlUi.sector, wlUi.industry));
-    if (wlUi.trend && wlUi.trend !== 'all')
-      rows = rows.filter(d => mainTrendOf(d) === wlUi.trend);
-    if (wlUi.relation && wlUi.relation !== 'all')
-      rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:wlUi.relation}));
-    rows = rows.filter(row => clusterMatches(row, wlUi.cluster));
-    const q = wlUi.q.trim().toLowerCase();
-    if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
-      || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
-      || String(d.group || '').toLowerCase().includes(q));
-    // Every period is live: the latest price against its reference close.
+    const filt = wlApplyFilters(wlBaseRows(cur), wlUi, cur);
+    if (!filt.rows) {
+      // Near MA and the intraday Signals read the chart index: load it once,
+      // then draw. Nothing is shown meanwhile, so the reel cannot take a stale set.
+      body.innerHTML = `<div class="wl2-empty">Loading…</div>`;
+      wlShown = []; wlShownPending = true;
+      wlLoadIndex().then(() => { if (currentTab === 'watchlist') renderWatchlist(); });
+      return;
+    }
+    wlShownPending = false;
+    let rows = filt.rows;
     const move = wlUi.move || '1d';
     const pctOf = d => liveMovePct(d, move);
     const byMove = wlUi.sort === 'up' || wlUi.sort === 'down';
@@ -1911,7 +2052,11 @@
     // inside each. By group is each section's own order (A-Z in All markets,
     // the list's order in a list). It used to flatten everything into one run.
     let sections;
-    if (cur) {
+    // A Signals scope or Near MA that ranks its own matches (newest marker,
+    // newest intraday event, nearest MA) keeps that order under By group.
+    if (filt.ranked && wlUi.sort === 'group') {
+      sections = [{ title: null, rows }];
+    } else if (cur) {
       const byName = Object.fromEntries(rows.map(d => [d.instrument_name, d]));
       sections = [{ title: null, rows: [] }];
       cur.items.forEach(n => {
@@ -1936,6 +2081,7 @@
     sections.forEach(sec => {
       if (byMove) sortByMove(sec.rows, wlUi.sort, pctOf);
       else if (wlUi.sort === 'name') sec.rows.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
+      else if (wlUi.sort === 'signal' || wlUi.sort === 'recent') sortBySignal(sec.rows, wlUi.sort);
     });
     rows = sections.flatMap(sec => sec.rows);   // the screen's order, for the Charts reel
 
@@ -1967,19 +2113,32 @@
     }
     body.innerHTML = html;
     wlShown = [...new Set(rows.map(d => d.instrument_name))];
+    if (asOf) asOf.textContent = wlAsOfLine();
     if (livePrices.running) { clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 300); }
   }
 
   // The rows the Watchlist is showing, in its order — what the Charts reel
   // steps through when a chart is opened from here.
-  let wlShown = [];
+  let wlShown = [], wlShownPending = false;
   // Details opened from the Watchlist: its Chart button keeps the list too.
   let wlModalFrom = null;
+  // Its label names the list and every filter set, as the Watchlist does.
   function wlShownSet() {
+    const v = wlModeValues();
+    const q = (wlUi.q || '').trim();
+    const parts = [v.cls, v.sector, v.trend, v.scope, v.cluster, q ? `“${q}”` : ''].filter(Boolean);
+    // "All markets" is only named when nothing narrows it.
+    const label = (wlUi.list !== 'all' || !parts.length ? [v.lists, ...parts] : parts).join(' · ');
+    // full: every instrument, nothing filtered (Show all would change nothing).
+    const full = wlUi.list === 'all' && !parts.length;
+    return { label, names: wlShown.slice(), kind: 'wl', full, move: wlUi.sort === 'up' || wlUi.sort === 'down' ? wlUi.move || '1d' : '' };
+  }
+  // The Watchlist's view, for the Charts tab to tell when it has changed: the
+  // list (and what it holds), every filter, search and sort.
+  function wlViewSig() {
     const cur = wlStore.lists.find(l => l.id === wlUi.list);
-    const cls = WL_CLASSES.find(c => c[0] === wlUi.cls);
-    const label = (cur ? cur.name : 'All markets') + (wlUi.cls !== 'all' && cls ? ' · ' + cls[1] : '');
-    return { label, names: wlShown.slice() };
+    return JSON.stringify([wlUi.list, cur ? cur.items : null, wlUi.cls, wlUi.grp, wlUi.sector, wlUi.industry, wlUi.trend,
+      wlUi.relation, wlUi.cluster, clusterWidth, wlUi.scope, wlUi.stack, wlUi.near, wlUi.nearWithin, (wlUi.q || '').trim(), wlUi.sort, wlUi.move]);
   }
 
   // Action sheet for one row.
@@ -2161,7 +2320,18 @@
       const lp = t.closest('[data-wl-list]');
       if (lp) { wlSetList(lp.dataset.wlList, lp.hasAttribute('data-wl-keep')); return renderWatchlist(); }
       const cp = t.closest('[data-wl-cls]');
-      if (cp) { wlUi.cls = cp.dataset.wlCls; wlSaveUi(); return renderWatchlist(); }
+      if (cp) { wlUi.cls = cp.dataset.wlCls; if (wlUi.cls === 'all') wlUi.grp = ''; wlSaveUi(); return renderWatchlist(); }
+      // A group narrows within the class; tapping the picked one clears it.
+      const gp = t.closest('[data-wl-grp]');
+      if (gp) { wlUi.grp = gp.dataset.wlGrp === wlUi.grp ? '' : gp.dataset.wlGrp; wlSaveUi(); return renderWatchlist(); }
+      const scp = t.closest('[data-wl-scope]');
+      if (scp) { wlUi.scope = scp.dataset.wlScope; wlSaveUi(); return renderWatchlist(); }
+      const stp = t.closest('[data-wl-stack]');
+      if (stp) { wlUi.stack = stp.dataset.wlStack; wlSaveUi(); return renderWatchlist(); }
+      const nrp = t.closest('[data-wl-near]');
+      if (nrp) { wlUi.near = nrp.dataset.wlNear; wlSaveUi(); return renderWatchlist(); }
+      const wip = t.closest('[data-wl-within]');
+      if (wip) { wlUi.nearWithin = +wip.dataset.wlWithin; wlSaveUi(); return renderWatchlist(); }
       // Tapping the picked sector again closes it back to All.
       const sec = t.closest('[data-wl-sector]');
       if (sec) { const v = sec.dataset.wlSector; wlUi.sector = v === wlUi.sector ? '' : v; wlUi.industry = ''; wlSaveUi(); return renderWatchlist(); }
@@ -2573,7 +2743,6 @@
       if (width) { clusterWidth=Number(width.dataset.clusterWidth); try { localStorage.setItem('swingpulse-cluster-width',String(clusterWidth)); } catch (_) {} }
       if (mode) {
         if (scope==='watchlist') { wlUi.cluster=mode.dataset.clusterMode; wlSaveUi(); }
-        if (scope==='charts') reel.cluster=mode.dataset.clusterMode;
         if (scope==='alerts') { alUi.cluster=mode.dataset.clusterMode; alSaveUi(); }
         if (scope==='market') { mkUi.cluster=mode.dataset.clusterMode; try { localStorage.setItem('swingpulse-mk-ui',JSON.stringify(mkUi)); } catch (_) {} }
       }
@@ -3361,6 +3530,7 @@
     const paneEl = document.getElementById('pane-' + tab);
     if (!paneEl) { console.warn('No pane for tab:', tab); return; }
     paneEl.classList.add('active');
+    const prevTab = currentTab;
     currentTab = tab;
     syncTfLock();
     // Each tab shows its own timeframe (TAB_TFS): Charts restores the one last
@@ -3383,8 +3553,27 @@
     catch (_) { document.scrollingElement.scrollTop = 0; }
     // Lazy-render heavy tabs on first visit (or after data refresh)
     if (tab === 'trends') renderTrendsLazy();
-    if (tab === 'watchlist') { renderWatchlist(); wlLiveStart(); } else wlLiveStop();
-    if (tab === 'charts') { renderChartsLazy(); desktopChartSchedule(); if (backToCharts) reelRepaintVisible(); }
+    if (tab === 'watchlist') {
+      const fromCharts = prevTab === 'charts';
+      renderWatchlist(); wlLiveStart();
+      // Back from Charts: the same list and filters (never touched from
+      // there), scrolled to the chart you were last looking at when the list
+      // holds it (user, 2026-11-04: "when I go back, it goes back to that
+      // sector that I'm currently working on").
+      const row = fromCharts && reelLastSeen && document.querySelector(`#wl2Body [data-wl-row="${CSS.escape(reelLastSeen)}"]`);
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+    } else wlLiveStop();
+    if (tab === 'charts') {
+      // The reel takes the Watchlist's view when that has changed since it
+      // last did (reelFollowWatchlist), starting from its first chart.
+      if (reelFollowWatchlist()) {
+        tabDirty.charts = true;
+        renderChartsLazy();
+        const el = document.getElementById('chartReel'); if (el) el.scrollTop = 0;
+        reelSyncNav();
+      } else renderChartsLazy();
+      desktopChartSchedule(); if (backToCharts) reelRepaintVisible();
+    }
     if (tab === 'scanner') renderAlerts();
     if (tab === 'dashboard') renderMarketToday();
   }
@@ -5372,6 +5561,7 @@
     if (inp) inp.value = label || search || cls || '';
     if (clr) clr.style.display = inp && inp.value ? '' : 'none';
     reelResetPan?.();
+    reelHoldSet();
     navigateToTab('charts');
     buildReel();
   }
@@ -7978,20 +8168,13 @@
   const REEL_BARS_FALLBACK = 140;
 
   const reel = {
-    scope:  'all',
-    cat:    '',
-    sector: '',              // stock sector, and an industry inside it (sectorMenuHtml)
-    industry: '',
+    // The Charts filters moved to the Watchlist (2026-11-04). Left: what a
+    // Market tap sets (gp, cls, trend), the search, and the set in view.
+    gp:     null,
+    cls:    '',
     trend:  'all',
-    relation: 'all',
-    cluster: 'all',
-    stack:  'all',
-    near:   'all',      // Near MA filter: 'all' | 'D' | 'W' | 'M' | 'any'
-    nearWithin: 0.5,    // in 14-day ATRs (a day's range)
     similarTo: '',          // instrument whose lookalikes the reel is showing
-    listSet: null,          // {label, names} — the watchlist the chart was opened from
-    sort:   'signal',
-    movePeriod: '1d',        // period the gainers/losers sort reads
+    listSet: null,          // {label, names, kind, move} — the watchlist view (or Active / Market set) in the reel
     search: '',
     // Chart range, PER TIMEFRAME (2026-10-28, user: "the tab must apply only
     // in monthly if i tab it or weekly if i do weekly"): timeframe → trailing
@@ -12315,22 +12498,31 @@
     return trendContextHtml(item, timeframe) + clusterBadgeHtml(item);
   }
 
+  // The Daily main trend, its word alone ("Main ▲ Up") — the card's header
+  // line; the full-screen view keeps the whole sentence (reelTrendlineHtml).
+  function reelTrendMini(item) {
+    const c = SPTrendContext.context(item, channelTrend);
+    const color = c.main === 'UPTREND' ? 'up' : c.main === 'DOWNTREND' ? 'down' : 'flat';
+    return `<span class="sp-trend-context reel-trend-mini" data-main-trend="${c.main}" title="Daily main trend as of ${escText(c.asOf || 'unavailable')}"><b class="${color}">Main ${SPTrendContext.glyph(c.main)} ${SPTrendContext.label(c.main)}</b></span>`;
+  }
+
+  // THE CARD HEADER IS TWO LINES (user, 2026-11-04: "the instrument name is
+  // important, and what the full name is ... whether it's up or down ... the
+  // rest can be removed so that we can make the small minimized view of the
+  // chart a little bit bigger"): the ticker and its full name, then the Daily
+  // main trend and the day's move with the chart buttons beside them. Gone
+  // from the card: group, trend detail sentence, MA cluster badge, signal
+  // badge, "% alike", Near-MA badge and the bar/data time line. The
+  // full-screen view still carries all of it.
   function reelCardHtml(item, i) {
     const name  = item.instrument_name;
-    // On a chart view (1H/4H/3D) the signal shown is the signal timeframe's and
-    // is labelled with it, so a Daily B3 is never read as a 4H one.
-    const onSigTf = SIGNAL_TFS.has(timeframe);
-    const sig   = withSignalTf(() => item[f('primary_signal')] || '');
-    const conf  = onSigTf ? '' : TF_BY_CODE[tfPrefs.signals].label;   // no confidence tier (2026-09-11)
-    // Sorted by gainers/losers, the card shows the LIVE move it was sorted on
-    // (labelled when longer than a day), so the order matches the number.
-    const byMove = reel.sort === 'up' || reel.sort === 'down';
-    const mvPer = byMove ? reel.movePeriod || '1d' : '1d';
-    const mvRaw = byMove ? liveMovePct(item, mvPer) : parseFloat(item.pct_1d);
+    // Opened from a Watchlist sorted by gainers/losers over a longer period,
+    // the card shows that LIVE move (labelled), so the order matches the number.
+    const mvPer = (reel.listSet && reel.listSet.move) || '1d';
+    const mvRaw = mvPer !== '1d' ? liveMovePct(item, mvPer) : parseFloat(item.pct_1d);
     const mv    = mvRaw == null ? NaN : mvRaw;
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%' + (mvPer !== '1d' ? ' ' + moveLbl(mvPer) : '');
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
-    const sigCls = !sig ? '' : sig.toUpperCase().startsWith('B') ? 'buy' : 'sell';
 
     const _chNow = activeChannel(name);
     // Draw mode belongs to the CHART, not to one drawing: a locked selection no
@@ -12338,29 +12530,26 @@
     const _chEditing = reel.editing === name;
     return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
       <header class="reel-head">
-        <div class="reel-head-main">
-          <div class="reel-head-line">
-            <span class="reel-name">${name}</span>
-            <span class="reel-group">${item.group || ''}</span>
-          </div>
+        <div class="reel-head-line">
+          <span class="reel-name">${name}</span>
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
-          ${reelTrendlineHtml(item)}
         </div>
-        <div class="reel-head-meta">
-          ${simPct(name)}
-          ${sig ? `<span class="reel-sig ${sigCls}">${sig}${conf ? `<i>${conf}</i>` : ''}</span>` : ''}
-          ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
-          ${(() => { const h = reelNearHit(name); return h ? `<span class="reel-near" title="${Math.abs(h.atr)} of a day's range ${h.atr >= 0 ? 'above' : 'below'} the ${h.key}">${h.key} ${h.pct >= 0 ? '+' : ''}${h.pct.toFixed(2)}%</span>` : ''; })()}
-          ${chartBackBtnHtml()}
-          ${viewMarkBtns(name)}
-          ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
-          ${gridBtnHtml(name)}
-          <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
-          <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
+        <div class="reel-head-row">
+          <div class="reel-head-trend">
+            ${reelTrendMini(item)}
+            ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
+          </div>
+          <div class="reel-head-meta">
+            ${chartBackBtnHtml()}
+            ${viewMarkBtns(name)}
+            ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
+            ${gridBtnHtml(name)}
+            <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
+            <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
+          </div>
         </div>
       </header>
 
-      ${chartFreshnessHtml(name)}
       <div class="reel-chart" id="reelChart-${i}">
         <div class="reel-skel"><span></span></div>
       </div>
@@ -12380,6 +12569,17 @@
 
   function reelFiltered() {
     const rowsAll = getActiveData();
+    // The search finds inside the set in view; when nothing there matches it
+    // looks through every instrument instead (reel.searchAll), so a name
+    // typed here always finds its chart.
+    reel.searchAll = false;
+    const inSet = out => {
+      if (!reel.search) return out;
+      const hit = out.filter(d => matchesSearch(d, reel.search));
+      if (hit.length) return hit;
+      reel.searchAll = true;
+      return sortBySignal(rowsAll.filter(d => matchesSearch(d, reel.search)), 'signal');
+    };
     // "Charts like X" REPLACES the list rather than narrowing it: it is an
     // explicit set in similarity order, so the pills, the search and the sort
     // are deliberately bypassed. Anchor first, then descending similarity —
@@ -12393,139 +12593,61 @@
         const d = by.get(n.name);
         if (d) out.push(d);
       });
-      return out;
+      return inSet(out);
     }
     // Opened from the Watchlist (2026-09-26, "I should only scroll through the
     // watchlist charts"): the reel is exactly the rows the Watchlist showed, in
     // its order — same REPLACE-not-narrow rule as the lookalikes above.
     if (reel.listSet) {
       const by = new Map(rowsAll.map(d => [d.instrument_name, d]));
-      return reel.listSet.names.map(n => by.get(n)).filter(Boolean);
+      return inSet(reel.listSet.names.map(n => by.get(n)).filter(Boolean));
     }
     let rows = rowsAll;
 
+    // The Charts tab has no filters of its own since 2026-11-04 (they moved to
+    // the Watchlist). What is left: a Market tap (group, class, trend) and the
+    // search, over every instrument, signals first.
     if (reel.gp)     rows = rows.filter(d => gpKeyOf(d, reel.gp.mode) === reel.gp.key);
     if (reel.cls)    rows = rows.filter(d => browseClassOf(d) === reel.cls);
     if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
-    if (reel.cat)    rows = rows.filter(d => matchesSearch(d, reel.cat));
-    if (reel.sector) rows = rows.filter(d => sectorMatches(d, reel.sector, reel.industry));
-    // On a chartOnly timeframe (10m) the row carries NO prefixed columns at
-    // all, so these two read the signal timeframe the way the scopes below
-    // already do. Without it `m_trend_direction` is undefined on every row,
-    // effectiveTrend answers NEUTRAL for all 798, and picking Uptrend empties
-    // the reel — a filter that silently matches nothing.
-    const withRowTf = fn => (TF_BY_CODE[timeframe] || {}).chartOnly ? withSignalTf(fn) : fn();
     if (reel.trend !== 'all') rows = rows.filter(d => mainTrendOf(d) === reel.trend);
-    rows = rows.filter(row => clusterMatches(row, reel.cluster));
-    if (reel.relation && reel.relation !== 'all') rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:reel.relation}));
-    // Same predicate the Signals sheet uses, so "near cross" cannot come to
-    // mean two different things on two tabs.
-    if (reel.stack !== 'all') rows = rows.filter(d => matchesStackFilter(d, reel.stack));
-    // Near MA (2026-09-28): needs the chart index, like the 15m scopes below.
-    if (reel.near !== 'all') {
-      if (!reel.index) {
-        reelLoadIndex().then(() => { if (currentTab === 'charts' && reel.near !== 'all') buildReel(); });
-        return [];
-      }
-      rows = rows.filter(d => reelNearHit(d.instrument_name));
-    }
+    return sortBySignal([...rows], 'signal');
+  }
 
-    // MY BUY / SELL MARKERS (user, 2026-09-30: "add a filter for all the
-    // markered charts"): every instrument carrying a Buy or Sell view marker on
-    // any timeframe, the most recently placed first.
-    if (reel.scope === 'views' || reel.scope === 'views-buy' || reel.scope === 'views-sell') {
-      const want = reel.scope === 'views' ? null : reel.scope.slice(6);
-      const latest = name => {
-        let best = '';
-        for (const list of Object.values(instChannels[name] || {}))
-          for (const d of Array.isArray(list) ? list : [])
-            if (d && d.side && (!want || d.side === want)) {
-              const k = String(d.made || d.t || '');
-              if (k > best || !best) best = k || '0';
-            }
-        return best;
+  // Signals first (fired on the last bar, then any open signal, then a watch
+  // flag), then by how recently they fired, then name; 'recent' is newest
+  // fire first. Reads the signal timeframe. Shared by the reel's own order and
+  // the Watchlist's Signals first / Newest signal sorts. Sorts in place.
+  function sortBySignal(rows, mode) {
+    return withSignalTf(() => {
+      const sigRank = d => {
+        if (firedOnLatestBar(d)) return 0;
+        if (d[f('primary_signal')]) return 1;
+        if (d[f('watch_flag')] === 'yes') return 2;
+        return 3;
       };
-      return rows.map(d => [d, latest(d.instrument_name)]).filter(([, k]) => k)
-        .sort((a, b) => b[1].localeCompare(a[1])).map(([d]) => d);
-    }
-
-    // 15m marker scopes (2026-09-26): instruments with a 15m B1/S1, or a 15m
-    // mark at a Daily MA, on their last two trading dates — read from the chart
-    // index (`ev15`, built by chart_feed from the same marks the chart draws).
-    const EV_KEY = { m15sig: 's', dxpre: 'p', dxafter: 'a' };
-    if (EV_KEY[reel.scope]) {
-      const evTf = reel.scope === 'm15sig' ? '4H' : '1H';
-      const ev = reel.index && reel.index.events_by_tf?.[evTf];
-      if (!reel.index) {
-        reelLoadIndex().then(() => { if (currentTab === 'charts' && EV_KEY[reel.scope]) buildReel(); });
-        return [];
-      }
-      if (!ev) return [];
-      const k = EV_KEY[reel.scope];
-      // Newest event first — the one that just happened is the one to look at.
-      return rows.filter(d => ev[d.instrument_name] && ev[d.instrument_name][k])
-        .sort((a, b) => String(ev[b.instrument_name][k].slice(-1)[0]).localeCompare(String(ev[a.instrument_name][k].slice(-1)[0])));
-    }
-
-    // Signal scopes and the signal sort read the signal timeframe: on a chart
-    // view (10m), "Buys only" means a Daily buy.
-    rows = withSignalTf(() => {
-    switch (reel.scope) {
-      case 'today':   rows = rows.filter(firedOnLatestBar); break;
-      case 'signal':  rows = rows.filter(d => !!d[f('primary_signal')]); break;
-      case 'buy':     rows = rows.filter(isBuy); break;
-      case 'sell':    rows = rows.filter(isSell); break;
-      case 'watch':   rows = rows.filter(d => SPTrendContext.context(d, channelTrend).h4Relation === 'minor'); break;
-    }
-    return rows;
+      const daysAgo = d => {
+        const v = parseFloat(d[f('last_signal_days_ago')]);
+        return isNaN(v) ? 1e9 : v;
+      };
+      return mode === 'recent'
+        ? rows.sort((a, b) => daysAgo(a) - daysAgo(b))
+        : rows.sort((a, b) => sigRank(a) - sigRank(b) || daysAgo(a) - daysAgo(b) || a.instrument_name.localeCompare(b.instrument_name));
     });
-
-    const sigRank = d => {
-      if (firedOnLatestBar(d)) return 0;
-      if (d[f('primary_signal')]) return 1;
-      if (d[f('watch_flag')] === 'yes') return 2;
-      return 3;
-    };
-    const daysAgo = d => {
-      const v = parseFloat(d[f('last_signal_days_ago')]);
-      return isNaN(v) ? 1e9 : v;
-    };
-
-    const sorted = [...rows];
-    withSignalTf(() => {
-    if (reel.sort === 'name') {
-      sorted.sort((a, b) => a.instrument_name.localeCompare(b.instrument_name));
-    } else if (reel.sort === 'up' || reel.sort === 'down') {
-      sortByMove(sorted, reel.sort, d => liveMovePct(d, reel.movePeriod));
-    } else if (reel.sort === 'recent') {
-      sorted.sort((a, b) => daysAgo(a) - daysAgo(b));
-    } else {
-      // Signals first, then by how recently they fired, then name.
-      sorted.sort((a, b) =>
-        sigRank(a) - sigRank(b) ||
-        daysAgo(a) - daysAgo(b) ||
-        a.instrument_name.localeCompare(b.instrument_name));
-    }
-    });
-    // Near MA: nearest first, whatever the Sort pill says — the point of the
-    // filter is the one sitting on the line.
-    if (reel.near !== 'all') {
-      sorted.sort((a, b) => Math.abs(reelNearHit(a.instrument_name).atr) - Math.abs(reelNearHit(b.instrument_name).atr));
-    }
-    return sorted;
   }
 
   // The nearest MA of the chosen kind within reach, or null:
   // { key: 'W250', atr: signed ATRs (+ = price above), pct }.
-  function reelNearHit(name) {
+  // st: the filter state holding near / nearWithin (the Watchlist's wlUi).
+  function reelNearHit(name, st) {
     const near = reel.index && reel.index.near;
     const all = near && near[name];
-    if (!all || reel.near === 'all') return null;
+    if (!all || !st || !st.near || st.near === 'all') return null;
     let best = null;
     for (const [key, [atr, pct]] of Object.entries(all)) {
-      if (reel.near !== 'any' && key[0] !== reel.near) continue;
+      if (st.near !== 'any' && key[0] !== st.near) continue;
       if (!ovPeriods(key[0]).includes(+key.slice(1))) continue;   // the overlay's MA set
-      if (Math.abs(atr) > reel.nearWithin) continue;
+      if (Math.abs(atr) > (+st.nearWithin || 0.5)) continue;
       if (!best || Math.abs(atr) < Math.abs(best.atr)) best = { key, atr, pct };
     }
     return best;
@@ -13698,12 +13820,7 @@
     if (!reel.list.length) {
       host.innerHTML = '';
       if (empty) {
-        // A 15m marker filter on a feed published before the markers existed
-        // has nothing to select on — say so, instead of a bare "0 charts".
-        const evScope = ['m15sig', 'dxpre', 'dxafter'].includes(reel.scope);
-        empty.textContent = evScope && reel.index && !reel.index.ev15
-          ? 'Intraday markers are not in the published data yet — they arrive with the next data run.'
-          : 'Nothing matches those filters.';
+        empty.textContent = reel.search ? 'No chart matches that search.' : 'Nothing to show here.';
         empty.style.display = '';
       }
       reelSyncPills();      // the chips must show what emptied the list
@@ -13832,6 +13949,7 @@
         if (ov > bestOv) { bestOv = ov; best = c; }
       }
       if (best) chartHistNote(best.dataset.name);
+      if (best && currentTab === 'charts') reelLastSeen = best.dataset.name;
     }
 
     const total = reel.list ? reel.list.length : 0;
@@ -13931,6 +14049,9 @@
   const CHART_HIST_DWELL_MS = 1200;
   const CHART_HIST_MAX = 30;
   const chartHist = { back: [], cur: null, pending: null, timer: 0, jumping: false };
+  // The chart last on screen in the reel — where the Watchlist scrolls to on
+  // the way back from Charts (doTabSwitch).
+  let reelLastSeen = '';
 
   function chartHistNote(name) {
     if (!name || currentTab !== 'charts') return;
@@ -14011,16 +14132,49 @@
   // Open the Charts tab ON this instrument. Clears any "lookalikes" filter
   // first — landing inside a comparison set you did not ask for is disorienting
   // — then rebuilds and scrolls the reel to the card.
-  // FILTERS BELONG TO THE SET (user, 2026-10-30, as on the Watchlist): the
-  // Charts filters work inside the charts in view, a watchlist opened here or
-  // a "charts like X" set, and switch off when that set changes. Opening
-  // another chart of the same set keeps them; Sort and search stay.
+  // What a Market tap or the search left on the reel; a new set clears it.
   function reelFiltersOff() {
-    reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all';
-    reel.relation = 'all'; reel.cluster = 'all'; reel.stack = 'all'; reel.near = 'all';
+    reel.gp = null; reel.cls = ''; reel.trend = 'all'; reelSearchSet('');
+  }
+  function reelSearchSet(v) {
+    reel.search = (v || '').toLowerCase();
+    const inp = document.getElementById('reelSearch'), clr = document.getElementById('reelSearchClear');
+    if (inp) inp.value = v || '';
+    if (clr) clr.style.display = v ? '' : 'none';
   }
   const reelSetKey = () => reel.similarTo ? 'like:' + reel.similarTo
     : reel.listSet ? 'list:' + reel.listSet.label + '|' + reel.listSet.names.join(',') : '';
+
+  // CHARTS FOLLOW THE WATCHLIST (user, 2026-11-04: "make sure that the chart
+  // tab works hand in hand with the watch list"). The reel shows the
+  // Watchlist's view — its list, filters and order — whenever that view has
+  // changed since the reel last took it: on opening a chart from it, or on
+  // coming to Charts from the tab bar. The Watchlist itself is never changed
+  // from here, so going back lands on the sector or list you were working in.
+  // "Show all" puts every instrument in the reel until the Watchlist changes.
+  let reelWlSig = null;
+  function reelFollowWatchlist() {
+    if (typeof wlViewSig !== 'function' || wlShownPending || !wlShown.length) return false;
+    const sig = wlViewSig();
+    if (sig === reelWlSig) return false;
+    reelWlSig = sig;
+    reel.similarTo = '';
+    reel.listSet = wlShownSet();
+    reelFiltersOff();
+    return true;
+  }
+  // The reel was given a set on purpose: the tab switch that follows must not
+  // swap it for the Watchlist's view.
+  function reelHoldSet() { if (!wlShownPending) reelWlSig = wlViewSig(); }
+  function reelShowAll() {
+    reel.similarTo = ''; reel.listSet = null;
+    reelFiltersOff();
+    buildReel();
+    const el = document.getElementById('chartReel');
+    if (el) el.scrollTop = 0;
+    reelSyncSimBar();
+    reelSyncNav();
+  }
 
   function openChartFor(name, listSet) {
     if (!name) return;
@@ -14028,23 +14182,31 @@
     if (!(listSet && Array.isArray(listSet.names))) listSet = null;
     if (!listSet && wlModalFrom && wlModalFrom.name === name && currentTab === 'watchlist') listSet = wlModalFrom.set;
     wlModalFrom = null;
+    // Whatever set this opens (the Watchlist's view, an Active sector, a
+    // Market list) stays in the reel when Charts is next tapped in the tab
+    // bar, until the Watchlist's view changes. A lone chart (an alert, a
+    // details sheet) does not: the next tap goes back to the Watchlist's view.
+    reelHoldSet();
     const before = reelSetKey();
     reel.similarTo = '';
     reel.listSet = listSet && listSet.names && listSet.names.length ? listSet : null;
     if (reelSetKey() !== before) reelFiltersOff();
     closeModal();
     navigateToTab('charts');
+    if (!reel.listSet) reelWlSig = null;
     buildReel();
     reelSyncSimBar();
     const host = document.getElementById('chartReel');
     const find = () => host && host.querySelector(`.reel-card[data-name="${CSS.escape(name)}"]`);
     let el = find();
-    // A search or pill left on the Charts tab can hide the very chart asked
-    // for, and the reel then sat on whatever was first — "Chart" on MSFT
-    // showed AVGO (2026-09-15). Clear the filters in that case, and only then.
-    if (!el && !(desktopChartEligible() && reel.list.some(d => d.instrument_name === name))) {
-      const rst = document.getElementById('reelReset');
-      if (rst) rst.click();
+    // A search left on the Charts tab can hide the very chart asked for, and
+    // the reel then sat on whatever was first — "Chart" on MSFT showed AVGO
+    // (2026-09-15). Clear it in that case, and only then; past that, every
+    // instrument.
+    const inReel = () => el || (desktopChartEligible() && reel.list.some(d => d.instrument_name === name));
+    if (!inReel() && reel.search) { reelSearchSet(''); buildReel(); el = find(); }
+    if (!inReel()) {
+      reel.similarTo = ''; reel.listSet = null; reelFiltersOff(); buildReel(); reelSyncSimBar();
       el = find();
     }
     if (host && el) {
@@ -14062,6 +14224,7 @@
     if (reel.similarTo !== name) reelFiltersOff();
     reel.similarTo = name;
     reel.listSet = null;
+    reelHoldSet();
     closeModal();
     navigateToTab('charts');
     buildReel();
@@ -14073,137 +14236,30 @@
 
   function clearSimilarCharts() {
     if (!reel.similarTo && !reel.listSet) return;
-    reel.similarTo = ''; reel.listSet = null;
-    reelFiltersOff();
-    buildReel();
-    const el = document.getElementById('chartReel');
-    if (el) el.scrollTop = 0;
-    reelSyncSimBar();
-    reelSyncNav();
+    reelShowAll();
   }
 
   function reelSyncSimBar() {
     const bar = document.getElementById('reelSimBar');
     const nm  = document.getElementById('reelSimName');
     if (!bar || !nm) return;
-    bar.hidden = !reel.similarTo && !reel.listSet;
-    const txt = bar.querySelector('.reel-simbar-txt');
-    if (reel.listSet) { if (txt) txt.firstChild.textContent = reel.listSet.kind === 'active' ? 'Active: ' : 'Watchlist: '; nm.textContent = reel.listSet.label + ' · ' + reel.listSet.names.length; }
-    else if (reel.similarTo) { if (txt) txt.firstChild.textContent = 'Charts like '; nm.textContent = reel.similarTo; }
+    bar.hidden = (!reel.similarTo && !reel.listSet) || !!reel.searchAll;
+    // Prefix, the set's name, then how many charts it holds (user, 2026-11-04:
+    // "a number next to it").
+    const pre = bar.querySelector('.reel-simbar-pre'), num = document.getElementById('reelSimN');
+    const n = reel.listSet ? reel.listSet.names.length : reel.similarTo ? 1 + shapeNeighbours(reel.similarTo).length : 0;
+    if (pre) pre.textContent = reel.listSet ? (reel.listSet.kind === 'active' ? 'Active:' : reel.listSet.kind === 'wl' ? '' : 'List:') : reel.similarTo ? 'Like' : '';
+    nm.textContent = reel.listSet ? reel.listSet.label : reel.similarTo || '';
+    if (num) num.textContent = n ? String(n) : '';
+    bar.title = (pre && pre.textContent || '') + nm.textContent + (n ? ` · ${n} charts` : '');
+    // Already every instrument (All markets, nothing filtered): nothing to reset.
+    const clr = document.getElementById('reelSimClear');
+    if (clr) clr.hidden = !!(reel.listSet && reel.listSet.full);
   }
 
-  // ONE ROW, FIVE VIEWS on Charts (user, 2026-10-30: apply the Watchlist row
-  // to the charts). The dropdown before the row picks what it holds: Show,
-  // Class, Sector, Trend or MA, as chips scrolling sideways; Sort and reset
-  // sit beside the search. A filter set in another view still applies, so the
-  // menu names each one's value and the dropdown counts how many are set.
-  // The row is drawn from `reel` on every buildReel (reelSyncPills).
-  const REEL_MODES = [['scope', 'Show'], ['cat', 'Class'], ['sector', 'Sector'], ['trend', 'Trend'], ['ma', 'MA']];
-  const REEL_SCOPES = [['all', 'Everything'], ['views', 'My Buy / Sell markers'], ['views-buy', 'My Buy markers'],
-    ['views-sell', 'My Sell markers'], ['today', 'Fired today'], ['signal', 'Any open signal'], ['buy', 'Buys only'],
-    ['sell', 'Sells only'], ['watch', 'Minor 4H swings'], ['m15sig', '4H B1 / S1 · 2 sessions'],
-    ['dxpre', '1H touched a Daily MA'], ['dxafter', '1H crossed a Daily MA']];
-  const REEL_CATS = [['', 'All classes'], ['crypto', 'Crypto'], ['indices', 'Indices'], ['commodity', 'Commodity'],
-    ['currency', 'Currency'], ['ccyindex', 'Ccy Index'], ['us100', 'US100'], ['us500', 'US500'], ['banks', 'Banks'],
-    ['energy', 'Energy'], ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
-  const REEL_TRENDS = [['all', 'Any'], ['UPTREND', '▲ Uptrend'], ['DOWNTREND', '▼ Downtrend'], ['NEUTRAL', 'Unavailable']];
-  const REEL_RELATIONS = [['all', 'Any'], ['aligned', 'Aligned'], ['minor', 'Minor against']];
-  const REEL_STACKS = [['all', 'Any'], ['bull', 'Bull 50›250›500'], ['bear', 'Bear 500›250›50'], ['mixed', 'Mixed'],
-    ['near', 'Near cross'], ['fresh', 'Just flipped']];
-  const REEL_NEARS = [['all', 'Any'], ['D', 'Daily MA'], ['W', 'Weekly MA'], ['M', 'Monthly MA'], ['any', 'D, W or M']];
-  let reelMode = 'scope', reelRowShownMode = null;
-  try { const m = localStorage.getItem('swingpulse-reel-mode'); if (REEL_MODES.some(([k]) => k === m)) reelMode = m; } catch (_) {}
-
-  // The row's chips. data-rk/data-rv name the reel key and value a tap sets;
-  // data-wl-step marks the main choices (the ones the row scrolls to).
-  function reelRowHtml() {
-    const pill = (on, attrs, label, extra = '') => `<button class="wl2-pill${extra}${on ? ' on' : ''}" ${attrs}>${label}</button>`;
-    const set = (k, v) => `data-rk="${k}" data-rv="${escText(v)}"`;
-    const sep = t => `<span class="wl2-sep">${t}</span>`;
-    if (reelMode === 'cat')
-      return REEL_CATS.map(([k, l]) => pill((reel.cat || '') === k, set('cat', k) + ' data-wl-step', l)).join('');
-    if (reelMode === 'sector') {
-      const { sectors, industries } = sectorLists(reel.sector);
-      return pill(!reel.sector, set('sector', '') + ' data-wl-step', 'All')
-        + sectors.map(([v, n]) => pill(v === reel.sector, set('sector', v) + ' data-wl-step', `${escText(v)} <span class="wl2-n">${n}</span>`)
-          + (v === reel.sector ? pill(!reel.industry, set('industry', ''), 'Any industry', ' wl2-sub')
-            + industries.map(([w, m]) => pill(w === reel.industry, set('industry', w), `${escText(w)} <span class="wl2-n">${m}</span>`, ' wl2-sub')).join('') : '')).join('');
-    }
-    if (reelMode === 'trend')
-      return sep('Daily') + REEL_TRENDS.map(([k, l]) => pill(reel.trend === k, set('trend', k) + ' data-wl-step', l)).join('')
-        + sep('4H') + REEL_RELATIONS.map(([k, l]) => pill(reel.relation === k, set('relation', k), l)).join('');
-    if (reelMode === 'ma')
-      return sep(`Order ${escText(tfMeta().label)}`) + REEL_STACKS.map(([k, l]) => pill(reel.stack === k, set('stack', k) + ' data-wl-step', l)).join('')
-        + sep('Clusters') + `<span class="wl2-cscope" data-cluster-scope="charts">`
-        + CLUSTER_OPTIONS.map(([k, l]) => pill(reel.cluster === k, `data-cluster-mode="${k}"`, k === 'all' ? 'Any' : l)).join('')
-        + sep('Width') + [[0.25, 'Tight ¼'], [0.5, 'Mid ½'], [1, 'Wide 1']].map(([v, l]) => pill(clusterWidth === v, `data-cluster-width="${v}"`, l)).join('')
-        + '</span>'
-        + sep('Near MA') + REEL_NEARS.map(([k, l]) => pill(reel.near === k, set('near', k), l)).join('')
-        + sep('Within') + [[0.5, '½ day'], [1, '1 day']].map(([v, l]) => pill(reel.nearWithin === v, set('nearWithin', String(v)), l)).join('');
-    return REEL_SCOPES.map(([k, l]) => pill(reel.scope === k, set('scope', k) + ' data-wl-step', l)).join('');
-  }
-
-  function reelSyncPills() {
-    reelSyncSimBar();
-    const rowEl = document.getElementById('reelRow');
-    if (rowEl) {
-      rowEl.innerHTML = reelRowHtml();
-      // As on the Watchlist: a new view starts from the left; the pick is
-      // scrolled only when it is not wholly in view, a too-wide one lining up
-      // with the row's left edge. No page scroll.
-      const on = rowEl.querySelector('[data-wl-step].on');
-      if (reelRowShownMode !== reelMode) { reelRowShownMode = reelMode; rowEl.scrollLeft = 0; }
-      if (on && (on.offsetLeft < rowEl.scrollLeft || on.offsetLeft + on.offsetWidth > rowEl.scrollLeft + rowEl.clientWidth))
-        rowEl.scrollLeft = Math.max(0, on.offsetWidth >= rowEl.clientWidth ? on.offsetLeft - 4 : on.offsetLeft + on.offsetWidth - rowEl.clientWidth + 4);
-    }
-    const vals = reelModeValues();
-    const nSet = REEL_MODES.filter(([k]) => vals[k]).length;
-    const modeOpts = document.getElementById('reelModeOpts');
-    if (modeOpts) modeOpts.innerHTML = REEL_MODES.map(([k, l]) =>
-      `<button class="fdrop-opt${reelMode === k ? ' on' : ''}" data-reel-mode="${k}">${l}${vals[k] ? `<i class="set">${escText(vals[k])}</i>` : ''}</button>`).join('');
-    const modeBtn = document.getElementById('reelDdMode');
-    if (modeBtn) {
-      modeBtn.querySelector('.wl2-mode-lbl').textContent = REEL_MODES.find(([k]) => k === reelMode)[1];
-      const badge = modeBtn.querySelector('.wl2-mode-n');
-      badge.hidden = !nSet; badge.textContent = nSet || '';
-      modeBtn.title = nSet ? `${nSet} filter${nSet > 1 ? 's' : ''} set` : '';
-    }
-    const sort = reelDropValues().reelDdSort;
-    fdropSync({ reelDdSort: sort }, null);
-    const rst = document.getElementById('reelReset');
-    if (rst) rst.hidden = !nSet && !sort.length;
-  }
-
-  // What each view's filters are set to ('' when none), for the view menu.
-  function reelModeValues() {
-    const v = reelDropValues();
-    return { scope: v.reelDdShow.join(' · '), cat: v.reelDdClass.join(' · '), sector: v.reelDdSector.join(' · '),
-             trend: v.reelDdTrend.join(' · '), ma: v.reelDdMa.join(' · ') };
-  }
-
-  // What each Charts filter reads when set. Search and the "charts like X"
-  // set have their own clear controls.
-  function reelDropValues() {
-    const scopeLbl = { views: 'My markers', 'views-buy': 'My buys', 'views-sell': 'My sells',
-                       today: 'Today', signal: 'Signals', buy: 'Buys', sell: 'Sells',
-                       watch: 'Minor 4H', m15sig: '4H B1/S1', dxpre: '1H touched', dxafter: '1H crossed' };
-    const cat = reel.cat && REEL_CATS.find(([k]) => k === reel.cat);
-    const trend = [], ma = [], sort = [];
-    if (reel.trend !== 'all') trend.push({ UPTREND: '▲ Up', DOWNTREND: '▼ Down', NEUTRAL: 'Trend n/a' }[reel.trend] || reel.trend);
-    if (reel.relation !== 'all') trend.push(reel.relation === 'aligned' ? '4H aligned' : '4H minor');
-    const stackLbl = { bull: 'MA bull', bear: 'MA bear', mixed: 'MA mixed', near: 'MA near cross', fresh: 'MA flipped' };
-    if (reel.stack !== 'all') ma.push(stackLbl[reel.stack] || reel.stack);
-    if (reel.cluster !== 'all') ma.push(CLUSTER_SHORT[reel.cluster] || reel.cluster);
-    if (reel.near !== 'all') ma.push('Near ' + ({ D: 'D', W: 'W', M: 'M', any: 'D/W/M' }[reel.near] || reel.near) + ' MA');
-    const sortLbl = { recent: 'Newest', up: 'Gainers ' + moveLbl(reel.movePeriod), down: 'Losers ' + moveLbl(reel.movePeriod), name: 'A–Z' };
-    if (reel.sort !== 'signal') sort.push(sortLbl[reel.sort] || reel.sort);
-    return {
-      reelDdShow: reel.scope !== 'all' ? [scopeLbl[reel.scope] || reel.scope] : [],
-      reelDdClass: reel.cat ? [cat ? cat[1] : reel.cat] : [],
-      reelDdSector: sectorDropValue(reel.sector, reel.industry),
-      reelDdTrend: trend, reelDdMa: ma, reelDdSort: sort,
-    };
-  }
+  // The Charts header has only the search and the set bar since 2026-11-04;
+  // what used to redraw its filter row now just keeps the set bar current.
+  function reelSyncPills() { reelSyncSimBar(); }
 
   function wireReel() {
     // Chart range is remembered PER TIMEFRAME (2026-10-28, user: "it must
@@ -14236,77 +14292,6 @@
       });
     }
 
-    const optGroup = (containerId, key, attr) => {
-      const box = document.getElementById(containerId);
-      if (!box) return;
-      box.addEventListener('click', e => {
-        const btn = e.target.closest('.reel-opt');
-        if (!btn) return;
-        box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        reel[key] = btn.dataset[attr];
-        const pill = btn.closest('.filter-pill');
-        if (pill) pill.open = false;
-        buildReel();
-      });
-    };
-    optGroup('reelScopeOpts', 'scope', 'scope');
-    optGroup('reelTrendOpts', 'trend', 'trend');
-    optGroup('reelRelationOpts', 'relation', 'relation');
-    optGroup('reelStackOpts', 'stack', 'stack');
-    optGroup('reelNearOpts',  'near',  'near');
-    const within = document.getElementById('reelNearWithin');
-    if (within) {
-      within.addEventListener('click', e => {
-        const chip = e.target.closest('[data-within]');
-        if (!chip) return;
-        within.querySelectorAll('[data-within]').forEach(c => c.classList.toggle('active', c === chip));
-        reel.nearWithin = +chip.dataset.within;
-        if (reel.near !== 'all') buildReel(); else reelSyncPills();
-      });
-    }
-    optGroup('reelSortOpts',  'sort',  'sort');
-    optGroup('reelMoveOpts',  'movePeriod', 'mp');
-
-    const chips = document.getElementById('reelCatChips');
-    if (chips) {
-      chips.addEventListener('click', e => {
-        const chip = e.target.closest('.s-cat-chip');
-        if (!chip) return;
-        const cat = chip.dataset.cat;
-        const on = reel.cat === cat;
-        chips.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
-        reel.cat = on ? '' : cat;             // tapping the active chip clears it
-        if (!on) chip.classList.add('active');
-        buildReel();
-      });
-    }
-    // The row (2026-10-30). MA cluster chips go through the shared cluster
-    // handler (data-cluster-scope="charts"), which rebuilds the reel itself.
-    const row = document.getElementById('reelRow');
-    if (row) {
-      row.addEventListener('click', e => {
-        const btn = e.target.closest('[data-rk]');
-        if (!btn) return;
-        const k = btn.dataset.rk, v = btn.dataset.rv;
-        if (k === 'nearWithin') { reel.nearWithin = +v; if (reel.near !== 'all') buildReel(); else reelSyncPills(); return; }
-        // Tapping the picked sector again closes it back to All.
-        if (k === 'sector') { reel.sector = v === reel.sector ? '' : v; reel.industry = ''; }
-        else reel[k] = v;
-        buildReel();
-      });
-    }
-    const modeOpts = document.getElementById('reelModeOpts');
-    if (modeOpts) {
-      modeOpts.addEventListener('click', e => {
-        const b = e.target.closest('[data-reel-mode]');
-        if (!b) return;
-        reelMode = b.dataset.reelMode;
-        try { localStorage.setItem('swingpulse-reel-mode', reelMode); } catch (_) {}
-        reelSyncPills();
-      });
-    }
-
     window.addEventListener('resize', debounce(() => {
       if (currentTab !== 'charts') return;
       reelSyncTop();
@@ -14318,31 +14303,6 @@
       reel.drawn.clear();
       reelPaintVisible();
     }, 250));
-
-    const rst = document.getElementById('reelReset');
-    if (rst) {
-      rst.addEventListener('click', () => {
-        reel.scope = 'all'; reel.cat = ''; reel.sector = ''; reel.industry = ''; reel.trend = 'all'; reel.sort = 'signal'; reel.movePeriod = '1d';
-        reel.search = ''; reel.ranges = {}; reelRangesSave(); reelResetPan();
-        // Reset was missing both of these: the Stack pill (added with the MA
-        // stack filter) and the compare mode. "Reset" that leaves a filter
-        // applied is worse than no reset — you press it and still cannot see
-        // the instrument you are looking for.
-        reel.cluster = 'all'; reel.relation = 'all'; reel.stack = 'all'; reel.similarTo = ''; reel.listSet = null;
-        reel.near = 'all'; reel.gp = null; reel.cls = '';
-        if (search) search.value = '';
-        if (clear) clear.style.display = 'none';
-        document.querySelectorAll('#reelCatChips .s-cat-chip').forEach(c => c.classList.remove('active'));
-        [['reelScopeOpts','all'],['reelTrendOpts','all'],['reelRelationOpts','all'],['reelStackOpts','all'],['reelNearOpts','all'],['reelSortOpts','signal'],['reelMoveOpts','1d']].forEach(([id, def]) => {
-          const box = document.getElementById(id);
-          if (!box) return;
-          box.querySelectorAll('.reel-opt').forEach(b => b.classList.remove('active'));
-          const d = box.querySelector(`[data-scope="${def}"],[data-trend="${def}"],[data-relation="${def}"],[data-stack="${def}"],[data-near="${def}"],[data-sort="${def}"],[data-mp="${def}"]`);
-          if (d) d.classList.add('active');
-        });
-        buildReel();
-      });
-    }
 
     // ONE dispatch for the card buttons, used by the reel AND by the full-screen
     // view — the two must never drift into doing different things.
@@ -14482,7 +14442,6 @@
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);
-        if (reel.near !== 'all' && currentTab === 'charts') buildReel();
         return true;
       }
       if (btn.dataset.act === 'ov-htf') {

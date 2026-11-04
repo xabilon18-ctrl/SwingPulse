@@ -100,7 +100,9 @@ let debugPage;
       assert.equal(await grid.locator('.reel-tgrid-admin, .reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-month').count(), 0, `${tf} lines are all equal`);
       assert.ok(await grid.locator('line.reel-tgrid').count() >= 3, `${tf} draws its term lines`);
       assert.ok(!/\b[WM] (aligned|minor)/.test(card), `${tf} shows no borrowed 4H relation`);
-      assert.ok(/Bar \d+ \w+/.test(card), `${word} bar is dated`);
+      // The card header is two lines since 2026-11-04 (ticker + full name,
+      // main trend + move): no bar/data time line on the card.
+      assert.equal(await grid.locator('[data-freshness-name]').count(), 0, `${word} card has no bar-time line`);
       shownBars[tf] = await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
       if (tf === 'W') {
         // The Monthly overlay on Weekly, drawn from the Weekly bundle's own `mo`.
@@ -256,7 +258,7 @@ let debugPage;
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
     await page.waitForFunction(() => document.querySelector('#tfBtnW').getAttribute('aria-selected') === 'true');
     await page.locator('#chartReel .reel-card').first().waitFor();
-    assert.match(await page.locator('#reelSimBar').innerText(), /Active: Technology · Week · 1/);
+    assert.match(await page.locator('#reelSimBar').innerText(), /Active:\s*Technology · Week\s*1/);
     assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
     assert.equal(errors.length, 0, errors.join('\n'));
 
@@ -307,7 +309,10 @@ let debugPage;
     await page.locator('#wl2DdMode').click();
     await page.locator('#wl2MenuMode [data-wl-mode="cls"]').click();
     assert.equal(await page.locator('#wl2DdMode .wl2-mode-lbl').innerText(), 'Class');
-    assert.deepEqual(await wlRow.locator('.wl2-pill').allInnerTexts(), ['All', 'Indices', 'Stocks', 'Forex', 'Ccy Index', 'Commodities', 'Crypto']);
+    // Each chip carries its count (2026-11-04), and the Class groups that
+    // came over from Charts follow the classes.
+    assert.deepEqual(await wlRow.locator('[data-wl-cls]').allInnerTexts(), ['All 1', 'Indices 0', 'Stocks 1', 'Forex 0', 'Ccy Index 0', 'Commodities 0', 'Crypto 0']);
+    assert.deepEqual(await wlRow.locator('[data-wl-grp]').allInnerTexts(), ['US100 0', 'US500 0', 'Banks 0', 'Energy 0', 'Tech 1', 'Semis 0', 'AI 0']);
     await swipe(-120);
     assert.equal(await wlRow.locator('.wl2-pill.on').getAttribute('data-wl-cls'), 'Index', 'the swipe steps what the row holds');
     assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').innerText(), '1', 'the dropdown counts the filters set');
