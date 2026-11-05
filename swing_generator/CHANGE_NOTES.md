@@ -7,6 +7,35 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-05 SEE-THROUGH HEADER AND FOOTER, FULL SCREEN: app.js v591,
+style.css v407. User (BRENT Daily screenshot, header and footer circled):
+"make these a little see through over the charts but not much that I am
+unable to read. Just to give chart extra space".
+- On the phone the full-screen chart now fills the screen, status bar to
+  home bar; the header and footer float over it on 80% white with a 3px
+  blur. Desktop keeps them in the flow (`:not(.desktop-chart)`).
+- `reelLayout` measures how far the two bars overlap `#chartFullHost` and
+  keeps the readable frame (py0..py1, so price fit, saved views and handles
+  are unchanged), the date row (`L.dateY`) and the trend strip in the clear
+  part between them. Candles, MAs, time grid, shading, the zero line, ladder
+  lines and vertical lines carry on behind the bars (`gTop/gBot`,
+  `clipTop/clipBot`). Cards overlap nothing and lay out as before.
+- Dates and the strip note get a white halo (`.reel-svg.is-overlaid`), since
+  lines now run behind them. Test: app_smoke (fills the screen, bars
+  translucent, frame/dates clear), screenshot full-chart-see-through.png.
+
+2026-11-05 DAILY PERCENTAGE LINES ON THICK: app.js v591. User: "As a
+standard the daily percentage lines must always be on thick.... Apply it
+across all charts where it's placed. And when I place a new one it must
+always be on thick".
+- A new ladder starts on Thick (`strokeWeight: 3` in `reelDefaultLadder`),
+  on every timeframe. Thin / Medium still change it.
+- `ladderThickOnce` (once per device, after the first sync pull, like the
+  two ladder cleanups): every Daily ladder, on Daily and its linked copies,
+  is set to Thick and saved, so other devices get it. Ladders drawn on their
+  own on another timeframe are left alone. Tests: ladder_cleanup_checks,
+  drawing_toolbar_checks.
+
 2026-11-04 WEEKLY / MONTHLY OVERLAY: NO KINK AT THE RIGHT EDGE: app.js v590.
 User (BTCUSD 1H screenshot, the Monthly MA bending up over the last day):
 "The monthly 250ma has this funny bend on the one day overlap all chart have

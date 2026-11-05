@@ -9857,3 +9857,37 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #desktopChartFilters .reel-head2 { flex-wrap: wrap; }
 #desktopChartFilters .reel-head2 .fsearch { flex: 1 1 100%; }
 #desktopChartFilters .reel-head2 .reel-simbar { flex: 1 1 100%; max-width: 100%; height: 34px; }
+
+/* SEE-THROUGH HEADER AND FOOTER over the full-screen chart (user,
+   2026-11-05: "make these a little see through over the charts but not much
+   that I am unable to read. Just to give chart extra space"). On the phone
+   the chart fills the screen, status bar to home bar, and the header and
+   footer float over it on 80% white with a light blur: the candles show
+   faintly through, the words and buttons stay readable. reelLayout measures
+   how far the two bars overlap the chart and keeps the readable frame, the
+   date row and the trend strip in the clear part between them. Desktop keeps
+   its header and footer in the flow. */
+#chartFull:not(.desktop-chart) > .cf-head,
+#chartFull:not(.desktop-chart) > .reel-foot {
+  position: absolute; left: 0; right: 0; z-index: 5;
+  background: rgba(255, 255, 255, .8);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+#chartFull:not(.desktop-chart) > .cf-head {
+  top: 0;
+  padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);
+}
+#chartFull:not(.desktop-chart) > .reel-foot {
+  bottom: 0;
+  padding: 6px calc(env(safe-area-inset-right) + 10px) calc(var(--chart-bottom-inset) + 2px) calc(env(safe-area-inset-left) + 10px);
+}
+#chartFull:not(.desktop-chart) > .reel-chart {
+  position: absolute; top: 0; bottom: 0; margin: 0;
+  left: calc(env(safe-area-inset-left) + 6px); right: calc(env(safe-area-inset-right) + 6px);
+}
+/* Dates and the trend-strip note now sit over the chart: a white halo keeps
+   them readable over candles and grid lines. */
+.reel-svg.is-overlaid .reel-axis,
+.reel-svg.is-overlaid .reel-strip-lbl {
+  paint-order: stroke; stroke: rgba(255, 255, 255, .92); stroke-width: 7px; stroke-linejoin: round;
+}
