@@ -7942,7 +7942,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} }
+    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} try { ladderThickOnce(); } catch (_) {} }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -9018,12 +9018,36 @@
     const gutW  = 128;                       // price labels live here (24-unit text since 2026-09-15)
     const axisH = 34;                        // date row
     const stripH = 34;                       // trend strip + its label (reelTrendStripSvg)
+    // SEE-THROUGH HEADER AND FOOTER, full screen (user, 2026-11-05: "make
+    // these a little see through over the charts ... Just to give chart extra
+    // space"). There the chart fills the screen and the header / footer float
+    // over it, so `top` / `bot` are how far they overlap the chart, in viewBox
+    // units. The readable frame (py0..py1: price fit, saved views, handles) and
+    // the date row + trend strip stay in the clear part between them, exactly
+    // where they were; only candles, MAs, grid and drawings carry on behind
+    // the two bars (gTop..gBot, clipTop..clipBot). A card, or a header/footer
+    // in the flow (desktop), overlaps nothing, so it lays out as before.
+    let top = 0, bot = 0;
+    const box = host.id === 'chartFullHost' && host.parentElement;
+    if (box && host.getBoundingClientRect) {
+      const r = host.getBoundingClientRect(), u = W / Math.max(1, cw);
+      const head = box.querySelector(':scope > .cf-head'), foot = box.querySelector(':scope > .reel-foot');
+      if (head) top = Math.max(0, head.getBoundingClientRect().bottom - r.top) * u;
+      if (foot) bot = Math.max(0, r.bottom - foot.getBoundingClientRect().top) * u;
+      if (top + bot > H * 0.6) top = bot = 0;   // degenerate box mid-layout
+    }
+    const py0 = top + 14, py1 = H - bot - axisH - 14 - stripH;
+    const over = top > 0 || bot > 0;
     return {
       W, H,
       x0: 4, x1: W - gutW,
-      py0: 14, py1: H - axisH - 14 - stripH,
+      py0, py1,
       gut: W - gutW + 10,
-      stripY: H - axisH - stripH + 4,
+      stripY: H - bot - axisH - stripH + 4,
+      dateY: H - bot - 8,
+      gTop: over ? 0 : py0, gBot: over ? H : py1,
+      clipTop: 0, clipBot: over ? H : py1 + 6,
+      overlaid: over,
     };
   }
 
@@ -10136,7 +10160,9 @@
     // A new ladder starts WITHOUT its 0%-100% labels (user, 2026-11-01: "as a
     // standard ... the percentage lines on a default when you place them do
     // not have the percentage labels"). The % button still shows them.
-    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true };
+    // And on Thick (user, 2026-11-05: "when I place a new one it must always
+    // be on thick"); Thin / Medium still change it.
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true, strokeWeight: 3 };
   }
 
   function reelDefaultHLine(b) {
@@ -10362,6 +10388,33 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_NO4H_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    return n;
+  }
+
+  // DAILY LADDERS ON THICK, ONCE PER DEVICE (user, 2026-11-05: "As a
+  // standard the daily percentage lines must always be on thick. Apply it
+  // across all charts where it's placed"). Every Daily ladder — on Daily and
+  // its linked copies on other timeframes — is set to Thick (strokeWeight 3),
+  // after the first sync pull like the two cleanups above, saved through
+  // channelSave so the other devices get it. Ladders drawn on their own on
+  // another timeframe are left alone; Thin / Medium still work afterwards.
+  const LADDER_THICK_KEY = 'sp-ladder-thick-2026-11-05';
+  function ladderThickOnce() {
+    try { if (localStorage.getItem(sk(LADDER_THICK_KEY))) return 0; } catch (_) { return 0; }
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      for (const [tf, list] of Object.entries(per)) {
+        if (!Array.isArray(list)) continue;
+        for (const d of list) {
+          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.strokeWeight === 3) continue;
+          d.strokeWeight = 3; n++;
+        }
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_THICK_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (_) {} }
     return n;
   }
@@ -10802,7 +10855,7 @@
       const left = x < L.x0;
       return `<text x="${left ? L.x0 + 6 : L.x1 - 6}" y="${L.py0 + 58}" class="reel-clip-tag" text-anchor="${left ? 'start' : 'end'}">line ${left ? '←' : '→'} off-screen</text>`;
     }
-    const line = `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
+    const line = `<line x1="${x.toFixed(1)}" y1="${L.gTop}" x2="${x.toFixed(1)}" y2="${L.gBot}" class="reel-ch reel-ch-edge${d.bold ? ' is-bold' : ''}"/>`
                + reelHitLine(x, L.py0, x, L.py1, idx);
     const nearRight = x > L.x1 - (L.x1 - L.x0) * 0.2;
     const tag = `<text x="${(x + (nearRight ? -8 : 8)).toFixed(1)}" y="${(L.py0 + 20).toFixed(1)}" class="reel-axis reel-ch-lvl" text-anchor="${nearRight ? 'end' : 'start'}">${reelEndStopLabel(d.t)}</text>`;
@@ -10922,7 +10975,7 @@
         if (!(gapPx >= LADDER_SUB_LINE_MIN)) break;
         for (let s = 1; s < LADDER_SUB; s++) {
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
-          if (p < -1e-9 || y < L.py0 || y > L.py1) continue;
+          if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
           const pct = Math.round((a.pct + (z.pct - a.pct) * s / LADDER_SUB) * 10) / 10;
           subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub"/>`
             + (d.hideLabels || gapPx < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl">${pct}%</text>`);
@@ -10935,7 +10988,7 @@
       // Never below price 0 (user, 2026-09-30: "make sure the % lines do not
       // go below it ever") — a stack reaching past zero simply stops there.
       if (p < -1e-9) continue;
-      if (y < L.py0 || y > L.py1) continue;
+      if (y < L.gTop || y > L.gBot) continue;
       // Block boundaries are the bold lines — the original's 0% and 100%, and
       // every divider between stacked blocks (user, 2026-09-15 / 09-24).
       const key = ln.key;
@@ -11739,8 +11792,8 @@
         lastLabelX = x;
         drawnLabels.push([x, lblW(text)]);
       }
-      if (label) gridLbls += `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>`;
-      return `<line x1="${x.toFixed(1)}" y1="${L.py0}" x2="${x.toFixed(1)}" y2="${L.py1}" class="${cls}"/>`;
+      if (label) gridLbls += `<text x="${x.toFixed(1)}" y="${L.dateY}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>`;
+      return `<line x1="${x.toFixed(1)}" y1="${L.gTop}" x2="${x.toFixed(1)}" y2="${L.gBot}" class="${cls}"/>`;
     }).join('');
 
     // Grid bands: shade line → next line, skip the next gap, shade the one after.
@@ -11756,7 +11809,7 @@
         .filter(l => isFinite(l.x)).sort((a, b) => a.x - b.x);
       const band = (xa, xb) => {
         const a = Math.max(L.x0, xa), z = Math.min(L.x1, xb);
-        if (z > a) gridBands += `<rect x="${a.toFixed(1)}" y="${L.py0}" width="${(z - a).toFixed(1)}" height="${L.py1 - L.py0}"/>`;
+        if (z > a) gridBands += `<rect x="${a.toFixed(1)}" y="${L.gTop}" width="${(z - a).toFixed(1)}" height="${L.gBot - L.gTop}"/>`;
       };
       if (lines.length && lines[0].odd) band(L.x0, lines[0].x);
       lines.forEach((l, i) => { if (!l.odd) band(l.x, i + 1 < lines.length ? lines[i + 1].x : L.x1); });
@@ -11807,7 +11860,7 @@
         const w = lblW(text);
         if (!clearOfGrid(x, w, anchor)) return '';
         drawnLabels.push([anchor === 'start' ? x + w / 2 : x - w / 2, w]);
-        return `<text x="${x.toFixed(1)}" y="${L.H - 8}" class="reel-axis" text-anchor="${anchor}">${text}</text>`;
+        return `<text x="${x.toFixed(1)}" y="${L.dateY}" class="reel-axis" text-anchor="${anchor}">${text}</text>`;
       }).join('');
 
     // ── Trend channel, if one is saved for this instrument ──
@@ -11835,7 +11888,7 @@
     // frames that is unmovable"): part of the chart, not a drawing — no handle,
     // no hit target, never stored. Only on screen when the scale reaches 0.
     const y0 = sc.y(0);
-    const zeroLine = (y0 >= L.py0 && y0 <= L.py1)
+    const zeroLine = (y0 >= L.gTop && y0 <= L.gBot)
       ? `<line x1="${L.x0}" y1="${y0.toFixed(1)}" x2="${L.x1}" y2="${y0.toFixed(1)}" class="reel-zero"/>`
         + `<text x="${(L.x1 - 6).toFixed(1)}" y="${(y0 - 8).toFixed(1)}" class="reel-zero-lbl" text-anchor="end">0</text>` : '';
 
@@ -11899,10 +11952,10 @@
     // straight down through the trend strip and the date labels — on screen and
     // in the shared picture. The id is keyed by geometry, so two charts of the
     // same size sharing one id resolve to identical rectangles.
-    const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}`;
+    const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}-${Math.round(L.clipBot)}`;
 
-    return `<svg class="reel-svg" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
-      <defs><clipPath id="${plotClipId}"><rect x="0" y="0" width="${L.x1}" height="${L.py1 + 6}"/></clipPath></defs>
+    return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
+      <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
       <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
