@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-05 (later) 4H SPLITS EACH DAILY LADDER GAP IN TWO AGAIN: app.js v593.
+User: "What would the division of 4h be since 1h is 5 per section", then
+"2?" (two, every 5%, over three, every 3.33%). Square-root-of-time guide: a
+4H bar moves about twice a 1H bar, so ~4% steps; 2.5 parts would miss the
+10% lines, so 2 (5%) or 3 (3.33%), about equally off; 5% reads cleaner.
+- `LADDER_SUB_BY_TF = { '1H': 5, '4H': 2 }`. A Daily ladder on 4H shows its
+  Daily lines (big labels) plus 5, 15, 25% (small labels). The 4H steps do
+  not nest in the 1H 2% steps (with five on 1H only 1 or 5 parts could);
+  each timeframe shows only its own. Not bold on 4H (1H only).
+- New Daily ladders link D, 1H and 4H again (`LADDER_SUB_TFS`).
+- `ladderOn4hOnce()` (flag `sp-ladder-on4h-2026-11-05`), after
+  `ladderNo4hOnce` on the first sync pull: every Daily ladder that shows on
+  1H shows on 4H again, every copy, saved through `channelSave`. A Daily
+  ladder on Daily alone is left alone.
+- Alerts unchanged (sync-worker `LADDER_SUB` 5: Daily lines + 1H 2% steps);
+  no 4H 5/15/25% line is a 1H step, so none alerts.
+- Tests: ladder_daily_sub_checks (linked D + 1H + 4H; 4H small labels are
+  the 5% steps), ladder_cleanup_checks (Daily ladders on 1H are on 4H again
+  after all three passes; a Daily-only ladder stays Daily-only).
+
 2026-11-05 4H CHART BACK, CHART ONLY: app.js v592, chart feed. User: "Bring
 back the 4h chart" (the day after #145 removed 4H as a timeframe).
 - Pipeline: `CHART_BUILDERS` has `'4H': 'build_4h_live'` again, so every
