@@ -49,8 +49,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
-  // 4H itself is gone as a timeframe (2026-11-04).
-  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H timeframe');
+  // 4H is a chart again (2026-11-05); Daily ladders still leave it out.
+  assert.equal(await page.locator('#tfBtn4H').count(), 1, '4H chart is back');
   for (const tf of ['1H']) {
     await openFull(tf);
     // On 1H only, the Daily 20/40/60/80% lines are bold (2026-11-03).

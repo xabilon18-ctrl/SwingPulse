@@ -58,10 +58,11 @@
         <button class="sync-name sync-name-unset" id="syncUserBadge" title="Tap to set user" onclick="window.SP && window.SP.showUserPicker()">?</button>
       </div>
     </header>
-    <!-- ===== GLOBAL TIMEFRAME TOGGLE (1H / Daily / Weekly / Monthly; 4H removed 2026-11-04) ===== -->
+    <!-- ===== GLOBAL TIMEFRAME TOGGLE (1H / 4H / Daily / Weekly / Monthly; 4H chart only since 2026-11-05) ===== -->
     <div class="tf-switch-bar" id="tfSwitchBar" role="tablist" aria-label="Timeframe">
       <div class="tf-switch">
         <button class="tf-switch-btn" id="tfBtn1H" data-tf="1H" role="tab" aria-selected="false">1H</button>
+        <button class="tf-switch-btn" id="tfBtn4H" data-tf="4H" role="tab" aria-selected="false" hidden>4H</button>
         <button class="tf-switch-btn" id="tfBtnD"  data-tf="D"  role="tab" aria-selected="false">Daily</button>
         <button class="tf-switch-btn" id="tfBtnW"  data-tf="W"  role="tab" aria-selected="false" hidden>Weekly</button>
         <button class="tf-switch-btn" id="tfBtnM"  data-tf="M"  role="tab" aria-selected="false" hidden>Monthly</button>
@@ -786,7 +787,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=10"></script>
   <script src="/static/js/modules/grid-geometry.js?v=14"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=591"></script>
+  <script src="/static/js/app.js?v=592"></script>
 </body>
 </html>
 

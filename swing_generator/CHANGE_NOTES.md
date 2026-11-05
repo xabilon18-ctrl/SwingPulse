@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-05 4H CHART BACK, CHART ONLY: app.js v592, chart feed. User: "Bring
+back the 4h chart" (the day after #145 removed 4H as a timeframe).
+- Pipeline: `CHART_BUILDERS` has `'4H': 'build_4h_live'` again, so every
+  publish writes `chart/4H/<chunk>.json` (chart cache applies as for 1H).
+  Chart only, like Weekly/Monthly: no `sg` markers, no setup context, no
+  `trend_channels.tf['4H']`, no `events_by_tf['4H']`.
+- App: a `chartOnly` 4H row in `TIMEFRAMES` (prefix '' so a stale `h4_` CSV
+  column is never read; the card shows the Daily main trend) and the
+  `#tfBtn4H` button, shown on Charts only. A saved 4H chart choice opens on 4H
+  again, and drawings saved on 4H show again.
+- NOT changed: the 4H setup, workflow signals, MA clusters, filters and
+  Alerts stay on 1H (#145). Daily ladders stay off 4H (`ladderNo4hOnce`); a
+  ladder's 4H chip still turns it on there.
+- Validators/tests: validate_hourly_release now requires the 4H chunk (no
+  markers) and the live 4H button; app_smoke opens 4H and checks bars, no
+  markers and no 4H relation; ladder_daily_sub_checks expects the button.
+
 2026-11-05 FULL-SCREEN BARS MORE SEE-THROUGH: style.css v408. User: "A bit
 more see through that shows the charts every[where] when I move them". The
 header and footer go from 80% white with a 3px blur to 55% white with no

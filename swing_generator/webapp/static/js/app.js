@@ -192,6 +192,11 @@
     // it's signals to 1h"): its setup direction, workflow signals, MA
     // clusters, Alerts and filters read 1H now. A saved 4H chart choice opens
     // on Daily; drawings saved on 4H stay in the store, not shown.
+    // 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart") as a CHART
+    // ONLY, like Weekly/Monthly: no markers, setup or alerts (those stay on
+    // 1H). prefix '' so a stale h4_ CSV column is never read; the card shows
+    // the Daily main trend. Drawings saved on 4H show again.
+    { code: '4H', prefix: '',    label: '4H',       bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.

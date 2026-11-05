@@ -1126,7 +1126,11 @@ def near_ma_map(daily: dict) -> dict:
 # and B1/S1 filter events are computed on the 1H bundles instead
 # (attach_setup_context, trend_context_feed). build_4h_live is kept for
 # research; the 4H chunks on R2 are left orphaned.
-CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', 'D': 'build_daily'}
+# 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart") as a CHART ONLY,
+# like Weekly/Monthly: build_4h_live chunks, no markers (`sg`), no setup
+# context, no trend_channels read, no events_by_tf entry. Its setup, workflow
+# signals and alerts stay on 1H.
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -1170,7 +1174,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
