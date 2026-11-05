@@ -53,7 +53,8 @@ assert all(r['h1_primary_signal'] in ('', 'B1', 'S1') for r in rows)
 index = read('chart/index.json')
 trends = read('trend_channels.json')['tf']
 assert all(tf in trends for tf in ('30m', '1H', 'D'))
-# 4H removed 2026-11-04: no 4H trend read, chunk events or chart button.
+# 4H removed 2026-11-04 as a signal timeframe; its CHART is back 2026-11-05,
+# chart only: chunks for most markets, but no trend read, events or markers.
 assert '4H' not in trends, '4H trend read is back'
 assert '4H' not in index.get('events_by_tf', {}), '4H chart events are back'
 assert len(trends['1H']) >= len(rows) * 0.8, 'Hourly chart coverage below 80%; stopping release'
@@ -66,6 +67,12 @@ bundle = chunk['data'][name]
 assert bundle['p'] in ([50, 250], [50, 250, 500])
 assert bundle['t'] and 'sg' in bundle and 'xm' in bundle
 assert all(code in ('B1', 'S1') for _, code in bundle['sg'])
+# The 4H chunk beside that 1H one (a young market may have no 4H of its own).
+h4 = read(f'chart/4H/{cid}.json')
+assert h4['tf'] == '4H' and h4['data'], '4H chart chunk is missing or empty'
+for h4b in h4['data'].values():
+    assert h4b['t'] and len(h4b['t']) == len(h4b['c']), 'Bad 4H bundle'
+    assert not h4b.get('sg'), '4H is chart only: it must carry no markers'
 if args.live:
     template = (ROOT / 'webapp' / 'templates' / 'index.html').read_text()
     expected_asset = re.search(r'app\.js\?v=\d+', template).group(0)
@@ -78,9 +85,9 @@ if args.live:
             html = response.read().decode()
         if 'id="tfBtn1H"' in html and expected_asset in html:
             assert 'id="tfBtn30m"' not in html, 'Retired 30m control remains live'
-            assert 'id="tfBtn4H"' not in html, 'Retired 4H control remains live'
+            assert 'id="tfBtn4H"' in html, '4H chart control is missing'
             break
         assert time.monotonic() < deadline, 'Live UI is still the previous build'
         print('Waiting for the new Pages assets to reach the production URL', flush=True)
         time.sleep(5)
-print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, no 4H, B1/S1 markers, alerts and trend payloads')
+print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, 4H chart only, B1/S1 markers, alerts and trend payloads')
