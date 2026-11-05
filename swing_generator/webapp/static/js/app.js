@@ -11943,7 +11943,11 @@
     // under a thumb, so the CSS floors it at a real touch target and lets it
     // reach up into the bottom of the plot. It stops short of the price gutter
     // so the two strips never fight over the corner.
-    const tgripPct = (((L.H - L.py1) / L.H) * 100).toFixed(2);
+    // Under a see-through footer (full screen) the strip stops at the
+    // footer's top edge, so the footer's buttons never swallow the drag.
+    const tgripBot = L.H - L.dateY - 8;
+    const tgripPct = (((L.H - tgripBot - L.py1) / L.H) * 100).toFixed(2);
+    const tgripOff = tgripBot > 0 ? `;bottom:${((tgripBot / L.H) * 100).toFixed(2)}%` : '';
 
     const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
 
@@ -11958,7 +11962,7 @@
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
       <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
-      `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%" aria-hidden="true"></div>`;
+      `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%${tgripOff}" aria-hidden="true"></div>`;
   }
 
   // ── Timeframe switch ON the chart (2026-09-15) ────────────────────────
