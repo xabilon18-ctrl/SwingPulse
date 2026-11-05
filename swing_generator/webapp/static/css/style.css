@@ -9862,16 +9862,20 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    2026-11-05: "make these a little see through over the charts but not much
    that I am unable to read. Just to give chart extra space"). On the phone
    the chart fills the screen, status bar to home bar, and the header and
-   footer float over it on 80% white with a light blur: the candles show
-   faintly through, the words and buttons stay readable. reelLayout measures
+   footer float over it, see-through (below): the candles show through,
+   the words and buttons stay readable. reelLayout measures
    how far the two bars overlap the chart and keeps the readable frame, the
    date row and the trend strip in the clear part between them. Desktop keeps
    its header and footer in the flow. */
 #chartFull:not(.desktop-chart) > .cf-head,
 #chartFull:not(.desktop-chart) > .reel-foot {
   position: absolute; left: 0; right: 0; z-index: 5;
-  background: rgba(255, 255, 255, .8);
-  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  /* More see-through (user, 2026-11-05: "A bit more see through that shows
+     the charts every[where] when I move them"): 55% white and NO blur, so
+     the chart stays sharp underneath while it is panned. A soft white edge
+     on the words keeps them readable over the lines. */
+  background: rgba(255, 255, 255, .55);
+  text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 6px rgba(255, 255, 255, .9);
 }
 #chartFull:not(.desktop-chart) > .cf-head {
   top: 0;

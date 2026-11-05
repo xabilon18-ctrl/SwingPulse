@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-05 FULL-SCREEN BARS MORE SEE-THROUGH: style.css v408. User: "A bit
+more see through that shows the charts every[where] when I move them". The
+header and footer go from 80% white with a 3px blur to 55% white with no
+blur, so the chart stays sharp under them while panning; their words get a
+soft white text-shadow so they stay readable over the lines.
+
 2026-11-05 SEE-THROUGH HEADER AND FOOTER, FULL SCREEN: app.js v591,
 style.css v407. User (BRENT Daily screenshot, header and footer circled):
 "make these a little see through over the charts but not much that I am
