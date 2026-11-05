@@ -34,27 +34,27 @@ module.exports = async function checkLadderCleanup(page) {
     localStorage.setItem('sp-channels', JSON.stringify(s));
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04') && localStorage.getItem('sp-ladder-thick-2026-11-05'), null, { timeout: 60000 });
+  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04') && localStorage.getItem('sp-ladder-on4h-2026-11-05') && localStorage.getItem('sp-ladder-thick-2026-11-05'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder');
   const d = ladders('D');
   assert.equal(d.length, 3, 'no Daily ladder is deleted: ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
-  assert.ok(was.link && ['D', '1H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily and 1H: ' + JSON.stringify(was));
-  // Daily ladders off 4H (2026-11-04): '4H' is out of every copy's tfs.
+  assert.ok(was.link && ['D', '1H', '4H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily, 1H and 4H: ' + JSON.stringify(was));
+  // Off 4H on 2026-11-04 and back on 2026-11-05: every Daily ladder that
+  // shows on 1H shows on 4H again, on every copy.
   for (const tf of ['D', '1H', '4H'])
-    assert.ok(ladders(tf).filter(x => x.link && x.tfs.includes('D')).every(x => !x.tfs.includes('4H')), tf + ': no Daily ladder shows on 4H: ' + JSON.stringify(ladders(tf)));
+    assert.ok(ladders(tf).filter(x => x.link && x.tfs.includes('D') && x.tfs.includes('1H')).every(x => x.tfs.includes('4H')), tf + ': every Daily ladder on 1H is on 4H again: ' + JSON.stringify(ladders(tf)));
   assert.deepEqual(d.find(x => x.p1 === 30).tfs, ['D'], 'a Daily ladder whose 1H/4H were switched off stays that way');
   for (const tf of ['1H', '4H']) {
     const l = ladders(tf);
     assert.ok(l.every(x => x.link && x.tfs.includes('D')), tf + ': only Daily ladders remain: ' + JSON.stringify(l));
-    // 1H holds the Daily ladders' copies; 4H is no longer a chart timeframe
-    // (2026-11-04), so no new copy is written there.
-    if (tf === '1H') assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
+    // Both hold the Daily ladders' copies (4H a chart again since 2026-11-05).
+    assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
   }
   assert.equal((got['1H'] || []).filter(x => x.kind === 'trend').length, 1, 'other drawings are untouched');
   // Daily ladders on Thick (2026-11-05), on Daily and on their 1H copies.
-  for (const tf of ['D', '1H'])
+  for (const tf of ['D', '1H', '4H'])
     assert.ok(ladders(tf).length && ladders(tf).every(x => x.strokeWeight === 3), tf + ': every Daily ladder is Thick: ' + JSON.stringify(ladders(tf)));
   // Once only: a ladder drawn on 1H after the cleanup survives a reload.
   await p.evaluate(() => {
@@ -69,5 +69,5 @@ module.exports = async function checkLadderCleanup(page) {
   assert.ok(!('strokeWeight' in again.find(x => x.p1 === 70)), 'a ladder drawn on its own on 1H is not made Thick');
   assert.equal(errors.length, 0, errors.join('\n'));
   await context.close();
-  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H, on Thick)');
+  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H then back, on Thick)');
 };
