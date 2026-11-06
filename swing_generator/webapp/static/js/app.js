@@ -10440,7 +10440,7 @@
       for (const [tf, list] of Object.entries(per)) {
         if (!Array.isArray(list)) continue;
         for (const d of list) {
-          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.strokeWeight === 3) continue;
+          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.strokeWeight === 3 || d.dash) continue;
           d.strokeWeight = 3; n++;
         }
       }
@@ -11050,7 +11050,7 @@
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
           if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
           const pct = Math.round((a.pct + (z.pct - a.pct) * s / LADDER_SUB) * 10) / 10;
-          subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub"/>`
+          subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${d.dash ? ' is-dash' : ''}"/>`
             + (d.hideLabels || gapPx < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl">${pct}%</text>`);
         }
       }
@@ -11073,7 +11073,7 @@
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
       if (d.glow) out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-glow"/>`;
-      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}${bold20 ? ' reel-ladder-bold' : ''}${sub ? ' reel-ladder-daily' : ''}" data-pct="${ln.pct}"/>`
+      out += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder${key ? ' reel-ladder-key' : ''}${bold20 ? ' reel-ladder-bold' : ''}${sub ? ' reel-ladder-daily' : ''}${d.dash && !key ? ' is-dash' : ''}" data-pct="${ln.pct}"/>`
            + reelHitLine(L.x0, y, L.x1, y, idx)
            // LEFT end, as a percentage of the ladder — 0% on the bottom line up
            // to 100% on the top one (user, 2026-09-15). The price used to sit at the right
@@ -14852,7 +14852,11 @@
       }
       if (btn.dataset.act === 'draw-dash') {
         const d = activeChannel(name);
-        if (d && d.kind === 'channel') {
+        if (d && (d.kind === 'channel' || d.kind === 'ladder')) {
+          // A ladder switched to dashed starts on Thin (user, 2026-11-06:
+          // "dash lines as an option for the percentage line with thin med
+          // and thick. With thin being default"); Medium / Thick from there.
+          if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 1;
           if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
           channelSave();
           if (chHost) reelRepaint(chHost);
