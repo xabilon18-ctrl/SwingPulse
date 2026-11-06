@@ -100,6 +100,8 @@
     // (user, 2026-09-15). Off is the default for a new ladder since 2026-11-01.
     const pct = d.kind === 'ladder'
       ? `<button class="reel-tool reel-tool-pct${d.hideLabels ? '' : ' on'}" data-act="draw-labels" data-name="${name}" aria-pressed="${!d.hideLabels}" aria-label="${d.hideLabels ? 'Show percentages' : 'Hide percentages'}" title="${d.hideLabels ? 'Show %' : 'Hide %'}">%</button>`
+        // The actual price move of each gap, in its middle (user, 2026-11-06). Off by default.
+        + `<button class="reel-tool reel-tool-pct reel-tool-moves${d.moves ? ' on' : ''}" data-act="draw-moves" data-name="${name}" aria-pressed="${!!d.moves}" aria-label="${d.moves ? 'Hide the actual % move of each gap' : 'Show the actual % move of each gap'}" title="Actual % move per gap">Move %</button>`
         // Phone alerts on this ladder's lines, Daily and 1H steps (2026-11-03).
         + `<button class="reel-tool reel-tool-pct reel-tool-alert${d.alert ? ' on' : ''}" data-act="draw-alert" data-name="${name}" aria-pressed="${!!d.alert}" aria-label="${d.alert ? 'Stop alerts on these lines' : 'Alert me when price reaches these lines'}" title="Alert">🔔 Alert</button>`
         // Blue glow while selected, off by default (user, 2026-11-01).

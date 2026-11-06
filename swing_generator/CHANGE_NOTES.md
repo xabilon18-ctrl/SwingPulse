@@ -7,6 +7,29 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-06 LADDER "MOVE %" SWITCH: app.js v594, style.css v409,
+drawing-toolbar.js v11. User: "a switch on the percentage lines that measures
+the equal ladders in actual percentage moves ... written in the middle of each
+point 0-10 on daily all the way to over 100 and this must apply to the small
+time frames".
+- A ladder's lines are equal PRICE steps, so the real move per gap shrinks as
+  price climbs (100 -> 110 is +10%, 200 -> 210 is +5%). New `Move %` button
+  next to `%` (stored as `d.moves`, off by default): every gap between two
+  Daily 10% lines, stacks above 100% and below 0% included, shows its actual
+  % move in the middle of the gap at the right end of the plot, in teal with
+  a white halo (`.reel-ladder-move`).
+- Measured the way the ladder is numbered: up from the lower line ("+5.26%");
+  on a reversed ladder (`%⇅`, 0% at the top) down from the upper line
+  ("-5.00%").
+- A linked Daily ladder carries the switch to 1H and 4H (`channelLinkSync`
+  copies every field); there the same Daily gaps are labelled, not the finer
+  2% / 5% steps. A gap starting at price 0 (no % move) and a gap thinner than
+  `LADDER_MOVE_MIN` (34 units, zoomed far out) stay blank.
+- Display only: alerts, storage of the lines and the sync Worker unchanged.
+- Test: `tests/ladder_moves_checks.cjs` (from app_smoke): values match the
+  saved anchors on D, 1H and 4H, shrink going up, sit mid-gap, run past 100%,
+  and go negative when reversed.
+
 2026-11-05 (later) 4H SPLITS EACH DAILY LADDER GAP IN TWO AGAIN: app.js v593.
 User: "What would the division of 4h be since 1h is 5 per section", then
 "2?" (two, every 5%, over three, every 3.33%). Square-root-of-time guide: a
