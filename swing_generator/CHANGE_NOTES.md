@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-06 (later) DASHED LADDER OPTION: app.js v595, style.css v410,
+drawing-toolbar.js v12. User: "add the dash lines as an option for the
+percentage line with thin med and thick. With thin being default"; then
+chose "Dashed starts Thin" and "1H / 4H follow my choice".
+- The channel's dotted / dashed buttons now show on a ladder too (`d.dash`;
+  the ÷10 switch stays channel-only). Dashed turns the 10% lines, the 1H bold
+  20s and the 1H / 4H finer steps into dashes; the 0% / 100% ends keep their
+  own longer dash and the drawing's colour.
+- Tapping Dashed on a dotted ladder sets it to Thin (`strokeWeight: 1`);
+  Medium / Thick work from there. Back to dotted keeps the weight. New
+  ladders still open dotted and Thick (2026-11-05).
+- 1H / 4H now follow Thin / Medium / Thick for every Daily ladder, in the
+  same order (finer steps < 10% lines < bold 20s and ends): Thin 0.9 / 1.4 /
+  2.6, Medium 1.4 / 2.2 / 4, Thick 2.2 / 3.2 / 6, so a Thick ladder looks as
+  before. The old fixed widths remain only for a ladder saved without a
+  weight.
+- `ladderThickOnce` skips dashed ladders, so a device that has not run it yet
+  cannot put a dashed Thin ladder back on Thick.
+- Test: `tests/ladder_dash_checks.cjs` (from app_smoke).
+
 2026-11-06 LADDER "MOVE %" SWITCH: app.js v594, style.css v409,
 drawing-toolbar.js v11. User: "a switch on the percentage lines that measures
 the equal ladders in actual percentage moves ... written in the middle of each

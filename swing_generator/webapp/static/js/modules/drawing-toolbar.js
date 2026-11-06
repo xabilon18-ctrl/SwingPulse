@@ -88,14 +88,15 @@
       }
       intensity += `</div>`;
     }
-    // Channel line style: dotted (the default) or dashed (user, 2026-09-27).
+    // Line style: dotted (the default) or dashed — channels (user, 2026-09-27)
+    // and ladders (user, 2026-11-06: dashed starts on Thin).
     const dashSvg = dash => `<svg width="26" height="10" viewBox="0 0 26 10"><line x1="2" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="${dash ? 'butt' : 'round'}" stroke-dasharray="${dash ? '7 4' : '0.1 5'}"/></svg>`;
-    const lineStyle = d.kind !== 'channel' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
+    const lineStyle = d.kind !== 'channel' && d.kind !== 'ladder' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
       + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
       + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
       + `</span>`
       // Ten divisions on / off (user, 2026-10-21). Off is the default.
-      + `<button class="reel-tool reel-grid-switch reel-fill-switch reel-div-switch${d.div ? ' on' : ''}" data-act="draw-div" data-name="${name}" role="switch" aria-checked="${!!d.div}" aria-label="Ten divisions" title="10 divisions"><span>÷10</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+      + (d.kind !== 'channel' ? '' : `<button class="reel-tool reel-grid-switch reel-fill-switch reel-div-switch${d.div ? ' on' : ''}" data-act="draw-div" data-name="${name}" role="switch" aria-checked="${!!d.div}" aria-label="Ten divisions" title="10 divisions"><span>÷10</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`);
     // The ladder alone gets a "%" switch: show or hide its 0%–100% labels
     // (user, 2026-09-15). Off is the default for a new ladder since 2026-11-01.
     const pct = d.kind === 'ladder'
