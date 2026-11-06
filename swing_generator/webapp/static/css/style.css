@@ -8664,6 +8664,13 @@ body.chart-full-open { overflow: hidden; }
 .reel-draw[data-stroke][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 6 !important; }
 .reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
+/* "Move %" (2026-11-06): the actual price move of each ladder gap, in the
+   middle of the gap at the right end. Teal, so it never reads as one of the
+   black 0-100% line labels or the grey finer steps; a white halo keeps it
+   readable where a finer line (4H's 5% step) runs through the middle. */
+.reel-ladder-move { font-size: 24px; fill: #0f766e; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none;
+  paint-order: stroke; stroke: #fff; stroke-width: 6px; stroke-linejoin: round; }
+@media (min-width: 768px) { .reel-ladder-move { font-size: 16px; stroke-width: 4px; } }
 /* Full-screen chart: previous / next without closing. */
 /* Bottom-right corner of the full-screen view (user request): the last thing
    in the footer, pushed right, and still right if the footer wraps while

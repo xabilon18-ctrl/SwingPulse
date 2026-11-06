@@ -10995,6 +10995,43 @@
     ch.p1 -= low; ch.p4 -= low;            // move: the whole ladder sits on zero
   }
 
+  // ACTUAL % MOVES (user, 2026-11-06: "a switch on the percentage lines that
+  // measures the equal ladders in actual percentage moves ... written in the
+  // middle of each point 0-10 on daily all the way to over 100 and this must
+  // apply to the small time frames"). The ladder's lines are EQUAL PRICE
+  // steps, so the price move each gap stands for shrinks as price climbs:
+  // 100 -> 110 is +10%, 200 -> 210 only +5%. With `d.moves` on, every gap
+  // between two Daily 10% lines, stacks included, carries that move in its
+  // middle, at the right end of the plot (clear of the % labels on the left).
+  // Measured the way the ladder is numbered: up from the lower line ("+5.26%"),
+  // or, on a reversed ladder (0% at the top), down from the upper one
+  // ("-5.00%"). A linked Daily ladder carries the switch to 1H and 4H, where
+  // the same Daily gaps are labelled (their finer steps are not). A gap that
+  // starts at price 0 has no % move and stays blank; a gap too thin for the
+  // text (zoomed far out) too.
+  const LADDER_MOVE_MIN = 34;     // viewBox units between two lines
+  function ladderMovePct(lo, hi, down) {
+    const from = down ? hi : lo, to = down ? lo : hi;
+    return from > 1e-9 ? (to - from) / from * 100 : null;
+  }
+  function ladderMoveText(v) {
+    const a = Math.abs(v);
+    return (v < 0 ? '-' : '+') + (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a.toFixed(2)) + '%';
+  }
+  function ladderMovesSvg(d, lines, L, sc) {
+    let svg = '';
+    for (let j = 1; j < lines.length; j++) {
+      const a = lines[j - 1], z = lines[j];
+      if (a.p < -1e-9) continue;
+      const ya = sc.y(a.p), yz = sc.y(z.p), ym = (ya + yz) / 2;
+      if (!(Math.abs(ya - yz) >= LADDER_MOVE_MIN) || ym < L.gTop || ym > L.gBot) continue;
+      const v = ladderMovePct(a.p, z.p, !!d.reverse);
+      if (v == null || !isFinite(v)) continue;
+      svg += `<text x="${(L.x1 - 8).toFixed(1)}" y="${ym.toFixed(1)}" dy="0.35em" text-anchor="end" class="reel-ladder-move" data-from="${a.pct}" data-to="${z.pct}">${ladderMoveText(v)}</text>`;
+    }
+    return svg;
+  }
+
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
     const step = (d.p4 - d.p1) / 3;
     if (!isFinite(step) || step === 0) return '';
@@ -11044,6 +11081,7 @@
            + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}">${pctLbl}%</text>`);
       drawn++;
     }
+    if (d.moves) out += ladderMovesSvg(d, lines, L, sc);
     if (!drawn) {
       const above = Math.max(sc.y(d.p1 + kMin * step), sc.y(d.p1 + kMax * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">ladder ${above ? '↑' : '↓'} off-scale</text>`;
@@ -14778,6 +14816,16 @@
         }
         if (chHost) reelRepaint(chHost);
         reelSyncChannelButtons();
+        return true;
+      }
+      if (btn.dataset.act === 'draw-moves') {
+        const d = activeChannel(name);
+        if (d && d.kind === 'ladder') {
+          if (d.moves) delete d.moves; else d.moves = true;
+          channelSave();
+          if (chHost) reelRepaint(chHost);
+          reelSyncChannelButtons();
+        }
         return true;
       }
       if (btn.dataset.act === 'draw-labels') {
