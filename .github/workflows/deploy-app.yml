@@ -49,7 +49,6 @@ jobs:
           python3 - <<'PY'
           import os
           import subprocess
-          four_hour = False
           if os.environ['GITHUB_EVENT_NAME'] != 'push':
               required = True
           else:
@@ -70,21 +69,13 @@ jobs:
                   validation_paths = ('swing_generator/tools/validate_hourly_release.py',
                                       'swing_generator/tools/shape_audit.py',
                                       'swing_generator/tools/build_desktop_review.py')
-                  data_paths = [path for path in paths if path.startswith('swing_generator/')
-                                and not path.startswith(ui_paths)
-                                and not path.endswith('.md')
-                                and path not in validation_paths]
-                  four_hour = ('swing_generator/tools/publish_four_hour.py' in data_paths
-                               and set(data_paths) <= {'swing_generator/tools/publish_four_hour.py',
-                                                      'swing_generator/webapp/chart_feed.py'})
-                  required = not four_hour and any(path.startswith('swing_generator/')
+                  required = any(path.startswith('swing_generator/')
                                  and not path.startswith(ui_paths)
                                  and not path.endswith('.md')
                                  and path not in validation_paths
                                  for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'data_required={str(required).lower()}\n')
-              output.write(f'four_hour_required={str(four_hour).lower()}\n')
           print('Market data rebuild required:', required)
           PY
       - name: Check Cloudflare deployment access
@@ -183,7 +174,7 @@ jobs:
         if: github.ref != 'refs/heads/main' && github.event_name != 'pull_request'
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch codex-1h-preview
       - name: Restore market cache for production release
-        if: github.ref == 'refs/heads/main' && (steps.scope.outputs.data_required == 'true' || steps.scope.outputs.four_hour_required == 'true')
+        if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -213,9 +204,6 @@ jobs:
           print(f'{ok} files uploaded')
           PY
           python3 tools/health_check.py --max-age-hours 0.75
-      - name: Restore and verify 4H chart data before deploying the controls
-        if: github.ref == 'refs/heads/main' && steps.scope.outputs.four_hour_required == 'true'
-        run: python3 swing_generator/tools/publish_four_hour.py
       # Deploy both services from this release even when an earlier commit
       # failed before publishing them. Diffing only the last commit misses that.
       - name: Deploy saved-work sync changes
