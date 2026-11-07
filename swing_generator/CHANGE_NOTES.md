@@ -7,6 +7,39 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) FULL-SCREEN FOOTER ONE HEIGHT: style.css v412. User
+(ETHUSD full-screen screenshot, footer circled): "Make the bottom same as
+size as the one on the left daily one". On the phone's full screen, Saved |
+Draw and the ‹ n/N › steps go from 36px to the timeframe pill's 28px, and the
+pill is pinned at 28px so all three stay equal. Each button keeps a 36px tap
+area through an invisible `::after` (inset -4px top and bottom). Desktop
+(`.desktop-chart`) is unchanged.
+
+2026-11-07 (later) CLEAN CHART, TRADINGVIEW-STYLE OPTION 1: app.js v597,
+style.css v411, chart-readability.js v2. User sent a TradingView ETHUSD 1D
+screenshot ("How clean is this look? Can we copy it? ... add a bit of our
+touch"), saw three mock-ups and chose option 1.
+- Chart MAs are SOLID (were dotted), still black rising / red falling. Weight
+  rises with the period: MA50 3, MA250 4.5, MA500 6.5 viewBox units on Thin
+  (the default); Medium x1.25, Thick x1.55 (`chartReadability.nativeWidth`).
+  The weight order is "our touch": the lines are told apart without a legend.
+  Overlay MAs from other timeframes keep their dashes, so they still read as
+  overlays.
+- Last-price tag and its line take the last bar's direction: green
+  `--reel-last-up` #089981 when it closed at or above the bar before, red
+  `--reel-last-dn` #e0262b below (were amber). The line is a 2/5 dotted 1.6
+  stroke (was a 6/5 amber dash). The tag text is white; in full screen its
+  halo takes the tag colour, because the white overlay halo smudged white text.
+- Round price levels are bold (`majorStep` / `isMajor`: 5x a 1- or 2-step,
+  2x a 2.5- or 5-step, so 90 / 100 / 110 bold between 95 / 105). Axis numbers
+  are darker (#1a1a19).
+- The trend-strip caption ("Uptrend since ... · lighter = below MA50") is no
+  longer drawn on the plot; the strip itself stays.
+- Unchanged: no horizontal price gridlines (removed on purpose 2026-09-11).
+- Tests: chart_readability_test (weights rise MA50 < MA250 < MA500 and with
+  Thin < Medium < Thick; bold levels), chart_readability_browser (Thick MA500
+  width is `nativeWidth('anchor', 3)` instead of the dotted 7).
+
 2026-11-07 EVERY DAILY LADDER DASHED AND THIN: app.js v596. User: "Replace
 all daily chart percentages lines with dash lines"; then chose Thin for the
 converted ladders and dashed for new Daily ladders too.
