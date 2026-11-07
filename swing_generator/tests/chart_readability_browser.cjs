@@ -35,9 +35,6 @@ async function menu(page,on=true){
 }
 async function frame(page){return page.locator('#chartFullHost').evaluate(h=>({lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi,t:h._reelCtx.b.t}));}
 async function widthOf(page,selector){return page.locator('#chartFullHost '+selector).first().evaluate(e=>parseFloat(getComputedStyle(e).strokeWidth));}
-// Visible thickness in CSS px: dotted lines are sized in screen pixels since
-// 2026-11-07, so their viewBox width changes with the chart's size.
-async function screenWidthOf(page,selector){return page.locator('#chartFullHost '+selector).first().evaluate(e=>+(parseFloat(getComputedStyle(e).strokeWidth)*e.ownerSVGElement.getScreenCTM().a).toFixed(2));}
 async function axis(page){return page.locator('#chartFullHost').evaluate(h=>{
  const texts=[...h.querySelectorAll('.reel-price-tick,.reel-axis-last')].map(e=>{const r=e.getBoundingClientRect();return {text:e.textContent,top:r.top,bottom:r.bottom};}).sort((a,b)=>a.top-b.top);
  const hrect=h.getBoundingClientRect();return {texts,height:hrect.height,plot:h._reelCtx.plotPx,lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi};
@@ -113,7 +110,6 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     const vals=[];for(const n of [1,2,3]){
      await toolbar.locator(`[data-act="draw-weight"][data-v="${n}"]`).click();
      vals.push(await widthOf(page,'.reel-draw.is-sel '+selector));
-     if(kind==='ladder')(weights.ladderPx||(weights.ladderPx=[])).push(await screenWidthOf(page,'.reel-draw.is-sel '+selector));
     }
     assert.ok(vals[0]<vals[1]&&vals[1]<vals[2],kind+' distinct visible widths');weights[kind]=vals;
     await toolbar.locator('[data-act="draw-weight"][data-v="1"]').click();
@@ -130,7 +126,7 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
    console.log(`READABILITY_IMAGE_${w}=`+(await page.screenshot({type:'jpeg',quality:60})).toString('base64'));
    if(w>=1024){
     await page.locator('[data-act="desktop-expand"]').click();await ready(page);noOverlap(await axis(page));
-    assert.equal(await widthOf(page,'.reel-native-ma'),native[0]);assert.equal(await screenWidthOf(page,'.reel-ladder:not(.reel-ladder-key)'),weights.ladderPx[0],'Thin ladder keeps its visible weight in the wide view');
+    assert.equal(await widthOf(page,'.reel-native-ma'),native[0]);assert.equal(await widthOf(page,'.reel-ladder:not(.reel-ladder-key)'),weights.ladder[0]);
     await page.keyboard.press('Escape');await ready(page);
    }else{
     await page.locator('#chartFull [data-act="chart-full-close"]').click();

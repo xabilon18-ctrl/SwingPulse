@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) DOTS: SPACING ONLY, THICKNESS BACK: app.js v603,
+style.css v415. User, after #164: "I just asked for the spaces to be closed
+in, and you just went and made them a little bit bigger and darker ... the
+size is way too big on ours. Now you just went and made it even much more
+bigger". #164 had also forced every dotted line to at least 1 CSS px thick,
+solid black, and heavier still on Medium / Thick — not asked for.
+- Removed: all thickness (`--dw-*`) and opacity overrides. Every dotted
+  line is back to the exact thickness and colour it had before #164
+  (measured, iPad 750: timeline 0.52 px, channel edge 0.73, midline 0.52,
+  last-price 0.83 — the same as before #164).
+- Kept: only the dot length and gap, in CSS px whatever the screen
+  (`--dd-*`): 1.5 / 2.5 (TradingView's) on every dotted line, 2 / 2.5 for
+  Medium channel edges, 3 / 2.5 for Thick channel edges and the 1H bold 20s
+  (a heavy line with a 1.5 dot reads as bars). Square ends.
+- Tests: dotted_lines_checks now asserts 1.5 / 2.5 AND the old thickness;
+  ladder_dash_checks reads `--dd-s`; chart_readability_browser is back to
+  its pre-#164 form.
+
 2026-11-07 TRADINGVIEW-STYLE DOTS: app.js v602, style.css v414,
 drawing-toolbar.js v13. User, TradingView and SwingPulse iPad screenshots
 side by side: "The dots look properly close together and tiny ... mine ...

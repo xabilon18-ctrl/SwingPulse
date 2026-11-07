@@ -9016,23 +9016,21 @@
   // to 520 CSS px) renders exactly as before; an iPad or laptop gets a bigger
   // chart with text ~1.5x a phone's (it is read from further away), not 2-3x.
   const REEL_PHONE_CARD_PX = 520;
-  // TRADINGVIEW-STYLE DOTS (user, 2026-11-07, TradingView and SwingPulse
+  // CLOSE-SET DOTS (user, 2026-11-07, TradingView and SwingPulse
   // screenshots side by side: "The dots look properly close together and
-  // tiny ... mine ... the spaces in between them is big ... Anything that's a
-  // dot, please make it look like that"). Measured on the user's iPad
-  // screenshots: TradingView draws a dot 1 CSS px thick and 1.5 long with a
-  // 2.5 gap, solid black; ours were 2 long with a 5-5.5 gap, under 1 px thick
-  // (so grey), and set in viewBox units, so they changed size with the
-  // screen. Every dotted line now takes its size in CSS PIXELS from these
-  // variables, converted to viewBox units for this chart (L.u units per px):
-  // --dw-<t> the thickness, --dd-<t> the dot and gap. Tiers: x finer steps,
-  // s fine, m medium, l large, b bold (a Thick ladder's 1H 20s). Square dots (butt caps). See style.css,
-  // "TradingView-style dots". Dashed lines are not dots and are unchanged.
-  const REEL_DOT_TIERS = { x: [0.75, 1.5, 2.5], s: [1, 1.5, 2.5], m: [1.5, 2, 2.5], l: [2.25, 2.5, 3], b: [3, 3, 3] };
+  // tiny ... the spaces in between them is big"; then, after a first version
+  // also made the dots thicker and darker: "I only just asked for the spaces
+  // to be closed in ... the size is way too big on ours"). Measured on the
+  // iPad screenshots: TradingView 1.5 CSS px dots with a 2.5 gap; ours were
+  // 2 with a 5-5.5 gap, set in viewBox units, so they changed with the
+  // screen. Only the dot length and gap are set here, in CSS PIXELS
+  // converted to this chart's viewBox units (L.u units per px), as
+  // --dd-<t>: s 1.5 / 2.5, m 2 / 2.5, l 3 / 2.5 (lines drawn thick). Line
+  // thickness and colour are untouched. See style.css "Close-set dots".
+  const REEL_DOT_TIERS = { s: [1.5, 2.5], m: [2, 2.5], l: [3, 2.5] };
   function reelDotVars(L) {
     const u = L && L.u > 0 ? L.u : 1, f = v => +(v * u).toFixed(2);
-    return Object.entries(REEL_DOT_TIERS)
-      .map(([t, [w, dot, gap]]) => `--dw-${t}:${f(w)};--dd-${t}:${f(dot)} ${f(gap)}`).join(';');
+    return Object.entries(REEL_DOT_TIERS).map(([t, [dot, gap]]) => `--dd-${t}:${f(dot)} ${f(gap)}`).join(';');
   }
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;

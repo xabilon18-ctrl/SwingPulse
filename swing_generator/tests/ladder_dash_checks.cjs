@@ -62,12 +62,11 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
   let back = await stored();
   assert.ok(back && !back.dash && back.strokeWeight === 3 && back.dashOff === true, 'dotted again, weight kept, remembered: ' + JSON.stringify(back && { dash: back.dash, w: back.strokeWeight, off: back.dashOff }));
   l = await look();
-  // Dotted lines take the TradingView-style dot for their weight (Thick: the
-  // l size, --dd-l on the chart), 2026-11-07.
-  const ddL = await page.evaluate(() => getComputedStyle(document.querySelector('#chartFull .reel-chart svg')).getPropertyValue('--dd-l').trim().split(/\s+/).map(Number));
+  // Dotted lines take the close-set dot (--dd-s on the chart), 2026-11-07.
+  const ddL = await page.evaluate(() => getComputedStyle(document.querySelector('#chartFull .reel-chart svg')).getPropertyValue('--dd-s').trim().split(/\s+/).map(Number));
   const nums = da => da.split(/[ ,]+/).map(parseFloat);
   assert.ok(ddL.length === 2 && same(l.inner, x => !x.dash && nums(x.da).every((v, i) => Math.abs(v - ddL[i]) < 0.02)),
-    'dotted again, TradingView-style dots: ' + JSON.stringify({ ddL, inner: l.inner.slice(0, 2) }));
+    'dotted again, close-set dots: ' + JSON.stringify({ ddL, inner: l.inner.slice(0, 2) }));
   // Dashed again starts on Thin again.
   await tb.locator('[data-act="draw-dash"][data-v="1"]').click();
   back = await stored();
