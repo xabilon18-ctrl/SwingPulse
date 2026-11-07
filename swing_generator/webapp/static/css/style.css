@@ -7504,6 +7504,9 @@ body {
      both chosen for a dark panel and both invisible on this one. */
   --reel-bar:   #000;      /* pure black since 2026-09-30 (user: "all bars blacker") */
   --reel-ma-up: #14140f;   /* rising MA; a FALLING one still takes --sell red */
+  /* Last-price tag and line by the last bar's direction (2026-11-07). */
+  --reel-last-up: #089981;
+  --reel-last-dn: #e0262b;
   /* Drawings go dark for the same reason. They were white by choice on
      2026-09-11, and white on white cannot be seen at all. */
   --reel-ch-color: #14140f;
@@ -7697,7 +7700,15 @@ body {
   font-size: 24px; fill: var(--text-secondary);
   font-family: inherit; font-variant-numeric: tabular-nums;
 }
-.reel-axis-last { fill: #1a1a19; font-weight: 700; text-anchor: end; }
+.reel-axis-last { fill: #fff; font-weight: 700; text-anchor: end; }
+/* Clean chart (2026-11-07): darker axis numbers, round levels bold, and the
+   last-price tag + its dotted line green / red by the last bar. */
+.reel-price-tick { fill: #1a1a19; }
+.reel-price-tick.major { font-weight: 700; }
+.reel-last-tag.up { fill: var(--reel-last-up); }
+.reel-last-tag.dn { fill: var(--reel-last-dn); }
+.reel-last-line.up { stroke: var(--reel-last-up); }
+.reel-last-line.dn { stroke: var(--reel-last-dn); }
 
 .reel-clip-tag { font-size: 19px; fill: var(--text-muted); font-weight: 600; }
 
@@ -9921,3 +9932,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-svg.is-overlaid .reel-strip-lbl {
   paint-order: stroke; stroke: rgba(255, 255, 255, .92); stroke-width: 7px; stroke-linejoin: round;
 }
+/* The last-price text is white on its tag: a white halo smudges it, so the
+   halo takes the tag's own colour (2026-11-07). */
+.reel-svg.is-overlaid .reel-axis-last.up { stroke: var(--reel-last-up); }
+.reel-svg.is-overlaid .reel-axis-last.dn { stroke: var(--reel-last-dn); }

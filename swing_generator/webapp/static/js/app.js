@@ -11568,12 +11568,10 @@
       if (k !== key) { flush(i); key = k; start = i; }
     }
     flush(n);
-    if (!out) return '';
-    const word = (timeframe === 'D' || ownTf ? '' : 'Daily ') + (curDir === 'UPTREND' ? 'uptrend' : 'downtrend');
-    const legend = `lighter = ${curDir === 'UPTREND' ? 'below' : 'above'} MA${b.p[0]}`;
-    const Word = word.charAt(0).toUpperCase() + word.slice(1);
-    const text = since ? `${Word} since ${longDate(since)} · ${legend}` : legend;
-    return out + `<text x="${L.x0 + 4}" y="${L.stripY - 5}" class="reel-strip-lbl">${text}</text>`;
+    // No caption since 2026-11-07 (user chose the clean TradingView-style
+    // look): "Uptrend since … · lighter = below MA50" sat on the plot itself.
+    // The card header already names the main trend.
+    return out;
   }
 
   // Display-only append: published completed arrays and signal indices stay
@@ -11646,12 +11644,15 @@
     // The numbers still sit in the gutter, which is where a level is read.
     const axisUnit = (host.clientWidth || 360) / L.W;
     const _want = modules.chartReadability.axisTarget((L.py1 - L.py0) * axisUnit, 24 * axisUnit);
+    // Round levels are bold since 2026-11-07 (TradingView-style option 1):
+    // 100 and 110 stand out from 105, so the scale reads at a glance.
+    const _major = modules.chartReadability.majorStep(sc.lo, sc.hi, _want);
     const grid = modules.chartReadability.axisLabels(sc.lo, sc.hi, _want, reelFmtPrice, sc.y, axisUnit, b.c[n - 1]).map(v =>
-      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis reel-price-tick">${reelFmtPrice(v)}</text>`
+      `<text x="${L.gut}" y="${(sc.y(v) + 6).toFixed(1)}" class="reel-axis reel-price-tick${modules.chartReadability.isMajor(v, _major) ? ' major' : ''}">${reelFmtPrice(v)}</text>`
     ).join('');
 
     // ── MA ribbon ──
-    // Dotted, and each line coloured by its OWN slope: falling red, rising
+    // Solid, and each line coloured by its OWN slope: falling red, rising
     // neutral. That colouring is the trend read — a ribbon that has rolled
     // over goes red from the fast edge inward, and you see it without reading
     // a single label. Split into runs of constant direction so each run is one
@@ -11684,16 +11685,19 @@
       const series = b.m[k];
       const isAnchor = k === nMa - 1;
       const isKey    = isAnchor || k === 0 || k === midIdx;
-      // Thick retains the original 7-unit native ribbon; two lighter choices
-      // share its slope colours and dotted pattern on every device.
-      const wid = (isKey ? 7.0 : 2.4) * modules.chartReadability.nativeScale((tfOverlay.nativeW || {})[timeframe]);
-      const dash = isKey ? `${wid * 0.46} ${wid * 1.7}` : `${wid * 0.6} ${wid * 2.4}`;
+      // SOLID since 2026-11-07 (user picked the TradingView-style option 1;
+      // they were dotted). Solid tells the averages apart from the dotted
+      // calendar lines and the dashed drawings. Weight now rises with the
+      // period — MA50 thinnest, MA500 heaviest — so the lines are told apart
+      // without a legend; Thin / Medium / Thick scale all three together.
+      const role = isAnchor ? 'anchor' : k === midIdx ? 'mid' : k === 0 ? 'fast' : 'other';
+      const wid = modules.chartReadability.nativeWidth(role, (tfOverlay.nativeW || {})[timeframe]);
 
       let run = [], runDown = null;
       const flush = () => {
         if (run.length >= 2) {
           const col = runDown ? 'var(--sell)' : 'var(--reel-ma-up)';
-          ribbon += `<polyline class="reel-native-ma" points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isKey ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
+          ribbon += `<polyline class="reel-native-ma" data-ma="${role}" points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-linecap="round" stroke-linejoin="round"/>`;
         }
         run = [];
       };
@@ -11803,6 +11807,11 @@
     // ── Last price ──
     const last = b.c[n - 1];
     const lastY = sc.y(last);
+    // Coloured by the last bar since 2026-11-07 (user picked the TradingView-
+    // style option 1): green when it closed at or above the bar before, red
+    // below. The amber tag said where price was; this also says which way it
+    // went. Tag, its line and its text halo all read the same class.
+    const lastDir = n > 1 && last < b.c[n - 2] ? 'dn' : 'up';
     const lastTag =
       // Heavier since 2026-09-15 ("make the price line more visible"): a 1-unit
       // 2/4 dash at 80% was a faint dotted thread on the white ground. The line
@@ -11813,9 +11822,10 @@
       // It is painted over the drawings, so it takes no touches (2026-11-02):
       // a channel end handle sitting on the current price was not grabbable
       // through it (CI, the day the fixture's close fell on the flat channel).
-      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" stroke="#d99a00" stroke-width="1.6" stroke-dasharray="6 5" stroke-opacity="1" pointer-events="none"/>` +
-      `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" fill="var(--accent)"/>` +
-      `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last">${reelFmtPrice(last)}</text>`;
+      // Dotted in the tag's colour since 2026-11-07 (was a 6/5 dash in amber).
+      `<line x1="${L.x0}" y1="${lastY.toFixed(1)}" x2="${L.x1}" y2="${lastY.toFixed(1)}" class="reel-last-line ${lastDir}" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round" pointer-events="none"/>` +
+      `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" class="reel-last-tag ${lastDir}"/>` +
+      `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last ${lastDir}">${reelFmtPrice(last)}</text>`;
 
     // Clipped-ribbon tag — says which way the ribbon ran off and by how much,
     // so a capped scale never silently hides where the anchor is.

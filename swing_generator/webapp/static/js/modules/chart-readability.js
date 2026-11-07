@@ -46,7 +46,30 @@
       return !(lastPrice >= lo && lastPrice <= hi && Math.abs(yOf(v) - yOf(lastPrice)) * pixelsPerUnit < 19);
     });
   }
-  const api = Object.freeze({levels, valid, level, nativeScale, drawingLevel, drawingAttrs, axisTarget, ticks, axisLabels});
+  // Chart MA widths (viewBox units), solid since 2026-11-07. Heavier with the
+  // period so MA50 / MA250 / MA500 are told apart by weight; Thin is the
+  // default and Medium / Thick scale all of them together.
+  const NATIVE_BASE = Object.freeze({fast: 3, mid: 4.5, anchor: 6.5, other: 2});
+  const NATIVE_GROW = [1, 1.25, 1.55];
+  function nativeWidth(role, value) {
+    const base = NATIVE_BASE[role] || NATIVE_BASE.other;
+    return Number((base * NATIVE_GROW[level(value) - 1]).toFixed(2));
+  }
+  // The step whose multiples are drawn bold on the price axis: 5x the label
+  // step when it is a 1 or 2 (labels 1,2,3 -> bold 5,10), 2x when it is a
+  // 2.5 or 5 (labels 95,100,105 -> bold 90,100,110).
+  function majorStep(lo, hi, want) {
+    const t = ticks(lo, hi, want);
+    if (t.length < 2) return 0;
+    const step = t[1] - t[0], mag = Math.pow(10, Math.floor(Math.log10(step)));
+    return Number((step * (step / mag < 2.25 ? 5 : 2)).toPrecision(12));
+  }
+  function isMajor(v, major) {
+    if (!(major > 0) || !Number.isFinite(v)) return false;
+    const q = v / major;
+    return Math.abs(q - Math.round(q)) < 1e-6;
+  }
+  const api = Object.freeze({levels, valid, level, nativeScale, nativeWidth, majorStep, isMajor, drawingLevel, drawingAttrs, axisTarget, ticks, axisLabels});
   (root.SwingPulseModules ||= {}).chartReadability = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
