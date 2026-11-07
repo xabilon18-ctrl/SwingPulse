@@ -13769,6 +13769,33 @@
       if (ch.kind === 'ladder') {
         const minGap = (ctx.sc.hi - ctx.sc.lo) * 0.01;
         const pz = Math.max(0, price);   // the anchors never go below 0 either
+        // ZERO STAYS WHILE RESIZING (user, 2026-11-07: "I should be able to
+        // take it down and take it up without it moving on the 0% level ...
+        // when I try to make it big, it doesn't move because of the zero").
+        // A ladder whose lowest line (a block below 0% included) rests on
+        // price 0 is resized AROUND ZERO by the 40% dot and the scale dot:
+        // zero stays, the dragged line follows the finger, and every line —
+        // 0% included — spreads out from zero or closes in on it. It used to
+        // pivot on the 0% line, so with a block below, a bigger ladder pushed
+        // that block under zero and ladderHoldZero refused the drag, and a
+        // smaller one lifted the ladder off zero. A ladder clear of zero
+        // still pivots on 0% until its bottom reaches zero, then on zero.
+        // Without a block below, 0% is the bottom line, so nothing changes.
+        const lj = handle === 'l4' ? ladderDotSteps(timeframe)
+          : String(handle).startsWith('ls:') ? +String(handle).slice(3) : null;
+        const kd = -Math.min(0, ladderKRange(ch)[0]);          // steps below 0%
+        if (lj != null && kd > 0 && kd + lj > 0) {
+          const s0 = (ch.p4 - ch.p1) / 3;
+          const snap = Math.abs(ctx.sc.inv(ctx.sc.y(0) - LADDER_ZERO_SNAP) - ctx.sc.inv(ctx.sc.y(0)));
+          const sPivot = (pz - ch.p1) / lj;                    // the 0%-held answer
+          const onZero = s0 > 0 && ch.p1 - kd * s0 <= snap;
+          if (s0 > 0 && (onZero || !(ch.p1 - kd * sPivot > snap))) {
+            const s1 = pz / (kd + lj);
+            if (s1 > 0 && pz >= minGap) { ch.p1 = kd * s1; ch.p4 = ch.p1 + 3 * s1; }
+            schedule();
+            return;
+          }
+        }
         if (handle === 'l1' && Math.abs(ch.p4 - pz) >= minGap) ch.p1 = pz;
         // The dot is on the 40% line (37.5% on eight divisions), ladderDotSteps steps
         // up; p4 is three.
