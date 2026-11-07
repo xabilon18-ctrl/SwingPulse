@@ -9957,3 +9957,44 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .cf-step { position: relative; }
 #chartFull:not(.desktop-chart) .reel-capsule > .reel-act::after,
 #chartFull:not(.desktop-chart) .cf-step::after { content: ''; position: absolute; inset: -4px 0; }
+
+/* ── TradingView-style dots (user, 2026-11-07) ────────────────────────────
+   Every DOTTED line: small square solid dots close together, sized in CSS
+   pixels whatever the screen (reelDotVars in app.js sets --dw-* / --dd-* on
+   the chart in viewBox units). Tiers, CSS px (thickness / dot / gap):
+   x 0.75/1.5/2.5 (finer ladder steps) · s 1/1.5/2.5 · m 1.5/2/2.5 ·
+   l 2.25/2.5/3 · b 3/3/3 (a Thick ladder's bold 20s on 1H). The thicker
+   sizes keep TradingView's tight spacing rather than growing apart.
+   Thin / Medium / Thick and the Grid weight pick s / m / l. Dashed lines
+   (.is-dash, the 0% / 100% ends, year / quarter / administration / month
+   lines, the zero line) are not dots and keep their own patterns. Declared
+   last and !important: the older weight rules above set these widths. */
+.reel-svg :is(.reel-tgrid, .reel-ladder, .reel-ladder-sub, .reel-ch-edge, .reel-ch-mid, .reel-last-line):not(.is-dash):not(.reel-ladder-key):not(.reel-tgrid-admin):not(.reel-tgrid-year):not(.reel-tgrid-quarter):not(.reel-tgrid-month) {
+  stroke-linecap: butt !important; vector-effect: none !important; stroke-opacity: 1 !important;
+}
+/* Timelines, by the Grid weight. */
+.reel-svg[data-grid-weight="1"] .reel-tgrid:not(.reel-tgrid-admin):not(.reel-tgrid-year):not(.reel-tgrid-quarter):not(.reel-tgrid-month) { stroke-width: var(--dw-s) !important; stroke-dasharray: var(--dd-s) !important; }
+.reel-svg[data-grid-weight="2"] .reel-tgrid:not(.reel-tgrid-admin):not(.reel-tgrid-year):not(.reel-tgrid-quarter):not(.reel-tgrid-month) { stroke-width: var(--dw-m) !important; stroke-dasharray: var(--dd-m) !important; }
+.reel-svg[data-grid-weight="3"] .reel-tgrid:not(.reel-tgrid-admin):not(.reel-tgrid-year):not(.reel-tgrid-quarter):not(.reel-tgrid-month) { stroke-width: var(--dw-l) !important; stroke-dasharray: var(--dd-l) !important; }
+/* Ladder 10% lines (dotted ladders), channel edges, by Thin / Medium /
+   Thick; a drawing saved before the weights existed reads as Medium. */
+.reel-svg .reel-draw[data-stroke="1"] :is(.reel-ladder, .reel-ch-edge):not(.is-dash):not(.reel-ladder-key):not(.reel-ladder-bold) { stroke-width: var(--dw-s) !important; stroke-dasharray: var(--dd-s) !important; }
+.reel-svg .reel-draw[data-stroke="2"] :is(.reel-ladder, .reel-ch-edge):not(.is-dash):not(.reel-ladder-key):not(.reel-ladder-bold) { stroke-width: var(--dw-m) !important; stroke-dasharray: var(--dd-m) !important; }
+.reel-svg .reel-draw[data-stroke="3"] :is(.reel-ladder, .reel-ch-edge):not(.is-dash):not(.reel-ladder-key):not(.reel-ladder-bold) { stroke-width: var(--dw-l) !important; stroke-dasharray: var(--dd-l) !important; }
+.reel-svg .reel-draw:not([data-stroke]) :is(.reel-ladder, .reel-ch-edge):not(.is-dash):not(.reel-ladder-key):not(.reel-ladder-bold) { stroke-width: var(--dw-m) !important; stroke-dasharray: var(--dd-m) !important; }
+.reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-w3:not(.is-dash) { stroke-width: var(--dw-l) !important; stroke-dasharray: var(--dd-l) !important; }
+/* A Daily ladder's bold 20s on 1H, when dotted: one size up (Thick, and a
+   ladder saved without a weight: the b size, 3 / 3 / 3). */
+.reel-svg .reel-draw[data-stroke="1"] .reel-ladder.reel-ladder-bold:not(.is-dash) { stroke-width: var(--dw-m) !important; stroke-dasharray: var(--dd-m) !important; }
+.reel-svg .reel-draw[data-stroke="2"] .reel-ladder.reel-ladder-bold:not(.is-dash) { stroke-width: var(--dw-l) !important; stroke-dasharray: var(--dd-l) !important; }
+.reel-svg .reel-draw:not([data-stroke="1"]):not([data-stroke="2"]) .reel-ladder.reel-ladder-bold:not(.is-dash) { stroke-width: var(--dw-b) !important; stroke-dasharray: var(--dd-b) !important; }
+/* Finer ladder steps on 1H, when dotted: thinner than the 10% lines. */
+.reel-svg .reel-draw[data-stroke="1"] .reel-ladder-sub:not(.is-dash) { stroke-width: var(--dw-x) !important; stroke-dasharray: var(--dd-x) !important; }
+.reel-svg .reel-draw:not([data-stroke="1"]) .reel-ladder-sub:not(.is-dash) { stroke-width: var(--dw-s) !important; stroke-dasharray: var(--dd-s) !important; }
+/* Channel midline: fine, a reference not a boundary (Thick channels:
+   medium). Channel divisions follow the channel's weight (they are
+   .reel-ladder lines inside it). The last-price line: fine, like
+   TradingView's. */
+.reel-svg .reel-draw .reel-ch-mid:not(.is-dash):not(.reel-ladder-key),
+.reel-svg .reel-last-line { stroke-width: var(--dw-s) !important; stroke-dasharray: var(--dd-s) !important; }
+.reel-svg .reel-draw[data-stroke="3"] .reel-ch-mid:not(.is-dash):not(.reel-ladder-key) { stroke-width: var(--dw-m) !important; stroke-dasharray: var(--dd-m) !important; }

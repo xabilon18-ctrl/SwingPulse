@@ -90,7 +90,7 @@
     }
     // Line style: dotted (the default) or dashed — channels (user, 2026-09-27)
     // and ladders (user, 2026-11-06: dashed starts on Thin).
-    const dashSvg = dash => `<svg width="26" height="10" viewBox="0 0 26 10"><line x1="2" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="${dash ? 'butt' : 'round'}" stroke-dasharray="${dash ? '7 4' : '0.1 5'}"/></svg>`;
+    const dashSvg = dash => `<svg width="26" height="10" viewBox="0 0 26 10"><line x1="2" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="butt" stroke-dasharray="${dash ? '7 4' : '2 2.5'}"/></svg>`;
     const lineStyle = d.kind !== 'channel' && d.kind !== 'ladder' ? '' : `<span class="reel-dash-seg" role="group" aria-label="Line style">`
       + `<button class="reel-tool reel-dash-btn${d.dash ? '' : ' on'}" data-act="draw-dash" data-v="0" data-name="${name}" aria-pressed="${!d.dash}" aria-label="Dotted lines" title="Dotted">${dashSvg(false)}</button>`
       + `<button class="reel-tool reel-dash-btn${d.dash ? ' on' : ''}" data-act="draw-dash" data-v="1" data-name="${name}" aria-pressed="${!!d.dash}" aria-label="Dashed lines" title="Dashed">${dashSvg(true)}</button>`
