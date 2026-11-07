@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) MA COLOUR READ OVER 10 BARS: app.js v600,
+chart-readability.js v4. User: "the moving averages on all time frames, how
+smooth can I make them? ... to avoid the small curves that are a little bit
+insignificant", then "Do it". Each chart MA (MA50 / MA250 / MA500 on every
+timeframe, and the slope-coloured Monthly overlay) is now red when it is
+lower than 10 bars ago (`chartReadability.maFalling`, `MA_SLOPE_BARS`), not
+when it is lower than the previous plotted point 3 bars back. 10 is the
+engine's own trend lookback (`config.SLOPE_LOOKBACK`). The LINES are not
+moved, and nothing the engine computes changes: only the colour.
+Measured on the repo fixtures (11-12 instruments, 520-bar window): MA50
+colour changes per chart about 16 -> 10 (NVDA Daily 25 -> 13, AAPL Daily
+20 -> 10, gold 1H 13 -> 11); about half the old ones reversed within 15
+bars. Cost: a genuine turn changes colour a median 3 bars later (75th pct
+4). MA250 / MA500 barely change; they had 1-6 flips per chart. Smoothing
+the line itself was measured and rejected: a 10-bar smoothing moves the
+drawn MA50 up to 1.75% of price (95th pct, Daily) from the real one, so
+price would sit on the wrong side of it on ~2% of bars and B2/S2 crosses
+would be drawn where none fired.
+- Test: chart_readability_test (dip inside a 10-bar rise stays the rising
+  colour; a sustained fall turns red; no comparison across a gap).
 2026-11-07 (later) 4H REMOVED PERMANENTLY: app.js v599, chart-preferences.js v11,
 grid-geometry.js v15, trend-context.js v4, chart feed. User:
 "Remove 4h permanently" (the 4H chart had come back on 2026-11-05, #152 /
