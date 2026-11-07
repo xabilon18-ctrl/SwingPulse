@@ -8587,6 +8587,9 @@
         if (a < 0) continue;
         a = Math.max(0, a - 1); z = Math.min(P.length - 1, z + 1);
         let run = [], down = null, prev = null, before = null, firstVis = null;
+        // Slope colour over 10 of the overlay's own bars, as the base ribbon
+        // (only Monthly is slope-coloured; Daily/Weekly have fixed colours).
+        const falling = colour ? [] : modules.chartReadability.maFalling(series[k], mi, MA_SLOPE_BARS);
         const flush = () => {
           if (run.length >= 2) ribbon += `<polyline class="reel-overlay-ma" points="${run.join(' ')}" fill="none" stroke="${colour || (down ? 'var(--sell)' : 'var(--reel-ma-up)')}" stroke-width="${width.toFixed(1)}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-opacity=".95"/>`;
           run = [];
@@ -8598,7 +8601,7 @@
           if (p.x < L.x0) before = p;
           else if (!firstVis && p.x <= L.x1) firstVis = p;
           if (prev == null) { run = [pt]; prev = p.v; continue; }
-          const d = p.v < prev;
+          const d = falling[j] ?? p.v < prev;
           if (down === null) down = d;
           else if (d !== down) { run.push(pt); flush(); run = [pt]; down = d; prev = p.v; continue; }
           run.push(pt); prev = p.v;
@@ -9187,6 +9190,8 @@
   // view has to stay the two-year read these charts are built around, or every
   // card would open compressed to fit five years it was not asked for.
   const REEL_DEFAULT_WINDOW_BARS = 520;
+  // Bars an MA's slope colour is read over (config.SLOPE_LOOKBACK).
+  const MA_SLOPE_BARS = 10;
 
   // Floor on the time window. Lowered 20 -> 10 on 2026-09-09: 20 bars still
   // stopped short of the "what did the last fortnight actually do" read the
@@ -11624,13 +11629,16 @@
         run = [];
       };
 
+      // Colour by direction over 10 bars, not point to point (2026-11-07,
+      // see chartReadability.maFalling): the line is unchanged.
+      const falling = modules.chartReadability.maFalling(series, mIdx, MA_SLOPE_BARS);
       let prev = null;
       for (let j = 0; j < series.length; j++) {
         const v = series[j];
         if (v == null) { flush(); prev = null; runDown = null; continue; }
         const pt = xOf(mIdx[j]).toFixed(1) + ',' + sc.y(v).toFixed(1);
         if (prev == null) { run = [pt]; prev = v; continue; }
-        const down = v < prev;
+        const down = falling[j] ?? v < prev;
         if (runDown === null) runDown = down;
         else if (down !== runDown) {
           // Direction flipped: close the run at this point, reopen from it so

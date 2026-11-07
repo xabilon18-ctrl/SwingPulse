@@ -30,3 +30,24 @@ assert.deepEqual(bold(0.5,9.5,9),[5]);
 assert.deepEqual(bold(48,73,10),[50,55,60,65,70]);
 assert.ok(bold(0.0091,0.0109,9).includes(0.01),'float-safe on small prices');
 console.log('PASS: bold round levels, native maximum, three weights, legacy preservation, 2.5 ticks, responsive density, precision and badge spacing');
+// MA slope colour over 10 bars (2026-11-07). Samples every 3rd bar, as the feed.
+{
+ const idx=[0,3,6,9,12,15,18,21];
+ // A rising line with one small dip at bar 15: point-to-point it goes red there;
+ // over 10 bars it is still rising.
+ const s=[10,11,12,13,14,13.9,15,16];
+ const f=r.maFalling(s,idx,10);
+ assert.equal(f[0],null,'first point has no direction');
+ assert.equal(f[1],false,'start of a stretch falls back to the previous point');
+ assert.equal(f[5],false,'a dip smaller than the 10-bar rise stays the rising colour');
+ assert.ok(f.slice(1).every(x=>x===false));
+ // A real turn still turns red.
+ const t=r.maFalling([10,11,12,13,12,11,10,9],idx,10);
+ assert.deepEqual(t.slice(4),[false,false,true,true],'a sustained fall turns red, a few bars later than point to point');
+ // A gap starts a new stretch; nothing is compared across it.
+ const g=r.maFalling([10,11,null,5,6],[0,3,6,9,12],10);
+ assert.deepEqual(g,[null,false,null,null,false]);
+ // Without bar indices, sample positions are bars.
+ assert.deepEqual(r.maFalling([3,2,1],null,1),[null,true,true]);
+ console.log('PASS: MA slope colour over 10 bars');
+}
