@@ -48,6 +48,8 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
   l = await look();
   assert.ok(same(l.inner, x => x.dash && x.da.startsWith('10') && Math.abs(x.w - 0.9) < 0.01), 'Thin dashed 10% lines: ' + JSON.stringify(l.inner.slice(0, 2)));
   assert.ok(same(l.key, x => !x.dash && x.da.startsWith('14')), 'the 0% / 100% ends keep their own dash: ' + JSON.stringify(l.key));
+  // Bolder 0% / 100% / 200%... (2026-11-07): Thin ends 2 -> 3.5 on Daily.
+  assert.ok(same(l.key, x => Math.abs(x.w - 3.5) < 0.01), 'Thin Daily ends are 3.5: ' + JSON.stringify(l.key));
   // Medium and Thick work on a dashed ladder.
   for (const [v, w] of [['2', 1.7], ['3', 2.6]]) {
     await tb.locator(`[data-act="draw-weight"][data-v="${v}"]`).click();
@@ -74,7 +76,8 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
     await openFull(tf);
     l = await look();
     assert.ok(same(l.inner, x => x.dash && Math.abs(x.w - 1.4) < 0.01), tf + ': Thin dashed Daily lines: ' + JSON.stringify(l.inner.slice(0, 2)));
-    assert.ok(same(l.key, x => Math.abs(x.w - 2.6) < 0.01), tf + ': Thin ends: ' + JSON.stringify(l.key));
+    // 0% / 100% / 200%... heavier than the bold 20s since 2026-11-07 (2.6 -> 4).
+    assert.ok(same(l.key, x => Math.abs(x.w - 4) < 0.01), tf + ': Thin ends: ' + JSON.stringify(l.key));
     if (tf === '1H' && l.bold.length) assert.ok(same(l.bold, x => x.dash && Math.abs(x.w - 2.6) < 0.01), '1H: Thin dashed bold 20s: ' + JSON.stringify(l.bold));
     if (l.sub.length) assert.ok(l.sub.every(x => x.dash && x.w < 1.4), tf + ': finer steps dashed and thinner: ' + JSON.stringify(l.sub.slice(0, 2)));
     await close();

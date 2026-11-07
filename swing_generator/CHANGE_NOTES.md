@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) LADDER 0 / 100 / 200 / 300% LINES BOLDER: style.css v413.
+User: "On the percentage line make 0 100 200 300 etc bolder". The block-edge
+lines (`.reel-ladder-key`: 0%, 100%, every stack divider) are about 1.5-1.75x
+heavier at every weight. Daily: Thin 2 -> 3.5, Medium 3.5 -> 5.5, Thick
+6 -> 9, unweighted 6 -> 9. A Daily ladder on 1H / 4H: Thin 2.6 -> 4, Medium
+4 -> 6, Thick 6 -> 9 (they shared one width with the bold 20s; now the ends
+are heavier than the 20s, which keep 2.6 / 4 / 6). Desktop full screen
+1.4px -> 2.2px. Dash, colour and labels unchanged. They no longer match the
+quarter grid line's width (6), which they had copied since 2026-09-24.
+- Test: ladder_dash_checks (Thin Daily ends 3.5; 1H / 4H Thin ends 4).
+
 2026-11-07 (later) CHART MAs DOTTED AGAIN: app.js v598,
 chart-readability.js v3. User, after #157 went live: "No the must not be
 solid". The chart's MA ribbon is back to the exact pre-#157 rendering:
