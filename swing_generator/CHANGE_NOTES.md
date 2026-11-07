@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) 4H REMOVED PERMANENTLY: app.js v599, chart feed. User:
+"Remove 4h permanently" (the 4H chart had come back on 2026-11-05, #152 /
+#153). Reverses those two changes; do not bring 4H back unless the user asks
+for it by name.
+- Pipeline: `CHART_BUILDERS` has no '4H', so no `chart/4H/<chunk>.json` is
+  written (old R2 chunks stay, unreferenced). `build_4h_live`,
+  `tools/publish_four_hour.py` and the dev server's 4H builder stay for
+  research; the deploy workflow is untouched.
+- App: no 4H row in `TIMEFRAMES` and no `#tfBtn4H`. A saved 4H chart choice
+  opens on Daily; drawings saved on 4H stay in the store, not shown.
+- Ladders: `LADDER_SUB_BY_TF = { '1H': 5 }` (4H's 5% steps gone), so new
+  Daily ladders link Daily and 1H only. `ladderOn4hOnce` is deleted and
+  `ladderNo4hOnce` is re-keyed (`sp-ladder-no4h-2026-11-07`) so it runs once
+  more on every device and takes '4H' out of every Daily ladder, saved
+  through `channelSave` for the other devices.
+- Validators/tests: validate_hourly_release (no 4H chunk read; the live 4H
+  button must be gone), app_smoke (no 4H button), ladder_daily_sub /
+  ladder_moves / ladder_dash (1H only; no 4H in a new ladder),
+  ladder_cleanup (no Daily ladder lists 4H after the passes).
+
 2026-11-07 (later) LADDER 0 / 100 / 200 / 300% LINES BOLDER: style.css v413.
 User: "On the percentage line make 0 100 200 300 etc bolder". The block-edge
 lines (`.reel-ladder-key`: 0%, 100%, every stack divider) are about 1.5-1.75x

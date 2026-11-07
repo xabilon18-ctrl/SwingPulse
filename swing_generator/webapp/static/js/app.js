@@ -192,11 +192,11 @@
     // it's signals to 1h"): its setup direction, workflow signals, MA
     // clusters, Alerts and filters read 1H now. A saved 4H chart choice opens
     // on Daily; drawings saved on 4H stay in the store, not shown.
-    // 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart") as a CHART
-    // ONLY, like Weekly/Monthly: no markers, setup or alerts (those stay on
-    // 1H). prefix '' so a stale h4_ CSV column is never read; the card shows
-    // the Daily main trend. Drawings saved on 4H show again.
-    { code: '4H', prefix: '',    label: '4H',       bar: '4-hour bars', barShort: '25-bar', chartOnly: true },
+    // 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart"), chart only.
+    // 4H REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently"): no
+    // 4H row, button, chart chunks or Daily-ladder steps. A saved 4H chart
+    // choice opens on Daily; drawings saved on 4H stay in the store, not
+    // shown. Do not bring 4H back without the user asking for it by name.
     // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
     // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
     // are left in place, unused; drawings saved on them stay in the store.
@@ -7947,7 +7947,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} try { ladderOn4hOnce(); } catch (_) {} try { ladderThickOnce(); } catch (_) {} try { ladderDashOnce(); } catch (_) {} }
+    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {}try { ladderThickOnce(); } catch (_) {} try { ladderDashOnce(); } catch (_) {} }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -10377,7 +10377,10 @@
   // visit like ladderCleanupOnce, and saved through channelSave so the other
   // devices get it. Ladders drawn on 4H itself are left alone, and the 4H
   // chip on a Daily ladder still turns it back on there.
-  const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-04';
+  // Re-keyed 2026-11-07 (4H removed permanently) so it runs once more on
+  // every device, after ladderOn4hOnce (2026-11-05, now deleted) had put
+  // Daily ladders back on 4H.
+  const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-07';
   function ladderNo4hOnce() {
     try { if (localStorage.getItem(sk(LADDER_NO4H_KEY))) return 0; } catch (_) { return 0; }
     let n = 0;
@@ -10393,33 +10396,6 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_NO4H_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
-    return n;
-  }
-
-  // DAILY LADDERS BACK ON 4H, ONCE PER DEVICE (user, 2026-11-05: 4H splits
-  // each Daily gap in two). Undoes ladderNo4hOnce: every Daily ladder that
-  // shows on 1H shows on 4H again, on every copy, saved through channelSave
-  // so the other devices get it. A Daily ladder left on Daily alone (its 1H
-  // chip off) is left alone. Runs after ladderNo4hOnce, so a device that
-  // never ran that one ends up the same.
-  const LADDER_ON4H_KEY = 'sp-ladder-on4h-2026-11-05';
-  function ladderOn4hOnce() {
-    try { if (localStorage.getItem(sk(LADDER_ON4H_KEY))) return 0; } catch (_) { return 0; }
-    const order = tabTfs('charts');
-    let n = 0;
-    for (const name of Object.keys(instChannels)) {
-      const per = instChannels[name] || {};
-      for (const list of Object.values(per)) {
-        if (!Array.isArray(list)) continue;
-        for (const d of list) {
-          if (!d || d.kind !== 'ladder' || !ladderIsDaily(d) || !d.tfs.includes('1H') || d.tfs.includes('4H')) continue;
-          d.tfs = order.filter(t => t === '4H' || d.tfs.includes(t)); n++;
-        }
-      }
-    }
-    if (n) channelSave();
-    try { localStorage.setItem(sk(LADDER_ON4H_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (_) {} }
     return n;
   }
@@ -10995,7 +10971,8 @@
   // The 4H 5/15/25% steps fall between the 1H 2% ones: with five on 1H only
   // 1 or 5 parts on 4H could line up. Each timeframe shows only its own
   // steps. Keep sync-worker LADDER_SUB equal to 1H's (alerts are 1H steps).
-  const LADDER_SUB_BY_TF = { '1H': 5, '4H': 2 };
+  // 4H's two parts went with the 4H chart (removed permanently 2026-11-07).
+  const LADDER_SUB_BY_TF = { '1H': 5 };
   const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
   const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
