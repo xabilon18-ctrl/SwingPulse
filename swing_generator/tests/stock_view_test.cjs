@@ -1,4 +1,4 @@
-// Opening views on every market (2026-10-22): 1H months, 4H quarters, Daily years; W/M terms.
+// Opening views on every market (2026-10-22): 1H months, Daily years; W/M terms. (4H removed 2026-11-07.)
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -18,7 +18,7 @@ const ctx = vm.createContext({
   assetClassOf: scope => ({ crypto: 'Crypto', fx: 'Currency' }[scope] || 'Other'),
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
-vm.runInContext('var REEL_SESSION_HOURS = 16; var reelPerDayCache = new WeakMap(); var OV_TF_MS = { \'1H\': 36e5, \'2H\': 72e5, \'4H\': 144e5, D: 864e5 };' + table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelBarsPerDay') + fn('reelSessionOnly') + fn('reelOpenSpec') + fn('reelStockView')
+vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelOpenSpec') + fn('reelStockView')
   + 'function reelRange() { return reel.ranges[timeframe] || 0; }', ctx);
 
 const hourly = (from, to, hours) => {
@@ -59,35 +59,6 @@ const nv = hourly(Date.UTC(2026, 5, 1), Date.UTC(2026, 10, 5), hours);
 const qn = ctx.reelStockView(nv, 'STOCK');
 assert.ok(near(nv.t[nv.t.length - (qn.bars - qn.future)], '2026-10-01'));
 
-// 4H, every market: previous + current quarter on a round-the-clock feed —
-// six bars a day on crypto, five on a weekday futures feed.
-ctx.timeframe = '4H';
-const r4 = [];
-for (let ms = Date.UTC(2025, 9, 18); ms <= Date.UTC(2026, 9, 17, 16); ms += 4 * 36e5) r4.push(new Date(ms).toISOString());
-const span4 = (b4, market, startDay, years) => {
-  const c4 = ctx.reelStockView(b4, market);
-  const f4 = b4.t.length - (c4.bars - c4.future);
-  assert.ok(near(b4.t[f4], startDay), market + ' ' + b4.t[f4]);
-  const fr4 = geometry.yearFrame(b4, bt);
-  assert.ok(Math.abs(f4 + c4.bars - 1 - (fr4.anchor + years * fr4.yearBars)) <= 1, market + ' ends on its line');
-  assert.equal(c4.fit, 'all', market);
-};
-span4({ t: r4, c: r4.map(() => 1) }, 'BTC', '2026-07-01', 1);
-span4(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [0, 4, 8, 12, 16]), 'IDX', '2026-07-01', 1);
-// A session-only feed (2026-10-24) — two bars a session on a US stock or SOX,
-// three on a European index — takes the previous + current HALF-YEAR, so it
-// carries about as many candles as the 24h feeds show in two quarters.
-span4(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [13.5, 17.5]), 'STOCK', '2026-01-01', 1);
-span4(hourly(Date.UTC(2025, 9, 1), Date.UTC(2026, 9, 16), [8, 12, 16]), 'IDX', '2026-01-01', 1);
-// In January it is H2 of last year plus H1 of this one on a session feed,
-// Q4 plus Q1 round the clock.
-const j4 = hourly(Date.UTC(2026, 0, 5), Date.UTC(2027, 0, 20), [13.5, 17.5]);
-const k4 = ctx.reelStockView(j4, 'STOCK');
-assert.ok(near(j4.t[j4.t.length - (k4.bars - k4.future)], '2026-07-01'));
-const jr = [];
-for (let ms = Date.UTC(2026, 0, 5); ms <= Date.UTC(2027, 0, 20); ms += 4 * 36e5) jr.push(new Date(ms).toISOString());
-const kr = ctx.reelStockView({ t: jr, c: jr.map(() => 1) }, 'BTC');
-assert.ok(near(jr[jr.length - (kr.bars - kr.future)], '2026-10-01'));
 // Daily, every market (2026-10-22): last year's line to two year lines ahead
 // (2025 → 2028). Round the clock (crypto) and a session a weekday.
 ctx.timeframe = 'D';
@@ -157,7 +128,7 @@ const gold = pw.reelOpeningPriceWindow({ c: [4077], l: [4040], h: [4520] }, null
 assert.ok(Math.abs((gold.hi + gold.lo) / 2 - 4077) < 1e-9, JSON.stringify(gold));
 const share = (4520 - 4040) / (gold.hi - gold.lo);
 assert.ok(share > 0.3 && share < 0.4, String(share));
-// 4H / Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
+// Daily 'all': candles, MAs and drawings, 5% margin; a runaway line held to 2.5 ranges.
 const btc4 = pw.reelOpeningPriceWindow({ c: [81377], l: [63000], h: [88000] }, { lo: 44000, hi: 141000 }, 'all');
 assert.ok(Math.abs(btc4.lo - 39150) < 1 && Math.abs(btc4.hi - 145850) < 1, JSON.stringify(btc4));
 const run = pw.reelOpeningPriceWindow({ c: [10], l: [9], h: [11] }, { lo: 9, hi: 1000 }, 'all');
@@ -169,7 +140,7 @@ assert.ok(Math.abs(net.lo - (-12 - 53 * 0.05)) < 1e-9 && Math.abs(net.hi - (41 +
 // Drawings: a channel's ends and edges, a ladder's whole stack (never below 0), a level.
 const dw = vm.createContext({ REEL_EXTRAP_BARS: 250, LADDER_LINES: 11,
   ladderStack: (d, dir) => Math.max(0, Math.floor(Number(d[dir]) || 0)),
-  reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt, timeframe: '4H' });
+  reelParseTs: v => Date.parse(String(v).slice(0, 10) + 'T00:00:00Z'), reelBarTimes: bt, timeframe: 'D' });
 vm.runInContext(fn('drawShownOn') + fn('reelBarIndexForDate') + fn('ladderKRange') + fn('reelDrawingRange'), dw);
 const days = []; for (let i = 0; i < 100; i++) days.push(new Date(Date.UTC(2026, 0, 1) + i * 864e5).toISOString().slice(0, 10));
 const src = { t: days, c: days.map(() => 1) };
@@ -184,7 +155,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hl
 assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 // A linked drawing switched off for this timeframe does not frame it.
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 20, hi: 120 });
-assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', '4H'] }], src, 0, 99))), { lo: 20, hi: 300 });
+assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', 'D'] }], src, 0, 99))), { lo: 20, hi: 300 });
 console.log('stock, crypto, Weekly and Monthly views: ok');
 
 // Sector / industry filter (2026-10-25): stock sectors only, the industry list

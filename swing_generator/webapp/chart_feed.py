@@ -30,15 +30,6 @@ its own — verified: a chunk came back byte-identical with and without
 Accept-Encoding — so an uncompressed feed would cost 51 KB per chart on a phone
 instead of 19 KB. Browsers decompress transparently, so the URLs and the fetch
 code are unchanged.
-
-The 4H ribbon
--------------
-4H ribbon periods are per-instrument: an instrument in H4_SESSION_NORMALIZE has
-its periods scaled by bars-per-session (see main._h4_ma_periods and the H4 bar
-geometry note in config.py). The chart MUST use the same periods the signals
-fired from, so this calls that same function rather than assuming MA_PERIODS —
-otherwise the reel would draw a ribbon that never produced the signal on the
-card above it. Each bundle carries its own `p` (period list) for that reason.
 """
 
 from __future__ import annotations
@@ -59,11 +50,11 @@ sys.path.insert(0, PROJECT_DIR)
 from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
                           scale_daily, SGX_FRONT, _utc_now)
 import exchange_feed                                    # noqa: E402
-from main import (_resample_4h, _h4_ma_periods,          # noqa: E402
+from main import (_resample_4h,                          # noqa: E402
                   _h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
                   _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
-                  _frame_1h, _m1h_ma_periods, _frame_4h, _m4h_ma_periods,
+                  _frame_1h, _m1h_ma_periods,
                   _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
@@ -118,7 +109,7 @@ CARRY_MONTHS_10M = 2
 #        hourly cache grows past Yahoo's 730 days.
 # 30m stays at CARRY_MONTHS_30M: the 30m SIGNALS run over the whole 5m cache,
 # so keeping more 5m history would slow every open-market run.
-DEEP_BARS_BY_TF = {'D': 2200, '1H': 4500, '4H': 2200}
+DEEP_BARS_BY_TF = {'D': 2200, '1H': 4500}
 DEEP_MONTHS_1H = 6
 
 # How many bars a bundle CARRIES. This is not what a card shows: the reel opens
@@ -160,18 +151,6 @@ BARS_BY_TF = {
     # every month there is (^GSPC goes back to 1927).
     'W':  1300,   # ~25 years
     'M':  1200,   # 100 years — in practice all of it
-    # 4H CARRIES more than it shows (user, 2026-09-19: "i cannot go back further
-    # on the 4h"). The card still opens on 520 bars (REEL_DEFAULT_WINDOW_BARS);
-    # this is how far back a drag can reach. 2190 = a year of a 24h instrument
-    # (6 bars x 365); a US equity's whole hourly cache is only ~1,120 four-hour
-    # bars (Yahoo keeps 730 days of 1h), so equities ship everything they have.
-    # Cost: the oldest ~500 bars of an equity carry no MA500 (it has not warmed
-    # up yet — 167 null points of 374 on AAPL); the 520-bar opening window is
-    # fully warm on every instrument. Gzipped bundle AAPL 8 -> 18 KB, BTC 10 -> 43.
-    # (2026-09-29, 4H back on the Daily's year grid): raised to the whole
-    # ~2-year hourly cache past MA500's warm-up, so a 24h instrument shows
-    # more than one year line. ~3,900 bars on BTC, ~1,000 on a US equity.
-    '4H': 4400,
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
     '1H': 4500,
     # 2H (2026-10-01): the ceiling on CARRY_MONTHS_2H of a 24/7 instrument.
@@ -266,7 +245,7 @@ def _bundle(df: pd.DataFrame, periods: list[int], date_fmt: str,
         **({'context': frame_context(df, context_tf)} if context_tf else {}),
         **({'analysis': {key: [_round(v, 12) for v in tail[col]]
                         for key, col in [('c','Close'),('h','High'),('l','Low')]}}
-           if context_tf in ('1H', '4H') else {}),
+           if context_tf == '1H' else {}),
         'p':  periods,
         'ms': MA_STRIDE,
         'mi': keep,
@@ -407,23 +386,6 @@ def _htf_mas(df: pd.DataFrame, since: str, resample, periods) -> dict | None:
     }
 
 
-def build_4h(cache_dir: str, ticker: str) -> dict | None:
-    # The hourly cache is keyed by the SOURCE ticker — a cash index redirected
-    # through H4_SOURCE lands under the contract's name, not its own.
-    src  = h4_ticker(ticker)
-    path = os.path.join(cache_dir, _cache_name(src, suffix='1h'))
-    if not os.path.exists(path):
-        return None
-    hourly = pd.read_parquet(path)
-    if hourly.empty:
-        return None
-    h4 = _resample_4h(hourly)
-    periods = _h4_ma_periods(h4, ticker)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    return _bundle(h4, periods, '%Y-%m-%d %H:%M', bars=BARS_BY_TF['4H'])
-
-
 def _attach_forming(bundle: dict, hourly: pd.DataFrame,
                     completed: pd.DataFrame, hours: int) -> dict:
     """Carry one hourly-fetch snapshot separately from closed-bar analysis.
@@ -468,11 +430,8 @@ def _attach_forming(bundle: dict, hourly: pd.DataFrame,
 
 
 def build_1h(cache_dir: str, ticker: str) -> dict | None:
-    """1H chart from the same hourly cache the 4H chart is resampled from.
-
-    Reads through h4_ticker for the same reason build_4h does: a cash index
-    redirected by H4_SOURCE stores its hourly bars under the CONTRACT's name,
-    and both intraday timeframes come out of that one file.
+    """1H chart from the hourly cache (load_1h). A cash index redirected by
+    H4_SOURCE stores its hourly bars under the CONTRACT's name.
     """
     # 2026-09-27: back on the Charts tab, built like build_15m — the 15m's
     # sources and cash/spot level (data_fetcher.load_1h), EXACT 50/250/500,
@@ -495,32 +454,6 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     deep = max(0, min(n_deep, BARS_BY_TF['1H'] + DEEP_BARS_BY_TF['1H'], max(warm_cap, 1)) - bars)
     return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H', deep=deep),
                            df_1h, frame, 1)
-
-
-def build_4h_live(cache_dir: str, ticker: str) -> dict | None:
-    """4H chart (2026-09-29, user: "add the 4h"): the 1H chart's feed
-    (load_1h — same sources and cash/spot level) in session-anchored 4-hour
-    bars, EXACT 50/250/500. Carries everything the ~2-year hourly cache holds
-    past MA500's warm-up (BARS_BY_TF['4H'] ceiling). Replaces build_4h (clock
-    feed + session-scaled ribbon), which stays for research."""
-    df_1h = load_1h(ticker)
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _frame_4h(df_1h)
-    if len(frame) < 2:
-        return None
-    periods = _m4h_ma_periods(frame)
-    # A young listing draws with MA50 alone, as on Daily (user, 2026-10-28:
-    # "fix cerebras 4h it shows no data"). CEREBRAS, listed May 2026, held
-    # ~230 four-hour bars: MA250 not warm yet, and the MIN_RIBBON_LINES floor
-    # dropped the whole chart. Only no MA at all (under 50 bars) means none.
-    if not periods:
-        return None
-    warm_cap = len(frame) - max(periods)
-    bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
-    deep = max(0, min(len(frame), BARS_BY_TF['4H'] + DEEP_BARS_BY_TF['4H'], max(warm_cap, 1)) - bars)
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='4H', deep=deep),
-                           df_1h, frame, 4)
 
 
 def build_2h(cache_dir: str, ticker: str) -> dict | None:
@@ -955,7 +888,7 @@ def _write_gz(path: str, payload: dict) -> None:
 # XM_HOLD is in bars of the chart: one hour on 30m (2 bars) and 1H (1 bar);
 # on 4H one bar is the shortest hold there is (XM_HOLD_BY_TF).
 XM_REARM, XM_HOLD = 0.5, 2
-XM_HOLD_BY_TF = {'15m': 4, '30m': 2, '1H': 1, '4H': 1}
+XM_HOLD_BY_TF = {'15m': 4, '30m': 2, '1H': 1}
 _DAY_MS = 86_400_000
 
 
@@ -1121,16 +1054,12 @@ def near_ma_map(daily: dict) -> dict:
 
 # By NAME, looked up at call time, so a test that patches a builder on this
 # module is still the builder that runs.
-# 4H REMOVED 2026-11-04 (user: "Remove 4h as a time frame and take all it's
-# signals to 1h"): no 4H chart is built; its setup context, workflow signals
-# and B1/S1 filter events are computed on the 1H bundles instead
-# (attach_setup_context, trend_context_feed). build_4h_live is kept for
-# research; the 4H chunks on R2 are left orphaned.
-# 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart") as a CHART ONLY,
-# like Weekly/Monthly: build_4h_live chunks, no markers (`sg`), no setup
-# context, no trend_channels read, no events_by_tf entry. Its setup, workflow
-# signals and alerts stay on 1H.
-CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', '4H': 'build_4h_live', 'D': 'build_daily'}
+# 4H: removed 2026-11-04 (its setup context, workflow signals and B1/S1
+# filter events are computed on the 1H bundles), back as a chart 2026-11-05,
+# REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently", then "Even
+# from the code"): its builders and tools/publish_four_hour are deleted. Old
+# chart/4H chunks are left on R2, unreferenced.
+CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -1155,7 +1084,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, '4H': n, 'D': n, 'chunks': n_files}.
+    Returns {'30m': n, '1H': n, 'D': n, 'chunks': n_files}.
     Weekly and Monthly (back 2026-10-19) are published separately, by
     tools/publish_htf.py.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
@@ -1174,10 +1103,10 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, '4H': 0, 'D': 0, 'chunks': 0}
+    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    # 1H and 4H charts removed 2026-09-30 (build_4h_live kept); 15m removed
+    # 1H and 4H charts removed 2026-09-30 (4H's builder deleted 2026-11-07); 15m removed
     # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
     # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
     # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");

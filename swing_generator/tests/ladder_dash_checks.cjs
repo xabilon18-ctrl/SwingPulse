@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 // Dashed ladder (user, 2026-11-06: "add the dash lines as an option for the
 // percentage line with thin med and thick. With thin being default"; since
 // 2026-11-07 every Daily ladder is dashed and Thin, new ones too). Dashed
-// turns the 10% lines (and the 1H / 4H finer steps) into dashes; Medium /
-// Thick still work, on Daily and on 1H / 4H. The 0% / 100% ends keep their
+// turns the 10% lines (and the 1H finer steps) into dashes; Medium /
+// Thick still work, on Daily and on 1H (4H removed 2026-11-07). The 0% / 100% ends keep their
 // own dash. Dotted stays available and is remembered (`dashOff`).
 module.exports = async function checkLadderDash(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
@@ -70,9 +70,9 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
-  // 1H / 4H: the same dashes, and the chosen weight (Thin) instead of the
+  // 1H: the same dashes, and the chosen weight (Thin) instead of the
   // fixed widths, in the order finer steps < 10% lines < bold 20s / ends.
-  for (const tf of ['1H', '4H']) {
+  for (const tf of ['1H']) {
     await openFull(tf);
     l = await look();
     assert.ok(same(l.inner, x => x.dash && Math.abs(x.w - 1.4) < 0.01), tf + ': Thin dashed Daily lines: ' + JSON.stringify(l.inner.slice(0, 2)));
@@ -83,5 +83,5 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
     await close();
   }
 
-  console.log('PASS: dashed ladder option (Thin first, Medium / Thick, on D, 1H and 4H)');
+  console.log('PASS: dashed ladder option (Thin first, Medium / Thick, on D and 1H)');
 };

@@ -150,23 +150,9 @@ let debugPage;
     await page.locator('#chartReel [data-act="tf-menu"]').first().click();
     assert.equal(errors.length, 0, errors.join('\n'));
   }
-  // 4H was removed 2026-11-04 and its CHART came back 2026-11-05, chart only
-  // (setup, signals and alerts stay on 1H): it opens, reads its own chunks and
-  // draws no markers. The full-screen checks below stay on 1H.
-  assert.equal(await page.locator('#tfBtn4H').count(), 1, '4H chart button is back');
-  {
-    const h4chunk = live ? null : page.waitForResponse(r => r.url().includes('/ma500/chart/4H/'));
-    await page.locator('#tfBtn4H').click();
-    await page.waitForFunction(() => document.querySelector('#tfBtn4H').getAttribute('aria-selected') === 'true');
-    if (h4chunk) await h4chunk;
-    await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
-    const ctx = await page.locator('#chartReel .reel-chart').first().evaluate(h => ({ n: h._reelCtx.b.c.length, sg: (h._reelCtx.b.sg || []).length }));
-    assert.ok(ctx.n > 0, '4H chart draws bars');
-    assert.equal(ctx.sg, 0, '4H is chart only: no B1/S1 markers');
-    const card = await page.locator('#chartReel .reel-card').first().innerText();
-    assert.ok(!/\b4H (aligned|minor)/.test(card), '4H shows no setup relation of its own');
-    assert.equal(errors.length, 0, errors.join('\n'));
-  }
+  // 4H removed 2026-11-04, its chart back 2026-11-05, removed permanently
+  // 2026-11-07: no button, and the full-screen checks run on 1H.
+  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H timeframe');
   await page.locator('#tfBtn1H').click();
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
@@ -411,6 +397,6 @@ let debugPage;
     assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
   }
   if (!live) await require('./dollar_index_checks.cjs')(browser);
-  console.log('PASS: mobile 1H/4H/Daily/Weekly/Monthly charts (4H chart only), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
+  console.log('PASS: mobile 1H/Daily/Weekly/Monthly charts (no 4H), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(async e => { console.error(e); if(debugPage&&!debugPage.isClosed()){console.log('SMOKE_FAILURE='+(await debugPage.screenshot({type:'jpeg',quality:55})).toString('base64'));console.log('TOOLBAR_BOXES',await debugPage.locator('#chartFull .reel-toolbar, #chartFull .reel-props-main, #chartFull [data-act=draw-more]').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,width:e.clientWidth}))));} process.exit(1); });

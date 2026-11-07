@@ -5,7 +5,8 @@ const zlib = require('zlib');
 
 // One-time ladder cleanup (user, 2026-11-03): ladders drawn on their own on
 // 1H/4H are deleted, Daily ladders that were never linked are linked and
-// shown on 1H and 4H, and everything else is left alone. Runs in a fresh
+// shown on 1H (4H removed permanently 2026-11-07), and everything else
+// is left alone. Runs in a fresh
 // browser context so it starts from a device that has old drawings saved.
 module.exports = async function checkLadderCleanup(page) {
   const context = await page.context().browser().newContext({ viewport: { width: 390, height: 844 } });
@@ -35,30 +36,31 @@ module.exports = async function checkLadderCleanup(page) {
     localStorage.setItem('sp-channels', JSON.stringify(s));
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04') && localStorage.getItem('sp-ladder-on4h-2026-11-05') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07'), null, { timeout: 60000 });
+  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-07') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder');
   const d = ladders('D');
   assert.equal(d.length, 4, 'no Daily ladder is deleted: ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
-  assert.ok(was.link && ['D', '1H', '4H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily, 1H and 4H: ' + JSON.stringify(was));
-  // Off 4H on 2026-11-04 and back on 2026-11-05: every Daily ladder that
-  // shows on 1H shows on 4H again, on every copy.
+  assert.ok(was.link && ['D', '1H'].every(t => was.tfs.includes(t)) && !was.tfs.includes('4H'), 'an unlinked Daily ladder now shows on Daily and 1H, not 4H: ' + JSON.stringify(was));
+  // 4H removed permanently (2026-11-07): no Daily ladder lists 4H any more,
+  // on any stored copy, including one that was on 4H before.
   for (const tf of ['D', '1H', '4H'])
-    assert.ok(ladders(tf).filter(x => x.link && x.tfs.includes('D') && x.tfs.includes('1H')).every(x => x.tfs.includes('4H')), tf + ': every Daily ladder on 1H is on 4H again: ' + JSON.stringify(ladders(tf)));
+    assert.ok(ladders(tf).filter(x => x.link && x.tfs.includes('D')).every(x => !x.tfs.includes('4H')), tf + ': no Daily ladder is on 4H: ' + JSON.stringify(ladders(tf)));
+  assert.deepEqual(d.find(x => x.p1 === 20).tfs, ['D', '1H'], 'a Daily ladder that was on 1H and 4H keeps 1H only');
   assert.deepEqual(d.find(x => x.p1 === 30).tfs, ['D'], 'a Daily ladder whose 1H/4H were switched off stays that way');
   for (const tf of ['1H', '4H']) {
     const l = ladders(tf);
     assert.ok(l.every(x => x.link && x.tfs.includes('D')), tf + ': only Daily ladders remain: ' + JSON.stringify(l));
-    // Both hold the Daily ladders' copies (4H a chart again since 2026-11-05).
-    assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
+    // 1H holds the Daily ladders' copies.
+    if (tf === '1H') assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
   }
   assert.equal((got['1H'] || []).filter(x => x.kind === 'trend').length, 1, 'other drawings are untouched');
   // Daily ladders on Thick (2026-11-05), then dashed and Thin (2026-11-07),
-  // on Daily and on their 1H / 4H copies; one set back to dotted
+  // on Daily and on their 1H copies; one set back to dotted
   // (`dashOff`) is left dotted, on the Thick the first pass gave it.
   const off = x => x.dashOff;
-  for (const tf of ['D', '1H', '4H'])
+  for (const tf of ['D', '1H'])
     assert.ok(ladders(tf).filter(x => !off(x)).length && ladders(tf).filter(x => !off(x)).every(x => x.dash === true && x.strokeWeight === 1),
       tf + ': every Daily ladder is dashed and Thin: ' + JSON.stringify(ladders(tf)));
   const kept = d.find(x => x.p1 === 80);
@@ -77,5 +79,5 @@ module.exports = async function checkLadderCleanup(page) {
   assert.ok(!('strokeWeight' in own) && !own.dash, 'a ladder drawn on its own on 1H is not made Thick or dashed');
   assert.equal(errors.length, 0, errors.join('\n'));
   await context.close();
-  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H then back, on Thick, then dashed and Thin)');
+  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H for good, on Thick, then dashed and Thin)');
 };

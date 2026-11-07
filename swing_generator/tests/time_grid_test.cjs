@@ -14,13 +14,11 @@ const context = () => {
     modules, window: { SwingPulseModules: modules },
     chartPreferences: preferences.create({ storage: disk, key: () => 'test-chart-preferences' }),
     localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
-    TF_BY_CODE: { '1H': {}, '4H': {}, D: {}, W: {}, M: {} }, timeframe: '1H',
+    TF_BY_CODE: { '1H': {}, D: {}, W: {}, M: {} }, timeframe: '1H',
     tfMeta: () => ({ label: '1H' }),
     assetClassOf: item => item.asset_class,
     instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
-    reelSessionOnly: (b, tf) => b.t.length / (new Set(b.t.map(t => String(t).slice(0, 10))).size || 1)
-      * ({ '2H': 2, '4H': 4 }[tf] || 24) < 16,
   });
   vm.runInContext(code, c);
   return c;
@@ -33,8 +31,8 @@ for (let ms = Date.UTC(2023, 0, 1); ms < Date.UTC(2026, 10, 1); ms += 864e5) {
   if (![0, 6].includes(d.getUTCDay()) && d.getUTCDate() !== 15) t.push(d.toISOString());
 }
 const b = { t };
-// The 4H checks below run on a round-the-clock feed (six bars a day); a
-// session-only 4H feed scales its grid up a size (checked at the end).
+// A round-the-clock feed (a bar every four hours) for the 1H grid checks
+// below. 4H itself was removed permanently on 2026-11-07.
 const t24 = [];
 for (let ms = Date.UTC(2023, 0, 1); ms < Date.UTC(2026, 10, 1); ms += 4 * 36e5) t24.push(new Date(ms).toISOString());
 const b24 = { t: t24 };
@@ -51,28 +49,23 @@ for (const [division, parts] of [['M', 12], ['Q', 4], ['H', 2], ['Y', 1]]) {
 }
 c.reelSetGridDivision('1H', 'Q');
 c.reelSetGridDivision('D', 'H');
-c.reelSetGridDivision('4H', 'M');
 const reloaded = context();
 assert.equal(reloaded.reelGridDivision('1H').code, 'Q');
 assert.equal(reloaded.reelGridDivision('D').code, 'H');
-assert.equal(reloaded.reelGridDivision('4H').code, 'M');
 assert.equal(reloaded.reelGridDivision('2H').code, 'M');
 assert.equal(reloaded.reelSetGridDivision('1H', 'invalid'), false);
 assert.equal(reloaded.reelTimeGrid({ t: [] }, '1H').length, 0);
 assert.equal(reloaded.reelTimeGrid({ t: ['invalid', 'invalid'] }, '1H').length, 0);
 assert.match(reloaded.reelTimeGridSwitchHtml(), /aria-pressed="true"/);
 for (const division of ['M', 'Q', 'H', 'Y']) {
-  c.reelSetGridDivision('4H', division);
-  const lines = c.reelTimeGrid(b24, '4H');
+  c.reelSetGridDivision('1H', division);
+  const lines = c.reelTimeGrid(b24, '1H');
   const gap = lines[1].fi - lines[0].fi;
-  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, '4H grid gaps must be equal'));
+  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, '1H grid gaps must be equal on a 24h feed'));
   const years = lines.filter(l => l.annual);
-  assert.ok(years.length > 2, 'Yearly reference lines remain across every 4H grid choice');
-  const yearlyGap = years[1].fi - years[0].fi;
-  years.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - years[i + 1].fi - yearlyGap) < 1e-9, 'Permanent 4H years must be equal'));
-  assert.ok(lines.every(l => !l.quarter && !l.admin), '4H keeps its yearly references');
+  assert.ok(years.length > 2, 'Yearly reference lines remain across every 1H grid choice on a 24h feed');
 }
-// 1H bold lines are one YEAR apart, as on 4H (user, 2026-11-01; they were quarters).
+// 1H bold lines are one YEAR apart (user, 2026-11-01; they were quarters).
 for (const tf of ['1H']) {
   for (const code of ['M', 'Q', 'H', 'Y']) {
     c.reelSetGridDivision(tf, code);
@@ -100,18 +93,18 @@ assert.ok(c.reelTimeGrid(b, '2H').every(l => !l.week && !l.quarter && !l.admin),
 // Each chart supplies its own market group; one visible stock must not choose
 // the grid for neighbouring crypto/index charts or another timeframe.
 const stock={asset_class:'Equity'}, index={asset_class:'Index'}, crypto={asset_class:'Crypto'};
-c.reelSetGridDivision('4H','M','stocks');
-c.reelSetGridDivision('4H','H','indices');
-c.reelSetGridDivision('4H','Y','other');
-c.reelSetGridDivision('1H','Q','stocks');
+c.reelSetGridDivision('1H','M','stocks');
+c.reelSetGridDivision('1H','H','indices');
+c.reelSetGridDivision('1H','Y','other');
+c.reelSetGridDivision('D','Q','stocks');
 for(const [item,code,parts] of [[stock,'M',12],[index,'H',2],[crypto,'Y',1]]) {
-  const lines=c.reelTimeGrid(b24,'4H',item).filter(l=>!l.fixedOnly);
+  const lines=c.reelTimeGrid(b24,'1H',item).filter(l=>!l.fixedOnly);
   assert.equal(lines.filter(l=>l.year===2024).length,parts);
   assert.ok(lines.every(l=>l.division===code));
   const gap=lines[1].fi-lines[0].fi;
   lines.slice(2).forEach((l,i)=>assert.ok(Math.abs(l.fi-lines[i+1].fi-gap)<1e-9));
 }
-assert.equal(c.reelTimeGrid(b,'1H',stock).find(l=>!l.fixedOnly).division,'Q');
+assert.equal(c.reelTimeGrid(b,'D',stock).find(l=>!l.fixedOnly).division,'Q','another timeframe keeps its own grid');
 assert.equal(c.reelGridScope({asset_class:'Index',group:'Rates'}),'other');
 // Per market (user, 2026-10-21: "Fx, crypto, commodities, stocks and brent as
 // energy"): oil never shares a grid or swap with crypto, metals or currencies.
@@ -119,30 +112,17 @@ assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry
 assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry:'Precious Metals'}),'commodities');
 assert.equal(c.reelGridScope(crypto),'crypto');
 assert.equal(c.reelGridScope({asset_class:'Currency',group:'Currency'}),'currency');
-c.reelSetGridDivision('4H','Q','energy');
-assert.equal(c.reelTimeGrid(b24,'4H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
-assert.equal(c.reelTimeGrid(b24,'4H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
-// A session-only 4H chart (fewer than 4 bars a day — `b` has one) takes the
-// next size up from its market's choice (2026-10-24): Q → H, H → Y, M → two
-// months; Year and Term stay. A 24h chart in the same market keeps the choice.
-for (const [code, want, parts] of [['Q','H',2],['H','Y',1],['M','M2',6],['Y','Y',1]]) {
-  c.reelSetGridDivision('4H', code, 'indices');
-  const lines = c.reelTimeGrid(b, '4H', index).filter(l => !l.fixedOnly);
-  assert.ok(lines.every(l => l.division === want), code + ' on a session chart draws ' + want);
-  assert.equal(lines.filter(l => l.year === 2024).length, parts);
-  assert.equal(c.reelTimeGrid(b24, '4H', index).find(l => !l.fixedOnly).division, code, code + ' stays on a 24h chart');
-}
-c.reelSetGridDivision('4H', 'H', 'indices');   // the saved choice read back below
-assert.deepEqual(['2024-01','2024-03','2024-05'].map((_, k) => geometry.partLabel(2024, k, 'M2')),
-  ['Jan 2024', 'Mar', 'May'], 'Two-month blocks are named by their first month');
+c.reelSetGridDivision('1H','Q','energy');
+assert.equal(c.reelTimeGrid(b24,'1H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
+assert.equal(c.reelTimeGrid(b24,'1H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
 // Session-only 1H and Daily keep the market's choice.
 c.reelSetGridDivision('1H', 'Q', 'indices');
 assert.equal(c.reelTimeGrid(b, '1H', index).find(l => !l.fixedOnly).division, 'Q');
 assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
-assert.equal(context().reelGridDivision('4H','stocks').code,'M');
-assert.equal(context().reelGridDivision('4H','indices').code,'H');
+assert.equal(context().reelGridDivision('1H','stocks').code,'M');
+assert.equal(context().reelGridDivision('1H','indices').code,'Q');
 // Weekly (bars stamped on Mondays) and Monthly (on the 1st), back 2026-10-19:
 // divided by administration TERM, every line equal (user: "divided by
 // administration and not by year. All must be equal") — no year lines, no bold.
@@ -173,7 +153,7 @@ assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its
 c.timeframe = 'W';
 assert.match(c.reelTimeGridSwitchHtml(), /data-division="T2"[^>]*>½T</);
 assert.ok(c.reelTimeGridSwitchHtml().indexOf('data-division="T2"') < c.reelTimeGridSwitchHtml().indexOf('data-division="T"'), '½T sits before T');
-c.timeframe = '4H';
+c.timeframe = '1H';
 assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T2"/);
 for (const [tf, t] of [['W', weeks], ['M', months], ['D', weeks]]) {
   assert.equal(c.reelSetGridDivision(tf, 'T2'), true);
@@ -199,7 +179,7 @@ assert.match(mHtml, /data-division="Y10"[^>]*>10Y</);
 assert.match(mHtml, /data-division="Y20"[^>]*>20Y</);
 assert.ok(mHtml.indexOf('data-division="T"') < mHtml.indexOf('data-division="Y10"')
   && mHtml.indexOf('data-division="Y10"') < mHtml.indexOf('data-division="Y20"'), 'T, 10Y, 20Y in order');
-for (const tf of ['D', '4H', '1H']) {
+for (const tf of ['D', '1H']) {
   c.timeframe = tf;
   assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="Y10"|data-division="Y20"/, `no 10Y/20Y on ${tf}`);
 }
@@ -268,11 +248,6 @@ for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [20
   q.chartPreferences.setThirds('1H', true, 'stocks');
   assert.equal(q.reelTimeGrid(b, '1H', { asset_class: 'Equity' }).some(l => l.third), true);
   assert.equal(q.reelTimeGrid(b, '1H', { asset_class: 'Crypto' }).some(l => l.third), false);
-  // A session-only 4H chart draws half-years for Q, so no thirds there.
-  q.reelSetGridDivision('4H', 'Q', 'stocks');
-  q.chartPreferences.setThirds('4H', true, 'stocks');
-  assert.equal(q.reelTimeGrid(b, '4H', { asset_class: 'Equity' }).some(l => l.third), false);
-  assert.equal(q.reelTimeGrid(b24, '4H', { asset_class: 'Equity' }).filter(l => l.third && l.year === 2024).length, 8);
   // The flag survives the sync merge and is dropped when not strictly true.
   const snap = q.chartPreferences.snapshot();
   assert.equal(snap.stockGrids['1H'].thirds, true);
@@ -318,4 +293,4 @@ console.log('PASS: quarter thirds switch');
   assert.equal(preferences.clean({ grids: { D: { division: 'T', modifiedAt: 1, fourths: 'yes' } } }).grids['D'].fourths, undefined);
 }
 console.log('PASS: term fourths switch');
-console.log('PASS: equal M/Q/H/Y, removed W, permanent equal 1H/4H years and Daily admins, equal Weekly/Monthly terms, half terms, Weekly 10Y and Monthly 10Y/20Y, saved choices and shading');
+console.log('PASS: equal M/Q/H/Y, removed W, permanent equal 1H years and Daily admins, equal Weekly/Monthly terms, half terms, Weekly 10Y and Monthly 10Y/20Y, saved choices and shading');

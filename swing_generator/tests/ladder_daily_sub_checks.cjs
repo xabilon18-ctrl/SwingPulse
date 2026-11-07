@@ -1,10 +1,10 @@
 const assert = require('node:assert/strict');
 
-// A ladder drawn on Daily also shows on 1H and 4H (4H off 2026-11-04, back
-// 2026-11-05), where each Daily 10% gap is split into five on 1H (every 2%)
-// and two on 4H (every 5%): the Daily lines keep their big black labels
-// ("20%"), the finer steps get small grey ones ("22%" on 1H, "25%" on 4H),
-// and Daily itself never shows the finer steps.
+// A ladder drawn on Daily also shows on 1H, where each Daily 10% gap is
+// split into five (every 2%): the Daily lines keep their big black labels
+// ("20%"), the finer steps get small grey ones ("22%"), and Daily itself
+// never shows the finer steps. 4H was removed permanently 2026-11-07: no
+// button, and a new Daily ladder does not list it.
 module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -41,8 +41,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
     return list.filter(d => d && d.kind === 'ladder').pop();
   }, name);
   assert.equal(stored && stored.alert, true, 'the ladder is saved with its alert on');
-  assert.ok(stored && stored.link && ['D', '1H', '4H'].every(t => stored.tfs.includes(t)),
-    'a ladder drawn on Daily shows on Daily, 1H and 4H: ' + JSON.stringify(stored && stored.tfs));
+  assert.ok(stored && stored.link && ['D', '1H'].every(t => stored.tfs.includes(t)) && !stored.tfs.includes('4H'),
+    'a ladder drawn on Daily shows on Daily and 1H, not 4H: ' + JSON.stringify(stored && stored.tfs));
   const dailyLabels = await main();
   assert.ok(dailyLabels.includes('20%'), 'Daily labels: ' + dailyLabels.join(' '));
   assert.equal(await subLines(), 0, 'no sub-lines on Daily itself');
@@ -50,7 +50,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
-  for (const tf of ['1H', '4H']) {
+  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H chart (removed 2026-11-07)');
+  for (const tf of ['1H']) {
     await openFull(tf);
     // On 1H only, the Daily 20/40/60/80% lines are bold (2026-11-03).
     // Only this Daily ladder's lines (.reel-ladder-daily): other tests leave
@@ -99,5 +100,5 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
     else assert.ok(s.length && s.every(t => /5%$/.test(t)), '4H shows only the 5% steps (5, 15, 25…): ' + s.join(' '));
     await close();
   }
-  console.log('PASS: Daily ladder subdivided on 1H/4H with big Daily and small grey labels');
+  console.log('PASS: Daily ladder subdivided on 1H (not on 4H) with big Daily and small grey labels');
 };

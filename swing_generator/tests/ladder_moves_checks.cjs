@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 
 // "Move %" on a ladder (user, 2026-11-06): the actual price move of each gap
 // between two Daily 10% lines, written in the middle of the gap, through the
-// stacks (past 100%), and on 1H / 4H for a Daily ladder too. Equal price
+// stacks (past 100%), and on 1H for a Daily ladder too (4H removed
+// 2026-11-07). Equal price
 // steps mean the move shrinks as price climbs; a reversed ladder measures
 // down from the upper line.
 module.exports = async function checkLadderMoves(page, name = 'TEST') {
@@ -44,7 +45,7 @@ module.exports = async function checkLadderMoves(page, name = 'TEST') {
   await tb.locator('[data-act="draw-stack"][data-dir="up"][data-d="1"]').click();
   const d = await stored();
   assert.ok(d && d.moves === true, 'the ladder is saved with Move % on');
-  assert.ok(d.link && ['1H', '4H'].every(t => d.tfs.includes(t)), 'a Daily ladder carries it to 1H and 4H: ' + JSON.stringify(d && d.tfs));
+  assert.ok(d.link && d.tfs.includes('1H') && !d.tfs.includes('4H'), 'a Daily ladder carries it to 1H (not 4H): ' + JSON.stringify(d && d.tfs));
   let m = await moves();
   assert.ok(m.length >= 5, 'Daily: a move label in most gaps: ' + JSON.stringify(m));
   for (const x of m) {
@@ -68,7 +69,7 @@ module.exports = async function checkLadderMoves(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
-  for (const tf of ['1H', '4H']) {
+  for (const tf of ['1H']) {
     await openFull(tf);
     let got = await moves();
     // Zoom the price scale OUT until at least one Daily gap's middle is on screen.
@@ -87,5 +88,5 @@ module.exports = async function checkLadderMoves(page, name = 'TEST') {
     }
     await close();
   }
-  console.log('PASS: ladder Move % labels each Daily gap on D, 1H and 4H');
+  console.log('PASS: ladder Move % labels each Daily gap on D and 1H');
 };

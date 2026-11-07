@@ -7,6 +7,40 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) 4H REMOVED PERMANENTLY: app.js v599, chart-preferences.js v11,
+grid-geometry.js v15, trend-context.js v4, chart feed. User:
+"Remove 4h permanently" (the 4H chart had come back on 2026-11-05, #152 /
+#153). Reverses those two changes; do not bring 4H back unless the user asks
+for it by name.
+- Pipeline: `CHART_BUILDERS` has no '4H', so no `chart/4H/<chunk>.json` is
+  written (old R2 chunks stay, unreferenced).
+- Code deleted (user: "Even from the code"; chose "App + chart code", not the
+  signal engine): `chart_feed.build_4h` / `build_4h_live` and their 4H bar
+  ceilings, `tools/publish_four_hour.py`, the dev server's 4H builder and 4H
+  fires, 4H in `alerts_feed`; in the app the 4H opening view, session-only
+  frames and grid (`REEL_SESSION_*`, `reelSessionOnly`, `reelBarsPerDay`, the
+  `M2` grid label), the 4H minute / overlay / projection entries, the 4H grid
+  default, the 4H yearly-line case and the native 4H trend read. Kept: the
+  one-time passes that strip saved 4H data, and the engine's `h4_` columns,
+  `H4_SOURCE` (1H reads its hourly cache through it), `_resample_4h` (2H uses
+  it) and backtest/ledger 4H history. `tests/four_hour_test.py` keeps its
+  name (the workflows run it by name) but now checks the 1H forming bar and
+  that the 4H builders are gone. The workflow's dead 4H restore step goes in a
+  separate PR for review.
+- App: no 4H row in `TIMEFRAMES` and no `#tfBtn4H`. A saved 4H chart choice
+  opens on Daily; drawings saved on 4H stay in the store, not shown.
+- Ladders: `LADDER_SUB_BY_TF = { '1H': 5 }` (4H's 5% steps gone), so new
+  Daily ladders link Daily and 1H only. `ladderOn4hOnce` is deleted and
+  `ladderNo4hOnce` is re-keyed (`sp-ladder-no4h-2026-11-07`) so it runs once
+  more on every device and takes '4H' out of every Daily ladder, saved
+  through `channelSave` for the other devices.
+- Validators/tests: validate_hourly_release (no 4H chunk read; the live 4H
+  button must be gone), app_smoke (no 4H button), ladder_daily_sub /
+  ladder_moves / ladder_dash (1H only; no 4H in a new ladder),
+  ladder_cleanup (no Daily ladder lists 4H after the passes).
+  time_grid / stock_view / freshness / chart_framing checks moved from 4H to
+  1H or Daily; browser_fixture and htf_feed_test no longer mock a 4H builder.
+
 2026-11-07 (later) LADDER 0 / 100 / 200 / 300% LINES BOLDER: style.css v413.
 User: "On the percentage line make 0 100 200 300 etc bolder". The block-edge
 lines (`.reel-ladder-key`: 0%, 100%, every stack divider) are about 1.5-1.75x
