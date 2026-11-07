@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 LADDER RESIZES AROUND ZERO: app.js v601. User: "I should be able
+to take it down and take it up without it moving on the 0% level ... when I
+try to make it big, it doesn't move because of the zero".
+- Reproduced: a ladder with a block below 0% whose bottom line rests on price
+  0 (how `ladderHoldZero` leaves it) would not grow from the 40% dot or the
+  scale dot (step 5 -> 5: the bigger spacing pushed the block under zero and
+  the hold refused it), and shrinking lifted it off zero (bottom 0 -> 35.9).
+- Now, while the lowest line rests on zero, both dots resize around zero:
+  zero stays, the dragged line follows the finger, every line (0% included)
+  spreads out from zero or closes in on it. A ladder clear of zero still
+  pivots on 0% until its bottom reaches zero, then on zero. Without a block
+  below, 0% is the bottom line and nothing changes.
+- Also seen, not changed: with the ladder on zero, the 0% and 40% dots can
+  sit under the open drawing toolbar at the bottom of the screen; the scale
+  dot near the price is the one to use there.
+- Test: `tests/ladder_zero_scale_checks.cjs` (fails on the old code: "bigger
+  works: 5 -> 5").
+
 2026-11-07 (later) MA COLOUR READ OVER 10 BARS: app.js v600,
 chart-readability.js v4. User: "the moving averages on all time frames, how
 smooth can I make them? ... to avoid the small curves that are a little bit

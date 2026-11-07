@@ -247,6 +247,7 @@ let debugPage;
   if (!live) await require('./ladder_moves_checks.cjs')(page);
   if (!live) await require('./ladder_dash_checks.cjs')(page);
   if (!live) await require('./ladder_scale_dot_checks.cjs')(page);
+  if (!live) await require('./ladder_zero_scale_checks.cjs')(page);
   if (!live) await require('./ladder_cleanup_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) {
