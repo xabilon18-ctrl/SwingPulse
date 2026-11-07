@@ -7947,7 +7947,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} try { ladderOn4hOnce(); } catch (_) {} try { ladderThickOnce(); } catch (_) {} }
+    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {} try { ladderOn4hOnce(); } catch (_) {} try { ladderThickOnce(); } catch (_) {} try { ladderDashOnce(); } catch (_) {} }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -10432,6 +10432,33 @@
   // channelSave so the other devices get it. Ladders drawn on their own on
   // another timeframe are left alone; Thin / Medium still work afterwards.
   const LADDER_THICK_KEY = 'sp-ladder-thick-2026-11-05';
+  // DAILY LADDERS DASHED AND THIN, ONCE PER DEVICE (user, 2026-11-07:
+  // "Replace all daily chart percentages lines with dash lines", on Thin).
+  // Every Daily ladder — on Daily and its linked 1H / 4H copies — that is
+  // not dashed yet turns dashed and Thin, saved through channelSave so the
+  // other devices get it. Runs after ladderThickOnce on the first sync pull.
+  // A ladder the user has since set back to dotted carries `dashOff` and is
+  // left alone, so a device that runs this later cannot undo that choice.
+  // Ladders drawn on their own on another timeframe are left alone.
+  const LADDER_DASH_KEY = 'sp-ladder-dash-2026-11-07';
+  function ladderDashOnce() {
+    try { if (localStorage.getItem(sk(LADDER_DASH_KEY))) return 0; } catch (_) { return 0; }
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      for (const [tf, list] of Object.entries(per)) {
+        if (!Array.isArray(list)) continue;
+        for (const d of list) {
+          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.dash || d.dashOff) continue;
+          d.dash = true; d.strokeWeight = 1; n++;
+        }
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_DASH_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    return n;
+  }
   function ladderThickOnce() {
     try { if (localStorage.getItem(sk(LADDER_THICK_KEY))) return 0; } catch (_) { return 0; }
     let n = 0;
@@ -10503,6 +10530,9 @@
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
       def.tfs = tabTfs('charts').filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
+      // Daily ladders are dashed and Thin (user, 2026-11-07: "Replace all
+      // daily chart percentages lines with dash lines"; new ones too, Thin).
+      def.dash = true; def.strokeWeight = 1;
     }
     // A new circle starts ROUND on screen, about a quarter of the plot tall,
     // centred where the default put it — its price box alone came out as a
@@ -14858,6 +14888,8 @@
           // and thick. With thin being default"); Medium / Thick from there.
           if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 1;
           if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
+          // A ladder set back to dotted stays dotted (see ladderDashOnce).
+          if (d.kind === 'ladder') { if (d.dash) delete d.dashOff; else d.dashOff = true; }
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

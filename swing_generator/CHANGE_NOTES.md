@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 EVERY DAILY LADDER DASHED AND THIN: app.js v596. User: "Replace
+all daily chart percentages lines with dash lines"; then chose Thin for the
+converted ladders and dashed for new Daily ladders too.
+- `ladderDashOnce()` (flag `sp-ladder-dash-2026-11-07`, per user via `sk`),
+  after `ladderThickOnce` on the first sync pull: every Daily ladder (on
+  Daily and its linked 1H / 4H copies) that is not dashed turns dashed and
+  Thin, saved through `channelSave` so other devices follow. Ladders drawn
+  on their own on another timeframe are left alone.
+- New ladders drawn on Daily open dashed and Thin (`channelAdd`). Ladders
+  drawn on other charts keep the dotted / Thick default.
+- Dotted stays available. Setting a ladder back to dotted stores `dashOff`,
+  which `ladderDashOnce` skips, so a device that runs the pass later cannot
+  re-dash it; tapping Dashed clears it.
+- Tests: ladder_dash_checks (a new Daily ladder is dashed and Thin; dotted
+  sets dashOff), ladder_cleanup_checks (every Daily ladder dashed and Thin
+  after all passes; a dashOff ladder stays dotted; a 1H-only ladder is
+  untouched).
+
 2026-11-06 (later) DASHED LADDER OPTION: app.js v595, style.css v410,
 drawing-toolbar.js v12. User: "add the dash lines as an option for the
 percentage line with thin med and thick. With thin being default"; then

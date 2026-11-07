@@ -1,10 +1,11 @@
 const assert = require('node:assert/strict');
 
 // Dashed ladder (user, 2026-11-06: "add the dash lines as an option for the
-// percentage line with thin med and thick. With thin being default"). Dotted
-// stays the default; tapping Dashed turns the 10% lines (and the 1H / 4H
-// finer steps) into dashes and puts the ladder on Thin; Medium / Thick still
-// work, on Daily and on 1H / 4H. The 0% / 100% ends keep their own dash.
+// percentage line with thin med and thick. With thin being default"; since
+// 2026-11-07 every Daily ladder is dashed and Thin, new ones too). Dashed
+// turns the 10% lines (and the 1H / 4H finer steps) into dashes; Medium /
+// Thick still work, on Daily and on 1H / 4H. The 0% / 100% ends keep their
+// own dash. Dotted stays available and is remembered (`dashOff`).
 module.exports = async function checkLadderDash(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -36,16 +37,13 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
   await tb.locator('[data-kind="ladder"]').click();
   if (!(await tb.locator('[data-act="draw-dash"][data-v="1"]').isVisible())) await tb.locator('.reel-draw-fold').click();
   const dotted = tb.locator('[data-act="draw-dash"][data-v="0"]'), dashed = tb.locator('[data-act="draw-dash"][data-v="1"]');
-  assert.equal(await dotted.getAttribute('aria-pressed'), 'true', 'a new ladder is dotted');
+  // A new Daily ladder opens dashed and Thin (2026-11-07).
+  assert.equal(await dashed.getAttribute('aria-pressed'), 'true', 'a new Daily ladder is dashed');
   assert.equal(await tb.locator('[data-act="draw-div"]').count(), 0, 'no ÷10 switch on a ladder');
-  let l = await look();
-  assert.equal(l.stroke, '3', 'a new ladder still opens on Thick');
-  assert.ok(same(l.inner, x => !x.dash && x.da.startsWith('3')), 'dotted 10% lines: ' + JSON.stringify(l.inner.slice(0, 2)));
-
-  await dashed.click();
-  assert.equal(await tb.locator('[data-act="draw-dash"][data-v="1"]').getAttribute('aria-pressed'), 'true', 'Dashed is on');
   const d = await stored();
   assert.ok(d && d.dash === true && d.strokeWeight === 1, 'saved dashed and Thin: ' + JSON.stringify(d && { dash: d.dash, w: d.strokeWeight }));
+  let l = await look();
+  assert.equal(l.stroke, '1', 'a new Daily ladder opens on Thin');
   assert.equal(await tb.locator('[data-act="draw-weight"][data-v="1"]').getAttribute('aria-pressed'), 'true', 'the Thin button is on');
   l = await look();
   assert.ok(same(l.inner, x => x.dash && x.da.startsWith('10') && Math.abs(x.w - 0.9) < 0.01), 'Thin dashed 10% lines: ' + JSON.stringify(l.inner.slice(0, 2)));
@@ -56,16 +54,17 @@ module.exports = async function checkLadderDash(page, name = 'TEST') {
     l = await look();
     assert.ok(same(l.inner, x => x.dash && Math.abs(x.w - w) < 0.01), `weight ${v} dashed: ` + JSON.stringify(l.inner.slice(0, 2)));
   }
-  // Back to dotted: the dashes go, the weight stays (Thick here).
-  await tb.locator('[data-act="draw-dash"][data-v="0"]').click();
+  // Back to dotted: the dashes go, the weight stays (Thick here), and the
+  // choice is remembered so the one-time dash pass leaves it alone.
+  await dotted.click();
   let back = await stored();
-  assert.ok(back && !back.dash && back.strokeWeight === 3, 'dotted again, weight kept: ' + JSON.stringify(back && { dash: back.dash, w: back.strokeWeight }));
+  assert.ok(back && !back.dash && back.strokeWeight === 3 && back.dashOff === true, 'dotted again, weight kept, remembered: ' + JSON.stringify(back && { dash: back.dash, w: back.strokeWeight, off: back.dashOff }));
   l = await look();
   assert.ok(same(l.inner, x => !x.dash && x.da.startsWith('3')), 'dotted again: ' + JSON.stringify(l.inner.slice(0, 2)));
   // Dashed again starts on Thin again.
   await tb.locator('[data-act="draw-dash"][data-v="1"]').click();
   back = await stored();
-  assert.ok(back && back.dash === true && back.strokeWeight === 1, 'dashed again, on Thin: ' + JSON.stringify(back && { dash: back.dash, w: back.strokeWeight }));
+  assert.ok(back && back.dash === true && back.strokeWeight === 1 && !back.dashOff, 'dashed again, on Thin: ' + JSON.stringify(back && { dash: back.dash, w: back.strokeWeight, off: back.dashOff }));
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
