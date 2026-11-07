@@ -7,6 +7,33 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 TRADINGVIEW-STYLE DOTS: app.js v602, style.css v414,
+drawing-toolbar.js v13. User, TradingView and SwingPulse iPad screenshots
+side by side: "The dots look properly close together and tiny ... mine ...
+the spaces in between them is big ... Anything that's a dot, please make it
+look like that" (percentage lines, channels, timelines ...).
+- Measured on the screenshots (CSS px): TradingView dot 1 thick, 1.5 long,
+  2.5 gap, solid black. Ours: 2 long, 5-5.5 gap, under 1 px thick (so it
+  drew grey), and set in viewBox units, so the size changed with the screen
+  (iPad 0.52 px per unit, phone 0.38).
+- `reelLayout` returns `u` (viewBox units per CSS px); `reelDotVars` sets
+  `--dw-<t>` / `--dd-<t>` on the chart svg for tiers (CSS px, thickness /
+  dot / gap): x 0.75/1.5/2.5, s 1/1.5/2.5, m 1.5/2/2.5, l 2.25/2.5/3,
+  b 3/3/3. Square dots (butt caps), solid.
+- style.css "TradingView-style dots" (last, !important): timelines by Grid
+  weight (s/m/l); dotted ladder 10% lines and channel edges by Thin / Medium
+  / Thick (s/m/l; no weight saved: m); 1H bold 20s one up (m/l/b); 1H finer
+  steps x (Thin) or s; channel midline s (Thick channel: m); last-price
+  line s. Dashed lines (.is-dash, ladder ends, year / quarter / admin /
+  month lines, zero line) are unchanged. MA ribbon dots unchanged.
+- Measured after, iPad 750 and phone 390: fine dots 1 / 1.5 / 2.5 px on
+  both. The toolbar's dotted icon follows.
+- Tests: new `tests/dotted_lines_checks.cjs` (timeline and last-price line
+  are 1 px / 1.5 / 2.5, square, solid, on the card and full screen);
+  ladder_dash_checks reads the dotted pattern from `--dd-l`;
+  chart_readability_browser compares the Thin ladder's VISIBLE width before
+  and after the wide view (its viewBox width now changes with chart size).
+
 2026-11-07 LADDER RESIZES AROUND ZERO: app.js v601. User: "I should be able
 to take it down and take it up without it moving on the 0% level ... when I
 try to make it big, it doesn't move because of the zero".

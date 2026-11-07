@@ -9016,6 +9016,24 @@
   // to 520 CSS px) renders exactly as before; an iPad or laptop gets a bigger
   // chart with text ~1.5x a phone's (it is read from further away), not 2-3x.
   const REEL_PHONE_CARD_PX = 520;
+  // TRADINGVIEW-STYLE DOTS (user, 2026-11-07, TradingView and SwingPulse
+  // screenshots side by side: "The dots look properly close together and
+  // tiny ... mine ... the spaces in between them is big ... Anything that's a
+  // dot, please make it look like that"). Measured on the user's iPad
+  // screenshots: TradingView draws a dot 1 CSS px thick and 1.5 long with a
+  // 2.5 gap, solid black; ours were 2 long with a 5-5.5 gap, under 1 px thick
+  // (so grey), and set in viewBox units, so they changed size with the
+  // screen. Every dotted line now takes its size in CSS PIXELS from these
+  // variables, converted to viewBox units for this chart (L.u units per px):
+  // --dw-<t> the thickness, --dd-<t> the dot and gap. Tiers: x finer steps,
+  // s fine, m medium, l large, b bold (a Thick ladder's 1H 20s). Square dots (butt caps). See style.css,
+  // "TradingView-style dots". Dashed lines are not dots and are unchanged.
+  const REEL_DOT_TIERS = { x: [0.75, 1.5, 2.5], s: [1, 1.5, 2.5], m: [1.5, 2, 2.5], l: [2.25, 2.5, 3], b: [3, 3, 3] };
+  function reelDotVars(L) {
+    const u = L && L.u > 0 ? L.u : 1, f = v => +(v * u).toFixed(2);
+    return Object.entries(REEL_DOT_TIERS)
+      .map(([t, [w, dot, gap]]) => `--dw-${t}:${f(w)};--dd-${t}:${f(dot)} ${f(gap)}`).join(';');
+  }
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
     const ch = host.clientHeight || 440;
@@ -9056,6 +9074,7 @@
       gTop: over ? 0 : py0, gBot: over ? H : py1,
       clipTop: 0, clipBot: over ? H : py1 + 6,
       overlaid: over,
+      u: W / Math.max(1, cw),            // viewBox units per CSS pixel
     };
   }
 
@@ -12002,7 +12021,7 @@
     // same size sharing one id resolve to identical rectangles.
     const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}-${Math.round(L.clipBot)}`;
 
-    return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
+    return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" style="${reelDotVars(L)}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
       <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
