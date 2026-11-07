@@ -22,7 +22,8 @@ module.exports = async function checkLadderCleanup(page) {
   const lad = (p1, extra) => ({ kind: 'ladder', p1, p4: p1 + 30, ...extra });
   const seed = {
     TEST: {
-      D: [lad(10, { strokeWeight: 1 }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), lad(30, { link: 'Ldonly', tfs: ['D'] })],
+      D: [lad(10, { strokeWeight: 1 }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), lad(30, { link: 'Ldonly', tfs: ['D'] }),
+          lad(80, { link: 'Loff', tfs: ['D'], strokeWeight: 2, dashOff: true })],
       '1H': [lad(40), lad(50, { link: 'Lh', tfs: ['1H', '4H'] }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }),
              { kind: 'trend', t1: '2026-01-01', p1: 1, t2: '2026-02-01', p2: 2 }],
       '4H': [lad(60), lad(50, { link: 'Lh', tfs: ['1H', '4H'] }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'] })],
@@ -34,11 +35,11 @@ module.exports = async function checkLadderCleanup(page) {
     localStorage.setItem('sp-channels', JSON.stringify(s));
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04') && localStorage.getItem('sp-ladder-on4h-2026-11-05') && localStorage.getItem('sp-ladder-thick-2026-11-05'), null, { timeout: 60000 });
+  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-04') && localStorage.getItem('sp-ladder-on4h-2026-11-05') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder');
   const d = ladders('D');
-  assert.equal(d.length, 3, 'no Daily ladder is deleted: ' + JSON.stringify(d));
+  assert.equal(d.length, 4, 'no Daily ladder is deleted: ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
   assert.ok(was.link && ['D', '1H', '4H'].every(t => was.tfs.includes(t)), 'an unlinked Daily ladder now shows on Daily, 1H and 4H: ' + JSON.stringify(was));
   // Off 4H on 2026-11-04 and back on 2026-11-05: every Daily ladder that
@@ -53,9 +54,15 @@ module.exports = async function checkLadderCleanup(page) {
     assert.ok(l.some(x => x.link === 'Lkeep') && l.some(x => x.link === was.link), tf + ': Daily ladders are there: ' + JSON.stringify(l));
   }
   assert.equal((got['1H'] || []).filter(x => x.kind === 'trend').length, 1, 'other drawings are untouched');
-  // Daily ladders on Thick (2026-11-05), on Daily and on their 1H copies.
+  // Daily ladders on Thick (2026-11-05), then dashed and Thin (2026-11-07),
+  // on Daily and on their 1H / 4H copies; one set back to dotted
+  // (`dashOff`) is left dotted, on the Thick the first pass gave it.
+  const off = x => x.dashOff;
   for (const tf of ['D', '1H', '4H'])
-    assert.ok(ladders(tf).length && ladders(tf).every(x => x.strokeWeight === 3), tf + ': every Daily ladder is Thick: ' + JSON.stringify(ladders(tf)));
+    assert.ok(ladders(tf).filter(x => !off(x)).length && ladders(tf).filter(x => !off(x)).every(x => x.dash === true && x.strokeWeight === 1),
+      tf + ': every Daily ladder is dashed and Thin: ' + JSON.stringify(ladders(tf)));
+  const kept = d.find(x => x.p1 === 80);
+  assert.ok(!kept.dash && kept.strokeWeight === 3, 'a ladder set back to dotted stays dotted: ' + JSON.stringify(kept));
   // Once only: a ladder drawn on 1H after the cleanup survives a reload.
   await p.evaluate(() => {
     const all = JSON.parse(localStorage.getItem('sp-channels'));
@@ -66,8 +73,9 @@ module.exports = async function checkLadderCleanup(page) {
   await p.waitForTimeout(1500);
   const again = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels')).TEST['1H']);
   assert.ok(again.some(x => x.kind === 'ladder' && x.p1 === 70), 'the cleanup runs once per device');
-  assert.ok(!('strokeWeight' in again.find(x => x.p1 === 70)), 'a ladder drawn on its own on 1H is not made Thick');
+  const own = again.find(x => x.p1 === 70);
+  assert.ok(!('strokeWeight' in own) && !own.dash, 'a ladder drawn on its own on 1H is not made Thick or dashed');
   assert.equal(errors.length, 0, errors.join('\n'));
   await context.close();
-  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H then back, on Thick)');
+  console.log('PASS: one-time ladder cleanups (standalone 1H/4H ladders removed, Daily ladders on 1H, off 4H then back, on Thick, then dashed and Thin)');
 };
