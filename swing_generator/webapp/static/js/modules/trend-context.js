@@ -19,17 +19,17 @@
   }
   function native(row, tf, channels) {
     if (tf === 'D') return daily(row, channels);
-    // Only 1H and 4H have a native read. The Weekly and Monthly charts have none,
-    // and must not fall through to the 1H columns below.
-    if (tf !== '1H' && tf !== '4H') return UNKNOWN;
+    // Only 1H has a native read (4H removed 2026-11-07). The Weekly and Monthly
+    // charts have none, and must not fall through to the 1H columns below.
+    if (tf !== '1H') return UNKNOWN;
     const measured = snapshot(row, tf, channels);
     if (measured) {
       // The setup timeframe's direction includes a minor swing that started
-      // at the Daily 50 (swingDirection): 1H since 2026-11-04, 4H before.
+      // at the Daily 50 (swingDirection).
       const direction = measured.swingDirection || measured.direction;
       return isDirection(direction) ? direction : UNKNOWN;
     }
-    const prefix = tf === '4H' ? 'h4_' : 'h1_';
+    const prefix = 'h1_';
     // Compatible with older published rows when their native values exist.
     // Channel geometry, quotes and the Daily direction are never fallbacks.
     return main({close: row && row[prefix + 'close'], ma_500: row && row[prefix + 'ma_500']});

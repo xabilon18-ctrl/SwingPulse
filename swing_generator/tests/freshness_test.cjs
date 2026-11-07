@@ -17,18 +17,18 @@ for (const clock of [now,weekend,Date.parse('2026-10-12T01:00:00Z')]) {
   assert.ok(!f.dataset(clock-30*60000,false,clock).detail.includes('Between scheduled runs'));
 }
 assert.equal(f.dataset(now,true,now).state,'failed');
-assert.equal(f.chart('2026-10-09 10:00','4H',now).label,'Last completed 4H bar');
-const forming={t:'2026-10-10 12:00',closes_at:'2026-10-10T16:00:00Z'};
-assert.equal(f.chart(forming.t,'4H',Date.parse('2026-10-10T15:05Z'),forming).state,'Still forming');
-assert.equal(f.chart(forming.t,'4H',Date.parse('2026-10-10T16:05Z'),forming).state,'Awaiting final update','An old snapshot must never claim it is final');
-assert.equal(f.chart('2026-10-10 08:00','4H',now,forming).state,'');
+assert.equal(f.chart('2026-10-09 10:00','1H',now).label,'Last completed 1H bar');
+const forming={t:'2026-10-10 15:00',closes_at:'2026-10-10T16:00:00Z'};
+assert.equal(f.chart(forming.t,'1H',Date.parse('2026-10-10T15:05Z'),forming).state,'Still forming');
+assert.equal(f.chart(forming.t,'1H',Date.parse('2026-10-10T16:05Z'),forming).state,'Awaiting final update','An old snapshot must never claim it is final');
+assert.equal(f.chart('2026-10-10 08:00','1H',now,forming).state,'');
 const previousZone=process.env.TZ;
 try {
   process.env.TZ='Africa/Johannesburg';
-  assert.equal(f.chartTime('2026-10-10 00:00','4H'),'10 Oct 02:00');
-  assert.equal(f.chartTime('2026-10-10 00:00','4H',true).replace(',', ''),'Sat 10 Oct 02:00');
-  assert.equal(f.chart('2026-10-10 00:00','4H',now).basis,'local');
-  assert.ok(f.chart('2026-10-10 00:00','4H',now).detailTime.includes('GMT+2'));
+  assert.equal(f.chartTime('2026-10-10 00:00','1H'),'10 Oct 02:00');
+  assert.equal(f.chartTime('2026-10-10 00:00','1H',true).replace(',', ''),'Sat 10 Oct 02:00');
+  assert.equal(f.chart('2026-10-10 00:00','1H',now).basis,'local');
+  assert.ok(f.chart('2026-10-10 00:00','1H',now).detailTime.includes('GMT+2'));
   process.env.TZ='America/New_York';
   assert.equal(f.chartTime('2026-10-10 00:00','1H'),'9 Oct 20:00','Date changes with local timezone');
   assert.equal(f.chartTime('2026-03-08 06:00','1H'),'8 Mar 01:00');

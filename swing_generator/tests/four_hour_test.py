@@ -1,24 +1,25 @@
-"""Regression checks for current 4H bars and a data-preserving release."""
-from copy import deepcopy
-import gzip
-import json
-from pathlib import Path
+"""Regression checks for the 1H chart's forming (still-open) bar.
+
+4H was removed permanently on 2026-11-07 (user: "Remove 4h permanently",
+then "Even from the code"): its builder, its release tool and their tests
+are gone. This file keeps its old name only because the CI workflows run it
+by name; what is left checks the 1H forming bar, which the 4H checks shared.
+"""
 import sys
-import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT), str(ROOT / 'webapp'), str(ROOT / 'tools'), str(ROOT / 'tests')]
+sys.path[:0] = [str(ROOT), str(ROOT / 'webapp'), str(ROOT / 'tests')]
 from hourly_test import hourly_frame
 import main
 import chart_feed
 import data_fetcher
-import publish_four_hour
 
 
-class FourHourTests(unittest.TestCase):
+class HourlyFormingBarTests(unittest.TestCase):
     def test_forming_snapshots_do_not_enter_completed_analysis(self):
         now = pd.Timestamp('2026-10-10 15:05')
         hourly = hourly_frame(2600)
@@ -28,49 +29,18 @@ class FourHourTests(unittest.TestCase):
         changed.iloc[-1, changed.columns.get_loc('High')] = 1000
         with patch.object(data_fetcher, '_utc_now', return_value=now), \
              patch.object(chart_feed, '_utc_now', return_value=now):
-            for builder, hours, start in [(chart_feed.build_1h, 1, '15:00'),
-                                           (chart_feed.build_4h_live, 4, '12:00')]:
-                with patch.object(chart_feed, 'load_1h', return_value=hourly):
-                    first = builder('', 'TEST')
-                with patch.object(chart_feed, 'load_1h', return_value=changed):
-                    second = builder('', 'TEST')
-                self.assertEqual(first['forming']['t'], '2026-10-10 ' + start)
-                self.assertEqual(second['forming']['c'], 999)
-                for key in ('t', 'o', 'h', 'l', 'c', 'p', 'mi', 'm'):
-                    self.assertEqual(first[key], second[key], key + ' must remain completed-only')
-                from channel_rule import read
-                self.assertEqual(read(first, str(hours) + 'H'), read(second, str(hours) + 'H'))
+            with patch.object(chart_feed, 'load_1h', return_value=hourly):
+                first = chart_feed.build_1h('', 'TEST')
+            with patch.object(chart_feed, 'load_1h', return_value=changed):
+                second = chart_feed.build_1h('', 'TEST')
+            self.assertEqual(first['forming']['t'], '2026-10-10 15:00')
+            self.assertEqual(second['forming']['c'], 999)
+            for key in ('t', 'o', 'h', 'l', 'c', 'p', 'mi', 'm'):
+                self.assertEqual(first[key], second[key], key + ' must remain completed-only')
+            from channel_rule import read
+            self.assertEqual(read(first, '1H'), read(second, '1H'))
             self.assertEqual(main._compute_1h_state(hourly, 'Crypto', now.date()),
                              main._compute_1h_state(changed, 'Crypto', now.date()))
-            pd.testing.assert_frame_equal(main._frame_4h(hourly), main._frame_4h(changed))
-        # Once the bucket closes, it moves into completed data exactly once.
-        later = now + pd.Timedelta(hours=1)
-        with patch.object(data_fetcher, '_utc_now', return_value=later), \
-             patch.object(chart_feed, '_utc_now', return_value=later), \
-             patch.object(chart_feed, 'load_1h', return_value=changed):
-            final = chart_feed.build_4h_live('', 'TEST')
-        self.assertNotIn('forming', final)
-        self.assertEqual(final['t'][-1], '2026-10-10 12:00')
-        self.assertEqual(final['c'][-1], 999)
-
-    def test_forming_bar_closes_when_its_session_does(self):
-        # Review finding 2026-10-17: the last 4H bar of a session is short, but
-        # closes_at was always start + 4h, so after the close the chart said
-        # "Still forming" for up to 2 hours.
-        now = pd.Timestamp('2026-10-10 19:05')
-        open_hour = hourly_frame(2600)
-        open_hour.index = pd.date_range(end='2026-10-10 19:00', periods=len(open_hour), freq='h', tz='UTC')
-        closed = open_hour.iloc[:-1]           # nothing newer than the 18:00 bar
-        with patch.object(data_fetcher, '_utc_now', return_value=now), \
-             patch.object(chart_feed, '_utc_now', return_value=now):
-            with patch.object(chart_feed, 'load_1h', return_value=open_hour):
-                trading = chart_feed.build_4h_live('', 'TEST')['forming']
-            with patch.object(chart_feed, 'load_1h', return_value=closed):
-                stopped = chart_feed.build_4h_live('', 'TEST')['forming']
-        self.assertEqual(trading['t'], '2026-10-10 16:00')
-        self.assertEqual(trading['closes_at'], '2026-10-10T20:00:00Z', 'Still trading: the full window')
-        self.assertEqual(stopped['t'], '2026-10-10 16:00')
-        self.assertEqual(stopped['closes_at'], '2026-10-10T19:00:00Z', 'Feed stopped: closed with its last hour')
 
     def test_closed_market_does_not_invent_a_candle(self):
         hourly = hourly_frame(2600)
@@ -80,70 +50,12 @@ class FourHourTests(unittest.TestCase):
              patch.object(chart_feed, '_utc_now', return_value=now), \
              patch.object(chart_feed, 'load_1h', return_value=hourly):
             self.assertNotIn('forming', chart_feed.build_1h('', 'TEST'))
-            self.assertNotIn('forming', chart_feed.build_4h_live('', 'TEST'))
 
-    def test_completed_four_hour_bars_and_exact_mas(self):
-        hourly = hourly_frame()
-        frame = main._frame_4h(hourly)
-        self.assertTrue((frame.index + pd.Timedelta(hours=4) <= pd.Timestamp.utcnow().tz_localize(None)).all())
-        stamp = frame.index[-2]
-        source = hourly.tz_localize(None).loc[stamp:stamp + pd.Timedelta(hours=3)]
-        self.assertEqual(frame.loc[stamp, 'Open'], source['Open'].iloc[0])
-        self.assertEqual(frame.loc[stamp, 'Close'], source['Close'].iloc[-1])
-        self.assertEqual(frame.loc[stamp, 'High'], source['High'].max())
-        self.assertEqual(frame.loc[stamp, 'Low'], source['Low'].min())
-        self.assertEqual(frame.loc[stamp, 'Volume'], source['Volume'].sum())
-        with patch.object(chart_feed, 'load_1h', return_value=hourly):
-            bundle = chart_feed.build_4h_live('', 'TEST')
-        self.assertEqual(bundle['p'], [50, 250])
-        self.assertEqual(bundle['c'][-1], round(frame['Close'].iloc[-1], 4))
-
-    def test_young_listing_draws_with_ma50_alone(self):
-        # CEREBRAS (listed May 2026): under 250 four-hour bars, so no MA250
-        # yet. It used to get no 4H chart at all; it draws with MA50, as Daily
-        # does, and runs through the feed's context and trend read.
-        hourly = hourly_frame()
-        frame = main._frame_4h(hourly)
-        since = lambda k: hourly[hourly.index >= pd.Timestamp(frame.index[-k]).tz_localize(hourly.index.tz)]
-        young = since(120)
-        with patch.object(chart_feed, 'load_1h', return_value=young):
-            bundle = chart_feed.build_4h_live('', 'YOUNG')
-        self.assertEqual(bundle['p'], [50])
-        self.assertGreater(len(bundle['c']), 60)
-        from channel_rule import read as channel_read
-        chart_feed.attach_setup_context({'4H': {'YOUNG': bundle}})
-        self.assertIn(channel_read(bundle, '4H')[0], ('UPTREND', 'DOWNTREND', 'NEUTRAL'))
-        # Under 50 bars there is no MA to draw: still no chart.
-        with patch.object(chart_feed, 'load_1h', return_value=since(40)):
-            self.assertIsNone(chart_feed.build_4h_live('', 'NEW'))
-
-    def test_targeted_release_preserves_index_and_other_timeframes(self):
-        hourly = hourly_frame()
-        with patch.object(chart_feed, 'load_1h', return_value=hourly):
-            bundle = chart_feed.build_4h_live('', 'TEST')
-        index = {'chunks': {'TEST': 17}}
-        trends = {'generated_at': pd.Timestamp.utcnow().isoformat(),
-                  'tf': {'1H': {'TEST': 'UPTREND'}, 'D': {'TEST': 'DOWNTREND'}},
-                  'since': {'D': {'TEST': '2025-01-01'}}}
-        saved = deepcopy(trends)
-        with tempfile.TemporaryDirectory() as temp, \
-             patch.object(publish_four_hour, 'build_4h_live', return_value=bundle):
-            out = Path(temp)
-            self.assertEqual(publish_four_hour.prepare(out, index, trends, {'TEST': 'TEST'}), 1)
-            merged = json.loads(gzip.decompress((out / 'trend_channels.json').read_bytes()))
-            self.assertEqual(merged['tf']['D'], saved['tf']['D'])
-            self.assertEqual(merged['tf']['1H'], saved['tf']['1H'])
-            self.assertEqual(merged['since']['D'], saved['since']['D'])
-            self.assertIn('TEST', merged['tf']['4H'])
-            self.assertEqual(trends, saved)
-            self.assertTrue((out / 'chart' / '4H' / '17.json').exists())
-            self.assertFalse((out / 'chart' / 'index.json').exists())
-            self.assertFalse((out / 'signals.json').exists())
-            self.assertFalse((out / 'quotes.json').exists())
-        with tempfile.TemporaryDirectory() as temp, \
-             patch.object(publish_four_hour, 'build_4h_live', return_value=None):
-            with self.assertRaisesRegex(AssertionError, 'coverage'):
-                publish_four_hour.prepare(Path(temp), index, trends, {'TEST': 'TEST'})
+    def test_four_hour_chart_is_gone(self):
+        self.assertFalse(hasattr(chart_feed, 'build_4h_live'))
+        self.assertFalse(hasattr(chart_feed, 'build_4h'))
+        self.assertNotIn('4H', chart_feed.CHART_BUILDERS)
+        self.assertFalse((ROOT / 'tools' / 'publish_four_hour.py').exists())
 
 
 if __name__ == '__main__':

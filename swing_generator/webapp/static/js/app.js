@@ -1090,7 +1090,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
+    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '12H': 720 }[timeframe];
     if (timeframe === 'W') return `${n}w`;
     if (timeframe === 'M') return `${n}mo`;
     if (!per) return `${n}d`;
@@ -8212,7 +8212,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
+  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
                      'W': 7 * 864e5, 'M': 31 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
@@ -8330,7 +8330,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 0.6;
     return g;
   }
-  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'quarter', '12H': 'year', 'D': 'year' };
+  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '12H': 'year', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -9240,13 +9240,10 @@
   // week is five of them on an equity, seven on crypto — the view the day grid
   // is for. Zoom out (drag the time axis) reaches the whole month carried.
   //
-  // 10m opened on ONE CALENDAR MONTH and 4H on ONE CALENDAR YEAR, every time the
-  // timeframe is switched to (user, 2026-09-19: "the 10 min chart has to show
-  // me a full month on every switch, 4h full year"). This reverses the 120-bar
-  // 10m window of 2026-09-17 by the user's explicit call: a month of 10m is
-  // ~800 bars on an equity and ~4,300 on BTC, so candles there are sub-pixel
-  // and read as a line — zoom in (drag the time axis) to see them. 4H is ~500
-  // bars on an equity and ~2,190 on a 24h instrument (the whole bundle).
+  // 10m opened on ONE CALENDAR MONTH every time the timeframe is switched to
+  // (user, 2026-09-19: "the 10 min chart has to show me a full month on every
+  // switch"): ~800 bars on an equity and ~4,300 on BTC, so candles there are
+  // sub-pixel and read as a line — zoom in (drag the time axis) to see them.
   function reelDefaultBars(bundle, name) {
     const n = bundle.c.length;
     const qv = name && reelStockView(bundle, name);
@@ -9282,12 +9279,9 @@
       const data = Math.max(REEL_MIN_WINDOW_BARS, n - k);
       return (bundle._defBars = data);   // no 24% future any more — see reelRightPadBars
     }
-    if (timeframe === '10m' || timeframe === '4H') {
+    if (timeframe === '10m') {
       if (bundle._defBars) return bundle._defBars;
-      // 4H opens on FIVE calendar months (user, 2026-09-30: "let's do 4h like
-      // this" — SOYBEANS/SILVER/PLATINUM/PALLADIUM/OATMEAL, ~May to Sep).
-      const span = timeframe === '10m' ? [1, 0] : [5, 0];
-      return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, span[0], span[1])));
+      return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, 1, 0)));
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
@@ -9305,33 +9299,16 @@
   //        (user, same day, off TXN/ANET/AMKR against their saved GOLD:
   //        "yours not right"): 'all' pulled W500/M50/D500 in and squashed the
   //        candles into a quarter of the height, pinned to an edge.
-  //   4H — QUARTERS (user, 2026-10-22, PLATINUM/ETHUSD/LINKUSD/USDX/US100/
-  //        IT40/NETH25/FRA40/SPAIN35: "for the 4h time frame for all
-  //        instruments let the frame look like this"): 1 Jul to 1 Jan on 22 Oct.
-  //        A SESSION-ONLY chart (reelSessionOnly: under REEL_SESSION_HOURS
-  //        of bars a day) takes HALF-YEARS instead, `sessionUnit` (user,
-  //        2026-10-24, "do option 1" — EU indices and SOX were "smaller and
-  //        doesn't fit well on the 2 qs"): 1 Jan to 1 Jan on 24 Oct. Their
-  //        feed is the exchange session only — 3 bars a day on the European
-  //        indices, 2 on SOX and US stocks, against 5 on the futures-fed
-  //        US100/US500/NI225 and 6 on crypto — so two quarters held ~380 and
-  //        ~250 candles against US100's ~780. A half-year gives ~760 and ~500.
   //   D  — YEARS, last year's line to two year lines ahead (user, 2026-10-22,
   //        CHINAH/CHINA50/CHINA_NET/SA40: "This is how we do daily"): 2025 to
   //        2028 on 22 Oct, priced 'all' (their channels and ladders set the
   //        scale).
-  // They replace per-market frames: 4H was a half-year on stocks and indices;
-  // 1H a quarter on stocks, ~3 weeks before the quarter line on indices and
+  // They replace per-market frames: 1H was a quarter on stocks, ~3 weeks before the quarter line on indices and
   // 30 days back / 35 ahead on crypto, forex and commodities; Daily the
   // 2025-2029 term on stocks (0 at the bottom) and indices, with 0 forced onto
   // crypto's scale.
-  // Hours of bars a calendar day carries: 20-24 on a round-the-clock or
-  // futures feed, 6.5-10 on an exchange session (4H: 5-6 bars a day against
-  // 2-3).
-  const REEL_SESSION_HOURS = 16;
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
-    '4H': { unit: 0.25,    sessionUnit: 0.5, fit: 'all' },
     'D':  { years: [1, 2], fit: 'all' },
   };
   // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
@@ -9376,8 +9353,7 @@
       start = spec.all ? 0 : fr.anchor + (first - ((spec.terms || 1) - 1) * spec.term - year) * fr.yearBars;
       endAt = fr.anchor + (first + spec.term - year) * fr.yearBars;
     } else {
-      const unit = spec.sessionUnit && reelSessionOnly(bundle, timeframe) ? spec.sessionUnit : spec.unit;
-      const u = fr.yearBars * unit;
+      const u = fr.yearBars * spec.unit;
       const k = Math.floor((last - fr.anchor) / u + 1e-9);
       start = fr.anchor + (k - 1) * u;
       endAt = fr.anchor + (k + 1) * u;
@@ -9494,31 +9470,15 @@
   // plot. Only the view a chart OPENS on: any drag or zoom takes over, and
   // double-tap comes back to it.
   const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, fill: 0.85 };
-  // Bars per calendar day that has any: 6 four-hour bars on crypto, 5 on a
-  // futures feed, 3 on a European cash index, 2 on a US stock or SOX. Cached
-  // beside the bundle, not on it (CodeQL: a property written onto parsed data).
-  const reelPerDayCache = new WeakMap();
-  function reelBarsPerDay(bundle) {
-    if (reelPerDayCache.has(bundle)) return reelPerDayCache.get(bundle);
-    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
-    const perDay = bundle.t.length / days;
-    reelPerDayCache.set(bundle, perDay);
-    return perDay;
-  }
   // Round the clock (crypto, forex, futures: up to 48 thirty-minute bars a UTC
   // day) or a session a day (stocks, cash indices: 10-17). Measured off the bundle.
-  // An exchange-session feed rather than a round-the-clock one, measured off
-  // the bundle: its bars cover fewer than REEL_SESSION_HOURS a day.
-  function reelSessionOnly(bundle, tf) {
-    return reelBarsPerDay(bundle) * (OV_TF_MS[tf] || 864e5) / 36e5 < REEL_SESSION_HOURS;
-  }
   function reel15mIs24h(bundle) {
     if (bundle._is24h != null) return bundle._is24h;
     const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
     // 15m: up to 96 a day on 24h markets, 20-34 on stocks; 30m half that.
     return (bundle._is24h = bundle.t.length / days > (timeframe === '15m' ? 60 : 30));
   }
-  // Same relative frame on 1H, 4H and Daily, using each visible swing's actual
+  // Same relative frame on 1H and Daily, using each visible swing's actual
   // range rather than a fixed percentage that flattens quieter instruments.
   // `extra` ({lo, hi}) widens the fit to more than the bars — the overlay
   // MAs on an opening view (reelOverlayRange) — but only so far
@@ -11427,41 +11387,27 @@
       + `</div><span class="reel-time-grid-scope">${tf}</span><span class="reel-time-grid-note">Remembered · ${tf} only</span></div>`;
   }
 
-  const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '4H', '12H'].includes(tf);
+  const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';
   }
   function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
-  // A session-only 4H chart opens on half-years, not quarters (REEL_FRAME_VIEW
-  // `sessionUnit`), so its grid takes the next size up from the market's
-  // choice (user, 2026-10-24, "your recommendation sounds good"): one setting
-  // per market, and US100 (quarters) and DAX (half-years) both show the
-  // previous part shaded and the current one plain. Year and Term stay.
-  const REEL_SESSION_GRID = {
-    M: { code: 'M2', name: 'Two months', parts: 6, label: '2M' },
-    Q: { code: 'H', name: 'Half-year', parts: 2 },
-    H: { code: 'Y', name: 'Year', parts: 1 },
-  };
   // The time grid in use, after the timeframe in the full-screen header (user,
   // 2026-10-28: "i just need to see what time grid i am on when the app is on
-  // full screen"). Read off the lines just drawn, so a session-only 4H chart
-  // that draws one size up from the market's choice names what is on screen.
+  // full screen"). Read off the lines just drawn.
   function reelSyncGridTag(host, lines) {
     const tag = host.closest('#chartFull') && document.querySelector('#chartFull [data-cf-grid]');
     if (!tag) return;
     const code = (lines.find(l => !l.fixedOnly) || {}).division;
-    const d = [...GRID_DIVISIONS, ...Object.values(REEL_SESSION_GRID)].find(x => x.code === code);
+    const d = GRID_DIVISIONS.find(x => x.code === code);
     tag.textContent = d ? '· ' + (d.label || d.code) : '';
     tag.title = d ? `Time grid: ${d.name}` : '';
   }
   function reelTimeGrid(b, tf, item) {
     const scope = reelGridScope(item);
-    const session = tf === '4H' && reelSessionOnly(b._src || b, tf);
     return window.SwingPulseModules.gridGeometry.timeGrid(b, tf, { barTimes: reelBarTimes, getDivision: code => {
       const d = reelGridDivision(code, scope);
-      // A session-only 4H draws one size up (Q → half-years), so no thirds there.
-      if (session && REEL_SESSION_GRID[d.code]) return REEL_SESSION_GRID[d.code];
       if (d.code === 'Q' && chartPreferences.thirds(code, scope)) return { ...d, thirds: true };
       // Term fourths: Daily only (user, 2026-11-04).
       if (d.code === 'T' && code === 'D' && chartPreferences.fourths(code, scope)) return { ...d, fourths: true };
@@ -12080,7 +12026,7 @@
     const thirdsOn = chartPreferences.thirds(timeframe, scope);
     const thirds = reelGridDivision(timeframe, scope).code !== 'Q' ? ''
       : `<button class="reel-tool reel-grid-switch${thirdsOn ? ' on' : ''}" data-act="time-grid-thirds" data-grid-scope="${scope}" role="menuitemcheckbox" aria-checked="${thirdsOn}">
-        <span>Split each quarter into 3<em>${timeframe === '4H' ? 'not on 4H session charts, which draw half-years' : 'two light lines per quarter'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+        <span>Split each quarter into 3<em>two light lines per quarter</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     // Term fourths (user, 2026-11-04, "Each term into 4"): under the T grid,
     // on Daily only.
     const fourthsOn = chartPreferences.fourths(timeframe, scope);

@@ -10,7 +10,7 @@
     if (division === 'Y' || division === 'Y10' || division === 'Y20') return String(year);
     if (division === 'T') return termLabel(year);
     if (division === 'T2') return halfTermLabel(year);
-    if (division === 'M' || division === 'M2') return new Date(Date.UTC(year, division === 'M2' ? 2 * part : part, 1))
+    if (division === 'M') return new Date(Date.UTC(year, part, 1))
       .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) + (part === 0 ? ' ' + year : '');
     return `${division}${part + 1}${part === 0 ? ' ' + year : ''}`;
   }
@@ -115,8 +115,8 @@
       line[kind] = true;
       line.label = label;
     };
-    if (tf === '1H' || tf === '4H') {
-      // Bold lines one YEAR apart on 1H and 4H (1H was quarters until
+    if (tf === '1H') {
+      // Bold lines one YEAR apart on 1H (1H was quarters until
       // 2026-11-01; user: "the bolded vertical lines should be 1 year apart").
       for (let y = firstYear; y <= year + 4; y++) {
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');

@@ -30,8 +30,8 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const opened=await read(host);
     near(opened.lo,before.lo,tf+' automatic frame does not zoom out on expand');
     near(opened.hi,before.hi,tf+' automatic frame does not zoom out on expand');
-    if (tf === 'D' || tf === '4H') {
-      // 4H (quarters) and Daily (years) on every market are priced 'all'
+    if (tf === 'D') {
+      // Daily (years) on every market is priced 'all'
       // (REEL_FRAME_VIEW, 2026-10-22): every candle in view fits, with a
       // margin either side.
       // 1H ('centre') falls through to the centred check below.
@@ -146,5 +146,5 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     assert.equal(await slots(),before,'after a data refresh, a drag keeps the saved window width');
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
   }
-  console.log('PASS: 1H/4H/Daily default full-screen framing and saved-frame restoration');
+  console.log('PASS: 1H/Daily default full-screen framing and saved-frame restoration');
 };

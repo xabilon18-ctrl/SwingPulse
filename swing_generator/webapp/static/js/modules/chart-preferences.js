@@ -12,7 +12,7 @@
   // Weekly and Monthly are divided by administration term, every line equal
   // (user, 2026-10-19: "divided by administration and not by year. All must
   // be equal").
-  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', '4H': 'Q', W: 'T', M: 'T' };
+  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', W: 'T', M: 'T' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
     energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids' };
   // Split out of 'other' (user, 2026-10-21: "Fx, crypto, commodities, stocks
