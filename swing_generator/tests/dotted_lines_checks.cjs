@@ -1,11 +1,12 @@
 const assert = require('node:assert/strict');
 
-// TradingView-style dots (user, 2026-11-07, with a TradingView screenshot:
-// "The dots look properly close together and tiny ... Anything that's a dot,
-// please make it look like that"). Measured there: a dot 1 CSS px thick and
-// 1.5 long, a 2.5 gap, solid. Every fine dotted line here — the timelines on
+// Close-set dots (user, 2026-11-07, with a TradingView screenshot: "The dots
+// look properly close together and tiny"; then "I only just asked for the
+// spaces to be closed in ... the size is way too big on ours"). Option C,
+// picked from four side by side: 1.2 CSS px dots, 2 gap (TradingView 1.5 / 2.5). Every fine dotted line here — the timelines on
 // the default grid weight, the last-price line — must come out at exactly
-// that on screen, in CSS pixels, whatever the chart's size, with square dots.
+// that on screen, whatever the chart's size, with square ends, and must keep
+// the thickness it had before (viewBox units: timeline 1, last-price 1.6).
 module.exports = async function checkDottedLines(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -20,20 +21,21 @@ module.exports = async function checkDottedLines(page, name = 'TEST') {
       const e = svg.querySelector(q);
       if (!e) continue;
       const c = getComputedStyle(e), da = c.strokeDasharray.split(/[ ,]+/).map(parseFloat);
-      out[key] = { w: +(parseFloat(c.strokeWidth) * k).toFixed(2), dot: +(da[0] * k).toFixed(2), gap: +(da[1] * k).toFixed(2), cap: c.strokeLinecap, op: +c.strokeOpacity };
+      out[key] = { wUnits: parseFloat(c.strokeWidth), dot: +(da[0] * k).toFixed(2), gap: +(da[1] * k).toFixed(2), cap: c.strokeLinecap };
     }
     return out;
   }, scope);
   const check = (where, m) => {
     assert.ok(m.timeline && m.last, where + ': timeline and last-price line found: ' + JSON.stringify(m));
+    const was = { timeline: 1, last: 1.6 };
     for (const [k, v] of Object.entries(m))
-      assert.ok(Math.abs(v.w - 1) < 0.05 && Math.abs(v.dot - 1.5) < 0.05 && Math.abs(v.gap - 2.5) < 0.05 && v.cap === 'butt' && v.op === 1,
-        where + ' ' + k + ': 1 px thick, 1.5 dot, 2.5 gap, square and solid: ' + JSON.stringify(v));
+      assert.ok(Math.abs(v.dot - 1.2) < 0.05 && Math.abs(v.gap - 2) < 0.05 && v.cap === 'butt' && Math.abs(v.wUnits - was[k]) < 1e-6,
+        where + ' ' + k + ': 1.2 dot, 2 gap, square ends, thickness unchanged: ' + JSON.stringify(v));
   };
   check('card', await measure('.reel-card[data-name="' + name + '"] .reel-chart svg'));
   await card.locator('[data-act="chart-expand"]').click();
   await page.locator('#chartFull .reel-chart svg').waitFor();
   check('full screen', await measure('#chartFull .reel-chart svg'));
   await page.locator('#chartFull [data-act="chart-full-close"]').click();
-  console.log('PASS: dotted lines are TradingView-style (1 px, 1.5 dot, 2.5 gap) on the card and full screen');
+  console.log('PASS: dotted lines are close-set (1.2 dot, 2 gap, thickness unchanged) on the card and full screen');
 };
