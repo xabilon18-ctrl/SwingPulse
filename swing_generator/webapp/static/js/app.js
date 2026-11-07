@@ -9588,7 +9588,16 @@
     try { return JSON.parse(localStorage.getItem(sk(VIEW_MOD_STORE)) || '{}') || {}; }
     catch (_) { return {}; }
   })();
-  const viewKey = name => name + '|' + timeframe;
+  // PHONE AND COMPUTER KEEP THEIR OWN VIEWS (user, 2026-11-08: "make sure the
+  // computer zooms do not affect the phone zooms and the other way round").
+  // One key per chart used to be shared by every device through sync, so a
+  // save on the laptop replaced the phone's frame and the other way round.
+  // The laptop / iPad workspace (desktopChartMedia, the same switch that picks
+  // that layout) now saves under its own key, NAME|TF|L; the phone layout
+  // keeps the original NAME|TF, so every view saved before this stays the
+  // phone's. Both still sync, each to the devices of its own kind.
+  const VIEW_COMPUTER_SUFFIX = '|L';
+  const viewKey = name => name + '|' + timeframe + (desktopChartMedia.matches ? VIEW_COMPUTER_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
     try {
@@ -9632,6 +9641,7 @@
       tf: timeframe, end: ctx.b.t[ctx.b.t.length - 1], last: src.t[n - 1],
       close: bundleLastClose(src), pan, future: Math.max(0, -pan),
       where: host.closest('#chartFull') ? 'full' : 'card',
+      device: desktopChartMedia.matches ? 'computer' : 'phone',
       plotPx: Math.round(ctx.plotPx || plotPixelHeight(host, ctx.L)) || null,
       savedAt: Date.now(),
     };

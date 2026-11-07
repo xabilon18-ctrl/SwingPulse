@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 SAVED VIEWS PER DEVICE: app.js v605. User: "make sure the computer
+zooms do not affect the phone zooms and the other way round". A saved view
+was one key per chart and timeframe (NAME|TF), synced to every device, so a
+Save on the laptop replaced the phone's frame and the other way round.
+- The laptop / iPad workspace (desktopChartMedia, the switch that picks that
+  layout) now saves under NAME|TF|L; the phone layout keeps NAME|TF, so every
+  view saved before this stays the phone's. Both still sync. New records carry
+  `device: 'phone' | 'computer'`; research/read_views.py reads the suffix.
+- Verified against live data: phone save SA40 Daily (403 bars from 21 May),
+  laptop opened on its default view with Save off, laptop save went to
+  SA40|D|L, phone reopened on its own 403-bar frame.
+- The laptop starts with no saved views of its own; save once there.
+
 2026-11-07 (evening) PHONE LINE WEIGHT EVERYWHERE, TRACKPAD GESTURES, ZOOM
 OUT PAST THE DATA: app.js v604, style.css v416.
 User: "this on the laptop and the tablet is not the same size line on the

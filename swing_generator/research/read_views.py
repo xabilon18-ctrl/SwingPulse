@@ -62,8 +62,11 @@ def rows_of(views: dict) -> list[dict]:
     for key, v in sorted(views.items()):
         if not isinstance(v, dict) or '|' not in key:
             continue
-        name, tf = key.rsplit('|', 1)
-        row = {'name': name, 'tf': tf, 'class': classes.get(name, '?'), 'version': v.get('v', 1)}
+        # NAME|TF is a phone view; NAME|TF|L the laptop / iPad workspace's own
+        # (app.js viewKey, 2026-11-08).
+        device = 'computer' if key.endswith('|L') else 'phone'
+        name, tf = (key[:-2] if device == 'computer' else key).rsplit('|', 1)
+        row = {'name': name, 'tf': tf, 'device': device, 'class': classes.get(name, '?'), 'version': v.get('v', 1)}
         if v.get('v') != 2:
             row.update(bars=v.get('bars'), pan=v.get('pan'))
             rows.append(row)
