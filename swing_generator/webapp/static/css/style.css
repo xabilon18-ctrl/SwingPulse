@@ -7630,8 +7630,8 @@ body {
 /* The start of each WEEK on the 5m day grid (user, 2026-09-24): dashed and
    bold, so the week reads at a glance among the dotted day lines. Declared
    after -month so a month start that is also a week start draws as a week. */
-/* Bolder again (user, 2026-09-24): 4 -> 6. The ladder's 0% and 100% lines
-   use the SAME width and dash (.reel-ladder-key) — keep the two in step. */
+/* Bolder again (user, 2026-09-24): 4 -> 6. (The ladder's 0% / 100% lines
+   matched this until 2026-11-07, when they went heavier.) */
 .reel-tgrid-quarter { stroke: #000000; stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
 .reel-tgrid-quarter + .reel-tgrid-lbl { font-weight: 700; }
 /* Permanent, equally spaced yearly references on 4H, independent of M/Q/H/Y. */
@@ -8650,7 +8650,9 @@ body.chart-full-open { overflow: hidden; }
 .reel-ladder { stroke: #000; stroke-width: 2.6; stroke-dasharray: 3 8; stroke-opacity: .9; }
 /* Top and bottom (0% / 100%): same weight and dash as the 5m week line
    (.reel-tgrid-week), user 2026-09-24. Colour stays the drawing's own. */
-.reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 6; stroke-dasharray: 14 6; stroke-opacity: 1; }
+/* Bolder 2026-11-07 (user: "make 0 100 200 300 etc bolder"): 6 -> 9 here and
+   about 1.5-1.75x at every weight below; no longer the quarter line's width. */
+.reel-ladder-key { stroke: var(--reel-ch-color, #fff); stroke-width: 9; stroke-dasharray: 14 6; stroke-opacity: 1; }
 /* Black and LARGER than the price axis (24px phone / 18px desktop) — the user
    reads the ladder by these, so they outrank the numbers in the gutter. */
 .reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -8671,7 +8673,8 @@ body.chart-full-open { overflow: hidden; }
    line weight; Thin / Medium / Thick set them on 1H / 4H too (see the
    .reel-ladder-daily rules after the ladder weight rules). */
 .reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily { stroke-width: 3.2 !important; stroke-opacity: 1; }
-.reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily:is(.reel-ladder-bold, .reel-ladder-key) { stroke-width: 6 !important; }
+.reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 6 !important; }
+.reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 9 !important; }
 .reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
 /* "Move %" (2026-11-06): the actual price move of each ladder gap, in the
@@ -9769,7 +9772,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   #chartFull.desktop-chart .reel-ch-mid.is-w2 { stroke-width: 1px; }
   #chartFull.desktop-chart .reel-ch-mid.is-w3 { stroke-width: 1.3px; }
   #chartFull.desktop-chart .is-sel .reel-ch-edge { opacity: 1; }
-  #chartFull.desktop-chart .reel-ladder-key { stroke-width: 1.4px; opacity: .72; }
+  #chartFull.desktop-chart .reel-ladder-key { stroke-width: 2.2px; opacity: .85; }
 }
 
 /* Universal chart readability: visible strokes only. Hit areas and handles
@@ -9815,11 +9818,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke="2"][data-stroke-kind="sell"] .reel-entry { stroke-width: 3 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="sell"] .reel-entry { stroke-width: 7 !important; }
 .reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 0.9 !important; }
-.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 2 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 3.5 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 1.7 !important; }
-.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 3.5 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 5.5 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 2.6 !important; }
-.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 6 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 9 !important; }
 /* A Daily ladder on 1H: its 20/40/60/80% lines are bold (2026-11-03), about
    twice the ladder's own weight at every line-weight level, black and dashed
    like the other ladder lines so they do not read as the 0% / 100% ends. */
@@ -9832,13 +9835,16 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    bold 20s and the 0% / 100% ends. Thick is exactly the fixed widths these
    charts had (2.2 < 3.2 < 6), so a Thick ladder looks as before. */
 .reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily { stroke-width: 1.4 !important; stroke-opacity: 1; }
-.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily:is(.reel-ladder-bold, .reel-ladder-key) { stroke-width: 2.6 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 2.6 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 4 !important; }
 .reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder-sub { stroke-width: 0.9 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily { stroke-width: 2.2 !important; stroke-opacity: 1; }
-.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily:is(.reel-ladder-bold, .reel-ladder-key) { stroke-width: 4 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 4 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 6 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder-sub { stroke-width: 1.4 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily { stroke-width: 3.2 !important; stroke-opacity: 1; }
-.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily:is(.reel-ladder-bold, .reel-ladder-key) { stroke-width: 6 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 6 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 9 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder-sub { stroke-width: 2.2 !important; }
 /* Dashed ladder (user, 2026-11-06): the 10% lines, the bold 20s and the
    finer steps turn from dots to dashes. The 0% / 100% ends keep their own
