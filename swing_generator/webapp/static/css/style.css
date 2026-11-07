@@ -9755,24 +9755,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   #chartFull.desktop-chart .dc-action:hover { background: #f5f6f7; border-color: #b6bcc2; }
   #chartFull.desktop-chart .dc-action:focus-visible { outline: 2px solid #a87500; outline-offset: 2px; }
   #chartFull.desktop-chart [hidden] { display: none !important; }
-  /* Keep the hierarchy of permanent references and chosen line weights,
-     while physical stroke widths stay subtle as a wide chart resizes. */
-  #chartFull.desktop-chart .reel-tgrid,
-  #chartFull.desktop-chart .reel-ch-edge,
-  #chartFull.desktop-chart .reel-ch-mid,
-  #chartFull.desktop-chart .reel-ladder-key { vector-effect: non-scaling-stroke; }
-  #chartFull.desktop-chart .reel-tgrid { stroke-width: .7px; opacity: .38; }
-  #chartFull.desktop-chart .reel-tgrid-year,
-  #chartFull.desktop-chart .reel-tgrid-quarter,
-  #chartFull.desktop-chart .reel-tgrid-admin { stroke-width: 1.1px; opacity: .65; }
-  #chartFull.desktop-chart .reel-ch-edge { stroke-width: 1px; opacity: .72; }
-  #chartFull.desktop-chart .reel-ch-mid { stroke-width: .8px; opacity: .48; }
-  #chartFull.desktop-chart .reel-ch-edge.is-w2 { stroke-width: 1.4px; }
-  #chartFull.desktop-chart .reel-ch-edge.is-w3 { stroke-width: 1.8px; }
-  #chartFull.desktop-chart .reel-ch-mid.is-w2 { stroke-width: 1px; }
-  #chartFull.desktop-chart .reel-ch-mid.is-w3 { stroke-width: 1.3px; }
-  #chartFull.desktop-chart .is-sel .reel-ch-edge { opacity: 1; }
-  #chartFull.desktop-chart .reel-ladder-key { stroke-width: 2.2px; opacity: .85; }
+  /* No laptop-only line weights (user, 2026-11-07: "not the same size line
+     on the phone"): lines draw the phone's thickness everywhere, see
+     reelMatchPhoneStrokes in app.js. */
+  #chartFull.desktop-chart .reel-chart { cursor: grab; }
+  #chartFull.desktop-chart .reel-chart.is-panning { cursor: grabbing; }
 }
 
 /* Universal chart readability: visible strokes only. Hit areas and handles

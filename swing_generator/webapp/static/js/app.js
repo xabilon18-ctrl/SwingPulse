@@ -9034,6 +9034,34 @@
     const u = L && L.u > 0 ? L.u : 1, f = v => +(v * u).toFixed(2);
     return Object.entries(REEL_DOT_TIERS).map(([t, [dot, gap]]) => `--dd-${t}:${f(dot)} ${f(gap)}`).join(';');
   }
+  // SAME LINE THICKNESS AS THE PHONE (user, 2026-11-07: "this on the laptop
+  // and the tablet is not the same size line on the phone"). Line widths are
+  // in viewBox units, and a unit is 0.36 CSS px on the user's iPhone 13 card
+  // (360 px wide) but 0.52 on every card wider than REEL_PHONE_CARD_PX, so
+  // every MA, bar, grid line and drawing drew ~1.45x thicker on the iPad and
+  // laptop (measured live: MA 0.85 px on a phone, 1.27 on a laptop). After
+  // each paint every visible line on a chart wider than a phone is scaled back
+  // onto the phone's CSS pixels. Text and its halo keep the bigger laptop size
+  // (read from further away), invisible hit targets keep theirs, and the dot
+  // spacing is already in CSS pixels (reelDotVars). Phones (the card and full
+  // screen alike) draw exactly as before.
+  const REEL_STROKE_REF_CARD_PX = 360;
+  const REEL_WIDE_STROKE_SCALE = REEL_STROKE_REF_CARD_PX / REEL_PHONE_CARD_PX;
+  function reelMatchPhoneStrokes(host) {
+    const ctx = host && host._reelCtx, svg = host && host.querySelector('svg.reel-svg');
+    if (!svg || !ctx || !ctx.L || ctx.L.W <= 1000) return;   // a phone-sized chart
+    const k = REEL_WIDE_STROKE_SCALE;
+    // Read every width first, then write: interleaving would restyle per line.
+    const todo = [];
+    for (const el of svg.querySelectorAll('line, polyline, path, circle, rect, polygon, ellipse')) {
+      const cs = getComputedStyle(el);
+      if (cs.stroke === 'none' || cs.stroke === 'transparent' || /^rgba\(.*,\s*0\)$/.test(cs.stroke)) continue;
+      if (cs.vectorEffect === 'non-scaling-stroke' || +cs.strokeOpacity === 0) continue;
+      const w = parseFloat(cs.strokeWidth);
+      if (w > 0) todo.push([el, w]);
+    }
+    for (const [el, w] of todo) el.style.setProperty('stroke-width', (w * k).toFixed(3), 'important');
+  }
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
     const ch = host.clientHeight || 440;
@@ -9218,16 +9246,16 @@
   // are about as wide as they are tall.
   const REEL_MIN_WINDOW_BARS = 10;
 
-  // How far OUT a card may zoom. The whole bundle everywhere except 10m, which
-  // stops at ONE MONTH AND TEN DAYS of calendar (user, 2026-09-19): the bundle
-  // carries two months, but past about forty days the candles are a smear
-  // on every instrument, so that is the widest view that is still a chart.
-  // Measured off the bundle's own timestamps, so it is the same span of
-  // calendar on an equity (~1,000 bars) and on BTC (~5,800). Memoised on the
-  // bundle like reelBarTimes; a new publish brings new bundle objects.
-  // 5m (replaced 10m 2026-09-24) zooms out to the whole bundle — one calendar
-  // month — so it needs no span cap of its own.
-  const REEL_TEN_MIN_MAX_SPAN = { months: 1, days: 10 };
+  // How far OUT a card may zoom: PAST the history it carries, on every
+  // timeframe (user, 2026-11-07: "compress ... all the way to the point you
+  // cannot compress no more for all time frames" and "allow me to compress
+  // further than what i am able to"). Zooming out used to stop the moment
+  // every bar was on screen (13 years of SA40 Daily); it now carries on to
+  // three times that many slots, the bars squeezing into the left of the
+  // panel with blank space after them, the same blank the chart already
+  // scrolls into past the newest bar. The 10m cap that used to live here went
+  // with the 10m chart.
+  const REEL_ZOOM_OUT_PAST_DATA = 3;
   // How many of the bundle's newest bars fall inside a calendar span ending at
   // its last bar. Timestamps, not a bar count, so the span is the same amount
   // of CALENDAR on an equity and on a 24h instrument.
@@ -9251,11 +9279,7 @@
   function reelMaxBars(bundle, name) {
     const n = bundle.c.length;
     const sv = name && reelStockView(bundle, name);
-    if (sv && sv.bars > n) return sv.bars;
-    if (timeframe !== '10m' || n < 2) return n;
-    if (bundle._maxBars) return bundle._maxBars;
-    return (bundle._maxBars = reelBarsInSpan(bundle, REEL_TEN_MIN_MAX_SPAN.months,
-                                             REEL_TEN_MIN_MAX_SPAN.days));
+    return Math.round(Math.max(n, sv ? sv.bars : 0) * REEL_ZOOM_OUT_PAST_DATA);
   }
 
   // The window a card opens on — what a zoom override is cleared back to.
@@ -9769,8 +9793,12 @@
   function reelSetPan(name, v, bundle) {
     const n    = bundle.c.length;
     const want = reelWindowBars(bundle, name);
-    const max  = Math.max(0, n - want);                    // back through history
-    const min  = -Math.round(want * REEL_FUTURE_FRAC);     // forward into blank space
+    // A window wider than the data (zoomed out past it) already shows every
+    // bar from the left edge; the blank it carries past the newest bar is
+    // where "back" stops, or a sideways scroll would sit dead until it had
+    // used that blank up.
+    const max  = want > n ? -(want - n) : n - want;       // back through history
+    const min  = Math.min(max, -Math.round(want * REEL_FUTURE_FRAC));   // forward into blank space
     const next = Math.min(Math.max(min, Math.round(v)), max);
     if (next === reelPanOf(name, bundle)) return false;
     // Stored even when 0: on 15m, unset means the opening offset, not 0.
@@ -12378,6 +12406,7 @@
     if (!bundle) return;
     host._reelItem = allData.find(d => d.instrument_name === name) || host._reelItem;
     host.innerHTML = reelChartSvg(bundle, host._reelItem, host);
+    reelMatchPhoneStrokes(host);
     chartFullSyncButtons();
   }
 
@@ -12443,6 +12472,7 @@
     }
 
     host.innerHTML = reelChartSvg(bundle, item, host);
+    reelMatchPhoneStrokes(host);
     // Read the span off the scale that was actually PAINTED rather than the one
     // computed above: they differ whenever the source card was gone and no lock
     // could be imposed, and the baseline has to match what the reader sees.
@@ -12898,6 +12928,7 @@
       return;
     }
     stillThere.innerHTML = reelChartSvg(bundle, item, stillThere);
+    reelMatchPhoneStrokes(stillThere);
     stillThere.dataset.painted = pkey;
     stillThere._reelItem = item;
     reelWireChart(stillThere);
@@ -12917,6 +12948,7 @@
     // hint made it obvious because that one fires when nothing else changes.
     const hint = host.querySelector('.reel-hint');
     host.innerHTML = reelChartSvg(ctx.bundle, host._reelItem, host);
+    reelMatchPhoneStrokes(host);
     if (hint) host.appendChild(hint);
   }
 
@@ -13940,6 +13972,80 @@
     // default that has to be stopped anyway: starting it mid-gesture fires
     // pointercancel and the stretch dies halfway through the drag.
     host.addEventListener('dragstart', ev => ev.preventDefault());
+
+    // TRACKPAD AND MOUSE WHEEL (user, 2026-11-07: "make my charts on the
+    // laptop responsive to the mousepad gestures like the two fingers up and
+    // down for compressing the time and expanding and side way as well").
+    //   two fingers up / wheel down  -> compress time (more bars)
+    //   two fingers down / wheel up  -> expand time (fewer, wider bars)
+    //   two fingers sideways         -> move through history
+    //   pinch (ctrl+wheel; Safari's gesture events) -> apart expands, together compresses
+    // Press-and-hold on the pad then move is the pointer pan above: it starts
+    // when the pad goes down and stops when it is let go. The right edge holds
+    // still while zooming, exactly as the time-scale drag does. Only where the
+    // chart owns the screen (laptop/iPad workspace, full screen): a card in the
+    // phone feed leaves the wheel to the feed's own scrolling.
+    const WHEEL_ZOOM_PX  = 450;   // scroll travel that changes the window e-fold (~2.7x)
+    const PINCH_ZOOM_PX  = 90;    // the same for a pinch, whose deltas are much smaller
+    const WHEEL_IDLE_MS  = 180;   // a pause this long ends one trackpad gesture
+    let wAxis = null, wIdle = 0, wBars = null, wPan = null, gBars = null;
+    const ownsWheel = () => !!host.closest('#chartFull') && !!host._reelCtx && mode === null;
+    const zoomTo = (ctx, want) => {
+      const n = reelMaxBars(ctx.bundle, ctx.name);
+      wBars = Math.min(Math.max(want, REEL_MIN_WINDOW_BARS), n);
+      const bars = Math.round(wBars);
+      if (bars === reelWindowBars(ctx.bundle, ctx.name)) return;
+      if (bars === reelDefaultBars(ctx.bundle, ctx.name)) reel.tzoom.delete(ctx.name);
+      else                                                reel.tzoom.set(ctx.name, bars);
+      reelSetPan(ctx.name, reelPanOf(ctx.name, ctx.bundle), ctx.bundle);   // re-clamp, never widen
+      reel.lastGestureAt = Date.now();
+      schedule();
+    };
+    // Fractional bars carried between events, so a slow scroll still moves a
+    // 10-bar window instead of rounding back to where it was every time.
+    const curBars = ctx => {
+      const now = reelWindowBars(ctx.bundle, ctx.name);
+      return wBars != null && Math.round(wBars) === now ? wBars : now;
+    };
+    host.addEventListener('wheel', ev => {
+      if (!ownsWheel()) return;
+      const ctx = host._reelCtx;
+      ev.preventDefault();
+      const px = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+      const dx = ev.deltaX * px, dy = ev.deltaY * px;
+      if (ev.ctrlKey) {                       // trackpad pinch (and ctrl+wheel)
+        if (gBars == null) zoomTo(ctx, curBars(ctx) * Math.exp(dy / PINCH_ZOOM_PX));
+        return;
+      }
+      // One axis per gesture: a vertical swipe always carries a little
+      // sideways drift, and that must not pan the chart while it zooms.
+      clearTimeout(wIdle);
+      wIdle = setTimeout(() => { wAxis = null; }, WHEEL_IDLE_MS);
+      if (!wAxis) wAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (wAxis === 'y') { zoomTo(ctx, curBars(ctx) * Math.exp(dy / WHEEL_ZOOM_PX)); return; }
+      const svg = host.querySelector('svg.reel-svg');
+      const perBar = (svg ? svg.getBoundingClientRect().width / ctx.L.W : 1) * ctx.bw;
+      const now = reelPanOf(ctx.name, ctx.bundle);
+      if (wPan == null || Math.round(wPan) !== now) wPan = now;
+      // Fingers sideways move the paper with them: fingers right (deltaX < 0
+      // with natural scrolling) bring older bars in from the left, as a drag does.
+      wPan -= dx / Math.max(0.0001, perBar);
+      // Fractions carry over to the next event; at an end of the range the
+      // check above snaps wPan back to the clamped pan.
+      if (reelSetPan(ctx.name, wPan, ctx.bundle)) { reel.lastGestureAt = Date.now(); schedule(); }
+    }, { passive: false });
+    // Safari reports a trackpad pinch as gesture events instead of ctrl+wheel.
+    host.addEventListener('gesturestart', ev => {
+      if (!ownsWheel()) return;
+      ev.preventDefault();
+      gBars = reelWindowBars(host._reelCtx.bundle, host._reelCtx.name);
+    });
+    host.addEventListener('gesturechange', ev => {
+      if (gBars == null || !host._reelCtx) return;
+      ev.preventDefault();
+      if (ev.scale > 0) zoomTo(host._reelCtx, gBars / ev.scale);
+    });
+    host.addEventListener('gestureend', ev => { if (gBars != null) ev.preventDefault(); gBars = null; });
 
     // Double-tap / double-click snaps back to the newest bar.
     host.addEventListener('dblclick', () => {

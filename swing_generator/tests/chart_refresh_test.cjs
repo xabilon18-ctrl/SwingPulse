@@ -24,7 +24,7 @@ async function main() {
     chartFullEl: () => ({ querySelector: () => host }),
     reelLoadChunk: async () => ({ BTC: bundle }), ovLoadHtf: async () => {},
     allData: [item], reelChartSvg: b => 'candles: ' + b.c.join(','),
-    chartFullSyncButtons: () => {},
+    chartFullSyncButtons: () => {}, reelMatchPhoneStrokes: () => {},
   });
   vm.runInContext(code, context);
   await context.chartFullRefresh();

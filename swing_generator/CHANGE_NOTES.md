@@ -7,6 +7,35 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (evening) PHONE LINE WEIGHT EVERYWHERE, TRACKPAD GESTURES, ZOOM
+OUT PAST THE DATA: app.js v604, style.css v416.
+User: "this on the laptop and the tablet is not the same size line on the
+phone please fix it"; "make my charts on the laptop responsive to the ...
+mousepad gestures"; "compress ... all the way ... for all time frames" and
+"allow me to compress further than what i am able to".
+- Line weight: a viewBox unit is 0.36 CSS px on the user's iPhone 13 card
+  (360 px) but 0.52 on every chart wider than REEL_PHONE_CARD_PX, so every
+  line drew ~1.45x thicker on the iPad and laptop (measured live, SA40 Daily:
+  MA 0.85 / 1.27 px, bars 0.52 / 0.78, grid 0.34 / 0.52). After each paint,
+  reelMatchPhoneStrokes scales every visible stroke on a wide chart by 360/520,
+  so the laptop now measures the phone's pixels (MA 0.88, bars 0.54, grid
+  0.36, admin 0.72 at 1440 wide vs the 390-wide phone). Text, label halos,
+  hit targets and the CSS-px dot spacing are untouched; phones (card and full
+  screen) draw exactly as before. The desktop-only guide weights/opacities
+  (`#chartFull.desktop-chart .reel-tgrid` etc.) are removed for the same reason.
+- Trackpad / wheel, laptop workspace and full screen only (a phone-feed card
+  keeps the wheel for scrolling): two fingers up (wheel down) compress time,
+  down expand; sideways moves through history; pinch (ctrl+wheel, Safari
+  gesture events) apart expands, together compresses; one axis per gesture.
+  Press-and-hold then move was already the pointer pan; it now shows a grab
+  cursor and stops on release (verified with a real mouse drag).
+- Zoom out: reelMaxBars allows 3x the bars carried (REEL_ZOOM_OUT_PAST_DATA)
+  on every timeframe; past the data the bars squeeze to the left with blank
+  future after them. reelSetPan no longer has a dead zone there. The old 10m
+  cap is gone with the 10m chart.
+- Tests: chart_readability_browser expects Thick = 7 x 360/520 units at
+  1366 wide (7 on phones); chart_refresh_test stubs the new helper.
+
 2026-11-07 (later) DOTS: SPACING ONLY, THICKNESS BACK: app.js v603,
 style.css v415. User, after #164: "I just asked for the spaces to be closed
 in, and you just went and made them a little bit bigger and darker ... the
