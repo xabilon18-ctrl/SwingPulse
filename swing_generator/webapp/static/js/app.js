@@ -9025,9 +9025,11 @@
   // 2 with a 5-5.5 gap, set in viewBox units, so they changed with the
   // screen. Only the dot length and gap are set here, in CSS PIXELS
   // converted to this chart's viewBox units (L.u units per px), as
-  // --dd-<t>: s 1.5 / 2.5, m 2 / 2.5, l 3 / 2.5 (lines drawn thick). Line
-  // thickness and colour are untouched. See style.css "Close-set dots".
-  const REEL_DOT_TIERS = { s: [1.5, 2.5], m: [2, 2.5], l: [3, 2.5] };
+  // --dd-<t>: s 1.2 / 2, m 1.6 / 2, l 2.4 / 2 (lines drawn thick) — option C,
+  // picked by the user from four side by side (a little smaller than
+  // TradingView's 1.5 / 2.5). Line thickness and colour are untouched.
+  // See style.css "Close-set dots".
+  const REEL_DOT_TIERS = { s: [1.2, 2], m: [1.6, 2], l: [2.4, 2] };
   function reelDotVars(L) {
     const u = L && L.u > 0 ? L.u : 1, f = v => +(v * u).toFixed(2);
     return Object.entries(REEL_DOT_TIERS).map(([t, [dot, gap]]) => `--dd-${t}:${f(dot)} ${f(gap)}`).join(';');

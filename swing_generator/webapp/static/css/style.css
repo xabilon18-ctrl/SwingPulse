@@ -9962,9 +9962,10 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    "I only just asked for the spaces to be closed in ... the size is way too
    big on ours". ONLY the dot length and the gap change here, sized in CSS
    pixels whatever the screen (reelDotVars in app.js sets --dd-* on the chart
-   in viewBox units): s 1.5 dot / 2.5 gap (TradingView's), m 2 / 2.5 and
-   l 3 / 2.5 for lines drawn thick, so a heavy line still reads as dots and
-   not as thin bars. Every line keeps the thickness, colour and opacity it
+   in viewBox units): s 1.2 dot / 2 gap (option C, picked by the user from
+   four side by side; TradingView's is 1.5 / 2.5), m 1.6 / 2 and l 2.4 / 2
+   for lines drawn thick, so a heavy line still reads as dots and not as
+   thin bars. Every line keeps the thickness, colour and opacity it
    had. Square dot ends (butt): a round end adds the line's thickness to
    each dot and eats the gap. Dashed lines (.is-dash, the 0% / 100% ends,
    year / quarter / administration / month lines, zero line) are not dots

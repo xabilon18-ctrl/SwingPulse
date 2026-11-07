@@ -18,10 +18,12 @@ solid black, and heavier still on Medium / Thick — not asked for.
   (measured, iPad 750: timeline 0.52 px, channel edge 0.73, midline 0.52,
   last-price 0.83 — the same as before #164).
 - Kept: only the dot length and gap, in CSS px whatever the screen
-  (`--dd-*`): 1.5 / 2.5 (TradingView's) on every dotted line, 2 / 2.5 for
-  Medium channel edges, 3 / 2.5 for Thick channel edges and the 1H bold 20s
-  (a heavy line with a 1.5 dot reads as bars). Square ends.
-- Tests: dotted_lines_checks now asserts 1.5 / 2.5 AND the old thickness;
+  (`--dd-*`). The user then picked option C from four drawn side by side
+  (original; 1.5 / 2.5 as TradingView; 1.2 / 2; 1 / 1.5): 1.2 / 2 on every
+  dotted line, 1.6 / 2 for Medium channel edges, 2.4 / 2 for Thick channel
+  edges and the 1H bold 20s (a heavy line with a short dot reads as bars).
+  Square ends.
+- Tests: dotted_lines_checks now asserts 1.2 / 2 AND the old thickness;
   ladder_dash_checks reads `--dd-s`; chart_readability_browser is back to
   its pre-#164 form.
 
