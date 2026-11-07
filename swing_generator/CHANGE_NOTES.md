@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) FULL-SCREEN FOOTER ONE HEIGHT: style.css v412. User
+(ETHUSD full-screen screenshot, footer circled): "Make the bottom same as
+size as the one on the left daily one". On the phone's full screen, Saved |
+Draw and the ‹ n/N › steps go from 36px to the timeframe pill's 28px, and the
+pill is pinned at 28px so all three stay equal. Each button keeps a 36px tap
+area through an invisible `::after` (inset -4px top and bottom). Desktop
+(`.desktop-chart`) is unchanged.
+
 2026-11-07 (later) CLEAN CHART, TRADINGVIEW-STYLE OPTION 1: app.js v597,
 style.css v411, chart-readability.js v2. User sent a TradingView ETHUSD 1D
 screenshot ("How clean is this look? Can we copy it? ... add a bit of our

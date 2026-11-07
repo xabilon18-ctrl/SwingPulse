@@ -9936,3 +9936,18 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    halo takes the tag's own colour (2026-11-07). */
 .reel-svg.is-overlaid .reel-axis-last.up { stroke: var(--reel-last-up); }
 .reel-svg.is-overlaid .reel-axis-last.dn { stroke: var(--reel-last-dn); }
+
+/* Footer, phone full screen (2026-11-07, user: "Make the bottom same size as
+   the one on the left daily one"). Saved | Draw and ‹ n/N › take the
+   timeframe pill's 28px height (they were 36px, set 2026-09-15 to match the
+   steps). The pill is pinned at 28px too so the three stay equal. Each button
+   keeps its 36px tap area through an invisible ::after, so a smaller button
+   is not a harder one to hit. */
+#chartFull:not(.desktop-chart) .reel-foot { align-items: center; }
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act,
+#chartFull:not(.desktop-chart) .cf-step { height: 28px; box-sizing: border-box; }
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act,
+#chartFull:not(.desktop-chart) .cf-step { position: relative; }
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act::after,
+#chartFull:not(.desktop-chart) .cf-step::after { content: ''; position: absolute; inset: -4px 0; }
