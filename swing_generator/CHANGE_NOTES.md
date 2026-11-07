@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-07 (later) CHART MAs DOTTED AGAIN: app.js v598,
+chart-readability.js v3. User, after #157 went live: "No the must not be
+solid". The chart's MA ribbon is back to the exact pre-#157 rendering:
+dotted, every key line 7 x `nativeScale` (Thin / Medium / Thick), the same
+dash pattern and opacity. The weight-by-period widths (`nativeWidth`) went
+with the solid lines. A code comment now says not to make them solid again.
+Kept from #157: the green / red last-price tag and dotted line, bold round
+levels, no strip caption, and the 28px full-screen footer.
+
 2026-11-07 (later) FULL-SCREEN FOOTER ONE HEIGHT: style.css v412. User
 (ETHUSD full-screen screenshot, footer circled): "Make the bottom same as
 size as the one on the left daily one". On the phone's full screen, Saved |

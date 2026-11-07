@@ -23,14 +23,10 @@ const precise=r.axisLabels(1000,1000.1,20,v=>v.toFixed(0),v=>v,1,NaN);
 assert.equal(precise.length,1,'no duplicate labels in tight saved zoom');
 const shown=r.axisLabels(50,75,12,String,v=>v*20,1,65);
 assert.ok(!shown.includes(65),'current-price badge has clear space');
-// Solid MAs since 2026-11-07: heavier with the period, Thin is the default.
-assert.ok(r.nativeWidth('fast',1)<r.nativeWidth('mid',1)&&r.nativeWidth('mid',1)<r.nativeWidth('anchor',1),'MA50 < MA250 < MA500');
-assert.equal(r.nativeWidth('anchor'),r.nativeWidth('anchor',1),'unset weight is Thin');
-for(const role of ['fast','mid','anchor'])assert.ok(r.nativeWidth(role,1)<r.nativeWidth(role,2)&&r.nativeWidth(role,2)<r.nativeWidth(role,3));
 // Bold round levels: 85..125 by 5 -> 90,100,110,120; 1..9 by 1 -> 5; 2.5 steps -> 5s.
 const bold=(lo,hi,want)=>{const m=r.majorStep(lo,hi,want);return r.ticks(lo,hi,want).filter(v=>r.isMajor(v,m));};
 assert.deepEqual(bold(84,126,9),[90,100,110,120]);assert.deepEqual(bold(84,126,4),[100],"10 steps bold the 50s");
 assert.deepEqual(bold(0.5,9.5,9),[5]);
 assert.deepEqual(bold(48,73,10),[50,55,60,65,70]);
 assert.ok(bold(0.0091,0.0109,9).includes(0.01),'float-safe on small prices');
-console.log('PASS: solid MA weights, bold round levels, native maximum, three weights, legacy preservation, 2.5 ticks, responsive density, precision and badge spacing');
+console.log('PASS: bold round levels, native maximum, three weights, legacy preservation, 2.5 ticks, responsive density, precision and badge spacing');
