@@ -61,7 +61,7 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     await menu(page);await page.locator(`[data-act="chart-weight"][data-part="nativeW"][data-v="${n}"]`).click();
     native.push(await widthOf(page,'.reel-native-ma'));assert.deepEqual(await frame(page),before,'MA thickness cannot change scale or dates');
    }
-   assert.ok(native[0]<native[1]&&native[1]<native[2]);assert.equal(native[2],require('../webapp/static/js/modules/chart-readability.js').nativeWidth('anchor',3),'Thick MA500 width (solid MAs, 2026-11-07)');
+   assert.ok(native[0]<native[1]&&native[1]<native[2]);assert.equal(native[2],7,'original native weight retained');
    await page.locator('[data-act="chart-weight"][data-part="nativeW"][data-v="1"]').click();
    for(const tf of ['D','W','M']){
     const button=page.locator(`[data-act="ov-htf"][data-tf="${tf}"]`);

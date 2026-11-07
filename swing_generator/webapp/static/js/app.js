@@ -11652,7 +11652,7 @@
     ).join('');
 
     // ── MA ribbon ──
-    // Solid, and each line coloured by its OWN slope: falling red, rising
+    // Dotted, and each line coloured by its OWN slope: falling red, rising
     // neutral. That colouring is the trend read — a ribbon that has rolled
     // over goes red from the fast edge inward, and you see it without reading
     // a single label. Split into runs of constant direction so each run is one
@@ -11685,19 +11685,18 @@
       const series = b.m[k];
       const isAnchor = k === nMa - 1;
       const isKey    = isAnchor || k === 0 || k === midIdx;
-      // SOLID since 2026-11-07 (user picked the TradingView-style option 1;
-      // they were dotted). Solid tells the averages apart from the dotted
-      // calendar lines and the dashed drawings. Weight now rises with the
-      // period — MA50 thinnest, MA500 heaviest — so the lines are told apart
-      // without a legend; Thin / Medium / Thick scale all three together.
-      const role = isAnchor ? 'anchor' : k === midIdx ? 'mid' : k === 0 ? 'fast' : 'other';
-      const wid = modules.chartReadability.nativeWidth(role, (tfOverlay.nativeW || {})[timeframe]);
+      // Thick retains the original 7-unit native ribbon; two lighter choices
+      // share its slope colours and dotted pattern on every device.
+      // DOTTED, ALWAYS (user, 2026-11-07, after one release of solid lines:
+      // "No the must not be solid"). Do not make these solid again.
+      const wid = (isKey ? 7.0 : 2.4) * modules.chartReadability.nativeScale((tfOverlay.nativeW || {})[timeframe]);
+      const dash = isKey ? `${wid * 0.46} ${wid * 1.7}` : `${wid * 0.6} ${wid * 2.4}`;
 
       let run = [], runDown = null;
       const flush = () => {
         if (run.length >= 2) {
           const col = runDown ? 'var(--sell)' : 'var(--reel-ma-up)';
-          ribbon += `<polyline class="reel-native-ma" data-ma="${role}" points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-linecap="round" stroke-linejoin="round"/>`;
+          ribbon += `<polyline class="reel-native-ma" points="${run.join(' ')}" fill="none" stroke="${col}" stroke-width="${wid}" stroke-opacity="${isKey ? .95 : .8}" stroke-linecap="round" stroke-dasharray="${dash}"/>`;
         }
         run = [];
       };
