@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 (later) NO VOLUME STRIP ON CONTRACT-SWITCHING FUTURES: app.js v608.
+User, after the reason was shown: "Yes build it and deploy". chart_feed
+volume_unreliable(): over the last 520 Daily bars, p90/p10 of reported
+volume > 50 AND 10+ day-to-day swings of 10x either way. Measured on all 737
+instruments with volume: median p90/p10 3.1; the ten metal/crop futures
+126-2,848 with 15-94 swings; ZECUSDT 142 with 0 swings (real growth, kept);
+everything else under 34. Live data lists exactly COCOA, COFFEE, CORN,
+COTTON, GOLD, PALLADIUM, PLATINUM, SILVER, SOYBEANS, WHEAT; energy futures
+(CL/BZ/NG/RB/HO, p90/p10 3-4) and copper (5) keep their strip.
+- The list ships as `novol` in chart/index.json (built from the D bundles);
+  the app leaves the strip empty for those names on D, W and M. Daily decides
+  for all three because on 10-year Weekly bars fast-growing small caps (QUBT,
+  WULF, OKLO...) trip the same rule on real growth.
+- reelLoadChunk on W/M now also awaits the main index so `novol` is there.
+- Self-healing: if a feed is fixed, the next hourly build drops the name.
+- Tests: htf_feed_test VolumeQualityTest.
+
 2026-11-08 (later) VOLUME OVERFLOW CAP: app.js v607. User on GOLD, live v606:
 "Does not look ok... way to over". Bars may now rise at most REEL_VOL_OVER
 (1) band height above the band, not to the frame top. Cause on GOLD (GC=F):

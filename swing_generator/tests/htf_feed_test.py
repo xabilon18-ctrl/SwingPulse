@@ -338,6 +338,7 @@ class CurrencyIndexTests(unittest.TestCase):
         import currency_index as ci
         import numpy as np
         idx = pd.bdate_range('2014-12-01', periods=120)
+        import numpy as np
         rng = np.random.default_rng(7)
         usd_val = {c: np.exp(np.cumsum(rng.normal(0, 0.004, len(idx)))) * (1 + k)
                    for k, c in enumerate(ci.MAJORS + list(ci.MINORS))}
@@ -401,6 +402,42 @@ class CurrencyIndexTests(unittest.TestCase):
         intra_old, _ = ci._build(later.get, base=old)
         self.assertNotIn('ZAR', intra_old)
         self.assertIn('USD', intra_old)
+
+
+
+class VolumeQualityTest(unittest.TestCase):
+    """chart_feed.volume_unreliable: a contract switch is hidden, real volume is not."""
+
+    def test_contract_switching_is_unreliable(self):
+        import chart_feed as cf
+        import numpy as np
+        rng = np.random.default_rng(1)
+        v, thin = [], True
+        for i in range(520):
+            if i % 40 == 0:
+                thin = not thin
+            v.append(int(rng.integers(100, 600)) if thin else int(rng.integers(100_000, 250_000)))
+        self.assertTrue(cf.volume_unreliable(v))
+
+    def test_normal_and_growing_volume_is_kept(self):
+        import chart_feed as cf
+        import numpy as np
+        rng = np.random.default_rng(2)
+        normal = [int(rng.integers(800_000, 3_000_000)) for _ in range(520)]
+        self.assertFalse(cf.volume_unreliable(normal))
+        # Real growth (ZECUSDT-like): a huge spread, but it climbs, never jumps 10x overnight.
+        growth = [int(1000 * 1.012 ** i * rng.uniform(0.7, 1.3)) for i in range(520)]
+        self.assertFalse(cf.volume_unreliable(growth))
+        self.assertFalse(cf.volume_unreliable([]))
+        self.assertFalse(cf.volume_unreliable([0] * 520))
+
+    def test_index_lists_only_unreliable_names(self):
+        import chart_feed as cf
+        import numpy as np
+        rng = np.random.default_rng(3)
+        bad = [int(rng.integers(100, 600)) if (i // 30) % 2 else int(rng.integers(100_000, 250_000)) for i in range(520)]
+        good = [int(rng.integers(800_000, 3_000_000)) for _ in range(520)]
+        self.assertEqual(cf.unreliable_volume_names({'GOLD': {'v': bad}, 'AAPL': {'v': good}, 'EURUSD': {}}), ['GOLD'])
 
 
 if __name__ == '__main__':
