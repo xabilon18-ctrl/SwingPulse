@@ -7,6 +7,32 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 VOLUME STRIP REPLACES THE TREND STRIP: app.js v606, style.css v417.
+User: "remove the trend line strip, then replace it with the volume at the
+bottom ... daily volume, weekly volume, and monthly volume ... a dash ... in
+black ... indicating the average for that instrument". reelTrendStripSvg is
+gone; reelVolumeStripSvg draws in its band (reelLayout's stripY/stripH).
+- One bar per price bar from the band floor; one dashed line across the band
+  at the MEAN REPORTED VOLUME OF THE BARS ON SCREEN (zero = unreported, as in
+  indicators._reported_volume), so it is straight, as asked, and moves with
+  pan/zoom. It is NOT the 25-bar rolling average behind volume_spike_flag, so
+  the two can disagree; on a 10-year Weekly the flat line mostly separates old
+  low-volume years from recent ones (shown to the user, who chose it).
+- Band top = REEL_VOL_CAP (3.2) x the average on every chart, so the line sits
+  ~31% up with room above it ("give the volume room to breathe", then "a
+  little bit of room of the average" on all of them). A bigger bar
+  is not capped: it rises over the price chart (to the frame top at most), as
+  the user asked, and the strip is drawn under bars/ribbon/drawings so it never
+  covers a candle. Band height max(130, 14% of the viewBox height).
+- Bars: --reel-bar at 80% opacity, width 45% of the bar slot (0.9-1.8 units);
+  "not gray and not too black": on a 520-bar phone Daily a slot is under a
+  pixel, so the tone is width x opacity and thinner/fainter reads grey.
+- Daily, Weekly, Monthly only (REEL_VOL_TFS; their bundles already carry `v`).
+  1H ships no volume and instruments without volume (currencies, some indices)
+  leave the band empty; it stays reserved so the plot never jumps.
+- reelSlice now carries `v`. The average's value sits in the price gutter.
+- Today's still-open daily bar is drawn as is, so it reads short until close.
+
 2026-11-08 SAVED VIEWS PER DEVICE: app.js v605. User: "make sure the computer
 zooms do not affect the phone zooms and the other way round". A saved view
 was one key per chart and timeframe (NAME|TF), synced to every device, so a
