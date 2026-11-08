@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 (evening) VOLUME STRIP OFF: app.js v609. User: "Let's turn it off
+till I figure out a way to read it". REEL_VOLUME_ON = false: no strip is
+drawn and no band is reserved (stripH 0), so the price plot gets the space
+back on every timeframe. The trend strip is NOT restored (it was removed at
+the user's request). All volume-strip code, the overflow cap and the `novol`
+list in chart/index.json stay; set REEL_VOLUME_ON = true to bring it back.
+
 2026-11-08 (later) NO VOLUME STRIP ON CONTRACT-SWITCHING FUTURES: app.js v608.
 User, after the reason was shown: "Yes build it and deploy". chart_feed
 volume_unreliable(): over the last 520 Daily bars, p90/p10 of reported
