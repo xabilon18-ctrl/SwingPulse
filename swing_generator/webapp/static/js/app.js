@@ -9071,6 +9071,10 @@
   const REEL_VOL_BAND_H = 130;
   const REEL_VOL_BAND_SHARE = 0.14;
   const REEL_VOL_CAP = 2.5;
+  // Daily a little more headroom (user, 2026-11-08: "give me a little bit of
+  // room ... on the daily"): its line sits ~31% up instead of 40%, so the
+  // busier daily bars rise less far over the chart. Weekly/Monthly keep 2.5.
+  const REEL_VOL_CAP_BY_TF = { D: 3.2 };
   // Bars a lighter black than the price bars: there, not shouting, and NOT
   // grey (user, 2026-11-08: "not gray and not too black"; 0.55 read grey).
   const REEL_VOL_BAR_OPACITY = 0.8;
@@ -11536,7 +11540,7 @@
     }
     if (!cnt) return '';                       // no reported volume (currencies, some indices)
     const avg = sum / cnt;
-    const top = avg * REEL_VOL_CAP;
+    const top = avg * (REEL_VOL_CAP_BY_TF[timeframe] || REEL_VOL_CAP);
     const H = L.stripH, y1 = L.stripY + H;      // band floor
     const yOf = x => Math.max(L.py0, y1 - (x / top) * H);
     // Thin (user: "it shouldn't be thick"), capped at 1.8 units so a sparse
