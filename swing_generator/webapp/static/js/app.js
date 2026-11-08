@@ -9631,8 +9631,23 @@
   // that layout) now saves under its own key, NAME|TF|L; the phone layout
   // keeps the original NAME|TF, so every view saved before this stays the
   // phone's. Both still sync, each to the devices of its own kind.
+  //
+  // WHICH DEVICE, NOT WHICH WINDOW (2026-11-08, user: "the saved zoom for
+  // phone and laptop are independent... it currently not working"). The key
+  // used to follow desktopChartMedia, i.e. the WINDOW width: a laptop browser
+  // narrower than 1024 px (half screen, not maximised) read and wrote the
+  // PHONE's views, and resizing the window across 1024 swapped the two sets
+  // mid-session. The device is now decided once, by the SCREEN's short side,
+  // which no window resize or rotation changes: under 600 px is a phone
+  // (iPhone 390, Android 360-412), anything larger, and every iPad, is a
+  // computer. Layout still follows the window; only the saved views follow
+  // the device.
   const VIEW_COMPUTER_SUFFIX = '|L';
-  const viewKey = name => name + '|' + timeframe + (desktopChartMedia.matches ? VIEW_COMPUTER_SUFFIX : '');
+  const viewOnComputer = (() => {
+    try { return isIPad || Math.min(screen.width, screen.height) >= 600; }
+    catch (_) { return desktopChartMedia.matches; }
+  })();
+  const viewKey = name => name + '|' + timeframe + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
     try {
@@ -9676,7 +9691,7 @@
       tf: timeframe, end: ctx.b.t[ctx.b.t.length - 1], last: src.t[n - 1],
       close: bundleLastClose(src), pan, future: Math.max(0, -pan),
       where: host.closest('#chartFull') ? 'full' : 'card',
-      device: desktopChartMedia.matches ? 'computer' : 'phone',
+      device: viewOnComputer ? 'computer' : 'phone',
       plotPx: Math.round(ctx.plotPx || plotPixelHeight(host, ctx.L)) || null,
       savedAt: Date.now(),
     };

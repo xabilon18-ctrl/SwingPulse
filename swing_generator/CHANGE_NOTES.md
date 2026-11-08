@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 (evening) SAVED VIEWS FOLLOW THE DEVICE, NOT THE WINDOW: app.js
+v610. User: "the saved zoom for phone and laptop are independent... it
+currently not working probably. Fix". v605 picked the phone or computer key
+(NAME|TF vs NAME|TF|L) from desktopChartMedia, the WINDOW width, so a laptop
+browser narrower than 1024 px read and wrote the PHONE's views, and resizing
+across 1024 swapped the two sets mid-session. Reproduced on v609 in Chromium
+(laptop screen 1470x956, window 900 wide: opened the phone's saved BTCUSD
+frame). Now `viewOnComputer` is decided once from the SCREEN's short side
+(< 600 px = phone; every iPad = computer), which no resize or rotation
+changes; the same check on v610 opens the laptop's own frame, and the phone
+still opens its own. Layout still follows the window. Views a narrow laptop
+window saved before this are stored as the phone's and stay there.
+
 2026-11-08 (evening) VOLUME STRIP OFF: app.js v609. User: "Let's turn it off
 till I figure out a way to read it". REEL_VOLUME_ON = false: no strip is
 drawn and no band is reserved (stripH 0), so the price plot gets the space
