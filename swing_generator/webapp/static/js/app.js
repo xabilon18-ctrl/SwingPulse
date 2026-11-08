@@ -9071,8 +9071,9 @@
   const REEL_VOL_BAND_H = 130;
   const REEL_VOL_BAND_SHARE = 0.14;
   const REEL_VOL_CAP = 2.5;
-  // Bars a lighter black than the price bars: there, not shouting (user).
-  const REEL_VOL_BAR_OPACITY = 0.55;
+  // Bars a lighter black than the price bars: there, not shouting, and NOT
+  // grey (user, 2026-11-08: "not gray and not too black"; 0.55 read grey).
+  const REEL_VOL_BAR_OPACITY = 0.8;
   const REEL_VOL_TFS = new Set(['D', 'W', 'M']);
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
@@ -11538,13 +11539,12 @@
     const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
     const yOf = x => Math.max(L.py0, y1 - (x / top) * H);
-    // Thin on purpose (user: "it shouldn't be thick"), and a fixed SHARE of
-    // the bar slot, so every timeframe has the light, airy look the user
-    // picked on Monthly (2026-11-08). On a 520-bar Daily a slot is under one
-    // phone pixel, so the bars cannot stand apart there; at 30% of the slot
-    // the band at least comes out the same light tone, and zooming in brings
-    // the gaps back.
-    const wid = Math.max(0.6, Math.min(bw * 0.3, 1.8));
+    // Thin (user: "it shouldn't be thick"), capped at 1.8 units so a sparse
+    // Monthly keeps separate hairlines. On a 520-bar Daily a slot is under one
+    // phone pixel, so the bars blend: their TONE there is width x opacity, and
+    // under ~45% of the slot it washes out to light grey, which the user
+    // rejected. Zooming in brings the gaps back.
+    const wid = Math.max(0.9, Math.min(bw * 0.45, 1.8));
     const seg = [];
     for (let i = 0; i < n; i++) {
       const x = vol(i);

@@ -23,9 +23,9 @@ gone; reelVolumeStripSvg draws in its band (reelLayout's stripY/stripH).
   is not capped: it rises over the price chart (to the frame top at most), as
   the user asked, and the strip is drawn under bars/ribbon/drawings so it never
   covers a candle. Band height max(130, 14% of the viewBox height).
-- Bars: --reel-bar at 55% opacity, width 30% of the bar slot (0.6-1.8 units):
-  the user picked the Monthly look; on a 520-bar phone Daily a slot is under a
-  pixel, so there it matches the tone rather than showing gaps.
+- Bars: --reel-bar at 80% opacity, width 45% of the bar slot (0.9-1.8 units);
+  "not gray and not too black": on a 520-bar phone Daily a slot is under a
+  pixel, so the tone is width x opacity and thinner/fainter reads grey.
 - Daily, Weekly, Monthly only (REEL_VOL_TFS; their bundles already carry `v`).
   1H ships no volume and instruments without volume (currencies, some indices)
   leave the band empty; it stays reserved so the plot never jumps.
