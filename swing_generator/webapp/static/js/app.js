@@ -11515,8 +11515,11 @@
   // It is NOT the engine's 25-bar rolling average behind volume_spike_flag.
   //
   // Scale: the band's top is always REEL_VOL_CAP x the average, so the line
-  // sits 40% up on every chart and a bar can reach 2.5x the average before
-  // it touches the top edge (a bigger one is drawn to the edge).
+  // sits 40% up on every chart. A bigger bar is NOT cut at the band's top
+  // (user, 2026-11-08: a flat ceiling hid "if they've gone over"): it carries
+  // on up over the price chart, stopping only at the top of the frame. The
+  // strip is drawn UNDER the bars, ribbon and drawings, so a tall bar sits
+  // behind the candles rather than covering them.
   // The today's still-open daily bar is drawn as is, so it reads short
   // until its session closes.
   function reelVolumeStripSvg(b, L, xOf, bw) {
@@ -11534,7 +11537,7 @@
     const avg = sum / cnt;
     const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
-    const yOf = x => y1 - Math.min(1, x / top) * H;
+    const yOf = x => Math.max(L.py0, y1 - (x / top) * H);
     // Thin on purpose (user: "it shouldn't be thick"), and a fixed SHARE of
     // the bar slot, so every timeframe has the light, airy look the user
     // picked on Monthly (2026-11-08). On a 520-bar Daily a slot is under one
@@ -12058,7 +12061,7 @@
 
     return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" style="${reelDotVars(L)}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}${strip}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%${tgripOff}" aria-hidden="true"></div>`;
   }

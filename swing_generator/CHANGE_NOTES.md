@@ -19,8 +19,10 @@ gone; reelVolumeStripSvg draws in its band (reelLayout's stripY/stripH).
   the two can disagree; on a 10-year Weekly the flat line mostly separates old
   low-volume years from recent ones (shown to the user, who chose it).
 - Band top = REEL_VOL_CAP (2.5) x the average on every chart, so the line sits
-  40% up with room above it ("give the volume room to breathe"); bigger bars
-  stop at the top edge. Band height max(130, 14% of the viewBox height).
+  40% up with room above it ("give the volume room to breathe"). A bigger bar
+  is not capped: it rises over the price chart (to the frame top at most), as
+  the user asked, and the strip is drawn under bars/ribbon/drawings so it never
+  covers a candle. Band height max(130, 14% of the viewBox height).
 - Bars: --reel-bar at 55% opacity, width 30% of the bar slot (0.6-1.8 units):
   the user picked the Monthly look; on a 520-bar phone Daily a slot is under a
   pixel, so there it matches the tone rather than showing gaps.
