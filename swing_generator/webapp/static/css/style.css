@@ -7886,14 +7886,14 @@ body {
 /* A WHITE HORIZONTAL BAR ABOVE THE DATE ROW (2026-09-11, user's layout). It was
    a dark vertical strip pinned to the left edge at mid-height, which sat on top
    of the very price action you draw against. Bottom-anchored instead, clear of
-   the date row and the trend strip: reelLayout reserves axisH 30 + stripH 34 of
+   the date row and the volume strip: reelLayout reserves the date row + stripH of
    the viewBox below the plot, and because the viewBox height tracks the box's
    own aspect that reserve is ~5% of a phone card's height and ~10% of a wide
    desktop one — so 12% clears both. Overshooting only floats the bar a little
    higher over the chart; undershooting would cover the dates. */
 .reel-toolbar {
   /* Fallback only — reelChartSvg() overwrites `bottom` with the measured gap
-     above the trend strip as soon as the chart paints. */
+     above the volume strip as soon as the chart paints. */
   position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
   z-index: 3; display: flex; flex-direction: row; gap: 2px;
   padding: 3px; border-radius: 9px;
@@ -8633,8 +8633,10 @@ body.chart-full-open { overflow: hidden; }
 .reel-trendline-now { font-weight: 600; }
 .reel-trendline-now.against { color: var(--watch); }
 
-/* Trend strip label under the chart (2026-09-11). SVG units: the card viewBox is 1000 wide. */
-.reel-strip-lbl { font-size: 17px; fill: var(--text-muted); font-family: inherit; }
+/* Volume strip under the chart (2026-11-08): its average volume, in the price
+   gutter level with the dashed line. Smaller than a price so the two never read
+   as one scale. SVG units: the card viewBox is 1000 wide. */
+.reel-vol-lbl { font-size: 18px; fill: var(--reel-bar); }
 
 /* Ladder (2026-09-11; eleven lines, 0%..100%, since 2026-10-21): dotted like the
    calendar lines; the 0% and 30% lines carry the handles. A channel's ten
@@ -9895,7 +9897,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    footer float over it, see-through (below): the candles show through,
    the words and buttons stay readable. reelLayout measures
    how far the two bars overlap the chart and keeps the readable frame, the
-   date row and the trend strip in the clear part between them. Desktop keeps
+   date row and the volume strip in the clear part between them. Desktop keeps
    its header and footer in the flow. */
 #chartFull:not(.desktop-chart) > .cf-head,
 #chartFull:not(.desktop-chart) > .reel-foot {

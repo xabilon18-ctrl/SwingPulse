@@ -9062,6 +9062,14 @@
     }
     for (const [el, w] of todo) el.style.setProperty('stroke-width', (w * k).toFixed(3), 'important');
   }
+  // Volume strip geometry (reelVolumeStripSvg). Band height: a share of the
+  // chart's viewBox height, never under the floor (viewBox units; the card is
+  // 1000 wide, so 90 is ~35 CSS px on a 390px phone). The cap keeps a blow-off
+  // bar from flattening the rest.
+  const REEL_VOL_BAND_H = 90;
+  const REEL_VOL_BAND_SHARE = 0.09;
+  const REEL_VOL_CAP = 3;
+  const REEL_VOL_TFS = new Set(['D', 'W', 'M']);
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
     const ch = host.clientHeight || 440;
@@ -9071,7 +9079,13 @@
     const H  = Math.max(200, Math.min(8000, Math.round(W * ch / Math.max(1, cw))));
     const gutW  = 128;                       // price labels live here (24-unit text since 2026-09-15)
     const axisH = 34;                        // date row
-    const stripH = 34;                       // trend strip + its label (reelTrendStripSvg)
+    // Volume band (reelVolumeStripSvg, 2026-11-08). It took the trend
+    // strip's place and is taller: bars need room to read above and below
+    // their average line. Reserved on every timeframe, so flicking 1H → Daily
+    // never moves the plot; 1H carries no volume and leaves it empty.
+    // A share of the height, so full screen gets a taller band than a card.
+    const volH = Math.round(Math.max(REEL_VOL_BAND_H, H * REEL_VOL_BAND_SHARE));
+    const stripH = volH + 8;
     // SEE-THROUGH HEADER AND FOOTER, full screen (user, 2026-11-05: "make
     // these a little see through over the charts ... Just to give chart extra
     // space"). There the chart fills the screen and the header / footer float
@@ -9098,6 +9112,7 @@
       py0, py1,
       gut: W - gutW + 10,
       stripY: H - bot - axisH - stripH + 4,
+      stripH: volH,
       dateY: H - bot - 8,
       gTop: over ? 0 : py0, gBot: over ? H : py1,
       clipTop: 0, clipBot: over ? H : py1 + 6,
@@ -9218,6 +9233,7 @@
     return {
       t: b.t.slice(from, to), o: b.o.slice(from, to), h: b.h.slice(from, to),
       l: b.l.slice(from, to), c: b.c.slice(from, to),
+      ...(b.v ? { v: b.v.slice(from, to) } : {}),
       p: b.p, ms: b.ms,
       mi: keep.map(j => mi[j] - from),
       m:  b.m.map(series => keep.map(j => series[j])),
@@ -11478,85 +11494,57 @@
   }
 
 
-  // ── Trend strip (2026-09-11, approved from the AVGO preview) ─────────────
-  // A thin bar under the price: green while the established trend is up, red
-  // while it is down, lighter on bars where price sat on the wrong side of the
-  // fast average — a pullback inside the trend. It says how long a trend has
-  // run, never which way the next move goes. It reads the Trends tab's DAILY
-  // segment history, which is kept in dates — so it maps onto any timeframe's
-  // bars by date.
+  // ── Volume strip (2026-11-08, user) ──────────────────────────────────────
+  // Took the trend strip's place under the price (user: "remove the trend
+  // line strip, then replace it with the volume at the bottom"). Daily,
+  // Weekly and Monthly only — each its own bars' volume; 1H ships none.
   //
-  // EVERY TIMEFRAME since 2026-09-15. It was Daily-only, and the plot still
-  // reserves the strip's band on every timeframe, so flicking 10m → Daily → 3D
-  // showed a strip, then an empty gap, then a strip: "there and not there".
-  // Off Daily it is labelled as the DAILY trend, because that is what it is;
-  // the lighter pullback shading still uses the chart's own fast average.
-  function reelTrendStripSvg(b, L, xOf, bw, item, bundle) {
-    const n = b.c.length;
-    if (!n || L.stripY == null) return '';
-    const day = s => String(s).slice(0, 10);
-    const longDate = d => new Date(d + 'T00:00:00Z')
-      .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-    // The user's channel read (2026-10-04) when it is loaded: the CURRENT trend, from
-    // the bar its leg starts on, on this chart's own timeframe — the same read as the
-    // label, the filter and the counts. NEUTRAL draws no strip. The old ribbon-segment
-    // history below is only the fallback for a payload without trend_channels.json.
-    const ctDir = channelTrendOf(item.instrument_name, timeframe);
-    let dirAt, curDir, since, ownTf = false;
-    if (ctDir) {
-      if (ctDir === 'NEUTRAL') return '';
-      const from = String(channelSinceOf(item.instrument_name, timeframe) || '');
-      curDir = ctDir; since = from.slice(0, 10); ownTf = true;
-      dirAt = t => (from && String(t) >= from ? ctDir : '');
-    } else {
-      const segs = trendsData[item.instrument_name] || [];          // newest first
-      if (!segs.length) return '';
-      dirAt = t => {
-        const d = day(t);
-        if (segs[0].end && d > segs[0].end) return segs[0].direction;
-        for (const g of segs) if (g.start <= d && (!g.end || d <= g.end)) return g.direction;
-        return '';
-      };
-      curDir = segs[0].direction;
-      since  = segs[0].start;
-    }
-    if (curDir !== 'UPTREND' && curDir !== 'DOWNTREND') return '';
-
-    // Fast average at every bar. The ribbon ships sampled every b.ms bars, so
-    // interpolate between samples — close enough to shade a pullback.
-    const mi = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
-    const fastSeries = b.m[0] || [];
-    const fast = new Array(n).fill(null);
-    for (let j = 0, i = 0; i < n; i++) {
-      while (j + 1 < mi.length && mi[j + 1] <= i) j++;
-      const a = fastSeries[j], c = fastSeries[j + 1];
-      if (a == null || mi[j] > i) continue;
-      fast[i] = (c != null && j + 1 < mi.length && mi[j + 1] > mi[j])
-        ? a + (c - a) * (i - mi[j]) / (mi[j + 1] - mi[j]) : a;
-    }
-    const keyAt = i => {
-      const d = dirAt(b.t[i]);
-      if (d !== 'UPTREND' && d !== 'DOWNTREND') return '';
-      const f = fast[i], c = b.c[i];
-      const pull = f != null && c != null && (d === 'UPTREND' ? c < f : c > f);
-      return d + (pull ? ':p' : ':s');
-    };
-    let out = '', key = '', start = 0;
-    const flush = end => {
-      if (!key) return;
-      const [d, s] = key.split(':');
-      out += `<rect x="${(xOf(start) - bw / 2).toFixed(1)}" y="${L.stripY}" width="${((end - start) * bw).toFixed(1)}" height="14" `
-           + `fill="${d === 'UPTREND' ? 'var(--buy)' : 'var(--sell)'}" fill-opacity="${s === 'p' ? .28 : .8}"/>`;
-    };
+  // One black bar per price bar, standing up from the floor of the band, and
+  // ONE dashed black line across it at the instrument's average volume: a bar
+  // that ends under the line traded less than average, one that pokes through
+  // it traded more. No red, no green (user). Same colour token as the OHLC
+  // bars, so it is black on the light chart and follows them in dark mode.
+  //
+  // The average is the mean of the REPORTED volume of the bars on screen
+  // (zero bars are "not reported", indicators._reported_volume), so it is a
+  // straight line, as asked, and moves when the window is panned or zoomed.
+  // It is NOT the engine's 25-bar rolling average behind volume_spike_flag.
+  //
+  // Scale: the band's top is the tallest visible bar, capped at
+  // REEL_VOL_CAP x the average so one blow-off bar cannot flatten every
+  // other one; a bar above the cap is drawn to the top edge. The average
+  // line therefore never sits below a third of the band.
+  // The today's still-open daily bar is drawn as is, so it reads short
+  // until its session closes.
+  function reelVolumeStripSvg(b, L, xOf, bw) {
+    if (!REEL_VOL_TFS.has(timeframe)) return '';
+    const n = b.c.length, v = b.v;
+    if (!n || !v || L.stripY == null) return '';
+    const vol = i => (Number.isFinite(+v[i]) && +v[i] > 0 ? +v[i] : null);
+    let sum = 0, cnt = 0, max = 0;
     for (let i = 0; i < n; i++) {
-      const k = keyAt(i);
-      if (k !== key) { flush(i); key = k; start = i; }
+      const x = vol(i);
+      if (x == null) continue;
+      sum += x; cnt++; if (x > max) max = x;
     }
-    flush(n);
-    // No caption since 2026-11-07 (user chose the clean TradingView-style
-    // look): "Uptrend since … · lighter = below MA50" sat on the plot itself.
-    // The card header already names the main trend.
-    return out;
+    if (!cnt) return '';                       // no reported volume (currencies, some indices)
+    const avg = sum / cnt;
+    const top = Math.min(max, avg * REEL_VOL_CAP);
+    const H = L.stripH, y1 = L.stripY + H;      // band floor
+    const yOf = x => y1 - Math.min(1, x / top) * H;
+    const wid = Math.max(1.5, Math.min(bw * 0.3, 2.4));   // the OHLC bars' own weight
+    const seg = [];
+    for (let i = 0; i < n; i++) {
+      const x = vol(i);
+      if (x == null) continue;
+      seg.push('M', xOf(i).toFixed(1), ' ', y1.toFixed(1), 'V', yOf(x).toFixed(1));
+    }
+    const ya = yOf(avg).toFixed(1);
+    return `<g class="reel-vol">`
+      + `<path d="${seg.join('')}" fill="none" stroke="var(--reel-bar)" stroke-width="${wid}"/>`
+      + `<line x1="${L.x0}" y1="${ya}" x2="${L.x1}" y2="${ya}" stroke="var(--reel-bar)" stroke-width="2.4" stroke-dasharray="12 8"/>`
+      + `<text x="${L.gut}" y="${(+ya + 6).toFixed(1)}" class="reel-axis reel-vol-lbl">${fmtVol(avg)}</text>`
+      + `</g>`;
   }
 
   // Display-only append: published completed arrays and signal indices stay
@@ -12003,7 +11991,7 @@
     updateChartFreshness(host, bundle, name);
     reelSyncGridTag(host, tg);
 
-    // Park the tool bar just above the trend strip and the date row.
+    // Park the tool bar just above the volume strip and the date row.
     //
     // The bar has to be a SIBLING of the chart — the chart's innerHTML is
     // replaced on every repaint, so a child would be destroyed — which means
@@ -12018,7 +12006,7 @@
       const unit    = (host.clientWidth || 360) / L.W;
       const hostR   = host.getBoundingClientRect();
       const baseR   = (_tb.offsetParent || host.parentElement).getBoundingClientRect();
-      const stripTop = hostR.top + L.stripY * unit;      // top of the trend strip
+      const stripTop = hostR.top + L.stripY * unit;      // top of the volume strip
       _tb.style.bottom = Math.max(0, Math.round(baseR.bottom - stripTop + 4)) + 'px';
     }
 
@@ -12050,11 +12038,11 @@
     const tgripPct = (((L.H - tgripBot - L.py1) / L.H) * 100).toFixed(2);
     const tgripOff = tgripBot > 0 ? `;bottom:${((tgripBot / L.H) * 100).toFixed(2)}%` : '';
 
-    const strip = reelTrendStripSvg(b, L, xOf, bw, item, bundle);
+    const strip = reelVolumeStripSvg(b, L, xOf, bw);
 
     // Price, ribbon and drawings are clipped to the plot. A channel or trend
     // line is drawn edge to edge at its own slope, so a steep one used to run
-    // straight down through the trend strip and the date labels — on screen and
+    // straight down through the volume strip and the date labels — on screen and
     // in the shared picture. The id is keyed by geometry, so two charts of the
     // same size sharing one id resolve to identical rectangles.
     const plotClipId = `reelPlot-${L.x1}-${Math.round(L.py1)}-${Math.round(L.clipBot)}`;

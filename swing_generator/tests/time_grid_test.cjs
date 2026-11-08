@@ -5,7 +5,7 @@ const path = require('node:path');
 const preferences = require('../webapp/static/js/modules/chart-preferences.js');
 const geometry = require('../webapp/static/js/modules/grid-geometry.js');
 const source = fs.readFileSync(path.join(__dirname, '../webapp/static/js/app.js'), 'utf8');
-const code = source.slice(source.indexOf('  // One equal grid for every chart'), source.indexOf('  // ── Trend strip'));
+const code = source.slice(source.indexOf('  // One equal grid for every chart'), source.indexOf('  // ── Volume strip'));
 const storage = new Map();
 const context = () => {
   const disk = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
