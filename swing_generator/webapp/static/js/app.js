@@ -9070,6 +9070,9 @@
   // REEL_VOL_CAP x the average, always, so the average line sits at the same
   // height on every chart (1/3.2 = ~31% up) with room above it for the
   // above-average bars (user, 2026-11-08: "give the volume room to breathe").
+  // OFF since 2026-11-08 (user: "Let's turn it off till I figure out a way to
+  // read it"). Everything below stays; true brings the strip and its band back.
+  const REEL_VOLUME_ON = false;
   const REEL_VOL_BAND_H = 130;
   const REEL_VOL_BAND_SHARE = 0.14;
   // 3.2 (was 2.5) for a little more room above the average on every
@@ -9099,7 +9102,8 @@
     // their average line. Reserved on every timeframe, so flicking 1H → Daily
     // never moves the plot; 1H carries no volume and leaves it empty.
     // A share of the height, so full screen gets a taller band than a card.
-    const volH = Math.round(Math.max(REEL_VOL_BAND_H, H * REEL_VOL_BAND_SHARE));
+    // Off: no band is reserved, so the price plot takes the space back.
+    const volH = REEL_VOLUME_ON ? Math.round(Math.max(REEL_VOL_BAND_H, H * REEL_VOL_BAND_SHARE)) : 0;
     const stripH = volH + 8;
     // SEE-THROUGH HEADER AND FOOTER, full screen (user, 2026-11-05: "make
     // these a little see through over the charts ... Just to give chart extra
@@ -11544,7 +11548,7 @@
     return reelNoVol.has(name);
   }
   function reelVolumeStripSvg(b, L, xOf, bw, name) {
-    if (!REEL_VOL_TFS.has(timeframe) || reelVolumeHidden(name)) return '';
+    if (!REEL_VOLUME_ON || !REEL_VOL_TFS.has(timeframe) || reelVolumeHidden(name)) return '';
     const n = b.c.length, v = b.v;
     if (!n || !v || L.stripY == null) return '';
     const vol = i => (Number.isFinite(+v[i]) && +v[i] > 0 ? +v[i] : null);
