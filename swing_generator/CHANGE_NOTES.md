@@ -18,10 +18,9 @@ gone; reelVolumeStripSvg draws in its band (reelLayout's stripY/stripH).
   pan/zoom. It is NOT the 25-bar rolling average behind volume_spike_flag, so
   the two can disagree; on a 10-year Weekly the flat line mostly separates old
   low-volume years from recent ones (shown to the user, who chose it).
-- Band top = REEL_VOL_CAP (2.5) x the average on every chart, so the line sits
-  40% up with room above it ("give the volume room to breathe"); Daily uses
-  3.2 (REEL_VOL_CAP_BY_TF, line ~31% up: "a little bit of room ... on the
-  daily"). A bigger bar
+- Band top = REEL_VOL_CAP (3.2) x the average on every chart, so the line sits
+  ~31% up with room above it ("give the volume room to breathe", then "a
+  little bit of room of the average" on all of them). A bigger bar
   is not capped: it rises over the price chart (to the frame top at most), as
   the user asked, and the strip is drawn under bars/ribbon/drawings so it never
   covers a candle. Band height max(130, 14% of the viewBox height).

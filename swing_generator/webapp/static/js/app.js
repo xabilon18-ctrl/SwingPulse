@@ -9066,15 +9066,13 @@
   // chart's viewBox height, never under the floor (viewBox units; the card is
   // 1000 wide, so 130 is ~50 CSS px on a 390px phone). The band's top is
   // REEL_VOL_CAP x the average, always, so the average line sits at the same
-  // height on every chart (1/2.5 = 40% up) with room above it for the
+  // height on every chart (1/3.2 = ~31% up) with room above it for the
   // above-average bars (user, 2026-11-08: "give the volume room to breathe").
   const REEL_VOL_BAND_H = 130;
   const REEL_VOL_BAND_SHARE = 0.14;
-  const REEL_VOL_CAP = 2.5;
-  // Daily a little more headroom (user, 2026-11-08: "give me a little bit of
-  // room ... on the daily"): its line sits ~31% up instead of 40%, so the
-  // busier daily bars rise less far over the chart. Weekly/Monthly keep 2.5.
-  const REEL_VOL_CAP_BY_TF = { D: 3.2 };
+  // 3.2 (was 2.5) for a little more room above the average on every
+  // timeframe (user, 2026-11-08): the line sits ~31% up, not 40%.
+  const REEL_VOL_CAP = 3.2;
   // Bars a lighter black than the price bars: there, not shouting, and NOT
   // grey (user, 2026-11-08: "not gray and not too black"; 0.55 read grey).
   const REEL_VOL_BAR_OPACITY = 0.8;
@@ -11520,7 +11518,7 @@
   // It is NOT the engine's 25-bar rolling average behind volume_spike_flag.
   //
   // Scale: the band's top is always REEL_VOL_CAP x the average, so the line
-  // sits 40% up on every chart. A bigger bar is NOT cut at the band's top
+  // sits ~31% up on every chart. A bigger bar is NOT cut at the band's top
   // (user, 2026-11-08: a flat ceiling hid "if they've gone over"): it carries
   // on up over the price chart, stopping only at the top of the frame. The
   // strip is drawn UNDER the bars, ribbon and drawings, so a tall bar sits
@@ -11540,7 +11538,7 @@
     }
     if (!cnt) return '';                       // no reported volume (currencies, some indices)
     const avg = sum / cnt;
-    const top = avg * (REEL_VOL_CAP_BY_TF[timeframe] || REEL_VOL_CAP);
+    const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
     const yOf = x => Math.max(L.py0, y1 - (x / top) * H);
     // Thin (user: "it shouldn't be thick"), capped at 1.8 units so a sparse
