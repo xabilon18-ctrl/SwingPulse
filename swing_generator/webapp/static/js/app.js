@@ -11535,10 +11535,13 @@
     const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
     const yOf = x => y1 - Math.min(1, x / top) * H;
-    // Thin on purpose (user: "it shouldn't be thick"): lighter than the price
-    // bars' 1.5 floor, so a dense 520-bar window keeps gaps between bars
-    // instead of fusing into a solid block.
-    const wid = Math.max(0.9, Math.min(bw * 0.22, 1.8));
+    // Thin on purpose (user: "it shouldn't be thick"), and a fixed SHARE of
+    // the bar slot, so every timeframe has the light, airy look the user
+    // picked on Monthly (2026-11-08). On a 520-bar Daily a slot is under one
+    // phone pixel, so the bars cannot stand apart there; at 30% of the slot
+    // the band at least comes out the same light tone, and zooming in brings
+    // the gaps back.
+    const wid = Math.max(0.6, Math.min(bw * 0.3, 1.8));
     const seg = [];
     for (let i = 0; i < n; i++) {
       const x = vol(i);
