@@ -9064,11 +9064,15 @@
   }
   // Volume strip geometry (reelVolumeStripSvg). Band height: a share of the
   // chart's viewBox height, never under the floor (viewBox units; the card is
-  // 1000 wide, so 90 is ~35 CSS px on a 390px phone). The cap keeps a blow-off
-  // bar from flattening the rest.
-  const REEL_VOL_BAND_H = 90;
-  const REEL_VOL_BAND_SHARE = 0.09;
-  const REEL_VOL_CAP = 3;
+  // 1000 wide, so 130 is ~50 CSS px on a 390px phone). The band's top is
+  // REEL_VOL_CAP x the average, always, so the average line sits at the same
+  // height on every chart (1/2.5 = 40% up) with room above it for the
+  // above-average bars (user, 2026-11-08: "give the volume room to breathe").
+  const REEL_VOL_BAND_H = 130;
+  const REEL_VOL_BAND_SHARE = 0.14;
+  const REEL_VOL_CAP = 2.5;
+  // Bars a lighter black than the price bars: there, not shouting (user).
+  const REEL_VOL_BAR_OPACITY = 0.55;
   const REEL_VOL_TFS = new Set(['D', 'W', 'M']);
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
@@ -11499,7 +11503,7 @@
   // line strip, then replace it with the volume at the bottom"). Daily,
   // Weekly and Monthly only — each its own bars' volume; 1H ships none.
   //
-  // One black bar per price bar, standing up from the floor of the band, and
+  // One soft black bar per price bar, standing up from the floor of the band, and
   // ONE dashed black line across it at the instrument's average volume: a bar
   // that ends under the line traded less than average, one that pokes through
   // it traded more. No red, no green (user). Same colour token as the OHLC
@@ -11510,10 +11514,9 @@
   // straight line, as asked, and moves when the window is panned or zoomed.
   // It is NOT the engine's 25-bar rolling average behind volume_spike_flag.
   //
-  // Scale: the band's top is the tallest visible bar, capped at
-  // REEL_VOL_CAP x the average so one blow-off bar cannot flatten every
-  // other one; a bar above the cap is drawn to the top edge. The average
-  // line therefore never sits below a third of the band.
+  // Scale: the band's top is always REEL_VOL_CAP x the average, so the line
+  // sits 40% up on every chart and a bar can reach 2.5x the average before
+  // it touches the top edge (a bigger one is drawn to the edge).
   // The today's still-open daily bar is drawn as is, so it reads short
   // until its session closes.
   function reelVolumeStripSvg(b, L, xOf, bw) {
@@ -11521,18 +11524,21 @@
     const n = b.c.length, v = b.v;
     if (!n || !v || L.stripY == null) return '';
     const vol = i => (Number.isFinite(+v[i]) && +v[i] > 0 ? +v[i] : null);
-    let sum = 0, cnt = 0, max = 0;
+    let sum = 0, cnt = 0;
     for (let i = 0; i < n; i++) {
       const x = vol(i);
       if (x == null) continue;
-      sum += x; cnt++; if (x > max) max = x;
+      sum += x; cnt++;
     }
     if (!cnt) return '';                       // no reported volume (currencies, some indices)
     const avg = sum / cnt;
-    const top = Math.min(max, avg * REEL_VOL_CAP);
+    const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
     const yOf = x => y1 - Math.min(1, x / top) * H;
-    const wid = Math.max(1.5, Math.min(bw * 0.3, 2.4));   // the OHLC bars' own weight
+    // Thin on purpose (user: "it shouldn't be thick"): lighter than the price
+    // bars' 1.5 floor, so a dense 520-bar window keeps gaps between bars
+    // instead of fusing into a solid block.
+    const wid = Math.max(0.9, Math.min(bw * 0.22, 1.8));
     const seg = [];
     for (let i = 0; i < n; i++) {
       const x = vol(i);
@@ -11541,7 +11547,7 @@
     }
     const ya = yOf(avg).toFixed(1);
     return `<g class="reel-vol">`
-      + `<path d="${seg.join('')}" fill="none" stroke="var(--reel-bar)" stroke-width="${wid}"/>`
+      + `<path d="${seg.join('')}" fill="none" stroke="var(--reel-bar)" stroke-opacity="${REEL_VOL_BAR_OPACITY}" stroke-width="${wid}"/>`
       + `<line x1="${L.x0}" y1="${ya}" x2="${L.x1}" y2="${ya}" stroke="var(--reel-bar)" stroke-width="2.4" stroke-dasharray="12 8"/>`
       + `<text x="${L.gut}" y="${(+ya + 6).toFixed(1)}" class="reel-axis reel-vol-lbl">${fmtVol(avg)}</text>`
       + `</g>`;
