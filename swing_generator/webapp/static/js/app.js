@@ -8970,7 +8970,9 @@
   // explicitly because they are daily by definition.
   async function reelLoadChunk(name, tf) {
     tf = tf || timeframe;
-    await (OWN_INDEX_TFS.has(tf) ? reelLoadTfIndex(tf) : reelLoadIndex());
+    // Weekly/Monthly also wait for the main index: its `novol` list (Daily
+    // decides) hides the volume strip on all three timeframes.
+    await (OWN_INDEX_TFS.has(tf) ? Promise.all([reelLoadTfIndex(tf), reelLoadIndex()]) : reelLoadIndex());
     const cid = reelChunkId(name, tf);
     if (cid === undefined) return null;
 
@@ -9073,6 +9075,12 @@
   // 3.2 (was 2.5) for a little more room above the average on every
   // timeframe (user, 2026-11-08): the line sits ~31% up, not 40%.
   const REEL_VOL_CAP = 3.2;
+  // How far a big bar may rise ABOVE the band, in band heights. Unlimited
+  // (v606) sent GOLD's bars through the whole chart (user: "way to over"):
+  // its feed changed scale (~360 contracts/day typical, 120k-240k since), so
+  // against the window's average every recent bar was ~20x. One band height
+  // still shows a bar has gone over without covering the price.
+  const REEL_VOL_OVER = 1;
   // Bars a lighter black than the price bars: there, not shouting, and NOT
   // grey (user, 2026-11-08: "not gray and not too black"; 0.55 read grey).
   const REEL_VOL_BAR_OPACITY = 0.8;
@@ -11520,13 +11528,23 @@
   // Scale: the band's top is always REEL_VOL_CAP x the average, so the line
   // sits ~31% up on every chart. A bigger bar is NOT cut at the band's top
   // (user, 2026-11-08: a flat ceiling hid "if they've gone over"): it carries
-  // on up over the price chart, stopping only at the top of the frame. The
+  // on up over the price chart, at most REEL_VOL_OVER band heights. The
   // strip is drawn UNDER the bars, ribbon and drawings, so a tall bar sits
   // behind the candles rather than covering them.
   // The today's still-open daily bar is drawn as is, so it reads short
   // until its session closes.
-  function reelVolumeStripSvg(b, L, xOf, bw) {
-    if (!REEL_VOL_TFS.has(timeframe)) return '';
+  // Instruments whose Daily volume is a contract switch, not a market
+  // (chart_feed.unreliable_volume_names -> index `novol`, 2026-11-08): the
+  // metal and crop =F futures. Their strip stays empty on every timeframe,
+  // like an instrument that reports no volume (user: "build it").
+  let reelNoVolSrc = null, reelNoVol = new Set();
+  function reelVolumeHidden(name) {
+    const list = reel.index && reel.index.novol;
+    if (list !== reelNoVolSrc) { reelNoVolSrc = list; reelNoVol = new Set(list || []); }
+    return reelNoVol.has(name);
+  }
+  function reelVolumeStripSvg(b, L, xOf, bw, name) {
+    if (!REEL_VOL_TFS.has(timeframe) || reelVolumeHidden(name)) return '';
     const n = b.c.length, v = b.v;
     if (!n || !v || L.stripY == null) return '';
     const vol = i => (Number.isFinite(+v[i]) && +v[i] > 0 ? +v[i] : null);
@@ -11540,7 +11558,7 @@
     const avg = sum / cnt;
     const top = avg * REEL_VOL_CAP;
     const H = L.stripH, y1 = L.stripY + H;      // band floor
-    const yOf = x => Math.max(L.py0, y1 - (x / top) * H);
+    const yOf = x => Math.max(L.py0, y1 - H * (1 + REEL_VOL_OVER), y1 - (x / top) * H);
     // Thin (user: "it shouldn't be thick"), capped at 1.8 units so a sparse
     // Monthly keeps separate hairlines. On a 520-bar Daily a slot is under one
     // phone pixel, so the bars blend: their TONE there is width x opacity, and
@@ -12052,7 +12070,7 @@
     const tgripPct = (((L.H - tgripBot - L.py1) / L.H) * 100).toFixed(2);
     const tgripOff = tgripBot > 0 ? `;bottom:${((tgripBot / L.H) * 100).toFixed(2)}%` : '';
 
-    const strip = reelVolumeStripSvg(b, L, xOf, bw);
+    const strip = reelVolumeStripSvg(b, L, xOf, bw, name);
 
     // Price, ribbon and drawings are clipped to the plot. A channel or trend
     // line is drawn edge to edge at its own slope, so a steep one used to run

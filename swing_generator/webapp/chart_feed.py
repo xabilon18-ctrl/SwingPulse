@@ -1040,6 +1040,37 @@ def near_ma(bd: dict) -> dict | None:
     return out or None
 
 
+# Volume that is not a volume series (2026-11-08). Yahoo's =F futures report the
+# volume of ONE contract, whichever it currently treats as front, so on metals
+# and crops the series swings between a thin delivery month (~360 contracts a
+# day on GOLD) and the active one (120k+) and back. Measured over the last 520
+# Daily bars of all 737 instruments with volume: the median p90/p10 is 3.1; the
+# ten metal/crop futures are 126-2,848 with 15-94 ten-fold day-to-day swings;
+# ZECUSDT is 142 with 0 swings (real growth, kept); every other instrument is
+# under 34, and none is over 50 with 10+ swings. The app leaves the volume
+# strip empty for the names listed here, on every timeframe: the rule only
+# separates cleanly on Daily (on 10-year Weekly bars fast-growing small caps
+# such as QUBT trip it), so Daily decides for all three.
+VOL_CHECK_BARS = 520
+VOL_SPREAD_MAX = 50       # p90 / p10 of reported volume
+VOL_SWINGS_MAX = 10       # day-to-day changes of 10x or more, either way
+
+
+def volume_unreliable(v: list) -> bool:
+    """True when a Daily volume series swings like a contract switch, not a market."""
+    vv = [x if x and x > 0 else 0 for x in (v or [])[-VOL_CHECK_BARS:]]
+    rep = sorted(x for x in vv if x > 0)
+    if len(rep) < 50:
+        return False
+    spread = rep[9 * len(rep) // 10] / max(rep[len(rep) // 10], 1)
+    swings = sum(1 for a, b in zip(vv, vv[1:]) if a > 0 and b > 0 and (b / a > 10 or a / b > 10))
+    return spread > VOL_SPREAD_MAX and swings >= VOL_SWINGS_MAX
+
+
+def unreliable_volume_names(daily: dict) -> list:
+    return sorted(name for name, bd in daily.items() if volume_unreliable(bd.get('v')))
+
+
 def near_ma_map(daily: dict) -> dict:
     out = {}
     for name, bd in daily.items():
@@ -1291,7 +1322,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
                'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
                'events_by_tf': {'30m': events, '1H': hourly_events},
-               'near': near_ma_map(built.get('D', {}))})
+               'near': near_ma_map(built.get('D', {})),
+               'novol': unreliable_volume_names(built.get('D', {}))})
 
     return stats
 
