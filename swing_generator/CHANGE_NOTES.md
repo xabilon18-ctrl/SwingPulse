@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-08 (later) VOLUME OVERFLOW CAP: app.js v607. User on GOLD, live v606:
+"Does not look ok... way to over". Bars may now rise at most REEL_VOL_OVER
+(1) band height above the band, not to the frame top. Cause on GOLD (GC=F):
+Yahoo reports the CURRENT front contract's volume, so the series swings from
+~360 contracts/day (a thin delivery month; median over the last 1,400 bars)
+to 120k-240k when the active month is front (every day since mid-Oct 2026).
+Against the window's flat average, every recent bar was ~20x. The cap fixes
+the drawing; the data itself is still not a real volume series for =F
+futures (asked the user how to handle them).
+
 2026-11-08 VOLUME STRIP REPLACES THE TREND STRIP: app.js v606, style.css v417.
 User: "remove the trend line strip, then replace it with the volume at the
 bottom ... daily volume, weekly volume, and monthly volume ... a dash ... in
