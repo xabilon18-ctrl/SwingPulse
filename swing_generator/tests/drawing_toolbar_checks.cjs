@@ -306,15 +306,21 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     await page.mouse.click(back.x,back.y);
     assert.equal(await sel().locator('.reel-ch-hit').first().getAttribute('data-di'),chDi,'…and the channel can be picked again');
     // CHANNEL ENDS (user, 2026-11-01): both end handles drag, and each moves its own end.
+    // Each end is dragged 40px TOWARD THE MIDDLE of the plot (2026-11-09). It
+    // was always dragged up: on live data whose channel seeds near the top
+    // (SA40 1H, 9 Nov) that lifted both ends under the chart header, and the
+    // short-channel check below then touched the header instead of the end.
+    const plot=await page.locator('#chartFullHost svg').boundingBox();
     for (const [h,k] of [['a','p1'],['b','p2']]) {
       const before=(await channelOn())[k];
       const g=await boxOf(sel().locator(`.reel-ch-grab[data-h="${h}"]`));
       assert.ok(g,`End handle ${h} is drawn`);
-      await page.mouse.move(g.x+g.width/2,g.y+g.height/2);
+      const gy=g.y+g.height/2, dy=gy<plot.y+plot.height/2?40:-40;
+      await page.mouse.move(g.x+g.width/2,gy);
       await page.mouse.down();
-      await page.mouse.move(g.x+g.width/2,g.y+g.height/2-40,{steps:8});
+      await page.mouse.move(g.x+g.width/2,gy+dy,{steps:8});
       await page.mouse.up();
-      assert.notEqual((await channelOn())[k],before,`Dragging end ${h} straight up moves that end`);
+      assert.notEqual((await channelOn())[k],before,`Dragging end ${h} straight up or down moves that end`);
     }
     // SHORT CHANNEL (2026-11-03): with both ends close together on screen the
     // move handle sat halfway between them, on top of both, and took the touch
