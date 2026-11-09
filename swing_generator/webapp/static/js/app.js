@@ -8367,19 +8367,23 @@
   // BLUE BARS ON HIGH VOLUME (user, 2026-11-09: "turning the daily, weekly and
   // monthly ... bars blue whenever volume is above average? But this must have
   // switch for on and off"). One setting for Daily, Weekly and Monthly, kept
-  // with the other chart settings (tfOverlay, synced): 0 = off, 1 = above the
-  // average, 1.5 = at least 1.5x it. The average is each bar's own last
+  // with the other chart settings (tfOverlay, synced): 0 = off, 2 = over twice
+  // the average (default), 1.5 = over 1.5x it. The average is each bar's own last
   // VOLUME_LOOKBACK (25) bars, the same one behind VOL SPIKE
   // (indicators.add_volume_analysis), never a flat line: a flat one marked
   // most of BTC's last 5 years and all of GOLD's last month. Measured on every
   // instrument's last 520 bars: above average is ~39% of Daily bars (41%
-  // Weekly/Monthly); 1.5x is ~12% Daily, 10% Weekly, 7.5% Monthly.
-  const VOL_BLUE_STEPS = [[1, 'Above average'], [1.5, '1.5× average']];
+  // Weekly/Monthly); 1.5x is ~12% Daily, 10% Weekly, 7.5% Monthly; 2x is ~5%
+  // Daily (about one bar a month), 3% Weekly, 2% Monthly.
+  // 2x is the default since 2026-11-09 (user picked it: "Above average" made
+  // almost every bar blue). Above average is gone as a choice; a stored 1
+  // reads as 2.
+  const VOL_BLUE_STEPS = [[2, '2× average'], [1.5, '1.5× average']];
   const VOL_BLUE_TFS = new Set(['D', 'W', 'M']);
   const VOL_AVG_BARS = 25;
   function volBlue() {
     const v = tfOverlay.volBlue;
-    return v === 0 ? 0 : (VOL_BLUE_STEPS.some(([a]) => a === v) ? v : 1);
+    return v === 0 ? 0 : (VOL_BLUE_STEPS.some(([a]) => a === v) ? v : 2);
   }
   // Which bars of the slice `b` traded above k x their own 25-bar average.
   // Reads the whole bundle (b._src) so the first bars on screen still have
@@ -14769,7 +14773,8 @@
       }
       if (btn.dataset.act === 'volblue-set') {
         const cur = volBlue();
-        if (btn.dataset.part === 'on') tfOverlay.volBlue = cur ? 0 : (tfOverlay.volBlueLast || 1);
+        if (btn.dataset.part === 'on') tfOverlay.volBlue = cur ? 0
+          : (VOL_BLUE_STEPS.some(([a]) => a === tfOverlay.volBlueLast) ? tfOverlay.volBlueLast : 2);
         else {
           const v = +btn.dataset.v;
           if (!VOL_BLUE_STEPS.some(([a]) => a === v)) return true;
