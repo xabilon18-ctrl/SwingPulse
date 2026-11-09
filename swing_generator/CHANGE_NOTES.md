@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 (latest) TREND MAs REMOVED: app.js v613, style.css v420. User:
+"Remove it completely". The Trend MAs row and reelTrendBundle (v612, entry
+below) are gone; 1H and Daily draw the published 50/250/500 again. app.js,
+style.css and app_smoke.cjs are restored to their v610 content (only the
+version strings move, so installed phones fetch them). A saved
+`tfOverlay.trend` value is dropped on the next load (the loader no longer
+keeps it). The overlay sets of v611 had already been removed in v612.
+
 2026-11-09 (later still) LIVE CHECK: SHORT-CHANNEL TEST NO LONGER DRAGS ENDS
 UNDER THE HEADER. "Verify the live app" failed on the #172 and #173 releases
 at drawing_toolbar_checks "Short channel: end handle a can be touched"
