@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 BLUE BARS ON HIGH VOLUME: app.js v614, style.css v421. User: "turning
+the daily, weekly and monthly volume candles or bars blue whenever volume is
+above average? But this must have switch for on and off".
+- A price bar is drawn in --reel-bar-vol (blue; lighter blue on the dark
+  theme) when its volume is above k x the mean of its own last 25 reported
+  bars (VOLUME_LOOKBACK, the VOL SPIKE average; zero = unreported). Not the
+  flat on-screen average the volume strip used: that marked most of BTC's
+  last 5 years and all of GOLD's last month.
+- Grid menu switch "Blue bars on high volume" on Daily/Weekly/Monthly, with
+  Above average (k = 1, the user's spec, the default) or 1.5x average.
+  Stored as tfOverlay.volBlue (0 off) with the other chart settings.
+- Measured over every instrument's last 520 bars: above average marks ~39%
+  of Daily bars (41% Weekly/Monthly); 1.5x marks ~12% Daily, 10% Weekly,
+  7.5% Monthly. Shown to the user with both pictures.
+- No blue on the `novol` futures (contract-switching volume) or on
+  instruments without volume. The volume strip itself stays off.
+
 2026-11-09 (latest) TREND MAs REMOVED: app.js v613, style.css v420. User:
 "Remove it completely". The Trend MAs row and reelTrendBundle (v612, entry
 below) are gone; 1H and Daily draw the published 50/250/500 again. app.js,
