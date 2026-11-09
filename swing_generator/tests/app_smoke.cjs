@@ -147,19 +147,15 @@ let debugPage;
     await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
     assert.match(await page.locator('.reel-tf-menu').innerText(), /50 · 250 · 500/, 'the menu lists the Monthly 500');
     await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-    // The 300 · 600 · 900 set (2026-11-09): no bundle ships a Weekly 600 or
-    // 900, and the fixture's Daily bundle no Weekly lines at all, so a W900
-    // on Daily can only be rolled from the Weekly chart's ~25 years. The 3 MA
-    // button then brings that set back after 5 MA.
-    await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="W"]').click();
-    await page.locator('.reel-tf-menu .reel-ov-trios [data-v="t300"]').click();
-    await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent === 'W900'));
-    assert.match(await page.locator('.reel-tf-menu').innerText(), /300 · 600 · 900/, 'the Weekly switch lists the set');
-    await page.locator('.reel-tf-menu [data-act="ov-set"][data-v="wide"]').click();
-    await page.locator('.reel-tf-menu .reel-ov-sets [data-v="std"]').first().click();
-    assert.equal(await page.locator('.reel-tf-menu .reel-ov-trios .reel-ov-set.on').getAttribute('data-v'), 't300', '3 MA brings back the chosen set');
-    await page.locator('.reel-tf-menu .reel-ov-trios [data-v="std"]').click();
-    await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="W"]').click();
+    // Trend MAs (2026-11-09): the chart's own three lines switch to 300 · 600
+    // · 900 and come back to the published 50 · 250 · 500 unchanged.
+    const ribbon = () => page.locator('#chartReel .reel-chart').first().evaluate(h => [...h.querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|'));
+    const published = await ribbon();
+    await page.locator('.reel-tf-menu [data-act="trend-set"][data-v="t300"]').click();
+    await page.waitForFunction(was => [...document.querySelector('#chartReel .reel-chart').querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|') !== was, published);
+    assert.equal(await page.locator('.reel-tf-menu [data-act="trend-set"].on').getAttribute('data-v'), 't300', 'the chosen Trend MAs are lit');
+    await page.locator('.reel-tf-menu [data-act="trend-set"][data-v="std"]').click();
+    await page.waitForFunction(was => [...document.querySelector('#chartReel .reel-chart').querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|') === was, published);
     await page.locator('#chartReel [data-act="tf-menu"]').first().click();
     assert.equal(errors.length, 0, errors.join('\n'));
   }
