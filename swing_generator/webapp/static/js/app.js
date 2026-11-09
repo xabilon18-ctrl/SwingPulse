@@ -8233,7 +8233,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, trend: j.trend, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8391,44 +8391,6 @@
   // set starts at 100, nine lines. Then "100 and 150 ... on daily only": the
   // DAILY overlay starts at 200 (seven lines); Weekly/Monthly keep all nine.
   const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '9 MA' };
-  // TREND MAs (user, 2026-11-09: "the trend line MAs are 50 250 and 500. I
-  // would like to see how these two would look like. 200, 400 and 600 and
-  // the second one is 300, 600 and 900 ... has to work across if i change
-  // it"). The chart's OWN three lines, one choice for the timeframes in
-  // TREND_TFS. Lines only: signals, trend labels, alerts and the ledger
-  // stay on the pipeline's 50/250/500. The other two sets are rolled here
-  // from the bundle's closes, so a line starts once that many bars exist in
-  // the bundle (an MA900 on Daily covers its last ~400 bars).
-  const TREND_SETS = { std: [50, 250, 500], t200: [200, 400, 600], t300: [300, 600, 900] };
-  // 1H and Daily only (user, 2026-11-09: "For daily and 1h. Don't apply in
-  // weekly and monthly"): Weekly and Monthly keep 50/250/500 whatever is set.
-  const TREND_TFS = new Set(['1H', 'D']);
-  const TREND_MEMO = new WeakMap();
-  function trendSet() { return TREND_SETS[tfOverlay.trend] ? tfOverlay.trend : 'std'; }
-  // The bundle with its ribbon swapped for the chosen set. Periods scale with
-  // the bundle's own fast period, so a session-normalised ribbon keeps its
-  // proportion. A line that never warms is left out; none at all keeps the
-  // published ribbon. The forming bar's MAs belong to 50/250/500, so they
-  // are dropped and the last value is carried instead.
-  function reelTrendBundle(bundle) {
-    const key = trendSet();
-    if (key === 'std' || !TREND_TFS.has(timeframe) || !bundle || !bundle.c || !bundle.m || !bundle.m.length || !bundle.p || !bundle.p.length) return bundle;
-    const memo = TREND_MEMO.get(bundle);
-    if (memo && memo.key === key) return memo.out;
-    const n = bundle.c.length;
-    const mi = bundle.mi || bundle.m[0].map((_, j) => Math.min(j * (bundle.ms || 1), n - 1));
-    const scale = bundle.p[0] / TREND_SETS.std[0];
-    const p = [], m = [];
-    TREND_SETS[key].forEach(q => {
-      const P = Math.max(2, Math.round(q * scale));
-      const series = reelRollingAt(bundle.c, P, mi);
-      if (series.some(v => v != null)) { p.push(P); m.push(series); }
-    });
-    const out = p.length ? { ...bundle, p, m, mi } : bundle;
-    if (p.length && bundle.forming) out.forming = { ...bundle.forming, m: undefined };
-    TREND_MEMO.set(bundle, { key, out });
-    return out;
-  }
   const OV_STEP_SKIP_D = [100, 150];
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
   // 2026-10-03 (user: "add a monthly 50ma ... in the overlay"): the MONTHLY
@@ -8887,10 +8849,7 @@
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
       <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
         <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
-          `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div></div>
-      <div class="reel-ov-block reel-trend-block"><div class="reel-ov-title">Trend MAs<span>1H and Daily</span></div>
-        <div class="reel-ov-row reel-ov-maw reel-ov-trios"><span>Lines</span><div class="reel-ov-sets">${Object.entries(TREND_SETS).map(([k, ps]) =>
-          `<button class="reel-ov-set${trendSet() === k ? ' on' : ''}" data-act="trend-set" data-v="${k}" aria-pressed="${trendSet() === k}" aria-label="Trend MAs ${ps.join(', ')}">${ps.join('·')}</button>`).join('')}</div></div></div>`;
+          `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div></div>`;
     // One switch per higher timeframe, thinnest first.
     ovHtfChoices().forEach(([tf, name, periods, weight]) => {
       const on = ovHtfOn(tf);
@@ -11653,7 +11612,7 @@
 
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
-    bundle = reelDisplayBundle(reelTrendBundle(bundle));
+    bundle = reelDisplayBundle(bundle);
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
@@ -14841,16 +14800,6 @@
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);
-        return true;
-      }
-      if (btn.dataset.act === 'trend-set') {
-        if (!TREND_SETS[btn.dataset.v]) return true;
-        tfOverlay.trend = btn.dataset.v;
-        ovSave();
-        const panel = btn.closest('.reel-ov-panel');
-        if (panel) panel.innerHTML = reelOvMenuHtml();
-        // Every card and the full-screen chart redraw their own ribbon.
-        ovRefresh();
         return true;
       }
       if (btn.dataset.act === 'ov-set') {

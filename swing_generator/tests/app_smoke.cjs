@@ -147,15 +147,6 @@ let debugPage;
     await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
     assert.match(await page.locator('.reel-tf-menu').innerText(), /50 · 250 · 500/, 'the menu lists the Monthly 500');
     await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-    // Trend MAs (2026-11-09): the chart's own three lines switch to 300 · 600
-    // · 900 and come back to the published 50 · 250 · 500 unchanged.
-    const ribbon = () => page.locator('#chartReel .reel-chart').first().evaluate(h => [...h.querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|'));
-    const published = await ribbon();
-    await page.locator('.reel-tf-menu [data-act="trend-set"][data-v="t300"]').click();
-    await page.waitForFunction(was => [...document.querySelector('#chartReel .reel-chart').querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|') !== was, published);
-    assert.equal(await page.locator('.reel-tf-menu [data-act="trend-set"].on').getAttribute('data-v'), 't300', 'the chosen Trend MAs are lit');
-    await page.locator('.reel-tf-menu [data-act="trend-set"][data-v="std"]').click();
-    await page.waitForFunction(was => [...document.querySelector('#chartReel .reel-chart').querySelectorAll('.reel-native-ma')].map(p => p.getAttribute('points')).join('|') === was, published);
     await page.locator('#chartReel [data-act="tf-menu"]').first().click();
     assert.equal(errors.length, 0, errors.join('\n'));
   }

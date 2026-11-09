@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 (latest) TREND MAs REMOVED: app.js v613, style.css v420. User:
+"Remove it completely". The Trend MAs row and reelTrendBundle (v612, entry
+below) are gone; 1H and Daily draw the published 50/250/500 again. app.js,
+style.css and app_smoke.cjs are restored to their v610 content (only the
+version strings move, so installed phones fetch them). A saved
+`tfOverlay.trend` value is dropped on the next load (the loader no longer
+keeps it). The overlay sets of v611 had already been removed in v612.
+
+2026-11-09 (later still) LIVE CHECK: SHORT-CHANNEL TEST NO LONGER DRAGS ENDS
+UNDER THE HEADER. "Verify the live app" failed on the #172 and #173 releases
+at drawing_toolbar_checks "Short channel: end handle a can be touched"
+(got ""). Reproduced locally against live R2 data: the first live chart
+(SA40 1H) seeds its channel near the top of the plot, the CHANNEL ENDS step
+dragged each end 40px UP, which put both ends under the chart header, so
+the touch landed on the header. The ends are now dragged 40px toward the
+middle of the plot. Test-only change; the app is unchanged.
+
 2026-11-09 (later) TREND MAs 50/250/500, 200/400/600 OR 300/600/900: app.js
 v612, style.css v419. The user's request was for the chart's OWN trend lines
 ("this feature is for the trend line MAs"), not the overlay, so the overlay
