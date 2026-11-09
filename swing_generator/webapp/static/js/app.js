@@ -8385,12 +8385,22 @@
   // not drawn, that instrument's history is too short.
   // Third set (user, 2026-09-28: "one that goes up by 50 all the way to 500").
   // Buttons are named by how many lines they draw ("find a shorter name").
+  // Two more three-line sets (user, 2026-11-09: "200, 400 and 600 and the
+  // second one is 300, 600 and 900 ... put them below the overlay MAs"). They
+  // are the 3 MA set's alternatives, chosen on their own row under MA set;
+  // `trio` remembers which one the 3 MA button brings back.
   const OV_SETS = { std: [50, 250, 500], wide: [50, 100, 200, 300, 500],
-                    step: [100, 150, 200, 250, 300, 350, 400, 450, 500] };
+                    step: [100, 150, 200, 250, 300, 350, 400, 450, 500],
+                    t200: [200, 400, 600], t300: [300, 600, 900] };
+  const OV_TRIOS = ['std', 't200', 't300'];
+  function ovTrio() { return OV_TRIOS.includes(tfOverlay.trio) ? tfOverlay.trio : 'std'; }
   // 2026-09-30 (user: "remove the 50MA from the third overlay MAs"): the step
   // set starts at 100, nine lines. Then "100 and 150 ... on daily only": the
   // DAILY overlay starts at 200 (seven lines); Weekly/Monthly keep all nine.
   const OV_SET_NAMES = { std: '3 MA', wide: '5 MA', step: '9 MA' };
+  // The buttons on the MA set row: the three trios share the one 3 MA button.
+  const OV_SET_ROW = ['std', 'wide', 'step'];
+  function ovSetRowKey() { return OV_TRIOS.includes(ovSet()) ? 'std' : ovSet(); }
   const OV_STEP_SKIP_D = [100, 150];
   function ovSet() { return OV_SETS[tfOverlay.set] ? tfOverlay.set : 'std'; }
   // 2026-10-03 (user: "add a monthly 50ma ... in the overlay"): the MONTHLY
@@ -8435,15 +8445,30 @@
   // has not published yet, the one in progress included. Labels follow
   // chart_feed._htf_mas: a month by its last day, the one in progress by its
   // newest day. A period the history cannot warm is simply not drawn.
-  const OV_ALL_PERIODS = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
-  function ovWantsDeepMonthly() { return ovHtfOn('M') && timeframe !== 'M' && timeframe !== 'W'; }
+  // 600 and 900 (2026-11-09, the 200/400/600 and 300/600/900 sets) are not
+  // in any bundle's W or M lines (chart_feed.OVERLAY_MA_PERIODS stops at
+  // 500): they are rolled here, from the Weekly and Monthly charts' own
+  // whole-history closes. A Weekly 900 is ~17 years, past the 13-year Daily
+  // cache the bundles' `w` lines are rolled over.
+  const OV_ALL_PERIODS = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 900];
+  const OV_SHIPPED_MAX = 500;
+  function ovNeedsDeep(tf) { return ovPeriods(tf).some(p => p > OV_SHIPPED_MAX); }
+  // Weekly's own `mo` is whole-history already, up to the shipped 500.
+  function ovWantsDeepMonthly() { return ovHtfOn('M') && timeframe !== 'M' && (timeframe !== 'W' || ovNeedsDeep('M')); }
+  function ovWantsDeepWeekly() { return ovHtfOn('W') && timeframe !== 'W' && ovNeedsDeep('W'); }
   async function ovLoadHtf(name) {
     const o = ovOtherTf();
-    await Promise.all([o && reelLoadChunk(name, o), ovWantsDeepMonthly() && reelLoadChunk(name, 'M')]);
+    await Promise.all([o && reelLoadChunk(name, o), ovWantsDeepMonthly() && reelLoadChunk(name, 'M'),
+      ovWantsDeepWeekly() && reelLoadChunk(name, 'W')]);
   }
-  function ovDeepMonthly(mb, shallow, since) {
-    const monthEnd = s => { const d = new Date(Date.parse(s)); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10); };
-    const t = mb.t.map(monthEnd), c = mb.c.slice();
+  // A month by its last day, as chart_feed._htf_mas labels it; a week by its
+  // Friday (W-FRI), where the Weekly chart stamps it on the Monday.
+  const OV_DEEP_LABEL = {
+    M: s => { const d = new Date(Date.parse(s)); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10); },
+    W: s => new Date(Date.parse(s) + 4 * 864e5).toISOString().slice(0, 10),
+  };
+  function ovDeepRoll(mb, shallow, since, label = OV_DEEP_LABEL.M) {
+    const t = mb.t.map(label), c = mb.c.slice();
     if (shallow && shallow.c && shallow.t) {
       const off = shallow.t.length - shallow.c.length;
       shallow.c.forEach((v, i) => { const ti = shallow.t[off + i]; if (ti > t[t.length - 1]) { t.push(ti); c.push(v); } });
@@ -8468,14 +8493,21 @@
   }
   // `hb` (the bundle carrying the overlay's W/M lines) with its Monthly lines
   // swapped for the whole-history ones once the Monthly chart is loaded.
+  // The Weekly lines likewise, from the Weekly chart, when the set needs a
+  // period past the shipped 500.
   function ovHtfView(name, hb, b) {
-    const mb = ovWantsDeepMonthly() && reelCachedBundle(name, 'M');
-    if (!hb || !mb || !mb.c || !mb.c.length) return hb;
-    const since = (hb.mo && hb.mo.t && hb.mo.t[0]) || String((b._src || b).t[0]).slice(0, 10);
-    const memo = mb._ovDeep;
-    let mo = memo && memo.shallow === hb.mo && memo.since === since ? memo.mo : undefined;
-    if (mo === undefined) { mo = ovDeepMonthly(mb, hb.mo, since); mb._ovDeep = { shallow: hb.mo, since, mo }; }
-    return mo ? Object.assign(Object.create(hb), { mo }) : hb;
+    if (!hb) return hb;
+    const swap = {};
+    [['M', 'mo', ovWantsDeepMonthly()], ['W', 'w', ovWantsDeepWeekly()]].forEach(([tf, key, want]) => {
+      const db = want && reelCachedBundle(name, tf);
+      if (!db || !db.c || !db.c.length) return;
+      const since = (hb[key] && hb[key].t && hb[key].t[0]) || String((b._src || b).t[0]).slice(0, 10);
+      const memo = db._ovDeep;
+      let v = memo && memo.shallow === hb[key] && memo.since === since ? memo.v : undefined;
+      if (v === undefined) { v = ovDeepRoll(db, hb[key], since, OV_DEEP_LABEL[tf]); db._ovDeep = { shallow: hb[key], since, v }; }
+      if (v) swap[key] = v;
+    });
+    return Object.keys(swap).length ? Object.assign(Object.create(hb), swap) : hb;
   }
   const OV_OWN_HTF = { D: ['W', 'M'], W: ['M'] };
   const OV_HTF_KEY = { W: 'w', M: 'mo' };
@@ -8848,8 +8880,10 @@
     let h = reelWeightMenu('nativeW', 'Chart MAs') + reelWeightMenu('gridW', 'Grid lines') + `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
       <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
-        <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
-          `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div></div>`;
+        <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${OV_SET_ROW.map(k =>
+          `<button class="reel-ov-set${ovSetRowKey() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${OV_SETS[k === 'std' ? ovTrio() : k].join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div>
+        <div class="reel-ov-row reel-ov-maw reel-ov-trios"><span>3 MA</span><div class="reel-ov-sets">${OV_TRIOS.map(k =>
+          `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" aria-label="3 MA set ${OV_SETS[k].join(', ')}">${OV_SETS[k].join('·')}</button>`).join('')}</div></div></div>`;
     // One switch per higher timeframe, thinnest first.
     ovHtfChoices().forEach(([tf, name, periods, weight]) => {
       const on = ovHtfOn(tf);
@@ -14804,10 +14838,15 @@
       }
       if (btn.dataset.act === 'ov-set') {
         if (!OV_SETS[btn.dataset.v]) return true;
-        tfOverlay.set = btn.dataset.v;
+        // The 3 MA button brings back the trio last chosen on the row below.
+        const v = btn.dataset.v === 'std' && btn.closest('.reel-ov-trios') === null ? ovTrio() : btn.dataset.v;
+        if (OV_TRIOS.includes(v)) tfOverlay.trio = v;
+        tfOverlay.set = v;
         ovSave();
         const panel = btn.closest('.reel-ov-panel');
         if (panel) panel.innerHTML = reelOvMenuHtml();
+        // 600/900 need the Weekly/Monthly charts' closes: load, then repaint.
+        if (ovWantsDeepWeekly() || ovWantsDeepMonthly()) { ovRefresh(); return true; }
         reelRepaintVisible();
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');

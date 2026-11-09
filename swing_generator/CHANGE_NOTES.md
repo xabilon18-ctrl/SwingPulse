@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 TWO MORE 3-LINE OVERLAY SETS: app.js v611, style.css v418.
+User: "200, 400 and 600 and the second one is 300, 600 and 900 ... this
+feature has to work across if i change it ... put them below the overlay
+MAs". OV_SETS gains `t200` [200, 400, 600] and `t300` [300, 600, 900]. The
+MA set row still reads 3 MA · 5 MA · 9 MA; a new "3 MA" row under it offers
+50·250·500 · 200·400·600 · 300·600·900. A trio tap selects it (and lights
+3 MA); the 3 MA button brings back the trio last chosen (`tfOverlay.trio`).
+Like the other sets it is one choice for every chart timeframe and is saved
+with the overlay (`sp-overlay`, work backup).
+- Daily 600/900 are rolled from the Daily bundle's closes like 100/200/300
+  (1,300 bars: a D900 covers the last ~400 days).
+- No bundle ships W or M 600/900 (chart_feed.OVERLAY_MA_PERIODS stops at
+  500, and a Weekly 900 is ~17 years, past the 13-year Daily cache). When
+  the set needs one, the app loads the Weekly chart's chunk (~25 years) and
+  rolls the Weekly lines from it, as it already did for Monthly from the
+  Monthly chart (ovDeepMonthly generalised to ovDeepRoll; a week is labelled
+  by its Friday). Monthly 600/900 (50/75 years) draw only where the Monthly
+  history is that long (e.g. US500). No pipeline or data change; the Near MA
+  filter still knows periods up to 500 only.
+
 2026-11-08 (evening) SAVED VIEWS FOLLOW THE DEVICE, NOT THE WINDOW: app.js
 v610. User: "the saved zoom for phone and laptop are independent... it
 currently not working probably. Fix". v605 picked the phone or computer key
