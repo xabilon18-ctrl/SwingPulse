@@ -7351,6 +7351,7 @@ body {
 :root {
   --reel-ma-up: #b6bac6;      /* rising MA — the neutral "default" line */
   --reel-bar:   #f2f2f4;      /* OHLC bars */
+  --reel-bar-vol: #60a5fa;    /* a bar on high volume (2026-11-09) */
   --reel-top:   112px;
 }
 
@@ -7503,6 +7504,7 @@ body {
   /* Bars were #f2f2f4 and the rising MA #b6bac6 — near-white and pale grey,
      both chosen for a dark panel and both invisible on this one. */
   --reel-bar:   #000;      /* pure black since 2026-09-30 (user: "all bars blacker") */
+  --reel-bar-vol: #1d4ed8; /* blue: a bar on high volume (2026-11-09, user) */
   --reel-ma-up: #14140f;   /* rising MA; a FALLING one still takes --sell red */
   /* Last-price tag and line by the last bar's direction (2026-11-07). */
   --reel-last-up: #089981;

@@ -8233,7 +8233,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {} };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -8363,6 +8363,42 @@
       out.push(m);
     }
     return out;
+  }
+  // BLUE BARS ON HIGH VOLUME (user, 2026-11-09: "turning the daily, weekly and
+  // monthly ... bars blue whenever volume is above average? But this must have
+  // switch for on and off"). One setting for Daily, Weekly and Monthly, kept
+  // with the other chart settings (tfOverlay, synced): 0 = off, 1 = above the
+  // average, 1.5 = at least 1.5x it. The average is each bar's own last
+  // VOLUME_LOOKBACK (25) bars, the same one behind VOL SPIKE
+  // (indicators.add_volume_analysis), never a flat line: a flat one marked
+  // most of BTC's last 5 years and all of GOLD's last month. Measured on every
+  // instrument's last 520 bars: above average is ~39% of Daily bars (41%
+  // Weekly/Monthly); 1.5x is ~12% Daily, 10% Weekly, 7.5% Monthly.
+  const VOL_BLUE_STEPS = [[1, 'Above average'], [1.5, '1.5× average']];
+  const VOL_BLUE_TFS = new Set(['D', 'W', 'M']);
+  const VOL_AVG_BARS = 25;
+  function volBlue() {
+    const v = tfOverlay.volBlue;
+    return v === 0 ? 0 : (VOL_BLUE_STEPS.some(([a]) => a === v) ? v : 1);
+  }
+  // Which bars of the slice `b` traded above k x their own 25-bar average.
+  // Reads the whole bundle (b._src) so the first bars on screen still have
+  // their 25 bars of history. Zero volume is "not reported" and never counts.
+  function volBlueMask(b, name) {
+    const k = volBlue();
+    if (!k || !VOL_BLUE_TFS.has(timeframe) || reelVolumeHidden(name)) return null;
+    const src = b._src || b, v = src.v, from = b._from || 0, n = b.c.length;
+    if (!v || !v.length) return null;
+    const mask = new Array(n).fill(false);
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const j = from + i, x = +v[j];
+      if (!(x > 0)) continue;
+      let sum = 0, cnt = 0;
+      for (let t = Math.max(0, j - VOL_AVG_BARS + 1); t <= j; t++) { const y = +v[t]; if (y > 0) { sum += y; cnt++; } }
+      if (cnt >= 10 && x > k * sum / cnt) { mask[i] = true; any = true; }
+    }
+    return any ? mask : null;
   }
   function ovSave() {
     scheduleWorkBackup();
@@ -11805,24 +11841,28 @@
     // at 0.9 a dense window drew hairlines that a phone anti-aliases to grey.
     const tick = Math.max(1.6, Math.min(bw * 0.45, 4.5));
     const bwid = Math.max(1.5, Math.min(bw * 0.3, 2.4));
-    const seg = [];
+    const seg = [], segVol = [];
+    const volMask = volBlueMask(b, item.instrument_name);
     for (let i = 0; i < n; i++) {
       const o = b.o[i], h = b.h[i], l = b.l[i], c = b.c[i];
       if (c == null) continue;
+      const out = volMask && volMask[i] ? segVol : seg;   // blue on high volume
       const x = +xOf(i).toFixed(1);
       if (h != null && l != null && h !== l) {
-        seg.push('M', x, ' ', sc.y(h).toFixed(1), 'V', sc.y(l).toFixed(1));
+        out.push('M', x, ' ', sc.y(h).toFixed(1), 'V', sc.y(l).toFixed(1));
       }
       if (o != null) {
         const yo = sc.y(o).toFixed(1);
-        seg.push('M', (x - tick).toFixed(1), ' ', yo, 'H', x);
+        out.push('M', (x - tick).toFixed(1), ' ', yo, 'H', x);
       }
       const yc = sc.y(c).toFixed(1);
-      seg.push('M', x, ' ', yc, 'H', (x + tick).toFixed(1));
+      out.push('M', x, ' ', yc, 'H', (x + tick).toFixed(1));
     }
-    const bars = seg.length
+    const bars = (seg.length
       ? `<path d="${seg.join('')}" fill="none" stroke="var(--reel-bar)" stroke-width="${bwid}"/>`
-      : '';
+      : '') + (segVol.length
+      ? `<path class="reel-bars-vol" d="${segVol.join('')}" fill="none" stroke="var(--reel-bar-vol)" stroke-width="${bwid}"/>`
+      : '');
 
     // ── Last-signal marker ── REMOVED 2026-09-09.
     // The arrow and its code used to sit on the bar the signal fired on. The
@@ -12157,6 +12197,14 @@
     if (r.on) {
       h += `<div class="reel-grid-row">${GRID_BAND_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === r.lvl ? ' on' : ''}" data-act="rib-set" data-part="band" data-v="${v}">${lbl}</button>`).join('')}</div>`;
+    }
+    if (VOL_BLUE_TFS.has(timeframe)) {
+      const vb = volBlue();
+      h += `<div class="reel-grid-sep"></div>
+      <button class="reel-tool reel-grid-switch${vb ? ' on' : ''}" data-act="volblue-set" data-part="on" role="menuitemcheckbox" aria-checked="${!!vb}">
+        <span>Blue bars on high volume<em>Daily, Weekly and Monthly · vs each bar's last 25</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+      if (vb) h += `<div class="reel-grid-row">${VOL_BLUE_STEPS.map(([v, lbl]) =>
+          `<button class="reel-tool reel-grid-opt${v === vb ? ' on' : ''}" data-act="volblue-set" data-part="lvl" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
     return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own; the swap is kept per market</div>`;
   }
@@ -14717,6 +14765,23 @@
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
+      if (btn.dataset.act === 'volblue-set') {
+        const cur = volBlue();
+        if (btn.dataset.part === 'on') tfOverlay.volBlue = cur ? 0 : (tfOverlay.volBlueLast || 1);
+        else {
+          const v = +btn.dataset.v;
+          if (!VOL_BLUE_STEPS.some(([a]) => a === v)) return true;
+          tfOverlay.volBlue = tfOverlay.volBlueLast = v;
+        }
+        ovSave();
+        reelRepaintVisible();
+        const full = chartFullEl();
+        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+        if (fh && fh._reelCtx) reelRepaint(fh);
+        const menu = btn.closest('.reel-grid-menu');
+        if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
         return true;
       }
       if (btn.dataset.act === 'rib-set') {
