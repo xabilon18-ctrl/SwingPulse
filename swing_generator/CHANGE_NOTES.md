@@ -12,8 +12,9 @@ v612, style.css v419. The user's request was for the chart's OWN trend lines
 ("this feature is for the trend line MAs"), not the overlay, so the overlay
 sets from v611 (entry below) are removed again and the overlay is back to
 3 MA / 5 MA / 9 MA. A "Trend MAs" block under Overlay MAs sets the chart's
-own three lines on every timeframe (1H, Daily, Weekly, Monthly) with one
-choice, saved as `tfOverlay.trend` with the overlay and the work backup.
+own three lines on 1H and Daily with one choice (user: "For daily and 1h.
+Don't apply in weekly and monthly"; TREND_TFS), saved as `tfOverlay.trend`
+with the overlay and the work backup. Weekly and Monthly keep 50/250/500.
 - Lines only. Signals, trend labels, alerts, the ledger and the payload stay
   on the pipeline's 50/250/500; nothing in chart_feed changed.
 - reelTrendBundle() swaps the bundle's ribbon at the top of reelChartSvg,
@@ -21,8 +22,7 @@ choice, saved as `tfOverlay.trend` with the overlay and the work backup.
   rolled from the bundle's own closes at the ribbon's sample points (scaled
   by the bundle's fast period, so a normalised ribbon keeps its proportion),
   memoised per bundle in a WeakMap. A line starts once that many bars exist
-  in the bundle: an MA900 covers the last ~400 Daily bars of 1,300, and on
-  Monthly most instruments draw 200/300 at most. The forming bar carries the
+  in the bundle: an MA900 covers the last ~400 Daily bars of 1,300. The forming bar carries the
   last value (its own MAs are for 50/250/500).
 - v611's `trio` key was never kept by the overlay loader's whitelist; `trend`
   is added there.

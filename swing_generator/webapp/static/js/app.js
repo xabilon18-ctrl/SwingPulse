@@ -8394,12 +8394,15 @@
   // TREND MAs (user, 2026-11-09: "the trend line MAs are 50 250 and 500. I
   // would like to see how these two would look like. 200, 400 and 600 and
   // the second one is 300, 600 and 900 ... has to work across if i change
-  // it"). The chart's OWN three lines, on every timeframe, one choice for
-  // all of them. Lines only: signals, trend labels, alerts and the ledger
+  // it"). The chart's OWN three lines, one choice for the timeframes in
+  // TREND_TFS. Lines only: signals, trend labels, alerts and the ledger
   // stay on the pipeline's 50/250/500. The other two sets are rolled here
   // from the bundle's closes, so a line starts once that many bars exist in
   // the bundle (an MA900 on Daily covers its last ~400 bars).
   const TREND_SETS = { std: [50, 250, 500], t200: [200, 400, 600], t300: [300, 600, 900] };
+  // 1H and Daily only (user, 2026-11-09: "For daily and 1h. Don't apply in
+  // weekly and monthly"): Weekly and Monthly keep 50/250/500 whatever is set.
+  const TREND_TFS = new Set(['1H', 'D']);
   const TREND_MEMO = new WeakMap();
   function trendSet() { return TREND_SETS[tfOverlay.trend] ? tfOverlay.trend : 'std'; }
   // The bundle with its ribbon swapped for the chosen set. Periods scale with
@@ -8409,7 +8412,7 @@
   // are dropped and the last value is carried instead.
   function reelTrendBundle(bundle) {
     const key = trendSet();
-    if (key === 'std' || !bundle || !bundle.c || !bundle.m || !bundle.m.length || !bundle.p || !bundle.p.length) return bundle;
+    if (key === 'std' || !TREND_TFS.has(timeframe) || !bundle || !bundle.c || !bundle.m || !bundle.m.length || !bundle.p || !bundle.p.length) return bundle;
     const memo = TREND_MEMO.get(bundle);
     if (memo && memo.key === key) return memo.out;
     const n = bundle.c.length;
@@ -8885,7 +8888,7 @@
       <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
         <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
           `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div></div>
-      <div class="reel-ov-block reel-trend-block"><div class="reel-ov-title">Trend MAs<span>every chart</span></div>
+      <div class="reel-ov-block reel-trend-block"><div class="reel-ov-title">Trend MAs<span>1H and Daily</span></div>
         <div class="reel-ov-row reel-ov-maw reel-ov-trios"><span>Lines</span><div class="reel-ov-sets">${Object.entries(TREND_SETS).map(([k, ps]) =>
           `<button class="reel-ov-set${trendSet() === k ? ' on' : ''}" data-act="trend-set" data-v="${k}" aria-pressed="${trendSet() === k}" aria-label="Trend MAs ${ps.join(', ')}">${ps.join('·')}</button>`).join('')}</div></div></div>`;
     // One switch per higher timeframe, thinnest first.
