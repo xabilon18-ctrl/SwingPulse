@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 (later) LIVE CHECK: OVERLAY WIDTHS READ ONLY WHEN SETTLED.
+tests/chart_readability_browser.cjs ("Verify released chart weights", main
+only) failed "each overlay family changes width" on the #168 and #175
+production releases, passing on a re-run. It clicked Thin/Medium/Thick and
+read every overlay polyline's width at once, then compared by index: the
+repaint could still be pending, or the Weekly/Monthly lines could land
+between reads, so index i named different lines (the flaw the projection
+check below it was already fixed for). It now waits for four identical reads
+250 ms apart (and, after a width change, a read different from the last),
+and asserts the three reads hold the same number of lines. The app is
+unchanged.
+
 2026-11-09 (later) BLUE BARS DEFAULT 2x: app.js v615. User, live on v614:
 "Above average" made almost everything blue (39% of Daily bars, and on a
 dense phone chart the blue drawn over black looks like more). Shown the

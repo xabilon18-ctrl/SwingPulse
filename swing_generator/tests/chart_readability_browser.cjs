@@ -71,12 +71,32 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     if(await button.count()&&await button.getAttribute('aria-checked')!=='true')await button.click();
    }
    await page.locator('#chartFullHost .reel-ov polyline').first().waitFor({timeout:60000});
+   // Read only a SETTLED overlay (2026-11-09). Reading straight after the
+   // click failed at random on two production releases (2026-11-08 #168,
+   // 2026-11-09 #175; both passed on a re-run): the repaint had not landed
+   // yet, or the Weekly/Monthly lines arrived between two reads, so index i
+   // no longer named the same line (the same flaw the projection check below
+   // was fixed for). Wait until four reads 250 ms apart agree and, after a
+   // width change, differ from the read before it.
+   const ovRead=()=>page.locator('#chartFullHost .reel-ov > polyline').evaluateAll(es=>es.map(e=>parseFloat(getComputedStyle(e).strokeWidth)));
+   const ovSettled=async before=>{
+    let last=null,same=0;
+    for(let t=0;t<80;t++){
+     const cur=await ovRead(),key=JSON.stringify(cur);
+     same=last&&key===JSON.stringify(last)?same+1:0;
+     if(same>=3&&cur.length&&(!before||key!==JSON.stringify(before)))return cur;
+     last=cur;await page.waitForTimeout(250);
+    }
+    return last;
+   };
    const overlay=[];
    for(const n of [.6,1,1.7]){
     await page.locator(`[data-act="ov-maw"][data-v="${n}"]`).click();
-    overlay.push(await page.locator('#chartFullHost .reel-ov > polyline').evaluateAll(es=>es.map(e=>parseFloat(getComputedStyle(e).strokeWidth))));
+    overlay.push(await ovSettled(overlay[overlay.length-1]));
    }
-   assert.ok(overlay[0].length>0);for(let i=0;i<overlay[0].length;i++)assert.ok(overlay[0][i]<overlay[1][i]&&overlay[1][i]<overlay[2][i],'each overlay family changes width');
+   assert.ok(overlay[0].length>0);
+   assert.ok(overlay[0].length===overlay[1].length&&overlay[1].length===overlay[2].length,'the same overlay lines on every read: '+overlay.map(o=>o.length).join('/'));
+   for(let i=0;i<overlay[0].length;i++)assert.ok(overlay[0][i]<overlay[1][i]&&overlay[1][i]<overlay[2][i],'each overlay family changes width');
    const pj=page.locator('[data-act="ov-proj"]');if(await pj.getAttribute('aria-checked')!=='true')await pj.click();
    // Compare each projection FAMILY with itself (keyed by its stroke: the
    // monthly line takes the MA colours, weekly and daily their own), after the
