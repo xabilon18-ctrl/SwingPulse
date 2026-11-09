@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-09 (later) BLUE BARS DEFAULT 2x: app.js v615. User, live on v614:
+"Above average" made almost everything blue (39% of Daily bars, and on a
+dense phone chart the blue drawn over black looks like more). Shown the
+measured rates (2x: ~5% Daily, 3% Weekly, 2% Monthly; 1.5x: 12/10/7.5%), the
+user picked "2x by default, 1.5x as the option". Above average is removed as
+a choice; a stored 1 (or nothing) reads as 2.
+
 2026-11-09 BLUE BARS ON HIGH VOLUME: app.js v614, style.css v421. User: "turning
 the daily, weekly and monthly volume candles or bars blue whenever volume is
 above average? But this must have switch for on and off".
