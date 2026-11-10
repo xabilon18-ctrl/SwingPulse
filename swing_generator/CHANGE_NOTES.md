@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-10 FULL-SCREEN HEADER AND FOOTER: NO BAND, BIGGER HEADER TEXT:
+style.css v422. User: "Make the footer and the header not to have borders ...
+let them be over the charts ... they must remain static and not move ...
+they mustn't look like they have something holding them". On the phone's
+full screen the 55% white strip behind the header and footer (2026-11-05) is
+removed: its edge read as a line across the chart. The words, icons and
+buttons sit straight on the chart with a stronger white halo (text-shadow on
+letters, drop-shadow on icons) so they stay readable over candles and grid
+lines. They were already fixed to the screen, outside the chart's pan layer;
+nothing in reelLayout changed. Header text "a little bit bigger, but not out
+of place": ticker 16 → 19px, timeframe 11 → 13px, full name 12.5 → 14.5px,
+trend / Updated row 11 / 10 → 12.5 / 11.5px. Footer sizes unchanged (user:
+"The footer is fine"); its button outlines are kept. Desktop unchanged.
+app_smoke now asserts no background, no border and the 19px ticker.
+
 2026-11-09 (later) LIVE CHECK: OVERLAY WIDTHS READ ONLY WHEN SETTLED.
 tests/chart_readability_browser.cjs ("Verify released chart weights", main
 only) failed "each overlay family changes width" on the #168 and #175

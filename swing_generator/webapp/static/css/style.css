@@ -9904,13 +9904,28 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) > .cf-head,
 #chartFull:not(.desktop-chart) > .reel-foot {
   position: absolute; left: 0; right: 0; z-index: 5;
-  /* More see-through (user, 2026-11-05: "A bit more see through that shows
-     the charts every[where] when I move them"): 55% white and NO blur, so
-     the chart stays sharp underneath while it is panned. A soft white edge
-     on the words keeps them readable over the lines. */
-  background: rgba(255, 255, 255, .55);
-  text-shadow: 0 0 2px #fff, 0 0 4px #fff, 0 0 6px rgba(255, 255, 255, .9);
+  /* NO BAND (user, 2026-11-10: "not to have borders ... placed on top of the
+     charts ... mustn't look like they have something holding them"). The
+     55% white strip of 2026-11-05 is gone: its edge read as a line across the
+     chart. The words and buttons sit straight on the chart, fixed to the
+     screen (they are outside the chart's pan layer, so moving the chart never
+     moves them), and a white halo on every letter keeps them readable over
+     candles and lines. */
+  background: transparent; border: 0; box-shadow: none;
+  text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px rgba(255, 255, 255, .95);
 }
+/* Icons (▲ ▼, bookmark, grid, ···, ✕) get the same halo as the letters. */
+#chartFull:not(.desktop-chart) > .cf-head svg {
+  filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 3px #fff);
+}
+/* Header text a little bigger (user, 2026-11-10: "a little bit bigger, but
+   not out of place"): ticker 16 → 19px, timeframe 11 → 13px, full name
+   12.5 → 14.5px, trend / updated row 11 / 10 → 12.5 / 11.5px. */
+#chartFull:not(.desktop-chart) .cf-title .reel-name { font-size: 19px; }
+#chartFull:not(.desktop-chart) .cf-title .reel-group { font-size: 13px; }
+#chartFull:not(.desktop-chart) .cf-fullname { font-size: 14.5px; margin-top: -1px; }
+#chartFull:not(.desktop-chart) .cf-info .sp-trend-context.compact { font-size: 12.5px; }
+#chartFull:not(.desktop-chart) .cf-info-freshness { font-size: 11.5px; }
 #chartFull:not(.desktop-chart) > .cf-head {
   top: 0;
   padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);

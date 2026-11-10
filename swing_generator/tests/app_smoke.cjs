@@ -208,9 +208,10 @@ let debugPage;
   await page.waitForFunction(before => [...document.querySelectorAll('#chartFull .reel-band-g rect')].map(r => r.getAttribute('x')).join(',') === before, unswapped);
   await page.locator('.reel-grid-menu [data-act="grid-set"][data-part="on"]').click();
   await page.locator('#chartFull [data-act="grid-menu"]').click();
-  // See-through header and footer (user, 2026-11-05): on the phone the chart
-  // fills the screen under them, they are translucent, and the readable frame
-  // and the date row stay in the clear part between them.
+  // Header and footer over the chart (user, 2026-11-05; no band since
+  // 2026-11-10): on the phone the chart fills the screen under them, they have
+  // no background and no border, the ticker is the larger 19px, and the
+  // readable frame and the date row stay in the clear part between them.
   {
     const o = await page.evaluate(() => {
       const f = document.getElementById('chartFull'), c = document.getElementById('chartFullHost');
@@ -219,10 +220,13 @@ let debugPage;
       const alpha = e => { const m = getComputedStyle(e).backgroundColor.match(/rgba?\(([^)]+)\)/); const p = m ? m[1].split(',') : []; return p.length > 3 ? +p[3] : 1; };
       return { fh: f.getBoundingClientRect().height, ch: cr.height, top: cr.top, headBottom: h.getBoundingClientRect().bottom,
         footTop: ft.getBoundingClientRect().top, py0: cr.top + L.py0 * u, dateY: cr.top + L.dateY * u, stripY: cr.top + L.stripY * u,
-        ha: alpha(h), fa: alpha(ft), overlaid: !!c.querySelector('svg.reel-svg.is-overlaid') };
+        ha: alpha(h), fa: alpha(ft), overlaid: !!c.querySelector('svg.reel-svg.is-overlaid'),
+        borders: [h, ft].map(e => { const s = getComputedStyle(e); return parseFloat(s.borderTopWidth) + parseFloat(s.borderBottomWidth) + (s.boxShadow === 'none' ? 0 : 1); }),
+        nameSize: parseFloat(getComputedStyle(h.querySelector('.cf-title .reel-name')).fontSize) };
     });
     assert.ok(o.overlaid && o.ch >= o.fh - 2 && o.top <= 1, 'the full-screen chart runs under the header and footer: ' + JSON.stringify(o));
-    assert.ok(o.ha > 0.5 && o.ha < 1 && o.fa > 0.5 && o.fa < 1, 'header and footer are a little see-through: ' + JSON.stringify(o));
+    assert.ok(o.ha === 0 && o.fa === 0 && o.borders.every(b => b === 0), 'header and footer have no band and no border: ' + JSON.stringify(o));
+    assert.equal(o.nameSize, 19, 'full-screen ticker is 19px');
     assert.ok(o.py0 >= o.headBottom && o.dateY <= o.footTop && o.stripY > o.py0, 'frame, dates and strip sit in the clear part: ' + JSON.stringify(o));
     require('fs').mkdirSync('readability-review-results', { recursive: true });
     await page.screenshot({ path: 'readability-review-results/full-chart-see-through.png', fullPage: false });
