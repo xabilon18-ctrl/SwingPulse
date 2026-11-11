@@ -33,12 +33,17 @@ the change it describes and merges with it under ALWAYS DEPLOY (user,
 
 ## What is SwingPulse?
 
-**Current production update (2026-10-07):** 30m, **1H with B1/S1 signals**, and
-Daily are active. Hourly uses the existing `_compute_1h_state` / `load_1h` path:
+**Current production update (2026-11-11):** **1H with B1/S1 signals** and
+Daily are the only timeframes the data run computes; Weekly and Monthly are
+charts on their own schedule. 30m and 4H were removed from the run on
+2026-11-11 (user: "30m and 4h must go"): no `m30_`/`h4_` columns, no 30m
+chart chunks, no 4H ledger fires. The 5m download stays for quotes.json and
+the currency indices. Do not bring 30m or 4H back without the user asking
+for it by name. Hourly uses the existing `_compute_1h_state` / `load_1h` path:
 exact MA50/250/500, completed hours only, primary crosses without re-fires,
 24-hour signal lifetime, standard confidence (not the retired `1H|` backtest
 tiers), no hourly entries in the Daily performance ledger. Hourly currency
-indices use the same baskets and daily base as the 5m indices. Daily and 30m
+indices use the same baskets and daily base as the 5m indices. Daily
 signal rules are unchanged. App data refreshes every 30 minutes while visible
 and on foregrounding after that interval; a changed data timestamp invalidates
 the chart index and chunks too. UI JavaScript is v481.
@@ -373,8 +378,9 @@ set (`main.py _extract_row`); daily bars are unique by date.
 ## Frontend App Tabs
 
 **CURRENT (2026-09-27): Watchlist · Charts · Alerts · Market.** The list below it is HISTORY.
-- **Alerts** (pane `#pane-scanner`, container `#alertsPane`) — every chart marker (30m/1H/4H/Daily
-  B1-S1, Daily-MA touches/crosses) newest first, the user's lists first, plus price at/through
+- **Alerts** (pane `#pane-scanner`, container `#alertsPane`) — 1H and Daily B1-S1 and pullback
+  alerts newest first (the Daily-MA touch/cross alerts were read from 30m and went with it on
+  2026-11-11; see `alerts_feed._events_for`), the user's lists first, plus price at/through
   lines they DREW (client-side, from `instChannels` + `wlQuote`). Data: `alerts.json` from
   `webapp/alerts_feed.py`, built inside `chart_feed.build_chart_feed` off the finished bundles.
   Alerts are timed at the bar they could first be KNOWN (a cross confirms `XM_HOLD` bars later)
