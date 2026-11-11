@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) RETIRED CHART FOLDERS DELETED FROM R2 (user: "Remove the
+old chart folders on R2 too"). `publish.prune_retired_chart_folders` deletes
+`ma500/chart/<tf>/` for every `RETIRED_CHART_TFS` (5m, 10m, 15m, 30m, 2H, 4H,
+12H, 3D) after a successful hourly upload. It runs from the hourly publish
+because that job holds the only Cloudflare token with R2 rights (the session
+token answers "Authentication error" on R2). It refuses to touch 1H, D, W, M
+or anything in `chart_feed.CHART_BUILDERS`; once every key is gone the R2
+manifest records it (`retired_pruned`) and later runs make no R2 calls for
+it. Never fatal: a failure leaves the files and retries next run. Saved
+drawings are in the sync store, not on R2, so none are affected. Tests in
+tests/htf_feed_test.py (RetiredChartPruneTests).
+
 2026-11-11 (later) MOCKUPS AND THE OLD WIDGET SCRIPT DELETED (user: "Remove
 the mockups and unused files too"). Removed `webapp/mockups/` (4 pages),
 `webapp/v2-mockups.html`, `webapp/preview_charts.html` and

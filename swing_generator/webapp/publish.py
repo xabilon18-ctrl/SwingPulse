@@ -921,6 +921,105 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchange
     return ok, len(failed)
 
 
+# Chart folders on R2 for timeframes the app no longer has (user, 2026-11-11:
+# "Remove the old chart folders on R2 too"). Nothing reads them: the app asks
+# only for its own timeframes, and drawings live in the sync store, not here.
+# The hourly publish deletes them because it holds the only token with R2
+# rights. Once every key is gone the manifest records it, so later runs make
+# no list calls at all. Add a timeframe here only after its chart is removed
+# from the app AND from chart_feed.CHART_BUILDERS / tools/publish_htf.py.
+RETIRED_CHART_TFS = ('5m', '10m', '15m', '30m', '2H', '4H', '12H', '3D')
+_LIVE_CHART_TFS = ('1H', 'D', 'W', 'M')
+
+
+def _r2_api(method, path, api_token, timeout=60, max_429_retries=6):
+    """One Cloudflare R2 REST call -> parsed JSON. Retries 429 like _r2_put_api."""
+    import urllib.request
+    import urllib.error
+    url = f'https://api.cloudflare.com/client/v4/accounts/{_CF_ACCOUNT_ID}/r2/buckets/{R2_BUCKET}{path}'
+    backoff = 2.0
+    for attempt in range(max_429_retries + 1):
+        try:
+            req = urllib.request.Request(url, method=method,
+                                         headers={'Authorization': f'Bearer {api_token}'})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read() or b'{}')
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < max_429_retries:
+                retry_after = exc.headers.get('Retry-After') if exc.headers else None
+                time.sleep(float(retry_after) if retry_after and retry_after.isdigit() else backoff)
+                backoff = min(backoff * 2, 30.0)
+                continue
+            if exc.code == 404 and method == 'DELETE':
+                return {'success': True}          # already gone
+            raise
+
+
+def _r2_list(prefix, api_token):
+    import urllib.parse
+    keys, cursor = [], None
+    while True:
+        q = {'prefix': prefix, 'per_page': 1000}
+        if cursor:
+            q['cursor'] = cursor
+        d = _r2_api('GET', '/objects?' + urllib.parse.urlencode(q), api_token)
+        if not d.get('success', True):
+            raise RuntimeError(f'R2 list {prefix}: {d.get("errors")}')
+        keys += [o['key'] for o in d.get('result') or []]
+        info = d.get('result_info') or {}
+        cursor = info.get('cursor')
+        if not info.get('is_truncated') or not cursor:
+            return keys
+
+
+def prune_retired_chart_folders(r2_prefix=R2_DATA_PREFIX, max_workers=8):
+    """Delete chart/<tf>/ on R2 for every RETIRED_CHART_TFS. Never fatal:
+    a failure costs storage, not a publish. Returns the number deleted."""
+    import urllib.parse
+    api_token = os.environ.get('CLOUDFLARE_API_TOKEN', '').strip()
+    if not api_token:
+        return 0
+    bad = set(RETIRED_CHART_TFS) & set(_LIVE_CHART_TFS)
+    try:
+        from chart_feed import CHART_BUILDERS
+        bad |= set(RETIRED_CHART_TFS) & set(CHART_BUILDERS)
+    except Exception:
+        pass
+    if bad:
+        print(f'  WARN not pruning R2: {sorted(bad)} are live chart timeframes')
+        return 0
+    manifest = _load_r2_manifest()
+    if manifest.get('retired_pruned') == sorted(RETIRED_CHART_TFS):
+        return 0
+    deleted, failed = 0, 0
+    try:
+        for tf in RETIRED_CHART_TFS:
+            prefix = f'{r2_prefix}/chart/{tf}/'
+            keys = _r2_list(prefix, api_token)
+            if not keys:
+                continue
+
+            def _del(key):
+                d = _r2_api('DELETE', '/objects/' + urllib.parse.quote(key, safe='/'), api_token)
+                return bool(d.get('success', True))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+                results = list(ex.map(_del, keys))
+            ok = sum(results)
+            deleted += ok
+            failed += len(keys) - ok
+            print(f'  R2: removed {ok}/{len(keys)} files under chart/{tf}/ (retired timeframe)', flush=True)
+            for k in keys:
+                manifest['files'].pop(k, None)
+    except Exception as exc:
+        print(f'  WARN retired chart folders not pruned: {exc}')
+        failed += 1
+    if not failed:
+        manifest['retired_pruned'] = sorted(RETIRED_CHART_TFS)
+    _save_r2_manifest(manifest)
+    return deleted
+
+
 # ---------------------------------------------------------------------------
 # UI build (Cloudflare Pages — only needed when frontend changes)
 # ---------------------------------------------------------------------------
@@ -1103,6 +1202,7 @@ def main():
     pages_url = f'https://{PAGES_PROJECT}.pages.dev'
     if fail_count == 0:
         print(f'\n  ✓ App updated! {pages_url}')
+        prune_retired_chart_folders()
     else:
         print(f'\n  ✗ R2 upload had {fail_count} failure(s) — {ok_count} files uploaded. Check wrangler auth (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID).')
         sys.exit(1)

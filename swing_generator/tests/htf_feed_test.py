@@ -440,5 +440,56 @@ class VolumeQualityTest(unittest.TestCase):
         self.assertEqual(cf.unreliable_volume_names({'GOLD': {'v': bad}, 'AAPL': {'v': good}, 'EURUSD': {}}), ['GOLD'])
 
 
+class RetiredChartPruneTests(unittest.TestCase):
+    """publish.prune_retired_chart_folders: deletes only retired chart folders
+    on R2, once, and never a live timeframe's (2026-11-11)."""
+
+    def setUp(self):
+        import publish
+        self.p = publish
+        self.tmp = tempfile.TemporaryDirectory()
+        self.bucket = {f'ma500/chart/{tf}/{i}.json' for tf in ('30m', '4H', '5m', '1H', 'D', 'W', 'M') for i in range(3)}
+        self.bucket |= {'ma500/chart/index.json', 'ma500/signals.json'}
+        self.calls = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fake_api(self, method, path, token, **_):
+        import urllib.parse
+        self.calls.append(method)
+        if method == 'GET':
+            prefix = urllib.parse.parse_qs(path.split('?', 1)[1])['prefix'][0]
+            return {'success': True, 'result': [{'key': k} for k in sorted(self.bucket) if k.startswith(prefix)],
+                    'result_info': {'is_truncated': False}}
+        self.bucket.discard(urllib.parse.unquote(path[len('/objects/'):]))
+        return {'success': True}
+
+    def run_prune(self):
+        with patch.object(self.p, '_r2_api', side_effect=self.fake_api), \
+             patch.object(self.p, 'R2_MANIFEST', os.path.join(self.tmp.name, 'm.json')), \
+             patch.dict(os.environ, {'CLOUDFLARE_API_TOKEN': 'x'}):
+            return self.p.prune_retired_chart_folders()
+
+    def test_only_retired_folders_go_and_only_once(self):
+        self.assertEqual(self.run_prune(), 9)
+        left = {k.split('/')[2] for k in self.bucket if k.count('/') == 3}
+        self.assertEqual(left, {'1H', 'D', 'W', 'M'})
+        self.assertIn('ma500/chart/index.json', self.bucket)
+        self.calls.clear()
+        self.assertEqual(self.run_prune(), 0)
+        self.assertEqual(self.calls, [], 'a finished prune makes no further R2 calls')
+
+    def test_never_touches_a_live_timeframe(self):
+        with patch.object(self.p, 'RETIRED_CHART_TFS', ('30m', 'D')):
+            self.assertEqual(self.run_prune(), 0)
+        self.assertEqual(self.calls, [])
+
+    def test_no_token_does_nothing(self):
+        with patch.dict(os.environ, {'CLOUDFLARE_API_TOKEN': ''}), \
+             patch.object(self.p, '_r2_api', side_effect=AssertionError('called')):
+            self.assertEqual(self.p.prune_retired_chart_folders(), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
