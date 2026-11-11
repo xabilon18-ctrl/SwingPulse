@@ -5451,7 +5451,7 @@
     };
 
     if (!segments.length) {
-      main.innerHTML = backBtn + `<div class="trends-empty-state"><p>No trend history available for ${name}</p></div>`;
+      main.innerHTML = backBtn + `<div class="trends-empty-state"><p>No trend history available for ${escText(name)}</p></div>`;
       document.getElementById('trendsBackBtn').addEventListener('click', () => {
         goBack();
       });
@@ -5492,7 +5492,7 @@
       ${backBtn}
 
       <div class="trend-detail-header">
-        <div class="trend-detail-name">${name}</div>
+        <div class="trend-detail-name">${escText(name)}</div>
         <div class="trend-detail-meta">
           <span class="est-trend ${estCls}">${established === 'UPTREND' ? 'Uptrend' : established === 'DOWNTREND' ? 'Downtrend' : 'Neutral'}</span>
           <span>${item ? [item.group, item.sector].filter(Boolean).join(' · ') : ''}</span>
@@ -10068,7 +10068,7 @@
     menu.setAttribute('role', 'menu');
     menu.innerHTML = tabTfs('charts').map(code => {
       const on = code === timeframe;
-      return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${name}">${TF_BY_CODE[code].label}</button>`;
+      return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${escText(name)}">${escText(TF_BY_CODE[code].label)}</button>`;
     }).join('') + `<div class="reel-ov-panel">${reelOvMenuHtml()}</div>`;
     // Sliders move the layer's opacity live (CSS variables, no repaint); the
     // release saves, and repaints only when a drawings layer crosses 0 — at 0
@@ -11143,7 +11143,7 @@
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-label', 'Share preview');
     ov.innerHTML = `
-      <div class="share-prev-img"><img alt="Preview of the shared ${name} chart"></div>
+      <div class="share-prev-img"><img alt="Preview of the shared ${escText(name)} chart"></div>
       <div class="share-prev-bar">
         <button type="button" class="share-prev-btn" data-sp="cancel">Cancel</button>
         <button type="button" class="share-prev-btn" data-sp="save">Save</button>
