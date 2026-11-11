@@ -20,6 +20,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--live', action='store_true')
 args = parser.parse_args()
 
+def live_timeframes(html):
+    """Timeframe codes in the page's injected table, or None when the page has none."""
+    m = re.search(r'window\.SP_TIMEFRAMES = (\[.*?\]);</script>', html, re.S)
+    if not m:
+        return None
+    try:
+        return [t['code'] for t in json.loads(m.group(1))]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
 def read_live(relative):
     """A slow or stalled R2 read is retried; an HTTP error fails at once."""
     wait = FETCH_WAIT
@@ -81,9 +92,13 @@ if args.live:
                 f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
                 headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=20) as response:
             html = response.read().decode()
-        if 'id="tfBtn1H"' in html and expected_asset in html:
-            assert 'id="tfBtn30m"' not in html, 'Retired 30m control remains live'
-            assert 'id="tfBtn4H"' not in html, 'Retired 4H control remains live'
+        # The timeframe buttons are built by app.js from the table the build
+        # injects (config.TIMEFRAME_TABLE -> window.SP_TIMEFRAMES, 2026-11-11),
+        # so the released page is recognised by that table, not by button markup.
+        codes = live_timeframes(html)
+        if codes is not None and '1H' in codes and expected_asset in html:
+            assert '30m' not in codes, 'Retired 30m control remains live'
+            assert '4H' not in codes, 'Retired 4H control remains live'
             break
         assert time.monotonic() < deadline, 'Live UI is still the previous build'
         print('Waiting for the new Pages assets to reach the production URL', flush=True)
