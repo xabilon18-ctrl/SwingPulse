@@ -58,7 +58,7 @@ R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma500'
 sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments, load_retired
-from server import build_ai_set, get_ticker_map, _ticker_to_filename
+from server import build_ai_set, get_ticker_map
 from chart_feed import build_chart_feed
 
 

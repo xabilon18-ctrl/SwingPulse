@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import time
 from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -481,21 +480,6 @@ def drop_unfinished_4h(df: pd.DataFrame) -> pd.DataFrame:
     return df[pd.DatetimeIndex(idx) + pd.Timedelta(hours=4) <= _utc_now()]
 
 
-def drop_unfinished_10m(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop trailing 10-minute bars whose window has not elapsed yet.
-
-    Same rule as drop_unfinished_1h/4h at a ten-minute window (Important Rule
-    10: never compute on a bar whose period is still open). 5m caches are stored
-    in UTC like the hourly ones, so no per-exchange timetable is needed.
-    """
-    if df.empty:
-        return df
-    idx = df.index
-    if getattr(idx, 'tz', None) is not None:
-        idx = idx.tz_convert('UTC').tz_localize(None)
-    return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=10) <= _utc_now()]
-
-
 def drop_unfinished_5m(df: pd.DataFrame) -> pd.DataFrame:
     """Drop trailing 5-minute bars whose window has not elapsed yet (Rule 10)."""
     if df.empty:
@@ -506,16 +490,6 @@ def drop_unfinished_5m(df: pd.DataFrame) -> pd.DataFrame:
     return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=5) <= _utc_now()]
 
 
-def drop_unfinished_15m(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop trailing 15-minute bars whose window has not elapsed yet (Rule 10)."""
-    if df.empty:
-        return df
-    idx = df.index
-    if getattr(idx, 'tz', None) is not None:
-        idx = idx.tz_convert('UTC').tz_localize(None)
-    return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=15) <= _utc_now()]
-
-
 def drop_unfinished_30m(df: pd.DataFrame) -> pd.DataFrame:
     """Drop trailing 30-minute bars whose window has not elapsed yet (Rule 10)."""
     if df.empty:
@@ -524,39 +498,6 @@ def drop_unfinished_30m(df: pd.DataFrame) -> pd.DataFrame:
     if getattr(idx, 'tz', None) is not None:
         idx = idx.tz_convert('UTC').tz_localize(None)
     return df[pd.DatetimeIndex(idx) + pd.Timedelta(minutes=30) <= _utc_now()]
-
-
-def heal_daily_gaps_from_hourly(daily: pd.DataFrame, hourly: pd.DataFrame) -> pd.DataFrame:
-    """Rebuild whole daily bars Yahoo's daily feed simply omitted.
-
-    ONLY safe for 24/7 instruments, and only called for them: a crypto daily
-    bar IS the UTC day, so resampling the hourly feed reproduces it exactly.
-    An equity's daily bar is a session with pre/post-market either side of it
-    and cannot be reconstructed this way, so equities are never passed here.
-
-    Yahoo drops crypto days routinely — 2026-08-03 was missing for all 55 coins
-    while the hourly feed had every hour of it. Measured over ~400 days: every
-    one of the 55 has gaps, median 6 days each, GALA 32. Mid-history a gap is a
-    small ribbon distortion, but at the tail it collides with the finished-
-    sessions rule — drop the in-progress day, fall back to a missing one, and
-    the instrument reads two days stale.
-    """
-    if daily.empty or hourly is None or hourly.empty:
-        return daily
-    h = hourly.copy()
-    if getattr(h.index, 'tz', None) is not None:
-        h.index = h.index.tz_convert('UTC').tz_localize(None)
-    rebuilt = h.resample('1D').agg({'Open': 'first', 'High': 'max', 'Low': 'min',
-                                    'Close': 'last', 'Volume': 'sum'}).dropna(subset=['Close'])
-    have = pd.DatetimeIndex(daily.index).normalize()
-    missing = rebuilt.index.difference(have)
-    # Only fill INSIDE the daily series' own span — never extend it past the
-    # end, or an in-progress day would sneak back in through this door.
-    missing = missing[(missing > have.min()) & (missing < have.max())]
-    if len(missing) == 0:
-        return daily
-    out = pd.concat([daily, rebuilt.loc[missing, [c for c in rebuilt.columns if c in daily.columns]]])
-    return out.sort_index()
 
 
 def _read_cache(path: str) -> pd.DataFrame:

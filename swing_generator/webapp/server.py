@@ -18,7 +18,7 @@ import sys
 from datetime import datetime
 
 import pandas as pd
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -160,15 +160,6 @@ def build_ai_set() -> list[str]:
 _data_cache: dict = {}
 
 
-def _ticker_to_filename(ticker: str) -> str:
-    """Convert ticker symbol to parquet cache filename."""
-    safe = (ticker
-            .replace('=', '_EQ_')
-            .replace('^', '_IDX_')
-            .replace('.', '_DOT_'))
-    return f'{safe}.parquet'
-
-
 def load_latest_signals() -> tuple[pd.DataFrame, str]:
     """Load the most recent signals CSV."""
     files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_*.csv')))
@@ -307,12 +298,7 @@ _chart_chunk_cache: dict = {}
 
 # ONE table — the route's timeframe whitelist reads this, it does not restate it.
 _CHART_BUILDERS = {
-    '10m': chart_feed.build_10m_live,
-    '15m': chart_feed.build_15m,
-    '30m': chart_feed.build_30m,
     '1H': chart_feed.build_1h,
-    '2H': chart_feed.build_2h,
-    '12H': chart_feed.build_12h,
     'D':  chart_feed.build_daily,
     # From the Daily cache, always fresh. The published ones come from the whole
     # Yahoo history on their own schedule (tools/publish_htf.py).
