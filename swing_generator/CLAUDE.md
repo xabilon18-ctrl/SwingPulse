@@ -62,10 +62,15 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 | `W`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
 
-- The tables: `config.TIMEFRAMES` (signal timeframes the run computes),
-  `chart_feed.CHART_BUILDERS` (charts the hourly run builds) and `TIMEFRAMES`
-  at the top of `app.js` (what the app shows). Loop the tables; never write
-  `timeframe === 'X' ? a : b`.
+- **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
+  `enabled` switch. `derive_timeframes()` produces everything else from it:
+  `config.TIMEFRAMES` (signal timeframes), the hourly chart builders, the
+  Weekly/Monthly builders, the R2 prune guard, the local server's routes and
+  the app's list (injected into `index.html` as `window.SP_TIMEFRAMES`; the
+  header buttons are built from it). Switching an existing timeframe off is
+  one edit; Daily cannot be switched off. A deleted timeframe needs its code
+  restored from git first. Never write `timeframe === 'X' ? a : b`: loop the
+  table.
 - Hourly entries are NOT added to the Daily performance ledger.
 - **Removed, and not to be brought back unless the user asks by name:**
   5m/10m/15m/30m/2H/4H/12H/3D charts and 30m/4H signals. The 5m download
@@ -134,15 +139,23 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 - Front end: vanilla JS. `static/js/app.js` is the coordinator and chart
   renderer; `static/js/modules/` holds the extracted pieces. `index.html` is
   the shell.
-- **Chart.js is pinned to an exact version with an SRI hash** in
-  `index.html`, loaded in `<head>`. Upgrading means changing the version AND
-  the `integrity=` in the same edit.
+- **No chart library.** Charts are hand-built SVG in `app.js`. Chart.js was
+  removed on 2026-11-11 (it only styled a hidden gauge). If a CDN script is
+  ever added again, pin an exact version with an SRI `integrity=` hash.
+- **The build minifies** `app.js`, the modules and `style.css`
+  (`publish._minify_assets`, esbuild pinned). `SP_NO_MINIFY=1` ships readable
+  files. Literal rewrites in `build_ui` must stay BEFORE the minify step.
+- **Failures:** use `reportFailure(where, err, notice?)`, `storeWork()` for
+  saving the user's work to the device, and `renderSection()` for a card.
+  Never add an empty `catch` except around storage/preference or pointer
+  capture.
 - **Cache-busting:** after any UI change, bump the `?v=` of every changed
   file in `index.html`. The Stop hook `.claude/hooks/check_version_bump.py`
   warns about a missed one. Current versions:
   `grep -oE '[a-z-]+\.(js|css)\?v=[0-9]+' webapp/templates/index.html`
-- Helpers to reuse: `formatPrice(val)` and `matchesSearch(item, query)` in
-  `app.js`.
+- Helpers to reuse: `formatPrice`, `escText` and the other formatters in
+  `modules/format.js`; `matchesSearch(item, query)` in `app.js`. Escape any
+  data put into `innerHTML` with `escText`.
 - `<body data-profile="__APP_PROFILE__">` is patched to `ma500` by
   `publish.build_ui()`.
 
@@ -165,8 +178,13 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 
 ## Before you push
 
+- Lint: `ruff check .` and ESLint (`npm install --no-save eslint@9.39.1
+  @eslint/js@9.39.1 globals@16.5.0 && npx --no-install eslint --quiet`), both
+  from `swing_generator/`. Real bugs only, no style rules.
 - Unit and engine checks: the command list in `.github/workflows/test.yml`
   (golden snapshot first: `python3 tests/golden_test.py`).
+- Dependencies are pinned exactly in `requirements.txt`; change one pin at a
+  time and let the golden test say whether signals moved.
 - Browser checks: `python3 webapp/publish.py --ui-only --build-only &&
   python3 tests/browser_fixture.py`, serve `webapp/publish/ui` on port 8000,
   then `node tests/app_smoke.cjs` and `node tests/saved_work_browser.cjs`.
