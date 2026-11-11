@@ -44,7 +44,13 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['1H']);
+  // The timeframe table (see TIMEFRAMES below). A page served without it was
+  // not built by publish.build_ui or server.py: fail loudly, not on Daily only.
+  const SP_TF_TABLE = window.SP_TIMEFRAMES;
+  if (!Array.isArray(SP_TF_TABLE) || !SP_TF_TABLE.some(t => t.code === 'D')) {
+    throw new Error('SwingPulse: timeframe table missing from index.html (window.SP_TIMEFRAMES)');
+  }
+  const INTRADAY_TFS = new Set(SP_TF_TABLE.filter(t => t.intraday).map(t => t.code));
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -170,53 +176,22 @@
   // the word for one bar. Before Weekly these were
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
-  const TIMEFRAMES = [
-    // 30m replaced 15m on 2026-09-29 (user: "replace 15 with 30m"); 15m had
-    // replaced 5m on 2026-09-25. B1/S1 SIGNALS (m30_ columns; a fire stays on
-    // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
-    // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
-    // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
-    // 30m retired from the app; historical drawings and data remain stored.
-    { code: '1H', prefix: 'h1_', label: '1H', bar: 'hourly bars', barShort: '25-bar' },
-    // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
-    // "Remove 2 h"); back 2026-11-02 (user: "Add 2h keep 4") and REMOVED the
-    // same day (user: "remove 2h"). A saved 2H chart choice opens on Daily.
-    // 4H REMOVED 2026-11-04 (user: "Remove 4h as a time frame and take all
-    // it's signals to 1h"): its setup direction, workflow signals, MA
-    // clusters, Alerts and filters read 1H now. A saved 4H chart choice opens
-    // on Daily; drawings saved on 4H stay in the store, not shown.
-    // 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart"), chart only.
-    // 4H REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently"): no
-    // 4H row, button, chart chunks or Daily-ladder steps. A saved 4H chart
-    // choice opens on Daily; drawings saved on 4H stay in the store, not
-    // shown. Do not bring 4H back without the user asking for it by name.
-    // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
-    // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
-    // are left in place, unused; drawings saved on them stay in the store.
-    { code: 'D',  prefix: '',    label: 'Daily',    bar: 'days',    barShort: '25-day'  },
-    // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
-    // Weekly (removed 2026-09-24) and Monthly (removed 2026-09-14) are BACK
-    // 2026-10-19 as CHARTS ONLY (user: "add back weekly and monthly chart"):
-    // no signals, markers or alerts. Their bundles are rebuilt on Mondays and
-    // on the 3rd-5th (chart_feed.HTF_SCHEDULE_TZ), and only ever hold closed
-    // weeks and months. No prefixed columns exist for them, so prefix '' reads
-    // the Daily row (price, filters) as the Charts tab does on any chart view.
-    // Drawings saved on the old Weekly chart were kept and show again.
-    { code: 'W',  prefix: '',    label: 'Weekly',   bar: 'weeks',   barShort: '25-week',  chartOnly: true },
-    { code: 'M',  prefix: '',    label: 'Monthly',  bar: 'months',  barShort: '25-month', chartOnly: true },
-  ];
+  // ONE table: config.TIMEFRAME_TABLE, injected into index.html as
+  // window.SP_TIMEFRAMES by publish.build_ui (and server.py locally). Fast to
+  // slow. To switch a timeframe off, set `enabled` in config.py. History of the
+  // timeframes that came and went: CHANGE_NOTES.md.
+  const TIMEFRAMES = SP_TF_TABLE;
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
   const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
+  // The header switch: one button per timeframe, ids tfBtn<code>.
+  { const sw = document.querySelector('#tfSwitchBar .tf-switch');
+    if (sw) sw.innerHTML = TIMEFRAMES.map(t => `<button class="tf-switch-btn" id="tfBtn${t.code}" data-tf="${t.code}" role="tab" aria-selected="false"${t.chartOnly ? ' hidden' : ''}>${t.label}</button>`).join(''); }
 
   let timeframe = 'D';
-  // Which timeframes each tab may show. Buy/sell signals exist on Daily only
-  // since 2026-09-24 (Weekly went with 3D and 4H). Charts offers 5m · Daily,
-  // the signal tabs and Trends are Daily.
-  // Charts and the signal tabs remember their timeframe separately, so zooming
-  // a chart to 4H never turns the Signals tab into 4H.
-  // 1H took 4H's place as the signal timeframe beside Daily on 2026-11-04.
-  const SIGNAL_TFS = new Set(['1H', 'D']);
+  // Which timeframes each tab may show: Charts every timeframe, the other tabs
+  // Daily. Charts and the signal tabs remember their timeframe separately.
+  const SIGNAL_TFS = new Set(TIMEFRAMES.filter(t => t.signals).map(t => t.code));
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };

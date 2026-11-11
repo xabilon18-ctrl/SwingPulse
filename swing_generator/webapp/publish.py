@@ -60,6 +60,7 @@ sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments, load_retired
 from server import build_ai_set, get_ticker_map
 from chart_feed import build_chart_feed
+from _active_config import TIMEFRAME_TABLE, app_timeframes
 
 
 # ---------------------------------------------------------------------------
@@ -929,7 +930,9 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchange
 # no list calls at all. Add a timeframe here only after its chart is removed
 # from the app AND from chart_feed.CHART_BUILDERS / tools/publish_htf.py.
 RETIRED_CHART_TFS = ('5m', '10m', '15m', '30m', '2H', '4H', '12H', '3D')
-_LIVE_CHART_TFS = ('1H', 'D', 'W', 'M')
+# Every code in the timeframe table, enabled or not: a switched-off timeframe's
+# chart folder is never pruned by accident.
+_LIVE_CHART_TFS = tuple(t['code'] for t in TIMEFRAME_TABLE)
 
 
 def _r2_api(method, path, api_token, timeout=60, max_429_retries=6):
@@ -1046,6 +1049,7 @@ def build_ui():
     html = html.replace('content="SwingPulse"', 'content="SwingPulse 500"')
     html = html.replace('__APP_PROFILE__', 'ma500')
     html = html.replace('__BUILDSTAMP__', build_id)  # value only — not the window.__BUILD_ID__ var name
+    html = html.replace('__SP_TIMEFRAMES__', json.dumps(app_timeframes()))
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))

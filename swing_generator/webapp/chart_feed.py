@@ -55,7 +55,7 @@ from main import (_resample_4h,                          # noqa: E402
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
 from chart_cache import Store, recording
-from _active_config import MA_PERIODS                   # noqa: E402
+from _active_config import MA_PERIODS, RUN_CHART_BUILDERS, TIMEFRAMES  # noqa: E402
 
 # A chart needs at least two ribbon lines to be worth drawing. This was 3 until
 # 2026-09-09; with the ribbon cut to [50, 250, 500] a short-history instrument
@@ -851,13 +851,14 @@ def near_ma_map(daily: dict) -> dict:
     return out
 
 
-# The charts the hourly run builds. By NAME, looked up at call time, so a test
-# that patches a builder on this module is still the builder that runs.
-# Weekly and Monthly are built by tools/publish_htf.py on their own schedule.
-# Retired chart timeframes (5m, 10m, 15m, 30m, 2H, 4H, 12H, 3D) have no
-# builder; their R2 folders are deleted by publish.prune_retired_chart_folders.
-# History: CHANGE_NOTES.md.
-CHART_BUILDERS = {'1H': 'build_1h', 'D': 'build_daily'}
+# The charts the hourly run builds, from config.TIMEFRAME_TABLE (chart 'run').
+# By NAME, looked up at call time, so a test that patches a builder on this
+# module is still the builder that runs. Weekly and Monthly are built by
+# tools/publish_htf.py. Retired chart timeframes' R2 folders are deleted by
+# publish.prune_retired_chart_folders.
+CHART_BUILDERS = dict(RUN_CHART_BUILDERS)
+# Charts that carry signals, and so alerts and channel reads: fast to slow.
+SIGNAL_CHART_TFS = tuple(code for code, _ in TIMEFRAMES if code in CHART_BUILDERS)
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -893,7 +894,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'1H': 0, 'D': 0, 'chunks': 0}
+    stats = {**{tf: 0 for tf in CHART_BUILDERS}, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 2026-11-01: a chart whose inputs have not changed is taken from the
@@ -989,7 +990,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
             with open(d_fires_path) as fh:
                 d_fires = json.load(fh)
         # 1H + Daily (30m removed 2026-11-11).
-        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('1H', 'D')}, d_fires)
+        alerts = build_alerts({tf: built.get(tf, {}) for tf in SIGNAL_CHART_TFS}, d_fires)
         alerts.update(workflow_alerts(built))
         _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
         stats['alerts'] = len(alerts['ev'])
@@ -1017,7 +1018,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import read as channel_read
-        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('1H', 'D')}
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in SIGNAL_CHART_TFS}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
