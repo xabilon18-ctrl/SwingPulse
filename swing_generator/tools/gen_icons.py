@@ -11,7 +11,6 @@ Two invariants the old icons broke:
   * no baked corner radius — the art is full-bleed and the platform applies
     its own mask (iOS squircle, Android maskable crop).
 """
-import math
 from PIL import Image, ImageDraw
 
 SS = 4                      # supersample factor

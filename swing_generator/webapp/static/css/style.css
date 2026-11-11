@@ -9978,3 +9978,15 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-svg .reel-draw[data-stroke="3"] .reel-ch-edge:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-w3:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-bold:not(.is-dash) { stroke-dasharray: var(--dd-l) !important; }
+
+/* Failure notice and in-section error (2026-11-11): see reportFailure in app.js. */
+.sp-notice {
+  position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 12px); max-width: min(92vw, 440px); z-index: 9999;
+  padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.35;
+  background: var(--bg-elevated); color: var(--text-primary);
+  border: 1px solid var(--sell); box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.sp-notice.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.sp-section-error { padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px; }

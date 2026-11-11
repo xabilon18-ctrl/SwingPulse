@@ -1,7 +1,6 @@
 """Offline regression checks for the restored hourly production path."""
 import gzip
 import json
-import os
 from pathlib import Path
 import sys
 import tempfile

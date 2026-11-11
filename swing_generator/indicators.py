@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from _active_config import (MA_PERIODS, VOLUME_LOOKBACK, ROC_PERIOD, RIBBON_COMPRESSION_THRESHOLD,
-                            SLOPE_LOOKBACK, MA_TOUCH_TOLERANCE, TREND_UP_FRAC, TREND_DOWN_FRAC)
+                            SLOPE_LOOKBACK, TREND_UP_FRAC, TREND_DOWN_FRAC)
 
 
 # ---------------------------------------------------------------------------

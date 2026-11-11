@@ -43,7 +43,7 @@ _GEN_DIR = os.path.dirname(_TESTS_DIR)
 sys.path.insert(0, _GEN_DIR)
 
 from _active_config import (MA_PERIODS, TIMEFRAMES,         # noqa: E402
-                            TREND_UP_FRAC, TREND_DOWN_FRAC)
+                            TREND_DOWN_FRAC)
 from signals import _signal_confidence                       # noqa: E402
 import signals as _signals_mod                               # noqa: E402
 

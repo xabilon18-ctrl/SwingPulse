@@ -1,3 +1,4 @@
-flask>=3.0
-pandas
-pyarrow
+# Local dev server only; the same pins as ../requirements.txt.
+flask==3.1.3
+pandas==3.1.1
+pyarrow==26.0.1

@@ -6,6 +6,48 @@
   'use strict';
   const modules = window.SwingPulseModules;
   const freshness = modules.freshness;
+  const { daysBetween, fmtRvol, fmtPvo, fmtVol, wlFmtPrice, wlFmtPct, wlFmtChange,
+          debounce, escText, formatPrice, formatGeneratedAt } = modules.format;
+
+  // ── Failures are reported, never swallowed (2026-11-11) ────────────────
+  // reportFailure logs with context; with `notice` it also tells the user,
+  // once per kind per session. Failures to save the user's own work on this
+  // device (storage full or blocked) always get a notice: silently losing a
+  // drawing is worse than a message. Preference saves (tab, filter, panel
+  // state) stay silent on purpose: losing one costs nothing.
+  const _noticed = new Set();
+  function spNotice(text) {
+    let el = document.getElementById('spNotice');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'spNotice'; el.className = 'sp-notice'; el.setAttribute('role', 'status');
+      el.addEventListener('click', () => el.classList.remove('show'));
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(spNotice._t);
+    spNotice._t = setTimeout(() => el.classList.remove('show'), 7000);
+  }
+  function reportFailure(where, err, notice) {
+    console.error(`[SwingPulse] ${where} failed:`, err);
+    if (notice && !_noticed.has(where)) { _noticed.add(where); spNotice(notice); }
+  }
+  const SAVE_FAILED = 'This device could not save your last change (storage full or blocked).';
+  // Save the user's own work to this device; tell them if it did not stick.
+  function storeWork(key, value, what) {
+    try { localStorage.setItem(key, value); return true; }
+    catch (e) { reportFailure('save ' + what, e, SAVE_FAILED); return false; }
+  }
+  // Draw one section; on failure say so inside it instead of leaving it blank.
+  function renderSection(what, fn, containerId) {
+    try { return fn(); }
+    catch (e) {
+      reportFailure('draw ' + what, e);
+      const el = containerId && document.getElementById(containerId);
+      if (el) el.innerHTML = `<div class="sp-section-error">Couldn't draw ${escText(what)}. Pull down or tap refresh to try again.</div>`;
+    }
+  }
 
   // ── State ────────────────────────────────────────────────────────────
   let savedWork = null, workBackupTimer = 0;
@@ -44,7 +86,13 @@
   let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
-  const INTRADAY_TFS = new Set(['1H']);
+  // The timeframe table (see TIMEFRAMES below). A page served without it was
+  // not built by publish.build_ui or server.py: fail loudly, not on Daily only.
+  const SP_TF_TABLE = window.SP_TIMEFRAMES;
+  if (!Array.isArray(SP_TF_TABLE) || !SP_TF_TABLE.some(t => t.code === 'D')) {
+    throw new Error('SwingPulse: timeframe table missing from index.html (window.SP_TIMEFRAMES)');
+  }
+  const INTRADAY_TFS = new Set(SP_TF_TABLE.filter(t => t.intraday).map(t => t.code));
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
   let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
   let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
@@ -170,53 +218,22 @@
   // the word for one bar. Before Weekly these were
   // scattered as ~12 separate `timeframe === '4H' ? a : b` ternaries, which is
   // a shape that silently answers "Daily" for any third timeframe.
-  const TIMEFRAMES = [
-    // 30m replaced 15m on 2026-09-29 (user: "replace 15 with 30m"); 15m had
-    // replaced 5m on 2026-09-25. B1/S1 SIGNALS (m30_ columns; a fire stays on
-    // the row for 24h — see config.TIMEFRAMES). Bars are resampled from 5m.
-    // 15m back 2026-09-29 beside 30m (user: "bring back the 15min"), as it was.
-    // 15m REMOVED 2026-09-30 (user: "remove the 15 as well"), after 1H and 4H.
-    // 30m retired from the app; historical drawings and data remain stored.
-    { code: '1H', prefix: 'h1_', label: '1H', bar: 'hourly bars', barShort: '25-bar' },
-    // 2H (chart only, back 2026-10-25) REMOVED again 2026-10-26 (user:
-    // "Remove 2 h"); back 2026-11-02 (user: "Add 2h keep 4") and REMOVED the
-    // same day (user: "remove 2h"). A saved 2H chart choice opens on Daily.
-    // 4H REMOVED 2026-11-04 (user: "Remove 4h as a time frame and take all
-    // it's signals to 1h"): its setup direction, workflow signals, MA
-    // clusters, Alerts and filters read 1H now. A saved 4H chart choice opens
-    // on Daily; drawings saved on 4H stay in the store, not shown.
-    // 4H CHART BACK 2026-11-05 (user: "Bring back the 4h chart"), chart only.
-    // 4H REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently"): no
-    // 4H row, button, chart chunks or Daily-ladder steps. A saved 4H chart
-    // choice opens on Daily; drawings saved on 4H stay in the store, not
-    // shown. Do not bring 4H back without the user asking for it by name.
-    // 10m, 1H, 2H and 12H (chart-only, added 2026-10-01/03) REMOVED 2026-10-03
-    // (user: "remove 10m, 1h, 2h and 12h"). Their grid/overlay table entries
-    // are left in place, unused; drawings saved on them stay in the store.
-    { code: 'D',  prefix: '',    label: 'Daily',    bar: 'days',    barShort: '25-day'  },
-    // 10m and 3D (chart-only) were removed 2026-09-24, replaced by 5m, then 15m.
-    // Weekly (removed 2026-09-24) and Monthly (removed 2026-09-14) are BACK
-    // 2026-10-19 as CHARTS ONLY (user: "add back weekly and monthly chart"):
-    // no signals, markers or alerts. Their bundles are rebuilt on Mondays and
-    // on the 3rd-5th (chart_feed.HTF_SCHEDULE_TZ), and only ever hold closed
-    // weeks and months. No prefixed columns exist for them, so prefix '' reads
-    // the Daily row (price, filters) as the Charts tab does on any chart view.
-    // Drawings saved on the old Weekly chart were kept and show again.
-    { code: 'W',  prefix: '',    label: 'Weekly',   bar: 'weeks',   barShort: '25-week',  chartOnly: true },
-    { code: 'M',  prefix: '',    label: 'Monthly',  bar: 'months',  barShort: '25-month', chartOnly: true },
-  ];
+  // ONE table: config.TIMEFRAME_TABLE, injected into index.html as
+  // window.SP_TIMEFRAMES by publish.build_ui (and server.py locally). Fast to
+  // slow. To switch a timeframe off, set `enabled` in config.py. History of the
+  // timeframes that came and went: CHANGE_NOTES.md.
+  const TIMEFRAMES = SP_TF_TABLE;
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
   const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
+  // The header switch: one button per timeframe, ids tfBtn<code>.
+  { const sw = document.querySelector('#tfSwitchBar .tf-switch');
+    if (sw) sw.innerHTML = TIMEFRAMES.map(t => `<button class="tf-switch-btn" id="tfBtn${t.code}" data-tf="${t.code}" role="tab" aria-selected="false"${t.chartOnly ? ' hidden' : ''}>${t.label}</button>`).join(''); }
 
   let timeframe = 'D';
-  // Which timeframes each tab may show. Buy/sell signals exist on Daily only
-  // since 2026-09-24 (Weekly went with 3D and 4H). Charts offers 5m · Daily,
-  // the signal tabs and Trends are Daily.
-  // Charts and the signal tabs remember their timeframe separately, so zooming
-  // a chart to 4H never turns the Signals tab into 4H.
-  // 1H took 4H's place as the signal timeframe beside Daily on 2026-11-04.
-  const SIGNAL_TFS = new Set(['1H', 'D']);
+  // Which timeframes each tab may show: Charts every timeframe, the other tabs
+  // Daily. Charts and the signal tabs remember their timeframe separately.
+  const SIGNAL_TFS = new Set(TIMEFRAMES.filter(t => t.signals).map(t => t.code));
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
@@ -393,7 +410,7 @@
         }
       }
     channelSnap = cur;
-    try { localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod)); } catch (_) {}
+    storeWork(sk('sp-channels-mod'), JSON.stringify(channelMod), 'drawings');
   }
 
   // Merge a remote copy into this device's notes, note by note. Returns true
@@ -474,10 +491,8 @@
       if (rm > lm) channelMod[k] = rm;
     }
     channelSnapAll();
-    try {
-      localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
-      localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod));
-    } catch (_) {}
+    storeWork(sk('sp-channels'), JSON.stringify(instChannels), 'drawings')
+      && storeWork(sk('sp-channels-mod'), JSON.stringify(channelMod), 'drawings');
     return changed;
   }
 
@@ -518,7 +533,7 @@
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-alert', 'draw-glow', 'draw-glow-color', 'draw-stack',
-    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
 
@@ -619,7 +634,7 @@
       viewsMergeRemote(remote);
       if (notesChanged && !(remote.lastModified > localMod) && allData.length) renderAll();
       if (drawingsChanged && !(remote.lastModified > localMod)) {
-        try { reelRepaintVisible(); } catch (_) {}
+        try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); }
       }
       // This device holds a chart edited after the server's copy of it — a
       // flush that never landed. Send it now rather than waiting for the next
@@ -677,7 +692,7 @@
                                                       { cache: 'no-store', headers: syncHeaders() });
       if (syncUser !== user) return false;
       if (channelMergeRemote(remote, false)) {
-        try { reelRepaintVisible(); } catch (_) {}
+        try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); }
       }
       if (notesMergeRemote(remote, false) && allData.length) renderAll();
       viewsMergeRemote(remote);
@@ -849,7 +864,6 @@
     });
   })();
 
-  window.toggleAIFilter = toggleAIFilter;   // exposed for nav button onclick
 
   window.SP_setUser = function(name) {
     syncUser = name.toLowerCase();
@@ -891,23 +905,6 @@
     badge.classList.toggle('sync-name-unset', !syncUser);
   }
 
-  // Whole days between two YYYY-MM-DD strings, both read as UTC midnight so the
-  // result can't slip a day in a negative-offset timezone. `asOfStr` omitted
-  // falls back to the wall clock. Returns null on an unparseable date.
-  function daysBetween(dateStr, asOfStr) {
-    const utc = s => {
-      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
-      return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN;
-    };
-    const from = utc(dateStr);
-    if (isNaN(from)) return null;
-    let to = utc(asOfStr);
-    if (isNaN(to)) {
-      const n = new Date();
-      to = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
-    }
-    return Math.max(0, Math.round((to - from) / 86400000));
-  }
 
   // ── Signal Performance ("since fired") ───────────────────────────────
   // Engine-computed: last_signal_price is the fire-bar close, last_signal_date
@@ -1108,11 +1105,6 @@
     return v / av;
   }
 
-  // Format an RVOL ratio as a compact "1.8×" style string.
-  function fmtRvol(r) {
-    if (r === null) return '';
-    return (r >= 9.95 ? Math.round(r) : r.toFixed(1)) + '×';
-  }
 
   // Percentage Volume Oscillator (PVO), computed in the pipeline per timeframe:
   // (EMA12 − EMA26) of volume as a % of EMA26, with an EMA9 signal line.
@@ -1125,19 +1117,6 @@
     return { v, s: isFinite(s) ? s : null };
   }
 
-  function fmtPvo(v) {
-    return (v >= 0 ? '+' : '') + v.toFixed(1);
-  }
-
-  // Compact volume: 1,234,567 → "1.2M". Used in the modal's Volume tiles
-  // where full thousands-separated numbers don't fit.
-  function fmtVol(v) {
-    if (!isFinite(v) || v <= 0) return '—';
-    if (v >= 1e9) return (v / 1e9).toFixed(v >= 1e10 ? 0 : 1) + 'B';
-    if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M';
-    if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'K';
-    return String(Math.round(v));
-  }
 
   // ── Volume history sparklines ────────────────────────────────────────
   // Daily volume bars vs their 25-bar rolling average, drawn from the
@@ -1217,13 +1196,6 @@
     return aiFilterActive ? allData.filter(d => isAI(d.instrument_name)) : allData;
   }
 
-  function toggleAIFilter() {
-    aiFilterActive = !aiFilterActive;
-    document.getElementById('aiFilterBtn')?.classList.toggle('ai-filter-active', aiFilterActive);
-    // Re-render current tab + summary
-    computeAndRenderSummary();
-    renderCurrentTab();
-  }
 
   // ── WATCHLIST TAB (2026-09-24, replaces Trends in the nav) ───────────────
   // A price list: every instrument's latest price and its
@@ -1260,8 +1232,8 @@
   function wlSave() {
     scheduleWorkBackup();
     wlStore.mod = Date.now();
-    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
-    try { syncPush(); } catch (_) {}
+    storeWork(sk(WL_KEY), JSON.stringify(wlStore), 'watchlists');
+    try { syncPush(); } catch (e) { reportFailure('sync push (watchlists)', e); }
   }
   function wlSaveUi() { try { localStorage.setItem('swingpulse-wl-ui', JSON.stringify(wlUi)); } catch (_) {} }
   // FILTERS BELONG TO THE LIST (user, 2026-10-30: "when switching between
@@ -1281,7 +1253,7 @@
     const r = remote && remote.watchlists;
     if (!r || !Array.isArray(r.lists) || !(r.mod > (wlStore.mod || 0))) return;
     wlStore = r;
-    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
+    storeWork(sk(WL_KEY), JSON.stringify(wlStore), 'watchlists');
     if (currentTab === 'watchlist') renderWatchlist();
   }
 
@@ -1626,7 +1598,7 @@
       ico.textContent = '↻'; ico.style.transform = '';
       show(44, 'Updating prices…', 'is-busy');
       let ok = false;
-      try { ok = await wlRefreshNow(); } catch (_) {}
+      try { ok = await wlRefreshNow(); } catch (e) { reportFailure('price refresh', e); }
       show(44, ok ? 'Prices updated' : 'No new prices — try again', ok ? 'is-done' : '');
       ico.textContent = ok ? '✓' : '↓';
       setTimeout(() => { show(0, ''); ico.textContent = '↓'; busy = false; }, 900);
@@ -1698,22 +1670,6 @@
     clearTimeout(wlScrollT); wlScrollT = setTimeout(wlPollLive, 700);
   }, { passive: true });
 
-  // Price with thousands separators and decimals that suit its size.
-  function wlFmtPrice(v) {
-    if (v == null || !isFinite(v)) return '—';
-    const a = Math.abs(v), dec = a >= 1000 ? 1 : a >= 10 ? 2 : a >= 1 ? 4 : 5;
-    return Number(v).toLocaleString('en-US', { minimumFractionDigits: a >= 1000 ? 0 : dec, maximumFractionDigits: dec });
-  }
-  function wlFmtPct(v) {
-    if (v == null || !isFinite(v)) return '';
-    return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + '%';
-  }
-
-  function wlFmtChange(v, ref) {
-    if (v == null || !isFinite(v)) return '';
-    const a = Math.abs(v), dec = ref >= 1000 ? 1 : ref >= 10 ? 2 : ref >= 1 ? 3 : 5;
-    return (v > 0 ? '+' : v < 0 ? '−' : '') + a.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-  }
 
   // ── ACTIVE AT LAST CLOSE (2026-10-28) ─────────────────────────────────
   // User: "I spend most of my time looking at my ... watch list, and then I
@@ -2476,8 +2432,8 @@
   }
 
   function dashHub() {
-    try { dashMovers(); } catch (_) {}
-    requestAnimationFrame(() => { try { dashFold(); } catch (_) {} });
+    renderSection('Watchlist movers', dashMovers, 'dashMovers');
+    requestAnimationFrame(() => { try { dashFold(); } catch (e) { reportFailure('fold Market cards', e); } });
   }
 
   (function dashWire() {
@@ -3315,11 +3271,6 @@
   });
   syncTfButtons();
 
-  // Debounce helper — avoids re-rendering on every single keystroke
-  function debounce(fn, ms) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-  }
 
   // Track which lazy tabs need a re-render (set dirty after every data refresh)
   const tabDirty = { trends: true, charts: true };
@@ -3327,7 +3278,7 @@
   function renderAll() {
     renderDashboard();
     dashHub();
-    try { renderMarketToday(); } catch (_) {}
+    renderSection('the Market summary', renderMarketToday, 'marketToday');
     if (currentTab === 'scanner') renderAlerts();
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
@@ -3762,6 +3713,9 @@
       }
       if (staleBanner && staleText) {
         const nowMs = Date.now();
+        // The run's calendar date, for the fallback below (was an undefined
+        // name: this path threw whenever summary.json lacked fetched_at).
+        const dateStr = sumRes.date || '--';
         let msg = '';
         if (statusRes && statusRes.state === 'failed') {
           // The CI failure step flips status.json — this is a REAL problem and
@@ -3810,8 +3764,7 @@
     } catch (e) {
       console.error('Failed to load data:', e);
       refreshFreshnessLabels(true);
-      const grid = document.getElementById('scannerGrid');
-      if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
+      reportFailure('load data', e, "Couldn't load the latest data. Check your connection; the app shows what it last loaded.");
     } finally {
       _dataLoadInFlight = false;
     }
@@ -3819,14 +3772,6 @@
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  /** Escape text bound for innerHTML. Instrument names come from the data
-   *  pipeline, not from us — "Procter & Gamble" and friends must not be able
-   *  to break the markup they are dropped into. */
-  function escText(v) {
-    return String(v == null ? '' : v)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
 
   /** Return full display name for a ticker (e.g. 'NVDA' → 'NVIDIA').
    *  Returns '' if no name is available or name equals the ticker itself. */
@@ -3958,15 +3903,6 @@
     const sig = item[f('primary_signal')];
     if (sig) return sig.startsWith('S');
     return (item[f('confirmation_status')] || '').toLowerCase().includes('downtrend');
-  }
-  function formatPrice(val) {
-    if (!val && val !== 0) return '--';
-    const n = parseFloat(val);
-    if (isNaN(n)) return '--';
-    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (n >= 10)   return n.toFixed(2);
-    if (n >= 1)    return n.toFixed(4);
-    return n.toFixed(6);
   }
 
 
@@ -4229,19 +4165,6 @@
         <div class="ir-sigs">${sigsHtml}</div>
       </div>
     `;
-  }
-
-  // Convert backtest.py's generated_at ("YYYY-MM-DD HH:MM UTC") to local time
-  function formatGeneratedAt(s) {
-    if (!s) return '';
-    // Parse "2026-04-30 18:46 UTC" as ISO so JS can convert to local time
-    const m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}).*UTC$/);
-    if (!m) return s;
-    const d = new Date(`${m[1]}T${m[2]}:00Z`);
-    if (isNaN(d.getTime())) return s;
-    const dateStr = d.toLocaleDateString();
-    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return `${dateStr} ${timeStr}`;
   }
 
 
@@ -5929,7 +5852,9 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {}try { ladderThickOnce(); } catch (_) {} try { ladderDashOnce(); } catch (_) {} }
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce]]) {
+      try { fn(); } catch (e) { reportFailure(what, e); }
+    }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -6257,7 +6182,7 @@
   }
   function ovSave() {
     scheduleWorkBackup();
-    try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
+    storeWork(sk('sp-overlay'), JSON.stringify(tfOverlay), 'chart layers');
   }
   // What the overlay draws (user, 2026-09-28): MOVING AVERAGES ONLY, from the
   // higher timeframes, each one its own switch — "if i only want daily alone
@@ -7490,10 +7415,8 @@
   const viewKey = name => name + '|' + timeframe + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
-    try {
-      localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews));
-      localStorage.setItem(sk(VIEW_MOD_STORE), JSON.stringify(viewsMod));
-    } catch (_) {}
+    storeWork(sk(VIEW_STORE), JSON.stringify(savedViews), 'saved views')
+      && storeWork(sk(VIEW_MOD_STORE), JSON.stringify(viewsMod), 'saved views');
   }
   // Merge a remote copy view by view: a newer stamp wins, a stamp with no
   // view is a forget. Returns true if anything changed.
@@ -7510,7 +7433,7 @@
     }
     if (changed) {
       viewStoreSave();
-      try { document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name)); } catch (_) {}
+      try { document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name)); } catch (e) { reportFailure('sync view buttons', e); }
     }
     return changed;
   }
@@ -8279,7 +8202,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_CLEANUP_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8308,7 +8231,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_NO4H_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8344,7 +8267,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_DASH_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
   function ladderThickOnce() {
@@ -8362,7 +8285,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_THICK_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8370,7 +8293,7 @@
     scheduleWorkBackup();
     channelLinkSync();
     channelStampChanges();
-    try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
+    storeWork(sk('sp-channels'), JSON.stringify(instChannels), 'drawings');
     syncPushDrawings();
   }
 
@@ -12910,16 +12833,6 @@
         const d = activeChannel(name), v = +btn.dataset.v;
         if (d && [1, 2, 3].includes(v)) {
           d.strokeWeight = v;
-          channelSave();
-          if (chHost) reelRepaint(chHost);
-          reelSyncChannelButtons();
-        }
-        return true;
-      }
-      if (btn.dataset.act === 'draw-alpha-set') {
-        const d = activeChannel(name), v = +btn.dataset.v;
-        if (d && DRAW_ALPHAS.some(([a]) => a === v)) {
-          if (v >= 100) delete d.alpha; else d.alpha = v;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

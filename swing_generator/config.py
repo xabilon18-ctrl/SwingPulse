@@ -432,60 +432,71 @@ RETIRED_FILE = os.path.join(OUTPUT_DIR, 'retired_instruments.json')
 # 4H (2026-09-29, back, resampled from the hourly download): up to 6 a day.
 INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 
-# The timeframe table — ONE definition, ordered fast to slow. Every consumer
-# that loops over timeframes (column emission, context modifiers,
-# the ledger, the backtest) reads this rather than restating ('', 'h4_') in its
-# own words; the pair was hand-copied in four places before Weekly, which is
-# how a new timeframe reaches production wired into three of them.
+# THE timeframe table — every timeframe the app knows, ONE row each, ordered
+# fast to slow. To switch a timeframe off, set `enabled` to False; the run,
+# the chart feed, the Weekly/Monthly job, the local server and the app's
+# Charts switch all read this table, so nothing else needs editing.
 #
-# 1H is NOT in this table (removed 2026-09-11). Its signals never beat a random
-# entry taken the same day in other instruments (-0.031R before Jul 2025,
-# -0.006R since, n=13,309), it was the costliest timeframe to compute (~32% of
-# signal time), and the hourly feed is only ~2 years deep, so it can never be
-# tested across a full cycle. The 1H CHART is unaffected: webapp/chart_feed.py
-# builds it from the hourly cache on its own, and _h1_frame/_h1_ma_periods stay
-# in main.py for it and for backtest.py research runs.
+#   code      what the app and the chart feed call it
+#   prefix    signal-column prefix ('' = Daily's unprefixed columns)
+#   label / bar / bar_short   the words the app uses for it
+#   signals   the hourly run computes signal columns for it (main.py)
+#   intraday  bars within a day: rows carry a {prefix}datetime
+#   chart     'run' = built by the hourly run (chart_feed.<builder>);
+#             'htf' = built by tools/publish_htf.py on its own schedule
+#   builder   the chart_feed function that builds its chart from the local
+#             cache (the hourly run, and server.py for W/M; publish_htf.py
+#             builds W/M from the whole Yahoo history instead)
 #
-# 4H is NOT in this table either (removed the same day, at the user's request):
-# it agreed with Daily 71.7% of the time, 82% of its fires were never confirmed
-# and worth ~0, and it had already been reduced to a chart view. With 1H and 4H
-# both gone nothing needs hourly prices, so main.py no longer downloads them.
-#
-# 3-Day and Weekly are NOT in this table either (removed 2026-09-24, at the
-# user's request). Neither had an edge over a same-day random entry (the
-# 2026-09-11 control), 3D agreed with Daily 66.5% of the time, and dropping
-# them with the 4H chart cut CI time, which is what the GitHub Free
-# 2,000-minute budget is spent on. The 3D CHART stays (webapp/chart_feed.py,
-# chart only, like 10m). With Weekly gone there is nothing left to vote against
-# Daily, so tf_alignment went with it. _resample_3d/_resample_weekly and the
-# *_3D/*_WEEKLY constants stay for the 3D chart and backtest.py research runs.
-#
-# 15m signals (2026-09-25, replaced the 5m ones added 2026-09-24 — user: "5 min
-# is ok but tricky"): B1/S1 ONLY, primary crosses only (no re-fires — the 5% /
-# 10-calendar-day re-fire band is hundreds of 15m bars), and a fire stays
-# "live" on the row for FIFTEEN_MIN_SIGNAL_LIVE_HOURS so the Signals
-# tab can list it between runs. Not backtested: confidence is the
-# 'standard' fallback and the ledger does not record 15m fires.
-#
-# 1H signals (2026-09-27, user: "bring it back and apply the same signals as
-# the 15 min"): the 15m rules exactly — B1/S1 only, no re-fires, live for
-# FIFTEEN_MIN_SIGNAL_LIVE_HOURS, 'standard' confidence, not in the ledger. The
-# 2026-09-11 finding above still stands: 1H B1/S1 have no measured edge.
-#
-# 30m (2026-09-29) replaced 15m with the same rules, and 4H came back the same
-# day (user: "add the 4h") with them too: B1/S1 only, no re-fires, EXACT
-# 50/250/500 on session-anchored 4H bars (main._resample_4h) of the 1H feed.
-# The 2026-09-11 4H finding above is unchanged — the fires carry no edge.
-TIMEFRAMES = (
-    # 15m removed 2026-09-30 (user: "remove the 15 as well").
-    # 30m and 4H removed 2026-11-11 (user: "30m and 4h must go"): no signals,
-    # no m30_/h4_ columns, no 30m chart chunks, no 4H ledger fires. The app had
-    # had no 30m or 4H button since 2026-11-07 and read none of it. The frame
-    # and resample helpers stay for backtest.py and the golden test.
-    # Restored 2026-10-07: hourly charts + B1/S1, using the existing intraday rules.
-    ('1H',  'h1_'),
-    ('D',   ''),
+# A timeframe whose builder or signal code no longer exists (5m, 10m, 15m,
+# 30m, 2H, 4H, 12H, 3D were deleted) cannot be switched back on here alone:
+# restore its code from git history first. History: CHANGE_NOTES.md.
+TIMEFRAME_TABLE = (
+    {'code': '1H', 'prefix': 'h1_', 'label': '1H', 'bar': 'hourly bars', 'bar_short': '25-bar',
+     'signals': True, 'intraday': True, 'chart': 'run', 'builder': 'build_1h', 'enabled': True},
+    {'code': 'D', 'prefix': '', 'label': 'Daily', 'bar': 'days', 'bar_short': '25-day',
+     'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
+    {'code': 'W', 'prefix': '', 'label': 'Weekly', 'bar': 'weeks', 'bar_short': '25-week',
+     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': True},
+    {'code': 'M', 'prefix': '', 'label': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
+     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_monthly', 'enabled': True},
 )
+def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
+    """Everything the code reads, derived from the table. A function of the
+    table so tests can check that switching a row off really removes it."""
+    enabled = tuple(t for t in table if t['enabled'])
+    # Daily is the base every other view falls back to (the app, the ledger,
+    # the Market tab); it cannot be switched off.
+    if not any(t['code'] == 'D' for t in enabled):
+        raise ValueError('config.TIMEFRAME_TABLE: Daily must stay enabled')
+    return {
+        'enabled': enabled,
+        # Signal timeframes the run computes: (code, prefix), fast to slow.
+        'signal': tuple((t['code'], t['prefix']) for t in enabled if t['signals']),
+        # Charts built by the hourly run / by tools/publish_htf.py: code -> builder.
+        'run_charts': {t['code']: t['builder'] for t in enabled if t['chart'] == 'run'},
+        'htf_charts': {t['code']: t['builder'] for t in enabled if t['chart'] == 'htf'},
+        # The app's timeframe list, injected into index.html as window.SP_TIMEFRAMES
+        # by publish.build_ui and server.py (the __SP_TIMEFRAMES__ token).
+        'app': [{'code': t['code'], 'prefix': t['prefix'], 'label': t['label'], 'bar': t['bar'],
+                 'barShort': t['bar_short'], 'signals': t['signals'], 'intraday': t['intraday'],
+                 **({} if t['signals'] else {'chartOnly': True})} for t in enabled],
+    }
+
+
+_TF = derive_timeframes()
+ENABLED_TIMEFRAMES = _TF['enabled']
+# Every consumer that loops over signal timeframes (column emission, context
+# modifiers, the ledger, the backtest) reads TIMEFRAMES rather than restating it.
+TIMEFRAMES = _TF['signal']
+RUN_CHART_BUILDERS = _TF['run_charts']
+HTF_CHART_BUILDERS = _TF['htf_charts']
+
+
+def app_timeframes() -> list[dict]:
+    return _TF['app']
+
+
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
 TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
 

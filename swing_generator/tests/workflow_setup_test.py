@@ -1,5 +1,4 @@
 """Closed-bar workflow parity, causal higher-timeframe references and ledger isolation."""
-import json
 from pathlib import Path
 import sys
 import tempfile
