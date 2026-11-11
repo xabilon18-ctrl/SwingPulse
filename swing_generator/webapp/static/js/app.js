@@ -70,13 +70,6 @@
   // writing their term into the search box, which made every other chip filter
   // silently switch off — see the note on the chip handler.
   let scannerCatFilter = '';
-  // Dashboard cards that jump into the Signals tab with a search term must drop
-  // any class chip first, or the jump lands pre-narrowed for no visible reason.
-  function clearCatChip() {
-    scannerCatFilter = '';
-    document.querySelectorAll('#scannerCatChips .s-cat-chip.active')
-      .forEach(c => c.classList.remove('active'));
-  }
   let scannerMoodFilter = 'all';   // sector-mood filter (all/confirmed/fighting/calm/distributing/active/churn/mixed/marketwide)
   // ── Move filter (period return) ──
   // The four period returns ship unprefixed from the pipeline (config.py
@@ -2513,16 +2506,6 @@
   // channel_rule.py — the rule that draws the auto channels. trend_channels.json,
   // built with the chart feed. effectiveTrend() reads it first.
   let channelTrend = null;
-  function channelTrendOf(name, tf) {
-    const row = allData.find(item => item.instrument_name === name);
-    return tf === 'D' ? mainTrendOf(row) : SPTrendContext.native(row, tf, channelTrend);
-  }
-  // The bar the current trend's leg starts on (the same rule), for the label's age
-  // and the trend strip. Absent for NEUTRAL.
-  function channelSinceOf(name, tf) {
-    const row = allData.find(item => item.instrument_name === name);
-    return SPTrendContext.snapshot(row, tf, channelTrend)?.since || null;
-  }
   // 30m and Daily only since 2026-09-30 (user: "only leave them if they are for
   // the 30 min ... and the daily as well, but for all others they go").
   // Daily and 1H since 4H was removed (2026-11-04).
@@ -2712,13 +2695,6 @@
   }
   function sectorDropValue(sector, industry) { return industry ? [industry] : sector ? [sector] : []; }
 
-  function clusterMenuHtml(scope, mode) {
-    return `<div class="fdrop-hd">MA clusters</div><div data-cluster-scope="${scope}">
-      <div class="fdrop-opts">${CLUSTER_OPTIONS.map(([k,l])=>`<button class="fdrop-opt${mode===k?' on':''}" data-cluster-mode="${k}">${k==='all'?'Any':l}</button>`).join('')}</div>
-      <div class="fdrop-seg"><span>Width</span>${[[0.25,'Tight ¼'],[0.5,'Mid ½'],[1,'Wide 1']].map(([v,l])=>`<button class="fdrop-opt${clusterWidth===v?' on':''}" data-cluster-width="${v}">${l}</button>`).join('')}</div>
-      <p class="fdrop-note">Width: the largest gap between the outer averages, in daily ranges. Daily 50/250/500 · Weekly 50/250/500 · Monthly 50; completed periods only.</p>
-    </div>`;
-  }
   function clusterBadgeHtml(row, detailed=false) {
     const found=SPTrendContext.clusters(row,channelTrend,clusterWidth), zone=found.zones[0];
     if (!zone) return '';
@@ -3128,7 +3104,7 @@
   function renderCurrentTab() {
     const tab = currentTab;
     if (tab === 'dashboard')   { renderDashboard(); dashHub(); renderMarketToday(); }
-    else if (tab === 'scanner')  { renderScanner(); renderAlerts(); }
+    else if (tab === 'scanner')  renderAlerts();
     else if (tab === 'trends')   renderTrendsLazy();
     else if (tab === 'watchlist') renderWatchlist();
   }
@@ -3140,20 +3116,6 @@
     return mainTrendOf(item);
   }
 
-  // ── Sector-mood conviction layer (VALIDATED 2026-07-22 on real backtested R,
-  // Phase 0 / 14.5k trades: SELL+sell_thrust +0.15R t2.6, BUY-into-fighting -0.16R
-  // t-3.2, SELL+market_wide -0.23R t-3.7; one up-market regime, DAILY ONLY).
-  // Data from instrument_flavours.json.
-  //
-  // Two guards keep the display inside what was actually tested:
-  //   • 4H is never graded — Phase 0 ran TF='D' only.
-  //   • Only a fire on the item's LATEST BAR is graded. instrument_flavours.json
-  //     carries one mood — today's. Phase 0 scored every fire against its OWN
-  //     fire-day mood, so grading a 15-bar-old signal against today's sector
-  //     weather is a different (untested) claim.
-  // 'unknown' = sector too small / too little history to judge (sector_activity.py).
-  // It is NOT the same as 'normal' and must never read as a positive all-clear.
-  function flavourOf(item) { return instFlavours[item.instrument_name] || 'unknown'; }
 
   // "Fired on the newest bar we hold for THIS instrument" — the single
   // definition of a fresh fire. Per-instrument on purpose: feeds run at
@@ -3166,40 +3128,6 @@
     return !!fired && fired === (item[f('date')] || '');
   }
 
-  function moodApplies(item) {
-    if (timeframe !== 'D') return false;                          // validated on daily only
-    return firedOnLatestBar(item);
-  }
-
-  // Sector-mood modifier for a fired signal: +1 sector-confirmed, −1 fighting/trap,
-  // 0 when the sector has no validated opinion (calm, busy-but-no-edge, unknown,
-  // or the guards above rule the layer out). `pips` is kept 0/2/3 for the existing
-  // conviction sort, card glow/dim and Mood filter. Returns null when no signal.
-  function convictionOf(item) {
-    // Retired 2026-09-11: the sector-mood grade was measured on the same trades
-    // it graded. Kept as a null so the old callers (card glow/dim, Mood filter,
-    // conviction sort) all fall through to 'no opinion'.
-    return null;
-    const code = item[f('primary_signal')] || item[f('last_signal_type')] || '';
-    if (!code) return null;
-    const buy = code.charAt(0) === 'B';
-    const neutral = { pips: 2, delta: 0, tone: 'n', note: '', cls: '' };
-    if (!moodApplies(item)) return neutral;
-    const fl = flavourOf(item);
-    if (buy) {
-      // FIGHTING bucket (sell_thrust + mixed_thrust + churn): −0.164R, t −3.2, n 731.
-      if (fl === 'sell_thrust' || fl === 'mixed_thrust' || fl === 'churn')
-        return { pips: 0, delta: -1, tone: 'warn', note: 'sector selling off', cls: 'sc-fighting' };
-      return neutral;   // buy_thrust +0.06R t1.5 → no edge; market_wide +0.24R held back as regime-suspect
-    }
-    // SELL + sell_thrust: +0.152R, t +2.6, n 548.
-    if (fl === 'sell_thrust')
-      return { pips: 3, delta: 1, tone: 'sell', note: 'whole sector selling', cls: 'sc-confirmed' };
-    // SELL + market_wide: −0.228R, t −3.7, n 378, win% 25.
-    if (fl === 'market_wide')
-      return { pips: 0, delta: -1, tone: 'warn', note: 'market-wide day · sells snap back', cls: 'sc-fighting' };
-    return neutral;
-  }
 
   // What fired, in plain words (2026-09-11). This used to GRADE the signal —
   // ★ HIGH-CONVICTION / STRONG / LOW-EDGE / AVOID, from the backtest confidence
@@ -3224,14 +3152,6 @@
       tone: buy ? 'buy' : 'warn',
     };
   }
-  function verdictBarHtml(item) {
-    const v = verdictOf(item);
-    if (!v) return '';
-    return `<div class="sc-verdict sc-v-${v.tone}"><span class="sc-v-label">${v.label}</span>`
-      + `<span class="sc-v-sub">${v.sub}</span>`
-      + (v.note ? `<span class="sc-v-note">${v.note}</span>` : '')
-      + `</div>`;
-  }
 
   // ── Shared card vocabulary ────────────────────────────────────────────────
   // The Signals card, the Analyzed row and the Trends card describe the SAME
@@ -3247,28 +3167,6 @@
   // `verdictOf` is shared — two implementations of one rule in two places is
   // how the buy/sell bug lived for a year.
 
-  function cardIdentityHtml(item, opts = {}) {
-    const { tag = 'div', isAi = false, sep = ' / ' } = opts;
-    const full = instName(item.instrument_name);
-    const meta = [item.group || '', item.sector || ''].filter(Boolean).join(sep);
-    const o = tag, c = tag;
-    return `<${o} class="card-name">${item.instrument_name}${noteIndicator(item.instrument_name)}</${c}>`
-      + (full ? `<${o} class="inst-fullname">${full}</${c}>` : '')
-      + `<${o} class="card-group">${meta}${isAi ? ' <span class="ai-chip-mini">AI</span>' : ''}</${c}>`;
-  }
-
-  // Jump to this instrument on the Charts tab. Every list — Signals, Analyzed,
-  // Trends, the watchlist — is a list of instruments you eventually want to LOOK
-  // at, and until now the only way through was the modal, which shows numbers
-  // rather than the chart.
-  function chartBtn(name) {
-    return `<button class="chart-jump-btn" title="See ${name} on the chart"`
-      + ` data-act="openChartFor" data-arg="${name}" data-stop="1">${EXPAND_ICON}</button>`;
-  }
-
-  function cardActionsHtml(name) {
-    return `<div class="scanner-actions">${wlMarkBtn(name, 'share-btn', 'wlPick')}${chartBtn(name)}${shareBtn(name)}</div>`;
-  }
 
   // "Looks like" — the charts that have moved most like this one. Tapping one
   // opens it, because the whole point is to go and compare them.
@@ -3298,71 +3196,6 @@
     const v = verdictOf(item);
     if (!v) return '';
     return `<span class="sc-verdict-chip sc-v-${v.tone}" title="${v.sub}">${v.label}</span>`;
-  }
-
-  // Sector-mood filter predicate (the Mood dropdown). Mood terms are intentionally
-  // NOT wired into free-text search — see the note in matchesSearch.
-  function matchesMoodFilter(item, mood) {
-    const fl = flavourOf(item);
-    const conv = convictionOf(item);
-    switch (mood) {
-      case 'confirmed':    return !!(conv && conv.pips === 3);
-      case 'fighting':     return !!(conv && conv.pips === 0);
-      case 'calm':         return fl === 'normal';
-      case 'distributing': return fl === 'sell_thrust';
-      case 'active':       return fl === 'buy_thrust';
-      case 'churn':        return fl === 'churn';
-      case 'mixed':        return fl === 'mixed_thrust';
-      case 'marketwide':   return fl === 'market_wide';
-      case 'unknown':      return fl === 'unknown';
-      default:             return true;
-    }
-  }
-
-  // Compute summary stats client-side from the active timeframe fields
-  function computeSummary() {
-    const data = getActiveData();
-    if (!data.length) return summaryData;
-
-    const total = data.length;
-    const trendCounts = {};
-    let buyCount = 0, sellCount = 0, volumeSpikes = 0;
-    const signalTypes = {};
-    data.forEach(item => {
-      const trend = effectiveTrend(item);
-      trendCounts[trend] = (trendCounts[trend] || 0) + 1;
-
-      if (item[f('volume_spike_flag')] === 'yes') volumeSpikes++;
-
-      // Count FIRED signals by code prefix — same definition publish.py/server.py
-      // use for summary.json (buy_mask = primary_signal.startswith('B')).
-      // This used to test confirmation_status.includes('buy'/'sell'), but that
-      // field's vocabulary is "Uptrend — above all MAs" / "Above MA500 — watching
-      // for pullback entry" — it never contains either word, so both counts were
-      // structurally 0 on every run. That silently pinned the Market Pulse gauge's
-      // signal-direction component (buy share, 0–30) to its no-signals fallback
-      // of 15, permanently. Do NOT use isBuy()/isSell() here: those fall back to
-      // the trend when no signal fired, which would count every uptrending
-      // instrument as a buy and inflate the share to meaninglessness.
-      const sig = item[f('primary_signal')] || '';
-      if (sig) {
-        signalTypes[sig] = (signalTypes[sig] || 0) + 1;
-        if (sig.startsWith('B')) buyCount++;
-        else if (sig.startsWith('S')) sellCount++;
-      }
-    });
-
-    return {
-      date: summaryData.date,
-      fetched_at: summaryData.fetched_at,
-      total,
-      trend_counts: trendCounts,
-      buy_count: buyCount,
-      sell_count: sellCount,
-      volume_spikes: volumeSpikes,
-      signal_types: signalTypes,
-      groups: summaryData.groups || [],
-    };
   }
 
 
@@ -3494,7 +3327,6 @@
   function renderAll() {
     renderDashboard();
     dashHub();
-    renderScanner();
     try { renderMarketToday(); } catch (_) {}
     if (currentTab === 'scanner') renderAlerts();
     updateNotifBell();
@@ -3593,18 +3425,6 @@
   // (timeframe, header, live prices) start from the opening tab, not the markup.
   { const wb = document.querySelector('.nav-tab[data-tab="watchlist"]'); if (wb) doTabSwitch(wb); }
 
-  // ── Gauge Info Tooltip ───────────────────────────────────────────────
-  (function wireGaugeInfo() {
-    const btn     = document.getElementById('gaugeInfoBtn');
-    const tooltip = document.getElementById('gaugeTooltip');
-    if (!btn || !tooltip) return;
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const visible = tooltip.style.display !== 'none';
-      tooltip.style.display = visible ? 'none' : '';
-    });
-    document.addEventListener('click', () => { if (tooltip) tooltip.style.display = 'none'; });
-  })();
 
   // ── Refresh ──────────────────────────────────────────────────────────
   const _refreshBtn = document.getElementById('refreshBtn');
@@ -3637,9 +3457,6 @@
     }
   });
 
-  function chartFreshnessHtml(name) {
-    return `<details class="reel-data-status" data-freshness-name="${escText(name)}"><summary>Chart times loading…</summary><div class="reel-freshness-detail"></div></details>`;
-  }
   function updateChartFreshness(host, bundle, name) {
     const box = host && host.parentElement && host.parentElement.querySelector('[data-freshness-name]');
     if (!box || !bundle || !bundle.t || !bundle.t.length) return;
@@ -4129,8 +3946,6 @@
     if (code === 'B4' || code === 'S4') return 4;
     return 5;
   }
-  function isReversal(code)  { return code === 'B1'  || code === 'S1'; }
-  function isLongestMa(code) { return code === 'B4'  || code === 'S4'; }
 
   const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4'];
 
@@ -4144,11 +3959,6 @@
     if (sig) return sig.startsWith('S');
     return (item[f('confirmation_status')] || '').toLowerCase().includes('downtrend');
   }
-  function trendTag(trend) {
-    if (trend === 'UPTREND') return 'tag-up';
-    if (trend === 'DOWNTREND') return 'tag-down';
-    return 'tag-neutral';
-  }
   function formatPrice(val) {
     if (!val && val !== 0) return '--';
     const n = parseFloat(val);
@@ -4158,49 +3968,7 @@
     if (n >= 1)    return n.toFixed(4);
     return n.toFixed(6);
   }
-  // ── RSI helpers ─────────────────────────────────────────────────────────
-  function rsiZone(val) {
-    const v = parseFloat(val);
-    if (isNaN(v)) return '';
-    if (v >= 70) return 'overbought';
-    if (v >= 50) return 'bullish';
-    if (v >= 30) return 'bearish';
-    return 'oversold';
-  }
 
-  function pctFromMa(item) {
-    const close = parseFloat(item[f('close')]);
-    if (!close || isNaN(close)) return null;
-    const periods = activeMaPeriods();
-    const maxP = periods[periods.length - 1];
-    const maVal = parseFloat(item[f('ma_' + maxP)]);
-    if (!maVal || isNaN(maVal)) return null;
-    return ((close - maVal) / maVal) * 100;
-  }
-
-  // Price position vs the full MA ribbon (min..max of all MAs, active TF).
-  // Uptrend + inside = REACTION (pullback into support); downtrend + inside =
-  // RALLY (counter-trend bounce into resistance) — Gann phase terms.
-  // 0.3% buffer: price must be clearly outside the ribbon to count as outside,
-  // so boundary hovers classify as 'inside' instead of flickering day-to-day.
-  function ribbonPos(item) {
-    const close = parseFloat(item[f('close')]);
-    if (!close || isNaN(close)) return null;
-    let lo = Infinity, hi = -Infinity;
-    activeMaPeriods().forEach(p => {
-      const v = parseFloat(item[f('ma_' + p)]);
-      if (!isNaN(v) && v > 0) { if (v < lo) lo = v; if (v > hi) hi = v; }
-    });
-    if (!isFinite(lo) || !isFinite(hi)) return null;
-    if (close > hi * 1.003) return 'above';
-    if (close < lo * 0.997) return 'below';
-    return 'inside';
-  }
-
-  function ribbonPhase(item, t) {
-    if (ribbonPos(item) !== 'inside') return '';
-    return t === 'UPTREND' ? 'REACTION' : t === 'DOWNTREND' ? 'RALLY' : '';
-  }
 
   // Setup panel — shared by the scanner cards and the instrument modal:
   // line 1 = market state (trend + ribbon phase), line 2 = signal event +
@@ -4235,10 +4003,6 @@
   function stopPctOf(item) {
     const a = parseFloat(item[f('atr_pct')]);
     return isFinite(a) && a > 0 ? a * 2 : null;
-  }
-  function costTight(item) {
-    const rule = COST_TIGHT[timeframe], s = stopPctOf(item);
-    return !!(rule && s != null && item[f('primary_signal')] && s < rule.pct);
   }
   function costLineHtml(item) {
     const rule = COST_TIGHT[timeframe], s = stopPctOf(item);
@@ -4406,19 +4170,6 @@
     return (id === undefined || !set.families) ? null : set.families[id] || null;
   }
 
-  // Group a set of instruments by shape family. Returns only families with more
-  // than one member PRESENT — a family of one on screen is not a concentration.
-  function shapeClusters(items) {
-    const by = new Map();
-    items.forEach(d => {
-      const fam = shapeFamily(d.instrument_name);
-      if (!fam) return;
-      if (!by.has(fam.id)) by.set(fam.id, { fam, names: [] });
-      by.get(fam.id).names.push(d.instrument_name);
-    });
-    return [...by.values()].filter(g => g.names.length > 1)
-                           .sort((a, b) => b.names.length - a.names.length);
-  }
 
   // One line, only when it would change what you do: several of the things in
   // front of you are the same trade. Silent otherwise — a warning that fires on
@@ -4434,20 +4185,6 @@
   const CONC_MIN_MEMBERS = 3;
   const CONC_MIN_SHARE   = 0.20;
 
-  function concentrationNoteHtml(items) {
-    const groups = shapeClusters(items);
-    if (!groups.length || !items.length) return '';
-    const top = groups[0];
-    if (top.names.length < CONC_MIN_MEMBERS) return '';
-    if (top.names.length / items.length < CONC_MIN_SHARE) return '';
-    const shown = top.names.slice(0, 4).join(', ');
-    const more = top.names.length > 4 ? ` +${top.names.length - 4} more` : '';
-    return `<div class="shape-conc" title="Measured over ${shapeSim.window_bars || 520} ${tfMeta().label} bars, market drift removed">`
-      + `<b>${top.names.length} of these ${items.length} move together</b>`
-      + `<span class="shape-conc-names">${shown}${more} · ${top.fam.label}</span>`
-      + `<span class="shape-conc-note">Sized as separate positions, this is one bet ${top.names.length} times.</span>`
-      + `</div>`;
-  }
 
   // Filter predicate, shared by the Signals sheet and the Charts tab so the two
   // cannot drift into different definitions of "near cross".
@@ -4461,33 +4198,6 @@
     return true;
   }
 
-  function animateCount(el, target) {
-    const start = parseInt(el.textContent) || 0;
-    const diff = target - start;
-    if (diff === 0) { el.textContent = target; return; }
-    const steps = 20;
-    let step = 0;
-    const timer = setInterval(() => {
-      step++;
-      el.textContent = Math.round(start + (diff * step / steps));
-      if (step >= steps) { el.textContent = target; clearInterval(timer); }
-    }, 30);
-  }
-  function getThemeColors() {
-    const style = getComputedStyle(document.documentElement);
-    return {
-      buy: style.getPropertyValue('--buy').trim(),
-      sell: style.getPropertyValue('--sell').trim(),
-      watch: style.getPropertyValue('--watch').trim(),
-      volume: style.getPropertyValue('--volume').trim(),
-      accent: style.getPropertyValue('--accent').trim(),
-      neutral: style.getPropertyValue('--neutral').trim(),
-      text: style.getPropertyValue('--text-secondary').trim(),
-      muted: style.getPropertyValue('--text-muted').trim(),
-      bg: style.getPropertyValue('--bg-card').trim(),
-      grid: style.getPropertyValue('--border').trim(),
-    };
-  }
 
   // ── Dashboard ────────────────────────────────────────────────────────
   // ── Layer 3: per-instrument track record snippet (used inside modal) ──
@@ -4534,179 +4244,14 @@
     return `${dateStr} ${timeStr}`;
   }
 
-  // ── Signal Track Record (from backtest.json) ──────────────────────────
-  function renderTrackRecord() {
-    const card    = document.getElementById('trackRecordCard');
-    const overall = document.getElementById('trOverall');
-    const rows    = document.getElementById('trRows');
-    const subEl   = document.getElementById('trSubtitle');
-    if (!card || !overall || !rows) return;
-    if (!backtestData || !backtestData.overall || !backtestData.overall.total_trades) {
-      card.style.display = 'none';
-      return;
-    }
-    card.style.display = '';
 
-    const o = backtestData.overall;
-    const oCls = o.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
-    overall.innerHTML = `
-      <div class="tr-overall-row">
-        <div class="tr-stat">
-          <span class="tr-stat-val">${o.total_trades}</span>
-          <span class="tr-stat-lbl">Trades</span>
-        </div>
-        <div class="tr-stat">
-          <span class="tr-stat-val">${o.win_rate}%</span>
-          <span class="tr-stat-lbl">Win rate</span>
-        </div>
-        <div class="tr-stat">
-          <span class="tr-stat-val ${oCls}">${o.avg_r > 0 ? '+' : ''}${o.avg_r}R</span>
-          <span class="tr-stat-lbl">Avg R</span>
-        </div>
-        <div class="tr-stat">
-          <span class="tr-stat-val ${o.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">${o.profit_factor}</span>
-          <span class="tr-stat-lbl">PF</span>
-        </div>
-      </div>
-    `;
-
-    const sigs = backtestData.by_signal || {};
-    const btRows = Object.entries(sigs).map(([sig, s]) => {
-      const cls = s.avg_r >= 0 ? 'tr-pos' : 'tr-neg';
-      const sigCls = `sig-${sigClass(sig) || 'p4'}`;
-      return `<div class="tr-row">
-        <span class="tr-sig-badge ${sigCls}">${sig}</span>
-        <span class="tr-row-trades">${s.total_trades}</span>
-        <span class="tr-row-wr">${s.win_rate}%</span>
-        <span class="tr-row-r ${cls}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}R</span>
-        <span class="tr-row-pf ${s.profit_factor >= 1 ? 'tr-pos' : 'tr-neg'}">PF ${s.profit_factor}</span>
-      </div>`;
-    }).join('');
-
-    // Live record — actual production fires, graded by signal_ledger.py with
-    // the same ATR-stop simulation the backtest uses.
-    //
-    // A code is only shown once enough of its fires have MATURED (`counted` —
-    // the full 30-bar/60-bar window elapsed). Resolved-but-immature fires are
-    // deliberately excluded: a 1R stop resolves in days, a 2R target takes
-    // weeks, so averaging everything that has closed so far reports only the
-    // fast losers. This card used to do that, and it made every code look
-    // catastrophic (B1 −1.078R off fires that were days old).
-    let liveHtml = '';
-    if (ledgerData && ledgerData.totals && ledgerData.totals.fires) {
-      const t = ledgerData.totals;
-      const MIN_COUNTED = 10;   // below this a code's avgR is noise, not a result
-      // Pre-maturity-gate payload (a UI deploy can land before the next data
-      // run). Its avgR figures are the biased ones this card was built to stop
-      // showing, and its per-code `counted` is missing, so say so and stop.
-      if (t.counted === undefined) {
-        rows.innerHTML = btRows +
-          `<div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded</div>` +
-          `<div class="tr-live-empty">Live grades are being recomputed on the next data run — they only count a fire once its full outcome window has passed.</div>`;
-        if (subEl && backtestData.generated_at) {
-          const p0 = backtestData.params || {};
-          subEl.textContent = `${p0.stop_model ? `${p0.stop_model} stop · ${p0.target_r || 2}:1 R:R` : '2×ATR14 stop · 2:1 R:R'}`
-            + `${p0.since && p0.since !== 'full history' ? ` · since ${p0.since}` : ''}`
-            + ` · updated ${formatGeneratedAt(backtestData.generated_at)}`;
-        }
-        return;
-      }
-      const all = Object.entries(ledgerData.by_code || {});
-      const ready   = all.filter(([, s]) => (s.counted || 0) >= MIN_COUNTED)
-                         .sort((a, b) => ((b[1].avg_r ?? -99) - (a[1].avg_r ?? -99)));
-      const pending = all.filter(([, s]) => (s.counted || 0) < MIN_COUNTED && s.fires);
-      const maturingTotal = t.maturing != null
-        ? t.maturing
-        : pending.reduce((n, [, s]) => n + (s.maturing || 0), 0);
-
-      liveHtml = `
-        <div class="tr-live-head">Live fires${t.since ? ` since ${t.since}` : ''} — ${t.fires} recorded · ${t.counted != null ? t.counted : 0} counted · ${maturingTotal} maturing · ${t.open} open</div>
-        ${ready.length ? ready.map(([code, s]) => {
-          const r = s.avg_r ?? 0;
-          const cls = r >= 0 ? 'tr-pos' : 'tr-neg';
-          const bt = sigs[code];
-          const btStr = bt ? `BT ${bt.avg_r > 0 ? '+' : ''}${bt.avg_r}R` : '';
-          const approxNote = s.approx ? ` · ${s.approx} on an inferred entry bar` : '';
-          return `<div class="tr-row">
-            <span class="tr-sig-badge sig-${sigClass(code) || 'p4'}">${code}</span>
-            <span class="tr-row-trades" title="Fires whose full outcome window has elapsed, out of all fires recorded${approxNote}">${s.counted}/${s.fires}</span>
-            <span class="tr-row-wr">${s.win_rate != null ? s.win_rate + '%' : '--'}</span>
-            <span class="tr-row-r ${cls}">${r > 0 ? '+' : ''}${s.avg_r != null ? s.avg_r : '--'}R</span>
-            <span class="tr-row-pf tr-live-bt" title="Backtested expectancy for this code (10y) — is live matching it?">${btStr}</span>
-          </div>`;
-        }).join('') : ''}
-        ${pending.length ? `<div class="tr-live-empty">${ready.length ? 'Still maturing: ' : 'Nothing has matured yet — '}${pending.map(([c, s]) => `${c} ${s.counted || 0}/${MIN_COUNTED}`).join(' · ')}. A signal only counts once its full window (${t.window ? `${t.window.D || 30} daily bars, ${t.window['4H'] || 60} 4H bars, ${t.window.W || 13} weekly bars` : '30 daily bars'}) has passed, so winners aren't left out.</div>` : ''}
-      `;
-    }
-    rows.innerHTML = btRows + liveHtml;
-
-    if (subEl && backtestData.generated_at) {
-      const p = backtestData.params || {};
-      const stopStr = p.stop_model ? `${p.stop_model} stop · ${p.target_r || 2}:1 R:R` : '2×ATR14 stop · 2:1 R:R';
-      const sinceStr = p.since && p.since !== 'full history' ? ` · since ${p.since}` : '';
-      subEl.textContent = `${stopStr}${sinceStr} · updated ${formatGeneratedAt(backtestData.generated_at)}`;
-    }
-  }
-
-  // Sector-mood market state (validated Phase 0): sit-out warning on market-wide churn
-  // days, otherwise a stock-picking-OK note when there are fresh fires.
-  function renderMarketState() {
-    const el = document.getElementById('marketStateBanner');
-    if (!el) return;
-    // Retired 2026-09-11: the sit-out and "grades validated" banners were the
-    // sector-mood layer, fitted on the trades it graded.
-    el.innerHTML = '';
-  }
-
+  // Market tab: only these two of the old Dashboard cards are still shown.
+  // Everything else the Dashboard drew was hidden by CSS and is deleted.
   function renderDashboard() {
-    renderMarketState();
-    const s = computeSummary();
-    const total = s.total || 1;
-
-    const tc = s.trend_counts || {};
-    const up = tc.UPTREND || 0;
-    const down = tc.DOWNTREND || 0;
-    const neutral = tc.NEUTRAL || 0;
-    const pulseEl = document.getElementById('pulseSentiment');
-    const mpBanner = document.getElementById('marketPulse');
-
-    // Remove old sentiment classes
-    mpBanner.classList.remove('mp-bullish', 'mp-bearish', 'mp-mixed');
-
-    if (up > down * 1.5) {
-      pulseEl.textContent = 'Bullish';
-      pulseEl.className = 'pulse-value bullish';
-      mpBanner.classList.add('mp-bullish');
-    } else if (down > up * 1.5) {
-      pulseEl.textContent = 'Bearish';
-      pulseEl.className = 'pulse-value bearish';
-      mpBanner.classList.add('mp-bearish');
-    } else {
-      pulseEl.textContent = 'Mixed';
-      pulseEl.className = 'pulse-value mixed';
-      mpBanner.classList.add('mp-mixed');
-    }
-    document.getElementById('pulseUptrend').textContent = up + ' uptrend';
-    document.getElementById('pulseDowntrend').textContent = down + ' downtrend';
-    document.getElementById('pulseNeutral').textContent = neutral + ' neutral';
-
-    // Stat card counts kept in hidden spans for potential JS references
-    animateCount(document.getElementById('buyCount'), s.buy_count || 0);
-    animateCount(document.getElementById('sellCount'), s.sell_count || 0);
-    animateCount(document.getElementById('volumeCount'), s.volume_spikes || 0);
-
-    renderTrackRecord();
-    renderAlertBanner();
-    rebuildCharts();
-    renderGroupPulse();
-    renderVolumePulse();
     renderRotation();
-    renderSectorRadar();
     renderLeaders();
-    renderCompressionFeed();
-    renderSignalFeed();
-    renderThemesCard();
   }
+
 
   // ── Tech Themes Dashboard Card ─────────────────────────────────────────
   // `extra` lists theme members whose Instruments.txt group is an index
@@ -4733,93 +4278,6 @@
 
   const _themeExpanded = new Set();
 
-  function renderThemesCard() {
-    const el = document.getElementById('techThemesCard');
-    if (!el) return;
-
-    const rows = TECH_THEMES.map(theme => {
-      const items  = allData.filter(d => d.group === theme.group || theme.extraSet.has(d.instrument_name));
-      const bulls  = items.filter(d => effectiveTrend(d) === 'UPTREND').length;
-      const bears  = items.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
-      const total  = items.length;
-      const buySigs  = items.filter(d => isBuy(d));
-      const sellSigs = items.filter(d => isSell(d));
-      const sigCount = buySigs.length + sellSigs.length;
-
-      if (!total) return `
-        <div class="th-row th-empty">
-          <span class="th-label">${theme.label}</span>
-          <span class="th-nodata">no data — run pipeline</span>
-        </div>`;
-
-      const bullPct = Math.round(bulls / total * 100);
-      const bearPct = Math.round(bears / total * 100);
-      const neutPct = 100 - bullPct - bearPct;
-      const dom = bullPct > bearPct + 15 ? 'th-bull' : bearPct > bullPct + 15 ? 'th-bear' : 'th-neu';
-      const open = _themeExpanded.has(theme.group);
-
-      const instrRows = open ? [...items]
-        .sort((a,b) => {
-          const order = { UPTREND:0, NEUTRAL:1, DOWNTREND:2 };
-          return (order[effectiveTrend(a)]??1) - (order[effectiveTrend(b)]??1);
-        })
-        .map(item => {
-          const td  = effectiveTrend(item);
-          const sig = item[f('primary_signal')] || '';
-          const conf = item[f('signal_confidence')] || '';
-          const vol = item[f('volume_spike_flag')] === 'yes';
-          const arrow = td === 'UPTREND' ? '↑' : td === 'DOWNTREND' ? '↓' : '–';
-          const trendCls = td === 'UPTREND' ? 'th-i-up' : td === 'DOWNTREND' ? 'th-i-dn' : 'th-i-neu';
-          const sigCls = isBuy(item) ? 'th-sig-buy' : isSell(item) ? 'th-sig-sell' : '';
-          return `<div class="th-instrument" data-arg="${item.instrument_name}">
-            <span class="th-i-name">${item.instrument_name}</span>
-            <span class="th-i-arrow ${trendCls}">${arrow}${vol ? '<span class="th-vol">V</span>' : ''}</span>
-            ${sig ? `<span class="th-i-sig ${sigCls}">${sig}${conf === 'high' ? ' ★' : ''}</span>` : ''}
-          </div>`;
-        }).join('') : '';
-
-      return `
-        <div class="th-row ${dom}" data-th-group="${theme.group}">
-          <div class="th-top">
-            <span class="th-label">${theme.label}</span>
-            <div class="th-bar-wrap">
-              <div class="th-bar-bull" style="width:${bullPct}%"></div>
-              <div class="th-bar-neut" style="width:${neutPct}%"></div>
-              <div class="th-bar-bear" style="width:${bearPct}%"></div>
-            </div>
-            <div class="th-stats">
-              <span class="th-pct-bull">${bullPct}%↑</span>
-              <span class="th-pct-bear">${bearPct}%↓</span>
-              ${sigCount ? `<span class="th-sig-count">${sigCount}</span>` : ''}
-            </div>
-            <span class="th-chevron">${open ? '▲' : '▼'}</span>
-          </div>
-          ${open ? `<div class="th-instruments">${instrRows}</div>` : ''}
-        </div>`;
-    }).join('');
-
-    el.innerHTML = `
-      <div class="card-header">
-        <h3>Tech Themes</h3>
-        <span style="font-size:.68rem;color:var(--text-muted)">tap to expand</span>
-      </div>
-      <div class="th-list">${rows}</div>`;
-
-    el.querySelectorAll('.th-row[data-th-group]').forEach(row => {
-      row.querySelector('.th-top')?.addEventListener('click', () => {
-        const g = row.dataset.thGroup;
-        _themeExpanded.has(g) ? _themeExpanded.delete(g) : _themeExpanded.add(g);
-        renderThemesCard();
-      });
-    });
-
-    el.querySelectorAll('.th-instrument[data-arg]').forEach(row => {
-      row.addEventListener('click', e => {
-        e.stopPropagation();
-        window.SP?.openModal?.(row.dataset.arg);
-      });
-    });
-  }
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
   const GP_REGION_MAP = {
@@ -4837,109 +4295,6 @@
     'AI Semi':'Themes','AI Infra':'Themes','XM Index':'Themes',
   };
 
-  function renderGroupPulse() {
-    const body      = document.getElementById('groupPulseBody');
-    const riskBadge = document.getElementById('groupPulseRisk');
-    const toggle    = document.getElementById('gpViewToggle');
-    const title     = document.getElementById('groupPulseTitle');
-    if (!body) return;
-
-    if (toggle) {
-      toggle.textContent = gpViewMode === 'region' ? 'Group' : 'Region';
-      toggle.classList.toggle('gp-view-active', gpViewMode === 'region');
-    }
-    if (title) title.textContent = gpViewMode === 'region' ? 'By Region' : 'By Group';
-
-    // ── Aggregate bull/bear/neutral per group or region ───────────────────
-    // INDEX_GROUPS is defined at module scope (below Scanner section) — reuse it
-    const dimMap = {};
-    for (const item of allData) {
-      const raw = item.group || 'Other';
-      let key;
-      if (gpViewMode === 'region') {
-        key = GP_REGION_MAP[raw] || 'Other';
-      } else {
-        key = INDEX_GROUPS.has(raw) ? 'Indices' : raw;
-      }
-      if (!dimMap[key]) dimMap[key] = { bull: 0, bear: 0, neutral: 0, signals: 0, rvolSum: 0, rvolN: 0 };
-      const t = effectiveTrend(item);
-      if      (t === 'UPTREND')   dimMap[key].bull++;
-      else if (t === 'DOWNTREND') dimMap[key].bear++;
-      else                        dimMap[key].neutral++;
-      if (item[f('primary_signal')]) dimMap[key].signals++;
-      const rv = rvol(item);
-      if (rv !== null) { dimMap[key].rvolSum += rv; dimMap[key].rvolN++; }
-    }
-
-    // Sort: most bullish first
-    const entries = Object.entries(dimMap).sort((a, b) => {
-      const pctA = a[1].bull / (a[1].bull + a[1].bear + a[1].neutral || 1);
-      const pctB = b[1].bull / (b[1].bull + b[1].bear + b[1].neutral || 1);
-      return pctB - pctA;
-    });
-
-    // ── Overall risk badge ────────────────────────────────────────────────
-    const totBull   = allData.filter(d => effectiveTrend(d) === 'UPTREND').length;
-    const totBear   = allData.filter(d => effectiveTrend(d) === 'DOWNTREND').length;
-    const totAll    = allData.length || 1;
-    const isRiskOn  = (totBull / totAll) > 0.55;
-    const isRiskOff = (totBear / totAll) > 0.55;
-    if (riskBadge) {
-      riskBadge.textContent = isRiskOn ? '▲ Risk-On' : isRiskOff ? '▼ Risk-Off' : '◆ Mixed';
-      riskBadge.className   = 'gp-risk-badge ' + (isRiskOn ? 'gp-risk-on' : isRiskOff ? 'gp-risk-off' : 'gp-risk-mixed');
-    }
-
-    // ── Active filter for row highlight ───────────────────────────────────
-    const activeGroupVal = document.getElementById('scannerGroupFilter')?.value || 'all';
-    const activeKey      = gpViewMode === 'region' ? activeRegionFilter : activeGroupVal;
-
-    body.innerHTML = entries.map(([name, c]) => {
-      const total   = c.bull + c.bear + c.neutral || 1;
-      const bullPct = Math.round(c.bull / total * 100);
-      const bearPct = Math.round(c.bear / total * 100);
-      const neutPct = 100 - bullPct - bearPct;
-      const dominant = bullPct > bearPct + 15 ? 'gp-row-bull'
-                     : bearPct > bullPct + 15  ? 'gp-row-bear'
-                     : 'gp-row-mixed';
-      const isActive = activeKey === name ? ' gp-row-selected' : '';
-      const sigDot   = c.signals > 0 ? `<span class="gp-sig-dot" title="${c.signals} active buy/sell signal${c.signals>1?'s':''} in this group">${c.signals}</span>` : '';
-      const avgRvol  = c.rvolN ? c.rvolSum / c.rvolN : null;
-      const rvolCell = avgRvol === null
-        ? `<span class="gp-rvol gp-rvol-na" title="No volume reported for this group">—</span>`
-        : `<span class="gp-rvol ${avgRvol >= 1 ? 'gp-rvol-hot' : ''}" title="Average daily volume vs each instrument's own average across this group (${c.rvolN} with volume)">${fmtRvol(avgRvol)}</span>`;
-      return `
-        <div class="gp-row ${dominant}${isActive}" data-gp-key="${name}">
-          <div class="gp-name">${name}${sigDot}</div>
-          <div class="gp-bar-wrap">
-            <div class="gp-bar-bull" style="width:${bullPct}%"></div>
-            <div class="gp-bar-neut" style="width:${neutPct}%"></div>
-            <div class="gp-bar-bear" style="width:${bearPct}%"></div>
-          </div>
-          ${rvolCell}
-          <div class="gp-stats">
-            <span class="gp-bull">${bullPct}%↑</span>
-            <span class="gp-bear">${bearPct}%↓</span>
-          </div>
-        </div>`;
-    }).join('');
-
-    // ── Row click → filter scanner ──────────────────────────────────────
-    body.querySelectorAll('.gp-row[data-gp-key]').forEach(row => {
-      row.addEventListener('click', () => {
-        const key = row.dataset.gpKey;
-        openChartsFiltered({ gp: { mode: gpViewMode === 'region' ? 'region' : 'group', key }, label: key });
-      });
-    });
-
-    // ── Toggle button ─────────────────────────────────────────────────────
-    if (toggle && !toggle._gpBound) {
-      toggle._gpBound = true;
-      toggle.addEventListener('click', () => {
-        gpViewMode = gpViewMode === 'group' ? 'region' : 'group';
-        renderGroupPulse();
-      });
-    }
-  }
 
   // ── Volume Pulse card — RVOL + PVO rolled up by market / industry ──────
   // Market = broad asset class (assetClassOf), Industry = Instruments.txt
@@ -4948,141 +4303,6 @@
   let vpShowAll = false;
   const VP_ROW_CAP = 12;
 
-  function renderVolumePulse() {
-    const body = document.getElementById('volumePulseBody');
-    if (!body) return;
-
-    document.querySelectorAll('#vpToggle .vp-mode-btn').forEach(btn => {
-      btn.classList.toggle('vp-active', btn.dataset.vp === vpMode);
-      if (!btn._vpBound) {
-        btn._vpBound = true;
-        btn.addEventListener('click', () => {
-          vpMode = btn.dataset.vp;
-          vpShowAll = false;
-          try { localStorage.setItem('swingpulse-vp-mode', vpMode); } catch (e) {}
-          renderVolumePulse();
-        });
-      }
-    });
-
-    // ── Summary strip: market-wide volume picture (shown in all modes) ──
-    // Pressure bar weights each instrument by its RVOL, so it reads as
-    // "where is today's unusual volume concentrated — rising or falling names".
-    let sumHtml = '';
-    {
-      let n = 0, rvSum = 0, spikes = 0, hot = 0, pvoUp = 0, pvoN = 0, upW = 0, dnW = 0;
-      for (const item of allData) {
-        const rv = rvol(item);
-        if (rv === null) continue;
-        n++; rvSum += rv;
-        if (rv >= 1.5) hot++;
-        if (item[f('volume_spike_flag')] === 'yes') spikes++;
-        const pv = pvo(item);
-        if (pv) { pvoN++; if (pv.v >= 0) pvoUp++; }
-        const o = parseFloat(item[f('open')]), c = parseFloat(item[f('close')]);
-        if (isFinite(o) && isFinite(c) && o > 0) { if (c >= o) upW += rv; else dnW += rv; }
-      }
-      if (n) {
-        const avgRv  = rvSum / n;
-        const upPct  = (upW + dnW) ? Math.round(upW / (upW + dnW) * 100) : null;
-        const expPct = pvoN ? Math.round(pvoUp / pvoN * 100) : null;
-        sumHtml = `
-        <div class="vp-summary">
-          <div class="vp-sum-tiles">
-            <div class="vp-sum-tile" title="Average RVOL across the ${n} instruments reporting volume"><div class="vp-sum-lbl">Avg RVOL</div><div class="vp-sum-val ${avgRv >= 1 ? 'vp-hot' : ''}">${fmtRvol(avgRv)}</div></div>
-            <div class="vp-sum-tile" title="Instruments trading above their ${VP_LOOKBACK_LABEL()} average volume"><div class="vp-sum-lbl">Spikes</div><div class="vp-sum-val">${spikes}</div></div>
-            <div class="vp-sum-tile" title="Instruments at 1.5× or more of their average volume"><div class="vp-sum-lbl">≥1.5×</div><div class="vp-sum-val ${hot ? 'vp-hot' : ''}">${hot}</div></div>
-            <div class="vp-sum-tile" title="Share of instruments with a rising volume oscillator (PVO ≥ 0)"><div class="vp-sum-lbl">PVO+</div><div class="vp-sum-val ${expPct !== null && expPct >= 50 ? 'vp-sum-up' : ''}">${expPct !== null ? expPct + '%' : '—'}</div></div>
-          </div>
-          ${upPct !== null ? `
-          <div class="mh-vol-pressure" title="RVOL-weighted share of today's volume in instruments trading up vs down (close vs open, ${timeframe} bars)">
-            <div class="mh-vp-track"><div class="mh-vp-up" style="width:${upPct}%"></div></div>
-            <div class="mh-vp-lbls">
-              <span style="color:var(--buy)">▲ ${upPct}% of volume in rising names</span>
-              <span style="color:var(--sell)">${100 - upPct}% falling ▼</span>
-            </div>
-          </div>` : ''}
-        </div>`;
-      }
-    }
-
-    // ── Movers: top instruments by RVOL ─────────────────────────────────
-    if (vpMode === 'movers') {
-      const movers = allData
-        .map(item => ({ item, rv: rvol(item) }))
-        .filter(x => x.rv !== null)
-        .sort((a, b) => b.rv - a.rv)
-        .slice(0, VP_ROW_CAP);
-      if (!movers.length) { body.innerHTML = '<div class="vp-empty">No volume data yet</div>'; return; }
-      const rvMax = Math.max(1.5, movers[0].rv);
-      body.innerHTML = sumHtml + movers.map(({ item, rv }) => {
-        const pv = pvo(item);
-        const spike = item[f('volume_spike_flag')] === 'yes';
-        return `
-          <div class="vp-row" data-act="openModal" data-arg="${item.instrument_name}">
-            <div class="vp-name">${item.instrument_name}${spike ? '<span class="vp-spike-dot" title="Volume spike">VOL</span>' : ''}
-              <span class="vp-sub">${item.industry || item.group || ''}</span></div>
-            <div class="vp-bar-wrap vp-spark-slot"><div class="vp-bar ${rv >= 1 ? 'vp-bar-hot' : ''}" style="width:${Math.min(100, rv / rvMax * 100)}%"></div></div>
-            <span class="vp-rvol ${rv >= 1 ? 'vp-hot' : ''}">${fmtRvol(rv)}</span>
-            <span class="vp-pvo ${pv ? (pv.v >= 0 ? 'vp-pvo-up' : 'vp-pvo-down') : ''}">${pv ? fmtPvo(pv.v) : '—'}</span>
-          </div>`;
-      }).join('') + `<div class="vp-legend">RVOL = today ÷ ${VP_LOOKBACK_LABEL()} avg · PVO = volume oscillator % · spark: 24d volume — green up / red down day</div>`;
-      hydrateMoverSparks(body, movers.map(m => m.item));
-      return;
-    }
-
-    // ── Market / Industry: aggregate per bucket ──────────────────────────
-    const buckets = {};
-    for (const item of allData) {
-      const rv = rvol(item);
-      if (rv === null) continue;                       // no volume reported
-      const key = vpMode === 'market'
-        ? assetClassOf(item)
-        : (item.industry || item.sector || 'Other');
-      if (!buckets[key]) buckets[key] = { n: 0, rvSum: 0, pvoSum: 0, pvoN: 0, spikes: 0 };
-      const b = buckets[key];
-      b.n++; b.rvSum += rv;
-      if (item[f('volume_spike_flag')] === 'yes') b.spikes++;
-      const pv = pvo(item);
-      if (pv) { b.pvoSum += pv.v; b.pvoN++; }
-    }
-
-    const entries = Object.entries(buckets)
-      .map(([name, b]) => ({ name, n: b.n, rv: b.rvSum / b.n, spikes: b.spikes,
-                             pvo: b.pvoN ? b.pvoSum / b.pvoN : null }))
-      .sort((a, b) => b.rv - a.rv);
-    if (!entries.length) { body.innerHTML = '<div class="vp-empty">No volume data yet</div>'; return; }
-
-    const shown = vpShowAll ? entries : entries.slice(0, VP_ROW_CAP);
-    const rvMax = Math.max(1.5, entries[0].rv);
-    body.innerHTML = sumHtml + shown.map(e => `
-      <div class="vp-row" data-vp-key="${e.name}">
-        <div class="vp-name">${e.name}${e.spikes ? `<span class="vp-spike-dot" title="${e.spikes} volume spike${e.spikes > 1 ? 's' : ''}">${e.spikes}</span>` : ''}
-          <span class="vp-sub">${e.n} instrument${e.n > 1 ? 's' : ''}</span></div>
-        <div class="vp-bar-wrap"><div class="vp-bar ${e.rv >= 1 ? 'vp-bar-hot' : ''}" style="width:${Math.min(100, e.rv / rvMax * 100)}%"></div></div>
-        <span class="vp-rvol ${e.rv >= 1 ? 'vp-hot' : ''}">${fmtRvol(e.rv)}</span>
-        <span class="vp-pvo ${e.pvo !== null ? (e.pvo >= 0 ? 'vp-pvo-up' : 'vp-pvo-down') : ''}">${e.pvo !== null ? fmtPvo(e.pvo) : '—'}</span>
-      </div>`).join('')
-      + (entries.length > VP_ROW_CAP && !vpShowAll
-          ? `<button class="vp-more-btn" id="vpMoreBtn">Show all ${entries.length}</button>` : '')
-      + `<div class="vp-legend">Avg RVOL per ${vpMode} · PVO = avg volume oscillator %</div>`;
-
-    document.getElementById('vpMoreBtn')?.addEventListener('click', () => {
-      vpShowAll = true;
-      renderVolumePulse();
-    });
-
-    // Row click → scanner filtered to that market / industry
-    body.querySelectorAll('.vp-row[data-vp-key]').forEach(row => {
-      row.addEventListener('click', () => {
-        const key = row.dataset.vpKey;
-        if (vpMode === 'market') openChartsFiltered({ cls: key, label: key });
-        else openChartsFiltered({ search: key });
-      });
-    });
-  }
-
-  function VP_LOOKBACK_LABEL() { return tfMeta().barShort; }
 
   // ── Sector Activity Radar — anomaly monitor, quiet on normal days ──
   // Axis value = z of today's activity rate vs the sector's OWN trailing
@@ -5319,235 +4539,6 @@
     openChartsFiltered({ search: sector });
   }
 
-  function renderSectorRadar() {
-    const card = document.getElementById('sectorRadarCard');
-    const body = document.getElementById('sectorRadarBody');
-    const badge = document.getElementById('sectorRadarBadge');
-    if (!card || !body) return;
-    const d = sectorRadarData;
-    if (!d) { card.style.display = 'none'; return; }
-    card.style.display = '';
-
-    const alertZ = d.alert_z || 1.5;
-    const secs = d.sectors.filter(s => s.members >= (d.min_members || 8));
-    secs.sort((a, b) => b.members - a.members);   // stable axis order
-    const N = secs.length;
-    const zc = s => Math.max(0, Math.min(3, s.z === null ? 0 : s.z));
-    const shown = s => s.hot && (s.z >= 2 || s.elevated_days >= 2);
-    const warming = s => !shown(s) && s.z !== null && s.z >= 1;   // building, not yet at alert
-    const tiltCol = s => s.tilt === 'buy' ? 'var(--buy)' : s.tilt === 'sell' ? 'var(--sell)' : 'var(--accent)';
-    const tiltGlyph = s => s.tilt === 'buy' ? '▲' : s.tilt === 'sell' ? '▼' : '◆';
-    const zdesc = (a, b) => (b.z === null ? -9 : b.z) - (a.z === null ? -9 : a.z);
-    const hotSecs  = secs.filter(shown).sort(zdesc);     // most active first
-    const warmSecs = secs.filter(warming).sort(zdesc);   // ≥1σ, building but not yet at alert
-    const baseSecs = secs.filter(s => !shown(s) && !warming(s)).sort(zdesc);
-    const active = hotSecs.length + warmSecs.length;
-
-    if (badge) {
-      badge.textContent = hotSecs.length
-        ? `${hotSecs.length} hot`
-        : warmSecs.length
-          ? `${warmSecs.length} building`
-          : `✓ all ${N} at baseline`;
-      badge.classList.toggle('sr-hot-badge', hotSecs.length > 0);
-      badge.classList.toggle('sr-warm-badge', hotSecs.length === 0 && warmSecs.length > 0);
-      badge.classList.toggle('sr-quiet-badge', active === 0);
-    }
-
-    // User preference (2026-07-21): the radar ALWAYS stays expanded. Even on a
-    // dead-flat day the full polygon renders — spokes near center, every sector
-    // labelled with its z, baseline chips below. It never collapses to the
-    // header row (the badge still reads "✓ all N at baseline" on a quiet day).
-    card.classList.remove('sr-collapsed');
-
-    // ── radar polygon SVG — every spoke labeled with its z ──
-    // Sized for a phone: the SVG scales to the card width, so a SMALLER viewBox
-    // renders everything LARGER. 460→418 wide plus bigger type is ~+25% on the
-    // labels at 375px. Label anchors use a shorter horizontal radius than
-    // vertical (LR_X < LR_Y) — the left/right labels are the ones that run out
-    // of room, and pulling them in buys the width the bigger type needs.
-    const CX = 209, CY = 162, R = 108;
-    const LR_X = R + 10, LR_Y = R + 15;   // label placement radii
-    const pt = (i, r) => {
-      const a = (-90 + i * 360 / N) * Math.PI / 180;
-      return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
-    };
-    let axes = '', stems = '', spokes = '';
-    const polyPts = [];
-    secs.forEach((s, i) => {
-      const [ax, ay] = pt(i, R);
-      axes += `<line x1="${CX}" y1="${CY}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="#1c1c17"/>`;
-      const [px, py] = pt(i, zc(s) / 3 * R);
-      polyPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-      const isHot = shown(s), isWarm = warming(s);
-      const col = tiltCol(s);
-      let node;
-      if (isHot) {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="3.4" stroke-linecap="round" opacity=".9"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5" fill="${col}"/>`;
-      } else if (isWarm) {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${col}" stroke-width="2.7" stroke-linecap="round" opacity=".55"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="${col}" opacity=".75"/>`;
-      } else {
-        stems += `<line x1="${CX}" y1="${CY}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#34342f" stroke-width="2.2" stroke-linecap="round"/>`;
-        node = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#4a4a46"/>`;
-      }
-      const la = (-90 + i * 360 / N) * Math.PI / 180;
-      const lx = CX + LR_X * Math.cos(la), ly = CY + LR_Y * Math.sin(la);
-      const anchor = lx > CX + 12 ? 'start' : lx < CX - 12 ? 'end' : 'middle';
-      const lbl = SR_ABBR[s.sector] || s.sector;
-      const zStr = s.z === null ? '' : s.z.toFixed(1);
-      let label;
-      if (isHot) {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="13" font-weight="600" fill="${col}">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
-      } else if (isWarm) {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="13" fill="${col}" opacity=".8">${lbl} ${tiltGlyph(s)}${zStr}</text>`;
-      } else {
-        label = `<text x="${lx.toFixed(1)}" y="${(ly + 4.5).toFixed(1)}" text-anchor="${anchor}" font-size="12.5" fill="var(--text-muted)">${lbl}${zStr ? ` <tspan fill="#8c8c96">${zStr}</tspan>` : ''}</text>`;
-      }
-      // Whole spoke (node + label) is a tap target → Signals filtered to this
-      // sector. Generous transparent hit-circle over the label makes it usable
-      // on touch without overlapping neighbours.
-      spokes += `<g class="sr-spoke" data-sr-sector="${s.sector}" style="cursor:pointer" role="button" tabindex="0" aria-label="${s.sector} — open in Signals">`
-        + `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="21" fill="transparent"/>${node}${label}</g>`;
-    });
-    const ring = (z, extra) =>
-      `<circle cx="${CX}" cy="${CY}" r="${(z / 3 * R).toFixed(1)}" fill="none" ${extra}/>`;
-    const svg = `
-      <svg class="sr-radar-svg" viewBox="0 0 418 324" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sector activity radar">
-        ${ring(1, 'stroke="#242420"')}${ring(2, 'stroke="#242420"')}${ring(3, 'stroke="#1d1d19"')}
-        ${ring(alertZ, 'stroke="#8a6519" stroke-dasharray="4 4"')}
-        <text x="${CX + (alertZ / 3 * R) * 0.72 + 12}" y="${CY - (alertZ / 3 * R) * 0.72}" font-size="11.5" fill="#8a6519">alert ${alertZ}σ</text>
-        <text x="${CX + 4}" y="${Math.round(CY - R / 3 + 11)}" font-size="10" fill="#4a4a46">1σ</text>
-        <text x="${CX + 4}" y="${Math.round(CY - 2 * R / 3 + 11)}" font-size="10" fill="#4a4a46">2σ</text>
-        ${axes}
-        <polygon points="${polyPts.join(' ')}" fill="rgba(251,191,36,.05)" stroke="#55554e" stroke-width="1.2"/>
-        ${stems}${spokes}
-      </svg>`;
-
-    // ── hot / building sector cards + baseline line ──
-    const cards = hotSecs.map(s => `
-      <div class="sr-hot-card" data-sr-sector="${s.sector}" style="border-color:${tiltCol(s)}">
-        <div class="sr-hot-head" style="color:${tiltCol(s)}">
-          <span>${s.sector.toUpperCase()}${s.tilt === 'buy' ? ' ▲ buy-tilted' : s.tilt === 'sell' ? ' ▼ sell-tilted' : s.tilt === 'mixed' ? ' ◆ mixed' : ' ◆ vol only'}</span>
-          <span class="sr-z-tap" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated" aria-label="${s.sector} — how this z is calculated">z ${s.z.toFixed(1)}<i class="sr-i" aria-hidden="true">i</i></span>
-        </div>
-        <div class="sr-hot-sub">elevated ${s.elevated_days} day${s.elevated_days === 1 ? '' : 's'} · ${s.buys} buy${s.buys === 1 ? '' : 's'} · ${s.sells} sell${s.sells === 1 ? '' : 's'} · ${s.vol_spikes} vol spike${s.vol_spikes === 1 ? '' : 's'}</div>
-        <div class="sr-hot-meta">${s.members} members · rate ${s.rate.toFixed(2)}${s.mean_rate !== null ? ' vs mean ' + s.mean_rate.toFixed(2) : ''} · ${s.date}</div>
-      </div>`).join('');
-    // Building sectors (≥1σ, below alert) — dimmer, so a quiet-ish day still shows movement
-    const warmCards = warmSecs.map(s => `
-      <div class="sr-warm-card" data-sr-sector="${s.sector}" style="border-left-color:${tiltCol(s)}">
-        <div class="sr-warm-head">
-          <span>${s.sector.toUpperCase()} · building${s.tilt === 'buy' ? ' ▲ buy-tilted' : s.tilt === 'sell' ? ' ▼ sell-tilted' : s.tilt === 'mixed' ? ' ◆ mixed' : ''}</span>
-          <span class="sr-z-tap" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated" aria-label="${s.sector} — how this z is calculated">z ${s.z.toFixed(1)}<i class="sr-i" aria-hidden="true">i</i></span>
-        </div>
-        <div class="sr-hot-meta">${s.buys} buy${s.buys === 1 ? '' : 's'} · ${s.sells} sell${s.sells === 1 ? '' : 's'} · ${s.vol_spikes} vol spike${s.vol_spikes === 1 ? '' : 's'} · ${s.members} members · ${s.date}</div>
-      </div>`).join('');
-    // Baseline sectors (<1σ) — compact clickable chips, still activity-ranked
-    const baseChips = baseSecs.length ? `
-      <div class="sr-base-head">${baseSecs.length === N ? 'All ' + N + ' sectors' : baseSecs.length + ' sector' + (baseSecs.length === 1 ? '' : 's')} at baseline (z &lt; 1σ) · tap to scan</div>
-      <div class="sr-chips">${baseSecs.map(s => {
-        const zStr = s.z === null ? '–' : s.z.toFixed(1);
-        return `<button class="sr-chip" data-sr-sector="${s.sector}">${SR_ABBR[s.sector] || s.sector} <span class="sr-chip-z" data-sr-info="${s.sector}" role="button" tabindex="0" title="How this z is calculated" aria-label="${s.sector} — how this z is calculated">${zStr}</span></button>`;
-      }).join('')}</div>` : '';
-
-    body.innerHTML = svg + `<div class="sr-cards">${cards}${warmCards}${baseChips}</div>`
-      + `<div class="sr-legend">z vs own ${d.baseline_days || 20}-day baseline · <span style="color:var(--buy)">●</span> buy-tilted · <span style="color:var(--sell)">●</span> sell-tilted · <span style="color:var(--accent)">●</span> mixed / vol-only · dim = building (1σ+) · grey = at baseline · tap a sector → Signals · tap its z → how it's scored</div>`;
-
-    // Any sector element (spoke, hot/building card, baseline chip) → Signals
-    // filtered to that sector, ranked activity-first (signal-bearing on top).
-    body.querySelectorAll('[data-sr-info]').forEach(el => {
-      // The z readout sits INSIDE the chip/card, which navigates to Signals on
-      // click. Without stopPropagation the modal would open AND the tab would
-      // switch underneath it.
-      el.addEventListener('click', e => { e.stopPropagation(); openSectorInfo(el.dataset.srInfo); });
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault(); e.stopPropagation(); openSectorInfo(el.dataset.srInfo);
-        }
-      });
-    });
-    body.querySelectorAll('[data-sr-sector]').forEach(el => {
-      el.addEventListener('click', () => srGoToSector(el.dataset.srSector));
-      if (el.tagName.toLowerCase() === 'g') {   // keyboard access for SVG spokes
-        el.addEventListener('keydown', e => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); srGoToSector(el.dataset.srSector); }
-        });
-      }
-    });
-  }
-
-  // Swap each mover row's plain RVOL bar for a daily volume-vs-average
-  // sparkline once its history arrives (cached, so re-renders are instant).
-  function hydrateMoverSparks(body, items) {
-    items.forEach(item => {
-      fetchVolHistory(item).then(hist => {
-        if (!hist) return;
-        if (vpMode !== 'movers' || !body.isConnected) return;   // view changed mid-fetch
-        const row = body.querySelector(`.vp-row[data-arg="${CSS.escape(item.instrument_name)}"]`);
-        const slot = row?.querySelector('.vp-spark-slot');
-        if (!slot) return;
-        const N = Math.min(24, hist.vols.length);
-        slot.classList.add('vp-spark-live');
-        slot.innerHTML = volDetailSvg(hist.vols.slice(-N), hist.avgs.slice(-N), (hist.closes || []).slice(-N), 120, 26);
-      });
-    });
-  }
-
-  // ── BP1/SP1 + BP3/SP3 Trend Change Alert Banner ───────────────────────
-  function renderAlertBanner() {
-    const banner = document.getElementById('trendAlertBanner');
-    const scroll = document.getElementById('trendAlertScroll');
-    const countEl = document.getElementById('trendAlertCount');
-    if (!banner || !scroll) return;
-
-    const alerts = allData.filter(d => {
-      const sig = d[f('primary_signal')];
-      return isReversal(sig) || isLongestMa(sig);
-    }).sort((a, b) => {
-      // Reversals first, then MA500 touches, then A–Z. It used to put "proven
-      // edge" first by confidence tier; the tiers are in-sample (2026-09-11).
-      const p = sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]);
-      if (p !== 0) return p;
-      return (a.instrument_name || '').localeCompare(b.instrument_name || '');
-    });
-
-    // Update signal sheet buttons with dot indicator
-    ALL_SIGNAL_CODES.forEach(sig => {
-      const btn = document.querySelector(`.sig-sheet-btn[data-filter="${sig}"]`);
-      if (!btn) return;
-      const hasIt = allData.some(d => d[f('primary_signal')] === sig);
-      btn.classList.toggle('has-signals', hasIt);
-    });
-
-    if (!alerts.length) { banner.style.display = 'none'; return; }
-
-    banner.style.display = '';
-    countEl.textContent = alerts.length;
-
-    scroll.innerHTML = alerts.map(item => {
-      const sig  = item[f('primary_signal')];
-      const buy  = isBuy(item);
-      const tick = item.instrument_name || '';
-      const name = instName(tick);
-      const dir  = buy ? '▲' : '▼';
-      const dCls = buy ? 'tci-buy' : 'tci-sell';
-      const pCls = isReversal(sig) ? 'tci-p1' : 'tci-p2';
-      const lbl  = isReversal(sig) ? 'Trend change' : 'MA500 touch';
-      const lowCls = '';
-      const lowTip = '';
-      return `<div class="trend-alert-item ${dCls} ${pCls}${lowCls}" data-act="openModal" data-arg="${tick}"${lowTip}>
-        <span class="tci-badge">${sig}</span>
-        <span class="tci-dir">${dir}</span>
-        <span class="tci-name">
-          <span class="tci-ticker">${tick}</span>
-          ${name ? `<span class="tci-fullname">${name}</span>` : ''}
-        </span>
-        <span class="tci-label">${lbl}</span>
-      </div>`;
-    }).join('');
-  }
 
   // The Market card's group / region of an instrument — one definition for the
   // card's rows and the Charts filter a row tap opens.
@@ -5582,181 +4573,6 @@
     if (btn) btn.click();
   }
 
-  // ── Strength score (0–100) ────────────────────────────────────────────
-  function computeStrengthScore() {
-    const total = allData.length || 1;
-    const s = computeSummary();
-    const tc = s.trend_counts || {};
-    const up   = tc.UPTREND   || 0;
-    const down = tc.DOWNTREND || 0;
-    const buy  = s.buy_count  || 0;
-    const sell = s.sell_count || 0;
-    // Trend component (0–50): normalise net trend to 0–50
-    const trendPts = Math.round(((up - down) / total + 1) / 2 * 50);
-    // Signal direction (0–30): buy ratio of active signals
-    const sigTotal = buy + sell;
-    const sigPts = sigTotal > 0 ? Math.round((buy / sigTotal) * 30) : 15;
-    // Bonus (0–20): vol spikes. (Aligned instruments counted here too until
-    // tf_alignment was removed with Weekly on 2026-09-24.)
-    const volCount    = s.volume_spikes || 0;
-    const bonusPts    = Math.min(Math.round(volCount / total * 30), 20);
-    return Math.min(Math.max(trendPts + sigPts + bonusPts, 0), 100);
-  }
-
-  // ── Gauge renderer ───────────────────────────────────────────────────
-  function renderGauge() {
-    const score   = computeStrengthScore();
-    const s       = computeSummary();
-    const tc      = s.trend_counts || {};
-
-    // Needle: -90deg = score 0, +90deg = score 100
-    const angle   = -90 + (score / 100) * 180;
-    const needle  = document.getElementById('gaugeNeedle');
-    const arc     = document.getElementById('gaugeArc');
-    const scoreEl = document.getElementById('gaugeScoreText');
-    const labelEl = document.getElementById('gaugeLabel');
-    if (!needle) return;
-
-    needle.setAttribute('transform', `rotate(${angle} 100 105)`);
-    // Arc dashoffset: full arc ≈ 267px
-    arc.setAttribute('stroke-dashoffset', String(Math.round((1 - score / 100) * 267)));
-
-    const color = score >= 76 ? 'var(--buy)' : score >= 51 ? 'var(--accent)' : score >= 26 ? 'var(--watch)' : 'var(--sell)';
-    const zoneLabel = score >= 76 ? 'Bullish' : score >= 51 ? 'Strong' : score >= 26 ? 'Mixed' : 'Weak';
-    scoreEl.textContent = score;
-    scoreEl.style.fill = color;
-    if (labelEl) labelEl.textContent = zoneLabel + ' market conditions';
-
-    // New breakdown: Uptrend / Downtrend / Neutral
-    const gbUp      = document.getElementById('gbUp');
-    const gbDown    = document.getElementById('gbDown');
-    const gbNeutral = document.getElementById('gbNeutral');
-    // Legacy compat (hidden spans)
-    const gbBuy  = document.getElementById('gbBuy');
-    const gbSell = document.getElementById('gbSell');
-    if (gbUp)      gbUp.textContent      = tc.UPTREND   || 0;
-    if (gbDown)    gbDown.textContent    = tc.DOWNTREND || 0;
-    if (gbNeutral) gbNeutral.textContent = tc.NEUTRAL   || 0;
-    if (gbBuy)     gbBuy.textContent     = s.buy_count  || 0;
-    if (gbSell)    gbSell.textContent    = s.sell_count || 0;
-
-    // Gradient score bar at bottom of card
-    const fill = document.getElementById('mpScoreFill');
-    if (fill) fill.style.width = score + '%';
-
-    // 4-TF buy/sell/neutral grid — see all timeframes at a glance
-    const tfGrid = document.getElementById('mpTfGrid');
-    if (tfGrid && allData.length) {
-      const tfs = TIMEFRAMES.filter(t => SIGNAL_TFS.has(t.code)).map(t => ({
-        code: t.code, field: t.prefix + 'trend_direction', label: t.label,
-      }));
-      tfGrid.innerHTML = tfs.map(({ code, field, label }) => {
-        let up = 0, dn = 0, nu = 0;
-        allData.forEach(d => {
-          const t = d[field] || 'NEUTRAL';
-          if (t === 'UPTREND') up++;
-          else if (t === 'DOWNTREND') dn++;
-          else nu++;
-        });
-        const total = up + dn + nu || 1;
-        const upPct = (up / total) * 100;
-        const dnPct = (dn / total) * 100;
-        const nuPct = (nu / total) * 100;
-        const isActive = timeframe === code;
-        return `<div class="mp-tf-row${isActive ? ' active' : ''}" data-mp-tf="${code}">
-          <span class="mp-tf-lbl">${label}</span>
-          <div class="mp-tf-bar">
-            <span class="mp-tf-bar-seg mp-tf-up"   style="width:${upPct}%"></span>
-            <span class="mp-tf-bar-seg mp-tf-neut" style="width:${nuPct}%"></span>
-            <span class="mp-tf-bar-seg mp-tf-down" style="width:${dnPct}%"></span>
-          </div>
-          <span class="mp-tf-stats"><span style="color:var(--buy)">▲${up}</span> <span style="color:var(--sell)">▼${dn}</span></span>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  function rebuildCharts() {
-    const c = getThemeColors();
-
-    Object.values(charts).forEach(ch => { if (ch && ch.destroy) ch.destroy(); });
-    charts = {};
-    Chart.defaults.color = c.text;
-    Chart.defaults.borderColor = c.grid;
-
-    renderGauge();
-  }
-
-  // ── Signal Feed (Dashboard) ──────────────────────────────────────────
-  function renderSignalFeed() {
-    const feed = document.getElementById('signalFeed');
-    const signaled = allData.filter(d => d[f('primary_signal')]);
-
-    if (!signaled.length) {
-      feed.innerHTML = '<div class="feed-empty">No active signals today</div>';
-      return;
-    }
-
-    signaled.sort((a, b) => sigPriority(a[f('primary_signal')]) - sigPriority(b[f('primary_signal')]));
-
-    feed.innerHTML = signaled.map(item => {
-      const buy = isBuy(item);
-      const sig = item[f('primary_signal')];
-      let badgeCls = '';
-      const sCls = sigClass(sig);
-      if (sCls) {
-        badgeCls = buy ? `badge-${sCls}` : (sCls === 'p1' ? 'badge-sell-p1' : 'badge-sell-p2');
-      }
-
-      // ROC momentum
-      const roc = parseFloat(item[f('roc')]);
-      const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-      const rocCls = !isNaN(roc) ? (roc >= 0 ? 'roc-pos' : 'roc-neg') : '';
-
-      // Volume spike
-      const volSpike = item[f('volume_spike_flag')] === 'yes';
-
-      return `<div class="signal-feed-item feed-${buy ? 'buy' : 'sell'}" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="feed-info">
-          <div class="feed-name">${item.instrument_name} ${volSpike ? '<span class="badge-confidence" style="background:var(--volume-soft);color:var(--volume)">VOL</span>' : ''}</div>
-          <div class="feed-detail">${item[f('confirmation_status')] || ''}</div>
-          <div class="feed-meta-row">
-            ${rocStr ? `<span class="roc-val ${rocCls}" style="font-size:.68rem">ROC ${rocStr}</span>` : ''}
-          </div>
-        </div>
-        <span class="feed-group">${item.group || ''}</span>
-      </div>`;
-    }).join('');
-  }
-
-  // ── Compression Feed (Dashboard) ─────────────────────────────────────
-  function renderCompressionFeed() {
-    const card = document.getElementById('compressionCard');
-    const feed = document.getElementById('compressionFeed');
-    if (!card || !feed) return;
-    const compressed = allData.filter(d => d[f('ribbon_compression')] === 'yes');
-    if (!compressed.length) {
-      card.style.display = 'none';
-      return;
-    }
-    card.style.display = '';
-    feed.innerHTML = compressed.map(item => {
-      const spread = parseFloat(item[f('ribbon_spread')]);
-      const order = parseInt(item[f('ma_order_score')]);
-      const maxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
-      const mid = maxPairs / 2;
-      const dir = order > mid ? 'Bullish lean' : order < mid ? 'Bearish lean' : 'Neutral';
-      return `<div class="signal-feed-item" data-act="openModal" data-arg="${item.instrument_name}" style="border-left:3px solid var(--volume)">
-        <span class="compression-alert">SQUEEZE</span>
-        <div class="feed-info">
-          <div class="feed-name">${item.instrument_name}</div>
-          <div class="feed-detail">Spread: ${spread ? spread.toFixed(1) : '--'}%</div>
-        </div>
-        <span class="feed-group">${item.group || ''}</span>
-      </div>`;
-    }).join('');
-  }
-
 
   // ── Sector Info Modal ────────────────────────────────────────────────
   // Breakdown of how one radar spoke was computed. Everything here already
@@ -5777,125 +4593,7 @@
   // match the radar above it, and flipping timeframe with a single cached blob
   // would have drawn daily bars under a weekly z-score.
   const sectorActivityByTf = {};
-  async function ensureSectorActivity() {
-    const tf = RADAR_TF_FOR(timeframe);
-    if (tf in sectorActivityByTf) {
-      sectorActivity = sectorActivityByTf[tf];
-      return sectorActivity;
-    }
-    const r = await fetchJson('/api/sector-activity', null);
-    sectorActivityByTf[tf] = (r && Array.isArray(r.rows)) ? r : null;
-    sectorActivity = sectorActivityByTf[tf];
-    return sectorActivity;
-  }
 
-  async function openSectorInfo(sector) {
-    if (!sectorOverlay || !sectorBody) return;
-    sectorBody.innerHTML = '<div class="sr-modal-loading">Loading…</div>';
-    sectorOverlay.classList.add('open');
-    await ensureSectorActivity();
-    renderSectorInfo(sector);
-  }
-
-  // 30-day sparkline of the sector's own activity rate, with its mean drawn in.
-  function sectorSparkline(rows, meanRate) {
-    if (!rows || rows.length < 2) {
-      return '<div class="sr-modal-nohist">No history available for this sector yet.</div>';
-    }
-    const W = 460, H = 96, PAD = 6;
-    const vals = rows.map(r => r.rate);
-    const peak = Math.max(...vals, meanRate || 0, 0.0001);
-    const x = i => PAD + i * (W - PAD * 2) / Math.max(1, rows.length - 1);
-    const y = v => H - PAD - (v / peak) * (H - PAD * 2);
-    const bars = rows.map((r, i) => {
-      const bw = Math.max(2, (W - PAD * 2) / rows.length - 2);
-      const bh = Math.max(0, H - PAD - y(r.rate));
-      const last = i === rows.length - 1;
-      return `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${y(r.rate).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${last ? 'var(--accent)' : '#3a3a36'}"><title>${r.date} — rate ${r.rate.toFixed(3)} (${r.buys}B ${r.sells}S ${r.vol_spikes}V)</title></rect>`;
-    }).join('');
-    const my = y(meanRate || 0);
-    const meanLine = meanRate
-      ? `<line x1="${PAD}" y1="${my.toFixed(1)}" x2="${W - PAD}" y2="${my.toFixed(1)}" stroke="var(--volume)" stroke-width="1.2" stroke-dasharray="4 3"/>`
-      : '';
-    return `<svg class="sr-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Activity over the last ${rows.length} days">${bars}${meanLine}</svg>
-      <div class="sr-spark-key"><span><i style="background:var(--accent)"></i>today</span>
-        <span><i style="background:var(--volume)"></i>${(meanRate || 0).toFixed(3)} average</span>
-        <span class="sr-spark-span">${rows[0].date} → ${rows[rows.length - 1].date}</span></div>`;
-  }
-
-  function renderSectorInfo(sector) {
-    const d = sectorRadarData;
-    const s = d && d.sectors ? d.sectors.find(x => x.sector === sector) : null;
-    if (!s) { sectorBody.innerHTML = '<div class="sr-modal-nohist">No radar data for this sector.</div>'; return; }
-
-    const alertZ  = d.alert_z || 1.5;
-    const baseDays = d.baseline_days || 20;
-    const minMem  = d.min_members || 8;
-    const events  = (s.buys || 0) + (s.sells || 0) + (s.vol_spikes || 0);
-    const isHot   = s.hot && (s.z >= 2 || s.elevated_days >= 2);
-    const isWarm  = !isHot && s.z !== null && s.z >= 1;
-    const state   = isHot ? 'HOT' : isWarm ? 'BUILDING' : 'AT BASELINE';
-    const stateCls= isHot ? 'sr-st-hot' : isWarm ? 'sr-st-warm' : 'sr-st-base';
-    const tiltTxt = s.tilt === 'buy' ? '▲ buy-tilted' : s.tilt === 'sell' ? '▼ sell-tilted'
-                  : s.tilt === 'mixed' ? '◆ mixed' : '◆ no tilt';
-    const tiltCol = s.tilt === 'buy' ? 'var(--buy)' : s.tilt === 'sell' ? 'var(--sell)' : 'var(--accent)';
-    const zStr    = s.z === null ? '–' : (s.z > 0 ? '+' : '') + s.z.toFixed(2);
-
-    const rows = sectorActivity
-      ? sectorActivity.rows.filter(r => r.sector === sector).slice(-30)
-      : null;
-
-    const shownCount = d.sectors.filter(x => x.members >= minMem).length;
-
-    sectorBody.innerHTML = `
-      <div class="sr-modal-head">
-        <h2>${sector}</h2>
-        <div class="sr-modal-badges">
-          <span class="sr-st ${stateCls}">${state}</span>
-          <span class="sr-tilt" style="color:${tiltCol}">${tiltTxt}</span>
-        </div>
-      </div>
-
-      <div class="sr-modal-sec">
-        <h4>Today <span class="sr-modal-date">${s.date || ''}</span></h4>
-        <div class="sr-stat-grid">
-          <div><b>${s.members}</b><span>instruments</span></div>
-          <div><b style="color:var(--buy)">${s.buys}</b><span>new buy${s.buys === 1 ? '' : 's'}</span></div>
-          <div><b style="color:var(--sell)">${s.sells}</b><span>new sell${s.sells === 1 ? '' : 's'}</span></div>
-          <div><b style="color:var(--volume)">${s.vol_spikes}</b><span>vol spike${s.vol_spikes === 1 ? '' : 's'}</span></div>
-        </div>
-        <p class="sr-modal-eq"><b>${events}</b> event${events === 1 ? '' : 's'} across <b>${s.members}</b> instruments
-          = activity rate <b>${s.rate.toFixed(3)}</b></p>
-      </div>
-
-      <div class="sr-modal-sec">
-        <h4>How that becomes the spoke</h4>
-        <table class="sr-calc">
-          <tr><td>Today's rate</td><td>${s.rate.toFixed(3)}</td></tr>
-          <tr><td>Normal for this sector <span class="sr-dim">(avg of last ${baseDays} days)</span></td>
-              <td>${s.mean_rate === null ? '–' : s.mean_rate.toFixed(3)}</td></tr>
-          <tr class="sr-calc-hl"><td>Difference, in standard deviations</td><td>z = ${zStr}</td></tr>
-          <tr><td>Flags hot at</td><td>z ≥ ${alertZ}</td></tr>
-          <tr><td>Consecutive elevated days</td><td>${s.elevated_days || 0}</td></tr>
-          <tr><td>Baseline built from</td><td>${s.history_days} days</td></tr>
-        </table>
-      </div>
-
-      <div class="sr-modal-sec">
-        <h4>Last ${rows ? rows.length : 0} days</h4>
-        ${sectorSparkline(rows, s.mean_rate)}
-      </div>
-
-      <div class="sr-modal-sec sr-modal-warn">
-        <h4>What this is not telling you</h4>
-        <ul>
-          <li>It measures <b>signal fires and volume spikes — not price</b>. A sector can be up 3% and still read flat here.</li>
-          <li>Each sector is scored against <b>its own</b> baseline. A busy sector's normal is higher than a quiet one's — that's why this is a z-score and not a raw count.</li>
-          <li><b>Daily timeframe only.</b> The 4H toggle at the top of the app does not change this card.</li>
-          <li>Sectors with fewer than ${minMem} members are excluded from the radar (${shownCount} of ${d.sectors.length} shown today).</li>
-        </ul>
-      </div>`;
-  }
 
   // ── Signals Tab ──────────────────────────────────────────────────────
   // ── Signal age helper (Feature 6: visual decay) ─────────────────────
@@ -5921,24 +4619,6 @@
     return                     { label: diffDays + 'd ago', isToday: false, decayClass: 'age-stale'  };
   }
 
-  // ── Instrument Notes ─────────────────────────────────────────────────
-  function noteIndicator(name) {
-    const note = instrumentNotes[name];
-    if (!note) return '';
-    return `<span class="note-indicator" title="${note.replace(/"/g,'&quot;')}">✏</span>`;
-  }
-
-  // Trend maturity badge based on trend run days
-  function trendMaturityBadge(item) {
-    const days = parseInt(item[f('trend_run_days')]);
-    if (isNaN(days) || days < 1) return '';
-    let label, cls;
-    if      (days <= 7)  { label = '🌱 Young';     cls = 'maturity-young'; }
-    else if (days <= 21) { label = '📈 Developing'; cls = 'maturity-developing'; }
-    else if (days <= 60) { label = '🏔 Mature';     cls = 'maturity-mature'; }
-    else                 { label = '🕰 Long-running'; cls = 'maturity-mature'; }   // not a warning: long trends end LEAST often
-    return `<span class="sig-badge ${cls}" title="${days} days in trend">${label}</span>`;
-  }
 
   // ── Feature 9: Similar Setups ────────────────────────────────────────
   function similarityScore(a, b) {
@@ -6003,35 +4683,7 @@
 
   // Merge all "*Index" groups into a single "Indices" option
   const INDEX_GROUPS = new Set(['Asia Index', 'CA Index', 'EU Index', 'US Index']);
-  function mapGroup(g) { return INDEX_GROUPS.has(g) ? 'Indices' : g; }
 
-  function renderScanner() {
-    const allData = getActiveData(); // respect AI filter
-    const rawGroups = summaryData.groups || [];
-    const groups = [...new Set(rawGroups.map(mapGroup))].sort();
-    const groupSelect = document.getElementById('scannerGroupFilter');
-    groupSelect.innerHTML = '<option value="all">All Groups</option>' +
-      groups.map(g => `<option value="${g}">${g}</option>`).join('');
-
-    const sectors = [...new Set(allData.map(d => d.sector).filter(Boolean))].sort();
-    const sectorSelect = document.getElementById('scannerSectorFilter');
-    sectorSelect.innerHTML = '<option value="all">All Sectors</option>' +
-      sectors.map(s => `<option value="${s}">${s}</option>`).join('');
-
-    updateScannerCtxStrip();
-    buildScannerCards();
-  }
-
-  function buildScannerCards(appendPage = false, opts = {}) {
-    try {
-      _buildScannerCardsInner(appendPage, opts);
-      if (typeof updateFilterPills === 'function') updateFilterPills();
-    } catch (err) {
-      console.error('buildScannerCards crashed:', err);
-      const grid = document.getElementById('scannerGrid');
-      if (grid) grid.innerHTML = '<div class="scanner-empty">Error loading signals — try refreshing</div>';
-    }
-  }
 
   // Asset class comes from the pipeline (`asset_class`, added 2026-07-29) —
   // instruments.py asset_class_of() is the one implementation. The fallback
@@ -6061,352 +4713,6 @@
     return 'Equity';
   }
 
-  function _buildScannerCardsInner(appendPage = false, opts = {}) {
-    if (!appendPage && !opts.keepPage) scannerPage = 1;  // reset to page 1 when filters change
-    const grid = document.getElementById('scannerGrid');
-    const summaryEl = document.getElementById('scannerSummary');
-    const search = document.getElementById('scannerSearch').value.toLowerCase();
-    const assetClass = document.getElementById('scannerClassFilter')?.value || 'all';
-    const group = document.getElementById('scannerGroupFilter').value;
-    const sector = document.getElementById('scannerSectorFilter').value;
-    const trend = document.getElementById('scannerTrendFilter').value;
-
-    let filtered = allData;
-    if (search) filtered = filtered.filter(d => matchesSearch(d, search));
-    // Class chip — same matcher the term used to get when it was typed into the
-    // search box, but as its own filter, so it composes with everything below
-    // instead of suppressing it.
-    if (scannerCatFilter) filtered = filtered.filter(d => matchesSearch(d, scannerCatFilter));
-    if (assetClass !== 'all') filtered = filtered.filter(d => browseClassOf(d) === assetClass);
-    if (group !== 'all')   filtered = filtered.filter(d => mapGroup(d.group) === group);
-    // Region filter — set by clicking a region row on the By Region card
-    if (activeRegionFilter) {
-      filtered = filtered.filter(d => (GP_REGION_MAP[d.group] || 'Other') === activeRegionFilter);
-    }
-    if (sector !== 'all')  filtered = filtered.filter(d => d.sector === sector);
-    if (trend !== 'all')   filtered = filtered.filter(d => effectiveTrend(d) === trend);
-    // MA stack — reads the ACTIVE timeframe through f(), like every other
-    // per-timeframe filter here.
-    const stackSel = document.getElementById('scannerStackFilter');
-    const stackVal = stackSel ? stackSel.value : 'all';
-    if (stackVal !== 'all') filtered = filtered.filter(d => matchesStackFilter(d, stackVal));
-
-    // ── RSI zone filter (uses active timeframe RSI) ──
-    const rsiSel = document.getElementById('scannerRsiFilter');
-    const rsiVal = rsiSel ? rsiSel.value : 'all';
-    if (rsiVal !== 'all') {
-      filtered = filtered.filter(d => rsiZone(d[f('rsi')]) === rsiVal);
-    }
-
-    // ── Sector-mood filter ──
-    if (scannerMoodFilter !== 'all') {
-      filtered = filtered.filter(d => matchesMoodFilter(d, scannerMoodFilter));
-    }
-
-    // ── Move filter (period return) ──
-    // Deliberately OUTSIDE the `if (!search)` chip block below: like Class and
-    // Mood it composes with everything else, so searching a name does not
-    // silently switch it off.
-    if (scannerMoveDir !== 'all' || scannerMoveMin > 0) {
-      filtered = filtered.filter(d => {
-        const v = parseFloat(d[scannerMovePeriod]);
-        if (isNaN(v)) return false;   // no return for this period — can't judge it
-        if (scannerMoveDir === 'up' && v < 0) return false;
-        if (scannerMoveDir === 'down' && v > 0) return false;
-        return Math.abs(v) >= scannerMoveMin;
-      });
-    }
-
-    // ── Chip filter (skip when user is searching by name) ──
-    if (!search) {
-      if (activeScannerFilter === 'buy')          filtered = filtered.filter(isBuy);
-      else if (activeScannerFilter === 'sell')    filtered = filtered.filter(isSell);
-      else if (activeScannerFilter === 'squeeze') filtered = filtered.filter(d => d[f('ribbon_compression')] === 'yes');
-      else if (activeScannerFilter === 'keylvl') filtered = filtered.filter(d => d.key_level_touched_today === 'yes');
-      else if (activeScannerFilter === 'vol')    filtered = filtered.filter(d => d[f('volume_spike_flag')] === 'yes');
-      else if (activeScannerFilter === 'radar_prime')  filtered = filtered.filter(d => radarConfluenceScore(d) >= 75);
-      else if (activeScannerFilter === 'radar_strong') filtered = filtered.filter(d => { const s = radarConfluenceScore(d); return s >= 50 && s < 75; });
-      else if (activeScannerFilter === 'today') {
-        // Was: parse the date and compare against the DEVICE's midnight — so on
-        // a weekend, or any time the feed ran behind, the chip returned nothing
-        // while the cards right below it read "Today". Now it uses the same
-        // test the cards do: the fire is on this instrument's newest bar.
-        filtered = filtered.filter(firedOnLatestBar);
-      } else if (activeScannerFilter !== 'all') {
-        // Match exact signal code (e.g. BP1, SP2)
-        filtered = filtered.filter(d => d[f('primary_signal')] === activeScannerFilter);
-      }
-    }
-
-    // ── Sort ──
-    // When filtering by Radar tier, always rank by score high→low — the tier
-    // itself only matters relative to the score, so sort by it regardless of
-    // the dropdown selection.
-    const forceScoreSort = activeScannerFilter === 'radar_prime' || activeScannerFilter === 'radar_strong';
-    if (forceScoreSort || scannerSort === 'radar_score') {
-      const cache = new Map();
-      const scoreOf = d => { let v = cache.get(d); if (v === undefined) { v = radarConfluenceScore(d); cache.set(d, v); } return v; };
-      filtered = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
-    } else if (scannerSort === 'signal') {
-      filtered = [...filtered].sort((a, b) => {
-        const aHas = !!(a[f('primary_signal')]);
-        const bHas = !!(b[f('primary_signal')]);
-        if (aHas !== bHas) return bHas - aHas;
-        // Then newest fire first (was the confidence tier, retired 2026-09-11).
-        return (b[f('last_signal_date')] || '').localeCompare(a[f('last_signal_date')] || '');
-      });
-    } else if (scannerSort === 'date_desc') {
-      filtered = [...filtered].sort((a, b) => {
-        const da = a[f('last_signal_date')] || a[f('date')] || '';
-        const db = b[f('last_signal_date')] || b[f('date')] || '';
-        return db.localeCompare(da);
-      });
-    } else if (scannerSort === 'conviction') {
-      // Sector-mood grade: confirmed (3) > standard (2) > fighting (0) > no signal (-1)
-      const rank = it => { const c = convictionOf(it); return c ? c.pips : -1; };
-      filtered = [...filtered].sort((a, b) => rank(b) - rank(a));
-    } else if (scannerSort === 'conf_desc') {
-      const confOrder = { high: 0, standard: 1, low: 2, '': 3 };
-      filtered = [...filtered].sort((a, b) => (confOrder[a[f('signal_confidence')]||'']||3) - (confOrder[b[f('signal_confidence')]||'']||3));
-    } else if (scannerSort === 'roc_desc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(b[f('roc')])||0) - (parseFloat(a[f('roc')])||0));
-    } else if (scannerSort === 'roc_asc') {
-      filtered = [...filtered].sort((a, b) => (parseFloat(a[f('roc')])||0) - (parseFloat(b[f('roc')])||0));
-    } else if (scannerSort === 'order_desc') {
-      filtered = [...filtered].sort((a, b) => (parseInt(b[f('ma_order_score')])||0) - (parseInt(a[f('ma_order_score')])||0));
-    } else if (scannerSort === 'run_desc') {
-      filtered = [...filtered].sort((a, b) => (parseInt(b[f('trend_run_days')])||0) - (parseInt(a[f('trend_run_days')])||0));
-    } else if (/^pct_1[dwmy]_(desc|asc)$/.test(scannerSort)) {
-      // One branch for all four periods — the day/year pair used to be written
-      // out twice each, and adding week and month by the same hand-copy would
-      // have made eight near-identical sorts to keep in step.
-      const asc = scannerSort.endsWith('_asc');
-      const col = scannerSort.slice(0, asc ? -4 : -5); // pct_1d_desc → pct_1d
-      const dir = asc ? 1 : -1;
-      filtered = [...filtered].sort((a, b) =>
-        dir * ((parseFloat(a[col]) || 0) - (parseFloat(b[col]) || 0)));
-    }
-
-    // (The buy/sell/squeeze/key-level/today tallies that used to live here fed
-    // the #scannerSummary pills, which were removed in v226 — they were five
-    // full passes over the filtered list computing numbers nobody rendered.)
-
-    // Update count header
-    const countEl = document.getElementById('sigActiveCount');
-    if (countEl) {
-      const signaled = filtered.filter(d => d[f('primary_signal')]).length;
-      countEl.textContent = `${signaled} signals · ${filtered.length} shown`;
-    }
-
-    // The count lives in the sticky header (#sigActiveCount) only — this strip
-    // repeated "725 shown" one line below it.
-    if (summaryEl) summaryEl.innerHTML = '';
-
-    if (!filtered.length) {
-      grid.innerHTML = '<div class="scanner-empty">No instruments match</div>';
-      return;
-    }
-
-    const makeCard = (item, i) => {
-      const t = effectiveTrend(item);
-      const _aiScan  = isAI(item.instrument_name);
-      const runDays = parseInt(item[f('trend_run_days')]) || 0;
-      const barColor = t === 'UPTREND' ? 'var(--buy)' : t === 'DOWNTREND' ? 'var(--sell)' : 'var(--neutral)';
-      const compression = item[f('ribbon_compression')] === 'yes';
-      const ribbonSpread = parseFloat(item[f('ribbon_spread')]);
-      const maOrder = parseInt(item[f('ma_order_score')]);
-      const maMaxPairs = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
-      const maOrderPct = !isNaN(maOrder) ? Math.round(maOrder / maMaxPairs * 100) : null;
-      const roc = parseFloat(item[f('roc')]);
-      const rocStr = !isNaN(roc) ? (roc >= 0 ? '+' : '') + roc.toFixed(1) + '%' : '';
-      const pct = pctFromMa(item);
-      const conv = convictionOf(item);   // sector-mood grade (validated Phase 0); null when no signal
-      // Cap animation delay so the browser doesn't track hundreds of CSS timers
-      const delay = Math.min(i, 30) * 20;
-
-      // Stats row: five uniform tiles (1D / 1W / 1M / 1Y / VOL).
-      // One decimal, not two — at five tiles across a 280px card a "-45.07%"
-      // wraps, and it matches the ROC / MA500 chips right above. Past ±100%
-      // the decimal is dropped too: "+221.5%" measured 52px in a 51px tile at
-      // 375px wide, and a year is quite capable of a four-figure crypto move.
-      const statTile = (label, val, title) => {
-        const v = parseFloat(val);
-        const t = title ? ` title="${title}"` : '';
-        if (isNaN(v)) return `<div class="sc-stat"${t}><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val sc-stat-na">—</div></div>`;
-        const txt = (v >= 0 ? '+' : '') + v.toFixed(Math.abs(v) >= 100 ? 0 : 1) + '%';
-        return `<div class="sc-stat"${t}><div class="sc-stat-lbl">${label}</div><div class="sc-stat-val ${v >= 0 ? 'perf-pos' : 'perf-neg'}">${txt}</div></div>`;
-      };
-      const rv = rvol(item);
-      const volTile = rv === null
-        ? '<div class="sc-stat"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-na">—</div></div>'
-        : `<div class="sc-stat" title="Today's volume vs its ${tfMeta().label.toLowerCase()} rolling average — ${fmtRvol(rv)} of normal"><div class="sc-stat-lbl">VOL</div><div class="sc-stat-val sc-stat-vol">${fmtRvol(rv)}</div></div>`;
-
-      // ── COMPACT LIVELY CARD (2026-09-24, user: "the signal cards seem dead
-      // and need some life, and height is big"). Same facts in about half the
-      // height: identity + glowing signal chip, price + day move + one trend
-      // line, an MA 50·250·500 position strip beside the period moves, then
-      // the signal's meaning + tags + actions. Stop/ATR and the MA-stack row
-      // live in the details sheet (tap the card). Tinted by signal side.
-      const sig = item[f('primary_signal')] || '';
-      const lastSig = item[f('last_signal_type')] || '';
-      const code = sig || lastSig;
-      const side = code ? (code[0] === 'B' ? 'buy' : 'sell') : 'none';
-      const age = signalAge(item[f('last_signal_date')] || '', item[f('date')]);
-      const fresh = !!sig && age.isToday;
-      const chip = code
-        ? `<span class="sc2-chip sc2-${side}${sig ? '' : ' sc2-aged'}">${fresh ? '<i class="sc2-dot"></i>' : ''}${code} ${side === 'buy' ? 'BUY' : 'WARN'}${age.label ? ' · ' + age.label.replace(' ago', '') : ''}</span>`
-        : '<span class="sc2-chip sc2-none">no signal</span>';
-      const d1 = parseFloat(item.pct_1d);
-      const ts = trendSentence(item);
-      const tCls = !ts ? 'neu' : ts.against ? 'pull' : ts.dir === 'UPTREND' ? 'up' : ts.dir === 'DOWNTREND' ? 'dn' : 'neu';
-      const trendLine = ts ? `<span class="sc2-trend sc2-t-${tCls}">${ts.glyph} ${ts.head}${ts.now ? ` <span class="sc2-now">· ${ts.now}</span>` : ''}</span>` : '';
-      const close = parseFloat(item[f('close')]);
-      const maPill = per => {
-        const m = parseFloat(item[f('ma_' + per)]);
-        if (!isFinite(m) || !isFinite(close)) return `<span class="sc2-ma na">${per}</span>`;
-        return `<span class="sc2-ma ${close >= m ? 'up' : 'dn'}" title="Price ${close >= m ? 'above' : 'below'} MA${per}">${per}</span>`;
-      };
-      const mv = (lbl, v) => { v = parseFloat(v); return isNaN(v) ? '' :
-        `<span class="sc2-mv"><b>${lbl}</b> <span class="${v >= 0 ? 'perf-pos' : 'perf-neg'}">${v >= 0 ? '+' : ''}${v.toFixed(Math.abs(v) >= 100 ? 0 : 1)}%</span></span>`; };
-      const rvv = rvol(item);
-      const tags = [];
-      if (item[f('volume_spike_flag')] === 'yes') tags.push('<span class="sc2-tag vol">VOL SPIKE</span>');
-      if (compression) tags.push(`<span class="sc2-tag sq">SQUEEZE${!isNaN(ribbonSpread) ? ' ' + ribbonSpread.toFixed(1) + '%' : ''}</span>`);
-      const meaning = code ? (SIG_PLAIN[code] || '') : '';
-      const initials = (() => { const n = item.instrument_name, dg = (n.match(/\d+/) || [''])[0];
-        return dg && dg.length <= 3 ? dg : n.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(); })();
-      return `<div class="scanner-card sc2 sc2-side-${side} pop-in${_aiScan ? ' ai-card' : ''}${conv && conv.cls ? ' ' + conv.cls : ''}${costTight(item) ? ' sc-cost-dim' : ''}" style="animation-delay:${delay}ms" data-act="openModal" data-arg="${item.instrument_name}">
-        <div class="sc2-r1">
-          <span class="sc2-badge sc2-b-${String(item.asset_class || '').toLowerCase()}">${escText(initials)}</span>
-          <span class="sc2-id"><span class="sc2-name">${item.instrument_name}${noteIndicator(item.instrument_name)}${_aiScan ? ' <span class="ai-chip-mini">AI</span>' : ''}</span><span class="sc2-full">${escText(instName(item.instrument_name) || item.group || '')}</span></span>
-          ${chip}
-        </div>
-        <div class="sc2-r2">
-          <span class="sc2-price">${formatPrice(item[f('close')])}</span>
-          ${isNaN(d1) ? '' : `<span class="sc2-d1 ${d1 >= 0 ? 'perf-pos' : 'perf-neg'}">${d1 >= 0 ? '▲' : '▼'} ${Math.abs(d1).toFixed(2)}%</span>`}
-          ${trendLine}
-        </div>
-        <div class="sc2-r3">
-          <span class="sc2-mas">${maPill(50)}${maPill(250)}${maPill(500)}</span>
-          ${mv('1W', item.pct_1w)}${mv('1M', item.pct_1m)}${mv('1Y', item.pct_1y)}
-        </div>
-        <div class="sc2-r4">
-          <span class="sc2-meaning">${meaning ? escText(meaning) : ''}</span>${tags.join('')}${rvv !== null ? `<span class="sc2-tag volx">VOL ${fmtRvol(rvv)}</span>` : ''}
-          ${cardActionsHtml(item.instrument_name)}
-        </div>
-      </div>`;
-    };
-
-    // ── RANKED VIEW: group signal cards into Prime / Strong / Developing tiers ──
-    const tierHeader = (label, count, tierCls) =>
-      `<div class="scanner-tier-header ${tierCls}">
-        <span class="scanner-tier-label">${label}</span>
-        <span class="scanner-tier-count">${count}</span>
-        <span class="scanner-tier-line"></span>
-      </div>`;
-
-    if (scannerView === 'ranked') {
-      const scoreCache = new Map();
-      const scoreOf = d => { let v = scoreCache.get(d); if (v === undefined) { v = radarConfluenceScore(d); scoreCache.set(d, v); } return v; };
-      const sorted = [...filtered].sort((a, b) => scoreOf(b) - scoreOf(a));
-      const prime      = sorted.filter(d => scoreOf(d) >= 75);
-      const strong     = sorted.filter(d => { const s = scoreOf(d); return s >= 50 && s < 75; });
-      const developing = sorted.filter(d => scoreOf(d) < 50);
-
-      let html = '';
-      if (prime.length)      html += tierHeader('Prime', prime.length,      'tier-prime')      + prime.map((d, i) => makeCard(d, i)).join('');
-      if (strong.length)     html += tierHeader('Strong', strong.length,    'tier-strong')     + strong.map((d, i) => makeCard(d, i)).join('');
-      if (developing.length) html += tierHeader('Developing', developing.length, 'tier-developing') + developing.map((d, i) => makeCard(d, i)).join('');
-      grid.innerHTML = html;
-      return;
-    }
-
-    // ── LIST VIEW: paginated ──
-    const totalFiltered = filtered.length;
-    const pageEnd   = scannerPage * SCANNER_PAGE_SIZE;
-    const pageStart = appendPage ? (scannerPage - 1) * SCANNER_PAGE_SIZE : 0;
-    const newItems  = filtered.slice(pageStart, pageEnd);
-    const remaining = totalFiltered - pageEnd;
-
-    const cardsHtml = newItems.map((item, i) => makeCard(item, pageStart + i)).join('');
-    const loadMoreHtml = remaining > 0
-      ? `<div class="scanner-load-more" id="scannerLoadMore">
-           <button class="scanner-load-more-btn">Show ${Math.min(remaining, SCANNER_PAGE_SIZE)} more <span style="opacity:.6">(${remaining} remaining)</span></button>
-         </div>`
-      : '';
-
-    if (appendPage) {
-      const old = document.getElementById('scannerLoadMore');
-      if (old) old.remove();
-      grid.insertAdjacentHTML('beforeend', cardsHtml + loadMoreHtml);
-    } else {
-      // Concentration note above the cards: when several of the things you are
-      // looking at are the same shape, they are one bet. Computed over the
-      // FILTERED set, not the whole book, so it answers "is this screen
-      // concentrated" rather than "is the market".
-      grid.innerHTML = concentrationNoteHtml(filtered) + cardsHtml + loadMoreHtml;
-    }
-
-    // Wire up load-more button
-    const loadMoreBtn = document.getElementById('scannerLoadMore');
-    if (loadMoreBtn) {
-      loadMoreBtn.querySelector('button').addEventListener('click', () => {
-        scannerPage++;
-        buildScannerCards(true);  // append next page
-      });
-    }
-  }
-
-  // ── List / Ranked view toggle ──
-  (function wireViewToggle() {
-    const toggleEl = document.querySelector('.sig-view-toggle');
-    if (!toggleEl) return;
-    toggleEl.addEventListener('click', e => {
-      const btn = e.target.closest('.sig-view-btn');
-      if (!btn) return;
-      const view = btn.dataset.view;
-      if (view === scannerView) return;
-      scannerView = view;
-      toggleEl.querySelectorAll('.sig-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-      buildScannerCards();
-    });
-  })();
-
-  (function() {
-    const searchEl = document.getElementById('scannerSearch');
-    const clearBtn = document.getElementById('scannerSearchClear');
-    const chipRow  = document.getElementById('scannerCatChips');
-
-    // Show/hide clear button on input. Category chips are NO LONGER cleared
-    // here — they hold their own state now and compose with the search box.
-    searchEl.addEventListener('input', debounce(() => {
-      clearBtn.style.display = searchEl.value.length > 0 ? '' : 'none';
-      buildScannerCards();
-    }, 150));
-
-    // Clear button click
-    clearBtn.addEventListener('click', () => {
-      searchEl.value = '';
-      clearBtn.style.display = 'none';
-      buildScannerCards();
-      searchEl.focus();
-    });
-
-    // Category chip clicks
-    chipRow.addEventListener('click', e => {
-      const chip = e.target.closest('.s-cat-chip');
-      if (!chip) return;
-      const wasActive = chip.classList.contains('active');
-      chipRow.querySelectorAll('.s-cat-chip').forEach(c => c.classList.remove('active'));
-      // Own state — these used to write into the search box, which made the
-      // scanner treat "picked a class" as "typing a name" and silently skip
-      // the whole chip-filter block (Buy/Sell/Today/Squeeze/Key Lvl/Vol/Radar/
-      // Analyzed). Picking Crypto turned all of those off without a word.
-      scannerCatFilter = wasActive ? '' : (chip.dataset.cat || '');
-      if (!wasActive) chip.classList.add('active');
-      buildScannerCards();
-    });
-  })();
 
   // ── Grouped filter pills (dropdown behavior + Mood filter) ──
   const MOOD_LABELS = {
@@ -6426,277 +4732,21 @@
     radar_score: 'Radar', date_desc: 'Newest', conf_desc: 'Confidence',
     roc_desc: 'ROC ↓', roc_asc: 'ROC ↑', order_desc: 'MA order', run_desc: 'Run',
   };
-  // Move pill label: "1W ▲ 5%+" / "1M ▼ any" / "1D 10%+" (either direction)
-  function moveFilterLabel() {
-    if (scannerMoveDir === 'all' && !scannerMoveMin) return '';
-    const arrow = scannerMoveDir === 'up' ? ' ▲' : scannerMoveDir === 'down' ? ' ▼' : '';
-    const size  = scannerMoveMin ? ' ' + scannerMoveMin + '%+' : ' any';
-    return MOVE_PERIODS[scannerMovePeriod] + arrow + size;
-  }
-  function updateFilterPills() {
-    const catActive   = !!document.querySelector('#scannerCatChips .s-cat-chip.active');
-    const classActive = (document.getElementById('scannerClassFilter')?.value || 'all') !== 'all';
-    const ctxActive   = !['all', 'buy', 'sell'].includes(activeScannerFilter);
-    document.getElementById('pillClass')?.classList.toggle('has-active', catActive || classActive);
-    document.getElementById('pillFilters')?.classList.toggle('has-active', ctxActive);
-    const moodPill = document.getElementById('pillMood');
-    if (moodPill) {
-      moodPill.classList.toggle('has-active', scannerMoodFilter !== 'all');
-      const val = moodPill.querySelector('.fp-val');
-      if (val) val.textContent = scannerMoodFilter !== 'all' ? ' · ' + MOOD_LABELS[scannerMoodFilter] : '';
-    }
-    const movePill = document.getElementById('pillMove');
-    if (movePill) {
-      const lbl = moveFilterLabel();
-      movePill.classList.toggle('has-active', !!lbl);
-      const val = movePill.querySelector('.fp-val');
-      if (val) val.textContent = lbl ? ' · ' + lbl : '';
-      movePill.querySelectorAll('.move-per-opt').forEach(b =>
-        b.classList.toggle('active', b.dataset.period === scannerMovePeriod));
-      movePill.querySelectorAll('.move-dir-opt').forEach(b =>
-        b.classList.toggle('active', b.dataset.dir === scannerMoveDir));
-      movePill.querySelectorAll('.move-min-opt').forEach(b =>
-        b.classList.toggle('active', parseFloat(b.dataset.min) === scannerMoveMin));
-    }
-    const sortPill = document.getElementById('pillSort');
-    if (sortPill) {
-      sortPill.classList.toggle('has-active', scannerSort !== 'signal');
-      const val = sortPill.querySelector('.fp-val');
-      if (val) val.textContent = scannerSort !== 'signal' ? ' · ' + (SORT_LABELS[scannerSort] || '') : '';
-      sortPill.querySelectorAll('.sort-opt').forEach(b =>
-        b.classList.toggle('active', b.dataset.sort === scannerSort));
-    }
-  }
 
-  const sortOpts = document.getElementById('scannerSortOpts');
-  if (sortOpts) {
-    sortOpts.addEventListener('click', e => {
-      const btn = e.target.closest('.sort-opt');
-      if (!btn) return;
-      scannerSort = btn.dataset.sort;
-      // Keep the advanced sheet's <select> showing the same thing
-      const sel = document.getElementById('scannerSort');
-      if (sel) sel.value = scannerSort;
-      document.getElementById('pillSort')?.removeAttribute('open');
-      buildScannerCards();
-    });
-  }
 
-  // Move pill — period / direction / size are three independent choices, so the
-  // dropdown stays OPEN on click (unlike Mood and Sort, which are one pick and
-  // done). updateFilterPills() repaints the active states.
-  const moveOpts = document.getElementById('scannerMoveOpts');
-  if (moveOpts) {
-    moveOpts.addEventListener('click', e => {
-      const btn = e.target.closest('.move-per-opt, .move-dir-opt, .move-min-opt');
-      if (!btn) return;
-      if (btn.dataset.period !== undefined)  scannerMovePeriod = btn.dataset.period;
-      else if (btn.dataset.dir !== undefined) scannerMoveDir = btn.dataset.dir;
-      else scannerMoveMin = parseFloat(btn.dataset.min) || 0;
-      buildScannerCards();
-    });
-  }
-  document.getElementById('scannerMoveClear')?.addEventListener('click', () => {
-    scannerMovePeriod = 'pct_1d';
-    scannerMoveDir = 'all';
-    scannerMoveMin = 0;
-    document.getElementById('pillMove')?.removeAttribute('open');
-    buildScannerCards();
-  });
-
-  const moodOpts = document.getElementById('scannerMoodOpts');
-  if (moodOpts) {
-    moodOpts.addEventListener('click', e => {
-      const btn = e.target.closest('.mood-opt');
-      if (!btn) return;
-      moodOpts.querySelectorAll('.mood-opt').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      scannerMoodFilter = btn.dataset.mood;
-      document.getElementById('pillMood')?.removeAttribute('open');
-      buildScannerCards();
-    });
-  }
-
-  // Picking a chip inside Class / Filters closes that dropdown (Signal opens a sheet, keep open)
-  document.getElementById('scannerCatChips')?.addEventListener('click', e => {
-    if (e.target.closest('.s-cat-chip')) document.getElementById('pillClass')?.removeAttribute('open');
-  });
-  document.querySelector('#pillFilters .sig-ctx-row')?.addEventListener('click', e => {
-    const chip = e.target.closest('.sig-ctx-chip');
-    if (chip && chip.id !== 'sigTypeBtn') document.getElementById('pillFilters')?.removeAttribute('open');
-  });
-
-  // Only one pill open at a time; click outside closes any open pill
-  document.querySelectorAll('.filter-pill').forEach(d => {
-    d.addEventListener('toggle', () => {
-      if (d.open) document.querySelectorAll('.filter-pill').forEach(o => { if (o !== d) o.removeAttribute('open'); });
-    });
-  });
+  // Click outside closes any open filter pill (the MA-cluster pills on the
+  // Watchlist and Charts are .filter-pill too).
   document.addEventListener('click', e => {
     if (!e.target.closest('.filter-pill')) {
       document.querySelectorAll('.filter-pill[open]').forEach(d => d.removeAttribute('open'));
     }
   });
 
-  // Advanced filter selects — applied via Apply button in bottom sheet
-  document.getElementById('scannerSort').addEventListener('change', e => { scannerSort = e.target.value; });
-  // ── Direction toggle (All / Buy / Sell) ──
-  document.getElementById('scannerFilterChips').addEventListener('click', e => {
-    const btn = e.target.closest('.sig-dir-btn');
-    if (!btn) return;
-    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeScannerFilter = btn.dataset.filter;
-    // Clear context chip active states when switching direction
-    document.querySelectorAll('.sig-ctx-chip').forEach(c => {
-      if (c.id !== 'sigMoreFiltersBtn') c.classList.remove('active');
-    });
-    resetRadarChip();
-    buildScannerCards();
-  });
-
-  // ── Radar chip — cycles off → Prime ≥75 → Strong ≥50 → off ──
-  const radarChip = document.getElementById('radarChip');
-  const radarLabel = radarChip ? radarChip.querySelector('.radar-label') : null;
-  function resetRadarChip() {
-    if (!radarChip) return;
-    radarChip.classList.remove('prime', 'strong');
-    if (radarLabel) radarLabel.textContent = 'Radar';
-  }
-  if (radarChip) {
-    radarChip.addEventListener('click', () => {
-      // Deactivate other context chips
-      document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip)').forEach(c => c.classList.remove('active'));
-      document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-      if (activeScannerFilter === 'radar_prime') {
-        radarChip.classList.remove('prime'); radarChip.classList.add('strong');
-        radarLabel.textContent = 'Strong ≥50';
-        activeScannerFilter = 'radar_strong';
-      } else if (activeScannerFilter === 'radar_strong') {
-        resetRadarChip();
-        activeScannerFilter = 'all';
-      } else {
-        radarChip.classList.add('prime');
-        radarLabel.textContent = 'Prime ≥75';
-        activeScannerFilter = 'radar_prime';
-      }
-      buildScannerCards();
-    });
-  }
-
-  // ── Context chips (Best, Today, Squeeze, Key Lvl, Vol Spike, Macro S/R) ──
-  document.querySelector('.sig-ctx-row').addEventListener('click', e => {
-    const chip = e.target.closest('.sig-ctx-chip');
-    if (!chip || chip.id === 'sigMoreFiltersBtn' || chip.id === 'sigTypeBtn' || chip.id === 'radarChip') return;
-    const wasActive = chip.classList.contains('active');
-    // Deactivate all context chips (except filters btn, signal btn, radar chip, analyzed chip)
-    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn):not(#radarChip)').forEach(c => c.classList.remove('active'));
-    resetRadarChip();
-    // Also reset direction toggle to All
-    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-    if (wasActive) {
-      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-      activeScannerFilter = 'all';
-    } else {
-      chip.classList.add('active');
-      document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-      activeScannerFilter = chip.dataset.filter;
-    }
-    buildScannerCards();
-  });
 
   // (The #scannerSummary strip no longer renders pills — its only content was a
   // second copy of the header count, and "clear filters" is the All button in
   // the pill row right above it. Its delegated click handler went with it.)
 
-  // ── Signal type bottom sheet ──
-  const sigTypeBtn = document.getElementById('sigTypeBtn');
-  const sigTypeSheet = document.getElementById('sigTypeSheet');
-  const sigOverlay = document.getElementById('sigSheetOverlay');
-
-  function openSheet(sheet) {
-    sigOverlay.classList.add('open');
-    sheet.classList.add('open');
-  }
-  function closeSheets() {
-    sigOverlay.classList.remove('open');
-    document.querySelectorAll('.sig-sheet.open').forEach(s => s.classList.remove('open'));
-  }
-  sigOverlay.addEventListener('click', closeSheets);
-
-  sigTypeBtn.addEventListener('click', () => openSheet(sigTypeSheet));
-
-  sigTypeSheet.addEventListener('click', e => {
-    const btn = e.target.closest('.sig-sheet-btn');
-    if (!btn) return;
-    // Toggle active state
-    document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeScannerFilter = btn.dataset.filter;
-    // Update signal button label
-    sigTypeBtn.classList.add('active');
-    // Reset direction toggle and context chips
-    document.querySelectorAll('.sig-dir-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.sig-dir-btn[data-filter="all"]').classList.add('active');
-    document.querySelectorAll('.sig-ctx-chip:not(#sigMoreFiltersBtn):not(#sigTypeBtn)').forEach(c => c.classList.remove('active'));
-    // The cycling chips hold their state in .on/.off, not .active, so the line
-    // above never cleared them: Radar/Analyzed/Event stayed lit while the
-    // filter they represented had just been replaced by a signal type.
-    resetRadarChip();
-    closeSheets();
-    buildScannerCards();
-  });
-
-  document.getElementById('sigSheetClear').addEventListener('click', () => {
-    document.querySelectorAll('.sig-sheet-btn').forEach(b => b.classList.remove('active'));
-    sigTypeBtn.classList.remove('active');
-    activeScannerFilter = 'all';
-    closeSheets();
-    buildScannerCards();
-  });
-
-  // ── Advanced filters bottom sheet ──
-  const sigMoreBtn = document.getElementById('sigMoreFiltersBtn');
-  const sigAdvSheet = document.getElementById('sigAdvSheet');
-
-  sigMoreBtn.addEventListener('click', () => openSheet(sigAdvSheet));
-
-  // Update filter badge count
-  function updateFilterBadge() {
-    const selects = ['scannerClassFilter','scannerGroupFilter','scannerSectorFilter','scannerTrendFilter','scannerRsiFilter','scannerStackFilter'];
-    let count = selects.filter(id => {
-      const el = document.getElementById(id);
-      return el && el.value !== 'all';
-    }).length;
-    if (document.getElementById('scannerSort').value !== 'signal') count++;
-    const badge = document.getElementById('sigFilterBadge');
-    if (count > 0) {
-      badge.textContent = count;
-      badge.style.display = '';
-      sigMoreBtn.classList.add('active');
-    } else {
-      badge.style.display = 'none';
-      sigMoreBtn.classList.remove('active');
-    }
-  }
-
-  // Apply on every change — Done button just closes the sheet
-  function applyAdvFilters() {
-    // Using the advanced filter sheet = explicit filter intent; clear the
-    // implicit region filter so the two don't fight each other.
-    activeRegionFilter = '';
-    updateFilterBadge();
-    updateScannerCtxStrip();
-    buildScannerCards();
-  }
-  sigAdvSheet.addEventListener('change', e => {
-    if (e.target.matches('select, input')) applyAdvFilters();
-  });
-  document.getElementById('sigAdvApply').addEventListener('click', () => {
-    applyAdvFilters();
-    closeSheets();
-  });
 
   // The Analyzed (watchlist) tab was removed 2026-09-24 at the user's request.
   // Stars (analyzed marks) went the same day. userStarred is still loaded and
@@ -7401,7 +5451,7 @@
     };
 
     if (!segments.length) {
-      main.innerHTML = backBtn + `<div class="trends-empty-state"><p>No trend history available for ${name}</p></div>`;
+      main.innerHTML = backBtn + `<div class="trends-empty-state"><p>No trend history available for ${escText(name)}</p></div>`;
       document.getElementById('trendsBackBtn').addEventListener('click', () => {
         goBack();
       });
@@ -7442,7 +5492,7 @@
       ${backBtn}
 
       <div class="trend-detail-header">
-        <div class="trend-detail-name">${name}</div>
+        <div class="trend-detail-name">${escText(name)}</div>
         <div class="trend-detail-meta">
           <span class="est-trend ${estCls}">${established === 'UPTREND' ? 'Uptrend' : established === 'DOWNTREND' ? 'Downtrend' : 'Neutral'}</span>
           <span>${item ? [item.group, item.sector].filter(Boolean).join(' · ') : ''}</span>
@@ -7597,7 +5647,6 @@
   });
   const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
   function reelZeroShown(name) { const lk = reel.lockY.get(name); return !!(lk && lk._zero); }
-  function reelDrawStripHtml(name) { return drawingToolbar.stripHtml(name); }
   function reelToolbarHtml(name, edit) { return drawingToolbar.html(name, edit); }
   function reelSyncToolbar(root, name) { drawingToolbar.sync(root, name); }
   function reelPropsHtml(name) { return drawingToolbar.propsHtml(name); }
@@ -7613,10 +5662,6 @@
   const VIEW_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
   const SHARE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 
-  function shareBtn(name) {
-    if (!navigator.share) return ''; // only show on devices that support Web Share API
-    return `<button class="share-btn" title="Share ${name}" data-act="shareCard" data-arg="${name}" data-stop="1">${SHARE_ICON}</button>`;
-  }
 
   function shareCard(name) {
     const item = allData.find(d => d.instrument_name === name);
@@ -7875,69 +5920,6 @@
     });
   });
 
-  // 4-TF grid: clicking a row switches the active timeframe
-  const mpTfGrid = document.getElementById('mpTfGrid');
-  if (mpTfGrid) {
-    mpTfGrid.addEventListener('click', e => {
-      const row = e.target.closest('[data-mp-tf]');
-      if (!row) return;
-      setTimeframe(row.dataset.mpTf);
-    });
-  }
-
-  // Wire trend filters via mp-breakdown container → navigate to scanner
-  const mpBreakdown = document.getElementById('mpBreakdown');
-  if (mpBreakdown) {
-    mpBreakdown.addEventListener('click', e => {
-      const row = e.target.closest('.mp-filter-row');
-      if (!row) return;
-      const trend = row.dataset.filterTrend;
-      if (!trend) return;
-      openChartsFiltered({ trend, label: trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral' });
-    });
-  }
-
-  // ── Scanner context strip: shows active dashboard filter + reset button ──
-  function updateScannerCtxStrip() {
-    const strip = document.getElementById('scannerCtxStrip');
-    if (!strip) return;
-    const clsSel   = document.getElementById('scannerClassFilter');
-    const grpSel   = document.getElementById('scannerGroupFilter');
-    const trendSel = document.getElementById('scannerTrendFilter');
-    const cls   = clsSel?.value   !== 'all' ? clsSel.value   : '';
-    const grp   = grpSel?.value   !== 'all' ? grpSel.value   : '';
-    const trend = trendSel?.value !== 'all' ? trendSel.value : '';
-
-    if (!cls && !grp && !trend && !activeRegionFilter) {
-      strip.style.display = 'none';
-      strip.innerHTML = '';
-      return;
-    }
-
-    const pills = [];
-    if (activeRegionFilter) pills.push(`<span class="ctx-pill ctx-pill-group">Region: <strong>${activeRegionFilter}</strong></span>`);
-    if (cls)   pills.push(`<span class="ctx-pill ctx-pill-group">Class: <strong>${cls}</strong></span>`);
-    if (grp)   pills.push(`<span class="ctx-pill ctx-pill-group">Group: <strong>${grp}</strong></span>`);
-    if (trend) {
-      const lbl = trend === 'UPTREND' ? 'Uptrend' : trend === 'DOWNTREND' ? 'Downtrend' : 'Neutral';
-      const cls = trend === 'UPTREND' ? 'ctx-pill-bull' : trend === 'DOWNTREND' ? 'ctx-pill-bear' : 'ctx-pill-neut';
-      pills.push(`<span class="ctx-pill ${cls}">Trend: <strong>${lbl}</strong></span>`);
-    }
-    strip.style.display = 'flex';
-    strip.innerHTML = pills.join('') +
-      `<button class="ctx-clear-btn" id="ctxClearBtn">✕ Reset</button>`;
-
-    document.getElementById('ctxClearBtn')?.addEventListener('click', () => {
-      if (clsSel)   clsSel.value   = 'all';
-      if (grpSel)   grpSel.value   = 'all';
-      if (trendSel) trendSel.value = 'all';
-      activeTrendFilter = '';
-      activeRegionFilter = '';
-      renderGroupPulse();
-      updateScannerCtxStrip();
-      buildScannerCards();
-    });
-  }
 
   registerSW();
   updateSyncBadge();
@@ -8026,140 +6008,9 @@
     syncPull();
   });
 
-  // ── Single source of truth for the confluence score ───────────────────
-  // Returns { isBullish, lines: [{label, points}] }. Both radarConfluenceScore()
-  // (sum → 0-100) and radarScoreBreakdown() (the modal panel) read from this,
-  // so the number and its explanation can never drift apart.
-  function radarScoreFactors(item) {
-    // SINGLE-TIMEFRAME SCORE: every factor reads the ACTIVE timeframe's own
-    // data (Daily or 4H, via f()). Timeframes are scored independently — no
-    // cross-TF blending, so the 4H view is a pure 4H read and vice versa.
-
-    // Direction: ribbon majority on the active TF (same metric as the gauge) so
-    // bias label and gauge never contradict. close < MA50 alone marks DOWNTREND
-    // even when 85% of MAs are below price (pullback in uptrend) — ribbon
-    // majority is the honest read.
-    const _close = parseFloat(item[f('close')]);
-    const _periods = activeMaPeriods();
-    let _masAbove = 0, _masTotal = 0;
-    if (!isNaN(_close)) {
-      _periods.forEach(p => {
-        const v = parseFloat(item[f('ma_' + p)]);
-        if (!isNaN(v)) { _masTotal++; if (_close > v) _masAbove++; }
-      });
-    }
-    const isBullish = _masTotal > 0 ? _masAbove * 2 >= _masTotal
-                                    : item[f('trend_direction')] !== 'DOWNTREND';
-
-    const lines = [];
-
-    // 0. Ribbon rollover (max 35) — TOP structural factor. The fast line
-    //     (MA50, double-weighted because it leads) and the mid line (MA250)
-    //     cutting through the lines above them confirms a trend change,
-    //     backing B1 (bull flip) / S1 (bear flip). Scored in
-    //     indicators.add_ribbon_analytics; rollover_max is 5 on the 3-MA
-    //     ribbon, and the points below are a FRACTION of it, so the 35-point
-    //     weight is unchanged by the ribbon being narrower.
-    const rollDir   = item[f('rollover_dir')] || 'none';
-    const rollScore = parseInt(item[f('rollover_score')]) || 0;
-    const rollMax   = parseInt(item[f('rollover_max')]) || 5;   // 3-MA ribbon max weight
-    const rollStage = parseInt(item[f('rollover_stage')]) || 0;
-    const rollAligned = (isBullish && rollDir === 'bull') || (!isBullish && rollDir === 'bear');
-    if (rollAligned && rollScore > 0 && rollMax > 0) {
-      const pts   = Math.round((rollScore / rollMax) * 35);
-      const stageLbl = rollStage >= 3 ? 'full flip' : rollStage === 2 ? 'deepening' : 'starting';
-      lines.push({ label: `Ribbon rollover ${rollScore}/${rollMax} (${isBullish ? 'bull' : 'bear'} ${stageLbl})`, points: pts });
-    }
-
-    // 1. Signal type (max 25) — the active TF's own signal. B1/S1 top authority;
-    //    B4/S4 anchor bounce next.
-    const sig = item[f('primary_signal')] || '';
-    const buySig  = sig && sig.startsWith('B');
-    const sellSig = sig && sig.startsWith('S');
-    const hasAlignedSig = (isBullish && buySig) || (!isBullish && sellSig);
-    if (hasAlignedSig) {
-      const sigPts = isReversal(sig) ? 25 : isLongestMa(sig) ? 15 : 10;
-      lines.push({ label: `${sig} ${isReversal(sig) ? 'reversal signal' : isLongestMa(sig) ? 'anchor MA signal' : 'signal'}`,
-                   points: sigPts });
-    }
-
-    // 2. Signal confidence — REMOVED 2026-09-11. The tiers were fitted on the
-    //    trades they claimed to predict, and nothing shows this score any more.
-
-    // 3. Ribbon squeeze (max 10) — coiled-spring setup on the active TF
-    if (item[f('ribbon_compression')] === 'yes') {
-      lines.push({ label: `Ribbon squeeze (${timeframe})`, points: 10 });
-    }
-
-    // 4. Key-level confluence (max 9) — price testing a real, well-tested S/R
-    //    level. Key levels are price-based (daily columns), valid on both views.
-    if (item.key_level_touched_today === 'yes') {
-      let klPoints = 3;
-      const touches = parseInt(item.key_level_touch_count) || 0;
-      if      (touches >= 100) klPoints += 6;
-      else if (touches >= 50)  klPoints += 4;
-      else if (touches >= 20)  klPoints += 2;
-      lines.push({ label: `Key level held ${touches}×, tested today`, points: klPoints });
-    }
-
-    // 5. MA-order quality (max 8) — clean, textbook ribbon stacking in the trade direction
-    const maOrder = parseInt(item[f('ma_order_score')]);
-    const maMax   = summaryData.ma_max_pairs || 2;   // 3-MA ribbon -> 2 adjacent pairs
-    if (!isNaN(maOrder) && maMax > 0) {
-      const stackPct = maOrder / maMax;                       // 1 = perfectly bullish-stacked
-      const aligned  = isBullish ? stackPct : (1 - stackPct); // direction-aware
-      const pts = Math.round(aligned * 8);
-      if (pts > 0) lines.push({ label: `MA ribbon ${isBullish ? 'stacked' : 'inverted'} ${maOrder}/${maMax}`, points: pts });
-    }
-
-    // 6. RSI timing (max 9) — entry timing on the active TF only
-    const tfRsi = parseFloat(item[f('rsi')]);
-    if (!isNaN(tfRsi)) {
-      if (isBullish) {
-        if      (tfRsi < 30) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (oversold)`,    points: 9 });
-        else if (tfRsi < 50) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (room to run)`, points: 5 });
-      } else {
-        if      (tfRsi > 70) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (overbought)`,   points: 9 });
-        else if (tfRsi > 50) lines.push({ label: `${timeframe} RSI ${tfRsi.toFixed(0)} (room to fall)`, points: 5 });
-      }
-    }
-
-    // 7. Signal freshness (max 4) — recent signals are actionable, stale ones have already moved
-    const daysAgo = parseInt(item[f('last_signal_days_ago')]);
-    if (!isNaN(daysAgo)) {
-      if      (daysAgo <= 1) lines.push({ label: `Signal fresh (${daysAgo}d ago)`,  points: 4 });
-      else if (daysAgo <= 4) lines.push({ label: `Signal recent (${daysAgo}d ago)`, points: 2 });
-      else if (daysAgo <= 9) lines.push({ label: `Signal ${daysAgo}d ago`,          points: 1 });
-    }
-
-    // 8. Volume (max 6) — spike on the active TF
-    const _volSpike = item[f('volume_spike_flag')];
-    if (_volSpike === 'yes') lines.push({ label: `Volume spike (${timeframe})`, points: 6 });
-
-    return { isBullish, lines };
-  }
-
-  function radarConfluenceScore(item) {
-    const { lines } = radarScoreFactors(item);
-    const total = lines.reduce((sum, l) => sum + l.points, 0);
-    return Math.max(0, Math.min(total, 100));
-  }
-
-  function scoreTier(score) {
-    if (score >= 75) return 'prime';
-    if (score >= 50) return 'strong';
-    return 'developing';
-  }
-
-  // Itemised breakdown for the "Why this score?" panel — same factors as the score
-  function radarScoreBreakdown(item) {
-    return radarScoreFactors(item);
-  }
 
   // renderRadar() removed — Radar is now the "Ranked" view inside Signals.
   // Scoring functions (radarConfluenceScore, radarScoreFactors) are still used by scanner cards.
-
-
 
 
   // ══════════════════════════════════════════════════════════════════════
@@ -8816,53 +6667,6 @@
     });
   }
 
-  // Legacy marker renderer, not drawn on charts (2026-10-15: remove clutter).
-  // The Alerts tab and Charts marker filters still use the underlying data.
-  // INTRADAY MARKERS — 30m, 1H and 4H since 2026-09-29 (were 15m + 1H).
-  // 15m MARKERS (user, 2026-09-26: circled 15m +D charts, "indications just
-  // before ... and once after crossing any of the daily MAs", and "B1 and S1
-  // in the chart ... for 15 and overlay 15"). Both lists are computed by the
-  // PIPELINE onto the 15m bundle (webapp/chart_feed.py: `xm` = Daily-MA cross
-  // marks, `sg` = 15m B1/S1 fires) — one definition, the same one the Charts
-  // filters select on. Drawn on every 15m chart, overlay on or off.
-  //   xm: [i, 'pre'|'after', 50|250|500, 'up'|'dn', dailyMaLevel]
-  //   'pre' = the bar TOUCHED the Daily MA; 'after' = the bar that CROSSED it
-  //   and held an hour (2026-09-27; see chart_feed.cross_marks).
-  //   sg: [i, 'B1'|'S1']
-  function reel15mMarksSvg(b, L, sc, bw) {
-    const src = b._src || b, from = b._from || 0, nv = b.c ? b.c.length : 0;
-    const xOf = i => L.x0 + (i - from + 0.5) * bw;
-    const inX = x => x >= L.x0 && x <= L.x1;
-    const inY = y => y > L.py0 + 6 && y < L.py1 - 6;
-    const tri = (x, y, up, s2) => up
-      ? `M${x.toFixed(1)} ${(y - s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y + s2 * .75).toFixed(1)}Z`
-      : `M${x.toFixed(1)} ${(y + s2).toFixed(1)}L${(x + s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}L${(x - s2).toFixed(1)} ${(y - s2 * .75).toFixed(1)}Z`;
-    let out = '';
-    for (const [i, kind, p, dir, v] of (src.xm || [])) {
-      if (i < from || i >= from + nv) continue;
-      const x = xOf(i), y = sc.y(v);
-      if (!inX(x) || !inY(y)) continue;
-      if (kind === 'after') {
-        const up = dir === 'up';
-        out += `<path d="${tri(x, y, up, 13)}" class="reel-xm ${up ? 'up' : 'dn'}"/>` +
-          `<text x="${x.toFixed(1)}" y="${(up ? y + 30 : y - 20).toFixed(1)}" class="reel-xm-lbl ${up ? 'up' : 'dn'}" text-anchor="middle">D${p}</text>`;
-      } else {
-        out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" class="reel-xm-pre"/>` +
-          `<text x="${x.toFixed(1)}" y="${(y - 16).toFixed(1)}" class="reel-xm-lbl pre" text-anchor="middle">D${p}</text>`;
-      }
-    }
-    // B1 under the bar's low, S1 over its high — a tag, not on a line.
-    for (const [i, code] of (src.sg || [])) {
-      if (i < from || i >= from + nv) continue;
-      const x = xOf(i), buy = code[0] === 'B';
-      if (!inX(x)) continue;
-      const y = sc.y(buy ? src.l[i] : src.h[i]) + (buy ? 20 : -20);
-      if (!inY(y)) continue;
-      out += `<path d="${tri(x, y, buy, 11)}" class="reel-sgm ${buy ? 'up' : 'dn'}"/>` +
-        `<text x="${x.toFixed(1)}" y="${(buy ? y + 30 : y - 18).toFixed(1)}" class="reel-sgm-lbl ${buy ? 'up' : 'dn'}" text-anchor="middle">${code}</text>`;
-    }
-    return out ? `<g class="reel-xm-g">${out}</g>` : '';
-  }
 
   // The timeframe pill's text: "1H +D·W" while the overlay draws anything.
   function reelTfTagHtml() {
@@ -9267,10 +7071,6 @@
   // Chart levels always use price, including after restoring older settings.
   function reelFmtLevel(v) { return reelFmtPrice(v); }
 
-  // Round gridline levels — 1/2/5 x 10^n, the steps a price axis is read in.
-  function reelTicks(lo, hi, want) {
-    return modules.chartReadability.ticks(lo, hi, want);
-  }
 
   // Trim a bundle to its last `bars` bars. The ribbon is stored decimated with
   // its own bar indices (b.mi), so those are filtered and rebased rather than
@@ -11544,7 +9344,6 @@
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';
   }
-  function reelGridPartLabel(year, part, division) { return window.SwingPulseModules.gridGeometry.partLabel(year, part, division); }
   // The time grid in use, after the timeframe in the full-screen header (user,
   // 2026-10-28: "i just need to see what time grid i am on when the app is on
   // full screen"). Read off the lines just drawn.
@@ -12269,7 +10068,7 @@
     menu.setAttribute('role', 'menu');
     menu.innerHTML = tabTfs('charts').map(code => {
       const on = code === timeframe;
-      return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${name}">${TF_BY_CODE[code].label}</button>`;
+      return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${escText(name)}">${escText(TF_BY_CODE[code].label)}</button>`;
     }).join('') + `<div class="reel-ov-panel">${reelOvMenuHtml()}</div>`;
     // Sliders move the layer's opacity live (CSS variables, no repaint); the
     // release saves, and repaints only when a drawings layer crosses 0 — at 0
@@ -12800,20 +10599,6 @@
 
   // ── Card shell ───────────────────────────────────────────────────────
 
-  // While comparing, each card carries how close it is to the anchor — the
-  // anchor itself is the one you came from, so it says so rather than "100%".
-  function simPct(name) {
-    if (!reel.similarTo) return '';
-    if (name === reel.similarTo) return '<span class="reel-simpct">this one</span>';
-    const hit = shapeNeighbours(reel.similarTo).find(n => n.name === name);
-    return hit ? `<span class="reel-simpct">${(hit.corr * 100).toFixed(0)}% alike</span>` : '';
-  }
-
-  // The trend sentence for a chart header — the card and the full-screen view
-  // share it, so "extended" never loses the writing the card has.
-  function reelTrendlineHtml(item) {
-    return trendContextHtml(item, timeframe) + clusterBadgeHtml(item);
-  }
 
   // The Daily main trend, its word alone ("Main ▲ Up") — the card's header
   // line; the full-screen view keeps the whole sentence (reelTrendlineHtml).
@@ -13358,7 +11143,7 @@
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-label', 'Share preview');
     ov.innerHTML = `
-      <div class="share-prev-img"><img alt="Preview of the shared ${name} chart"></div>
+      <div class="share-prev-img"><img alt="Preview of the shared ${escText(name)} chart"></div>
       <div class="share-prev-bar">
         <button type="button" class="share-prev-btn" data-sp="cancel">Cancel</button>
         <button type="button" class="share-prev-btn" data-sp="save">Save</button>

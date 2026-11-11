@@ -23,7 +23,6 @@ Outputs:
 
 import argparse
 import concurrent.futures
-import glob
 import json
 import math
 import os
@@ -39,7 +38,7 @@ from _active_config import (MA_PERIODS, OUTPUT_DIR,
 from data_fetcher import _cache_path, _drop_priceless, h4_ticker
 from indicators import add_all_indicators, round_price
 from instruments import load_instruments, asset_class_of
-from main import (_resample_4h, _h4_ma_periods, _h1_frame, _h1_ma_periods,
+from main import (_h1_frame, _h1_ma_periods,
                   _resample_weekly, _resample_3d)
 from signals import add_signals
 from workflow_signals import add_workflow_signals, RULE_VERSION

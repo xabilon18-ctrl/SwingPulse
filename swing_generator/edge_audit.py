@@ -152,11 +152,6 @@ CATEGORICAL = {
 }
 
 
-# ── Core slicing ───────────────────────────────────────────────────────────
-def _edge(sub_r: np.ndarray, base_avg: float) -> float:
-    return sub_r.mean() - base_avg
-
-
 def analyse(df: pd.DataFrame) -> list[dict]:
     df = df.copy()
     df['entry_dt'] = pd.to_datetime(df['entry_date'])

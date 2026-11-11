@@ -48,14 +48,10 @@ PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, PROJECT_DIR)
 
 from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read_5m_raw,   # noqa: E402
-                          scale_daily, SGX_FRONT, _utc_now)
+                          scale_daily, _utc_now)
 import exchange_feed                                    # noqa: E402
 from main import (_resample_4h,                          # noqa: E402
-                  _h1_frame, _h1_ma_periods,
-                  _resample_weekly, _resample_monthly, _resample_3d, _resample_10m,
-                  _m10_ma_periods, _frame_5m, _frame_30m, _m30_ma_periods, _frame_15m, _m15_ma_periods,
-                  _frame_1h, _m1h_ma_periods,
-                  _frame_2h, _m2h_ma_periods, _frame_12h, _frame_10m_live)
+                  _resample_weekly, _resample_monthly, _frame_5m, _frame_1h, _m1h_ma_periods)
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
 from chart_cache import Store, recording
@@ -69,7 +65,7 @@ from _active_config import MA_PERIODS                   # noqa: E402
 MIN_RIBBON_LINES = 2
 
 # How many calendar months the 10m bundle CARRIES. The app opens on the most
-# recent one; the rest is what panning back reaches. See build_10m.
+# recent one; the rest is what panning back reaches.
 CARRY_MONTHS = 2
 
 # How far back the 30m bundle goes: TWO MONTHS (user, 2026-09-24, said of the 5m
@@ -134,7 +130,7 @@ DEEP_MONTHS_1H = 6
 BARS = 520
 
 BARS_BY_TF = {
-    # 10m is the ONE timeframe not cut to a bar count — see build_10m. The entry
+    # 10m is the ONE timeframe not cut to a bar count. The entry
     # is the safety ceiling on CARRY_MONTHS' worth, not the window: a 24h
     # instrument puts ~4,300 ten-minute bars in a calendar month against an
     # equity's ~815, and Yahoo's own 5m ceiling stops it at 8,599.
@@ -433,7 +429,7 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     """1H chart from the hourly cache (load_1h). A cash index redirected by
     H4_SOURCE stores its hourly bars under the CONTRACT's name.
     """
-    # 2026-09-27: back on the Charts tab, built like build_15m — the 15m's
+    # 2026-09-27: back on the Charts tab — the intraday
     # sources and cash/spot level (data_fetcher.load_1h), EXACT 50/250/500,
     # CARRY_MONTHS_1H of calendar, the carry capped so MA500 is warm at the
     # left edge.
@@ -454,60 +450,6 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     deep = max(0, min(n_deep, BARS_BY_TF['1H'] + DEEP_BARS_BY_TF['1H'], max(warm_cap, 1)) - bars)
     return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H', deep=deep),
                            df_1h, frame, 1)
-
-
-def build_2h(cache_dir: str, ticker: str) -> dict | None:
-    """2H chart (2026-10-01, user: "add a 2h chart"): build_1h's feed in
-    session-anchored 2-hour bars (main._frame_2h), EXACT 50/250/500,
-    CARRY_MONTHS_2H of calendar, capped so MA500 is warm at the left edge."""
-    df_1h = load_1h(ticker)
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _frame_2h(df_1h)
-    if len(frame) < 2:
-        return None
-    periods = _m2h_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_2H)
-    n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    warm_cap = len(frame) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['2H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars), df_1h, frame, 2)
-
-
-def build_12h(cache_dir: str, ticker: str) -> dict | None:
-    """12H chart (2026-10-01, user: "add 12 built like the daily with the time
-    grids"): the Daily's year grid and opening window, EXACT 50/250/500.
-
-    A market whose session is shorter than 12 hours (stocks, cash indices on
-    their own feed) has ONE 12-hour bar a session — the daily bar, exactly as
-    TradingView's 12H draws it — so those are read from the DAILY cache, which
-    carries years of history where the hourly cache has ~2 (MA500 alone needs
-    ~2 years of sessions). Round-the-clock markets get two session-anchored
-    bars a day from the hourly feed (main._frame_12h)."""
-    df_1h = load_1h(ticker)
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _frame_12h(df_1h)
-    if len(frame) < 2:
-        return None
-    per_day = frame.groupby(frame.index.normalize()).size().tail(60).median()
-    if per_day < 1.5:
-        path = os.path.join(cache_dir, _cache_name(ticker))
-        if not os.path.exists(path):
-            return None
-        df = scale_daily(ticker, pd.read_parquet(path))
-        periods = [p for p in MA_PERIODS if p <= len(df)]
-        if len(periods) < MIN_RIBBON_LINES:
-            return None
-        return _bundle(df, periods, '%Y-%m-%d', bars=BARS_BY_TF['12H'])
-    periods = [p for p in MA_PERIODS if p <= len(frame)]
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    warm_cap = len(frame) - max(periods)
-    bars = min(len(frame), BARS_BY_TF['12H'], max(warm_cap, 1))
-    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
 def _read_daily(cache_dir: str, ticker: str) -> pd.DataFrame | None:
@@ -578,180 +520,6 @@ def monthly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     # Stamped on the 1st, for the reason in build_weekly.
     monthly.index = monthly.index.to_period('M').to_timestamp()
     return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
-
-
-def build_3d(cache_dir: str, ticker: str) -> dict | None:
-    """3-day chart from the same daily cache the daily chart reads.
-
-    520 three-day bars is ~6 years, which is what the MA500 anchor needs to
-    be drawn at all — so a 3-day chart shows about three times the calendar span
-    of a daily one and about two thirds of a weekly one, which is the gap this
-    timeframe exists to fill. Volume is included, as on daily and weekly.
-    """
-    path = os.path.join(cache_dir, _cache_name(ticker))
-    if not os.path.exists(path):
-        return None
-    df = pd.read_parquet(path)
-    if df.empty:
-        return None
-    three_day = _resample_3d(df)
-    periods = [p for p in MA_PERIODS if p <= len(three_day)]
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    return _bundle(three_day, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['3D'])
-
-
-def build_10m(cache_dir: str, ticker: str) -> dict | None:
-    """10-minute chart, resampled from the instrument's own 5m cache.
-
-    The only timeframe here with a HARD CEILING on history: Yahoo serves ~60
-    sessions of 5m and refuses anything older, so 1300 ten-minute bars is about
-    33 sessions on a US equity and ~9 days on a 24h instrument, and no amount of
-    cache-warming will ever make it deeper. That is enough for the MA500 anchor
-    to be fully warm rather than warming up — an equity's 60 sessions give ~2,325
-    ten-minute bars, of which the 1,025 behind the window are the ribbon's
-    lead-in (measured on AAPL, 2026-09-14).
-
-    Reads the ticker's OWN 5m file, never h4_ticker's redirect: at 4H a cash
-    index borrows the 24h contract's clock on purpose, but a 10m chart of ^NDX
-    has to be ^NDX's own session or it is a chart of something else.
-
-    Periods come from _m10_ma_periods: unscaled for anything exchange-traded,
-    scaled up for round-the-clock instruments so MA500 reaches the same number of
-    CALENDAR days on every chart. See config.py §"Ribbon normalisation".
-
-    CUT BY CALENDAR, NOT BY BAR COUNT — the only timeframe here that is, and the
-    user asked for it directly: "one month for all". Every other timeframe slices
-    `tail(bars)`, which works there because a daily bar is a day on every
-    instrument in the book. A ten-minute bar is not: measured 2026-09-14, an
-    equity puts 38.8 of them in a session and a 24h instrument 143.3, so a flat
-    1300 bars was 34 sessions of Apple against 10 days of Bitcoin — the same
-    button showing three different amounts of market depending on what you were
-    looking at. One month of calendar is one month on all 798.
-
-    The ribbon is still computed over the WHOLE 5m cache before the cut (that is
-    what _bundle does), so MA500 is warm at the left edge rather than warming up
-    inside the window — ~60 sessions of 5m behind a one-month window is plenty.
-    """
-    path = os.path.join(cache_dir, _cache_name(ticker, suffix='5m'))
-    if not os.path.exists(path):
-        return None
-    df_5m = pd.read_parquet(path)
-    if df_5m.empty:
-        return None
-    ten = _resample_10m(df_5m)
-    # NOT `[p for p in MA_PERIODS ...]` — a round-the-clock instrument needs its
-    # ribbon scaled or MA500 reaches 3.5 days against an equity's 18.5. The chart
-    # carries its own `p`, so the app draws whatever this returns.
-    periods = _m10_ma_periods(ten)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    # TWO calendar months are CARRIED; the app OPENS on the most recent one
-    # (reelWindowBars). Same split every other timeframe uses — the bundle is
-    # depth, the window is the view — and it is what lets the reader pan back
-    # into the previous month, which a one-month bundle could not do at all: the
-    # chart simply ran out of history at its left edge.
-    #
-    # Two, not everything Yahoo has (~3 months for an equity, capped at 59 days
-    # for a 24h instrument). Depth is not free here the way it is on the daily
-    # feed: measured 2026-09-14, AAPL goes 11.8 -> 25.9 -> 35.2 KB gzipped at
-    # 1/2/3 months and BTC 79.0 -> 147.4, and five of those share a chunk. Two
-    # months answers "show me the previous month" exactly and costs half of what
-    # carrying the lot would.
-    #
-    # DateOffset, not 30 days: the window is the month the reader means rather
-    # than an approximation of it. Clamped to the ceiling so a pathological cache
-    # cannot emit a bundle of unbounded size.
-    cutoff = ten.index[-1] - pd.DateOffset(months=CARRY_MONTHS)
-    n_carry = int((ten.index > cutoff).sum()) or len(ten)
-
-    # LEAVE THE SLOWEST MA ITS WARM-UP. _bundle computes the ribbon over the
-    # whole frame and then tails it, so the carried window is warm only while
-    # there are at least max(periods) bars BEHIND it. On an equity that is free
-    # (2,326 bars total against 1,677 carried). On a 24h instrument it is not:
-    # BTC's entire 10m history is 8,599 bars and two calendar months is ~8,599 of
-    # them, so the carry swallowed the lead-in and the chart shipped 167 null
-    # MA500 points — a ribbon that visibly began partway into the window, which
-    # is exactly the "MAs look wrong on crypto" report. Capping the carry here
-    # costs BTC ~3.5 days of pannable history and buys a ribbon that is drawn all
-    # the way to the left edge.
-    warm_cap = len(ten) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['10m'], max(warm_cap, 1))
-    return _bundle(ten, periods, '%Y-%m-%d %H:%M', bars=bars)
-
-
-def build_10m_live(cache_dir: str, ticker: str) -> dict | None:
-    """10-minute chart (back 2026-10-03, user: "add 10 min to be divided by
-    weekly"), built like build_30m: load_5m's sources and cash/spot level,
-    CARRY_MONTHS_10M of calendar. Replaces build_10m (own 5m file), which
-    stays for research.
-
-    Ribbon = main._m10_ma_periods (2026-10-03, user: "the 3 MAs are not good on
-    indices, crypto on 10 min chart"): exact 50/250/500 on anything that closes
-    overnight; on a round-the-clock market (crypto 144 bars/day, US index
-    futures, forex, gold ~97-103) the periods are stretched to the calendar
-    reach a US stock's get (MA500 ~18 days), e.g. BTC 266/1328/2656. At plain
-    50/250/500 a 24h MA500 is 3.5 days and the three lines lay on the price."""
-    df_5m = load_5m(ticker)
-    if df_5m is None or df_5m.empty:
-        return None
-    frame = _frame_10m_live(df_5m)
-    if len(frame) < 2:
-        return None
-    periods = _m10_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_10M)
-    n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    bars = min(n_carry, BARS_BY_TF['10m'])
-    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
-
-
-def build_15m(cache_dir: str, ticker: str) -> dict | None:
-    """15-minute chart (back 2026-09-29 beside 30m): build_30m at 15 minutes."""
-    df_5m = load_5m(ticker)
-    if df_5m is None or df_5m.empty:
-        return None
-    frame = _frame_15m(df_5m)
-    if len(frame) < 2:
-        return None
-    periods = _m15_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_15M)
-    n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    warm_cap = len(frame) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['15m'], max(warm_cap, 1))
-    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
-
-
-def build_30m(cache_dir: str, ticker: str) -> dict | None:
-    """30-minute chart, resampled from the instrument's 5m source (main._frame_30m).
-
-    Replaced the 15m chart on 2026-09-29, which had replaced 5m on 2026-09-25.
-    Ribbon over the whole cache so MA500
-    is warm at the left edge, CARRY_MONTHS_30M of calendar shipped, and the
-    carry capped so the slowest MA keeps its warm-up on a 24/7 instrument. See
-    build_10m for the reasoning.
-    """
-    # data_fetcher.load_5m: US indices draw their nearly-24h FUTURES, gold its
-    # COMEX contract — each shifted to the cash/spot LEVEL the user trades.
-    # The daily chart stays on the instrument's own ticker.
-    df_5m = load_5m(ticker)
-    if df_5m is None or df_5m.empty:
-        return None
-    frame = _frame_30m(df_5m)
-    if len(frame) < 2:
-        return None
-    periods = _m30_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    cutoff  = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_30M)
-    n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    # No warm-up cap any more: the bars before MA500 has 500 behind it are
-    # shipped too, and the slow lines simply begin partway in (2026-09-30).
-    bars = min(n_carry, BARS_BY_TF['30m'])
-    return _bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars)
 
 
 # How far back quotes.json's `h` / `l` reach: a little over the hourly data
@@ -1083,16 +851,12 @@ def near_ma_map(daily: dict) -> dict:
     return out
 
 
-# By NAME, looked up at call time, so a test that patches a builder on this
-# module is still the builder that runs.
-# 4H: removed 2026-11-04 (its setup context, workflow signals and B1/S1
-# filter events are computed on the 1H bundles), back as a chart 2026-11-05,
-# REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently", then "Even
-# from the code"): its builders and tools/publish_four_hour are deleted. Old
-# chart/4H chunks are left on R2, unreferenced.
-# 30m REMOVED 2026-11-11 (user: "30m and 4h must go"): no 30m chunks, markers,
-# alerts or trend read. build_30m stays for the local server and research; its
-# published chunks sit on R2 unreferenced.
+# The charts the hourly run builds. By NAME, looked up at call time, so a test
+# that patches a builder on this module is still the builder that runs.
+# Weekly and Monthly are built by tools/publish_htf.py on their own schedule.
+# Retired chart timeframes (5m, 10m, 15m, 30m, 2H, 4H, 12H, 3D) have no
+# builder; their R2 folders are deleted by publish.prune_retired_chart_folders.
+# History: CHANGE_NOTES.md.
 CHART_BUILDERS = {'1H': 'build_1h', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
@@ -1119,15 +883,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
     ticker_map — instrument display name -> yfinance ticker.
     Returns {'1H': n, 'D': n, 'chunks': n_files}.
-    Weekly and Monthly (back 2026-10-19) are published separately, by
-    tools/publish_htf.py.
-    30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
-    1H returned 2026-09-27 (hourly download back, B1/S1 signals like 15m).
-    1H and 4H removed 2026-09-11; Monthly removed and 10m added 2026-09-14;
-    the 4H chart restored 2026-09-17, then 4H and Weekly removed 2026-09-24
-    and 3D kept as a CHART ONLY (its signals went). Later on 2026-09-24 the 10m
-    and 3D charts were replaced by 5m, and on 2026-09-25 5m by 15m. build_4h/build_weekly/build_10m/build_3d
-    stay for local research; their published chunks sit on R2 unreferenced.
+    Weekly and Monthly are published separately, by tools/publish_htf.py.
     """
     chart_dir = os.path.join(output_dir, 'chart')
     os.makedirs(chart_dir, exist_ok=True)
@@ -1140,17 +896,6 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     stats = {'1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
-    # 1H and 4H charts removed 2026-09-30 (4H's builder deleted 2026-11-07); 15m removed
-    # 2026-09-30 too (build_15m kept). 1H back, 2H and 12H added 2026-10-01 as
-    # CHARTS ONLY — no signals, no markers, no alerts. 10m (added 2026-10-03),
-    # 1H, 2H and 12H REMOVED 2026-10-03 (user: "remove 10m, 1h, 2h and 12h");
-    # build_10m_live/build_1h/build_2h/build_12h kept for research. 2H BACK
-    # 2026-10-25 (user: "Just 2h", chart only as before): its own chunks, no
-    # markers, alerts or trend context. 2H REMOVED again 2026-10-26 (user:
-    # "Remove 2 h"); build_2h kept, its R2 chunks left orphaned. Back
-    # 2026-11-02 (user: "Add 2h keep 4") and removed again the same day
-    # (user: "remove 2h").
-    #
     # 2026-11-01: a chart whose inputs have not changed is taken from the
     # chart cache instead of rebuilt (chart_cache.py says exactly when), and the
     # rest are built in worker PROCESSES. The thread pool this replaced ran on

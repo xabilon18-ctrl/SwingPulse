@@ -218,7 +218,7 @@ class WriteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(chart_feed, 'build_weekly', side_effect=AssertionError('hourly W')), \
              patch.object(chart_feed, 'build_monthly', side_effect=AssertionError('hourly M')):
-            for name in ('build_30m', 'build_1h', 'build_daily'):
+            for name in ('build_1h', 'build_daily'):
                 patch.object(chart_feed, name, return_value=None).start()
             try:
                 chart_feed.build_chart_feed(tmp, tmp, {'Apple': 'AAPL'})
