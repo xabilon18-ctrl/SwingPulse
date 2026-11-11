@@ -10,6 +10,8 @@ on:
       # A dependency bump (pandas, yfinance) can change every signal without
       # touching a .py file, so it must reproduce the golden snapshot too.
       - 'swing_generator/requirements.txt'
+      - 'swing_generator/ruff.toml'
+      - 'swing_generator/eslint.config.mjs'
       - 'swing_generator/tests/**'
       - '.github/workflows/test.yml'
       # app.js and index.html are here for the shape audit's code checks. The
@@ -37,6 +39,22 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r swing_generator/requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Real bugs only, no style: ruff E9 + pyflakes (swing_generator/ruff.toml)
+      # and eslint:recommended (swing_generator/eslint.config.mjs). ESLint found
+      # three undefined names that threw at runtime when it was added.
+      - name: Lint (ruff, ESLint)
+        run: |
+          cd swing_generator
+          pip install ruff==0.14.4
+          ruff check .
+          npm install --no-save --no-audit --no-fund eslint@9.39.1 @eslint/js@9.39.1 globals@16.5.0
+          npx --no-install eslint --quiet
 
       - name: Golden-file signal regression + unit checks
         run: |
