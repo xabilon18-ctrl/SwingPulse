@@ -4,10 +4,11 @@ alerts_feed.py — the Alerts tab's data (2026-09-27, replaced the Signals tab).
 Built at publish from the SAME chart bundles the Charts tab draws, so an alert
 is exactly a marker you can see on a chart:
 
-    B1 / S1   30m, 1H and Daily fires
-    X         a close through a Daily MA that held an hour (30m `xm` 'after'),
-              listed at the bar that confirmed it (see _events_for)
-    T         a touch of a Daily MA that did not cross and hold (30m `xm` 'pre')
+    B1 / S1   1H and Daily fires
+
+X (a close through a Daily MA that held) and T (a touch that did not) were read
+from the 30m bundle and went with it on 2026-11-11 — see _events_for. The
+direction and `stats` notes below still describe them for when they return.
 
 Nothing here needs the user to report anything. Each alert carries what price
 did AFTER it — 1 hour, 1 day and 1 week later, in the alert's own direction —
@@ -73,40 +74,19 @@ class _Series:
 def _events_for(name: str, bundles: dict, d_fires: list) -> list:
     """Every alert in this instrument's bundles: (tf, kind, period, dir, i, series)."""
     out = []
-    b15, b1h, bd = bundles.get('30m'), bundles.get('1H'), bundles.get('D')
-    for tf, b in (('15m', bundles.get('15m')), ('30m', b15), ('1H', b1h)):
+    b1h, bd = bundles.get('1H'), bundles.get('D')
+    for tf, b in (('1H', b1h),):
         if not b:
             continue
         s = _Series(b, False)
         for i, code in b.get('sg') or []:
             out.append((tf, code, 0, 1 if code == 'B1' else -1, i, s))
-    # Daily-MA touches/crosses: from the 30m (the finer, earlier read); the 1H
-    # draws the same MAs, so taking them too would list every cross twice.
-    # NO LOOK-AHEAD: an alert is placed at the bar it could first be KNOWN.
-    # A cross is only a cross once it has held XM_HOLD_BY_TF bars (an hour), so
-    # it is timed and priced at that confirming bar — stamped on the crossing
-    # bar, its first hour was already in the result (the 1h "follow-through"
-    # read 77% against 49% for any bar). A touch whose close went through the
-    # MA and then failed the hold is known only then too; a plain touch (the
-    # close stayed on its side) is known at its own close.
-    src_tf, src = ('30m', b15) if b15 and b15.get('xm') is not None else ('1H', b1h)
-    if src:
-        from chart_feed import XM_HOLD_BY_TF
-        hold = XM_HOLD_BY_TF.get(src_tf, 1)
-        s = _Series(src, False)
-        c = src['c']
-        for i, kind, p, dr, v in src.get('xm') or []:
-            if kind == 'after':
-                j = i + hold
-                if j < len(c):
-                    out.append((src_tf, 'X', p, 1 if dr == 'up' else -1, j, s))
-            else:   # touch — held = back on the side it came from
-                prev, cur = (c[i - 1] if i else None), c[i]
-                through = prev is not None and cur is not None and v is not None \
-                    and (prev - v) * (cur - v) < 0
-                j = i + hold if through else i
-                if j < len(c):
-                    out.append((src_tf, 'T', p, 1 if dr == 'dn' else -1, j, s))
+    # Daily-MA touches/crosses (X / T) were read from the 30m bundle and tagged
+    # '30m'. The app has listed only 1H and Daily alerts since 2026-11-04, so
+    # they had been built and never shown; they went with the 30m chart on
+    # 2026-11-11. The 1H chart still DRAWS its Daily-MA marks (`xm`). To list
+    # them as alerts again, read b1h['xm'] here with XM_HOLD_BY_TF['1H'] and
+    # time each at the bar it could first be known (cross: the confirming bar).
     if bd and d_fires:
         s = _Series(bd, True)
         pos = {str(t)[:10]: i for i, t in enumerate(bd['t'])}
@@ -131,15 +111,15 @@ def _median(v):
 
 
 def build_alerts(built: dict, d_fires: dict, now: datetime | None = None) -> dict:
-    """built = {'30m': {name: bundle}, '1H': {...}, 'D': {...}} with marks attached."""
+    """built = {'1H': {name: bundle}, 'D': {...}} with marks attached."""
     now = now or datetime.now(timezone.utc).replace(tzinfo=None)
     names = set()
-    for tf in ('15m', '30m', '1H', 'D'):
+    for tf in ('1H', 'D'):
         names |= set(built.get(tf, {}))
 
     ev, acc = [], {}
     base = {}   # (tf, h) -> [n_up, n_down, n]  over every bar: the "anyway" rate
-    for tf in ('15m', '30m', '1H', 'D'):
+    for tf in ('1H', 'D'):
         for b in built.get(tf, {}).values():
             s = _Series(b, tf == 'D')
             step = 1 if tf == 'D' else 4   # a sample of bars is plenty
@@ -154,7 +134,7 @@ def build_alerts(built: dict, d_fires: dict, now: datetime | None = None) -> dic
                     k[2] += 1
 
     for name in sorted(names):
-        bundles = {tf: built.get(tf, {}).get(name) for tf in ('15m', '30m', '1H', 'D')}
+        bundles = {tf: built.get(tf, {}).get(name) for tf in ('1H', 'D')}
         for tf, kind, p, dr, i, s in _events_for(name, bundles, d_fires.get(name) or []):
             moves = {h: _move(s, i, dr, dt) for h, dt in HORIZONS}
             a = acc.setdefault(f'{tf}|{kind}', {'n': 0, 'h': {h: [] for h, _ in HORIZONS}, 'dir': []})

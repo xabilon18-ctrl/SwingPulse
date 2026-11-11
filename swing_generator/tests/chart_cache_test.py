@@ -41,6 +41,16 @@ class ChartCacheTests(unittest.TestCase):
     def _store(self, now):
         return chart_cache.Store(self.dir, now=pd.Timestamp(now))
 
+    def test_removed_timeframes_are_dropped_from_the_store(self):
+        s = self._store('2026-11-01 07:00')
+        _write(self.h1, '2026-10-30 19:00')
+        for tf in ('30m', '1H'):
+            meta = s.meta(tf, 'X', ('X', None, None))
+            s.save(tf, 'X', meta, _build(s, 'X', [self.h1]), {'c': [1]})
+        s.drop_other_timeframes({'1H': 'build_1h', 'D': 'build_daily'})
+        self.assertFalse(os.path.exists(os.path.join(s.root, '30m')))
+        self.assertTrue(os.path.exists(os.path.join(s.root, '1H', 'X.pkl')))
+
     def test_settled_build_is_reused_until_a_file_changes(self):
         _write(self.h1, '2026-10-30 19:00')                     # Friday close
         s = self._store('2026-11-01 06:00')

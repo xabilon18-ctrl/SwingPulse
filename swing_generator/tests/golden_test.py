@@ -58,8 +58,9 @@ FIXTURE_TICKERS = ['AAPL', 'NVDA', 'BTC-USD', 'ETH-USD', 'EURUSD=X',
 
 # Every signal timeframe in config.TIMEFRAMES must be pinned here or listed as
 # unpinned with the reason — check_coverage() fails otherwise.
-PINNED_TFS   = ('D', '4H', '1H')
-UNPINNED_TFS = {'30m': 'built from 5m bars, and no 5m fixture is frozen'}
+# 4H (pinned) and 30m (unpinned: no 5m fixture) left production 2026-11-11.
+PINNED_TFS   = ('D', '1H')
+UNPINNED_TFS = {}
 
 _DAILY_BARS  = 2600   # fixture size: enough for MA500 + years of signals
                       # — and, at 5 sessions a week, ~520 weekly bars, which is
@@ -97,13 +98,10 @@ def make_fixtures() -> None:
 # ---------------------------------------------------------------------------
 def _signal_frame(ticker: str, tf: str):
     """Signal columns for one fixture, from the functions production calls."""
-    from main import (_daily_signal_frame, _h4_signal_frame,
-                      _intraday_signal_frame, _frame_1h)
+    from main import _daily_signal_frame, _intraday_signal_frame, _frame_1h
     if tf == 'D':
         return _daily_signal_frame(pd.read_parquet(_fixture_path(ticker, 'D')))
     hourly = pd.read_parquet(_fixture_path(ticker, '1h'))
-    if tf == '4H':
-        return _h4_signal_frame(hourly)
     if tf == '1H':
         # tf '1h' and asset_class as _compute_1h_state passes them; class only
         # moves signal_confidence, which the golden excludes.

@@ -478,10 +478,12 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 # The 2026-09-11 4H finding above is unchanged — the fires carry no edge.
 TIMEFRAMES = (
     # 15m removed 2026-09-30 (user: "remove the 15 as well").
-    ('30m', 'm30_'),
+    # 30m and 4H removed 2026-11-11 (user: "30m and 4h must go"): no signals,
+    # no m30_/h4_ columns, no 30m chart chunks, no 4H ledger fires. The app had
+    # had no 30m or 4H button since 2026-11-07 and read none of it. The frame
+    # and resample helpers stay for backtest.py and the golden test.
     # Restored 2026-10-07: hourly charts + B1/S1, using the existing intraday rules.
     ('1H',  'h1_'),
-    ('4H',  'h4_'),
     ('D',   ''),
 )
 TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
@@ -553,10 +555,8 @@ OUTPUT_COLUMNS = [
     'instrument_name', 'group', 'sector', 'industry', 'asset_class', 'signal_rule_version',
     # ── Daily (full signals + indicators — unprefixed, same engine as 4H) ──
     *_tf_signal_columns(''),
-    # ── 15m and 30m (B1/S1 only, see TIMEFRAMES) ──
-    *_tf_signal_columns('m30_'),
+    # ── 1H (B1/S1 only, see TIMEFRAMES). m30_ and h4_ went 2026-11-11. ──
     *_tf_signal_columns('h1_'),
-    *_tf_signal_columns('h4_'),
     'pct_1d', 'pct_1w', 'pct_1m', 'pct_1y',
     'neutral_oscillation', 'ma_fast_cross_count', 'new_trend_flag',
     'key_level_price', 'key_level_type', 'key_level_date',

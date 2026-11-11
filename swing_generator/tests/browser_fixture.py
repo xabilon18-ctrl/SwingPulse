@@ -20,19 +20,13 @@ out.mkdir(parents=True, exist_ok=True)
 h1 = hourly_frame()
 d = h1.copy()
 d.index = pd.bdate_range(end=pd.Timestamp.utcnow().tz_localize(None).normalize() - pd.Timedelta(days=1), periods=len(d))
-m30 = h1.copy()
-m30.index = pd.date_range(end=h1.index[-1], periods=len(h1), freq='30min')
 meta = {'name': 'TEST', 'group': 'US Equity', 'sector': 'Technology', 'industry': 'Software'}
 row, trends = main.process_instrument('TEST', d, meta, d.index[-1].date())
 h_state = main._compute_1h_state(h1, 'Equity', h1.index[-1].date())
-m_state = main._compute_30m_state(None, 'Equity', h1.index[-1].date())
 row.update(main._live_intraday(h_state, prefix='h1_'))
-row.update(main._live_intraday(main._compute_4h_state(hourly_frame(12000), 'Equity', h1.index[-1].date()),prefix='h4_'))
-row.update(main._live_intraday(main._intraday_state(m30.tz_localize(None), 'm30_', '30m', 48, 'Equity', h1.index[-1].date())))
 fires = out / 'h1-fires.json'
 fires.write_text(json.dumps({'TEST': h_state[2]}))
 with patch.object(chart_feed, 'load_1h', return_value=h1), \
-     patch.object(chart_feed, 'build_30m', return_value=chart_feed._bundle(m30, [50, 250, 500], '%Y-%m-%d %H:%M', bars=1000)), \
      patch.object(chart_feed, 'build_daily', return_value={**chart_feed._bundle(d, [50, 250, 500], '%Y-%m-%d', bars=1000, context_tf='D'), 'references': chart_feed.reference_history(d)}):
     chart_feed.build_chart_feed(str(out), str(out), {'TEST': 'TEST'}, h1_fires_path=str(fires))
 # Weekly and Monthly as tools/publish_htf.py publishes them, from a deeper

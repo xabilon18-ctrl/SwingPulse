@@ -52,14 +52,18 @@ assert rows and all('h1_primary_signal' in r and 'h1_close' in r for r in rows)
 assert all(r['h1_primary_signal'] in ('', 'B1', 'S1') for r in rows)
 index = read('chart/index.json')
 trends = read('trend_channels.json')['tf']
-assert all(tf in trends for tf in ('30m', '1H', 'D'))
+assert all(tf in trends for tf in ('1H', 'D'))
+# 30m removed 2026-11-11: no trend read, chart events, alerts or columns.
+assert '30m' not in trends, '30m trend read is back'
+assert '30m' not in index.get('events_by_tf', {}), '30m chart events are back'
+assert not any(k.startswith(('m30_', 'h4_')) for k in rows[0]), '30m/4H columns are back'
 # 4H removed 2026-11-04 as a signal timeframe and its chart removed
 # permanently 2026-11-07: no 4H trend read, chunk events or chart button.
 assert '4H' not in trends, '4H trend read is back'
 assert '4H' not in index.get('events_by_tf', {}), '4H chart events are back'
 assert len(trends['1H']) >= len(rows) * 0.8, 'Hourly chart coverage below 80%; stopping release'
 alerts = read('alerts.json')
-assert all(e[1] in ('30m', '1H', 'D') for e in alerts['ev'])
+assert all(e[1] in ('1H', 'D') for e in alerts['ev'])
 name = next(iter(trends['1H']))
 cid = index['chunks'][name]
 chunk = read(f'chart/1H/{cid}.json')

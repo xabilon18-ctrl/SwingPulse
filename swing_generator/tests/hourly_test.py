@@ -78,7 +78,6 @@ class HourlyTests(unittest.TestCase):
         state = main._compute_1h_state(f, 'Equity', f.index[-1].date())
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(chart_feed, 'load_1h', return_value=f), \
-             patch.object(chart_feed, 'build_30m', return_value=None), \
              patch.object(chart_feed, 'build_daily', return_value=None):
             fires = Path(tmp) / 'fires.json'
             fires.write_text(json.dumps({'TEST': state[2]}))
@@ -92,6 +91,13 @@ class HourlyTests(unittest.TestCase):
             self.assertTrue(expected)
             self.assertIn('TEST', read('trend_channels.json')['tf']['1H'])
             self.assertTrue(any(e[1] == '1H' for e in read('alerts.json')['ev']))
+            # 30m and 4H removed 2026-11-11: nothing of either is published.
+            self.assertNotIn('30m', chart_feed.CHART_BUILDERS)
+            self.assertFalse((Path(tmp) / 'chart' / '30m').exists())
+            self.assertEqual(list(read('chart/index.json')['events_by_tf']), ['1H'])
+            self.assertEqual(set(read('trend_channels.json')['tf']), {'1H', 'D'})
+            self.assertTrue(all(e[1] in ('1H', 'D') for e in read('alerts.json')['ev']))
+            self.assertFalse([c for c in main.OUTPUT_COLUMNS if c.startswith(('m30_', 'h4_'))])
 
 
 if __name__ == '__main__':

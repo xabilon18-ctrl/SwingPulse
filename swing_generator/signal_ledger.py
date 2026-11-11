@@ -148,10 +148,9 @@ def record_fires_from_row(records: dict, row: dict, ticker: str) -> int:
     added = 0
     for tf, sig_col, conf_col, date_col, ts_col in (
         ('D',  'primary_signal',    'signal_confidence',    'date',    ''),
-        ('4H', 'h4_primary_signal', 'h4_signal_confidence', 'h4_date', 'h4_datetime'),
-        # 4H stopped recording 2026-09-11 and Weekly 2026-09-24 (timeframes
-        # removed). Older records of both stay, and open Weekly ones keep being
-        # graded — _price_frame still resamples 'W'.
+        # 4H stopped recording 2026-11-11 (h4_ columns removed) and Weekly
+        # 2026-09-24. Older records of both stay, and open ones keep being
+        # graded — _price_frame still resamples '4H' and 'W'.
     ):
         rule_version = str(row.get('signal_rule_version') or '').strip()
         if rule_version != RULE_VERSION:
