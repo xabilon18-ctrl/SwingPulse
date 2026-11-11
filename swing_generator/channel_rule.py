@@ -96,18 +96,6 @@ def place(b: dict, tf: str | None = None) -> dict | None:
     return cands[0]
 
 
-def classify(b: dict, tf: str | None = None) -> str:
-    """UPTREND / DOWNTREND / NEUTRAL by the user's rule: a trend is a chart the rule
-    can put a channel on with price still on the trend side of the slow line."""
-    try:
-        c = place(b, tf)
-    except Exception:
-        return 'NEUTRAL'
-    if not trusted(c):
-        return 'NEUTRAL'
-    return 'DOWNTREND' if c['down'] else 'UPTREND'
-
-
 def read(b: dict, tf: str | None = None) -> tuple[str, str | None]:
     """(UPTREND / DOWNTREND / NEUTRAL, the bar label the trend's leg starts on) —
     classify() plus the date the chart strip and the trend label count from."""

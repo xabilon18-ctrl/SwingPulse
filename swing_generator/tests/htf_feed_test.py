@@ -218,7 +218,7 @@ class WriteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(chart_feed, 'build_weekly', side_effect=AssertionError('hourly W')), \
              patch.object(chart_feed, 'build_monthly', side_effect=AssertionError('hourly M')):
-            for name in ('build_30m', 'build_1h', 'build_daily'):
+            for name in ('build_1h', 'build_daily'):
                 patch.object(chart_feed, name, return_value=None).start()
             try:
                 chart_feed.build_chart_feed(tmp, tmp, {'Apple': 'AAPL'})
@@ -338,7 +338,6 @@ class CurrencyIndexTests(unittest.TestCase):
         import currency_index as ci
         import numpy as np
         idx = pd.bdate_range('2014-12-01', periods=120)
-        import numpy as np
         rng = np.random.default_rng(7)
         usd_val = {c: np.exp(np.cumsum(rng.normal(0, 0.004, len(idx)))) * (1 + k)
                    for k, c in enumerate(ci.MAJORS + list(ci.MINORS))}
@@ -489,6 +488,50 @@ class RetiredChartPruneTests(unittest.TestCase):
         with patch.dict(os.environ, {'CLOUDFLARE_API_TOKEN': ''}), \
              patch.object(self.p, '_r2_api', side_effect=AssertionError('called')):
             self.assertEqual(self.p.prune_retired_chart_folders(), 0)
+
+
+
+class TimeframeTableTests(unittest.TestCase):
+    """config.TIMEFRAME_TABLE is the one place a timeframe is switched on or off."""
+
+    @staticmethod
+    def _without(*codes):
+        import config
+        return tuple({**t, 'enabled': t['enabled'] and t['code'] not in codes}
+                     for t in config.TIMEFRAME_TABLE)
+
+    def test_current_table(self):
+        import config
+        self.assertEqual(config.TIMEFRAMES, (('1H', 'h1_'), ('D', '')))
+        self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', 'D': 'build_daily'})
+        self.assertEqual(list(config.HTF_CHART_BUILDERS), ['W', 'M'])
+        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'W', 'M'])
+        for t in config.TIMEFRAME_TABLE:
+            self.assertTrue(hasattr(chart_feed, t['builder']), t['builder'])
+
+    def test_switching_a_row_off_removes_it_everywhere(self):
+        import config
+        d = config.derive_timeframes(self._without('W'))
+        self.assertNotIn('W', d['htf_charts'])
+        self.assertNotIn('W', [t['code'] for t in d['app']])
+        d = config.derive_timeframes(self._without('1H'))
+        self.assertEqual(d['signal'], (('D', ''),))
+        self.assertEqual(d['run_charts'], {'D': 'build_daily'})
+        self.assertNotIn('1H', [t['code'] for t in d['app']])
+
+    def test_daily_cannot_be_switched_off(self):
+        import config
+        with self.assertRaises(ValueError):
+            config.derive_timeframes(self._without('D'))
+
+    def test_app_and_server_read_the_table(self):
+        import publish
+        import server
+        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M', 'W'])
+        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'W', 'M'})
+        template = (Path(__file__).resolve().parents[1] / 'webapp' / 'templates' / 'index.html').read_text()
+        self.assertIn('window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;', template)
+        self.assertNotIn('data-tf="', template)  # the buttons come from the table
 
 
 if __name__ == '__main__':

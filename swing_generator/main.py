@@ -32,30 +32,22 @@ import pandas as pd
 import _active_config as config
 
 from _active_config import (
-    MA_PERIODS, OUTPUT_COLUMNS,
+    MA_PERIODS,
+    OUTPUT_COLUMNS,  # noqa: F401 -- re-exported: tests/hourly_test.py reads main.OUTPUT_COLUMNS
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D,
-    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE, FIFTEEN_MIN_RULE,
-    ACTIVE_PROFILE,
+    FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE, ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
-    H4_SESSION_NORMALIZE, H4_BARS_PER_SESSION_TARGET,
     H1_SESSION_NORMALIZE, H1_BARS_PER_SESSION_TARGET,
-    INTRADAY_PREFIXES, TIMEFRAMES, TF_PREFIXES,
-    WEEKLY_RESAMPLE_RULE, REFIRE_PCT_WEEKLY, NEW_TREND_PCT_WEEKLY,
-    THREE_DAY_EPOCH, THREE_DAY_SIZE, REFIRE_PCT_3D, NEW_TREND_PCT_3D,
-    TEN_MIN_RULE, TEN_MIN_BARS_PER_DAY_TARGET, TEN_MIN_NORMALIZE_ABOVE,
-    FIVE_MIN_MAX_AGE_HOURS,
-    FIVE_MIN_BARS_PER_DAY_TARGET, FIVE_MIN_NORMALIZE_ABOVE,
+    INTRADAY_PREFIXES, TIMEFRAMES, WEEKLY_RESAMPLE_RULE, THREE_DAY_EPOCH, THREE_DAY_SIZE, FIVE_MIN_MAX_AGE_HOURS,
     STALE_INSTRUMENT_DAYS, RETIRE_MAX_PER_RUN, RETIRE_MAX_SHARE, RETIRED_FILE,
 )
 
 PROFILE = ACTIVE_PROFILE
 from instruments   import (load_instruments, instruments_by_ticker, asset_class_of,
                            find_stale)
-from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, h4_ticker,
-                           drop_unfinished_1h, drop_unfinished_4h,
-                           drop_unfinished_10m, drop_unfinished_5m,
-                           drop_unfinished_30m, drop_unfinished_15m)
+from data_fetcher  import (fetch_all, fetch_all_5m, fetch_all_1h, drop_unfinished_1h, drop_unfinished_4h,
+                           drop_unfinished_5m,
+                           drop_unfinished_30m)
 from indicators    import add_all_indicators, price_decimals
 from key_levels    import find_key_levels, today_level_summary
 from signals       import add_signals
@@ -65,18 +57,6 @@ from output_writer import write_output
 # ---------------------------------------------------------------------------
 # Per-instrument processor
 # ---------------------------------------------------------------------------
-
-def _resample(df: pd.DataFrame, freq: str) -> pd.DataFrame:
-    """Resample daily OHLCV data to weekly ('W') or monthly ('ME') bars."""
-    resampled = df.resample(freq).agg({
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum',
-    }).dropna(subset=['Close'])
-    return resampled
-
 
 def _resample_monthly(df_daily: pd.DataFrame) -> pd.DataFrame:
     """Resample finished daily bars to monthly, dropping the month in progress.
@@ -529,36 +509,6 @@ def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4, *, completed_only: boo
     return resampled[ix + pd.Timedelta(hours=hours) <= pd.Timestamp.utcnow().tz_localize(None)]
 
 
-def _resample_10m(df_5m: pd.DataFrame) -> pd.DataFrame:
-    """Resample 5-minute OHLCV to 10-minute bars — the 10m CHART's only frame.
-
-    Two 5m bars make one 10m bar exactly, so unlike the 4H case there is no
-    bucket that can hold a variable number of sessions' worth of trade. What a
-    bucket CAN hold is one bar instead of two, at the end of a session whose
-    close does not land on a ten-minute boundary; that is a real half-bar and it
-    is kept, exactly as the daily frame keeps a short holiday session.
-
-    Empty buckets — the overnight gap, the weekend — are dropped rather than
-    carried as NaN, so the chart draws a continuous series of TRADED bars and
-    the x axis is bar-indexed like every other timeframe here. That is also what
-    every charting package does with intraday data.
-    """
-    cols = [c for c in ('Open', 'High', 'Low', 'Close', 'Volume') if c in df_5m.columns]
-    df = df_5m[cols].copy()
-    # Strip timezone for clean resampling, matching every other frame here.
-    if df.index.tz is not None:
-        df.index = df.index.tz_localize(None)
-    resampled = df.resample(TEN_MIN_RULE).agg({
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum',
-    }).dropna(subset=['Close'])
-    # Important Rule 10: never compute on a bar whose window is still open.
-    return drop_unfinished_10m(resampled)
-
-
 def _frame_5m(df_5m: pd.DataFrame) -> pd.DataFrame:
     """The 5m CHART's frame: the 5m cache as downloaded, tz stripped, NaN-price
     rows dropped and the still-open bar removed. No resampling — Yahoo's own 5m
@@ -594,53 +544,6 @@ def _frame_30m(df_5m: pd.DataFrame) -> pd.DataFrame:
     # Important Rule 10: a bucket whose last 5m bar has not printed is still open.
     return drop_unfinished_30m(thirty)
 
-
-def _frame_15m(df_5m: pd.DataFrame) -> pd.DataFrame:
-    """The 15m chart's and signals' frame (back 2026-09-29 beside 30m, user:
-    "bring back the 15min"): _frame_30m's rule at 15 minutes."""
-    five = _frame_5m(df_5m)
-    if five.empty:
-        return five
-    agg = {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}
-    if 'Volume' in five.columns:
-        agg['Volume'] = 'sum'
-    fifteen = five.resample(FIFTEEN_MIN_RULE).agg(agg).dropna(subset=['Close'])
-    return drop_unfinished_15m(fifteen)
-
-
-def _frame_10m_live(df_5m: pd.DataFrame) -> pd.DataFrame:
-    """The 10m chart's frame (back 2026-10-03, user: "add 10 min to be divided
-    by weekly"): _frame_30m's rule at 10 minutes, from load_5m's sources and
-    cash/spot level. NOT _resample_10m, the 2026-09-14 10m's frame, which read
-    each ticker's own 5m file (kept for research)."""
-    five = _frame_5m(df_5m)
-    if five.empty:
-        return five
-    agg = {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}
-    if 'Volume' in five.columns:
-        agg['Volume'] = 'sum'
-    ten = five.resample('10min').agg(agg).dropna(subset=['Close'])
-    return drop_unfinished_10m(ten)
-
-
-def _m15_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """EXACTLY 50/250/500 on 15m bars, as on every intraday chart."""
-    return [p for p in MA_PERIODS if p <= len(frame)]
-
-
-def _m30_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """Ribbon periods for the 30m chart: EXACTLY 50/250/500, as TradingView draws
-    them, on every instrument. Clipped only to the bars available.
-
-    2026-10-03 to 10-04 a round-the-clock market had its periods stretched
-    (THIRTY_MIN_* in config, US30 180/898/1797) after the user said the lines sat
-    "too close to each other". Reverted 2026-10-04 at the user's call — "first the
-    MAs correctness": compared with TradingView's CAPITALCOM:US30 30m the
-    stretched lines were simply different lines. On a 24h market MA500 is ~15
-    calendar days, against ~55 on a US stock; that is what TradingView shows too.
-    The 30m SIGNALS never read this: _intraday_state uses MA_PERIODS directly.
-    """
-    return [p for p in MA_PERIODS if p <= len(frame)]
 
 def _resample_weekly(df_daily: pd.DataFrame) -> pd.DataFrame:
     """Resample finished daily bars to weekly, dropping the week in progress.
@@ -740,14 +643,6 @@ def _resample_3d(df_daily: pd.DataFrame) -> pd.DataFrame:
     return out[pd.DatetimeIndex(out.index).normalize() <= last_daily]
 
 
-def _h4_bars_per_session(h4: pd.DataFrame) -> float:
-    """Median 4H bars per trading session. 6 = a ~23h contract, 2 = a US cash
-    session, 3 = a European one."""
-    if h4.empty:
-        return 0.0
-    return float(h4.groupby(h4.index.date).size().median() or 0.0)
-
-
 def _h1_frame(hourly: pd.DataFrame) -> pd.DataFrame:
     """The 1H timeframe: the hourly cache itself, minus the bar still forming.
 
@@ -792,71 +687,6 @@ def _h1_ma_periods(h1: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h1)]
 
 
-def _m10_bars_per_calendar_day(ten: pd.DataFrame) -> float:
-    """Ten-minute bars per CALENDAR day — not per session.
-
-    Calendar, because that is the axis the ribbon has to mean something on: the
-    question is "how far back does MA500 reach", and the answer a reader wants is
-    in days, not in sessions of unequal length. Measured over the whole frame, so
-    weekends and holidays are counted in exactly as they are lived.
-    """
-    if ten.empty or len(ten) < 2:
-        return 0.0
-    days = (ten.index[-1] - ten.index[0]).total_seconds() / 86400.0
-    return float(len(ten) / days) if days > 0 else 0.0
-
-
-def _m10_ma_periods(ten: pd.DataFrame) -> list[int]:
-    """Ribbon periods for the 10m chart, normalised for round-the-clock markets.
-
-    An exchange-traded name closes overnight and at weekends, so every venue in
-    the book lands between 23.3 and 36.6 ten-minute bars per calendar day and
-    MA500 reaches back 14-21 days on all of them. A 24/7 instrument puts 144 bars
-    in a day and the same MA500 reaches 3.5 — the ribbon stops being a trend
-    reference and becomes three lines lying on the price.
-
-    So above TEN_MIN_NORMALIZE_ABOVE bars/day the periods are scaled to the
-    calendar reach a US equity gets. Below it nothing is touched, which leaves
-    every exchange-traded chart exactly as TradingView draws it.
-
-    Scaled on MEASURED bars/day rather than on asset class, so a new 24h
-    instrument needs no entry in any list — commodities (~97/day) and forex
-    (~101/day) are caught by the same test as crypto (144/day).
-
-    Mirrors _h4_ma_periods, including the max(3, ...) floor and the final
-    `p <= len(frame)` clip. See config.py for the measurements.
-    """
-    periods = MA_PERIODS
-    bpd = _m10_bars_per_calendar_day(ten)
-    if bpd > TEN_MIN_NORMALIZE_ABOVE and TEN_MIN_BARS_PER_DAY_TARGET > 0:
-        scale   = bpd / TEN_MIN_BARS_PER_DAY_TARGET
-        periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
-    return [p for p in periods if p <= len(ten)]
-
-
-def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
-    """Ribbon periods for the 4H timeframe.
-
-    For an instrument charted as a 24h contract but fed by a session-limited
-    index (H4_SESSION_NORMALIZE — the cash indices with no usable yfinance
-    future), the raw ribbon reaches ~3x too far back: 500 bars at 2/session is
-    250 sessions, where a 24h chart's 500 bars is ~83. Scale the periods by
-    bars-per-session so the ribbon spans the calendar window the chart shows.
-
-    Everything else keeps MA_PERIODS untouched — a US equity really does trade
-    6.5h, so 2 bars/session is what its 4H chart shows everywhere and the
-    ribbon is already right. Instruments redirected via H4_SOURCE arrive with 6
-    bars/session already, so they fall through here unchanged too.
-    """
-    periods = MA_PERIODS
-    if ticker in H4_SESSION_NORMALIZE:
-        bps = _h4_bars_per_session(h4)
-        if 0 < bps < H4_BARS_PER_SESSION_TARGET:
-            scale   = bps / H4_BARS_PER_SESSION_TARGET
-            periods = sorted({max(3, int(round(p * scale))) for p in MA_PERIODS})
-    return [p for p in periods if p <= len(h4)]
-
-
 def _frame_1h(df_1h: pd.DataFrame) -> pd.DataFrame:
     """The 1H chart's and 1H signals' frame (2026-09-27): the hourly download
     (data_fetcher.load_1h — same sources and cash/spot level as the 15m),
@@ -892,28 +722,6 @@ def _frame_4h(df_1h: pd.DataFrame) -> pd.DataFrame:
     30m and 1H) grouped into 4-hour bars counted from each session's own open
     (_resample_4h — see there for why not clock buckets)."""
     return _resample_4h(_frame_1h(df_1h))
-
-
-def _frame_2h(df_1h: pd.DataFrame) -> pd.DataFrame:
-    """The 2H chart's frame (2026-10-01, user: "add a 2h chart"): the 1H feed
-    in 2-hour bars counted from each session's own open (_resample_4h at
-    hours=2). Chart only — no 2H signals."""
-    return _resample_4h(_frame_1h(df_1h), hours=2)
-
-
-def _frame_12h(df_1h: pd.DataFrame) -> pd.DataFrame:
-    """The 12H chart's frame (2026-10-01, user: "add 12 built like the daily"):
-    the 1H feed in 12-hour bars counted from each session's own open. A 24h
-    market is 2 bars a day; a market whose session is under 12 hours is ONE
-    bar a session — its daily bar — which is why chart_feed.build_12h draws
-    those from the daily cache instead (it holds years, the hourly ~2)."""
-    return _resample_4h(_frame_1h(df_1h), hours=12)
-
-
-def _m2h_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """EXACTLY 50/250/500 on 2H bars, as on 30m and 1H. MA500 is ~125 sessions
-    of a US stock (4 bars/session), ~42 days of a 24h instrument."""
-    return [p for p in MA_PERIODS if p <= len(frame)]
 
 
 # ── Signal frames: the ONE definition of each timeframe's engine ──────────
@@ -1226,9 +1034,8 @@ def _process_worker(args: tuple) -> tuple:
             return ticker, None, [], 'no cache'
         df = pd.read_parquet(path)
 
-        # No hourly data since 2026-09-11: 1H and 4H were removed and hourly prices
-        # are no longer downloaded. That also retired the crypto daily-gap fill from
-        # the hourly feed (data_fetcher.heal_daily_gaps_from_hourly).
+        # Daily gaps are NOT filled from the hourly feed (that fill was retired
+        # 2026-09-11 and its code deleted 2026-11-11).
 
         # Admit finished sessions only. Applied HERE rather than in fetch_all
         # because this is the read that feeds the indicators — fetch_all's
@@ -1702,7 +1509,7 @@ def compute_flow_volumes(output_df: pd.DataFrame, run_date: date) -> None:
         n_dates = combined['date'].nunique()
         print(f'  Flow: wrote {len(combined)} rows ({n_dates} dates) → flow_volumes.csv')
     else:
-        print(f'  Flow: already up to date')
+        print('  Flow: already up to date')
 
 
 def _print_summary(df: pd.DataFrame) -> None:

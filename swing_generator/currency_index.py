@@ -46,10 +46,6 @@ MINORS = {'ZAR': 'USDZAR=X', 'MXN': 'USDMXN=X', 'SGD': 'USDSGD=X', 'SEK': 'USDSE
           'CZK': 'USDCZK=X', 'CNY': 'CNY=X'}
 
 
-def is_synthetic(ticker: str) -> bool:
-    return str(ticker).startswith(PREFIX)
-
-
 def ticker_of(ccy: str) -> str:
     return PREFIX + ccy
 

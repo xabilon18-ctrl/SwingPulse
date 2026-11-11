@@ -58,8 +58,9 @@ R2_BASE_URL    = f'{R2_PUBLIC_URL}/ma500'
 sys.path.insert(0, PROJECT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 from instruments import load_instruments, load_retired
-from server import build_ai_set, get_ticker_map, _ticker_to_filename
+from server import build_ai_set, get_ticker_map
 from chart_feed import build_chart_feed
+from _active_config import TIMEFRAME_TABLE, app_timeframes
 
 
 # ---------------------------------------------------------------------------
@@ -506,7 +507,7 @@ def build_data(output_dir, src_signals_dir=None):
         except Exception as e:
             print(f'  Flow volumes: skipped ({e})')
     else:
-        print(f'  Flow volumes: no CSV found — run main.py first')
+        print('  Flow volumes: no CSV found — run main.py first')
 
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
@@ -549,7 +550,7 @@ def build_data(output_dir, src_signals_dir=None):
         _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k not in ('chunks', 'alerts', 'trend'))
         print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
-    except Exception as e:
+    except Exception:
         # NOT swallowed any more. The old comment here said a missing chart feed
         # "costs you the Charts tab, not the publish" — but that is not what it
         # costs. The upload step below skips the chart directory when it does not
@@ -929,7 +930,9 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchange
 # no list calls at all. Add a timeframe here only after its chart is removed
 # from the app AND from chart_feed.CHART_BUILDERS / tools/publish_htf.py.
 RETIRED_CHART_TFS = ('5m', '10m', '15m', '30m', '2H', '4H', '12H', '3D')
-_LIVE_CHART_TFS = ('1H', 'D', 'W', 'M')
+# Every code in the timeframe table, enabled or not: a switched-off timeframe's
+# chart folder is never pruned by accident.
+_LIVE_CHART_TFS = tuple(t['code'] for t in TIMEFRAME_TABLE)
 
 
 def _r2_api(method, path, api_token, timeout=60, max_429_retries=6):
@@ -1046,6 +1049,7 @@ def build_ui():
     html = html.replace('content="SwingPulse"', 'content="SwingPulse 500"')
     html = html.replace('__APP_PROFILE__', 'ma500')
     html = html.replace('__BUILDSTAMP__', build_id)  # value only — not the window.__BUILD_ID__ var name
+    html = html.replace('__SP_TIMEFRAMES__', json.dumps(app_timeframes()))
     # Patch Signal Types legend with correct MA periods for this profile
     html = html.replace('__SIG_LONGEST__', str(_longest_ma))
     html = html.replace('__SIG_SHORTEST__', str(_shortest_ma))
@@ -1134,7 +1138,46 @@ def build_ui():
         with open(os.path.join(ui_dir, 'sw.js'), 'w') as f:
             f.write(sw)
 
+    # LAST, after every literal rewrite above (they match source text, and the
+    # minifier changes quotes and spacing).
+    _minify_assets(static_dst)
     return ui_dir
+
+
+# Pinned like chart.js was: a floating esbuild could change the shipped code
+# with no commit. Set SP_NO_MINIFY=1 to ship readable files (debugging).
+ESBUILD = 'esbuild@0.25.12'
+
+
+def _minify_assets(static_dst):
+    """Minify the built app.js, modules and style.css in place.
+
+    Gzipped, this takes app.js from ~225 KB to ~98 KB and style.css from ~89 KB
+    to ~51 KB (measured 2026-11-11). --target=esnext: no syntax is rewritten,
+    only whitespace, comments and local names. If esbuild cannot run, the
+    readable files ship instead: larger, but identical in behaviour.
+    """
+    if os.environ.get('SP_NO_MINIFY') == '1':
+        print('  Minify: skipped (SP_NO_MINIFY=1)')
+        return
+    files = [os.path.join(static_dst, 'js', 'app.js'), os.path.join(static_dst, 'css', 'style.css')]
+    files += sorted(glob.glob(os.path.join(static_dst, 'js', 'modules', '*.js')))
+    files = [f for f in files if os.path.exists(f)]
+    before = sum(os.path.getsize(f) for f in files)
+    cmd = ['npx', '--yes', ESBUILD, *files, '--minify', '--target=esnext', '--charset=utf8',
+           '--legal-comments=none', '--log-level=warning', '--allow-overwrite',
+           f'--outdir={static_dst}', f'--outbase={static_dst}']
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f'  WARN minify skipped ({exc}); shipping readable assets')
+        return
+    if r.returncode != 0:
+        print(f'  WARN minify failed; shipping readable assets\n{r.stderr[-2000:]}')
+        # esbuild writes nothing on error, so the readable files are intact.
+        return
+    after = sum(os.path.getsize(f) for f in files)
+    print(f'  Minify: {len(files)} files, {before // 1024} KB -> {after // 1024} KB')
 
 
 def deploy_ui_to_pages(ui_dir, project_name=None):

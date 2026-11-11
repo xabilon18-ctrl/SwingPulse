@@ -45,7 +45,6 @@ Usage:
   python3 tools/shape_audit.py --warn-only              # report, always exit 0
 """
 import argparse
-import datetime
 import gzip
 import json
 import os

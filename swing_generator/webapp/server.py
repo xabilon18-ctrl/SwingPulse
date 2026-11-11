@@ -18,7 +18,7 @@ import sys
 from datetime import datetime
 
 import pandas as pd
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -31,7 +31,7 @@ CACHE_DIR  = os.path.join(PARENT_DIR, 'cache_ma500')
 # Allow importing config from parent package
 sys.path.insert(0, PARENT_DIR)
 
-from _active_config import MA_PERIODS  # MA50–MA500 (active profile ribbon: 50, 250, 500)
+from _active_config import MA_PERIODS, ENABLED_TIMEFRAMES, app_timeframes  # noqa: E402
 
 sys.path.insert(0, BASE_DIR)
 import chart_feed          # compact OHLC + ribbon bundles for the Charts reel
@@ -160,15 +160,6 @@ def build_ai_set() -> list[str]:
 _data_cache: dict = {}
 
 
-def _ticker_to_filename(ticker: str) -> str:
-    """Convert ticker symbol to parquet cache filename."""
-    safe = (ticker
-            .replace('=', '_EQ_')
-            .replace('^', '_IDX_')
-            .replace('.', '_DOT_'))
-    return f'{safe}.parquet'
-
-
 def load_latest_signals() -> tuple[pd.DataFrame, str]:
     """Load the most recent signals CSV."""
     files = sorted(glob.glob(os.path.join(OUTPUT_DIR, 'signals_*.csv')))
@@ -200,6 +191,7 @@ def index():
     html = render_template('index.html')
     html = html.replace('PROFILE_BADGE', 'MA500')
     html = html.replace('__APP_PROFILE__', 'ma500')
+    html = html.replace('__SP_TIMEFRAMES__', json.dumps(app_timeframes()))
     html = html.replace('__SIG_SHORTEST__', str(min(MA_PERIODS)))
     html = html.replace('__SIG_LONGEST__', str(max(MA_PERIODS)))
     html = html.replace('__SIG_MID__', str(sorted(MA_PERIODS)[len(MA_PERIODS) // 2]))
@@ -305,20 +297,9 @@ def api_ai_instruments():
 
 _chart_chunk_cache: dict = {}
 
-# ONE table — the route's timeframe whitelist reads this, it does not restate it.
-_CHART_BUILDERS = {
-    '10m': chart_feed.build_10m_live,
-    '15m': chart_feed.build_15m,
-    '30m': chart_feed.build_30m,
-    '1H': chart_feed.build_1h,
-    '2H': chart_feed.build_2h,
-    '12H': chart_feed.build_12h,
-    'D':  chart_feed.build_daily,
-    # From the Daily cache, always fresh. The published ones come from the whole
-    # Yahoo history on their own schedule (tools/publish_htf.py).
-    'W':  chart_feed.build_weekly,
-    'M':  chart_feed.build_monthly,
-}
+# From config.TIMEFRAME_TABLE: every enabled timeframe's chart, built from the
+# local cache on demand (W/M from the Daily cache, always fresh).
+_CHART_BUILDERS = {t['code']: getattr(chart_feed, t['builder']) for t in ENABLED_TIMEFRAMES}
 
 
 def _chart_chunk_map() -> dict:

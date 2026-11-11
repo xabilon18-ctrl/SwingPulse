@@ -6105,7 +6105,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 /* ── Profile-specific card visibility ──────────────────────────────── */
 body[data-profile="ma200"] #heatmapCard,
-body[data-profile="ma200"] #compressionCard { display: none !important; }
 .rsi-tf-pip {
   font-size: .68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;
 }
@@ -9187,17 +9186,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-chart ::selection { background: transparent; }
 
-/* ── ALERTS + MARKET tabs (2026-09-27) ─────────────────────────────────────
-   Alerts replaced the signal list, Market the old Dashboard. The old markup
-   stays in the page, hidden here, so no code that refers to it can break. */
-#pane-scanner > :not(#alertsPane) { display: none !important; }
-#pane-dashboard > #marketStateBanner, #pane-dashboard > #marketPulse,
-#pane-dashboard > #trendAlertBanner, #pane-dashboard > #sectorRadarCard,
-#pane-dashboard > #techThemesCard, #pane-dashboard > #groupPulseCard,
-#pane-dashboard > #volumePulseCard, #pane-dashboard > #trackRecordCard,
-#pane-dashboard > #compressionCard, #pane-dashboard > .card:not([id]),
-#pane-dashboard > #dashSignalFeed,
-#pane-dashboard > span { display: none !important; }
+/* ── ALERTS + MARKET tabs (2026-09-27) ───────────────────────────────────── */
 
 #alertsPane { padding: 4px 12px 24px; }
 .al-head { padding: 6px 2px 8px; }
@@ -9989,3 +9978,15 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-svg .reel-draw[data-stroke="3"] .reel-ch-edge:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-w3:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-bold:not(.is-dash) { stroke-dasharray: var(--dd-l) !important; }
+
+/* Failure notice and in-section error (2026-11-11): see reportFailure in app.js. */
+.sp-notice {
+  position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 12px); max-width: min(92vw, 440px); z-index: 9999;
+  padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.35;
+  background: var(--bg-elevated); color: var(--text-primary);
+  border: 1px solid var(--sell); box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.sp-notice.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.sp-section-error { padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px; }

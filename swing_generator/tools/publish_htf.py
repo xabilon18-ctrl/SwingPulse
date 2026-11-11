@@ -41,9 +41,12 @@ sys.path[:0] = [str(ROOT), str(ROOT / 'webapp')]
 from chart_feed import (CHUNK_SIZE, BARS_BY_TF, _cache_name, _write_gz,   # noqa: E402
                         weekly_bundle, monthly_bundle)
 from data_fetcher import _full_download, FETCH_WORKERS                    # noqa: E402
+from _active_config import HTF_CHART_BUILDERS                             # noqa: E402
 
 SCHEDULE_TZ = 'Africa/Johannesburg'   # the clock the hourly runs are named in
-BUILDERS = {'W': weekly_bundle, 'M': monthly_bundle}
+# Only the timeframes config.TIMEFRAME_TABLE has enabled with chart 'htf'.
+BUILDERS = {tf: fn for tf, fn in (('W', weekly_bundle), ('M', monthly_bundle))
+            if tf in HTF_CHART_BUILDERS}
 # Below this share of instruments with a chart, something is broken (Yahoo
 # refusing the runner, an empty cache) and publishing would blank good charts.
 # Monthly is lower: it needs 50 months, Weekly 250 weeks, and young listings
@@ -56,7 +59,8 @@ def due(now: pd.Timestamp) -> list[str]:
     Monthly on the 3rd, 4th and 5th — once each day, the spare days covering a
     failed run."""
     now = now.tz_convert(SCHEDULE_TZ) if now.tzinfo else now
-    return [tf for tf, on in (('W', now.weekday() == 0), ('M', 3 <= now.day <= 5)) if on]
+    return [tf for tf, on in (('W', now.weekday() == 0), ('M', 3 <= now.day <= 5))
+            if on and tf in BUILDERS]
 
 
 def fetch_deep(ticker: str, cache_dir: str) -> tuple[pd.DataFrame | None, str]:
