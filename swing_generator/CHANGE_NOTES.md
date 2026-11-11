@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) SCROLL BACK PAST THE START OF A CHART (user: "just as i am
+able to go forward in time in the charts for all time frames i want to be able
+to move back even if it mean going back beyond a start of a chart equally
+so"). A sideways drag or trackpad scroll used to stop with the oldest bar on
+the left edge. It now carries on by the same share of the window that the
+forward scroll has (REEL_FUTURE_FRAC, 90%), on 1H, Daily, Weekly and Monthly,
+with at least two bars left on screen. How: `reelSlice(b, bars, offset, lead)`
+puts `lead` empty slots (null prices, projected dates) in front of the bars and
+lets `_from` go negative, so a slot's index is still its x and every
+date-to-x mapping is unchanged; `_bars` is the same slice without them, for
+placing a new drawing on real bars. `reelPanLimits` holds the limits;
+`reelSetPan(..., free)` lets a scroll (and a saved view) pass the old stop,
+while a zoom re-clamps to it as before, so zooming out still squeezes the bars
+into the left of the panel. `reel.back` marks a chart scrolled past its start;
+only such a chart keeps the blank through a zoom or draws it at all, so a
+short-history chart opens exactly as it did. The time grid
+(grid-geometry.js) adds the years before the data. A saved view keeps the
+position (its `start` is then a projected date before the first bar).
+Checks: tests/back_scroll_checks.cjs (run by app_smoke.cjs), time_grid_test.
+
 2026-11-11 (later) LIVE CHECK FOLLOWS THE TIMEFRAME TABLE. The #185 deploy
 went live but its "Verify the live app" step failed: `validate_hourly_release.py
 --live` recognised the new build by `id="tfBtn1H"` in the page's raw HTML, and
