@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) HIDDEN SCANNER/DASHBOARD, CHART.JS AND RETIRED BUILDERS
+DELETED. The old Scanner and Dashboard (hidden by CSS since 2026-09-27) were
+still built on every data refresh; renderAll and the tab switch no longer
+build them and renderDashboard draws only rotation and ranking. 69 app.js
+functions and 35 wiring statements that nothing could reach were deleted
+(found with an acorn call graph), with their markup and the CSS that hid it:
+app.js 15,273 -> 13,058 lines. Chart.js is no longer loaded: it was used only
+to set two defaults for the hidden gauge, and a CDN failure made
+Chart.defaults throw inside renderDashboard. Engine side: the chart builders
+of retired timeframes (2H, 12H, 3D, 10m, 15m, 30m), their server routes and
+helpers, and five other functions nothing called. Kept: fetch_all_hourly
+(/refresh-data uses it), the resamplers the golden test exercises,
+sectorMenuHtml (stock_view_test exercises it), main.OUTPUT_COLUMNS
+(hourly_test reads it). Four instrument names put into innerHTML unescaped
+(trend detail, timeframe menu, share preview) now go through escText
+(CodeQL). app.js v617, style.css v423. PR #184.
+
 2026-11-11 (later) RETIRED CHART FOLDERS DELETED FROM R2 (user: "Remove the
 old chart folders on R2 too"). `publish.prune_retired_chart_folders` deletes
 `ma500/chart/<tf>/` for every `RETIRED_CHART_TFS` (5m, 10m, 15m, 30m, 2H, 4H,
