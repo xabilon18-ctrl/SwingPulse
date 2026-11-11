@@ -7,6 +7,47 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) LINTERS. `swing_generator/ruff.toml` (E9 + pyflakes, no
+style) and `swing_generator/eslint.config.mjs` (eslint:recommended; unused
+names warn). ESLint found three undefined names that threw a ReferenceError
+when their path ran, all older than this change: loadAll's stale-banner
+fallback read an undefined `dateStr` (now summary.json's `date`);
+toggleAIFilter called a non-existent computeAndRenderSummary (its button was
+gone: deleted); the 'draw-alpha-set' handler used a non-existent DRAW_ALPHAS
+(nothing emits that action: deleted). CI wiring is in test.yml (setup PR).
+
+2026-11-11 (later) FAILURES ARE REPORTED, NOT SWALLOWED. app.js reportFailure
+/ storeWork / renderSection / spNotice. Saving the user's own work on the
+device (watchlists, drawings, saved views, chart layers) shows a one-time
+notice if storage refuses it; a failed data load shows a notice (its message
+used to go into the hidden Scanner grid); the Market summary and movers say
+"Couldn't draw ..." instead of going blank; repaints, sync pushes, the price
+refresh and ladder cleanups log "[SwingPulse] <what> failed". Preference
+saves stay silent on purpose. 43 empty catches remain, all storage or
+pointer-capture guards.
+
+2026-11-11 (later) MINIFIED BUILD + format.js. publish.build_ui minifies
+app.js, the modules and style.css as its last step (esbuild 0.25.12 pinned,
+--target=esnext: no syntax rewritten). Gzipped app.js ~225 -> ~98 KB,
+style.css ~89 -> ~51 KB. Falls back to readable files with a WARN if
+esbuild cannot run; SP_NO_MINIFY=1 forces readable. Screenshots of every tab
+were pixel-identical to the readable build. Eleven pure formatters moved
+verbatim to static/js/modules/format.js.
+
+2026-11-11 (later) DEPENDENCIES PINNED to what production installed (publish
+run 1597): yfinance 1.8.0, pandas 3.1.1, numpy 2.4.6, pyarrow 26.0.1, flask
+3.1.3. They had been `>=`, so any new release could move the signals with no
+commit.
+
+2026-11-11 (later) ONE TIMEFRAME TABLE. `config.TIMEFRAME_TABLE` holds one row
+per timeframe with an `enabled` switch; `derive_timeframes()` produces
+config.TIMEFRAMES, the hourly chart builders, publish_htf's builders, the R2
+prune guard, the local server's routes and the app's list (injected into
+index.html as window.SP_TIMEFRAMES; app.js builds TIMEFRAMES, SIGNAL_TFS,
+INTRADAY_TFS and the header buttons from it). Daily cannot be switched off.
+A deleted timeframe still needs its code restored from git first.
+Hourly-specific behaviour (1H events, validators, backtest) still names 1H.
+
 2026-11-11 (later) HIDDEN SCANNER/DASHBOARD, CHART.JS AND RETIRED BUILDERS
 DELETED. The old Scanner and Dashboard (hidden by CSS since 2026-09-27) were
 still built on every data refresh; renderAll and the tab switch no longer
