@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) LIVE CHECK FOLLOWS THE TIMEFRAME TABLE. The #185 deploy
+went live but its "Verify the live app" step failed: `validate_hourly_release.py
+--live` recognised the new build by `id="tfBtn1H"` in the page's raw HTML, and
+since the timeframe table the buttons are created by app.js, so the string was
+never there ("Live UI is still the previous build"). The check now reads the
+injected `window.SP_TIMEFRAMES` table: 1H present, 30m and 4H absent. Missed
+before merge because `--live` only runs after a deploy.
+
 2026-11-11 (later) LINTERS. `swing_generator/ruff.toml` (E9 + pyflakes, no
 style) and `swing_generator/eslint.config.mjs` (eslint:recommended; unused
 names warn). ESLint found three undefined names that threw a ReferenceError
