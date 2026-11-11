@@ -59,17 +59,20 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(daily['context']['direction'],main)
             self.assertEqual(hourly['context']['setup']['minorOpportunity']['at'],'2026-10-09 01:00')
             self.assertEqual(hourly['context']['entries'],hourly['context']['setup']['interactions'])
-    def test_ledger_separates_rules_and_exact_four_hour_fires(self):
+    def test_ledger_separates_rules_and_records_daily_only(self):
+        # 4H fires stopped being recorded 2026-11-11 (h4_ columns removed): a
+        # row that still carried them must add the Daily fire and nothing else.
         records={'old':{'id':'old','instrument':'X','fire_date':'2026-10-01','tf':'D','code':'B1','trade':None}}
         row={'instrument_name':'X','group':'Crypto','signal_rule_version':RULE_VERSION,
              'primary_signal':'B1','date':'2026-10-10','h4_primary_signal':'S1','h4_date':'2026-10-10','h4_datetime':'2026-10-10 04:00'}
-        self.assertEqual(signal_ledger.record_fires_from_row(records,row,'X'),2)
+        self.assertEqual(signal_ledger.record_fires_from_row(records,row,'X'),1)
         self.assertEqual(signal_ledger.record_fires_from_row(records,row,'X'),0)
         row['h4_datetime']='2026-10-10 12:00'
-        self.assertEqual(signal_ledger.record_fires_from_row(records,row,'X'),1)
+        self.assertEqual(signal_ledger.record_fires_from_row(records,row,'X'),0)
+        self.assertFalse([r for r in records.values() if r.get('tf')=='4H'])
         with tempfile.TemporaryDirectory() as temp,patch.object(signal_ledger,'SUMMARY_PATH',str(Path(temp)/'summary.json')),patch.object(signal_ledger,'OUTPUT_DIR',temp):
             summary=signal_ledger.write_summary(records)
-        self.assertEqual(summary['totals']['fires'],3)
+        self.assertEqual(summary['totals']['fires'],1)
         self.assertEqual(summary['legacy_fires'],1)
         self.assertIn('old',records)
     def test_new_ledger_never_guesses_missing_fire_time(self):

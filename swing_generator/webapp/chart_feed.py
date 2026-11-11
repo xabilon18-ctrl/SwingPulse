@@ -1090,7 +1090,10 @@ def near_ma_map(daily: dict) -> dict:
 # REMOVED PERMANENTLY 2026-11-07 (user: "Remove 4h permanently", then "Even
 # from the code"): its builders and tools/publish_four_hour are deleted. Old
 # chart/4H chunks are left on R2, unreferenced.
-CHART_BUILDERS = {'30m': 'build_30m', '1H': 'build_1h', 'D': 'build_daily'}
+# 30m REMOVED 2026-11-11 (user: "30m and 4h must go"): no 30m chunks, markers,
+# alerts or trend read. build_30m stays for the local server and research; its
+# published chunks sit on R2 unreferenced.
+CHART_BUILDERS = {'1H': 'build_1h', 'D': 'build_daily'}
 # Below this many builds a process pool costs more to start than it saves.
 MIN_POOL_JOBS = 32
 
@@ -1115,7 +1118,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     """Write chart/<tf>/<chunk>.json bundles + chart/index.json.
 
     ticker_map — instrument display name -> yfinance ticker.
-    Returns {'30m': n, '1H': n, 'D': n, 'chunks': n_files}.
+    Returns {'1H': n, 'D': n, 'chunks': n_files}.
     Weekly and Monthly (back 2026-10-19) are published separately, by
     tools/publish_htf.py.
     30m replaced 15m and 4H came back (built from the 1H feed) on 2026-09-29.
@@ -1134,7 +1137,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # between publishes — the reel caches bundles across sessions.
     chunk_of = {n: i // CHUNK_SIZE for i, n in enumerate(names)}
 
-    stats = {'30m': 0, '1H': 0, 'D': 0, 'chunks': 0}
+    stats = {'1H': 0, 'D': 0, 'chunks': 0}
     built: dict[str, dict[str, dict]] = {}
 
     # 1H and 4H charts removed 2026-09-30 (4H's builder deleted 2026-11-07); 15m removed
@@ -1153,6 +1156,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # rest are built in worker PROCESSES. The thread pool this replaced ran on
     # one core — the builders are pure-Python loops that hold the GIL.
     store = Store(cache_dir)
+    store.drop_other_timeframes(CHART_BUILDERS)
     results: dict[tuple, dict | None] = {}
     jobs, metas = [], {}
     for tf in CHART_BUILDERS:
@@ -1188,22 +1192,9 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         stats[tf] = len(built[tf])
     stats['cached'] = store.hits
 
-    # 30m markers: B1/S1 from main's m30_fires.json, Daily-MA crosses from the
-    # two bundles. A failure here costs the markers, never the chart feed.
-    events: dict[str, dict] = {}
+    # The 30m marker pass went with the 30m chart (2026-11-11); `fires_path`
+    # (m30_fires.json) is accepted and ignored so older callers keep working.
     hourly_events: dict[str, dict] = {}
-    try:
-        fires = {}
-        if fires_path and os.path.exists(fires_path):
-            with open(fires_path) as fh:
-                fires = json.load(fh)
-        for name, b15 in built.get('30m', {}).items():
-            ev = _attach_15m_marks(b15, built.get('D', {}).get(name), fires.get(name),
-                                   hold=XM_HOLD_BY_TF['30m'])
-            if ev:
-                events[name] = ev
-    except Exception as exc:
-        print(f'  WARN 30m markers not built: {exc}')
 
     # Hourly markers use the exact fires computed by the signal worker.
     # Daily-MA crosses can be drawn on 1H but alerts_feed avoids duplicating
@@ -1252,9 +1243,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         if d_fires_path and os.path.exists(d_fires_path):
             with open(d_fires_path) as fh:
                 d_fires = json.load(fh)
-        # 30m + Daily only: the chart-only 1H/2H have no alerts (and would
-        # cost the base-rate pass over every bar for nothing).
-        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('30m', '1H', 'D')}, d_fires)
+        # 1H + Daily (30m removed 2026-11-11).
+        alerts = build_alerts({tf: built.get(tf, {}) for tf in ('1H', 'D')}, d_fires)
         alerts.update(workflow_alerts(built))
         _write_gz(os.path.join(output_dir, 'alerts.json'), alerts)
         stats['alerts'] = len(alerts['ev'])
@@ -1282,7 +1272,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
     # (the app falls back to trend_direction), never the chart feed.
     try:
         from channel_rule import read as channel_read
-        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('30m', '1H', 'D')}
+        rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in ('1H', 'D')}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
         payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
@@ -1320,8 +1310,8 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
 
     _write_gz(os.path.join(chart_dir, 'index.json'),
               {'chunk_size': CHUNK_SIZE, 'bars': BARS,
-               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of, 'ev15': events,
-               'events_by_tf': {'30m': events, '1H': hourly_events},
+               'bars_by_tf': BARS_BY_TF, 'chunks': chunk_of,
+               'events_by_tf': {'1H': hourly_events},
                'near': near_ma_map(built.get('D', {})),
                'novol': unreliable_volume_names(built.get('D', {}))})
 

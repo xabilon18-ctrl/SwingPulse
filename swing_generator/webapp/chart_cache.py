@@ -35,6 +35,7 @@ import contextlib
 import glob
 import hashlib
 import os
+import shutil
 import pickle
 import zlib
 
@@ -178,6 +179,16 @@ class Store:
         except OSError:
             with contextlib.suppress(FileNotFoundError):
                 os.remove(tmp)
+
+    def drop_other_timeframes(self, keep) -> None:
+        """Delete the stored charts of timeframes no longer built (30m went
+        2026-11-11): nothing reads them again, and they ride in the CI cache."""
+        if not os.path.isdir(self.root):
+            return
+        for tf in os.listdir(self.root):
+            path = os.path.join(self.root, tf)
+            if tf not in keep and os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
 
     def prune(self, tf: str, tickers) -> None:
         """Drop entries for instruments no longer in the feed."""

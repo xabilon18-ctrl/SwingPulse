@@ -7,6 +7,33 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 30m AND 4H REMOVED FROM THE DATA RUN (user: "30m and 4h must
+go"). The app had had no 30m or 4H button since 2026-11-07 and read none of
+this; every hourly run still computed and uploaded it. Gone: `30m` and `4H`
+from `config.TIMEFRAMES`; the `m30_` and `h4_` columns (signals.json 186 →
+102 columns); the 30m chart chunks (`chart/30m/`, 164 files a run), their
+markers, `events_by_tf['30m']` and `ev15` in chart/index.json; the `30m`
+trend read and the `30m` currency-focus block in trend_channels.json;
+`m30_fires.json`; 4H fires in the signal ledger (older 4H records stay and
+open ones keep being graded). Deleted from main.py: `_compute_30m_state`,
+`_compute_15m_state`, `_compute_4h_state`, `_h4_signal_frame`,
+`_process_30m`, `_m4h_ma_periods`. The golden snapshot dropped its 12 4H
+frames (36 → 24); every Daily and 1H frame is byte-identical. The stored
+30m charts in the CI cache are deleted on the next run
+(`Store.drop_other_timeframes`).
+ALERTS: the Daily-MA cross / touch alerts (X / T) were read from the 30m
+bundle and tagged `30m`. The Alerts tab has listed only 1H and Daily since
+2026-11-04, so they were being built (783 of 1,439 events on 2026-11-11)
+and never shown. They are no longer built; the visible Alerts tab is
+unchanged. The 1H chart still draws its Daily-MA marks. alerts_feed.py
+`_events_for` says how to list them from 1H if wanted.
+KEPT: the 5m download (quotes.json and the currency indices read it);
+`_frame_30m` / `build_30m` and `_frame_4h` / `_resample_4h` (local server,
+backtest.py, ledger grading, research); the old `chart/30m/` and `chart/4H/`
+objects on R2, unreferenced. The app is unchanged, so no `?v=` bump.
+tools/validate_hourly_release.py and validate_workflow_release.py now fail
+if a 30m trend read, 30m chart events or `m30_`/`h4_` columns come back.
+
 2026-11-10 FULL-SCREEN HEADER AND FOOTER: NO BAND, BIGGER HEADER TEXT:
 style.css v422. User: "Make the footer and the header not to have borders ...
 let them be over the charts ... they must remain static and not move ...

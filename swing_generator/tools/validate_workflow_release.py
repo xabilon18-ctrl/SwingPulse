@@ -18,7 +18,8 @@ def validate(directory):
         return json.loads(gzip.decompress(raw) if raw[:2] == b'\x1f\x8b' else raw)
     rows = read('signals.json')['data']
     assert rows and all(row.get('signal_rule_version') == RULE_VERSION for row in rows), 'Signal rows use another rule version'
-    assert all('h4_close' in row and 'h4_primary_signal' in row for row in rows), '4H columns missing'
+    # 30m and 4H removed 2026-11-11: their columns must not come back unnoticed.
+    assert not any(k.startswith(('h4_', 'm30_')) for k in rows[0]), '30m/4H columns are back'
     channels, alerts = read('trend_channels.json'), read('alerts.json')
     assert channels.get('workflow_version') == 1 and alerts.get('workflow_version') == 1, 'New workflow feed missing'
     contexts = channels['workflow']

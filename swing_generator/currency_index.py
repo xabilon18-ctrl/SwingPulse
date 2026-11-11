@@ -190,7 +190,7 @@ def focus(bundles: dict, reads: dict, name_of: dict) -> dict:
     bundles[tf][name] — chart bundles; reads[tf][name] — channel_rule.read() tuples;
     name_of — Yahoo ticker -> display name (EURUSD=X -> EURUSD)."""
     out = {}
-    for tf in ('30m', 'D'):
+    for tf in ('D',):   # '30m' removed 2026-11-11; the app only ever showed Daily
         B, R = bundles.get(tf, {}), reads.get(tf, {})
         rank = []
         for c in MAJORS:

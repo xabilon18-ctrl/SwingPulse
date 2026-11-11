@@ -10,9 +10,9 @@ from tools import shape_audit as audit
 
 class ConfidenceVocabularyTests(unittest.TestCase):
     def test_supported_tiers_need_not_occur_today(self):
-        rows = [{'signal_confidence': 'low', 'h4_signal_confidence': 'standard'}]
+        rows = [{'signal_confidence': 'low', 'h1_signal_confidence': 'standard'}]
         for tier in CONF_TIER_ORDER:
-            for field in ('signal_confidence', 'h4_signal_confidence'):
+            for field in ('signal_confidence', 'h1_signal_confidence'):
                 with self.subTest(tier=tier, field=field):
                     js = f"item.{field} === '{tier}'"
                     self.assertEqual(audit.check_phantoms(rows, js), [])
@@ -31,7 +31,7 @@ class ConfidenceVocabularyTests(unittest.TestCase):
                 self.assertEqual(findings[0][:2], ('FAIL', 'phantom predicate'))
 
     def test_alias_and_case_folding(self):
-        rows = [{'h4_signal_confidence': 'low'}]
+        rows = [{'h1_signal_confidence': 'low'}]
         good = "const confidence = (item[f('signal_confidence')] || '').toLowerCase(); if (confidence === 'HIGH') {}"
         self.assertEqual(audit.check_phantoms(rows, good), [])
         self.assertTrue(audit.check_phantoms(rows, good.replace('HIGH', 'STRONG')))
@@ -44,8 +44,8 @@ class ConfidenceVocabularyTests(unittest.TestCase):
                                                       "item[f('signal_confidence')] === 'high'"), [])
 
     def test_unknown_value_reports_once_per_family(self):
-        rows = [{'signal_confidence': 'low', 'h4_signal_confidence': 'standard'}]
-        js = "item.signal_confidence === 'strong'; item.h4_signal_confidence === 'strong';"
+        rows = [{'signal_confidence': 'low', 'h1_signal_confidence': 'standard'}]
+        js = "item.signal_confidence === 'strong'; item.h1_signal_confidence === 'strong';"
         self.assertEqual(len(audit.check_phantoms(rows, js)), 1)
 
     def test_market_pulse_buy_sell_bug_still_fails(self):

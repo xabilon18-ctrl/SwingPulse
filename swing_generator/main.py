@@ -34,7 +34,7 @@ import _active_config as config
 from _active_config import (
     MA_PERIODS, OUTPUT_COLUMNS,
     SIGNAL_LOOKBACK_1H, SIGNAL_LOOKBACK_4H, SIGNAL_LOOKBACK_DAILY,
-    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D, SIGNAL_LOOKBACK_30M, SIGNAL_LOOKBACK_15M,
+    SIGNAL_LOOKBACK_WEEKLY, SIGNAL_LOOKBACK_3D,
     FIFTEEN_MIN_SIGNAL_CODES, FIFTEEN_MIN_SIGNAL_LIVE_HOURS, THIRTY_MIN_RULE, FIFTEEN_MIN_RULE,
     ACTIVE_PROFILE,
     CONTEXT_RULES, CONF_TIER_ORDER,
@@ -857,34 +857,6 @@ def _h4_ma_periods(h4: pd.DataFrame, ticker: str) -> list[int]:
     return [p for p in periods if p <= len(h4)]
 
 
-def _compute_30m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
-    """The CACHEABLE half of the 30m pass: (row data, recent fires) — a pure
-    function of the 5m bars, so an unchanged 5m file reuses it (see
-    _process_worker). Liveness is wall-clock and applied by _live_intraday.
-
-    Same engine as Daily (add_signals), with two differences, both because a
-    5m bar is not a day:
-      * B1/S1 ONLY. B2-B4/S2-S4 fires are blanked after the engine runs; the
-        trend latch they sit on is untouched, so B1/S1 fire exactly as they
-        would with the others present.
-      * NO RE-FIRES (refire_pct=0). The re-fire band is 5% of MA500 for 10
-        CALENDAR days — on 5m that is thousands of bars in which almost every
-        bar qualifies. Only the real cross of all three MAs fires.
-    """
-    if df_5m is None or df_5m.empty:
-        return None
-    return _intraday_state(_frame_30m(df_5m), 'm30_', '30m', SIGNAL_LOOKBACK_30M,
-                           asset_class, run_date)
-
-
-def _compute_15m_state(df_5m: pd.DataFrame, asset_class: str, run_date: date):
-    """15m twin of _compute_30m_state (back 2026-09-29)."""
-    if df_5m is None or df_5m.empty:
-        return None
-    return _intraday_state(_frame_15m(df_5m), 'm15_', '15m', SIGNAL_LOOKBACK_15M,
-                           asset_class, run_date)
-
-
 def _frame_1h(df_1h: pd.DataFrame) -> pd.DataFrame:
     """The 1H chart's and 1H signals' frame (2026-09-27): the hourly download
     (data_fetcher.load_1h — same sources and cash/spot level as the 15m),
@@ -901,7 +873,10 @@ def _m1h_ma_periods(frame: pd.DataFrame) -> list[int]:
 
 
 def _compute_1h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
-    """1H twin of _compute_30m_state: the same engine and rules on hourly bars."""
+    """The CACHEABLE half of the 1H pass: (row data, recent fires) — a pure
+    function of the hourly bars, so an unchanged 1h file reuses it (see
+    _process_worker). Liveness is wall-clock and applied by _live_intraday.
+    B1/S1 only and no re-fires (_intraday_signal_frame)."""
     if df_1h is None or df_1h.empty:
         return None
     # tf '1h', not '1H': confidence_map.json still holds 48 '1H|' tiers measured
@@ -941,12 +916,6 @@ def _m2h_ma_periods(frame: pd.DataFrame) -> list[int]:
     return [p for p in MA_PERIODS if p <= len(frame)]
 
 
-def _m4h_ma_periods(frame: pd.DataFrame) -> list[int]:
-    """EXACTLY 50/250/500 on 4H bars, as on 30m and 1H. MA500 is ~250 sessions
-    of a US stock (2 bars/session), ~83 days of a 24h instrument."""
-    return [p for p in MA_PERIODS if p <= len(frame)]
-
-
 # ── Signal frames: the ONE definition of each timeframe's engine ──────────
 # Production and tests/golden_test.py both call these. The golden test used to
 # keep its own copy of the engine call, and when Daily/4H moved to
@@ -956,14 +925,6 @@ def _m4h_ma_periods(frame: pd.DataFrame) -> list[int]:
 def _daily_signal_frame(df: pd.DataFrame) -> pd.DataFrame:
     """Daily indicators + the workflow rules (MA500 main trend)."""
     return add_workflow_signals(add_all_indicators(df), tf='D')
-
-
-def _h4_signal_frame(df_1h: pd.DataFrame) -> Optional[pd.DataFrame]:
-    """4H bars from the hourly feed + the workflow rules, or None if empty."""
-    frame = _frame_4h(df_1h)
-    if frame.empty:
-        return None
-    return add_workflow_signals(add_all_indicators(frame, ma_periods=[50, 250, 500]), tf='4H')
 
 
 def _intraday_signal_frame(frame: pd.DataFrame, tf: str,
@@ -983,27 +944,9 @@ def _intraday_signal_frame(frame: pd.DataFrame, tf: str,
     return frame
 
 
-def _compute_4h_state(df_1h: pd.DataFrame, asset_class: str, run_date: date):
-    """4H twin of _compute_30m_state. tf '4h', not '4H': confidence_map.json
-    holds '4H|' tiers from the retired re-firing 4H; these take 'standard'."""
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _h4_signal_frame(df_1h)
-    if frame is None:
-        return None
-    data, _ = _extract_row(frame, run_date, prefix='h4_', ma_periods=[50, 250, 500], signal_lookback=SIGNAL_LOOKBACK_4H)
-    if data is None:
-        return None
-    recent = frame[frame.primary_signal.ne('')]
-    recent = recent[recent.index >= frame.index[-1] - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
-    fires = [(stamp, row.primary_signal, row.signal_confidence, row.confirmation_status) for stamp, row in recent.iterrows()]
-    all_fires = [[stamp.strftime('%Y-%m-%d %H:%M'), code] for stamp, code in frame.loc[frame.primary_signal.ne(''), 'primary_signal'].items()]
-    return data, fires, all_fires
-
-
 def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
                     asset_class: str, run_date: date):
-    """Shared body of the 30m and 1H passes — see _compute_30m_state."""
+    """Body of the 1H pass (shared with 30m until 2026-11-11) — see _compute_1h_state."""
     five = _intraday_signal_frame(five, tf, asset_class)
     if five is None:
         return None
@@ -1027,11 +970,11 @@ def _intraday_state(five: pd.DataFrame, prefix: str, tf: str, lookback: int,
     return data, fires, all_fires
 
 
-def _live_intraday(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 'm30_') -> dict:
+def _live_intraday(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 'h1_') -> dict:
     """Apply the wall-clock half: a fire stays LIVE for FIFTEEN_MIN_SIGNAL_LIVE_HOURS
     (runs are ~30 min apart, so "fired on the latest bar" would list almost
-    nothing). While live, m30_primary_signal / confidence / status and m30_date/
-    m30_datetime describe the FIRE bar; the price fields stay the latest bar's."""
+    nothing). While live, h1_primary_signal / confidence / status and h1_date/
+    h1_datetime describe the FIRE bar; the price fields stay the latest bar's."""
     if not state:
         return {}
     data, fires = state[0], state[1]
@@ -1052,17 +995,10 @@ def _live_intraday(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 
     return data
 
 
-def _process_30m(df_5m: pd.DataFrame, asset_class: str, run_date: date,
-                 now_utc: Optional[pd.Timestamp] = None) -> dict:
-    """30m B1/S1 signals -> the m30_ columns of the row (empty dict if no data)."""
-    return _live_intraday(_compute_30m_state(df_5m, asset_class, run_date), now_utc)
-
-
 def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
-                       run_date: date, hourly_df: pd.DataFrame = None,
-                       df_5m: pd.DataFrame = None) -> Optional[dict]:
+                       run_date: date, hourly_df: pd.DataFrame = None) -> Optional[dict]:
     """
-    Run the full pipeline for one instrument (daily + 4H).
+    Run the Daily pipeline for one instrument (1H is added by _process_worker).
     Returns (row_dict, trend_segments) or (None, []) on error.
     """
     try:
@@ -1108,13 +1044,7 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
 
         # ── 3-DAY and WEEKLY: removed 2026-09-24 (see config.TIMEFRAMES). ──
 
-        # ── 5-MINUTE: B1/S1 only (2026-09-24). A failure here must not drop
-        # the instrument's Daily row. Normally passed df_5m=None: the worker
-        # runs and caches the 5m half itself (_process_worker). ──
-        try:
-            m5_data = _process_30m(df_5m, _asset_cls, run_date) if df_5m is not None else {}
-        except Exception:
-            m5_data = {}
+        # ── 30-MINUTE and 4-HOUR: removed 2026-11-11 (see config.TIMEFRAMES). ──
 
         # Daily B1/S1 fire dates for the Alerts tab (2026-09-27): the last ~5
         # years, matching the Daily chart bundle. Popped off the row in main().
@@ -1137,7 +1067,6 @@ def process_instrument(ticker: str, df: pd.DataFrame, inst_meta: dict,
             # buy/sell counting bug survived a year — one source now.
             'asset_class':      _asset_cls,
             **(daily_data or {}),
-            **m5_data,
         }
 
         # ── Context confidence modifiers (edge-audit phase 3a) — needs the
@@ -1311,16 +1240,8 @@ def _process_worker(args: tuple) -> tuple:
         from data_fetcher import scale_daily
         df = scale_daily(ticker, df)
 
-        # The 5m cache (downloaded before this pool starts) feeds the m30_
-        # signals (resampled, main._frame_30m). Missing or unreadable -> no 5m columns, Daily unaffected.
-        # data_fetcher.load_5m: the instrument's 5m source (a US index reads its
-        # FUTURES contract — the cash index sleeps 20h a day) shifted to the
-        # spot/cash LEVEL where FIVE_MIN_LEVEL_REF has a reference.
-        try:
-            from data_fetcher import load_5m
-            df_5m = load_5m(ticker)
-        except Exception:
-            df_5m = None
+        # The 5m cache is not read here since 2026-11-11 (30m signals removed);
+        # it is still downloaded for quotes.json and the currency indices.
 
         try:
             from data_fetcher import load_1h
@@ -1345,23 +1266,11 @@ def _process_worker(args: tuple) -> tuple:
             row_d, trend_segs = process_instrument(ticker, df.copy(), inst_meta, run_date)
             rc.update(d_fp=d_fp, d_row=row_d, trends=trend_segs)
             hit_d = False
-        m30_fp = _fp('30m', run_date, asset_class_of(inst_meta.get('group', '')), df_5m)
-        if rc.get('m30_fp') == m30_fp:
-            state, hit_5 = rc['m30_state'], True
-        else:
-            try:
-                state = _compute_30m_state(df_5m, asset_class_of(inst_meta.get('group', '')), run_date)
-            except Exception:
-                state = None
-            rc.update(m30_fp=m30_fp, m30_state=state)
-            for k in ('m5_fp', 'm5_state'):
-                rc.pop(k, None)
-            hit_5 = False
         h1_fp = _fp('1H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
         if rc.get('h1_fp') == h1_fp:
             h1_state, hit_h1 = rc['h1_state'], True
         else:
-            # A broken hourly feed must never discard a valid Daily/30m row.
+            # A broken hourly feed must never discard a valid Daily row.
             try:
                 h1_state = _compute_1h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
             except Exception as exc:
@@ -1369,40 +1278,27 @@ def _process_worker(args: tuple) -> tuple:
                 h1_state = None
             rc.update(h1_fp=h1_fp, h1_state=h1_state)
             hit_h1 = False
-        h4_fp = _fp('4H', run_date, asset_class_of(inst_meta.get('group', '')), df_1h)
-        if rc.get('h4_fp') == h4_fp:
-            h4_state, hit_h4 = rc['h4_state'], True
-        else:
-            try:
-                h4_state = _compute_4h_state(df_1h, asset_class_of(inst_meta.get('group', '')), run_date)
-            except Exception as exc:
-                print(f'  WARN {ticker} 4H setups unavailable: {exc}')
-                h4_state = None
-            rc.update(h4_fp=h4_fp, h4_state=h4_state)
-            hit_h4 = False
-        stale_h = [k for k in ('m15_fp', 'm15_state') if k in rc]
+        # 30m and 4H removed 2026-11-11: drop their halves from the row cache.
+        stale_h = [k for k in ('m15_fp', 'm15_state', 'm5_fp', 'm5_state',
+                               'm30_fp', 'm30_state', 'h4_fp', 'h4_state') if k in rc]
         for k in stale_h:
             rc.pop(k, None)
-        if stale_h or not (hit_d and hit_5 and hit_h1 and hit_h4):
+        if stale_h or not (hit_d and hit_h1):
             _rowcache_save(ticker, rc)
-        row = ({**row_d, **_live_intraday(state),
-                **_live_intraday(h1_state, prefix='h1_'),
-                **_live_intraday(h4_state, prefix='h4_')} if row_d else None)
+        row = ({**row_d, **_live_intraday(h1_state, prefix='h1_')} if row_d else None)
         if row is not None:
-            row['_m30_fires'] = list(state[2]) if state and len(state) > 2 else []
             row['_h1_fires'] = list(h1_state[2]) if h1_state and len(h1_state) > 2 else []
 
         if row:
             d_primary = row.get('primary_signal', '')
             d_tag     = f' D[{d_primary}]' if d_primary else ''
-            m5_primary = row.get('m30_primary_signal', '')
-            m5_tag    = f' 30m[{m5_primary}]' if m5_primary else ''
-            # 15m/1H/4H gone 2026-09-30 — naming their hit flags here crashed
-            # every instrument in the 19:31 UTC run ("name 'hit_h1' is not defined").
-            hits = (('D', hit_d), ('30m', hit_5), ('1H', hit_h1), ('4H', hit_h4))
+            # Name only hit flags that exist: a removed timeframe's flag here
+            # crashed every instrument in the 2026-09-30 19:31 UTC run
+            # ("name 'hit_h1' is not defined").
+            hits = (('D', hit_d), ('1H', hit_h1))
             reuse = ('' if not any(h for _, h in hits) else
                      ' (reused ' + '+'.join(x for x, h in hits if h) + ')')
-            status_str = f'OK{d_tag}{m5_tag}{reuse}'.strip()
+            status_str = f'OK{d_tag}{reuse}'.strip()
         else:
             status_str = 'skipped'
 
@@ -1475,7 +1371,7 @@ def main():
     # The 5m pull feeds the 10m CHART only — no signal reads it — so a run that
     # only wants signals can skip it and its cost.
     parser.add_argument('--no-intraday', action='store_true',
-                        help='Skip the 5m and 1h downloads (the 30m/1H/4H charts and signals will go stale)')
+                        help='Skip the 5m and 1h downloads (quotes and the 1H chart and signals will go stale)')
     # A local test run must be able to stop short of the live upload: without
     # this, `python3 main.py` IS a live data deploy (2026-09-09, and again
     # 2026-09-27 while testing the 1H return).
@@ -1546,7 +1442,7 @@ def main():
     _e2 = 0.0
     if not args.no_intraday:
         _t2 = _time.time()
-        print('  Fetching 5m market data (30m chart + signals) ...\n')
+        print('  Fetching 5m market data (quotes + currency indices) ...\n')
         # An EXPLICIT age, not data_fetcher's default. The default is 1h in CI,
         # which is the right gate for a daily bar and far too coarse for a
         # ten-minute one: three of the weekday cron landings sit less than an
@@ -1587,7 +1483,6 @@ def main():
 
     rows      = []
     all_trends = {}
-    m30_fires  = {}   # the same for 30m
     h1_fires   = {}
     d_fires    = {}   # Daily B1/S1 dates, for the Alerts tab
     no_row     = {}   # ticker → reason (processed but produced no output row)
@@ -1602,7 +1497,6 @@ def main():
             done += 1
             print(f'  [{done:3d}/{total}] {ticker:<15}  {status_str}')
             if row:
-                m30_fires[row['instrument_name']] = row.pop('_m30_fires', [])
                 h1_fires[row['instrument_name']] = row.pop('_h1_fires', [])
                 d_fires[row['instrument_name']] = row.pop('_d_fires', [])
                 rows.append(row)
@@ -1645,10 +1539,9 @@ def main():
     with open(trends_path, 'w') as tf:
         json.dump(all_trends, tf, separators=(',', ':'))
     print(f'  Trend history: {trends_path}')
-    # 30m/1H/4H B1/S1 fire times for the chart markers (chart_feed reads these).
-    for fname, fires in (('m30_fires.json', m30_fires), ('h1_fires.json', h1_fires)):
-        with open(os.path.join(output_dir, fname), 'w') as ff:
-            json.dump(fires, ff, separators=(',', ':'))
+    # 1H B1/S1 fire times for the chart markers (chart_feed reads these).
+    with open(os.path.join(output_dir, 'h1_fires.json'), 'w') as ff:
+        json.dump(h1_fires, ff, separators=(',', ':'))
     with open(os.path.join(output_dir, 'd_fires.json'), 'w') as ff:
         json.dump(d_fires, ff, separators=(',', ':'))
 
