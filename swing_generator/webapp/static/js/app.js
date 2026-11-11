@@ -9,6 +9,46 @@
   const { daysBetween, fmtRvol, fmtPvo, fmtVol, wlFmtPrice, wlFmtPct, wlFmtChange,
           debounce, escText, formatPrice, formatGeneratedAt } = modules.format;
 
+  // ── Failures are reported, never swallowed (2026-11-11) ────────────────
+  // reportFailure logs with context; with `notice` it also tells the user,
+  // once per kind per session. Failures to save the user's own work on this
+  // device (storage full or blocked) always get a notice: silently losing a
+  // drawing is worse than a message. Preference saves (tab, filter, panel
+  // state) stay silent on purpose: losing one costs nothing.
+  const _noticed = new Set();
+  function spNotice(text) {
+    let el = document.getElementById('spNotice');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'spNotice'; el.className = 'sp-notice'; el.setAttribute('role', 'status');
+      el.addEventListener('click', () => el.classList.remove('show'));
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(spNotice._t);
+    spNotice._t = setTimeout(() => el.classList.remove('show'), 7000);
+  }
+  function reportFailure(where, err, notice) {
+    console.error(`[SwingPulse] ${where} failed:`, err);
+    if (notice && !_noticed.has(where)) { _noticed.add(where); spNotice(notice); }
+  }
+  const SAVE_FAILED = 'This device could not save your last change (storage full or blocked).';
+  // Save the user's own work to this device; tell them if it did not stick.
+  function storeWork(key, value, what) {
+    try { localStorage.setItem(key, value); return true; }
+    catch (e) { reportFailure('save ' + what, e, SAVE_FAILED); return false; }
+  }
+  // Draw one section; on failure say so inside it instead of leaving it blank.
+  function renderSection(what, fn, containerId) {
+    try { return fn(); }
+    catch (e) {
+      reportFailure('draw ' + what, e);
+      const el = containerId && document.getElementById(containerId);
+      if (el) el.innerHTML = `<div class="sp-section-error">Couldn't draw ${escText(what)}. Pull down or tap refresh to try again.</div>`;
+    }
+  }
+
   // ── State ────────────────────────────────────────────────────────────
   let savedWork = null, workBackupTimer = 0;
   let syncLastSuccess = 0, syncPending = false, syncUnavailable = false;
@@ -370,7 +410,7 @@
         }
       }
     channelSnap = cur;
-    try { localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod)); } catch (_) {}
+    storeWork(sk('sp-channels-mod'), JSON.stringify(channelMod), 'drawings');
   }
 
   // Merge a remote copy into this device's notes, note by note. Returns true
@@ -451,10 +491,8 @@
       if (rm > lm) channelMod[k] = rm;
     }
     channelSnapAll();
-    try {
-      localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels));
-      localStorage.setItem(sk('sp-channels-mod'), JSON.stringify(channelMod));
-    } catch (_) {}
+    storeWork(sk('sp-channels'), JSON.stringify(instChannels), 'drawings')
+      && storeWork(sk('sp-channels-mod'), JSON.stringify(channelMod), 'drawings');
     return changed;
   }
 
@@ -596,7 +634,7 @@
       viewsMergeRemote(remote);
       if (notesChanged && !(remote.lastModified > localMod) && allData.length) renderAll();
       if (drawingsChanged && !(remote.lastModified > localMod)) {
-        try { reelRepaintVisible(); } catch (_) {}
+        try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); }
       }
       // This device holds a chart edited after the server's copy of it — a
       // flush that never landed. Send it now rather than waiting for the next
@@ -654,7 +692,7 @@
                                                       { cache: 'no-store', headers: syncHeaders() });
       if (syncUser !== user) return false;
       if (channelMergeRemote(remote, false)) {
-        try { reelRepaintVisible(); } catch (_) {}
+        try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); }
       }
       if (notesMergeRemote(remote, false) && allData.length) renderAll();
       viewsMergeRemote(remote);
@@ -1202,8 +1240,8 @@
   function wlSave() {
     scheduleWorkBackup();
     wlStore.mod = Date.now();
-    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
-    try { syncPush(); } catch (_) {}
+    storeWork(sk(WL_KEY), JSON.stringify(wlStore), 'watchlists');
+    try { syncPush(); } catch (e) { reportFailure('sync push (watchlists)', e); }
   }
   function wlSaveUi() { try { localStorage.setItem('swingpulse-wl-ui', JSON.stringify(wlUi)); } catch (_) {} }
   // FILTERS BELONG TO THE LIST (user, 2026-10-30: "when switching between
@@ -1223,7 +1261,7 @@
     const r = remote && remote.watchlists;
     if (!r || !Array.isArray(r.lists) || !(r.mod > (wlStore.mod || 0))) return;
     wlStore = r;
-    try { localStorage.setItem(sk(WL_KEY), JSON.stringify(wlStore)); } catch (_) {}
+    storeWork(sk(WL_KEY), JSON.stringify(wlStore), 'watchlists');
     if (currentTab === 'watchlist') renderWatchlist();
   }
 
@@ -1568,7 +1606,7 @@
       ico.textContent = '↻'; ico.style.transform = '';
       show(44, 'Updating prices…', 'is-busy');
       let ok = false;
-      try { ok = await wlRefreshNow(); } catch (_) {}
+      try { ok = await wlRefreshNow(); } catch (e) { reportFailure('price refresh', e); }
       show(44, ok ? 'Prices updated' : 'No new prices — try again', ok ? 'is-done' : '');
       ico.textContent = ok ? '✓' : '↓';
       setTimeout(() => { show(0, ''); ico.textContent = '↓'; busy = false; }, 900);
@@ -2402,8 +2440,8 @@
   }
 
   function dashHub() {
-    try { dashMovers(); } catch (_) {}
-    requestAnimationFrame(() => { try { dashFold(); } catch (_) {} });
+    renderSection('Watchlist movers', dashMovers, 'dashMovers');
+    requestAnimationFrame(() => { try { dashFold(); } catch (e) { reportFailure('fold Market cards', e); } });
   }
 
   (function dashWire() {
@@ -3248,7 +3286,7 @@
   function renderAll() {
     renderDashboard();
     dashHub();
-    try { renderMarketToday(); } catch (_) {}
+    renderSection('the Market summary', renderMarketToday, 'marketToday');
     if (currentTab === 'scanner') renderAlerts();
     updateNotifBell();
     // Mark lazy tabs dirty so they re-render on next visit
@@ -3731,8 +3769,7 @@
     } catch (e) {
       console.error('Failed to load data:', e);
       refreshFreshnessLabels(true);
-      const grid = document.getElementById('scannerGrid');
-      if (grid) grid.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--sell);font-weight:600">Failed to load data — check your connection and refresh</div>';
+      reportFailure('load data', e, "Couldn't load the latest data. Check your connection; the app shows what it last loaded.");
     } finally {
       _dataLoadInFlight = false;
     }
@@ -5820,7 +5857,9 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) { try { ladderCleanupOnce(); } catch (_) {} try { ladderNo4hOnce(); } catch (_) {}try { ladderThickOnce(); } catch (_) {} try { ladderDashOnce(); } catch (_) {} }
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce]]) {
+      try { fn(); } catch (e) { reportFailure(what, e); }
+    }
   });
 
   // ── Auto-refresh every 30 minutes (matches weekday publication) ────────
@@ -6148,7 +6187,7 @@
   }
   function ovSave() {
     scheduleWorkBackup();
-    try { localStorage.setItem(sk('sp-overlay'), JSON.stringify(tfOverlay)); } catch (_) {}
+    storeWork(sk('sp-overlay'), JSON.stringify(tfOverlay), 'chart layers');
   }
   // What the overlay draws (user, 2026-09-28): MOVING AVERAGES ONLY, from the
   // higher timeframes, each one its own switch — "if i only want daily alone
@@ -7381,10 +7420,8 @@
   const viewKey = name => name + '|' + timeframe + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
-    try {
-      localStorage.setItem(sk(VIEW_STORE), JSON.stringify(savedViews));
-      localStorage.setItem(sk(VIEW_MOD_STORE), JSON.stringify(viewsMod));
-    } catch (_) {}
+    storeWork(sk(VIEW_STORE), JSON.stringify(savedViews), 'saved views')
+      && storeWork(sk(VIEW_MOD_STORE), JSON.stringify(viewsMod), 'saved views');
   }
   // Merge a remote copy view by view: a newer stamp wins, a stamp with no
   // view is a forget. Returns true if anything changed.
@@ -7401,7 +7438,7 @@
     }
     if (changed) {
       viewStoreSave();
-      try { document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name)); } catch (_) {}
+      try { document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name)); } catch (e) { reportFailure('sync view buttons', e); }
     }
     return changed;
   }
@@ -8170,7 +8207,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_CLEANUP_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8199,7 +8236,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_NO4H_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8235,7 +8272,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_DASH_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
   function ladderThickOnce() {
@@ -8253,7 +8290,7 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_THICK_KEY), String(Date.now())); } catch (_) {}
-    if (n) { try { reelRepaintVisible(); } catch (_) {} }
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
 
@@ -8261,7 +8298,7 @@
     scheduleWorkBackup();
     channelLinkSync();
     channelStampChanges();
-    try { localStorage.setItem(sk('sp-channels'), JSON.stringify(instChannels)); } catch (_) {}
+    storeWork(sk('sp-channels'), JSON.stringify(instChannels), 'drawings');
     syncPushDrawings();
   }
 
