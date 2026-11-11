@@ -59,7 +59,9 @@
     const year = new Date(last).getUTCFullYear();
     const division = getDivision(tf), parts = division.parts;
     const step = yearBars / parts;
-    const firstYear = new Date(first).getUTCFullYear() - 1;
+    // A window scrolled back past the oldest bar (negative `from`, app.js
+    // reelSlice) needs lines for the years before the data too.
+    const firstYear = new Date(first).getUTCFullYear() - 1 - (from < 0 ? Math.ceil(-from / yearBars) : 0);
     const out = [];
     // Divisions longer than a year: [span in years, a year a line falls on].
     // Terms count from 2025; ten years fall on the decades and twenty on

@@ -46,6 +46,12 @@ for (const [division, parts] of [['M', 12], ['Q', 4], ['H', 2], ['Y', 1]]) {
   assert.equal(panned.length, lines.length);
   lines.forEach((l, i) => assert.ok(Math.abs(l.fi - 50 - panned[i].fi) < 1e-9, 'Panning must not move boundaries'));
   assert.ok(lines.some(l => l.future), 'Future divisions are projected');
+  // Scrolled back past the oldest bar (a negative window start): the lines
+  // already drawn stay where they are and earlier years get their own.
+  const before = c.reelTimeGrid({ t: t.slice(0, 50), _src: b, _from: -600 }, '1H').filter(l => !l.fixedOnly);
+  lines.forEach(l => assert.ok(before.some(p => Math.abs(l.fi + 600 - p.fi) < 1e-9), 'Scrolling back must not move boundaries'));
+  assert.ok(before[0].fi <= 0, `${division}: divisions reach the left edge of the blank before the data`);
+  assert.ok(before[0].year < lines[0].year, `${division}: earlier years are divided too`);
 }
 c.reelSetGridDivision('1H', 'Q');
 c.reelSetGridDivision('D', 'H');

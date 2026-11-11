@@ -403,6 +403,7 @@ let debugPage;
     assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
   }
   if (!live) await require('./dollar_index_checks.cjs')(browser);
+  if (!live) await require('./back_scroll_checks.cjs')(browser);
   console.log('PASS: mobile 1H/Daily/Weekly/Monthly charts (no 4H), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
 })().catch(async e => { console.error(e); if(debugPage&&!debugPage.isClosed()){console.log('SMOKE_FAILURE='+(await debugPage.screenshot({type:'jpeg',quality:55})).toString('base64'));console.log('TOOLBAR_BOXES',await debugPage.locator('#chartFull .reel-toolbar, #chartFull .reel-props-main, #chartFull [data-act=draw-more]').evaluateAll(es=>es.map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,width:e.clientWidth}))));} process.exit(1); });

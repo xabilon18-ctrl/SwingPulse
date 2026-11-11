@@ -5822,7 +5822,7 @@
       if (!b || !(ts >= t0)) want = 'D';
     }
     if (want !== timeframe) setTimeframe(want, name);
-    reel.pan.delete(name);
+    reel.pan.delete(name); reel.back.delete(name);
     reel.lockY.delete(name);
     reel.tzoom.delete(name);
     openChartFor(name);
@@ -5965,6 +5965,7 @@
     // (REEL_RANGE_STORE, restored in wireReel).
     ranges: {},
     pan:    new Map(),       // name → bars scrolled BACK from the newest bar (0 = at the right edge)
+    back:   new Set(),       // names scrolled back PAST their oldest bar (see reelSetPan)
     tzoom:  new Map(),       // name → bars visible; the time-scale drag's override of the Range pill
     lockY:  new Map(),       // name → {lo,hi} price bounds held still while panning
     editing: null,           // instrument whose channels are being edited, or null
@@ -7001,31 +7002,47 @@
   // its own bar indices (b.mi), so those are filtered and rebased rather than
   // sliced by the same count — slicing them naively would slide the ribbon
   // sideways against the price.
-  function reelSlice(b, bars, offset) {
+  //
+  // `lead` (2026-11-11) is blank space BEFORE the oldest bar: that many empty
+  // slots are put in front of the bars, so the chart can be scrolled back past
+  // its start the way it scrolls forward past its newest bar. The empty slots
+  // carry no price (null, which every reader of a slice already skips as a
+  // gap) and a projected date, and `_from` goes negative by the same count, so
+  // a slot's position in the slice is still its x and still maps to a date.
+  // `_bars` is the same slice without the empty slots, for code that needs
+  // real bars to stand a new drawing on.
+  function reelSlice(b, bars, offset, lead) {
     const n    = b.c.length;
     const want = (!bars || bars >= n) ? n : bars;
     // `offset` scrolls the window BACK through history. It is clamped here
     // rather than at the drag site so every caller gets the same window and
     // the drag cannot walk the chart off the end of the data.
     const off  = Math.min(Math.max(0, Math.round(offset || 0)), Math.max(0, n - want));
-    if (want >= n && !off) return b;
+    const pad  = Math.max(0, Math.round(lead || 0));
+    if (want >= n && !off && !pad) return b;
     const to   = n - off;
     const from = Math.max(0, to - want);
     const keep = [];
     const mi   = b.mi || b.m[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
     for (let j = 0; j < mi.length; j++) if (mi[j] >= from && mi[j] < to) keep.push(j);
-    return {
-      t: b.t.slice(from, to), o: b.o.slice(from, to), h: b.h.slice(from, to),
-      l: b.l.slice(from, to), c: b.c.slice(from, to),
-      ...(b.v ? { v: b.v.slice(from, to) } : {}),
+    const cut = (blank, dates) => ({
+      t: dates.concat(b.t.slice(from, to)), o: blank.concat(b.o.slice(from, to)), h: blank.concat(b.h.slice(from, to)),
+      l: blank.concat(b.l.slice(from, to)), c: blank.concat(b.c.slice(from, to)),
+      ...(b.v ? { v: blank.concat(b.v.slice(from, to)) } : {}),
       p: b.p, ms: b.ms,
-      mi: keep.map(j => mi[j] - from),
+      mi: keep.map(j => mi[j] - from + blank.length),
       m:  b.m.map(series => keep.map(j => series[j])),
-      _from: from, _n: n,
+      _from: from - blank.length, _n: n,
       // The whole bundle, so dates map to x against ALL of history rather than
       // against whatever happens to be on screen (see reelBarIndexForDate).
       _src: b,
-    };
+    });
+    if (!pad) return cut([], []);
+    const dates = [];
+    for (let k = pad; k > 0; k--) dates.push(reelDateForBarIndex(b, from - k));
+    const out = cut(new Array(pad).fill(null), dates);
+    out._bars = cut([], []);
+    return out;
   }
 
   // How many bars the visible window holds, for a given bundle. A per-card
@@ -7470,14 +7487,17 @@
       const W = reelWindowBars(bundle, name), ts = reelParseTs(v.start), times = reelBarTimes(bundle);
       let from = times.findIndex(t => t >= ts);
       if (from < 0) from = n - 1;
+      // A view saved scrolled back past the oldest bar starts on a projected
+      // date before it: a negative slot (reelSlice `lead`).
+      if (ts < times[0]) from = Math.min(0, Math.round(reelBarIndexForDate(bundle, v.start) ?? 0));
       reel.pan.set(name, 0);
       // first bar in view = n - W - pan (reelSlice), so pan = n - W - from.
-      reelSetPan(name, n - W - from, bundle);
+      reelSetPan(name, n - W - from, bundle, true);
       return true;
     }
     reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.bars, reelMaxBars(bundle, name))));
     reel.pan.set(name, 0);
-    reelSetPan(name, v.pan, bundle);
+    reelSetPan(name, v.pan, bundle, true);
     return true;
   }
   // Price half: needs the plot's height, so after the layout. Returns true once
@@ -7567,7 +7587,7 @@
   function reelBackToSaved(name) {
     if (!name || !savedViews[viewKey(name)]) return false;
     if (!reel.pan.has(name) && !reel.tzoom.has(name) && !reel.lockY.has(name)) return false;
-    reel.pan.delete(name);
+    reel.pan.delete(name); reel.back.delete(name);
     reel.tzoom.delete(name);
     reel.lockY.delete(name);
     viewPricePending.delete(name);
@@ -7586,8 +7606,10 @@
     const name = ctx.name;
     if (!reel.tzoom.has(name) && Number.isFinite(ctx.win) && ctx.win !== reelWindowBars(ctx.bundle, name))
       reel.tzoom.set(name, ctx.win);
-    if (!reel.pan.has(name) && Number.isFinite(ctx.pan) && ctx.pan !== reelPanOf(name, ctx.bundle))
+    if (!reel.pan.has(name) && Number.isFinite(ctx.pan) && ctx.pan !== reelPanOf(name, ctx.bundle)) {
       reel.pan.set(name, ctx.pan);
+      if (ctx.back) reel.back.add(name);
+    }
   }
   function reelAllBackToSaved() {
     let any = false;
@@ -7613,16 +7635,31 @@
   // on the chart in any useful sense.
   const REEL_FUTURE_FRAC = 0.9;
 
-  function reelSetPan(name, v, bundle) {
+  // BACK past the oldest bar is allowed by the same share (user, 2026-11-11:
+  // "just as i am able to go forward in time ... i want to be able to move
+  // back even if it mean going back beyond a start of a chart equally so").
+  // `edge` is the pan that puts the oldest bar on the left edge, where a
+  // scroll used to stop; a scroll (`free`) may now carry on to `far`, the
+  // blank filling in from the left. At least two bars always stay on screen.
+  // A zoom re-clamps WITHOUT `free`, so zooming out still squeezes the bars
+  // into the left of the panel (REEL_ZOOM_OUT_PAST_DATA) instead of opening
+  // blank before them; only a chart already scrolled past its start
+  // (reel.back) keeps that blank through a zoom.
+  function reelPanLimits(name, bundle) {
     const n    = bundle.c.length;
     const want = reelWindowBars(bundle, name);
     // A window wider than the data (zoomed out past it) already shows every
-    // bar from the left edge; the blank it carries past the newest bar is
-    // where "back" stops, or a sideways scroll would sit dead until it had
-    // used that blank up.
-    const max  = want > n ? -(want - n) : n - want;       // back through history
-    const min  = Math.min(max, -Math.round(want * REEL_FUTURE_FRAC));   // forward into blank space
-    const next = Math.min(Math.max(min, Math.round(v)), max);
+    // bar from the left edge.
+    const edge = n - want;
+    const far  = Math.max(edge, Math.min(n - 2, edge + Math.round(want * REEL_FUTURE_FRAC)));
+    const min  = Math.min(edge, -Math.round(want * REEL_FUTURE_FRAC));   // forward into blank space
+    return { edge, far, min };
+  }
+  function reelSetPan(name, v, bundle, free) {
+    const { edge, far, min } = reelPanLimits(name, bundle);
+    const wide = free || (reel.back.has(name) && reel.pan.has(name));
+    const next = Math.min(Math.max(min, Math.round(v)), wide ? far : edge);
+    if (next > edge) reel.back.add(name); else reel.back.delete(name);
     if (next === reelPanOf(name, bundle)) return false;
     // Stored even when 0: on 15m, unset means the opening offset, not 0.
     reel.pan.set(name, next);
@@ -7631,7 +7668,7 @@
 
   // A range change or a timeframe switch invalidates every pan offset — the
   // window is a different width, so "12 bars back" means something else.
-  function reelResetPan() { reel.pan.clear(); reel.lockY.clear(); reel.tzoom.clear(); }
+  function reelResetPan() { reel.pan.clear(); reel.back.clear(); reel.lockY.clear(); reel.tzoom.clear(); }
 
   // A drag MOVES THE WINDOW. It never resizes it: the amount of chart on screen
   // is the Range pill's business, and a drag that silently re-zoomed made
@@ -8059,7 +8096,7 @@
   function viewMarkAdd(name, host, side) {
     const ctx = host && host._reelCtx;
     if (!ctx) return;
-    const def = reelDefaultView(ctx.b, side);
+    const def = reelDefaultView(ctx.b._bars || ctx.b, side);
     if (!def) return;
     addChannelFor(name, def);
     channelSave();
@@ -8332,7 +8369,7 @@
   function channelAdd(name, host, kind) {
     const ctx = host && host._reelCtx;
     if (!ctx) return;
-    const def = reelDefaultDrawing(kind || 'channel', ctx.b);
+    const def = reelDefaultDrawing(kind || 'channel', ctx.b._bars || ctx.b);
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
@@ -9382,7 +9419,13 @@
     const _winBars = reelWindowBars(bundle, item.instrument_name);
     const _pan     = reelPanOf(item.instrument_name, bundle);
     const _future  = Math.max(0, -_pan);
-    const b  = reelSlice(bundle, Math.max(2, _winBars - _future), Math.max(0, _pan));
+    // ...and the same the other way: scrolled back past the oldest bar, the
+    // head of the window is empty slots (reelSlice `lead`).
+    // Only for a chart the reader scrolled there (reel.back): an opening view
+    // on a short history keeps its bars against the left edge as before.
+    const _back    = reel.back.has(item.instrument_name) && reel.pan.has(item.instrument_name);
+    const _lead    = _back ? Math.max(0, _pan + _winBars - bundle.c.length) : 0;
+    const b  = reelSlice(bundle, Math.max(2, _winBars - _future - _lead), Math.max(0, _pan), _lead);
     const L  = reelLayout(host);
     {
       const nm = item.instrument_name;
@@ -9406,7 +9449,7 @@
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
     if (_sv && _sv.fit === 'all') {
       const from = b._from || 0;
-      const dr = reelDrawingRange(channelSeedsFor(_nm, b), b._src || b, from,
+      const dr = reelDrawingRange(channelSeedsFor(_nm, b._bars || b), b._src || b, from,
         from + _winBars + reelRightPadBars(_winBars));
       if (dr) _ovFit = _ovFit ? { ..._ovFit, lo: Math.min(_ovFit.lo, dr.lo), hi: Math.max(_ovFit.hi, dr.hi) } : dr;
     }
@@ -9773,7 +9816,7 @@
     const name    = item.instrument_name;
     // Builds this chart's two default channels the first time it is painted, if
     // it has none of its own. Read-only — nothing is stored until an edit.
-    channelSeedsFor(name, b);
+    channelSeedsFor(name, b._bars || b);
     const _editing = reel.editing === name;
     const _ovTf = ovOtherTf();
     const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
@@ -9804,7 +9847,7 @@
     // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
     // `win` / `pan` are the window and offset this paint used, so a gesture can
     // start from exactly what is on screen (reelSyncGestureState).
-    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L), win: _winBars, pan: _pan };
+    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L), win: _winBars, pan: _pan, back: _lead > 0 };
     updateChartFreshness(host, bundle, name);
     reelSyncGridTag(host, tg);
 
@@ -11550,7 +11593,7 @@
         // Grab the paper and pull it RIGHT and older bars come in from the
         // left, so a rightward drag INCREASES the offset into history. Window
         // WIDTH never changes here — resizing is the time scale's job.
-        let moved = reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle);
+        let moved = reelSetPan(ctx.name, startPan + dx / Math.max(0.0001, perBar), ctx.bundle, true);
         // ...and the same drag carries the price window up and down with it.
         if (reelApplyYPan(host, ctx, grab, dy)) moved = true;
         // Nothing off-screen to scroll to → nothing happens. The "Whole chart is
@@ -11841,7 +11884,7 @@
       wPan -= dx / Math.max(0.0001, perBar);
       // Fractions carry over to the next event; at an end of the range the
       // check above snaps wPan back to the clamped pan.
-      if (reelSetPan(ctx.name, wPan, ctx.bundle)) { reel.lastGestureAt = Date.now(); schedule(); }
+      if (reelSetPan(ctx.name, wPan, ctx.bundle, true)) { reel.lastGestureAt = Date.now(); schedule(); }
     }, { passive: false });
     // Safari reports a trackpad pinch as gesture events instead of ctrl+wheel.
     host.addEventListener('gesturestart', ev => {
@@ -11861,7 +11904,7 @@
       const ctx = host._reelCtx;
       if (!ctx || (!reel.pan.has(ctx.name) && !reel.lockY.has(ctx.name) &&
                    !reel.tzoom.has(ctx.name))) return;
-      reel.pan.delete(ctx.name);
+      reel.pan.delete(ctx.name); reel.back.delete(ctx.name);
       reel.lockY.delete(ctx.name);
       reel.tzoom.delete(ctx.name);
       reelRepaint(host);
