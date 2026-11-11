@@ -507,7 +507,7 @@ def build_data(output_dir, src_signals_dir=None):
         except Exception as e:
             print(f'  Flow volumes: skipped ({e})')
     else:
-        print(f'  Flow volumes: no CSV found — run main.py first')
+        print('  Flow volumes: no CSV found — run main.py first')
 
     names = build_names()
     with open(os.path.join(output_dir, 'names.json'), 'w') as f:
@@ -550,7 +550,7 @@ def build_data(output_dir, src_signals_dir=None):
         _tf_parts = ', '.join(f'{v} {k}' for k, v in cstats.items() if k not in ('chunks', 'alerts', 'trend'))
         print(f'  Chart feed: {_tf_parts} '
               f'in {cstats["chunks"]} chunks ({time.time() - t_chart:.0f}s)')
-    except Exception as e:
+    except Exception:
         # NOT swallowed any more. The old comment here said a missing chart feed
         # "costs you the Charts tab, not the publish" — but that is not what it
         # costs. The upload step below skips the chart directory when it does not

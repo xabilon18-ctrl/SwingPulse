@@ -533,7 +533,7 @@
   // commits the seeds before running any of them (see the note there).
   const DRAW_MUTATING_ACTS = new Set([
     'channel-add', 'view-mark', 'draw-ext', 'draw-lock', 'draw-dup', 'draw-bold', 'draw-labels', 'draw-alert', 'draw-glow', 'draw-glow-color', 'draw-stack',
-    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs', 'draw-alpha-set',
+    'draw-delete', 'draw-color', 'draw-undo', 'draw-redo', 'draw-link', 'draw-tfs',
     'draw-fill-toggle', 'draw-fill-color', 'draw-fill-a', 'draw-dash', 'draw-weight', 'draw-div', 'chart-weight',
   ]);
 
@@ -864,7 +864,6 @@
     });
   })();
 
-  window.toggleAIFilter = toggleAIFilter;   // exposed for nav button onclick
 
   window.SP_setUser = function(name) {
     syncUser = name.toLowerCase();
@@ -1197,13 +1196,6 @@
     return aiFilterActive ? allData.filter(d => isAI(d.instrument_name)) : allData;
   }
 
-  function toggleAIFilter() {
-    aiFilterActive = !aiFilterActive;
-    document.getElementById('aiFilterBtn')?.classList.toggle('ai-filter-active', aiFilterActive);
-    // Re-render current tab + summary
-    computeAndRenderSummary();
-    renderCurrentTab();
-  }
 
   // ── WATCHLIST TAB (2026-09-24, replaces Trends in the nav) ───────────────
   // A price list: every instrument's latest price and its
@@ -3721,6 +3713,9 @@
       }
       if (staleBanner && staleText) {
         const nowMs = Date.now();
+        // The run's calendar date, for the fallback below (was an undefined
+        // name: this path threw whenever summary.json lacked fetched_at).
+        const dateStr = sumRes.date || '--';
         let msg = '';
         if (statusRes && statusRes.state === 'failed') {
           // The CI failure step flips status.json — this is a REAL problem and
@@ -12838,16 +12833,6 @@
         const d = activeChannel(name), v = +btn.dataset.v;
         if (d && [1, 2, 3].includes(v)) {
           d.strokeWeight = v;
-          channelSave();
-          if (chHost) reelRepaint(chHost);
-          reelSyncChannelButtons();
-        }
-        return true;
-      }
-      if (btn.dataset.act === 'draw-alpha-set') {
-        const d = activeChannel(name), v = +btn.dataset.v;
-        if (d && DRAW_ALPHAS.some(([a]) => a === v)) {
-          if (v >= 100) delete d.alpha; else d.alpha = v;
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

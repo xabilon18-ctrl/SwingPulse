@@ -1509,7 +1509,7 @@ def compute_flow_volumes(output_df: pd.DataFrame, run_date: date) -> None:
         n_dates = combined['date'].nunique()
         print(f'  Flow: wrote {len(combined)} rows ({n_dates} dates) → flow_volumes.csv')
     else:
-        print(f'  Flow: already up to date')
+        print('  Flow: already up to date')
 
 
 def _print_summary(df: pd.DataFrame) -> None:

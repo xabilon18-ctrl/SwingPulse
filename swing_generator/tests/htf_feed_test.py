@@ -338,7 +338,6 @@ class CurrencyIndexTests(unittest.TestCase):
         import currency_index as ci
         import numpy as np
         idx = pd.bdate_range('2014-12-01', periods=120)
-        import numpy as np
         rng = np.random.default_rng(7)
         usd_val = {c: np.exp(np.cumsum(rng.normal(0, 0.004, len(idx)))) * (1 + k)
                    for k, c in enumerate(ci.MAJORS + list(ci.MINORS))}

@@ -1,0 +1,13 @@
+# Python lint: real bugs only, no style. E9 = syntax errors; F = pyflakes
+# (undefined names, unused imports and variables, redefinitions). Run:
+#   ruff check .            (from swing_generator/)
+# CI runs it in test.yml. research/ is one-off analysis scripts.
+target-version = "py311"
+extend-exclude = ["research", "webapp/publish", "output_ma500", "cache_ma500"]
+
+[lint]
+select = ["E9", "F"]
+
+[lint.per-file-ignores]
+# A re-export shim: every name is imported to be imported from here.
+"_active_config.py" = ["F401"]
