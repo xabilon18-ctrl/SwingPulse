@@ -188,6 +188,12 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 - Browser checks: `python3 webapp/publish.py --ui-only --build-only &&
   python3 tests/browser_fixture.py`, serve `webapp/publish/ui` on port 8000,
   then `node tests/app_smoke.cjs` and `node tests/saved_work_browser.cjs`.
+- **Checks that only run AFTER a deploy** cannot be caught by the steps above:
+  `tools/validate_hourly_release.py --live` and
+  `tests/chart_readability_browser.cjs` read the live page. Before changing
+  `index.html`'s structure, ids or injected tokens, grep `tools/` and `tests/`
+  for what they look for (2026-11-11: the live check looked for a button id
+  that had moved into JavaScript, and the deploy went red after going live).
 - Payload shape: `python3 tools/shape_audit.py` (`--only code` for front-end
   vocabulary). `tools/shape_audit_replay.py` re-proves the auditor locally.
 
