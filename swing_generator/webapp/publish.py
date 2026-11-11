@@ -1138,7 +1138,46 @@ def build_ui():
         with open(os.path.join(ui_dir, 'sw.js'), 'w') as f:
             f.write(sw)
 
+    # LAST, after every literal rewrite above (they match source text, and the
+    # minifier changes quotes and spacing).
+    _minify_assets(static_dst)
     return ui_dir
+
+
+# Pinned like chart.js was: a floating esbuild could change the shipped code
+# with no commit. Set SP_NO_MINIFY=1 to ship readable files (debugging).
+ESBUILD = 'esbuild@0.25.12'
+
+
+def _minify_assets(static_dst):
+    """Minify the built app.js, modules and style.css in place.
+
+    Gzipped, this takes app.js from ~225 KB to ~98 KB and style.css from ~89 KB
+    to ~51 KB (measured 2026-11-11). --target=esnext: no syntax is rewritten,
+    only whitespace, comments and local names. If esbuild cannot run, the
+    readable files ship instead: larger, but identical in behaviour.
+    """
+    if os.environ.get('SP_NO_MINIFY') == '1':
+        print('  Minify: skipped (SP_NO_MINIFY=1)')
+        return
+    files = [os.path.join(static_dst, 'js', 'app.js'), os.path.join(static_dst, 'css', 'style.css')]
+    files += sorted(glob.glob(os.path.join(static_dst, 'js', 'modules', '*.js')))
+    files = [f for f in files if os.path.exists(f)]
+    before = sum(os.path.getsize(f) for f in files)
+    cmd = ['npx', '--yes', ESBUILD, *files, '--minify', '--target=esnext', '--charset=utf8',
+           '--legal-comments=none', '--log-level=warning', '--allow-overwrite',
+           f'--outdir={static_dst}', f'--outbase={static_dst}']
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f'  WARN minify skipped ({exc}); shipping readable assets')
+        return
+    if r.returncode != 0:
+        print(f'  WARN minify failed; shipping readable assets\n{r.stderr[-2000:]}')
+        # esbuild writes nothing on error, so the readable files are intact.
+        return
+    after = sum(os.path.getsize(f) for f in files)
+    print(f'  Minify: {len(files)} files, {before // 1024} KB -> {after // 1024} KB')
 
 
 def deploy_ui_to_pages(ui_dir, project_name=None):
