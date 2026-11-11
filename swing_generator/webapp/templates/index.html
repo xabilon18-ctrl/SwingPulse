@@ -24,15 +24,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=422">
+  <link rel="stylesheet" href="/static/css/style.css?v=423">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
-  <!-- Pinned + integrity-checked. Was `chart.js@4`, which silently follows every
-       4.x release: a bad or tampered publish would have executed on this page
-       with no warning. If this ever needs upgrading, fetch the new file and
-       recompute: openssl dgst -sha384 -binary chart.umd.min.js | openssl base64 -A -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
-          integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
-          crossorigin="anonymous"></script>
 </head>
 <body data-profile="__APP_PROFILE__">
 
@@ -82,7 +75,7 @@
   <!-- ===== MAIN CONTENT ===== -->
   <main class="content">
 
-    <!-- ========== DASHBOARD TAB ========== -->
+    <!-- ========== MARKET TAB (pane id kept: pane-dashboard) ========== -->
     <section class="tab-pane" id="pane-dashboard">
 
       <!-- ── Stale Data Warning Banner ── -->
@@ -92,85 +85,10 @@
         <button class="stale-dismiss" onclick="document.getElementById('staleBanner').style.display='none'">✕</button>
       </div>
 
-      <!-- ── Sector-mood market-state banner (provisional conviction layer) ── -->
+      <!-- Market (2026-09-27): likely 10-day range, then movers, sector
+           rotation and momentum ranking. -->
+      <div id="marketToday"></div>
 
-      <!-- MARKET (2026-09-27): coming up + likely 10-day range, above the old
-         Dashboard cards that stay (movers, sectors, momentum ranking). -->
-    <div id="marketToday"></div>
-    <div id="marketStateBanner"></div>
-
-      <!-- ── Market Pulse Card (gauge + breakdown) ── -->
-      <div class="card mp-pulse-card" id="marketPulse">
-        <div class="mp-card-header">
-          <div>
-            <span class="mp-card-title">MARKET PULSE</span>
-            <button class="gauge-info-btn" id="gaugeInfoBtn" title="How is the score calculated?">?</button>
-            <span class="mp-card-hint">Tap a row to see its charts</span>
-          </div>
-        </div>
-        <div class="gauge-tooltip" id="gaugeTooltip" style="display:none">
-          <strong>Market Pulse Score (0–100)</strong><br>
-          Daily main-trend balance plus the selected signal timeframe:<br>
-          • Daily main-trend balance — uptrends vs downtrends (0–50)<br>
-          • Signal direction — buy share of active B/S signals (0–30)<br>
-          • Bonus — volume spikes (0–20)
-        </div>
-        <div class="mp-card-body">
-          <div class="mp-gauge-wrap">
-            <svg id="gaugeSvg" class="gauge-svg" viewBox="0 0 200 115" preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%"   stop-color="#ef4444"/>
-                  <stop offset="28%"  stop-color="#f97316"/>
-                  <stop offset="52%"  stop-color="#f59e0b"/>
-                  <stop offset="74%"  stop-color="#6366f1"/>
-                  <stop offset="100%" stop-color="#10b981"/>
-                </linearGradient>
-              </defs>
-              <path d="M 15 105 A 85 85 0 0 1 185 105" fill="none" stroke="#3f3f3c" stroke-width="16" stroke-linecap="round"/>
-              <path id="gaugeArc" d="M 15 105 A 85 85 0 0 1 185 105" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="267" stroke-dashoffset="267"/>
-              <text x="10"  y="114" fill="#ef4444" font-size="8.5" font-family="system-ui" font-weight="600">Weak</text>
-              <text x="152" y="114" fill="#10b981" font-size="8.5" font-family="system-ui" font-weight="600">Strong</text>
-              <g id="gaugeNeedle" transform="rotate(-90 100 105)">
-                <line x1="100" y1="105" x2="100" y2="26" stroke="#f1f5f9" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="100" cy="105" r="5" fill="#f1f5f9"/>
-                <circle cx="100" cy="105" r="2.5" fill="#000000"/>
-              </g>
-              <text id="gaugeScoreText" x="100" y="86" font-size="24" font-weight="800" text-anchor="middle" font-family="system-ui" fill="#f1f5f9">--</text>
-            </svg>
-            <div class="gauge-sublabel" id="gaugeLabel">Computing score…</div>
-          </div>
-          <div class="mp-breakdown" id="mpBreakdown">
-            <div class="mp-bd-row mp-filter-row" id="mpBdUp" data-filter-trend="UPTREND">
-              <span class="mp-bd-dot" style="background:var(--buy)"></span>
-              <span class="mp-bd-lbl">Uptrend</span>
-              <span class="mp-bd-val" id="gbUp" style="color:var(--buy)">--</span>
-            </div>
-            <div class="mp-bd-row mp-filter-row" id="mpBdDown" data-filter-trend="DOWNTREND">
-              <span class="mp-bd-dot" style="background:var(--sell)"></span>
-              <span class="mp-bd-lbl">Downtrend</span>
-              <span class="mp-bd-val" id="gbDown" style="color:var(--sell)">--</span>
-            </div>
-            <div class="mp-bd-row mp-filter-row" id="mpBdNeutral" data-filter-trend="NEUTRAL">
-              <span class="mp-bd-dot" style="background:var(--text-muted)"></span>
-              <span class="mp-bd-lbl">Neutral</span>
-              <span class="mp-bd-val" id="gbNeutral" style="color:var(--text-secondary)">--</span>
-            </div>
-          </div>
-        </div>
-        <div class="mp-score-track">
-          <div class="mp-score-fill" id="mpScoreFill"></div>
-        </div>
-        <div class="mp-tf-grid" id="mpTfGrid"></div>
-        <span style="display:none" id="pulseSentiment"></span>
-        <span style="display:none" id="pulseUptrend"></span>
-        <span style="display:none" id="pulseDowntrend"></span>
-        <span style="display:none" id="pulseNeutral"></span>
-        <span style="display:none" id="gbBuy"></span>
-        <span style="display:none" id="gbSell"></span>
-      </div>
-
-      <!-- Trend alert banner — B1/S1 reversals + B4/S4 anchor-MA bounces -->
       <!-- Watchlist movers (2026-09-24): the Dashboard as a hub — the biggest
            movers in the reader's own lists (all markets when there are none),
            tapping through to the same sheet the Watchlist uses. -->
@@ -180,15 +98,6 @@
           <button class="dash-link" data-dash-go="watchlist">Open Watchlist ›</button>
         </div>
         <div id="dashMovers"></div>
-      </div>
-
-      <div class="trend-alert-banner" id="trendAlertBanner" style="display:none">
-        <div class="trend-alert-header">
-          <span class="trend-alert-icon">⚡</span>
-          <span class="trend-alert-title">TREND CHANGES &amp; MA500 TOUCHES</span>
-          <span class="trend-alert-count" id="trendAlertCount">0</span>
-        </div>
-        <div class="trend-alert-scroll" id="trendAlertScroll"></div>
       </div>
 
       <!-- Sector rotation wheel (rotation.py) — where money has been moving between
@@ -201,16 +110,6 @@
         <div id="rotationBody"></div>
       </div>
 
-      <!-- Sector Activity Radar — anomaly monitor, quiet on normal days -->
-      <div class="card" id="sectorRadarCard" style="display:none">
-        <div class="card-header">
-          <h3>Sector Radar</h3>
-          <span class="sr-period" id="sectorRadarPeriod"></span>
-          <span class="sr-badge" id="sectorRadarBadge"></span>
-        </div>
-        <div id="sectorRadarBody"></div>
-      </div>
-
       <!-- Market ranking (rotation.py) — the one ranking that beat an average basket
            in testing, with its forward paper record. -->
       <div class="card" id="leadersCard" style="display:none">
@@ -221,344 +120,12 @@
         <div id="leadersBody"></div>
       </div>
 
-      <!-- Stat cards removed — counts now surfaced in gauge + By Group -->
-      <span id="buyCount" style="display:none"></span>
-      <span id="sellCount" style="display:none"></span>
-      <span id="volumeCount" style="display:none"></span>
-      <span id="highConfCount" style="display:none"></span>
-
-      <!-- Tech Themes -->
-      <div class="card" id="techThemesCard"></div>
-
-      <!-- Group Pulse -->
-      <div class="card" id="groupPulseCard">
-        <div class="card-header">
-          <h3 id="groupPulseTitle">By Group</h3>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button id="gpViewToggle" class="gp-view-toggle">Region</button>
-            <span id="groupPulseRisk" class="gp-risk-badge"></span>
-          </div>
-        </div>
-        <div id="groupPulseBody"></div>
-      </div>
-
-      <!-- Volume Pulse — RVOL + volume oscillator by market / industry / instrument -->
-      <div class="card" id="volumePulseCard">
-        <div class="card-header">
-          <h3>Volume Pulse</h3>
-          <div class="vp-toggle" id="vpToggle">
-            <button class="vp-mode-btn" data-vp="market">Market</button>
-            <button class="vp-mode-btn" data-vp="industry">Industry</button>
-            <button class="vp-mode-btn" data-vp="movers">Movers</button>
-          </div>
-        </div>
-        <div id="volumePulseBody"></div>
-      </div>
-
-      <!-- ── Signal Track Record Card ── -->
-      <div class="card track-record-card" id="trackRecordCard" style="display:none" onclick="window.SP.openTrackRecord()" role="button">
-        <div class="tr-header">
-          <span class="tr-title">SIGNAL TRACK RECORD</span>
-          <span class="tr-subtitle" id="trSubtitle">Backtest results · 2% stop · 2:1 R:R</span>
-          <span class="tr-tap-hint">Tap for details →</span>
-        </div>
-        <div class="tr-overall" id="trOverall"></div>
-        <div class="tr-rows" id="trRows"></div>
-      </div>
-
-
-
-      <!-- Signal Confidence hidden — data surfaced via High Conf. stat card -->
-
-      <!-- Ribbon Compression Alerts -->
-      <div class="card" id="compressionCard" style="display:none">
-        <div class="card-header"><h3>Ribbon Compression (Squeeze Alerts)</h3></div>
-        <div class="signal-feed" id="compressionFeed"></div>
-      </div>
-
-
-
-      <!-- Signal Feed -->
-      <div class="card">
-        <div class="card-header"><h3>Signal Feed</h3></div>
-        <div class="signal-feed" id="signalFeed"></div>
-      </div>
-
     </section>
 
-    <!-- ========== SIGNALS TAB ========== -->
+    <!-- ========== ALERTS TAB (pane id kept: pane-scanner) ========== -->
     <section class="tab-pane" id="pane-scanner">
-      <!-- ALERTS (2026-09-27): replaced the signal list. The old scanner markup
-           below stays in the page (hidden by style.css) so nothing that still
-           refers to it breaks. -->
+      <!-- ALERTS (2026-09-27). Rendered by renderAlerts(). -->
       <div id="alertsPane"></div>
-      <!-- Header: count + view toggle -->
-      <div class="sig-tab-header">
-        <span class="sig-tab-count" id="sigActiveCount">-- signals</span>
-      </div>
-      <p class="sig-honesty-note">These describe what price did. In testing they picked no better than random entries on the same day. The stop and the position size do the work.</p>
-
-      <!-- Full-width search -->
-      <div class="sig-search-row">
-        <div class="search-wrap sig-search-wrap">
-          <button class="sig-search-icon-btn" onclick="document.getElementById('scannerSearch').focus()" aria-label="Search">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </button>
-          <input type="text" class="search-input" id="scannerSearch" placeholder="Search name, category…" autocomplete="off">
-          <button class="scanner-search-clear" id="scannerSearchClear" style="display:none" aria-label="Clear search">×</button>
-        </div>
-      </div>
-
-      <!-- Grouped filter pills (dropdowns) -->
-      <div class="sig-filter-pills" id="sigFilterPills">
-        <details class="filter-pill" id="pillClass">
-          <summary>Class<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
-          <div class="filter-pop">
-            <div class="scanner-cat-chips" id="scannerCatChips">
-              <button class="s-cat-chip" data-cat="crypto">Crypto</button>
-              <button class="s-cat-chip" data-cat="indices">Indices</button>
-              <button class="s-cat-chip" data-cat="commodity">Commodity</button>
-              <button class="s-cat-chip" data-cat="currency">Currency</button>
-              <button class="s-cat-chip" data-cat="us100">US100</button>
-              <button class="s-cat-chip" data-cat="us500">US500</button>
-              <button class="s-cat-chip" data-cat="banks">Banks</button>
-              <button class="s-cat-chip" data-cat="energy">Energy</button>
-              <button class="s-cat-chip" data-cat="tech">Tech</button>
-              <button class="s-cat-chip" data-cat="semi">Semis</button>
-              <button class="s-cat-chip" data-cat="ai">AI</button>
-            </div>
-          </div>
-        </details>
-
-        <details class="filter-pill" id="pillMood" hidden>
-          <summary>Mood<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
-          <div class="filter-pop">
-            <div class="mood-opts" id="scannerMoodOpts">
-              <button class="mood-opt active" data-mood="all">All moods</button>
-              <button class="mood-opt mo-confirmed" data-mood="confirmed">★ Sector-confirmed</button>
-              <button class="mood-opt mo-fighting" data-mood="fighting">⚠ Fighting / trap</button>
-              <button class="mood-opt" data-mood="calm">Calm sectors</button>
-              <button class="mood-opt mo-dist" data-mood="distributing">Distributing</button>
-              <button class="mood-opt" data-mood="active">Active · no edge</button>
-              <button class="mood-opt" data-mood="churn">Churn</button>
-              <button class="mood-opt" data-mood="mixed">Mixed</button>
-              <button class="mood-opt" data-mood="marketwide">Market-wide day</button>
-              <button class="mood-opt" data-mood="unknown">No sector read</button>
-            </div>
-          </div>
-        </details>
-
-        <details class="filter-pill" id="pillMove">
-          <summary>Move<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
-          <div class="filter-pop">
-            <div class="move-opts" id="scannerMoveOpts">
-              <div class="move-sect">
-                <div class="move-sect-lbl">Period</div>
-                <div class="move-row move-row-4">
-                  <button class="move-opt move-per-opt active" data-period="pct_1d">1D</button>
-                  <button class="move-opt move-per-opt" data-period="pct_1w">1W</button>
-                  <button class="move-opt move-per-opt" data-period="pct_1m">1M</button>
-                  <button class="move-opt move-per-opt" data-period="pct_1y">1Y</button>
-                </div>
-              </div>
-              <div class="move-sect">
-                <div class="move-sect-lbl">Direction</div>
-                <div class="move-row move-row-3">
-                  <button class="move-opt move-dir-opt active" data-dir="all">Either</button>
-                  <button class="move-opt move-dir-opt mv-up" data-dir="up">▲ Up</button>
-                  <button class="move-opt move-dir-opt mv-dn" data-dir="down">▼ Down</button>
-                </div>
-              </div>
-              <div class="move-sect">
-                <div class="move-sect-lbl">At least</div>
-                <div class="move-row move-row-3">
-                  <button class="move-opt move-min-opt active" data-min="0">Any</button>
-                  <button class="move-opt move-min-opt" data-min="2">2%</button>
-                  <button class="move-opt move-min-opt" data-min="5">5%</button>
-                  <button class="move-opt move-min-opt" data-min="10">10%</button>
-                  <button class="move-opt move-min-opt" data-min="25">25%</button>
-                  <button class="move-opt move-min-opt" data-min="50">50%</button>
-                </div>
-              </div>
-              <button class="move-clear" id="scannerMoveClear">Clear move filter</button>
-            </div>
-          </div>
-        </details>
-
-        <details class="filter-pill" id="pillSort">
-          <summary>Sort<span class="fp-val"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
-          <div class="filter-pop">
-            <div class="sort-opts" id="scannerSortOpts">
-              <button class="sort-opt active" data-sort="signal">Signal first</button>
-              <button class="sort-opt" data-sort="pct_1d_desc">Day % — high → low</button>
-              <button class="sort-opt" data-sort="pct_1d_asc">Day % — low → high</button>
-              <button class="sort-opt" data-sort="pct_1w_desc">Week % — high → low</button>
-              <button class="sort-opt" data-sort="pct_1w_asc">Week % — low → high</button>
-              <button class="sort-opt" data-sort="pct_1m_desc">Month % — high → low</button>
-              <button class="sort-opt" data-sort="pct_1m_asc">Month % — low → high</button>
-              <button class="sort-opt" data-sort="pct_1y_desc">Year % — high → low</button>
-              <button class="sort-opt" data-sort="pct_1y_asc">Year % — low → high</button>
-              <button class="sort-opt" data-sort="date_desc">Newest signal</button>
-            </div>
-          </div>
-        </details>
-
-        <details class="filter-pill" id="pillFilters">
-          <summary>Filters<span class="fp-cv"></span><svg class="fp-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></summary>
-          <div class="filter-pop">
-            <div class="sig-ctx-row">
-        <button class="sig-ctx-chip sig-ctx-signal" id="sigTypeBtn" data-filter="" title="Filter by signal type">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Signal
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <button class="sig-ctx-chip sig-chip-today" data-filter="today">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Today
-        </button>
-        <button class="sig-ctx-chip sig-chip-squeeze" data-filter="squeeze">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          Squeeze
-        </button>
-        <button class="sig-ctx-chip sig-chip-keylvl" data-filter="keylvl">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-          Key Lvl
-        </button>
-        <button class="sig-ctx-chip sig-chip-vol" data-filter="vol">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Vol Spike
-        </button>
-            </div>
-          </div>
-        </details>
-
-        <div class="sig-dir-toggle" id="scannerFilterChips">
-          <button class="sig-dir-btn active" data-filter="all">All</button>
-          <button class="sig-dir-btn sig-dir-buy" data-filter="buy">Buy</button>
-          <button class="sig-dir-btn sig-dir-sell" data-filter="sell">Sell</button>
-        </div>
-        <button class="sig-ctx-chip sig-ctx-filters" id="sigMoreFiltersBtn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-          <span id="sigFilterBadge" class="sig-filter-badge" style="display:none">0</span>
-        </button>
-      </div>
-
-      <!-- Dashboard filter context strip -->
-      <div class="scanner-ctx-strip" id="scannerCtxStrip" style="display:none"></div>
-
-      <!-- Signal type bottom sheet -->
-      <div class="sig-sheet-overlay" id="sigSheetOverlay"></div>
-      <div class="sig-sheet" id="sigTypeSheet">
-        <div class="sig-sheet-handle"></div>
-        <div class="sig-sheet-title">Signal Type</div>
-        <div class="sig-sheet-grid">
-          <div class="sig-sheet-col">
-            <div class="sig-sheet-col-label" style="color:var(--buy)">Buy Signals</div>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B1">B1 <span>Breakout</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B2">B2 <span>MA__SIG_SHORTEST__</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B3">B3 <span>MA250</span></button>
-            <button class="sig-sheet-btn sig-sheet-buy" data-filter="B4">B4 <span>MA500</span></button>
-          </div>
-          <div class="sig-sheet-col">
-            <div class="sig-sheet-col-label" style="color:var(--sell)">Sell Signals</div>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S1">S1 <span>Breakdown</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S2">S2 <span>MA__SIG_SHORTEST__</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S3">S3 <span>MA250</span></button>
-            <button class="sig-sheet-btn sig-sheet-sell" data-filter="S4">S4 <span>MA500</span></button>
-          </div>
-        </div>
-        <button class="sig-sheet-clear" id="sigSheetClear">Clear Signal Filter</button>
-      </div>
-
-      <!-- Advanced filters bottom sheet -->
-      <div class="sig-sheet" id="sigAdvSheet">
-        <div class="sig-sheet-handle"></div>
-        <div class="sig-sheet-title">Filters & Sort</div>
-        <div class="sig-adv-fields" id="sigAdvancedFilters">
-          <label class="sig-adv-label">Asset Class
-            <select class="sig-adv-select" id="scannerClassFilter">
-              <option value="all">All Classes</option>
-              <option value="Equity">Equity</option>
-              <option value="Crypto">Crypto</option>
-              <option value="Index">Index</option>
-              <option value="Commodity">Commodity</option>
-              <option value="Currency">Currency</option>
-              <!-- Rates is an Index for SCORING (asset_class_of, so the
-                   confidence map resolves) and its own class for BROWSING.
-                   See browseClassOf in app.js. -->
-              <option value="Rates">Rates</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Group
-            <select class="sig-adv-select" id="scannerGroupFilter">
-              <option value="all">All Groups</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Sector
-            <select class="sig-adv-select" id="scannerSectorFilter">
-              <option value="all">All Sectors</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Main trend · Daily
-            <select class="sig-adv-select" id="scannerTrendFilter">
-              <option value="all">All main trends</option>
-              <option value="UPTREND">Uptrend</option>
-              <option value="DOWNTREND">Downtrend</option>
-              <option value="NEUTRAL">Unavailable</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">MA Stack
-            <select class="sig-adv-select" id="scannerStackFilter">
-              <option value="all">Any MA order</option>
-              <option value="bull">Bull — 50 › 250 › 500</option>
-              <option value="bear">Bear — 500 › 250 › 50</option>
-              <option value="mixed">Mixed</option>
-              <option value="near">Near cross — gap under 0.5%</option>
-              <option value="fresh">Just flipped — inside 10 bars</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">RSI Zone
-            <select class="sig-adv-select" id="scannerRsiFilter">
-              <option value="all">All RSI Zones</option>
-              <option value="oversold">Oversold (&lt;30) — long setups</option>
-              <option value="bearish">Bearish (30–50)</option>
-              <option value="bullish">Bullish (50–70)</option>
-              <option value="overbought">Overbought (&gt;70) — short setups</option>
-            </select>
-          </label>
-          <label class="sig-adv-label">Sort by
-            <select class="sig-adv-select" id="scannerSort">
-              <option value="signal">Signal First</option>
-              <option value="date_desc">Newest First</option>
-              <option value="pct_1d_desc">1D % ↓</option>
-              <option value="pct_1d_asc">1D % ↑</option>
-              <option value="pct_1w_desc">1W % ↓</option>
-              <option value="pct_1w_asc">1W % ↑</option>
-              <option value="pct_1m_desc">1M % ↓</option>
-              <option value="pct_1m_asc">1M % ↑</option>
-              <option value="pct_1y_desc">1Y % ↓</option>
-              <option value="pct_1y_asc">1Y % ↑</option>
-              <option value="roc_desc">ROC ↓</option>
-              <option value="roc_asc">ROC ↑</option>
-              <option value="run_desc">Trend Run ↓</option>
-            </select>
-          </label>
-        </div>
-        <button class="sig-sheet-apply" id="sigAdvApply">Done</button>
-      </div>
-
-      <div class="signal-summary" id="scannerSummary"></div>
-      <div class="scanner-grid" id="scannerGrid"></div>
-
-      <div class="signal-legend">
-        <div class="sig-legend-group">
-          <div class="sig-legend-title">Signal Types</div>
-          <div class="sig-def"><span class="feed-badge badge-p1">B1/S1</span> <strong>Trend Reversal</strong> — Completed close crossed MA500. Daily confirms the main trend; 1H changes setup direction.</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">B2/S2</span> <strong>Fast MA</strong> — Pullback recovery / rally rejection at MA__SIG_SHORTEST__</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">B3/S3</span> <strong>Mid-ribbon</strong> — Bounce/rejection off MA__SIG_MID__</div>
-          <div class="sig-def"><span class="feed-badge badge-p2">B4/S4</span> <strong>Anchor MA</strong> — Bounce/rejection off MA__SIG_LONGEST__</div>
-        </div>
-      </div>
     </section>
 
     <!-- ========== TRENDS TAB ========== -->
@@ -786,7 +353,7 @@
   <script src="/static/js/modules/drawing-toolbar.js?v=13"></script>
   <script src="/static/js/modules/grid-geometry.js?v=15"></script>
   <script src="/static/js/modules/saved-work.js?v=2"></script>
-  <script src="/static/js/app.js?v=615"></script>
+  <script src="/static/js/app.js?v=616"></script>
 </body>
 </html>
 

@@ -6105,7 +6105,6 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 
 /* ── Profile-specific card visibility ──────────────────────────────── */
 body[data-profile="ma200"] #heatmapCard,
-body[data-profile="ma200"] #compressionCard { display: none !important; }
 .rsi-tf-pip {
   font-size: .68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;
 }
@@ -9187,17 +9186,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-chart ::selection { background: transparent; }
 
-/* ── ALERTS + MARKET tabs (2026-09-27) ─────────────────────────────────────
-   Alerts replaced the signal list, Market the old Dashboard. The old markup
-   stays in the page, hidden here, so no code that refers to it can break. */
-#pane-scanner > :not(#alertsPane) { display: none !important; }
-#pane-dashboard > #marketStateBanner, #pane-dashboard > #marketPulse,
-#pane-dashboard > #trendAlertBanner, #pane-dashboard > #sectorRadarCard,
-#pane-dashboard > #techThemesCard, #pane-dashboard > #groupPulseCard,
-#pane-dashboard > #volumePulseCard, #pane-dashboard > #trackRecordCard,
-#pane-dashboard > #compressionCard, #pane-dashboard > .card:not([id]),
-#pane-dashboard > #dashSignalFeed,
-#pane-dashboard > span { display: none !important; }
+/* ── ALERTS + MARKET tabs (2026-09-27) ───────────────────────────────────── */
 
 #alertsPane { padding: 4px 12px 24px; }
 .al-head { padding: 6px 2px 8px; }
