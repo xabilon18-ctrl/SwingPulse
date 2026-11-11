@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-11 (later) MOCKUPS AND THE OLD WIDGET SCRIPT DELETED (user: "Remove
+the mockups and unused files too"). Removed `webapp/mockups/` (4 pages),
+`webapp/v2-mockups.html`, `webapp/preview_charts.html` and
+`webapp/SwingPulse_Widget.js` (a Scriptable home-screen widget that still
+pointed at the retired swingpulse.pages.dev address): 4,291 lines. Nothing
+in the build, the app, the local server, the tests or CI referenced any of
+them; `publish.build_ui` copies only `static/` and `templates/index.html`.
+KEPT: `proxy.js` at the repo root, which `.claude/launch.json` starts for the
+local preview. Not touched: the hand-run scripts (`plot_*.py`,
+`edge_audit.py`, `research/`, `tools/place_channels.py`, `tools/gen_icons.py`)
+and the local-server shell scripts.
+
 2026-11-11 30m AND 4H REMOVED FROM THE DATA RUN (user: "30m and 4h must
 go"). The app had had no 30m or 4H button since 2026-11-07 and read none of
 this; every hourly run still computed and uploaded it. Gone: `30m` and `4H`
