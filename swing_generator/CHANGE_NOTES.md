@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-12 SHARED CHART PICTURE IS ALWAYS 4:5 (user: "When I share the chart
+with somebody, the screen is too long ... make that a standard screen size";
+chose portrait 4:5 over square and 16:9 from a mock-up). The picture used to
+take the shape of the chart on screen: from a full-screen phone chart it was
+about 1 : 2.5, from a card 1 : 1.7. `shareStage(host)` now redraws the chart
+off screen in a fixed box (REEL_PHONE_CARD_PX wide, so the 1000-unit phone
+layout on every device; height from `SHARE_FRAME` so header + plot + footer
+come to 1000 x 1250, a 2000 x 2500 PNG) and `chartToPngBlob` renders that.
+Same bars, drawings and price window as on screen: the window is held by a
+one-draw `reel.lockY` entry that is put back straight after, and it carries the
+live scale's clipped flags so the "ribbon off" tag still prints (`reelScale`
+reads them from a lock; real locks never have them). The stage is removed
+before the first await. Not being `#chartFullHost`, it has no see-through
+header/footer overlap, so the picture no longer has blank plot behind them.
+The same price range in a shorter box makes moves look flatter than on a
+full-screen chart; that is the cost of the shape. app.js v623.
+Checks: app_smoke.cjs (4:5 from full screen and card, live chart unchanged).
+
 2026-11-11 (later) SCROLL BACK PAST THE START OF A CHART (user: "just as i am
 able to go forward in time in the charts for all time frames i want to be able
 to move back even if it mean going back beyond a start of a chart equally
