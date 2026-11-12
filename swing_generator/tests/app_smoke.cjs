@@ -159,7 +159,7 @@ let debugPage;
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
-  // The shared picture is 4:5 from the tall full-screen chart and from the
+  // The shared picture is 9:16 from the tall full-screen chart and from the
   // card alike (2026-11-12: it used to copy the screen's shape, 1 : 2.5 here),
   // and making it leaves the chart on screen exactly as it was.
   for (const scope of ['#chartFull', '#chartReel']) {
@@ -172,7 +172,7 @@ let debugPage;
       await im.decode();
       return im.naturalWidth + 'x' + im.naturalHeight;
     });
-    assert.equal(shape, '2000x2500', `${scope} shares a 4:5 picture`);
+    assert.equal(shape, '2000x3556', `${scope} shares a 9:16 picture`);
     await page.locator('.share-prev [data-sp="cancel"]').click();
     assert.equal(await live(), before, `${scope} chart is unchanged by sharing it`);
   }
