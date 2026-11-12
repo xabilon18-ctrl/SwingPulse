@@ -5,6 +5,14 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
+  // The Scriptable lock-screen widget: top-level await, Scriptable's globals.
+  { files: ['ios-widget/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest', sourceType: 'module',
+      globals: { args: 'readonly', config: 'readonly', Script: 'readonly', ListWidget: 'readonly', Font: 'readonly',
+                 Color: 'readonly', Request: 'readonly', FileManager: 'readonly' },
+    },
+    rules: { ...js.configs.recommended.rules, 'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }] } },
   { files: ['webapp/static/js/**/*.js', 'webapp/static/sw.js'],
     languageOptions: {
       ecmaVersion: 'latest', sourceType: 'script',
