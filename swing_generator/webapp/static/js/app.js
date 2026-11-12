@@ -6947,7 +6947,8 @@
       const span = (locked.hi - locked.lo) || 1;
       return {
         lo: locked.lo, hi: locked.hi, span,
-        clipped: false, maLo: NaN, maHi: NaN,
+        // Only the share picture's one-draw lock carries these (shareStage).
+        clipped: !!locked.clipped, maLo: locked.maLo ?? NaN, maHi: locked.maHi ?? NaN,
         y:   v => L.py1 - ((v - locked.lo) / span) * (L.py1 - L.py0),
         inv: y => locked.lo + ((L.py1 - y) / (L.py1 - L.py0)) * span,
       };
@@ -10844,11 +10845,59 @@
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
 
+  // THE PICTURE HAS ONE SHAPE: 4:5 portrait, whatever it was shared from
+  // (user, 2026-11-12: "the screen is too long"). It used to copy the shape of
+  // the chart on screen, so a full-screen phone chart went out 2.5 times as
+  // tall as it was wide, and a card 1.7 times. The chart is redrawn off screen
+  // for the picture instead: same bars, same price window, same drawings, in a
+  // box that makes header + plot + footer come to 4:5.
+  //
+  // The box is REEL_PHONE_CARD_PX wide, so reelLayout() gives the 1000-unit
+  // phone layout on every device and a laptop shares the same picture a phone
+  // does. SHARE_PLOT_H is what is left of 1250 (4:5 of 1000) after the header
+  // and footer bands, taken back through the plot's inset: see SHARE_FRAME.
+  const SHARE_FRAME = (() => {
+    const K = 1.4, HEAD = Math.round(150 * K), FOOT = Math.round(76 * K), PAD = 18;
+    const W = 1000, TOTAL = 1250;
+    return { K, HEAD, FOOT, PAD, H: Math.round((TOTAL - HEAD - FOOT) * W / (W - 2 * PAD)) };
+  })();
+  function shareStage(host) {
+    const ctx = host && host._reelCtx, item = host && host._reelItem;
+    if (!ctx || !item || !ctx.sc || !host.parentElement) return null;
+    const stage = document.createElement('div');
+    stage.className = 'reel-chart';
+    stage.setAttribute('aria-hidden', 'true');
+    stage.style.cssText = `position:fixed;left:-99999px;top:0;width:${REEL_PHONE_CARD_PX}px;`
+      + `height:${(SHARE_FRAME.H * REEL_PHONE_CARD_PX / 1000).toFixed(2)}px;margin:0;flex:none;pointer-events:none;`;
+    // Beside the live chart, so it takes the same scoped colours and weights.
+    host.parentElement.appendChild(stage);
+    // The price window is the one on screen, held for this one draw: the
+    // reader shares what they are looking at, not a re-fit of it. The clipped
+    // flags ride along so the "ribbon ↑ 12%" tag still prints (reelScale).
+    const nm = item.instrument_name, had = reel.lockY.has(nm), prev = reel.lockY.get(nm);
+    const pending = viewPricePending.has(nm);
+    reel.lockY.set(nm, { lo: ctx.sc.lo, hi: ctx.sc.hi, clipped: ctx.sc.clipped, maLo: ctx.sc.maLo, maHi: ctx.sc.maHi });
+    try {
+      stage.innerHTML = reelChartSvg(ctx.bundle, item, stage);
+      reelMatchPhoneStrokes(stage);
+    } catch (err) {
+      stage.remove();
+      throw err;
+    } finally {
+      if (had) reel.lockY.set(nm, prev); else reel.lockY.delete(nm);
+      if (pending) viewPricePending.add(nm);
+    }
+    return stage;
+  }
+
   // Render one card's chart to a PNG blob, with a caption strip so the picture
   // still says what it is once it has left the app.
-  async function chartToPngBlob(name, host) {
-    const svg = host && host.querySelector('svg.reel-svg');
-    if (!svg) return null;
+  async function chartToPngBlob(name, liveHost) {
+    if (!liveHost || !liveHost.querySelector('svg.reel-svg')) return null;
+    // No stage (a chart with no painted context) falls back to the live chart.
+    const host = shareStage(liveHost) || liveHost;
+    const svg = host.querySelector('svg.reel-svg');
+    if (!svg) { if (host !== liveHost) host.remove(); return null; }
 
     const vb = (svg.getAttribute('viewBox') || '0 0 1000 800').split(/\s+/).map(Number);
     const W = vb[2] || 1000, H = vb[3] || 800;
@@ -10858,11 +10907,13 @@
     // K enlarges the header and footer as a whole: they are laid out in a
     // 150- and 76-unit logical band and drawn under ctx.scale(K), so every
     // font, pill and gap grows together and the plot keeps its full width.
-    const K = 1.4, HEAD = Math.round(150 * K), FOOT = Math.round(76 * K), PAD = 18, SCALE = 2;
+    const { K, HEAD, FOOT, PAD } = SHARE_FRAME, SCALE = 2;
     const CW = W - 2 * PAD, CH = Math.round(H * CW / W);
     const TOTAL = HEAD + CH + FOOT;
 
     const clone = svg.cloneNode(true);
+    let ground;
+    try {
     inlineSvgStyles(svg, clone);
     // Editing chrome is not part of the picture: the drag handles, their
     // invisible grab circles and tap targets, and the "zoom out to adjust" note
@@ -10873,20 +10924,6 @@
     clone.setAttribute('width', W);
     clone.setAttribute('height', H);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-    const url = 'data:image/svg+xml;charset=utf-8,' +
-                encodeURIComponent(new XMLSerializer().serializeToString(clone));
-    const img = await new Promise((res, rej) => {
-      const im = new Image();
-      im.onload = () => res(im);
-      im.onerror = rej;
-      im.src = url;
-    });
-
-    const cv = document.createElement('canvas');
-    cv.width = W * SCALE; cv.height = TOTAL * SCALE;
-    const ctx = cv.getContext('2d');
-    ctx.scale(SCALE, SCALE);
 
     // GROUND AND INK COME FROM THE CHART BOX ITSELF, never from :root.
     //
@@ -10902,9 +10939,27 @@
     // cannot drift from the chart again. The header and footer are a separate
     // matter: they sit on the picture's own dark frame (below), never on the
     // plot ground, so they carry fixed brand colours.
+    // Read here, before the first await: the off-screen stage is removed below.
     const hcs    = getComputedStyle(host);
-    const ground = (hcs.backgroundColor && !/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(hcs.backgroundColor))
+    ground = (hcs.backgroundColor && !/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(hcs.backgroundColor))
                    ? hcs.backgroundColor : '#ffffff';
+    } finally {
+      if (host !== liveHost) host.remove();   // everything needed from it has been read
+    }
+
+    const url = 'data:image/svg+xml;charset=utf-8,' +
+                encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+
+    const cv = document.createElement('canvas');
+    cv.width = W * SCALE; cv.height = TOTAL * SCALE;
+    const ctx = cv.getContext('2d');
+    ctx.scale(SCALE, SCALE);
 
     const item  = allData.find(d => d.instrument_name === name) || {};
     // Same rule as the card: on a chart view the signal is the signal

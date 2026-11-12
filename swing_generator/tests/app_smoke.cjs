@@ -157,6 +157,23 @@ let debugPage;
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
+  // The shared picture is 4:5 from the tall full-screen chart and from the
+  // card alike (2026-11-12: it used to copy the screen's shape, 1 : 2.5 here),
+  // and making it leaves the chart on screen exactly as it was.
+  for (const scope of ['#chartFull', '#chartReel']) {
+    const live = () => page.evaluate(s => document.querySelector(`${s} .reel-chart svg`).outerHTML + document.querySelectorAll('.reel-chart').length, scope);
+    const before = await live();
+    await page.evaluate(s => document.querySelector(`${s} [data-act="chart-share"]`).click(), scope);
+    await page.locator('.share-prev img').waitFor();
+    const shape = await page.evaluate(async () => {
+      const im = document.querySelector('.share-prev img');
+      await im.decode();
+      return im.naturalWidth + 'x' + im.naturalHeight;
+    });
+    assert.equal(shape, '2000x2500', `${scope} shares a 4:5 picture`);
+    await page.locator('.share-prev [data-sp="cancel"]').click();
+    assert.equal(await live(), before, `${scope} chart is unchanged by sharing it`);
+  }
   // The full name under the symbol: the fixture's own name offline; live, the
   // first chart is any market (ABSA reads "Absa"), so only that it is not blank.
   const fullName = page.locator('#chartFull .cf-fullname');
