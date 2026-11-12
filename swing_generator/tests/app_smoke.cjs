@@ -45,6 +45,8 @@ let debugPage;
       await route.fulfill({ contentType: 'application/json', body });
     });
   }
+  // Live: not before the site serves this build's own files (live_release_wait.cjs).
+  if (live) await require('./live_release_wait.cjs')(new URL(process.env.SMOKE_URL).origin);
   await page.addInitScript(() => {
     localStorage.setItem('swingpulse-chart-tf', '30m');
     localStorage.setItem('swingpulse-tf', '30m');
