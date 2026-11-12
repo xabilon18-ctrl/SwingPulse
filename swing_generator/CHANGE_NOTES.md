@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-12 (later) LIVE SMOKE WAITS FOR THIS BUILD'S FILES. The #188 deploy
+went red after going live: `app_smoke.cjs` ran 9 seconds after the Pages
+upload and the new share check got the old 2000 x 4932 picture, although
+`validate_hourly_release.py --live` had already seen `app.js?v=623` in the
+live index.html. Pages can serve the new index.html while a script still
+comes from the previous deployment. The same job passed on its one re-run,
+which is also what confirmed the 4:5 picture on the live app. New
+`tests/live_release_wait.cjs`: in live mode the smoke test first compares
+every .js/.css under the built `webapp/publish/ui/static` with the live
+copy, byte for byte, every 5 s for up to 2 minutes, and fails naming the
+files if the site never catches up. Any future live check of new behaviour
+is covered, not just the share one. Lesson (already in CLAUDE.md under
+"Checks that only run AFTER a deploy"): a new assertion in `app_smoke.cjs`
+that is not inside `if (!live)` runs against production.
+
 2026-11-12 SHARED CHART PICTURE IS ALWAYS 4:5 (user: "When I share the chart
 with somebody, the screen is too long ... make that a standard screen size";
 chose portrait 4:5 over square and 16:9 from a mock-up). The picture used to
