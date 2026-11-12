@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-12 (later still) SHARED CHART PICTURE IS 9:16, NOT 4:5 (user: "Looks
+small ... the actual size was fine just need to look pleasant to the eye";
+chose 9:16 over 2:3 and the old shape from a mock-up of each opened on a
+phone). Opened full screen on a phone, a 4:5 picture filled only about half
+the screen. `SHARE_FRAME` now targets 1000 x 1778, a 2000 x 3556 PNG; the
+off-screen redraw (`shareStage`) is unchanged. The 4:5 mock-up was judged at
+equal widths side by side, which hid this: judge a share shape as it looks
+opened on a phone. app.js v624. Checks: app_smoke.cjs (9:16 from full screen
+and card).
+
 2026-11-12 (later) LIVE SMOKE WAITS FOR THIS BUILD'S FILES. The #188 deploy
 went red after going live: `app_smoke.cjs` ran 9 seconds after the Pages
 upload and the new share check got the old 2000 x 4932 picture, although

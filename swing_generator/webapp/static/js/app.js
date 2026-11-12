@@ -10845,20 +10845,23 @@
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
 
-  // THE PICTURE HAS ONE SHAPE: 4:5 portrait, whatever it was shared from
-  // (user, 2026-11-12: "the screen is too long"). It used to copy the shape of
-  // the chart on screen, so a full-screen phone chart went out 2.5 times as
-  // tall as it was wide, and a card 1.7 times. The chart is redrawn off screen
-  // for the picture instead: same bars, same price window, same drawings, in a
-  // box that makes header + plot + footer come to 4:5.
+  // THE PICTURE HAS ONE SHAPE: 9:16 portrait, a phone screen's shape,
+  // whatever it was shared from (user, 2026-11-12: "the screen is too long ...
+  // make that a standard screen size"). It used to copy the shape of the chart
+  // on screen, so a full-screen phone chart went out 2.5 times as tall as it
+  // was wide, and a card 1.7 times. 4:5 was tried first and undone the same day
+  // (user: "Looks small"): opened on a phone it filled only half the screen.
+  // 9:16 fills the screen. The chart is redrawn off screen for the picture:
+  // same bars, same price window, same drawings, in a box that makes
+  // header + plot + footer come to 9:16.
   //
   // The box is REEL_PHONE_CARD_PX wide, so reelLayout() gives the 1000-unit
   // phone layout on every device and a laptop shares the same picture a phone
-  // does. SHARE_PLOT_H is what is left of 1250 (4:5 of 1000) after the header
-  // and footer bands, taken back through the plot's inset: see SHARE_FRAME.
+  // does. SHARE_FRAME.H is what is left of 1778 (9:16 of 1000) after the
+  // header and footer bands, taken back through the plot's inset.
   const SHARE_FRAME = (() => {
     const K = 1.4, HEAD = Math.round(150 * K), FOOT = Math.round(76 * K), PAD = 18;
-    const W = 1000, TOTAL = 1250;
+    const W = 1000, TOTAL = Math.round(W * 16 / 9);
     return { K, HEAD, FOOT, PAD, H: Math.round((TOTAL - HEAD - FOOT) * W / (W - 2 * PAD)) };
   })();
   function shareStage(host) {
