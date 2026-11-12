@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-12 (evening) IPHONE LOCK-SCREEN WIDGET (user: "iPhone widgets like
+this on a lock screen ... option to load 8 instruments ... Just the % and
+instrument symbol"). New `ios-widget/`: a Scriptable script, not part of the
+web app or its deploy. Each lock-screen widget shows 4 instruments (its
+Parameter) in a 2 x 2 grid of symbol + today's %; two widgets give 8. The %
+is `app.js wlQuote`'s: newest of `/live` and `quotes.json` against `pc`.
+Offline it shows the last figures for that Parameter. iOS sets the refresh
+(often 15-60 min); it cannot refresh on lifting the phone, which the user
+asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
+regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
+ESLint now also lints `ios-widget/` with Scriptable's globals.
+
 2026-11-12 (later still) SHARED CHART PICTURE IS 9:16, NOT 4:5 (user: "Looks
 small ... the actual size was fine just need to look pleasant to the eye";
 chose 9:16 over 2:3 and the old shape from a mock-up of each opened on a
