@@ -25,8 +25,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   const tb = page.locator('#chartFull .reel-toolbar');
   await tb.locator('[data-kind="ladder"]').click();
+  // % labels are on from the start (2026-11-13).
   if (!(await tb.locator('[data-act="draw-labels"]').isVisible())) await tb.locator('.reel-draw-fold').click();
-  await tb.locator('[data-act="draw-labels"]').click();
   // A block stacked above: its 120/140/160/180% lines are bold on 1H too.
   await tb.locator('[data-act="draw-stack"][data-dir="up"][data-d="1"]').click();
   // Phone alerts on its lines (2026-11-03): the bell is a press / unpress

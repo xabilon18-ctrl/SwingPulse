@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (morning) NEW LADDERS START WITH THEIR % LABELS (user: "as a
+default include the % labels in"). app.js v628. `reelDefaultLadder` no
+longer sets `hideLabels`; the % button still hides them; ladders already
+drawn keep their setting. Reverses the 2026-11-01 default. In the same
+message the user said "delete old ladder only"; asked which ladders, the
+question was declined, so nothing was deleted automatically: a ladder on
+Monthly and Daily drawn before `home` existed cannot be told from a Daily
+ladder with its Monthly chip on. Tests: drawing_toolbar_checks (labels on
+when placed, the button hides them), ladder_daily_sub / ladder_monthly_sub
+(no longer click the button).
+
 2026-11-13 (later still) MONTHLY LADDER ON 1H: SIX PARTS PER 10%, NOT 15
 (user, shown GOLD 1H: "daily and monthly are right but 1h not. Make the 10%
 month divided by 6 not 15"). app.js v627, sync Worker. On 1H each Daily

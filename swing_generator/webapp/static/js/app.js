@@ -8035,12 +8035,12 @@
     const lo = Math.min(...lows), hi = Math.max(...highs);
     if (!(hi > lo)) return null;
     const step = (hi - lo) / (LADDER_LINES - 1);
-    // A new ladder starts WITHOUT its 0%-100% labels (user, 2026-11-01: "as a
-    // standard ... the percentage lines on a default when you place them do
-    // not have the percentage labels"). The % button still shows them.
+    // A new ladder starts WITH its % labels (user, 2026-11-13: "as a default
+    // include the % labels in"; from 2026-11-01 they started hidden). The %
+    // button still hides them. Ladders already drawn keep their setting.
     // And on Thick (user, 2026-11-05: "when I place a new one it must always
     // be on thick"); Thin / Medium still change it.
-    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true, strokeWeight: 3 };
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, strokeWeight: 3 };
   }
 
   function reelDefaultHLine(b) {
