@@ -33,7 +33,7 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   const onM = await saved('M');
   assert.equal(onM.length, 1, 'the ladder drawn on Monthly is saved as a Monthly ladder');
   const d = onM[0];
-  assert.ok(d.link && d.tfs.length === 3 && ['M', 'D', '1H'].every(t => d.tfs.includes(t)), 'it shows on Monthly, Daily and 1H: ' + JSON.stringify(d.tfs));
+  assert.ok(d.link && d.tfs.length === 4 && ['M', 'W', 'D', '1H'].every(t => d.tfs.includes(t)), 'all its timeframes are on by default: ' + JSON.stringify(d.tfs));
   assert.ok(!d.dash, 'it is not dashed like a Daily ladder');
   assert.equal(await page.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'no thirds on Monthly itself');
   await page.locator('#chartFull [data-act="channel"]').click();
@@ -72,6 +72,24 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.equal(between.length, 2, 'two lines between neighbouring Monthly lines: ' + JSON.stringify({ a, z, between }));
   assert.ok(Math.abs(between[0] - (a.y + gap / 3)) < 0.6 && Math.abs(between[1] - (a.y + 2 * gap / 3)) < 0.6, 'at one third and two thirds: ' + JSON.stringify({ a, z, between }));
   assert.equal(await page.locator('#chartFull .reel-ladder-mid').count(), 0, 'Daily: one tier only, no 1H steps');
+  // Its own 10% lines are bold, thicker than the thirds (2026-11-13).
+  const w = await page.evaluate(() => {
+    const sw = q => [...document.querySelectorAll('#chartFull .reel-draw ' + q)].map(e => parseFloat(getComputedStyle(e).strokeWidth));
+    return { own: sw('.reel-ladder.reel-ladder-daily.reel-ladder-bold:not(.is-dash)'), plain: sw('.reel-ladder.reel-ladder-daily:not(.reel-ladder-bold):not(.reel-ladder-key):not(.is-dash)'), sub: sw('.reel-ladder-sub:not(.is-dash)') };
+  });
+  assert.ok(w.own.length && !w.plain.length, 'Daily: every Monthly 10% line is bold: ' + JSON.stringify(w));
+  assert.ok(Math.min(...w.own) >= 1.5 * Math.max(...w.sub), 'Daily: bold 10% lines clearly thicker than the thirds: ' + JSON.stringify(w));
+  await close();
+
+  // Weekly: each 10% gap in two (2026-11-13, "make weekly by 2").
+  await openFull('W');
+  let wk = await page.evaluate(() => ({ own: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily:not(.is-dash)')].map(e => +e.getAttribute('y1')).sort((a, b) => a - b),
+    sub: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-sub:not(.is-dash)')].map(e => +e.getAttribute('y1')) }));
+  for (let i = 0; i < 8 && !(wk.sub.length && wk.own.length >= 2); i++) { await zoomIn(); wk = await page.evaluate(() => ({ own: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily:not(.is-dash)')].map(e => +e.getAttribute('y1')).sort((a, b) => a - b),
+    sub: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-sub:not(.is-dash)')].map(e => +e.getAttribute('y1')) })); }
+  const wa = wk.own[0], wz = wk.own[1], wIn = wk.sub.filter(v => v > wa + 0.5 && v < wz - 0.5);
+  assert.equal(wIn.length, 1, 'Weekly: one line inside each 10% gap: ' + JSON.stringify({ wa, wz, wIn }));
+  assert.ok(Math.abs(wIn[0] - (wa + wz) / 2) < 0.6, 'Weekly: at the middle: ' + JSON.stringify({ wa, wz, wIn }));
   await close();
 
   // 1H: each Monthly 10% gap in eight, no thirds.
@@ -115,5 +133,5 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(labels.includes('1.25%') && labels.includes('3.75%') && !labels.some(t => /^(3\.3|6\.7|1\.7)%$/.test(t)), '1H: eighths labelled exactly, no thirds or sixths: ' + labels.join(' '));
   await close();
 
-  console.log('PASS: Monthly ladder in thirds on Daily, eight parts per 10% on 1H');
+  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, eighths on 1H, bold 10% lines');
 };
