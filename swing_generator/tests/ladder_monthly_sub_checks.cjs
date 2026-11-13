@@ -72,13 +72,14 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.equal(between.length, 2, 'two lines between neighbouring Monthly lines: ' + JSON.stringify({ a, z, between }));
   assert.ok(Math.abs(between[0] - (a.y + gap / 3)) < 0.6 && Math.abs(between[1] - (a.y + 2 * gap / 3)) < 0.6, 'at one third and two thirds: ' + JSON.stringify({ a, z, between }));
   assert.equal(await page.locator('#chartFull .reel-ladder-mid').count(), 0, 'Daily: one tier only, no 1H steps');
-  // Its own 10% lines are bold, thicker than the thirds (2026-11-13).
-  const w = await page.evaluate(() => {
-    const sw = q => [...document.querySelectorAll('#chartFull .reel-draw ' + q)].map(e => parseFloat(getComputedStyle(e).strokeWidth));
-    return { own: sw('.reel-ladder.reel-ladder-daily.reel-ladder-bold:not(.is-dash)'), plain: sw('.reel-ladder.reel-ladder-daily:not(.reel-ladder-bold):not(.reel-ladder-key):not(.is-dash)'), sub: sw('.reel-ladder-sub:not(.is-dash)') };
-  });
-  assert.ok(w.own.length && !w.plain.length, 'Daily: every Monthly 10% line is bold: ' + JSON.stringify(w));
-  assert.ok(Math.min(...w.own) >= 1.5 * Math.max(...w.sub), 'Daily: bold 10% lines clearly thicker than the thirds: ' + JSON.stringify(w));
+  // Its own 10% LABELS are bold, its lines are not (2026-11-13: "Not the
+  // lines bolder only labels").
+  const w = await page.evaluate(() => ({
+    boldLines: document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily.reel-ladder-bold:not(.is-dash)').length,
+    lbl: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-lbl-home')].map(e => +getComputedStyle(e).fontWeight),
+  }));
+  assert.equal(w.boldLines, 0, 'Daily: the Monthly 10% lines are not bold: ' + JSON.stringify(w));
+  assert.ok(w.lbl.length && w.lbl.every(x => x >= 800), 'Daily: the Monthly 10% labels are bold: ' + JSON.stringify(w));
   await close();
 
   // Weekly: each 10% gap in two (2026-11-13, "make weekly by 2").
@@ -133,5 +134,5 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(labels.includes('1.25%') && labels.includes('3.75%') && !labels.some(t => /^(3\.3|6\.7|1\.7)%$/.test(t)), '1H: eighths labelled exactly, no thirds or sixths: ' + labels.join(' '));
   await close();
 
-  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, eighths on 1H, bold 10% lines');
+  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, eighths on 1H, bold 10% labels');
 };

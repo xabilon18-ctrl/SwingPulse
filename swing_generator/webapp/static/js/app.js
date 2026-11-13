@@ -9080,10 +9080,11 @@
       const pctLbl = ln.pct;
       // On 1H, a Daily ladder's 20 / 40 / 60 / 80% lines are bold (user,
       // 2026-11-03: "that is a nice touch"); 0% and 100% keep their own style.
-      // A Monthly ladder's own 10% lines are ALL bold wherever it is split
-      // (user, 2026-11-13: "make 10 20 40 bolder"), so they stand out from
-      // the Weekly / Daily / 1H steps between them.
-      const bold20 = sub && !key && (ladderHome(d) ? true : timeframe === '1H' && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9);
+      // A Monthly ladder's own 10% LABELS are bold wherever it is split, not
+      // its lines (user, 2026-11-13: "make 10 20 40 bolder", then "Not the
+      // lines bolder only labels"); see homeLbl below.
+      const bold20 = sub && !key && !ladderHome(d) && timeframe === '1H' && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9;
+      const homeLbl = sub && !key && ladderHome(d);
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
@@ -9093,7 +9094,7 @@
            // LEFT end, as a percentage of the ladder — 0% on the bottom line up
            // to 100% on the top one (user, 2026-09-15). The price used to sit at the right
            // end, where it crowded the axis it duplicated.
-           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}">${pctLbl}%</text>`);
+           + (d.hideLabels ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}" class="reel-ladder-lbl${key ? ' reel-ladder-lbl-end' : ''}${homeLbl ? ' reel-ladder-lbl-home' : ''}">${pctLbl}%</text>`);
       drawn++;
     }
     if (d.moves) out += ladderMovesSvg(d, lines, L, sc);
