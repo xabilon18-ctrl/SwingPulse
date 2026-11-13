@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (823)
+  GANN SCANNER — FULL INSTRUMENT LIST (852)
   Generated: 11 Jul 2026   |   Currency restored: 25 Aug 2026 (57 pairs, #742-798)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -737,7 +737,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 580  | 6954.T        | FANUC         | Japan         | Industrials               | Specialty Industrial Machinery
 
 ═══════════════════════════════════════════════════════════════════════════════
-  JSE SOUTH AFRICAN (15)
+  JSE SOUTH AFRICAN (44)
 ═══════════════════════════════════════════════════════════════════════════════
 581  | NPN.JO        | NPN           | JSE           | Technology                | Internet Retail
 582  | PRX.JO        | PRX           | JSE           | Technology                | Internet Retail
@@ -754,6 +754,36 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 593  | WHL.JO        | WHL           | JSE           | Consumer Cyclical         | Department Stores
 828  | PPE.JO        | PPE           | JSE           | Financial Services        | Capital Markets
 829  | RBO.JO        | RBO           | JSE           | Consumer Defensive        | Farm Products
+  -- JSE mining, resources and metal ETFs (29, added 2026-11-13) --
+830  | GFI.JO        | GFI           | JSE           | Basic Materials           | Gold
+831  | HAR.JO        | HAR           | JSE           | Basic Materials           | Gold
+832  | ANG.JO        | ANG           | JSE           | Basic Materials           | Gold
+833  | SSW.JO        | SSW           | JSE           | Basic Materials           | Gold
+834  | DRD.JO        | DRD           | JSE           | Basic Materials           | Gold
+835  | PAN.JO        | PAN           | JSE           | Basic Materials           | Gold
+836  | IMP.JO        | IMP           | JSE           | Basic Materials           | Other Precious Metals & Mining
+837  | NPH.JO        | NPH           | JSE           | Basic Materials           | Other Precious Metals & Mining
+838  | VAL.JO        | VAL           | JSE           | Basic Materials           | Other Precious Metals & Mining
+839  | ARI.JO        | ARI           | JSE           | Basic Materials           | Other Industrial Metals & Mining
+840  | THA.JO        | THA           | JSE           | Basic Materials           | Other Precious Metals & Mining
+841  | EPS.JO        | EPS           | JSE           | Basic Materials           | Other Precious Metals & Mining
+842  | WEZ.JO        | WEZ           | JSE           | Basic Materials           | Other Precious Metals & Mining
+843  | KIO.JO        | KIO           | JSE           | Basic Materials           | Other Industrial Metals & Mining
+844  | EXX.JO        | EXX           | JSE           | Energy                    | Thermal Coal
+845  | TGA.JO        | TGA           | JSE           | Energy                    | Thermal Coal
+846  | S32.JO        | S32           | JSE           | Basic Materials           | Other Industrial Metals & Mining
+847  | GLN.JO        | GLN           | JSE           | Basic Materials           | Other Industrial Metals & Mining
+848  | AFT.JO        | AFT           | JSE           | Basic Materials           | Building Materials
+849  | MRF.JO        | MRF           | JSE           | Basic Materials           | Other Industrial Metals & Mining
+850  | MCZ.JO        | MCZ           | JSE           | Energy                    | Thermal Coal
+851  | ORN.JO        | ORN           | JSE           | Basic Materials           | Copper
+852  | CPR.JO        | CPR           | JSE           | Basic Materials           | Copper
+853  | JBL.JO        | JBL_ZA        | JSE           | Basic Materials           | Other Industrial Metals & Mining
+854  | HLM.JO        | HLM           | JSE           | Basic Materials           | Aluminum
+855  | KP2.JO        | KP2           | JSE           | Basic Materials           | Agricultural Inputs
+856  | GLD.JO        | GLD_ZA        | JSE           | Commodities               | Precious Metals
+857  | NGPLT.JO      | NGPLT         | JSE           | Commodities               | Precious Metals
+858  | NGPLD.JO      | NGPLD         | JSE           | Commodities               | Precious Metals
 
 ═══════════════════════════════════════════════════════════════════════════════
   SCANDINAVIAN (12)
@@ -1143,7 +1173,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   SMI20 Swiss .............  15  (new)
   ASX200 Australian .......  20  (new)
   Japan TSE ...............   9  (new)
-  JSE South African .......  15  (13 + PPE, RBO 2026-11-13)
+  JSE South African .......  44  (13 + PPE, RBO + 29 mining/resources/metal ETFs 2026-11-13)
   Scandinavian ............  12  (new)
   Currency Majors ............   7  (restored 2026-08-25)
   Currency EUR crosses .......   6  (restored 2026-08-25)
@@ -1162,5 +1192,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 823  (load_instruments() count, 2026-11-13)
+  TOTAL .................. 852  (load_instruments() count, 2026-11-13)
 ═══════════════════════════════════════════════════════════════════════════════

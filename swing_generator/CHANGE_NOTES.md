@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (later) 29 JSE MINING / RESOURCES / METAL ETFS ADDED (#830-858)
+(user asked which JSE mining and gold names could be added, "even ones
+below R50 that might be on EasyEquities and also on Yahoo", then "Add").
+Gold GFI HAR ANG SSW DRD PAN; PGM IMP NPH VAL ARI THA EPS WEZ; iron ore,
+coal, chrome, diversified KIO EXX TGA S32 GLN AFT MRF MCZ; base metals ORN
+CPR JBL_ZA (JBL is Jabil) HLM KP2; ETFs GLD_ZA NGPLT NGPLD. Yahoo was not
+reachable from the dev sandbox: any ticker the first data run cannot fetch
+shows as missing and must be removed. VAL (ex-AMS, renamed 2025-05-28) may
+have short history on Yahoo. Total 823 -> 852.
+
 2026-11-13 TWO JSE STOCKS ADDED: PURPLE GROUP (PPE.JO, #828) AND RAINBOW
 CHICKEN (RBO.JO, #829) (user: "If we have purple group and rainbow chicken
 in yahoo please add to list"). Instruments.txt only; JSE section 13 -> 15,
