@@ -8439,7 +8439,7 @@
       def.dash = true; def.strokeWeight = 1;
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
-    // three there, and on 1H, each third halved (LADDER_HOME_SUB,
+    // three there, and on 1H in eight (LADDER_HOME_SUB,
     // 2026-11-13). It keeps the new-ladder look
     // (dotted, Thick), which tells it from the dashed Thin Daily ladders.
     else if (def.kind === 'ladder' && LADDER_HOME_SUB[timeframe]) {
@@ -8920,20 +8920,21 @@
   // once-per-device passes). Ladders drawn on Monthly before this have no
   // `home` and stay as they were.
   // ONE CHAIN DOWN TO 1H (user, 2026-11-13: "You need to build on top of the
-  // original"): on 1H a Monthly ladder keeps its thirds (its Daily lines)
-  // and splits each third in TWO, so SIX parts per Monthly 10% gap, every
-  // 1.67% (user, same day: "Make the 10% month divided by 6 not 15"; five
-  // per third, every 0.67%, was live for an hour). Not on Weekly unless its
-  // chip turns it on.
-  // LADDER_HOME_SUB[home][tf] = the tiers, coarse to fine: [3] is thirds,
-  // [3, 2] thirds each halved. Keep sync-worker ladder-alerts.js HOME_SUB
-  // equal to the 1H tiers (alerts are 1H steps, as for Daily).
-  const LADDER_HOME_SUB = { M: { D: [3], '1H': [3, 2] } };
+  // original"): on 1H a Monthly ladder's 10% gap is split into EIGHT equal
+  // parts, every 1.25% (user, same day: "Make 1h 8 instead of 6"; before
+  // that six, the thirds halved, and for an hour fifteen, the thirds in
+  // five). Eight does not line up with the Daily thirds, so 1H does not
+  // show them. Not on Weekly unless its chip turns it on.
+  // LADDER_HOME_SUB[home][tf] = the tiers, coarse to fine: [3] is thirds;
+  // two tiers ([3, 2]) draw the coarse one darker (.reel-ladder-mid). Keep
+  // sync-worker ladder-alerts.js HOME_SUB equal to the 1H tiers (alerts are
+  // 1H steps, as for Daily).
+  const LADDER_HOME_SUB = { M: { D: [3], '1H': [8] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // The tiers each 10% gap of ladder d is split into on timeframe tf,
   // coarse to fine ([] for none): a Daily ladder on 1H [5], a Monthly
-  // ladder on Daily [3] and on 1H [3, 2].
+  // ladder on Daily [3] and on 1H [8].
   const ladderSubTiers = (d, tf) => {
     const h = ladderHome(d);
     if (h) return LADDER_HOME_SUB[h][tf] || [];
@@ -8942,6 +8943,13 @@
   // Hide the small labels / lines once the sub-lines are this close (viewBox
   // units): zoomed far out they would only be a grey smear.
   const LADDER_SUB_LBL_MIN = 30, LADDER_SUB_LINE_MIN = 14;
+  // A step's % label: exact to two decimals when it is (1.25, 3.75 on the
+  // Monthly 1H eighths), else one (3.3 for a third). Keep sync-worker
+  // ladder-alerts.js pctRound equal.
+  function ladderPctRound(v) {
+    const two = Math.round(v * 100) / 100;
+    return Math.abs(v - two) < 1e-6 ? two : Math.round(v * 10) / 10;
+  }
 
   // ZERO HOLDS THE LADDER (user, 2026-11-01: "the percentage line not to go
   // below it ... like that's a magnet ... it gets there and stops"). Whatever
@@ -9008,8 +9016,8 @@
     let out = '', drawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
-    // Two tiers for a Monthly ladder on 1H: its thirds (the Daily lines,
-    // .reel-ladder-mid) and each third halved; one tier otherwise. Each tier
+    // Two tiers (none today) draw the coarse one darker (.reel-ladder-mid);
+    // one tier otherwise. Each tier
     // shows only while its own gaps are wide enough.
     const tiers = ladderSubTiers(d, timeframe);
     const LADDER_SUB = tiers.reduce((x, y) => x * y, 1);
@@ -9028,7 +9036,7 @@
           if (!(px >= LADDER_SUB_LINE_MIN)) continue;
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
           if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
-          const pct = Math.round((a.pct + (z.pct - a.pct) * s / LADDER_SUB) * 10) / 10;
+          const pct = ladderPctRound(a.pct + (z.pct - a.pct) * s / LADDER_SUB);
           subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${mid ? ' reel-ladder-mid' : ''}${d.dash ? ' is-dash' : ''}"/>`
             + (d.hideLabels || px < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl${mid ? ' reel-ladder-midlbl' : ''}">${pct}%</text>`);
         }
