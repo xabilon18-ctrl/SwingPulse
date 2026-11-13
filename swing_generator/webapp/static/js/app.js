@@ -8230,7 +8230,7 @@
       for (const tf of ['1H', '4H']) {
         const list = per[tf];
         if (!Array.isArray(list)) continue;
-        const keep = list.filter(d => !(d && d.kind === 'ladder' && !ladderIsDaily(d)));
+        const keep = list.filter(d => !(d && d.kind === 'ladder' && !ladderIsDaily(d) && !ladderHome(d)));
         if (keep.length !== list.length) { n += list.length - keep.length; per[tf] = keep; }
       }
       for (const d of per.D || []) {
@@ -8298,7 +8298,7 @@
       for (const [tf, list] of Object.entries(per)) {
         if (!Array.isArray(list)) continue;
         for (const d of list) {
-          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.dash || d.dashOff) continue;
+          if (!d || d.kind !== 'ladder' || ladderHome(d) || !(tf === 'D' || ladderIsDaily(d)) || d.dash || d.dashOff) continue;
           d.dash = true; d.strokeWeight = 1; n++;
         }
       }
@@ -8316,7 +8316,7 @@
       for (const [tf, list] of Object.entries(per)) {
         if (!Array.isArray(list)) continue;
         for (const d of list) {
-          if (!d || d.kind !== 'ladder' || !(tf === 'D' || ladderIsDaily(d)) || d.strokeWeight === 3 || d.dash) continue;
+          if (!d || d.kind !== 'ladder' || ladderHome(d) || !(tf === 'D' || ladderIsDaily(d)) || d.strokeWeight === 3 || d.dash) continue;
           d.strokeWeight = 3; n++;
         }
       }
@@ -8374,7 +8374,7 @@
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
-    // (ladderSubdivides; 4H was off 2026-11-04, back 2026-11-05). The
+    // (ladderSubParts; 4H was off 2026-11-04, back 2026-11-05). The
     // timeframe chips still turn any of them on or off.
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
@@ -8382,6 +8382,14 @@
       // Daily ladders are dashed and Thin (user, 2026-11-07: "Replace all
       // daily chart percentages lines with dash lines"; new ones too, Thin).
       def.dash = true; def.strokeWeight = 1;
+    }
+    // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
+    // three there (LADDER_HOME_SUB, 2026-11-13). It keeps the new-ladder look
+    // (dotted, Thick), which tells it from the dashed Thin Daily ladders.
+    else if (def.kind === 'ladder' && LADDER_HOME_SUB[timeframe]) {
+      def.link = drawLinkId();
+      def.home = timeframe;
+      def.tfs = tabTfs('charts').filter(t => t === timeframe || LADDER_HOME_SUB[timeframe][t]);
     }
     // A new circle starts ROUND on screen, about a quarter of the plot tall,
     // centred where the default put it — its price box alone came out as a
@@ -8847,8 +8855,26 @@
   // 4H's two parts went with the 4H chart (removed permanently 2026-11-07).
   const LADDER_SUB_BY_TF = { '1H': 5 };
   const LADDER_SUB_TFS = new Set(Object.keys(LADDER_SUB_BY_TF));
-  const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D'));
-  const ladderSubdivides = (d, tf) => LADDER_SUB_TFS.has(tf) && ladderIsDaily(d);
+  // MONTHLY LADDERS ON DAILY (user, 2026-11-13: "Daily goes into monthly 10%
+  // 3 times. Build it"). A ladder drawn on Monthly carries `home: 'M'` and
+  // also shows on Daily, where every Monthly 10% gap is split into THREE
+  // (small grey labels 3.3%, 6.7%, 13.3% ...), the way a Daily ladder is split
+  // into five on 1H. `home` is stored because "shows on Daily" alone would
+  // make it a Daily ladder (split by five on 1H, swept up by the Daily
+  // once-per-device passes). It is not shown on Weekly or 1H unless its
+  // chips turn them on, and it is never split there. Ladders drawn on
+  // Monthly before this have no `home` and stay as they were.
+  // LADDER_HOME_SUB[home][tf] = parts per gap. Keep sync-worker
+  // ladder-alerts.js HOME_SUB equal to it.
+  const LADDER_HOME_SUB = { M: { D: 3 } };
+  const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
+  const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
+  // Parts each 10% gap of ladder d is split into on timeframe tf (0: none).
+  const ladderSubParts = (d, tf) => {
+    const h = ladderHome(d);
+    if (h) return LADDER_HOME_SUB[h][tf] || 0;
+    return ladderIsDaily(d) ? (LADDER_SUB_BY_TF[tf] || 0) : 0;
+  };
   // Hide the small labels / lines once the sub-lines are this close (viewBox
   // units): zoomed far out they would only be a grey smear.
   const LADDER_SUB_LBL_MIN = 30, LADDER_SUB_LINE_MIN = 14;
@@ -8918,10 +8944,10 @@
     let out = '', drawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
-    const sub = ladderSubdivides(d, timeframe);
+    const LADDER_SUB = ladderSubParts(d, timeframe);
+    const sub = LADDER_SUB > 1;
     let subSvg = '';
     if (sub) {
-      const LADDER_SUB = LADDER_SUB_BY_TF[timeframe];
       for (let j = 1; j < lines.length; j++) {
         const a = lines[j - 1], z = lines[j];
         const gapPx = Math.abs(sc.y(a.p) - sc.y(z.p)) / LADDER_SUB;

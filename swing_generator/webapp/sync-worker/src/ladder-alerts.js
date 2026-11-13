@@ -11,6 +11,11 @@
 // alert lines are every 100 / (10 * LADDER_SUB) = 2% (2.5% for part of
 // 2026-11-04, then back to 2% at the user's request).
 export const LADDER_SUB = 5;
+// A ladder drawn on Monthly (`home: 'M'`, 2026-11-13) is split on Daily
+// instead, each 10% gap in three: its alert lines are the Monthly 10% lines
+// and the Daily thirds. Keep equal to app.js LADDER_HOME_SUB.M.D.
+export const HOME_SUB = { M: 3 };
+const subOf = d => (d && HOME_SUB[d.home]) || LADDER_SUB;
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;
 // Safety cap per user per run: a huge move through a wide stack of ladders
@@ -26,11 +31,12 @@ export function ladderAlertLevels(d) {
   if (!d || d.kind !== 'ladder') return [];
   const u = (Number(d.p4) - Number(d.p1)) / 3;
   if (!Number.isFinite(u) || !u || !Number.isFinite(Number(d.p1))) return [];
-  const per = 10 * LADDER_SUB;                       // lines per block
+  const sub = subOf(d);
+  const per = 10 * sub;                              // lines per block
   const lo = -per * stack(d, 'down'), hi = per * (1 + stack(d, 'up'));
   const out = [];
   for (let j = lo; j <= hi; j++) {
-    const price = Number(d.p1) + j * u / LADDER_SUB;
+    const price = Number(d.p1) + j * u / sub;
     if (price < 0) continue;
     const pct = Math.round((d.reverse ? per - j : j) * (100 / per) * 10) / 10 + 0;   // + 0: never -0
     out.push({ price, pct, daily: Math.abs(pct / 10 - Math.round(pct / 10)) < 1e-9 });
@@ -89,7 +95,7 @@ export function checkAlerts({ users, quotes, state, now }) {
         const list = alerts[user] || (alerts[user] = []);
         if (list.length >= MAX_PER_RUN) break;
         fired[key] = now;
-        list.push({ name, pct: lv.pct, daily: lv.daily, level: lv.price, price: quote.p,
+        list.push({ name, pct: lv.pct, daily: lv.daily, ...(HOME_SUB[d.home] ? { home: d.home } : {}), level: lv.price, price: quote.p,
                     dir: before == null ? (quote.p >= lv.price ? 'up' : 'down') : (before < lv.price ? 'up' : 'down'), at: now });
       }
     }
@@ -107,5 +113,7 @@ export function checkAlerts({ users, quotes, state, now }) {
 
 // Notification text, shared by the Worker test and the service worker logic.
 export function alertTitle(a) {
-  return `${a.name} · ${a.daily ? 'Daily' : '1H'} ${a.pct}%`;
+  // `daily` marks the ladder's own 10% lines (the name is from Daily ladders).
+  const [own, step] = a.home === 'M' ? ['Monthly', 'Daily'] : ['Daily', '1H'];
+  return `${a.name} · ${a.daily ? own : step} ${a.pct}%`;
 }

@@ -39,6 +39,18 @@ const later = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 110
 assert.ok(later.alerts.zabs.some(a => a.pct === 10 && a.daily), 'a Daily line alerts, marked Daily');
 assert.equal(alertTitle(later.alerts.zabs.find(a => a.pct === 10)), 'GOLD · Daily 10%');
 
+// A ladder drawn on Monthly (home 'M', 2026-11-13): its Daily steps are
+// thirds of each Monthly 10% gap, not the 1H fifths.
+const monthly = { ...ladder, link: 'L2', home: 'M' };
+const mv = ladderAlertLevels(monthly);
+assert.equal(mv.length, 31, 'a Monthly block has 31 alert lines: every third of 10%');
+assert.deepEqual([mv[1].pct, mv[2].pct, mv[3].pct, mv[3].daily], [3.3, 6.7, 10, true]);
+assert.ok(Math.abs(mv[1].price - (100 + 10 / 3)) < 1e-9, 'the first third is a third of the 10% gap up');
+let mrun = checkAlerts({ users: { zabs: { channels: { GOLD: { M: [monthly], D: [{ ...monthly }] } } } }, quotes: { q: { GOLD: { p: 101, t: 'a' } } }, state: {}, now: t0 });
+mrun = checkAlerts({ users: { zabs: { channels: { GOLD: { M: [monthly], D: [{ ...monthly }] } } } }, quotes: { q: { GOLD: { p: 110.5, h: 111, l: 101, t: 'b' } } }, state: mrun.state, now: t0 + 3600e3 });
+assert.deepEqual(mrun.alerts.zabs.map(a => a.pct), [3.3, 6.7, 10], 'a Monthly ladder alerts on its thirds and its 10% line, once (linked copy)');
+assert.deepEqual(mrun.alerts.zabs.map(alertTitle), ['GOLD · Daily 3.3%', 'GOLD · Daily 6.7%', 'GOLD · Monthly 10%']);
+
 // The Worker: /push/notify checks the alerts, stores them for the owner and
 // pushes ONLY the owner's phones; a failed run still reaches every phone;
 // /push/inbox hands a device its owner's alerts once.
