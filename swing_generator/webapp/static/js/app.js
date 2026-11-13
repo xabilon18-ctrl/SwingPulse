@@ -8462,7 +8462,7 @@
       def.dash = true; def.strokeWeight = 1;
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
-    // three there, and on 1H in eight (LADDER_HOME_SUB,
+    // three there, and on 1H in ten (LADDER_HOME_SUB,
     // 2026-11-13). It keeps the new-ladder look
     // (dotted, Thick), which tells it from the dashed Thin Daily ladders.
     else if (def.kind === 'ladder' && LADDER_HOME_SUB[timeframe]) {
@@ -8943,23 +8943,23 @@
   // once-per-device passes). Ladders drawn on Monthly before this have no
   // `home` and stay as they were.
   // ONE CHAIN DOWN TO 1H (user, 2026-11-13: "You need to build on top of the
-  // original"): on 1H a Monthly ladder's 10% gap is split into EIGHT equal
-  // parts, every 1.25% (user, same day: "Make 1h 8 instead of 6"; before
-  // that six, the thirds halved, and for an hour fifteen, the thirds in
-  // five). Eight does not line up with the Daily thirds, so 1H does not
-  // show them. On Weekly each 10% gap in TWO, every 5% (user, same day:
+  // original"): on 1H a Monthly ladder's 10% gap is split into TEN equal
+  // parts, every 1% (user, same day: "Let's do 1h by 10"; before that
+  // eight, "Make 1h 8 instead of 6", six, the thirds halved, and for an
+  // hour fifteen, the thirds in five). Ten does not line up with the Daily
+  // thirds, so 1H does not show them. On Weekly each 10% gap in TWO, every 5% (user, same day:
   // "make weekly by 2 ... make all active as a default": a new Monthly
   // ladder shows on Monthly, Weekly, Daily and 1H).
   // LADDER_HOME_SUB[home][tf] = the tiers, coarse to fine: [3] is thirds;
   // two tiers ([3, 2]) draw the coarse one darker (.reel-ladder-mid). Keep
   // sync-worker ladder-alerts.js HOME_SUB equal to the 1H tiers (alerts are
   // 1H steps, as for Daily).
-  const LADDER_HOME_SUB = { M: { W: [2], D: [3], '1H': [8] } };
+  const LADDER_HOME_SUB = { M: { W: [2], D: [3], '1H': [10] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // The tiers each 10% gap of ladder d is split into on timeframe tf,
   // coarse to fine ([] for none): a Daily ladder on 1H [5], a Monthly
-  // ladder on Daily [3] and on 1H [8].
+  // ladder on Daily [3] and on 1H [10].
   const ladderSubTiers = (d, tf) => {
     const h = ladderHome(d);
     if (h) return LADDER_HOME_SUB[h][tf] || [];
