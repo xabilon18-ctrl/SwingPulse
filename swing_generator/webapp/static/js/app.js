@@ -10677,15 +10677,15 @@
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
       ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
+        ${steps ? `<div class="cf-steps">${steps}</div>` : ''}
+        <div class="reel-foot-actions">
+          ${reelCapsuleHtml(name)}
+        </div>
         <div class="cf-tf-steps">
           <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="-1" aria-label="Previous timeframe">‹</button>
           <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
           <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="1" aria-label="Next timeframe">›</button>
         </div>
-        <div class="reel-foot-actions">
-          ${reelCapsuleHtml(name)}
-        </div>
-        ${steps ? `<div class="cf-steps">${steps}</div>` : ''}
       </footer>`;
   }
 

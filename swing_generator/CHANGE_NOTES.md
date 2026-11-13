@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (19:10 SAST) FULL-SCREEN FOOTER: PAGER LEFT, TIMEFRAME RIGHT
+(user, screenshot of the phone full-screen footer: "Switch these buttons").
+app.js v635, style.css v428. `chartFullHtml` footer order is now
+‹ n/N › · Saved | Draw · ‹ 1H › (was the reverse). `.cf-steps` no longer
+takes `margin-left: auto`; `#chartFull .cf-tf-steps` does, so the timeframe
+group sits bottom-right. `#chartFull .reel-tf-menu` opens from the right
+edge (`right: 0`) so it stays on screen. The card footer is unchanged (it has
+no pager).
+
 2026-11-13 (later) 29 JSE MINING / RESOURCES / METAL ETFS ADDED (#830-858)
 (user asked which JSE mining and gold names could be added, "even ones
 below R50 that might be on EasyEquities and also on Yahoo", then "Add").
