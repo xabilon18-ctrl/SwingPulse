@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (06:05 SAST) MONTHLY LADDER: BOLD LABELS, NOT BOLD LINES (user:
+"Not the lines bolder only labels"). app.js v632, style.css v426. The
+Monthly ladder's own 10% lines go back to their normal weight on W / D / 1H;
+their labels get `.reel-ladder-lbl-home` (font-weight 900, as the 0% / 100%
+labels). Test: ladder_monthly_sub_checks.
+
 2026-11-13 (05:45 SAST) MONTHLY LADDER ON WEEKLY, BOLD 10% LINES, ALL ON
 (user: "make weekly by 2. Then make 10 20 40 bolder and make all active as a
 default"). app.js v631.

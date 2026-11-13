@@ -8661,6 +8661,10 @@ body.chart-full-open { overflow: hidden; }
 .reel-ladder-lbl { font-size: 30px; fill: #000; font-weight: 500; font-variant-numeric: tabular-nums; }
 /* 0% and 100% — the two ends of the ladder or channel — are the bold ones (user, 2026-09-15). */
 .reel-ladder-lbl-end { font-weight: 900; }
+/* A Monthly ladder's own 10% labels where it is split (W, D, 1H): bold like
+   its 0% / 100% labels, so they stand out from the finer steps' labels; the
+   lines keep their weight (user, 2026-11-13: "only labels"). */
+.reel-ladder-lbl.reel-ladder-lbl-home { font-weight: 900; }
 @media (min-width: 768px) { .reel-ladder-lbl { font-size: 22px; } }
 /* A Daily ladder's sub-divisions on 1H / 4H (2026-11-03): lighter and finer
    than its Daily lines, with SMALL grey labels, so Daily (the big black
