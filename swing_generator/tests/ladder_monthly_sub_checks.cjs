@@ -33,6 +33,8 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   const onM = await saved('M');
   assert.equal(onM.length, 1, 'the ladder drawn on Monthly is saved as a Monthly ladder');
   const d = onM[0];
+  // Weekly too, though hidden (2026-11-13): hidden is not deleted, so the
+  // ladder is there again if Weekly is shown again.
   assert.ok(d.link && d.tfs.length === 4 && ['M', 'W', 'D', '1H'].every(t => d.tfs.includes(t)), 'all its timeframes are on by default: ' + JSON.stringify(d.tfs));
   assert.ok(!d.dash, 'it is not dashed like a Daily ladder');
   assert.equal(await page.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'no thirds on Monthly itself');
@@ -82,16 +84,8 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(w.lbl.length && w.lbl.every(x => x >= 800), 'Daily: the Monthly 10% labels are bold: ' + JSON.stringify(w));
   await close();
 
-  // Weekly: each 10% gap in two (2026-11-13, "make weekly by 2").
-  await openFull('W');
-  let wk = await page.evaluate(() => ({ own: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily:not(.is-dash)')].map(e => +e.getAttribute('y1')).sort((a, b) => a - b),
-    sub: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-sub:not(.is-dash)')].map(e => +e.getAttribute('y1')) }));
-  for (let i = 0; i < 8 && !(wk.sub.length && wk.own.length >= 2); i++) { await zoomIn(); wk = await page.evaluate(() => ({ own: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder.reel-ladder-daily:not(.is-dash)')].map(e => +e.getAttribute('y1')).sort((a, b) => a - b),
-    sub: [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-sub:not(.is-dash)')].map(e => +e.getAttribute('y1')) })); }
-  const wa = wk.own[0], wz = wk.own[1], wIn = wk.sub.filter(v => v > wa + 0.5 && v < wz - 0.5);
-  assert.equal(wIn.length, 1, 'Weekly: one line inside each 10% gap: ' + JSON.stringify({ wa, wz, wIn }));
-  assert.ok(Math.abs(wIn[0] - (wa + wz) / 2) < 0.6, 'Weekly: at the middle: ' + JSON.stringify({ wa, wz, wIn }));
-  await close();
+  // Weekly (each 10% gap in two) is not checked here while Weekly is hidden
+  // (config `hidden`, 2026-11-13): Charts cannot open it.
 
   // 1H: each Monthly 10% gap in ten, no thirds.
   // A ladder sized on Monthly spans far more than a 1H screen, so put this

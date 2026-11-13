@@ -13,7 +13,8 @@ module.exports = async function checkChartTfStep(page, name = 'TEST') {
   await card.locator('.reel-chart svg').waitFor();
   await card.locator('[data-act="chart-expand"]').click();
   await page.locator('#chartFull .reel-chart svg').waitFor();
-  const order = await page.evaluate(() => (window.SP_TIMEFRAMES || []).map(t => t.code));
+  const order = await page.evaluate(() => (window.SP_TIMEFRAMES || []).filter(t => !t.hidden).map(t => t.code));
+  assert.ok(!order.includes('W'), 'hidden Weekly is not stepped to: ' + JSON.stringify(order));
   assert.ok(order.length > 1, 'chart timeframes: ' + JSON.stringify(order));
   const label = () => page.locator('#chartFull .cf-title .reel-group').first().textContent();
   const labels = await page.evaluate(() => Object.fromEntries((window.SP_TIMEFRAMES || []).map(t => [t.code, t.label])));
