@@ -8695,11 +8695,14 @@ body.chart-full-open { overflow: hidden; }
   paint-order: stroke; stroke: #fff; stroke-width: 6px; stroke-linejoin: round; }
 @media (min-width: 768px) { .reel-ladder-move { font-size: 16px; stroke-width: 4px; } }
 /* Full-screen chart: previous / next without closing. */
-/* Bottom-right corner of the full-screen view (user request): the last thing
-   in the footer, pushed right, and still right if the footer wraps while
-   drawing tools add Lock and Clear. */
+/* Full-screen footer order (user, 2026-11-13: "Switch these buttons"): the
+   instrument pager ‹ n/N › is FIRST, bottom-left; the timeframe ‹ 1H › is
+   LAST, pushed into the bottom-right corner (it used to be the other way
+   round). Its menu opens from the right edge so it stays on screen. */
 #chartFull .reel-foot { flex-wrap: wrap; row-gap: 6px; }
-.cf-steps { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
+.cf-steps { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+#chartFull .cf-tf-steps { margin-left: auto; }
+#chartFull .reel-tf-menu { left: auto; right: 0; }
 .cf-step {
   appearance: none; border: 1px solid var(--border); background: transparent;
   color: var(--accent); border-radius: 8px;
