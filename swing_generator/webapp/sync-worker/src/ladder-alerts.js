@@ -12,11 +12,14 @@
 // 2026-11-04, then back to 2% at the user's request).
 export const LADDER_SUB = 5;
 // A ladder drawn on Monthly (`home: 'M'`, 2026-11-13) chains down: on Daily
-// each 10% gap in three, on 1H each third halved (app.js LADDER_HOME_SUB).
-// Its alert lines are its 1H steps, like a Daily ladder's: 6 per gap. Each
-// level carries its tier: 'own' (the ladder's 10% lines), 'mid' (the Daily
-// thirds) or 'fine' (the 1H steps).
-export const HOME_SUB = { M: [3, 2] };
+// each 10% gap in three, on 1H in eight (app.js LADDER_HOME_SUB). Its alert
+// lines are its 1H steps, like a Daily ladder's: 8 per gap. Each level
+// carries its tier: 'own' (the ladder's 10% lines), 'mid' (a coarser step
+// when there are two tiers; none today) or 'fine' (the 1H steps).
+export const HOME_SUB = { M: [8] };
+// A level's %: exact to two decimals when it is (1.25), else one (app.js
+// ladderPctRound).
+const pctRound = v => { const two = Math.round(v * 100) / 100; return Math.abs(v - two) < 1e-6 ? two : Math.round(v * 10) / 10; };
 const tiersOf = d => (d && HOME_SUB[d.home]) || [LADDER_SUB];
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;
@@ -42,7 +45,7 @@ export function ladderAlertLevels(d) {
   for (let j = lo; j <= hi; j++) {
     const price = Number(d.p1) + j * u / sub;
     if (price < 0) continue;
-    const pct = Math.round((d.reverse ? per - j : j) * (100 / per) * 10) / 10 + 0;   // + 0: never -0
+    const pct = pctRound((d.reverse ? per - j : j) * (100 / per)) + 0;   // + 0: never -0
     const own = ((j % sub) + sub) % sub === 0;
     const mid = !own && midEvery && ((j % midEvery) + midEvery) % midEvery === 0;
     out.push({ price, pct, daily: own, tier: own ? 'own' : mid ? 'mid' : 'fine' });

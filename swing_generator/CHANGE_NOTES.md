@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (morning, 05:00 SAST) MONTHLY LADDER ON 1H: EIGHT PARTS PER 10%
+(user: "Make 1h 8 instead of 6"). app.js v630, sync Worker.
+`LADDER_HOME_SUB.M['1H'] = [8]`: 1.25, 2.5, 3.75 ... 10%. Eight does not line
+up with the Daily thirds, so 1H no longer shows them (told the user). Labels
+and alert %s are exact to two decimals when they are (`ladderPctRound`,
+`pctRound`): 1.25 not 1.3; thirds still read 3.3. Alerts `HOME_SUB.M = [8]`,
+81 lines a block. Tests: ladder_monthly_sub_checks (seven lines inside each
+gap, at eighths), ladder_alerts_test.
+
 2026-11-13 (morning, later) OLD MONTHLY LADDERS DELETED (user, a BTC ladder
 not split on 1H like GOLD's: "Has to be the same across", then "that why i
 asked for all the old ladders to go"). app.js v629.
