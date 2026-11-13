@@ -12,11 +12,11 @@
 // 2026-11-04, then back to 2% at the user's request).
 export const LADDER_SUB = 5;
 // A ladder drawn on Monthly (`home: 'M'`, 2026-11-13) chains down: on Daily
-// each 10% gap in three, on 1H each third in five (app.js LADDER_HOME_SUB).
-// Its alert lines are its 1H steps, like a Daily ladder's: 15 per gap. Each
+// each 10% gap in three, on 1H each third halved (app.js LADDER_HOME_SUB).
+// Its alert lines are its 1H steps, like a Daily ladder's: 6 per gap. Each
 // level carries its tier: 'own' (the ladder's 10% lines), 'mid' (the Daily
 // thirds) or 'fine' (the 1H steps).
-export const HOME_SUB = { M: [3, LADDER_SUB] };
+export const HOME_SUB = { M: [3, 2] };
 const tiersOf = d => (d && HOME_SUB[d.home]) || [LADDER_SUB];
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;

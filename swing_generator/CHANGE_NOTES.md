@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (later still) MONTHLY LADDER ON 1H: SIX PARTS PER 10%, NOT 15
+(user, shown GOLD 1H: "daily and monthly are right but 1h not. Make the 10%
+month divided by 6 not 15"). app.js v627, sync Worker. On 1H each Daily
+third of a Monthly ladder is halved, `LADDER_HOME_SUB.M['1H'] = [3, 2]`:
+1.7, 3.3 (third), 5, 6.7 (third), 8.3, 10%. Alerts: `HOME_SUB.M = [3, 2]`,
+61 lines a block. Daily (thirds) and Daily ladders on 1H (fives) unchanged.
+Tests: ladder_monthly_sub_checks (one line inside each third on 1H),
+ladder_alerts_test.
+
 2026-11-13 (later) MONTHLY LADDER CHAINS DOWN TO 1H (user, after the first
 build stopped at Daily: "You need to build on top of the original"). app.js
 v626, style.css v425, sync Worker, sw.js.
