@@ -8679,6 +8679,9 @@ body.chart-full-open { overflow: hidden; }
 .reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 6 !important; }
 .reel-draw:not([data-stroke]) .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 9 !important; }
 .reel-ladder-sublbl { font-size: 22px; fill: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
+/* A Monthly ladder on 1H (2026-11-13): its thirds (the Daily lines) sit
+   between its 10% lines and the finer 1H fifths, and read darker than them. */
+.reel-ladder-midlbl { fill: #374151; font-weight: 600; }
 @media (min-width: 768px) { .reel-ladder-sublbl { font-size: 14px; } }
 /* "Move %" (2026-11-06): the actual price move of each ladder gap, in the
    middle of the gap at the right end. Teal, so it never reads as one of the
@@ -9826,6 +9829,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-bold { stroke-width: 6 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder.reel-ladder-daily.reel-ladder-key { stroke-width: 9 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="ladder"] .reel-ladder-sub { stroke-width: 2.2 !important; }
+.reel-draw[data-stroke-kind="ladder"] .reel-ladder-sub.reel-ladder-mid { stroke-width: 2.8 !important; stroke-opacity: 1; }
+.reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder-sub.reel-ladder-mid { stroke-width: 1.2 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder-sub.reel-ladder-mid { stroke-width: 1.8 !important; }
 /* Dashed ladder (user, 2026-11-06): the 10% lines, the bold 20s and the
    finer steps turn from dots to dashes. The 0% / 100% ends keep their own
    longer dash and the drawing's colour, so they still read as the ends. */

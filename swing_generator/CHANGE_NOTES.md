@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (later) MONTHLY LADDER CHAINS DOWN TO 1H (user, after the first
+build stopped at Daily: "You need to build on top of the original"). app.js
+v626, style.css v425, sync Worker, sw.js.
+- A ladder drawn on Monthly now shows on Monthly, Daily and 1H. On 1H it
+  keeps its thirds (the Daily lines, `.reel-ladder-mid`, darker labels) and
+  splits each third by the original Daily -> 1H five: 15 parts per Monthly
+  10% gap, every 0.67%. `LADDER_HOME_SUB = { M: { D: [3], '1H': [3, 5] } }`
+  holds tiers; `ladderSubTiers` replaces `ladderSubParts`. Each tier shows
+  only while its own gaps are wide enough. Its Monthly 20% lines are not
+  bold on 1H (that stays a Daily-ladder mark).
+- `ladderMonthly1hOnce` (flag `sp-ladder-m1h-2026-11-13`): Monthly ladders
+  drawn earlier the same day (Monthly + Daily only) get 1H added.
+- Alerts follow the chain like a Daily ladder's (1H steps): 151 lines a
+  block; titles "Monthly 10%", "Daily 3.3%", "1H 2.7%" by tier.
+- The user was asked one-level vs all-the-way-down at the start and only
+  answered the split; the first build chose one level without asking.
+- Tests: ladder_monthly_sub_checks (fifths of each third on 1H),
+  ladder_alerts_test (tiers, titles).
+
 2026-11-13 MONTHLY LADDER SPLIT IN THREE ON DAILY (user, asked how to take
 the Daily -> 1H ladder "up from daily to monthly", then: "Daily goes into
 monthly 10% 3 times. Build it"). app.js v625, sync Worker, sw.js.
