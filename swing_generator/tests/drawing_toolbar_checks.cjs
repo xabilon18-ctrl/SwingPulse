@@ -11,19 +11,20 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     const chartTf=await page.evaluate(()=>localStorage.getItem('swingpulse-chart-tf'));
     const divs=10, dotSteps=4;
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),divs+1,`A new ${chartTf} ladder draws ${divs+1} lines`);
-    // No % labels when placed (user, 2026-11-01); the % button turns them on.
-    assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'…with no % labels by default');
+    // % labels on when placed (user, 2026-11-13; hidden from 2026-11-01).
+    assert.ok(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count()>0,'…with its % labels by default');
     // …and on Thick (user, 2026-11-05).
     assert.ok(await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('sp-channels')||'{}')).some(per=>Object.values(per).some(l=>Array.isArray(l)&&l.some(d=>d&&d.kind==='ladder'&&d.strokeWeight===3)))),'…and on Thick by default');
     {
       // The % labels follow the divisions: 0, 12.5, 25 ... 100 on 1H/4H.
       const pctBtn=toolbar.locator('[data-act="draw-labels"]');
       if (!(await pctBtn.isVisible())) await toolbar.locator('.reel-draw-fold').click();
-      await pctBtn.click();
       const labels=await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').allTextContents();
       const want=Array.from({length:divs+1},(_,i)=>(Math.round(i*1000/divs)/10)+'%');
       assert.deepEqual([...labels].sort((a,b)=>parseFloat(a)-parseFloat(b)),want,'ladder labels on '+chartTf+': '+labels.join(' '));
+      // The % button still hides them.
       await pctBtn.click();
+      assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count(),0,'the % button hides the labels');
       if (!(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')))) await toolbar.locator('.reel-draw-fold').click();
     }
     assert.ok(await toolbar.evaluate(el=>el.classList.contains('is-collapsed')));

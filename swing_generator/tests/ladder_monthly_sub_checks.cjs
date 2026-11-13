@@ -27,8 +27,8 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   const tb = page.locator('#chartFull .reel-toolbar');
   await tb.locator('[data-kind="ladder"]').click();
+  // % labels are on from the start (2026-11-13).
   if (!(await tb.locator('[data-act="draw-labels"]').isVisible())) await tb.locator('.reel-draw-fold').click();
-  await tb.locator('[data-act="draw-labels"]').click();
   const onM = await saved('M');
   assert.equal(onM.length, 1, 'the ladder drawn on Monthly is saved as a Monthly ladder');
   const d = onM[0];

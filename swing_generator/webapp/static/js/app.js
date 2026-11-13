@@ -5852,7 +5852,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8035,12 +8035,12 @@
     const lo = Math.min(...lows), hi = Math.max(...highs);
     if (!(hi > lo)) return null;
     const step = (hi - lo) / (LADDER_LINES - 1);
-    // A new ladder starts WITHOUT its 0%-100% labels (user, 2026-11-01: "as a
-    // standard ... the percentage lines on a default when you place them do
-    // not have the percentage labels"). The % button still shows them.
+    // A new ladder starts WITH its % labels (user, 2026-11-13: "as a default
+    // include the % labels in"; from 2026-11-01 they started hidden). The %
+    // button still hides them. Ladders already drawn keep their setting.
     // And on Thick (user, 2026-11-05: "when I place a new one it must always
     // be on thick"); Thin / Medium still change it.
-    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, hideLabels: true, strokeWeight: 3 };
+    return { kind: 'ladder', p1: lo, p4: lo + 3 * step, strokeWeight: 3 };
   }
 
   function reelDefaultHLine(b) {
@@ -8273,6 +8273,38 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_M1H_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
+    return n;
+  }
+  // OLD MONTHLY LADDERS DELETED, ONCE PER DEVICE (user, 2026-11-13, a BTC
+  // ladder not split on 1H like GOLD's: "Has to be the same across", then
+  // "that why i asked for all the old ladders to go"). Every ladder on the
+  // Monthly chart without `home` (drawn there before Monthly ladders, or a
+  // linked ladder with its Monthly chip on) is deleted with all its linked
+  // copies, so a ladder drawn on Monthly from now on is the only kind. Daily
+  // ladders that never showed on Monthly, and drawings that are not
+  // ladders, are not touched.
+  const LADDER_OLDM_KEY = 'sp-ladder-oldm-2026-11-13';
+  function ladderOldMonthlyDeleteOnce() {
+    try { if (localStorage.getItem(sk(LADDER_OLDM_KEY))) return 0; } catch (_) { return 0; }
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      if (!Array.isArray(per.M)) continue;
+      // SHOWN on Monthly, not merely stored there: every linked drawing has
+      // a copy in every timeframe's list (channelLinkSync), so a Daily
+      // ladder sits in the M list too while showing on Daily and 1H only.
+      const old = per.M.filter(d => d && d.kind === 'ladder' && !d.home && drawShownOn(d, 'M'));
+      if (!old.length) continue;
+      const links = new Set(old.map(d => d.link).filter(Boolean));
+      n += old.length;
+      for (const tf of Object.keys(per)) {
+        if (!Array.isArray(per[tf])) continue;
+        per[tf] = per[tf].filter(d => !(d && d.kind === 'ladder' && (old.includes(d) || (d.link && links.has(d.link)))));
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_OLDM_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
