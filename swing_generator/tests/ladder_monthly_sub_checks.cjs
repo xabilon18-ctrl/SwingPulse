@@ -5,8 +5,8 @@ const assert = require('node:assert/strict');
 // times"): the Monthly lines keep their big labels ("20%"), the thirds get
 // small grey ones ("3.3%", "6.7%"), and Monthly itself never shows them.
 // Then on 1H (2026-11-13: "build on top of the original") each third is
-// replaced by eight equal parts per Monthly 10% gap ("Make 1h 8 instead of
-// 6"); the thirds do not line up with eighths, so 1H does not show them. It is not a Daily ladder: not
+// replaced by ten equal parts per Monthly 10% gap ("Let's do 1h by 10"); the
+// thirds do not line up with tenths, so 1H does not show them. It is not a Daily ladder: not
 // dashed, and its own 10% gaps are never split straight into five.
 module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
@@ -93,7 +93,7 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(Math.abs(wIn[0] - (wa + wz) / 2) < 0.6, 'Weekly: at the middle: ' + JSON.stringify({ wa, wz, wIn }));
   await close();
 
-  // 1H: each Monthly 10% gap in eight, no thirds.
+  // 1H: each Monthly 10% gap in ten, no thirds.
   // A ladder sized on Monthly spans far more than a 1H screen, so put this
   // one around the 1H price (a 10% gap = the visible range / 3) and leave
   // it the only ladder there; the split does not depend on its size.
@@ -128,11 +128,11 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(h.fine.length, '1H: the 10% gaps are split: ' + JSON.stringify(h));
   const lo = h.all[0], hi = h.all[1], step = hi - lo;
   const inGap = h.fine.filter(v => v > lo + 0.5 && v < hi - 0.5).sort((a, b) => a - b);
-  assert.equal(inGap.length, 7, '1H: seven lines inside each 10% gap (eight parts): ' + JSON.stringify({ lo, hi, inGap }));
-  assert.ok(inGap.every((v, i) => Math.abs(v - (lo + step * (i + 1) / 8)) < 0.6), '1H: evenly at eighths: ' + JSON.stringify({ lo, hi, inGap }));
+  assert.equal(inGap.length, 9, '1H: nine lines inside each 10% gap (ten parts): ' + JSON.stringify({ lo, hi, inGap }));
+  assert.ok(inGap.every((v, i) => Math.abs(v - (lo + step * (i + 1) / 10)) < 0.6), '1H: evenly at tenths: ' + JSON.stringify({ lo, hi, inGap }));
   const labels = await page.locator('#chartFull .reel-draw .reel-ladder-sublbl').allTextContents();
-  assert.ok(labels.includes('1.25%') && labels.includes('3.75%') && !labels.some(t => /^(3\.3|6\.7|1\.7)%$/.test(t)), '1H: eighths labelled exactly, no thirds or sixths: ' + labels.join(' '));
+  assert.ok(labels.some(t => /^\d*[1-9]%$/.test(t)) && !labels.some(t => /\.\d+%$/.test(t)), '1H: whole-number 1% steps, no thirds or eighths: ' + labels.join(' '));
   await close();
 
-  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, eighths on 1H, bold 10% labels');
+  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, tenths on 1H, bold 10% labels');
 };

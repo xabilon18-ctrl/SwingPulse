@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (08:05 SAST) MONTHLY LADDER ON 1H: TEN PARTS PER 10% (user:
+"Let's do 1h by 10"; read as the Monthly ladder, told the user; Daily
+ladders on 1H stay at five). app.js v634, sync Worker.
+`LADDER_HOME_SUB.M['1H'] = [10]`, `HOME_SUB.M = [10]`: 1H lines and alerts
+every 1% (101 a block). Tests: ladder_monthly_sub_checks (nine lines inside
+each gap, at tenths), ladder_alerts_test.
+
 2026-11-13 (06:30 SAST) FULL-SCREEN ‹ › TIMEFRAME STEPS (user: "the change
 between time frames needs to have an option to screen through times by
 clicking right or left like the instrument"). app.js v633, style.css v427.
