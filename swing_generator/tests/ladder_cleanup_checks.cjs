@@ -24,11 +24,11 @@ module.exports = async function checkLadderCleanup(page) {
   // A ladder drawn on Monthly (home 'M', 2026-11-13), shown on Daily and with
   // its 1H chip on: none of the Daily passes may touch it.
   const mon = () => lad(90, { link: 'Lmon', home: 'M', tfs: ['1H', 'D', 'M'], strokeWeight: 2 });
-  // Old ladders drawn on Monthly before `home` (2026-11-13, "the same
-  // across"): one unlinked, one linked to Weekly only, one on Daily too.
+  // Old ladders on Monthly without `home` (2026-11-13, "all the old ladders
+  // to go"): one unlinked, one linked to Weekly, one linked to Daily too.
   const seed = {
     TEST: {
-      M: [mon(), lad(100), lad(110, { link: 'Lmw', tfs: ['W', 'M'] }), lad(120, { link: 'Ldm', tfs: ['D', 'M'] })],
+      M: [mon(), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), lad(100), lad(110, { link: 'Lmw', tfs: ['W', 'M'] }), lad(120, { link: 'Ldm', tfs: ['D', 'M'] })],
       W: [lad(110, { link: 'Lmw', tfs: ['W', 'M'] })],
       D: [lad(10, { strokeWeight: 1 }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), lad(30, { link: 'Ldonly', tfs: ['D'] }),
           lad(80, { link: 'Loff', tfs: ['D'], strokeWeight: 2, dashOff: true }), mon(), lad(120, { link: 'Ldm', tfs: ['D', 'M'] })],
@@ -43,18 +43,15 @@ module.exports = async function checkLadderCleanup(page) {
     localStorage.setItem('sp-channels', JSON.stringify(s));
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-07') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07') && localStorage.getItem('sp-ladder-mhome-2026-11-13'), null, { timeout: 60000 });
+  await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-07') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07') && localStorage.getItem('sp-ladder-oldm-2026-11-13'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
-  for (const p1 of [100, 110]) {
-    const want = p1 === 100 ? 'D,M,1H' : 'D,W,M,1H';
-    for (const tf of ['M', 'D', '1H']) {
-      const m = (got[tf] || []).filter(x => x.kind === 'ladder' && x.p1 === p1);
-      assert.ok(m.length === 1 && m[0].home === 'M' && m[0].link && [...m[0].tfs].sort().join() === want.split(',').sort().join(),
-        tf + ': an old ladder from Monthly (' + p1 + ') is a Monthly ladder now: ' + JSON.stringify(m));
-    }
-  }
-  const dm = (got.M || []).find(x => x.kind === 'ladder' && x.p1 === 120);
-  assert.ok(dm && !dm.home, 'a ladder on Daily and Monthly is left alone (may be a Daily ladder): ' + JSON.stringify(dm));
+  // A Daily ladder's copy stored in the Monthly list (every linked drawing
+  // has one) does not make it a Monthly ladder: it is kept.
+  assert.ok((got.D || []).some(x => x.link === 'Lkeep'), 'a Daily ladder not shown on Monthly is kept');
+  // Every old ladder on Monthly is gone, with its linked copies.
+  for (const tf of ['M', 'W', 'D', '1H'])
+    assert.ok(!(got[tf] || []).some(x => x.kind === 'ladder' && [100, 110, 120].includes(x.p1)),
+      tf + ': old Monthly ladders deleted everywhere: ' + JSON.stringify((got[tf] || []).filter(x => x.kind === 'ladder')));
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder' && d.home !== 'M');
   for (const tf of ['M', 'D', '1H']) {
     const m = (got[tf] || []).filter(x => x.kind === 'ladder' && x.link === 'Lmon');
@@ -62,7 +59,7 @@ module.exports = async function checkLadderCleanup(page) {
       tf + ': a Monthly ladder is left as it was (not deleted, not Thick, not dashed): ' + JSON.stringify(m));
   }
   const d = ladders('D');
-  assert.equal(d.length, 5, 'no Daily ladder is deleted: ' + JSON.stringify(d));
+  assert.equal(d.length, 4, 'no Daily ladder is deleted (but the one on Monthly too): ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
   assert.ok(was.link && ['D', '1H'].every(t => was.tfs.includes(t)) && !was.tfs.includes('4H'), 'an unlinked Daily ladder now shows on Daily and 1H, not 4H: ' + JSON.stringify(was));
   // 4H removed permanently (2026-11-07): no Daily ladder lists 4H any more,

@@ -5852,7 +5852,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderMonthlyHomeOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8276,34 +8276,35 @@
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
-  // OLD MONTHLY LADDERS BECOME MONTHLY LADDERS, ONCE PER DEVICE (user,
-  // 2026-11-13, a ladder on BTC not split like the one on GOLD: "Has to be
-  // the same across"). A ladder drawn on Monthly before `home` existed gets
-  // `home: 'M'` and shows on Monthly, Daily and 1H like a new one, when it
-  // is certainly a Monthly ladder: on the Monthly chart and either not
-  // linked, or linked without Daily. A linked ladder that shows on Daily
-  // AND Monthly is left alone: it may be a Daily ladder with its Monthly
-  // chip on, and changing it would re-split a Daily ladder.
-  const LADDER_MHOME_KEY = 'sp-ladder-mhome-2026-11-13';
-  function ladderMonthlyHomeOnce() {
-    try { if (localStorage.getItem(sk(LADDER_MHOME_KEY))) return 0; } catch (_) { return 0; }
-    const all = tabTfs('charts');
-    if (!all.includes('M')) return 0;
-    const want = t => t === 'M' || (LADDER_HOME_SUB.M[t] || []).length;
+  // OLD MONTHLY LADDERS DELETED, ONCE PER DEVICE (user, 2026-11-13, a BTC
+  // ladder not split on 1H like GOLD's: "Has to be the same across", then
+  // "that why i asked for all the old ladders to go"). Every ladder on the
+  // Monthly chart without `home` (drawn there before Monthly ladders, or a
+  // linked ladder with its Monthly chip on) is deleted with all its linked
+  // copies, so a ladder drawn on Monthly from now on is the only kind. Daily
+  // ladders that never showed on Monthly, and drawings that are not
+  // ladders, are not touched.
+  const LADDER_OLDM_KEY = 'sp-ladder-oldm-2026-11-13';
+  function ladderOldMonthlyDeleteOnce() {
+    try { if (localStorage.getItem(sk(LADDER_OLDM_KEY))) return 0; } catch (_) { return 0; }
     let n = 0;
     for (const name of Object.keys(instChannels)) {
-      const list = (instChannels[name] || {}).M;
-      if (!Array.isArray(list)) continue;
-      for (const d of list) {
-        if (!d || d.kind !== 'ladder' || d.home) continue;
-        if (!d.link) { d.link = drawLinkId(); d.tfs = all.filter(want); }
-        else if (Array.isArray(d.tfs) && !d.tfs.includes('D')) d.tfs = all.filter(t => want(t) || d.tfs.includes(t));
-        else continue;
-        d.home = 'M'; n++;
+      const per = instChannels[name] || {};
+      if (!Array.isArray(per.M)) continue;
+      // SHOWN on Monthly, not merely stored there: every linked drawing has
+      // a copy in every timeframe's list (channelLinkSync), so a Daily
+      // ladder sits in the M list too while showing on Daily and 1H only.
+      const old = per.M.filter(d => d && d.kind === 'ladder' && !d.home && drawShownOn(d, 'M'));
+      if (!old.length) continue;
+      const links = new Set(old.map(d => d.link).filter(Boolean));
+      n += old.length;
+      for (const tf of Object.keys(per)) {
+        if (!Array.isArray(per[tf])) continue;
+        per[tf] = per[tf].filter(d => !(d && d.kind === 'ladder' && (old.includes(d) || (d.link && links.has(d.link)))));
       }
     }
     if (n) channelSave();
-    try { localStorage.setItem(sk(LADDER_MHOME_KEY), String(Date.now())); } catch (_) {}
+    try { localStorage.setItem(sk(LADDER_OLDM_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
