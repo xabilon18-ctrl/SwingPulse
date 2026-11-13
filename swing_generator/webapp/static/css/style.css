@@ -7780,7 +7780,6 @@ body {
 .reel-ov-lbl { font-size: 15px; font-weight: 700; fill: #2563eb; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
 .reel-ov-draw, .reel-ov-draw * { pointer-events: none !important; }
 .reel-tf-tag { white-space: nowrap; }
-.reel-tf-plus { font-style: normal; font-weight: 700; font-size: .78em; color: #3b82f6; margin-left: 2px; }
 .reel-ov-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 .reel-ov-switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .reel-ov-switch.on { color: var(--text-primary); background: transparent; }
@@ -9028,6 +9027,13 @@ body.chart-full-open { overflow: hidden; }
   #chartFull .cf-steps { gap: 3px; }
   #chartFull .cf-step { width: 28px; }
   #chartFull .cf-tf-step { width: 24px; }
+  /* The pill spells the timeframe out ("Monthly", not "M"; 2026-11-13): it
+     fits beside a 3-digit counter at 375px with these ~33px back. */
+  #chartFull .reel-foot { gap: 3px; }
+  #chartFull .cf-tf-steps { gap: 1px; }
+  #chartFull .reel-tf-tag { padding: 4px 5px; font-size: .88rem; }
+  #chartFull .reel-capsule > .reel-act { padding: 0 5px; }
+  #chartFull .cf-steps .cf-step { width: 26px; }
 }
 
 /* Daily-MA markers on 15m (2026-09-26, revised 2026-09-27): amber ring = the

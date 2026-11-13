@@ -6596,10 +6596,11 @@
 
   // The timeframe pill's text: "1H +D·W" while the overlay draws anything.
   function reelTfTagHtml() {
-    // Compact overlay part: the full "+ Daily" made the tag ~44px wider and
-    // wrapped the full-screen footer onto a second row (2026-09-26).
-    const parts = OV_HTF_ALL.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => tf);
-    return `${tfMeta().label}${parts.length ? `<i class="reel-tf-plus">+${parts.join('·')}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
+    // The timeframe's full name and nothing else (user, 2026-11-13: "write
+    // full name and remove the blue letters"): "Hourly", not "1H +D·W·M".
+    // Which overlays are on is shown in the menu the button opens.
+    const t = tfMeta();
+    return `${escText(t.name || t.label)}<i class="reel-tf-caret">▾</i>`;
   }
 
   // The overlay part of the timeframe menu: the switch, then the shown chart's

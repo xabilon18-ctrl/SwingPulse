@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (20:15 SAST) TIMEFRAME PILL: FULL NAME, NO BLUE OVERLAY LETTERS
+(user, screenshot of the "1H +D·W·M" pill: "write full name and remove the
+blue letters"). app.js v636, style.css v430. `config.TIMEFRAME_TABLE` rows
+gain `name` (Hourly, Daily, Weekly, Monthly), passed to the app in
+`SP_TIMEFRAMES`; `reelTfTagHtml` shows `name ▾` only. The `+D·W·M`
+overlay part and `.reel-tf-plus` are gone: overlays still draw, and the menu
+the pill opens still shows which are on. On phones (≤440px) the full-screen
+footer gives back ~33px so "Monthly" fits beside "852/852" and "Saved" at
+375px: footer gap 5 → 3px, pill padding 8 → 5px and font .95 → .88rem,
+Save|Draw padding 8 → 5px, pager steps 28 → 26px.
+
 2026-11-13 (19:45 SAST) FULL-SCREEN HEADER ICONS BIGGER, SAME LINE (user,
 screenshot of ▲ ▼ bookmark grid ··· ✕: "Make these bigger and same line as
 they are"). style.css v429, phone/tablet full screen only
