@@ -7,6 +7,31 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 MONTHLY LADDER SPLIT IN THREE ON DAILY (user, asked how to take
+the Daily -> 1H ladder "up from daily to monthly", then: "Daily goes into
+monthly 10% 3 times. Build it"). app.js v625, sync Worker, sw.js.
+- A ladder drawn on Monthly is saved with `home: 'M'`, linked, and shown on
+  Monthly and Daily (`channelAdd`). On Daily each Monthly 10% gap is split
+  into three: small grey labels 3.3%, 6.7%, 13.3% ... under the big Monthly
+  10% labels. `LADDER_HOME_SUB = { M: { D: 3 } }`; `ladderSubParts(d, tf)`
+  replaces `ladderSubdivides` and still gives 5 for a Daily ladder on 1H.
+- `home` is stored because "shows on Daily" is what makes a ladder a Daily
+  one: `ladderIsDaily` is false for a ladder with a home, and the four
+  once-per-device passes skip it (not deleted from 1H, not made Thick, not
+  dashed). It keeps the new-ladder look (dotted, Thick), which tells it from
+  the dashed Thin Daily ladders on the same Daily chart.
+- Not on Weekly or 1H unless its chips turn them on; never split there.
+  Weekly was asked about and not specified: nothing built for it.
+- Ladders drawn on Monthly BEFORE this have no `home` and are unchanged.
+- Alerts: `ladder-alerts.js` `HOME_SUB = { M: 3 }`; a Monthly ladder with its
+  bell on alerts on its 10% lines ("Monthly 10%") and its thirds ("Daily
+  3.3%"), still checked after every hourly run. sw.js opens M or D.
+- Told the user beforehand, not acted on: 3 is finer than the sqrt-of-time
+  rule of thumb would give (a month moves about 4.6x a day), their call.
+- Tests: tests/ladder_monthly_sub_checks.cjs (from app_smoke),
+  ladder_cleanup_checks (a Monthly ladder survives every pass),
+  ladder_alerts_test (thirds, titles).
+
 2026-11-12 (evening) IPHONE LOCK-SCREEN WIDGET (user: "iPhone widgets like
 this on a lock screen ... option to load 8 instruments ... Just the % and
 instrument symbol"). New `ios-widget/`: a Scriptable script, not part of the

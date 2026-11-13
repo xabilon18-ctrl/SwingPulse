@@ -98,7 +98,9 @@ async function showLadderAlerts(list) {
   const extra = list.length - shown.length;
   for (let i = 0; i < shown.length; i++) {
     const a = shown[i];
-    const what = `${a.daily ? 'Daily' : '1H'} ${a.pct}%`;
+    // A Monthly ladder (home 'M') alerts on its 10% lines and its Daily thirds.
+    const [own, step, ownTf, stepTf] = a.home === 'M' ? ['Monthly', 'Daily', 'M', 'D'] : ['Daily', '1H', 'D', '1H'];
+    const what = `${a.daily ? own : step} ${a.pct}%`;
     let body = `${a.dir === 'up' ? 'Up' : 'Down'} to ${fmtPrice(a.price)}, through your ${what} line at ${fmtPrice(a.level)}`;
     if (i === shown.length - 1 && extra > 0) body += ` (+${extra} more)`;
     await self.registration.showNotification(`${a.name} · ${what}`, {
@@ -106,7 +108,7 @@ async function showLadderAlerts(list) {
       icon:  '/static/icon-192.png',
       badge: '/static/icon-192.png',
       tag:   `sp-alert-${a.name}-${a.pct}`,
-      data:  { chart: a.name, tf: a.daily ? 'D' : '1H' },
+      data:  { chart: a.name, tf: a.daily ? ownTf : stepTf },
     });
   }
 }

@@ -21,11 +21,15 @@ module.exports = async function checkLadderCleanup(page) {
     await route.fulfill({ contentType: 'application/json', body });
   });
   const lad = (p1, extra) => ({ kind: 'ladder', p1, p4: p1 + 30, ...extra });
+  // A ladder drawn on Monthly (home 'M', 2026-11-13), shown on Daily and with
+  // its 1H chip on: none of the Daily passes may touch it.
+  const mon = () => lad(90, { link: 'Lmon', home: 'M', tfs: ['1H', 'D', 'M'], strokeWeight: 2 });
   const seed = {
     TEST: {
+      M: [mon()],
       D: [lad(10, { strokeWeight: 1 }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), lad(30, { link: 'Ldonly', tfs: ['D'] }),
-          lad(80, { link: 'Loff', tfs: ['D'], strokeWeight: 2, dashOff: true })],
-      '1H': [lad(40), lad(50, { link: 'Lh', tfs: ['1H', '4H'] }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }),
+          lad(80, { link: 'Loff', tfs: ['D'], strokeWeight: 2, dashOff: true }), mon()],
+      '1H': [lad(40), lad(50, { link: 'Lh', tfs: ['1H', '4H'] }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'], strokeWeight: 2 }), mon(),
              { kind: 'trend', t1: '2026-01-01', p1: 1, t2: '2026-02-01', p2: 2 }],
       '4H': [lad(60), lad(50, { link: 'Lh', tfs: ['1H', '4H'] }), lad(20, { link: 'Lkeep', tfs: ['D', '1H', '4H'] })],
     },
@@ -38,7 +42,12 @@ module.exports = async function checkLadderCleanup(page) {
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   await p.waitForFunction(() => localStorage.getItem('sp-ladder-cleanup-2026-11-03') && localStorage.getItem('sp-ladder-no4h-2026-11-07') && localStorage.getItem('sp-ladder-thick-2026-11-05') && localStorage.getItem('sp-ladder-dash-2026-11-07'), null, { timeout: 60000 });
   const got = await p.evaluate(() => JSON.parse(localStorage.getItem('sp-channels') || '{}').TEST || {});
-  const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder');
+  const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder' && d.home !== 'M');
+  for (const tf of ['M', 'D', '1H']) {
+    const m = (got[tf] || []).filter(x => x.kind === 'ladder' && x.home === 'M');
+    assert.ok(m.length === 1 && !m[0].dash && m[0].strokeWeight === 2 && m[0].tfs.join() === '1H,D,M',
+      tf + ': a Monthly ladder is left as it was (not deleted, not Thick, not dashed): ' + JSON.stringify(m));
+  }
   const d = ladders('D');
   assert.equal(d.length, 4, 'no Daily ladder is deleted: ' + JSON.stringify(d));
   const was = d.find(x => x.p1 === 10);
