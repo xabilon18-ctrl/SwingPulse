@@ -58,7 +58,8 @@ module.exports = async browser => {
     throw new Error('the chart never stopped scrolling');
   };
 
-  for (const tf of ['1H', 'D', 'W', 'M']) {
+  // Weekly is hidden (config `hidden`, 2026-11-13): Charts cannot switch to it.
+  for (const tf of ['1H', 'D', 'M']) {
     await page.locator(`#tfBtn${tf}`).click();
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
     await chart.locator('svg').waitFor({ timeout: 60000 });
@@ -78,7 +79,7 @@ module.exports = async browser => {
     // A view saved while scrolled back opens scrolled back: leave the
     // timeframe and return, and the same blank is in front of the bars.
     await page.locator('#chartReel .reel-view-btn[data-act="chart-view-save"]').first().click();
-    const other = tf === 'D' ? 'W' : 'D';
+    const other = tf === 'D' ? 'M' : 'D';
     await page.locator(`#tfBtn${other}`).click();
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${other}`);
     await page.locator(`#tfBtn${tf}`).click();

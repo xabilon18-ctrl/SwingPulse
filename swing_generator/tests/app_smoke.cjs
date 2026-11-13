@@ -83,11 +83,14 @@ let debugPage;
     assert.ok(chunks > oldChunks, 'new dataset invalidates and reloads chart chunks');
   }
   if (!live) {
-    // Weekly and Monthly (back 2026-10-19): chart only, each read through its own
-    // chunk map, with no 4H read under their name, divided by administration
-    // term with every line equal (no bold, no year lines).
+    // Monthly (back 2026-10-19): chart only, read through its own chunk map,
+    // with no 4H read under its name, divided by administration term with
+    // every line equal (no bold, no year lines). Weekly is built the same way
+    // but hidden from Charts (config `hidden`, 2026-11-13), so it is not
+    // opened here.
+    assert.equal(await page.locator('#tfBtnW').isHidden(), true, 'hidden Weekly has no Charts button');
     const shownBars = {};
-    for (const [tf, word] of [['W', 'weekly'], ['M', 'monthly']]) {
+    for (const [tf, word] of [['M', 'monthly']]) {
       const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
       const chunk = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/0.json`));
       await page.locator(`#tfBtn${tf}`).click();
@@ -106,17 +109,9 @@ let debugPage;
       // main trend + move): no bar/data time line on the card.
       assert.equal(await grid.locator('[data-freshness-name]').count(), 0, `${word} card has no bar-time line`);
       shownBars[tf] = await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
-      if (tf === 'W') {
-        // The Monthly overlay on Weekly, drawn from the Weekly bundle's own `mo`.
-        await page.locator('#chartReel [data-act="tf-menu"]').first().click();
-        await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-        await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M50')));
-        await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-        await page.locator('#chartReel [data-act="tf-menu"]').first().click();
-      }
     }
     // Chart range is PER TIMEFRAME (2026-10-28): Close up tapped on Monthly
-    // zooms Monthly only; Weekly keeps its opening frame, and Monthly keeps
+    // zooms Monthly only; Daily keeps its opening frame, and Monthly keeps
     // the range when the reader comes back to it.
     const firstShown = () => page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
     const toTf = async tf => {
@@ -124,13 +119,16 @@ let debugPage;
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
       await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
     };
-    assert.ok(shownBars.M > 65 && shownBars.W > 65, 'both charts open on more than 65 bars: ' + JSON.stringify(shownBars));
+    await toTf('D');
+    shownBars.D = await firstShown();
+    await toTf('M');
+    assert.ok(shownBars.M > 65 && shownBars.D > 65, 'both charts open on more than 65 bars: ' + JSON.stringify(shownBars));
     assert.equal(await page.locator('#reelMenuSort [data-range]').count(), 0, 'Chart range is no longer in the Sort menu');
     await setRange(65);
     await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.b.c.length === 65);
-    await toTf('W');
-    assert.equal(await rangeOn(), '0', 'Weekly shows no range');
-    assert.equal(await firstShown(), shownBars.W, 'Weekly keeps its opening frame');
+    await toTf('D');
+    assert.equal(await rangeOn(), '0', 'Daily shows no range');
+    assert.equal(await firstShown(), shownBars.D, 'Daily keeps its opening frame');
     await toTf('M');
     assert.equal(await rangeOn(), '65', 'Monthly keeps its own range');
     assert.equal(await firstShown(), 65, 'Monthly is still zoomed to 65 bars');
@@ -283,13 +281,13 @@ let debugPage;
     await page.reload({ waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
     await page.locator('.nav-tab[data-tab="charts"]').click();
-    for (const [tf, want] of [['M', '65'], ['W', '0']]) {
+    for (const [tf, want] of [['M', '65'], ['D', '0']]) {
       await page.locator(`#tfBtn${tf}`).click();
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
       await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
       assert.equal(await rangeOn(), want, `${tf} range after reload`);
     }
-    assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Weekly is not zoomed by the Monthly range');
+    assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Daily is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));
     // Active at last close (2026-10-28): a row per timeframe with a busy
     // sector (the fixture: Technology on Day and Week, quiet on Month), and a
@@ -308,8 +306,11 @@ let debugPage;
     await strip.locator('.wl2-act-hd').click();
     assert.equal(await strip.locator('.wl2-act-panel').count(), 0, 'tapping ACTIVE again closes it');
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
-    await page.waitForFunction(() => document.querySelector('#tfBtnW').getAttribute('aria-selected') === 'true');
+    // Weekly is hidden (config `hidden`, user 2026-11-13): the week's busy
+    // sector still opens its charts, on the chart timeframe already shown.
     await page.locator('#chartReel .reel-card').first().waitFor();
+    assert.equal(await page.locator('#tfBtnW').getAttribute('aria-selected'), 'false', 'hidden Weekly is never switched to');
+    assert.equal(await page.locator('#tfBtnW').isHidden(), true, 'no Weekly button on Charts');
     assert.match(await page.locator('#reelSimBar').innerText(), /Active:\s*Technology · Week\s*1/);
     assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
     assert.equal(errors.length, 0, errors.join('\n'));

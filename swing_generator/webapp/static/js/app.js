@@ -235,6 +235,14 @@
   // Daily. Charts and the signal tabs remember their timeframe separately.
   const SIGNAL_TFS = new Set(TIMEFRAMES.filter(t => t.signals).map(t => t.code));
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
+  // HIDDEN, NOT REMOVED (user, 2026-11-13: "hide weekly, don't delete just
+  // hide"). A `hidden` row of config.TIMEFRAME_TABLE is still built, its MAs
+  // still overlay other charts, and drawings keep it in their timeframes
+  // (tabTfs('charts') still lists it), so un-hiding brings everything back.
+  // Only the ways of GOING to it skip it: the header button, the full-screen
+  // ‹ › steps, the timeframe menu, the drawing chips and a saved choice.
+  const tfHidden = c => !!(TF_BY_CODE[c] && TF_BY_CODE[c].hidden);
+  const chartNavTfs = () => tabTfs('charts').filter(c => !tfHidden(c));
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
   // Run fn with the signal timeframe active when the current one is a chart
@@ -3166,7 +3174,7 @@
   function syncTfButtons() {
     const allowed = new Set(tabTfs(currentTab));
     document.querySelectorAll('.tf-switch-btn').forEach(b => {
-      b.hidden = !allowed.has(b.dataset.tf);
+      b.hidden = !allowed.has(b.dataset.tf) || tfHidden(b.dataset.tf);
       const on = b.dataset.tf === timeframe;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -3212,7 +3220,7 @@
 
   // A reader's choice: only timeframes this tab can show, remembered per side.
   function setTimeframe(tf, anchorName) {
-    if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
+    if (!isTf(tf) || !tabTfs(currentTab).includes(tf) || tfHidden(tf)) return;
     if (currentTab === 'charts') tfPrefs.charts = tf;
     else if (currentTab !== 'trends' && currentTab !== 'dashboard' && currentTab !== 'watchlist') tfPrefs.signals = tf;
     try {
@@ -3259,7 +3267,9 @@
     const _savedChartTf = migrateTf(localStorage.getItem('swingpulse-chart-tf'));
     // A saved timeframe that no longer exists (1H/4H/3D/W/10m) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
-    tfPrefs.charts = isTf(_savedChartTf) ? _savedChartTf : (isTf(_savedTf) ? _savedTf : 'D');
+    // ...and so does a hidden one (Weekly, 2026-11-13).
+    const chartTfOk = tf => chartNavTfs().includes(tf);
+    tfPrefs.charts = chartTfOk(_savedChartTf) ? _savedChartTf : (chartTfOk(_savedTf) ? _savedTf : 'D');
     localStorage.setItem('swingpulse-tf', tfPrefs.signals);
     localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
   } catch (e) {}
@@ -5566,7 +5576,7 @@
   const drawingToolbar = window.SwingPulseModules.drawingToolbar.create({
     activeChannel, channelsFor, chKey, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack: (d, dir) => ladderStack(d, dir),
     getTimeframe: () => timeframe, getEditing: () => reel.editing, zeroShown: name => reelZeroShown(name),
-    chartTfs: () => tabTfs('charts'), drawShownTfs,
+    chartTfs: () => chartNavTfs(), drawShownTfs,
   });
   const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
   function reelZeroShown(name) { const lk = reel.lockY.get(name); return !!(lk && lk._zero); }
@@ -5813,7 +5823,7 @@
     if (!allData.some(d => d.instrument_name === name)) return;
     const t = String(at || '').replace('T', ' ');
     navigateToTab('charts');
-    let want = isTf(tf) && tabTfs('charts').includes(tf) ? tf : timeframe;
+    let want = isTf(tf) && chartNavTfs().includes(tf) ? tf : timeframe;
     const ts = reelParseTs(t);
     if (want !== 'D' && isFinite(ts)) {
       const data = await reelLoadChunk(name, want);
@@ -6596,10 +6606,11 @@
 
   // The timeframe pill's text: "1H +D·W" while the overlay draws anything.
   function reelTfTagHtml() {
-    // Compact overlay part: the full "+ Daily" made the tag ~44px wider and
-    // wrapped the full-screen footer onto a second row (2026-09-26).
-    const parts = OV_HTF_ALL.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => tf);
-    return `${tfMeta().label}${parts.length ? `<i class="reel-tf-plus">+${parts.join('·')}</i>` : ''}<i class="reel-tf-caret">▾</i>`;
+    // The timeframe's full name and nothing else (user, 2026-11-13: "write
+    // full name and remove the blue letters"): "Hourly", not "1H +D·W·M".
+    // Which overlays are on is shown in the menu the button opens.
+    const t = tfMeta();
+    return `${escText(t.name || t.label)}<i class="reel-tf-caret">▾</i>`;
   }
 
   // The overlay part of the timeframe menu: the switch, then the shown chart's
@@ -10169,7 +10180,7 @@
     const menu = document.createElement('div');
     menu.className = 'reel-tf-menu';
     menu.setAttribute('role', 'menu');
-    menu.innerHTML = tabTfs('charts').map(code => {
+    menu.innerHTML = chartNavTfs().map(code => {
       const on = code === timeframe;
       return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${escText(name)}">${escText(TF_BY_CODE[code].label)}</button>`;
     }).join('') + `<div class="reel-ov-panel">${reelOvMenuHtml()}</div>`;
@@ -10436,10 +10447,10 @@
         // ‹ › around the timeframe pill (user, 2026-11-13: "an option to
         // screen through times by clicking right or left like the
         // instrument"): the next / previous chart timeframe in the switch's
-        // order (1H, Daily, Weekly, Monthly), wrapping like the instruments.
+        // order (1H, Daily, Monthly; Weekly hidden), wrapping like the instruments.
         const tfStep = e.target.closest('[data-act="chart-tf-step"]');
         if (tfStep) {
-          const tfs = tabTfs('charts'), i = tfs.indexOf(timeframe);
+          const tfs = chartNavTfs(), i = tfs.indexOf(timeframe);
           if (chartFullName && tfs.length > 1) reelSwitchTf(chartFullName, tfs[((i < 0 ? 0 : i) + (+tfStep.dataset.dir) + tfs.length) % tfs.length]);
           return;
         }

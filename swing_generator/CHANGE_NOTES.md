@@ -7,6 +7,38 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (20:45 SAST) WEEKLY HIDDEN, NOT DELETED (user: "hide weekly,
+don't delete just hide"). app.js v637. `config.TIMEFRAME_TABLE` gains an
+optional `hidden` (Weekly: True), passed in `SP_TIMEFRAMES`. Weekly stays
+`enabled`: publish_htf.py still builds it, R2 keeps it, its MAs still
+overlay other charts, and drawings keep 'W' in their timeframes
+(`tabTfs('charts')` unchanged). Only the ways to GO to it skip it
+(`chartNavTfs()`): header button, full-screen ‹ › steps, the timeframe
+menu, the drawing "Show on" chips, `openChartAt`, and a saved Weekly choice
+(opens on Daily). The Market tab's Week activity still opens its sector's
+charts, on the timeframe already shown. Un-hide: delete `'hidden': True`.
+Tests: smoke's Weekly chart/range checks moved to Daily/Monthly, back-scroll
+loops 1H/D/M, the Weekly ladder-halves check is skipped while hidden.
+
+2026-11-13 (20:15 SAST) TIMEFRAME PILL: FULL NAME, NO BLUE OVERLAY LETTERS
+(user, screenshot of the "1H +D·W·M" pill: "write full name and remove the
+blue letters"). app.js v636, style.css v430. `config.TIMEFRAME_TABLE` rows
+gain `name` (Hourly, Daily, Weekly, Monthly), passed to the app in
+`SP_TIMEFRAMES`; `reelTfTagHtml` shows `name ▾` only. The `+D·W·M`
+overlay part and `.reel-tf-plus` are gone: overlays still draw, and the menu
+the pill opens still shows which are on. On phones (≤440px) the full-screen
+footer gives back ~33px so "Monthly" fits beside "852/852" and "Saved" at
+375px: footer gap 5 → 3px, pill padding 8 → 5px and font .95 → .88rem,
+Save|Draw padding 8 → 5px, pager steps 28 → 26px.
+
+2026-11-13 (19:45 SAST) FULL-SCREEN HEADER ICONS BIGGER, SAME LINE (user,
+screenshot of ▲ ▼ bookmark grid ··· ✕: "Make these bigger and same line as
+they are"). style.css v429, phone/tablet full screen only
+(`#chartFull:not(.desktop-chart)`): buttons 32x34 → 36x38, glyphs ~15 →
+21px (··· 24 → 30px), `.cf-main-row` min-height 36 → 40px. Ticker space
+167 → 143px at 390px, 152 → 128px at 375px; a long name ellipsises, the
+row does not wrap. Desktop header unchanged.
+
 2026-11-13 (19:10 SAST) FULL-SCREEN FOOTER: PAGER LEFT, TIMEFRAME RIGHT
 (user, screenshot of the phone full-screen footer: "Switch these buttons").
 app.js v635, style.css v428. `chartFullHtml` footer order is now

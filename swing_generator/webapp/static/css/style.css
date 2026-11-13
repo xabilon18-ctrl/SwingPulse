@@ -7780,7 +7780,6 @@ body {
 .reel-ov-lbl { font-size: 15px; font-weight: 700; fill: #2563eb; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
 .reel-ov-draw, .reel-ov-draw * { pointer-events: none !important; }
 .reel-tf-tag { white-space: nowrap; }
-.reel-tf-plus { font-style: normal; font-weight: 700; font-size: .78em; color: #3b82f6; margin-left: 2px; }
 .reel-ov-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 .reel-ov-switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .reel-ov-switch.on { color: var(--text-primary); background: transparent; }
@@ -9028,6 +9027,13 @@ body.chart-full-open { overflow: hidden; }
   #chartFull .cf-steps { gap: 3px; }
   #chartFull .cf-step { width: 28px; }
   #chartFull .cf-tf-step { width: 24px; }
+  /* The pill spells the timeframe out ("Monthly", not "M"; 2026-11-13): it
+     fits beside a 3-digit counter at 375px with these ~33px back. */
+  #chartFull .reel-foot { gap: 3px; }
+  #chartFull .cf-tf-steps { gap: 1px; }
+  #chartFull .reel-tf-tag { padding: 4px 5px; font-size: .88rem; }
+  #chartFull .reel-capsule > .reel-act { padding: 0 5px; }
+  #chartFull .cf-steps .cf-step { width: 26px; }
 }
 
 /* Daily-MA markers on 15m (2026-09-26, revised 2026-09-27): amber ring = the
@@ -9919,6 +9925,18 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   background: transparent; border: 0; box-shadow: none;
   text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px rgba(255, 255, 255, .95);
 }
+/* Header icons bigger, still on the ticker's line (user, 2026-11-13: "Make
+   these bigger and same line as they are"): glyphs ~15 → ~21px in 36px
+   buttons (were 32px). Six buttons take 221px, leaving the ticker ~140px at
+   390px and ~128px at 375px; a long name ellipsises, the row never wraps. */
+#chartFull:not(.desktop-chart) .cf-main-row { min-height: 40px; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn,
+#chartFull:not(.desktop-chart) .cf-actions-more > summary,
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { width: 36px; height: 38px; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn.reel-vm { font-size: 21px; padding: 0; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn > svg { width: 21px; height: 21px; }
+#chartFull:not(.desktop-chart) .cf-actions-more > summary { font-size: 30px; }
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { font-size: 21px; }
 /* Icons (▲ ▼, bookmark, grid, ···, ✕) get the same halo as the letters. */
 #chartFull:not(.desktop-chart) > .cf-head svg {
   filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 3px #fff);

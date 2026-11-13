@@ -442,6 +442,11 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 #   label / bar / bar_short   the words the app uses for it
 #   signals   the hourly run computes signal columns for it (main.py)
 #   intraday  bars within a day: rows carry a {prefix}datetime
+#   name      the full name on the chart's timeframe button ('Hourly' for 1H)
+#   hidden    optional; True keeps the timeframe built and on R2 but leaves it
+#             out of the app's Charts switch, ‹ › steps and menu (Weekly,
+#             user 2026-11-13: "hide weekly, don't delete just hide").
+#             Unlike enabled: False, nothing is deleted or stops being built.
 #   chart     'run' = built by the hourly run (chart_feed.<builder>);
 #             'htf' = built by tools/publish_htf.py on its own schedule
 #   builder   the chart_feed function that builds its chart from the local
@@ -452,13 +457,14 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 # 30m, 2H, 4H, 12H, 3D were deleted) cannot be switched back on here alone:
 # restore its code from git history first. History: CHANGE_NOTES.md.
 TIMEFRAME_TABLE = (
-    {'code': '1H', 'prefix': 'h1_', 'label': '1H', 'bar': 'hourly bars', 'bar_short': '25-bar',
+    {'code': '1H', 'prefix': 'h1_', 'label': '1H', 'name': 'Hourly', 'bar': 'hourly bars', 'bar_short': '25-bar',
      'signals': True, 'intraday': True, 'chart': 'run', 'builder': 'build_1h', 'enabled': True},
-    {'code': 'D', 'prefix': '', 'label': 'Daily', 'bar': 'days', 'bar_short': '25-day',
+    {'code': 'D', 'prefix': '', 'label': 'Daily', 'name': 'Daily', 'bar': 'days', 'bar_short': '25-day',
      'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
-    {'code': 'W', 'prefix': '', 'label': 'Weekly', 'bar': 'weeks', 'bar_short': '25-week',
-     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': True},
-    {'code': 'M', 'prefix': '', 'label': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
+    {'code': 'W', 'prefix': '', 'label': 'Weekly', 'name': 'Weekly', 'bar': 'weeks', 'bar_short': '25-week',
+     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': True,
+     'hidden': True},
+    {'code': 'M', 'prefix': '', 'label': 'Monthly', 'name': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
      'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_monthly', 'enabled': True},
 )
 def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
@@ -478,9 +484,11 @@ def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
         'htf_charts': {t['code']: t['builder'] for t in enabled if t['chart'] == 'htf'},
         # The app's timeframe list, injected into index.html as window.SP_TIMEFRAMES
         # by publish.build_ui and server.py (the __SP_TIMEFRAMES__ token).
-        'app': [{'code': t['code'], 'prefix': t['prefix'], 'label': t['label'], 'bar': t['bar'],
+        'app': [{'code': t['code'], 'prefix': t['prefix'], 'label': t['label'],
+                 'name': t.get('name', t['label']), 'bar': t['bar'],
                  'barShort': t['bar_short'], 'signals': t['signals'], 'intraday': t['intraday'],
-                 **({} if t['signals'] else {'chartOnly': True})} for t in enabled],
+                 **({} if t['signals'] else {'chartOnly': True}),
+                 **({'hidden': True} if t.get('hidden') else {})} for t in enabled],
     }
 
 
