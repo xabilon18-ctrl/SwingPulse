@@ -39,17 +39,20 @@ const later = checkAlerts({ users: { zabs: blob }, quotes: { q: { GOLD: { p: 110
 assert.ok(later.alerts.zabs.some(a => a.pct === 10 && a.daily), 'a Daily line alerts, marked Daily');
 assert.equal(alertTitle(later.alerts.zabs.find(a => a.pct === 10)), 'GOLD · Daily 10%');
 
-// A ladder drawn on Monthly (home 'M', 2026-11-13): its Daily steps are
-// thirds of each Monthly 10% gap, not the 1H fifths.
+// A ladder drawn on Monthly (home 'M', 2026-11-13): chained down, its alert
+// lines are its 1H steps, each Daily third split in five (15 per 10% gap).
 const monthly = { ...ladder, link: 'L2', home: 'M' };
 const mv = ladderAlertLevels(monthly);
-assert.equal(mv.length, 31, 'a Monthly block has 31 alert lines: every third of 10%');
-assert.deepEqual([mv[1].pct, mv[2].pct, mv[3].pct, mv[3].daily], [3.3, 6.7, 10, true]);
-assert.ok(Math.abs(mv[1].price - (100 + 10 / 3)) < 1e-9, 'the first third is a third of the 10% gap up');
-let mrun = checkAlerts({ users: { zabs: { channels: { GOLD: { M: [monthly], D: [{ ...monthly }] } } } }, quotes: { q: { GOLD: { p: 101, t: 'a' } } }, state: {}, now: t0 });
-mrun = checkAlerts({ users: { zabs: { channels: { GOLD: { M: [monthly], D: [{ ...monthly }] } } } }, quotes: { q: { GOLD: { p: 110.5, h: 111, l: 101, t: 'b' } } }, state: mrun.state, now: t0 + 3600e3 });
-assert.deepEqual(mrun.alerts.zabs.map(a => a.pct), [3.3, 6.7, 10], 'a Monthly ladder alerts on its thirds and its 10% line, once (linked copy)');
-assert.deepEqual(mrun.alerts.zabs.map(alertTitle), ['GOLD · Daily 3.3%', 'GOLD · Daily 6.7%', 'GOLD · Monthly 10%']);
+assert.equal(mv.length, 151, 'a Monthly block has 151 alert lines: every fifth of a third of 10%');
+assert.deepEqual(mv.slice(0, 16).filter(l => l.tier !== 'fine').map(l => [l.pct, l.tier]), [[0, 'own'], [3.3, 'mid'], [6.7, 'mid'], [10, 'own']]);
+assert.ok(Math.abs(mv[5].price - (100 + 10 / 3)) < 1e-9, 'the first third is a third of the 10% gap up');
+assert.ok(Math.abs(mv[1].price - (100 + 10 / 15)) < 1e-9 && mv[1].tier === 'fine', 'the first 1H step is a fifth of that third');
+const mblob = { channels: { GOLD: { M: [monthly], D: [{ ...monthly }], '1H': [{ ...monthly }] } } };
+let mrun = checkAlerts({ users: { zabs: mblob }, quotes: { q: { GOLD: { p: 102.5, t: 'a' } } }, state: {}, now: t0 });
+mrun = checkAlerts({ users: { zabs: mblob }, quotes: { q: { GOLD: { p: 103.6, h: 103.7, l: 102.5, t: 'b' } } }, state: mrun.state, now: t0 + 3600e3 });
+assert.deepEqual(mrun.alerts.zabs.map(alertTitle), ['GOLD · 1H 2.7%', 'GOLD · Daily 3.3%'], 'a Monthly ladder alerts on its 1H steps and its Daily thirds, once (linked copies)');
+mrun = checkAlerts({ users: { zabs: mblob }, quotes: { q: { GOLD: { p: 110.2, h: 110.3, l: 109.8, t: 'c' } } }, state: mrun.state, now: t0 + 2 * 3600e3 });
+assert.ok(mrun.alerts.zabs.map(alertTitle).includes('GOLD · Monthly 10%'), 'its own 10% line alerts as Monthly: ' + mrun.alerts.zabs.map(alertTitle));
 
 // The Worker: /push/notify checks the alerts, stores them for the owner and
 // pushes ONLY the owner's phones; a failed run still reaches every phone;

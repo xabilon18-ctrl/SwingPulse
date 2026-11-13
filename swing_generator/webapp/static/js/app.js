@@ -5852,7 +5852,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8253,6 +8253,29 @@
   // Re-keyed 2026-11-07 (4H removed permanently) so it runs once more on
   // every device, after ladderOn4hOnce (2026-11-05, now deleted) had put
   // Daily ladders back on 4H.
+  // MONTHLY LADDERS ON 1H, ONCE PER DEVICE (2026-11-13): ladders drawn on
+  // Monthly between the first build (Monthly + Daily) and the chain down to
+  // 1H the same day get '1H' added, like a new one. Their chips still turn
+  // it off.
+  const LADDER_M1H_KEY = 'sp-ladder-m1h-2026-11-13';
+  function ladderMonthly1hOnce() {
+    try { if (localStorage.getItem(sk(LADDER_M1H_KEY))) return 0; } catch (_) { return 0; }
+    if (!tabTfs('charts').includes('1H')) return 0;
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      for (const list of Object.values(instChannels[name] || {})) {
+        if (!Array.isArray(list)) continue;
+        for (const d of list) {
+          if (!d || d.kind !== 'ladder' || ladderHome(d) !== 'M' || !Array.isArray(d.tfs) || d.tfs.includes('1H')) continue;
+          d.tfs = tabTfs('charts').filter(t => t === '1H' || d.tfs.includes(t)); n++;
+        }
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_M1H_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
+    return n;
+  }
   const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-07';
   function ladderNo4hOnce() {
     try { if (localStorage.getItem(sk(LADDER_NO4H_KEY))) return 0; } catch (_) { return 0; }
@@ -8374,7 +8397,7 @@
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
-    // (ladderSubParts; 4H was off 2026-11-04, back 2026-11-05). The
+    // (ladderSubTiers; 4H was off 2026-11-04, back 2026-11-05). The
     // timeframe chips still turn any of them on or off.
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
@@ -8384,12 +8407,13 @@
       def.dash = true; def.strokeWeight = 1;
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
-    // three there (LADDER_HOME_SUB, 2026-11-13). It keeps the new-ladder look
+    // three there, and on 1H, each third split in five (LADDER_HOME_SUB,
+    // 2026-11-13). It keeps the new-ladder look
     // (dotted, Thick), which tells it from the dashed Thin Daily ladders.
     else if (def.kind === 'ladder' && LADDER_HOME_SUB[timeframe]) {
       def.link = drawLinkId();
       def.home = timeframe;
-      def.tfs = tabTfs('charts').filter(t => t === timeframe || LADDER_HOME_SUB[timeframe][t]);
+      def.tfs = tabTfs('charts').filter(t => t === timeframe || (LADDER_HOME_SUB[timeframe][t] || []).length);
     }
     // A new circle starts ROUND on screen, about a quarter of the plot tall,
     // centred where the default put it — its price box alone came out as a
@@ -8861,19 +8885,25 @@
   // (small grey labels 3.3%, 6.7%, 13.3% ...), the way a Daily ladder is split
   // into five on 1H. `home` is stored because "shows on Daily" alone would
   // make it a Daily ladder (split by five on 1H, swept up by the Daily
-  // once-per-device passes). It is not shown on Weekly or 1H unless its
-  // chips turn them on, and it is never split there. Ladders drawn on
-  // Monthly before this have no `home` and stay as they were.
-  // LADDER_HOME_SUB[home][tf] = parts per gap. Keep sync-worker
-  // ladder-alerts.js HOME_SUB equal to it.
-  const LADDER_HOME_SUB = { M: { D: 3 } };
+  // once-per-device passes). Ladders drawn on Monthly before this have no
+  // `home` and stay as they were.
+  // ONE CHAIN DOWN TO 1H (user, 2026-11-13: "You need to build on top of the
+  // original"): on 1H a Monthly ladder keeps its thirds (its Daily lines)
+  // and splits each third by the original Daily -> 1H five, so 15 parts per
+  // Monthly 10% gap, every 0.67%. Not on Weekly unless its chip turns it on.
+  // LADDER_HOME_SUB[home][tf] = the tiers, coarse to fine: [3] is thirds,
+  // [3, 5] thirds each split in five. Keep sync-worker ladder-alerts.js
+  // HOME_SUB equal to the 1H product (alerts are 1H steps, as for Daily).
+  const LADDER_HOME_SUB = { M: { D: [3], '1H': [3, LADDER_SUB_BY_TF['1H']] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
-  // Parts each 10% gap of ladder d is split into on timeframe tf (0: none).
-  const ladderSubParts = (d, tf) => {
+  // The tiers each 10% gap of ladder d is split into on timeframe tf,
+  // coarse to fine ([] for none): a Daily ladder on 1H [5], a Monthly
+  // ladder on Daily [3] and on 1H [3, 5].
+  const ladderSubTiers = (d, tf) => {
     const h = ladderHome(d);
-    if (h) return LADDER_HOME_SUB[h][tf] || 0;
-    return ladderIsDaily(d) ? (LADDER_SUB_BY_TF[tf] || 0) : 0;
+    if (h) return LADDER_HOME_SUB[h][tf] || [];
+    return ladderIsDaily(d) && LADDER_SUB_BY_TF[tf] ? [LADDER_SUB_BY_TF[tf]] : [];
   };
   // Hide the small labels / lines once the sub-lines are this close (viewBox
   // units): zoomed far out they would only be a grey smear.
@@ -8944,20 +8974,29 @@
     let out = '', drawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
-    const LADDER_SUB = ladderSubParts(d, timeframe);
+    // Two tiers for a Monthly ladder on 1H: its thirds (the Daily lines,
+    // .reel-ladder-mid) and each third in five; one tier otherwise. Each tier
+    // shows only while its own gaps are wide enough.
+    const tiers = ladderSubTiers(d, timeframe);
+    const LADDER_SUB = tiers.reduce((x, y) => x * y, 1);
+    const midEvery = tiers.length > 1 ? LADDER_SUB / tiers[0] : 0;
     const sub = LADDER_SUB > 1;
     let subSvg = '';
     if (sub) {
       for (let j = 1; j < lines.length; j++) {
         const a = lines[j - 1], z = lines[j];
         const gapPx = Math.abs(sc.y(a.p) - sc.y(z.p)) / LADDER_SUB;
-        if (!(gapPx >= LADDER_SUB_LINE_MIN)) break;
+        const midPx = gapPx * (midEvery || 1);
+        if (!(midPx >= LADDER_SUB_LINE_MIN)) break;
         for (let s = 1; s < LADDER_SUB; s++) {
+          const mid = midEvery && s % midEvery === 0;
+          const px = mid ? midPx : gapPx;
+          if (!(px >= LADDER_SUB_LINE_MIN)) continue;
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
           if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
           const pct = Math.round((a.pct + (z.pct - a.pct) * s / LADDER_SUB) * 10) / 10;
-          subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${d.dash ? ' is-dash' : ''}"/>`
-            + (d.hideLabels || gapPx < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl">${pct}%</text>`);
+          subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${mid ? ' reel-ladder-mid' : ''}${d.dash ? ' is-dash' : ''}"/>`
+            + (d.hideLabels || px < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl${mid ? ' reel-ladder-midlbl' : ''}">${pct}%</text>`);
         }
       }
     }
@@ -8974,7 +9013,7 @@
       const pctLbl = ln.pct;
       // On 1H, a Daily ladder's 20 / 40 / 60 / 80% lines are bold (user,
       // 2026-11-03: "that is a nice touch"); 0% and 100% keep their own style.
-      const bold20 = sub && timeframe === '1H' && !key && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9;
+      const bold20 = sub && timeframe === '1H' && !key && !ladderHome(d) && Math.abs(ln.pct / 20 - Math.round(ln.pct / 20)) < 1e-9;
       // Glow: its own band under the line, HALF the tap line's width (user,
       // 2026-11-03: "reduce the thickness by 1/2"). It used to be the 40-wide
       // tap line itself turned visible; the tap target stays 40.
