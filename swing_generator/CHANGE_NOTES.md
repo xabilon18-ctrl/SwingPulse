@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 TWO JSE STOCKS ADDED: PURPLE GROUP (PPE.JO, #828) AND RAINBOW
+CHICKEN (RBO.JO, #829) (user: "If we have purple group and rainbow chicken
+in yahoo please add to list"). Instruments.txt only; JSE section 13 -> 15,
+total 821 -> 823. Rainbow Chicken listed on the JSE in Oct 2024, so it has
+only ~2 years of daily bars: MA500 has barely enough history.
+
 2026-11-13 (08:05 SAST) MONTHLY LADDER ON 1H: TEN PARTS PER 10% (user:
 "Let's do 1h by 10"; read as the Monthly ladder, told the user; Daily
 ladders on 1H stay at five). app.js v634, sync Worker.
