@@ -10433,6 +10433,16 @@
         if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
         const step = e.target.closest('[data-act="chart-full-step"]');
         if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
+        // ‹ › around the timeframe pill (user, 2026-11-13: "an option to
+        // screen through times by clicking right or left like the
+        // instrument"): the next / previous chart timeframe in the switch's
+        // order (1H, Daily, Weekly, Monthly), wrapping like the instruments.
+        const tfStep = e.target.closest('[data-act="chart-tf-step"]');
+        if (tfStep) {
+          const tfs = tabTfs('charts'), i = tfs.indexOf(timeframe);
+          if (chartFullName && tfs.length > 1) reelSwitchTf(chartFullName, tfs[((i < 0 ? 0 : i) + (+tfStep.dataset.dir) + tfs.length) % tfs.length]);
+          return;
+        }
         window.__reelBtnAct(e);
       });
     }
@@ -10667,7 +10677,11 @@
       <div class="reel-chart" id="chartFullHost"><div class="reel-skel"><span></span></div></div>
       ${reelToolbarHtml(name, edit)}
       <footer class="reel-foot">
-        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
+        <div class="cf-tf-steps">
+          <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="-1" aria-label="Previous timeframe">‹</button>
+          <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
+          <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="1" aria-label="Next timeframe">›</button>
+        </div>
         <div class="reel-foot-actions">
           ${reelCapsuleHtml(name)}
         </div>

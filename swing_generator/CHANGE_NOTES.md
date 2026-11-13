@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (06:30 SAST) FULL-SCREEN ‹ › TIMEFRAME STEPS (user: "the change
+between time frames needs to have an option to screen through times by
+clicking right or left like the instrument"). app.js v633, style.css v427.
+On the full-screen chart the timeframe pill sits between ‹ and ›
+(`data-act="chart-tf-step"`): previous / next chart timeframe in the switch's
+order (1H, Daily, Weekly, Monthly), wrapping like the instrument steps, same
+instrument, still full screen. The card footer is unchanged (no room). Pill
+ellipsises before the footer wraps. Test: tests/chart_tf_step_checks.cjs
+(from app_smoke): stepping, wrapping, one footer row at 375 and 390px.
+
 2026-11-13 (06:05 SAST) MONTHLY LADDER: BOLD LABELS, NOT BOLD LINES (user:
 "Not the lines bolder only labels"). app.js v632, style.css v426. The
 Monthly ladder's own 10% lines go back to their normal weight on W / D / 1H;
