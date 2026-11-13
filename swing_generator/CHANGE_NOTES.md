@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (morning, later) OLD MONTHLY LADDERS CONVERTED (user, a BTC ladder
+not split on 1H like GOLD's: "Has to be the same across"). app.js v629.
+`ladderMonthlyHomeOnce` (flag `sp-ladder-mhome-2026-11-13`), once per device
+after the first sync pull: a ladder on the Monthly chart without `home` that
+is unlinked, or linked without Daily, gets `home: 'M'` and shows on Monthly,
+Daily and 1H like a new one (thirds on Daily, six per 10% on 1H). A linked
+ladder on Daily AND Monthly is left alone: it may be a Daily ladder with its
+Monthly chip on. Cause on BTC not confirmed (the sync store could not be read
+from the session). Test: ladder_cleanup_checks.
+
 2026-11-13 (morning) NEW LADDERS START WITH THEIR % LABELS (user: "as a
 default include the % labels in"). app.js v628. `reelDefaultLadder` no
 longer sets `hideLabels`; the % button still hides them; ladders already

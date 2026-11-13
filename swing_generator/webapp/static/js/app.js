@@ -5852,7 +5852,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderMonthlyHomeOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8273,6 +8273,37 @@
     }
     if (n) channelSave();
     try { localStorage.setItem(sk(LADDER_M1H_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
+    return n;
+  }
+  // OLD MONTHLY LADDERS BECOME MONTHLY LADDERS, ONCE PER DEVICE (user,
+  // 2026-11-13, a ladder on BTC not split like the one on GOLD: "Has to be
+  // the same across"). A ladder drawn on Monthly before `home` existed gets
+  // `home: 'M'` and shows on Monthly, Daily and 1H like a new one, when it
+  // is certainly a Monthly ladder: on the Monthly chart and either not
+  // linked, or linked without Daily. A linked ladder that shows on Daily
+  // AND Monthly is left alone: it may be a Daily ladder with its Monthly
+  // chip on, and changing it would re-split a Daily ladder.
+  const LADDER_MHOME_KEY = 'sp-ladder-mhome-2026-11-13';
+  function ladderMonthlyHomeOnce() {
+    try { if (localStorage.getItem(sk(LADDER_MHOME_KEY))) return 0; } catch (_) { return 0; }
+    const all = tabTfs('charts');
+    if (!all.includes('M')) return 0;
+    const want = t => t === 'M' || (LADDER_HOME_SUB.M[t] || []).length;
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const list = (instChannels[name] || {}).M;
+      if (!Array.isArray(list)) continue;
+      for (const d of list) {
+        if (!d || d.kind !== 'ladder' || d.home) continue;
+        if (!d.link) { d.link = drawLinkId(); d.tfs = all.filter(want); }
+        else if (Array.isArray(d.tfs) && !d.tfs.includes('D')) d.tfs = all.filter(t => want(t) || d.tfs.includes(t));
+        else continue;
+        d.home = 'M'; n++;
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_MHOME_KEY), String(Date.now())); } catch (_) {}
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
