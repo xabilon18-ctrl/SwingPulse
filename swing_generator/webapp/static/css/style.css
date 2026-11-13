@@ -8707,6 +8707,8 @@ body.chart-full-open { overflow: hidden; }
 }
 .cf-step:disabled { opacity: .35; cursor: default; }
 .cf-step:active:not(:disabled) { background: var(--bg-hover); }
+.cf-tf-steps { display: flex; align-items: center; gap: 3px; flex: 0 1 auto; min-width: 0; }
+.cf-tf-steps .reel-tf-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cf-pos { flex: 0 0 auto; font-size: 11.5px; color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .cf-title .reel-trendline { font-size: .78rem; }
 
@@ -9022,6 +9024,7 @@ body.chart-full-open { overflow: hidden; }
   #chartFull .reel-tf-tag { padding: 4px 8px; }
   #chartFull .cf-steps { gap: 3px; }
   #chartFull .cf-step { width: 28px; }
+  #chartFull .cf-tf-step { width: 24px; }
 }
 
 /* Daily-MA markers on 15m (2026-09-26, revised 2026-09-27): amber ring = the
