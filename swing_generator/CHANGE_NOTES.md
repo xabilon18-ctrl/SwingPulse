@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (05:45 SAST) MONTHLY LADDER ON WEEKLY, BOLD 10% LINES, ALL ON
+(user: "make weekly by 2. Then make 10 20 40 bolder and make all active as a
+default"). app.js v631.
+- `LADDER_HOME_SUB.M.W = [2]`: on Weekly each Monthly 10% gap in two (5%).
+- A new Monthly ladder shows on Monthly, Weekly, Daily and 1H;
+  `ladderMonthlyAllOnce` (flag `sp-ladder-mw-2026-11-13`) adds the missing
+  ones to Monthly ladders drawn before.
+- Its own 10% lines are all `.reel-ladder-bold` wherever it is split (W, D,
+  1H). "10 20 40" read as every 10% line (told the user).
+- Alerts unchanged (1H eighths).
+- Test: ladder_monthly_sub_checks (all four on, Weekly halves, bold 10% lines
+  at least 1.5x the thirds on Daily).
+
 2026-11-13 (morning, 05:00 SAST) MONTHLY LADDER ON 1H: EIGHT PARTS PER 10%
 (user: "Make 1h 8 instead of 6"). app.js v630, sync Worker.
 `LADDER_HOME_SUB.M['1H'] = [8]`: 1.25, 2.5, 3.75 ... 10%. Eight does not line

@@ -55,8 +55,8 @@ module.exports = async function checkLadderCleanup(page) {
   const ladders = tf => (got[tf] || []).filter(d => d.kind === 'ladder' && d.home !== 'M');
   for (const tf of ['M', 'D', '1H']) {
     const m = (got[tf] || []).filter(x => x.kind === 'ladder' && x.link === 'Lmon');
-    assert.ok(m.length === 1 && !m[0].dash && m[0].strokeWeight === 2 && m[0].tfs.join() === '1H,D,M',
-      tf + ': a Monthly ladder is left as it was (not deleted, not Thick, not dashed): ' + JSON.stringify(m));
+    assert.ok(m.length === 1 && !m[0].dash && m[0].strokeWeight === 2 && m[0].tfs.join() === '1H,D,W,M',
+      tf + ': a Monthly ladder is kept (not Thick, not dashed; Weekly added 2026-11-13): ' + JSON.stringify(m));
   }
   const d = ladders('D');
   assert.equal(d.length, 4, 'no Daily ladder is deleted (but the one on Monthly too): ' + JSON.stringify(d));
