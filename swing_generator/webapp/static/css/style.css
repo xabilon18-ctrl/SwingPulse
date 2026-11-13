@@ -9919,6 +9919,18 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   background: transparent; border: 0; box-shadow: none;
   text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px rgba(255, 255, 255, .95);
 }
+/* Header icons bigger, still on the ticker's line (user, 2026-11-13: "Make
+   these bigger and same line as they are"): glyphs ~15 → ~21px in 36px
+   buttons (were 32px). Six buttons take 221px, leaving the ticker ~140px at
+   390px and ~128px at 375px; a long name ellipsises, the row never wraps. */
+#chartFull:not(.desktop-chart) .cf-main-row { min-height: 40px; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn,
+#chartFull:not(.desktop-chart) .cf-actions-more > summary,
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { width: 36px; height: 38px; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn.reel-vm { font-size: 21px; padding: 0; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn > svg { width: 21px; height: 21px; }
+#chartFull:not(.desktop-chart) .cf-actions-more > summary { font-size: 30px; }
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { font-size: 21px; }
 /* Icons (▲ ▼, bookmark, grid, ···, ✕) get the same halo as the letters. */
 #chartFull:not(.desktop-chart) > .cf-head svg {
   filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 3px #fff);

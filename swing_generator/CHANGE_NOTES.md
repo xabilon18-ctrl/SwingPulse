@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-13 (19:45 SAST) FULL-SCREEN HEADER ICONS BIGGER, SAME LINE (user,
+screenshot of ▲ ▼ bookmark grid ··· ✕: "Make these bigger and same line as
+they are"). style.css v429, phone/tablet full screen only
+(`#chartFull:not(.desktop-chart)`): buttons 32x34 → 36x38, glyphs ~15 →
+21px (··· 24 → 30px), `.cf-main-row` min-height 36 → 40px. Ticker space
+167 → 143px at 390px, 152 → 128px at 375px; a long name ellipsises, the
+row does not wrap. Desktop header unchanged.
+
 2026-11-13 (19:10 SAST) FULL-SCREEN FOOTER: PAGER LEFT, TIMEFRAME RIGHT
 (user, screenshot of the phone full-screen footer: "Switch these buttons").
 app.js v635, style.css v428. `chartFullHtml` footer order is now
