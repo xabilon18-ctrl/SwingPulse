@@ -74,6 +74,26 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   await close();
 
   // 1H: the thirds stay (.reel-ladder-mid) and each is split in five.
+  // A ladder sized on Monthly spans far more than a 1H screen, so put this
+  // one around the 1H price (a 10% gap = the visible range / 3) and leave
+  // it the only ladder there; the split does not depend on its size.
+  await openFull('1H');
+  const win = await page.evaluate(() => { const h = [...document.querySelectorAll('#chartFull *')].find(e => e._reelCtx); return h && { lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }; });
+  assert.ok(win && win.hi > win.lo, '1H: price window found: ' + JSON.stringify(win));
+  await close();
+  await page.evaluate(([n, w]) => {
+    const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
+    const step = (w.hi - w.lo) / 3;       // one 10% gap: three in view
+    for (const tf of Object.keys(all[n] || {})) {
+      all[n][tf] = (all[n][tf] || []).filter(x => !(x && x.kind === 'ladder' && x.home !== 'M'));
+      for (const x of all[n][tf]) if (x && x.kind === 'ladder' && x.home === 'M') { x.p1 = w.lo + (w.hi - w.lo) * 0.2; x.p4 = x.p1 + 3 * step; }
+    }
+    localStorage.setItem('sp-channels', JSON.stringify(all));
+  }, [name, win]);
+  await page.reload({ waitUntil: 'networkidle' });
+  if (await page.locator('.up-skip').isVisible().catch(() => false)) await page.locator('.up-skip').click();
+  await page.locator('.nav-tab[data-tab="charts"]').click();
+  await page.locator('#reelSearch').fill(name);
   await openFull('1H');
   const tiers = () => page.evaluate(() => {
     const y = e => +e.getAttribute('y1');
