@@ -198,6 +198,17 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (later) HOURLY PUBLISH NO LONGER DIES ON A SKIPPED LEDGER. The
+07:05 SAST run (43559800125) built all its data and uploaded none of it: three
+R2 read timeouts on `signal_ledger.json` made `update_ledger` skip on purpose
+(saving without the remote copy would clobber it, the 2026-07-10 rule), and
+`tools/validate_workflow_release.py` then read `ledger_summary.json`
+unconditionally and died with FileNotFoundError. The upload sends only files
+that exist, so R2 keeps the last ledger. `validate(..., require_ledger=False)`
+from `publish.build_data` now warns and carries on when the summary is absent;
+a present summary is still checked for the rule version. The CLI (deploy and
+signal preflight) stays strict. Test: workflow_setup_test.py.
+
 2026-11-14 SHARED CHART PICTURE FOLLOWS THE SCREEN'S ORIENTATION (user:
 "The share button for the iPad if i am on land scape i should be able to share
 it the landscape. Apply across"). `shareFrame(landscape)` replaces the fixed

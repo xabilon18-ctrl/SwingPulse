@@ -79,4 +79,27 @@ class WorkflowTests(unittest.TestCase):
         record={'rule_version':RULE_VERSION,'tf':'4H','fire_time':'2000-01-01 06:00','fire_date':'2000-01-01'}
         self.assertEqual(signal_ledger._fire_index(f,record),(None,False))
 
+    def test_release_check_tolerates_a_skipped_ledger_only_when_hourly(self):
+        # 2026-11-14: the ledger skipped on an R2 timeout and the release
+        # check killed the whole hourly upload over the missing summary.
+        import gzip,json
+        from tools.validate_workflow_release import validate
+        ctx={'asOf':'t','setup':{'asOf':'t','levels':[{'id':'D50'}]}}
+        files={'signals.json':{'data':[{'signal_rule_version':RULE_VERSION}]},
+               'trend_channels.json':{'workflow_version':1,'workflow':{
+                   'D':{'X':{'close':None,'mas':{},'direction':'NEUTRAL'}},'1H':{'X':ctx}}},
+               'alerts.json':{'workflow_version':1,'workflow_ev':[]}}
+        with tempfile.TemporaryDirectory() as d:
+            for name,body in files.items():
+                Path(d,name).write_bytes(gzip.compress(json.dumps(body).encode()))
+            validate(d,require_ledger=False)
+            with self.assertRaises(AssertionError):
+                validate(d)
+            Path(d,'ledger_summary.json').write_text(json.dumps({'rule_version':'old'}))
+            for strict in (True,False):
+                with self.assertRaises(AssertionError):
+                    validate(d,require_ledger=strict)
+            Path(d,'ledger_summary.json').write_text(json.dumps({'rule_version':RULE_VERSION}))
+            validate(d)
+
 if __name__=='__main__':unittest.main()
