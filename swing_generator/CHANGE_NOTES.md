@@ -198,6 +198,18 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 SHARED CHART PICTURE FOLLOWS THE SCREEN'S ORIENTATION (user:
+"The share button for the iPad if i am on land scape i should be able to share
+it the landscape. Apply across"). `shareFrame(landscape)` replaces the fixed
+`SHARE_FRAME`: upright stays 9:16 (2000 x 3556 PNG, unchanged); landscape
+(`matchMedia('(orientation: landscape)')` at the tap) is 16:9, a 2000-unit
+off-screen layout and a 4000 x 2250 PNG. Applies to the card and full-screen
+share buttons on every device, so a laptop (window wider than tall) now shares
+landscape too. Header and footer keep their unit size; the plot takes the extra
+width. The Cancel / Save / Share preview is unchanged and shows in both
+orientations. app.js v638. Checks: app_smoke.cjs (16:9 from the phone viewport
+turned sideways, and Save offered).
+
 2026-11-12 (later still) SHARED CHART PICTURE IS 9:16, NOT 4:5 (user: "Looks
 small ... the actual size was fine just need to look pleasant to the eye";
 chose 9:16 over 2:3 and the old shape from a mock-up of each opened on a

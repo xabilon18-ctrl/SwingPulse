@@ -174,6 +174,27 @@ let debugPage;
     await page.locator('.share-prev [data-sp="cancel"]').click();
     assert.equal(await live(), before, `${scope} chart is unchanged by sharing it`);
   }
+  // Turned sideways the picture turns with it (2026-11-14): 16:9 landscape,
+  // 4000 x 2250. The screen reports landscape for this one tap instead of the
+  // viewport being resized: a resize re-lays-out the open full-screen chart,
+  // and the drawing checks that follow measure it to 0.6 units (#205's first
+  // CI run went red on the ladder drag check after a resize here).
+  await page.evaluate(() => {
+    const real = window.matchMedia.bind(window);
+    window.__realMatchMedia = real;
+    window.matchMedia = q => (/orientation:\s*landscape/.test(q) ? { matches: true, media: q } : real(q));
+    document.querySelector('#chartFull [data-act="chart-share"]').click();
+  });
+  await page.locator('.share-prev img').waitFor();
+  const wide = await page.evaluate(async () => {
+    const im = document.querySelector('.share-prev img');
+    await im.decode();
+    return im.naturalWidth + 'x' + im.naturalHeight;
+  });
+  assert.equal(wide, '4000x2250', 'landscape shares a 16:9 picture');
+  assert.equal(await page.locator('.share-prev [data-sp="save"]').count(), 1, 'landscape preview offers Save');
+  await page.locator('.share-prev [data-sp="cancel"]').click();
+  await page.evaluate(() => { window.matchMedia = window.__realMatchMedia; delete window.__realMatchMedia; });
   // The full name under the symbol: the fixture's own name offline; live, the
   // first chart is any market (ABSA reads "Absa"), so only that it is not blank.
   const fullName = page.locator('#chartFull .cf-fullname');

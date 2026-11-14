@@ -11006,33 +11006,47 @@
     for (let i = 0; i < lk.length && i < ck.length; i++) inlineSvgStyles(lk[i], ck[i]);
   }
 
-  // THE PICTURE HAS ONE SHAPE: 9:16 portrait, a phone screen's shape,
-  // whatever it was shared from (user, 2026-11-12: "the screen is too long ...
-  // make that a standard screen size"). It used to copy the shape of the chart
-  // on screen, so a full-screen phone chart went out 2.5 times as tall as it
-  // was wide, and a card 1.7 times. 4:5 was tried first and undone the same day
-  // (user: "Looks small"): opened on a phone it filled only half the screen.
-  // 9:16 fills the screen. The chart is redrawn off screen for the picture:
-  // same bars, same price window, same drawings, in a box that makes
-  // header + plot + footer come to 9:16.
+  // THE PICTURE FOLLOWS THE SCREEN'S ORIENTATION (user, 2026-11-14: "The
+  // share button for the iPad if i am on land scape i should be able to share
+  // it the landscape. Apply across"). Held upright, every device shares 9:16
+  // portrait, a phone screen's shape (user, 2026-11-12: "make that a standard
+  // screen size"; 4:5 was tried first and undone the same day — opened on a
+  // phone it filled only half the screen). Turned sideways — an iPad or phone
+  // in landscape, and a laptop, whose window is wider than tall — it shares
+  // 16:9 landscape. Before this the picture was always portrait, so an iPad
+  // held sideways sent a tall picture of a wide chart. The chart is redrawn
+  // off screen for the picture: same bars, same price window, same drawings,
+  // in a box that makes header + plot + footer come to the target shape.
   //
-  // The box is REEL_PHONE_CARD_PX wide, so reelLayout() gives the 1000-unit
-  // phone layout on every device and a laptop shares the same picture a phone
-  // does. SHARE_FRAME.H is what is left of 1778 (9:16 of 1000) after the
-  // header and footer bands, taken back through the plot's inset.
-  const SHARE_FRAME = (() => {
+  // Portrait: the box is REEL_PHONE_CARD_PX wide, so reelLayout() gives the
+  // 1000-unit phone layout and a 1000 x 1778 picture (2000 x 3556 PNG).
+  // Landscape: the box is twice that, a 2000-unit layout (reelLayout widens
+  // the viewBox past a phone card rather than scaling text up) and a
+  // 2000 x 1125 picture (4000 x 2250 PNG). Header and footer keep their size
+  // in units, so the plot takes the extra width. H is what is left of TOTAL
+  // after the header and footer bands, taken back through the plot's inset.
+  function shareFrame(landscape) {
     const K = 1.4, HEAD = Math.round(150 * K), FOOT = Math.round(76 * K), PAD = 18;
-    const W = 1000, TOTAL = Math.round(W * 16 / 9);
-    return { K, HEAD, FOOT, PAD, H: Math.round((TOTAL - HEAD - FOOT) * W / (W - 2 * PAD)) };
-  })();
-  function shareStage(host) {
+    const W = landscape ? 2000 : 1000;
+    const TOTAL = landscape ? Math.round(W * 9 / 16) : Math.round(W * 16 / 9);
+    return { landscape, K, HEAD, FOOT, PAD, W, TOTAL,
+             H: Math.round((TOTAL - HEAD - FOOT) * W / (W - 2 * PAD)) };
+  }
+  // Read when the share button is tapped: the picture takes the shape of the
+  // screen at that moment. A window exactly square counts as portrait.
+  function shareIsLandscape() {
+    return window.matchMedia ? window.matchMedia('(orientation: landscape)').matches
+                             : window.innerWidth > window.innerHeight;
+  }
+  function shareStage(host, frame) {
     const ctx = host && host._reelCtx, item = host && host._reelItem;
     if (!ctx || !item || !ctx.sc || !host.parentElement) return null;
     const stage = document.createElement('div');
     stage.className = 'reel-chart';
     stage.setAttribute('aria-hidden', 'true');
-    stage.style.cssText = `position:fixed;left:-99999px;top:0;width:${REEL_PHONE_CARD_PX}px;`
-      + `height:${(SHARE_FRAME.H * REEL_PHONE_CARD_PX / 1000).toFixed(2)}px;margin:0;flex:none;pointer-events:none;`;
+    const px = REEL_PHONE_CARD_PX / 1000;
+    stage.style.cssText = `position:fixed;left:-99999px;top:0;width:${(frame.W * px).toFixed(2)}px;`
+      + `height:${(frame.H * px).toFixed(2)}px;margin:0;flex:none;pointer-events:none;`;
     // Beside the live chart, so it takes the same scoped colours and weights.
     host.parentElement.appendChild(stage);
     // The price window is the one on screen, held for this one draw: the
@@ -11059,7 +11073,9 @@
   async function chartToPngBlob(name, liveHost) {
     if (!liveHost || !liveHost.querySelector('svg.reel-svg')) return null;
     // No stage (a chart with no painted context) falls back to the live chart.
-    const host = shareStage(liveHost) || liveHost;
+    const frame = shareFrame(shareIsLandscape());
+    const stage = shareStage(liveHost, frame);
+    const host = stage || liveHost;
     const svg = host.querySelector('svg.reel-svg');
     if (!svg) { if (host !== liveHost) host.remove(); return null; }
 
@@ -11071,8 +11087,13 @@
     // K enlarges the header and footer as a whole: they are laid out in a
     // 150- and 76-unit logical band and drawn under ctx.scale(K), so every
     // font, pill and gap grows together and the plot keeps its full width.
-    const { K, HEAD, FOOT, PAD } = SHARE_FRAME, SCALE = 2;
-    const CW = W - 2 * PAD, CH = Math.round(H * CW / W);
+    // From the stage, the picture is exactly the frame's shape: the stage's
+    // box is whole CSS pixels, so its viewBox height can land a unit off the
+    // frame's, and the plot takes up that sub-pixel difference (never the
+    // picture). The fallback live chart keeps its own aspect.
+    const { K, HEAD, FOOT, PAD } = frame, SCALE = 2;
+    const CW = W - 2 * PAD;
+    const CH = stage && W === frame.W ? frame.TOTAL - HEAD - FOOT : Math.round(H * CW / W);
     const TOTAL = HEAD + CH + FOOT;
 
     const clone = svg.cloneNode(true);
