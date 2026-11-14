@@ -213,8 +213,8 @@ the ticker falls back to Yahoo's fuller name (fetched once, cached as
 "full:<ticker>" in names_cache.json), then to the instrument's industry /
 sector / group from Instruments.txt. A failed lookup is not repeated in the
 same run. Test: retired_instruments_test.py InstrumentNameTests. Glass: tint
-16% -> 6%, blur 4 -> 2px, top shine .60 -> .28, white rim -> 1px grey outline
-(#3c3c43 at 38%). Footer filled out to match the header (user: "fill the
+16% -> 6%, blur 4 -> 2px, top shine .60 -> .28; outline briefly grey, then
+(user: "make outline white") a 1px white outline at 95%. Footer filled out to match the header (user: "fill the
 footer a bit, text must fill in nicely to complete the header"): buttons 28 ->
 34px tall, words 13.6 -> 15.5px (14.5 at <=380px), counter 11.5 -> 14px,
 arrows 22 -> 24px glyphs; the width comes from the bar's side padding (10 ->
