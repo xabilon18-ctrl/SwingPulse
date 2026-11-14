@@ -198,6 +198,11 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (evening) GLASS OUTLINE THIN LIGHT GREY (user: "Make the outline of
+the capsules light gray and thin"). The header and footer glass bars' outline
+goes from 1px white (95%) to 0.5px #c7c7cc, one device pixel on a 2x/3x
+iPhone. The pills inside keep their own faint edges. style.css v437.
+
 2026-11-14 (fix) FOOTER AT 320PX. The #211 deploy went red after going live
 on "Verify released chart weights" (tests/chart_readability_browser.cjs, which
 only runs against production): at 320px the fixed-width timeframe pill and
