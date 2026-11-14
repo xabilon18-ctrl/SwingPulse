@@ -198,6 +198,19 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (later still) FOOTER EVEN AND STATIONARY; TIMEFRAME MENU ON THE LEFT
+(user: "place everything in the capsule evenly and make stationary ... and the
+menu ... to the left"). Phone full screen: the three groups are spaced with
+`space-evenly` (old `margin-left: auto` pushes on .reel-foot-actions and
+.cf-tf-steps cleared, as auto margins beat justify-content), so the gap at each
+rounded end matches the gaps between groups (~5px at 375, 3-4 at 390, 13-14 at
+430). The timeframe pill is a fixed calc(5.4em + 8px) ("Monthly" plus a few px
+for the phone's wider font) and the counter 4.4em ("842/850"), so switching
+Hourly -> Monthly or 3/34 -> 31/34 moves nothing (measured: identical x of
+every control). The timeframe menu opens from the left edge, over the pill.
+At <=380px Save | Draw is 14px with 4px padding to leave the gaps. style.css
+v435.
+
 2026-11-14 (after) FOOTER GROUPS SWAPPED, PHONE FULL SCREEN (user, circling
 "‹ 3/34 ›" and "‹ Daily ›": "swap only please"). The timeframe group is now on
 the left and the chart counter on the right; Save | Draw stays in the middle.

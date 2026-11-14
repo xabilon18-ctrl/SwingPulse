@@ -10059,7 +10059,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { padding-left: 3px; padding-right: 3px; }
 /* 375px: the full sizes squeezed "Monthly" to 54px of its 69; these give it back. */
 @media (max-width: 380px) {
-  #chartFull:not(.desktop-chart) .reel-capsule > .reel-act { font-size: 14.5px; padding: 0 5px; }
+  #chartFull:not(.desktop-chart) .reel-capsule > .reel-act { font-size: 14px; padding: 0 4px; }
   #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { font-size: 14.5px; }
   #chartFull:not(.desktop-chart) .cf-pos { font-size: 13px; }
 }
@@ -10072,6 +10072,33 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .reel-foot > .cf-tf-steps { order: 1; margin-left: 0; }
 #chartFull:not(.desktop-chart) .reel-foot > .reel-foot-actions { order: 2; }
 #chartFull:not(.desktop-chart) .reel-foot > .cf-steps { order: 3; }
+/* Even and stationary (user, 2026-11-14: "place everything in the capsule
+   evenly and make stationary"). Even: the three groups are spaced evenly
+   inside the bar, the same gap at both rounded ends as between groups, so the
+   outer arrows sit clear of the curve. Stationary: the timeframe pill is as
+   wide as "Monthly" whatever it says, and the counter as wide as "842/850",
+   so switching Hourly -> Daily or 3/34 -> 31/34 moves nothing. Widths in em
+   (they follow the 15.5 / 14.5px and 14 / 13px sizes) with a few px spare,
+   as the phone's font runs a little wider than the test browser's. Measured
+   at 375px: ~12px left over for the four gaps. */
+#chartFull:not(.desktop-chart) > .reel-foot {
+  justify-content: space-evenly;
+  /* The even gaps now give the clearance at the rounded ends that the side
+     padding gave. */
+  padding-left: calc(env(safe-area-inset-left) + 3px); padding-right: calc(env(safe-area-inset-right) + 3px);
+}
+/* Auto margins beat justify-content: the old pushes (Save | Draw and the
+   timeframe group to the right) would leave the gaps uneven. */
+#chartFull:not(.desktop-chart) .reel-foot > .reel-foot-actions,
+#chartFull:not(.desktop-chart) .reel-foot > .cf-steps,
+#chartFull:not(.desktop-chart) .reel-foot > .cf-tf-steps { margin-left: 0; margin-right: 0; }
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag {
+  box-sizing: border-box; width: calc(5.4em + 8px); flex: 0 0 auto;
+  justify-content: center; text-align: center;
+}
+#chartFull:not(.desktop-chart) .reel-foot .cf-pos { width: 4.4em; text-align: center; }
+/* The timeframe menu opens over the timeframe pill, now on the left. */
+#chartFull:not(.desktop-chart) .reel-tf-menu { left: 0; right: auto; }
 /* Footer pills sit on the glass as faint white chips. */
 #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
 #chartFull:not(.desktop-chart) .reel-foot .reel-capsule > .reel-act,
