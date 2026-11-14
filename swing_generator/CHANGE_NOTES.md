@@ -198,6 +198,12 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (after) FOOTER GROUPS SWAPPED, PHONE FULL SCREEN (user, circling
+"‹ 3/34 ›" and "‹ Daily ›": "swap only please"). The timeframe group is now on
+the left and the chart counter on the right; Save | Draw stays in the middle.
+Done with CSS `order` on #chartFull:not(.desktop-chart), so the markup,
+desktop and the iPad workspace are unchanged; sizes unchanged. style.css v434.
+
 2026-11-14 (last) GLASS BARS LOSE THEIR BLUR (user, on the phone: "there is
 a lagg and misalignment with the capsule see through and background"). The
 header and footer had `backdrop-filter: blur(2px) saturate(150%)`. Safari

@@ -10065,6 +10065,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 #chartFull:not(.desktop-chart) .reel-capsule > .reel-act:first-child { border-radius: 17px 0 0 17px; }
 #chartFull:not(.desktop-chart) .reel-capsule > .reel-act:last-child  { border-radius: 0 17px 17px 0; }
+/* Swapped sides, phone full screen (user, 2026-11-14, circling the two
+   groups: "swap only please"): the ‹ Daily › timeframe group on the left, the
+   ‹ 3/34 › chart counter on the right, Save | Draw stays in the middle. CSS
+   order only, so the markup (and desktop / iPad) is unchanged. */
+#chartFull:not(.desktop-chart) .reel-foot > .cf-tf-steps { order: 1; margin-left: 0; }
+#chartFull:not(.desktop-chart) .reel-foot > .reel-foot-actions { order: 2; }
+#chartFull:not(.desktop-chart) .reel-foot > .cf-steps { order: 3; }
 /* Footer pills sit on the glass as faint white chips. */
 #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
 #chartFull:not(.desktop-chart) .reel-foot .reel-capsule > .reel-act,
