@@ -174,6 +174,20 @@ let debugPage;
     await page.locator('.share-prev [data-sp="cancel"]').click();
     assert.equal(await live(), before, `${scope} chart is unchanged by sharing it`);
   }
+  // Turned sideways the picture turns with it (2026-11-14): 16:9 landscape,
+  // 4000 x 2250, from the same phone held in landscape.
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.evaluate(() => document.querySelector('#chartFull [data-act="chart-share"]').click());
+  await page.locator('.share-prev img').waitFor();
+  const wide = await page.evaluate(async () => {
+    const im = document.querySelector('.share-prev img');
+    await im.decode();
+    return im.naturalWidth + 'x' + im.naturalHeight;
+  });
+  assert.equal(wide, '4000x2250', 'landscape shares a 16:9 picture');
+  assert.equal(await page.locator('.share-prev [data-sp="save"]').count(), 1, 'landscape preview offers Save');
+  await page.locator('.share-prev [data-sp="cancel"]').click();
+  await page.setViewportSize({ width: 390, height: 844 });
   // The full name under the symbol: the fixture's own name offline; live, the
   // first chart is any market (ABSA reads "Absa"), so only that it is not blank.
   const fullName = page.locator('#chartFull .cf-fullname');
