@@ -214,7 +214,13 @@ the ticker falls back to Yahoo's fuller name (fetched once, cached as
 sector / group from Instruments.txt. A failed lookup is not repeated in the
 same run. Test: retired_instruments_test.py InstrumentNameTests. Glass: tint
 16% -> 6%, blur 4 -> 2px, top shine .60 -> .28, white rim -> 1px grey outline
-(#3c3c43 at 38%). style.css v432.
+(#3c3c43 at 38%). Footer filled out to match the header (user: "fill the
+footer a bit, text must fill in nicely to complete the header"): buttons 28 ->
+34px tall, words 13.6 -> 15.5px (14.5 at <=380px), counter 11.5 -> 14px,
+arrows 22 -> 24px glyphs; the width comes from the bar's side padding (10 ->
+6px), narrower arrow buttons (26/24 -> 22/18px) and the pill's padding. Measured
+on Monthly with an 842/850 counter: nothing clipped at 375/390/430px (before,
+"Monthly" already lost 10px to the ellipsis at 375px). style.css v432.
 
 2026-11-14 (latest) GLASS HEADER AND FOOTER, PHONE FULL SCREEN (user: "one
 thick header and one thick footer, with a glass like glossy ... light light
