@@ -263,14 +263,14 @@ def build_names():
     # Hard-coded overrides — futures roll monthly (name changes), indices have poor shortNames
     OVERRIDES = {
         # Futures
-        'GC=F':   'Gold',
-        'SI=F':   'Silver',
+        'GC=F':   'Gold Futures (COMEX)',
+        'SI=F':   'Silver Futures (COMEX)',
         'CL=F':   'Crude Oil',
         'NG=F':   'Natural Gas',
-        'HG=F':   'Copper',
-        'ZW=F':   'Wheat',
-        'ZC=F':   'Corn',
-        'ZS=F':   'Soybeans',
+        'HG=F':   'Copper Futures (COMEX)',
+        'ZW=F':   'Wheat Futures (CBOT)',
+        'ZC=F':   'Corn Futures (CBOT)',
+        'ZS=F':   'Soybean Futures (CBOT)',
         'ES=F':   'S&P 500 Futures',
         'NQ=F':   'Nasdaq Futures',
         'YM=F':   'Dow Futures',
@@ -290,9 +290,9 @@ def build_names():
         '^DJI':   'Dow Jones',
         '^IXIC':  'Nasdaq',
         '^RUT':   'Russell 2000',
-        '^VIX':   'VIX',
+        '^VIX':   'CBOE Volatility Index',
         '^FTSE':  'FTSE 100',
-        '^GDAXI': 'DAX',
+        '^GDAXI': 'DAX 40 (Germany)',
         '^FCHI':  'CAC 40',
         '^N225':  'Nikkei 225',
         '^HSI':   'Hang Seng',
@@ -353,6 +353,20 @@ def build_names():
         ' USD',  # leftover crypto suffix
     ]
 
+    # Currency indices are SwingPulse's own (main.py builds them from the
+    # pairs), so Yahoo has no name for CCY_xxx: it answered 404 for all 18 on
+    # every hourly run and the charts showed no name (2026-11-14).
+    CURRENCIES = {
+        'USD': 'US Dollar', 'EUR': 'Euro', 'GBP': 'British Pound', 'JPY': 'Japanese Yen',
+        'CHF': 'Swiss Franc', 'CAD': 'Canadian Dollar', 'AUD': 'Australian Dollar',
+        'NZD': 'New Zealand Dollar', 'ZAR': 'South African Rand', 'MXN': 'Mexican Peso',
+        'SGD': 'Singapore Dollar', 'SEK': 'Swedish Krona', 'NOK': 'Norwegian Krone',
+        'TRY': 'Turkish Lira', 'PLN': 'Polish Zloty', 'HUF': 'Hungarian Forint',
+        'CZK': 'Czech Koruna', 'CNY': 'Chinese Yuan',
+    }
+    for code, cname in CURRENCIES.items():
+        OVERRIDES[f'CCY_{code}'] = f'{cname} Index'
+
     import re as _re
 
     cache_path = os.path.join(OUTPUT_DIR, 'names_cache.json')
@@ -370,6 +384,38 @@ def build_names():
     result      = {}
     fetched     = 0
 
+    # EVERY instrument gets a name (user, 2026-11-14: "All should have
+    # names"). The app hides a name equal to the ticker, and the suffix
+    # stripping below turned 55 of them into exactly that ("ASML Holding
+    # N.V." -> "ASML", "CSX Corporation" -> "CSX"). Such a name falls back to
+    # the fuller Yahoo name (fetched once, cached under "full:<ticker>"),
+    # then to the instrument's industry/sector/group from Instruments.txt.
+    def same(n, disp, ticker):
+        n = (n or '').strip().upper()
+        return not n or n in (disp.upper(), ticker.upper())
+
+    def fetch(ticker):
+        """(short, full) display names from Yahoo; full keeps the words the
+        short one strips."""
+        info = yf.Ticker(ticker).info
+        # longName is cleaner for foreign stocks; shortName can contain padding garbage
+        name = (info.get('longName') or info.get('shortName') or '').strip()
+        # Strip leading "The " (e.g. "The Boeing Company")
+        if name.startswith('The '):
+            name = name[4:].strip()
+        # Strip anything after ' - ' (exchange descriptions like '- New York Re')
+        if ' - ' in name:
+            name = name.split(' - ')[0].strip()
+        name = _re.sub(r'\s{2,}[A-Za-z]\s*$', '', name).strip()
+        full = name.rstrip(',').strip()
+        for sfx in STRIP_SUFFIXES:
+            if name.endswith(sfx):
+                name = name[:-len(sfx)].strip()
+        # Strip trailing noise: single uppercase/lowercase letter after whitespace
+        # e.g. "Covestro AG    I"  →  "Covestro"  (the AG was already stripped above)
+        name = _re.sub(r'\s{2,}[A-Za-z]\s*$', '', name).strip()
+        return name.rstrip(',').strip(), full
+
     for inst in instruments:
         ticker = inst['ticker']
         disp   = inst['name']
@@ -377,35 +423,33 @@ def build_names():
         if ticker in OVERRIDES:
             result[disp] = OVERRIDES[ticker]
             continue
-        # 2. Cache hit
-        if ticker in cache and cache[ticker]:
-            result[disp] = cache[ticker]
-            continue
-        # 3. Fetch from yfinance
-        try:
-            info = yf.Ticker(ticker).info
-            # longName is cleaner for foreign stocks; shortName can contain padding garbage
-            name = (info.get('longName') or info.get('shortName') or '').strip()
-            # Strip leading "The " (e.g. "The Boeing Company")
-            if name.startswith('The '):
-                name = name[4:].strip()
-            # Strip anything after ' - ' (exchange descriptions like '- New York Re')
-            if ' - ' in name:
-                name = name.split(' - ')[0].strip()
-            for sfx in STRIP_SUFFIXES:
-                if name.endswith(sfx):
-                    name = name[:-len(sfx)].strip()
-            # Strip trailing noise: single uppercase/lowercase letter after whitespace
-            # e.g. "Covestro AG    I"  →  "Covestro"  (the AG was already stripped above)
-            name = _re.sub(r'\s{2,}[A-Za-z]\s*$', '', name).strip()
-            name = name.rstrip(',').strip()
-            cache[ticker] = name
-            result[disp] = name
-            fetched += 1
-        except Exception as exc:
-            print(f'    ✗ Name fetch failed for {ticker}: {exc}')
-            cache[ticker] = ''
-            result[disp] = ''
+        # 2. Cache hit, else 3. fetch from yfinance
+        name, failed = cache.get(ticker) or '', False
+        if not name:
+            try:
+                name, full = fetch(ticker)
+                cache[ticker] = name
+                cache['full:' + ticker] = full
+                fetched += 1
+            except Exception as exc:
+                print(f'    ✗ Name fetch failed for {ticker}: {exc}')
+                cache[ticker] = name = ''
+                failed = True
+        # 4. A name that is only the ticker: the fuller Yahoo name, once.
+        if same(name, disp, ticker):
+            key = 'full:' + ticker
+            if key not in cache and not failed:
+                try:
+                    cache[key] = fetch(ticker)[1]
+                    fetched += 1
+                except Exception as exc:
+                    print(f'    ✗ Full name fetch failed for {ticker}: {exc}')
+            if not same(cache.get(key), disp, ticker):
+                name = cache[key]
+        # 5. Last resort: what the instrument list says it is.
+        if same(name, disp, ticker):
+            name = inst.get('industry') or inst.get('sector') or inst.get('group') or ''
+        result[disp] = name
 
     # Persist updated cache
     try:

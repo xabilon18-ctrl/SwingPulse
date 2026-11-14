@@ -9993,10 +9993,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    "one thick header and one thick footer, with a glass like glossy ... light
    light gray", then "glossy like glass and see through like", picked from
    mock-ups: "More see through one". Each bar is one floating rounded panel of
-   very light grey glass: a 16% tint and a light 4px blur, so candles behind
-   show as soft shapes; a white shine over the top half; a bright white rim
-   and a faint outer hairline. This replaces the no-band look of 2026-11-10
-   on purpose. The letter halo stays: over a busy chart it is what keeps the
+   very light grey glass. Same day, seen on the phone: "make me see through
+   and little darker outline": the tint went 16% -> 6%, the blur 4 -> 2px and
+   the top shine .60 -> .28 (on the phone the shine read as a white band), and
+   the white rim became a 1px grey outline (#3c3c43 at 38%). This replaces
+   the no-band look of 2026-11-10 on purpose. The letter halo stays: over a busy chart it is what keeps the
    words readable through so thin a tint. reelLayout measures both panels'
    real rects, so the price frame and the date row stay in the clear part.
    Desktop and the iPad Charts workspace keep their in-flow header/footer. */
@@ -10004,14 +10005,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) > .reel-foot {
   --glass-tint: 228, 228, 233;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.60) 0%, rgba(255,255,255,.21) 46%, rgba(255,255,255,0) 50%),
-    linear-gradient(180deg, rgba(255,255,255,0) 70%, rgba(255,255,255,.35) 100%),
-    rgba(var(--glass-tint), .16);
-  -webkit-backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
-  backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
-  border: 0; border-radius: 22px;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.9), 0 0 0 1.5px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.10),
-              inset 0 1.5px 0 #fff, inset 0 -1px 0 rgba(255,255,255,.5);
+    linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.08) 46%, rgba(255,255,255,0) 50%),
+    rgba(var(--glass-tint), .06);
+  -webkit-backdrop-filter: blur(2px) saturate(150%);
+  backdrop-filter: blur(2px) saturate(150%);
+  border: 1px solid rgba(60, 60, 67, .38); border-radius: 22px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.75);
 }
 #chartFull:not(.desktop-chart) > .cf-head {
   top: calc(env(safe-area-inset-top) + 6px);
