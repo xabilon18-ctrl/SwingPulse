@@ -170,5 +170,50 @@ class IssuePlanTests(unittest.TestCase):
         self.assertEqual(old.groups(), ('FERG.L', None))
 
 
+class InstrumentNameTests(unittest.TestCase):
+    """Every instrument has a full name under its ticker (user, 2026-11-14:
+    "All should have names"). 73 of 852 had none: currency indices Yahoo
+    does not know, and names the suffix stripping cut down to the ticker."""
+
+    def test_every_instrument_gets_a_name(self):
+        sys.path.insert(0, str(ROOT / 'webapp'))
+        import publish
+        insts = [
+            {'ticker': 'CCY_ZAR', 'name': 'ZAR_IDX', 'group': 'Currency Index', 'sector': '', 'industry': ''},
+            {'ticker': 'CSX', 'name': 'CSX', 'group': 'US100', 'sector': 'Industrials', 'industry': 'Railroads'},
+            {'ticker': 'ASML', 'name': 'ASML', 'group': 'US100', 'sector': 'Technology', 'industry': 'Semiconductor Equipment & Materials'},
+            {'ticker': 'BLSH', 'name': 'BULLISH', 'group': 'Blockchain', 'sector': 'Financial Services', 'industry': 'Financial Data & Stock Exchanges'},
+            {'ticker': 'QRVO', 'name': 'QRVO', 'group': 'US100', 'sector': 'Technology', 'industry': 'Semiconductors'},
+            {'ticker': 'GC=F', 'name': 'GOLD', 'group': 'Commodity', 'sector': 'Commodities', 'industry': 'Precious Metals'},
+        ]
+        yahoo = {'CSX': 'CSX Corporation', 'ASML': 'ASML Holding N.V.', 'BLSH': 'Bullish'}
+        calls = []
+        class Ticker:
+            def __init__(self, t):
+                calls.append(t)
+                if t not in yahoo:
+                    raise RuntimeError('404')
+                self.info = {'longName': yahoo[t]}
+        with tempfile.TemporaryDirectory() as d:
+            # ASML was cached by an older run as the stripped "ASML".
+            Path(d, 'names_cache.json').write_text(json.dumps({'ASML': 'ASML'}))
+            with patch.object(publish, 'OUTPUT_DIR', d), patch.object(publish, 'load_instruments', return_value=insts), \
+                 patch('yfinance.Ticker', Ticker):
+                names = publish.build_names()
+                self.assertEqual(names, {
+                    'ZAR_IDX': 'South African Rand Index',
+                    'CSX': 'CSX Corporation',
+                    'ASML': 'ASML Holding N.V.',
+                    'BULLISH': 'Financial Data & Stock Exchanges',
+                    'QRVO': 'Semiconductors',
+                    'GOLD': 'Gold Futures (COMEX)',
+                })
+                self.assertNotIn('CCY_ZAR', calls, 'currency indices are not looked up on Yahoo')
+                self.assertEqual(calls.count('QRVO'), 1, 'a failed lookup is not repeated in the same run')
+                calls.clear()
+                self.assertEqual(publish.build_names(), names)
+                self.assertEqual(calls, ['QRVO'], 'fuller names are cached; only the failed lookup retries')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -9993,10 +9993,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    "one thick header and one thick footer, with a glass like glossy ... light
    light gray", then "glossy like glass and see through like", picked from
    mock-ups: "More see through one". Each bar is one floating rounded panel of
-   very light grey glass: a 16% tint and a light 4px blur, so candles behind
-   show as soft shapes; a white shine over the top half; a bright white rim
-   and a faint outer hairline. This replaces the no-band look of 2026-11-10
-   on purpose. The letter halo stays: over a busy chart it is what keeps the
+   very light grey glass. Same day, seen on the phone: "make me see through
+   and little darker outline": the tint went 16% -> 6%, the blur 4 -> 2px and
+   the top shine .60 -> .28 (on the phone the shine read as a white band), and
+   the white rim became a 1px grey outline; then "make outline white": a
+   1px white outline (95%), the soft drop shadow kept. This replaces
+   the no-band look of 2026-11-10 on purpose. The letter halo stays: over a busy chart it is what keeps the
    words readable through so thin a tint. reelLayout measures both panels'
    real rects, so the price frame and the date row stay in the clear part.
    Desktop and the iPad Charts workspace keep their in-flow header/footer. */
@@ -10004,14 +10006,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) > .reel-foot {
   --glass-tint: 228, 228, 233;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.60) 0%, rgba(255,255,255,.21) 46%, rgba(255,255,255,0) 50%),
-    linear-gradient(180deg, rgba(255,255,255,0) 70%, rgba(255,255,255,.35) 100%),
-    rgba(var(--glass-tint), .16);
-  -webkit-backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
-  backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
-  border: 0; border-radius: 22px;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.9), 0 0 0 1.5px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.10),
-              inset 0 1.5px 0 #fff, inset 0 -1px 0 rgba(255,255,255,.5);
+    linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.08) 46%, rgba(255,255,255,0) 50%),
+    rgba(var(--glass-tint), .06);
+  -webkit-backdrop-filter: blur(2px) saturate(150%);
+  backdrop-filter: blur(2px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, .95); border-radius: 22px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.75);
 }
 #chartFull:not(.desktop-chart) > .cf-head {
   top: calc(env(safe-area-inset-top) + 6px);
@@ -10029,6 +10029,38 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn,
 #chartFull:not(.desktop-chart) .cf-actions-more > summary,
 #chartFull:not(.desktop-chart) .cf-actions > .cf-close { width: 30px; }
+/* Footer filled out to match the header (user, 2026-11-14: "fill the footer a
+   bit, text must fill in nicely to complete the header"). Its 28px buttons,
+   13.6px words and 11.5px counter left a thin row in a 52px bar: buttons go to
+   34px, words to 15.5px, the counter to 14px and the arrows to 24px. Width is
+   the limit, not height: at 375px "Monthly" beside "842/850" still has to fit
+   on one row (chart_tf_step_checks), so the horizontal padding stays tight. */
+#chartFull:not(.desktop-chart) > .reel-foot { padding-top: 8px; padding-bottom: 8px; justify-content: space-between; }
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act,
+#chartFull:not(.desktop-chart) .cf-step { height: 34px; }
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act { font-size: 15.5px; }
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { font-size: 15.5px; border-radius: 17px; }
+#chartFull:not(.desktop-chart) .cf-pos { font-size: 14px; }
+#chartFull:not(.desktop-chart) .cf-step { font-size: 24px; }
+/* The room for the bigger words comes from the bar's side padding (10 -> 6px)
+   and the four arrows (26/24 -> 22/18px wide; the glyphs are ~8px). Without
+   it "Monthly" lost ~21px to the ellipsis at 390px (it already lost 10px at
+   375px before the change). */
+#chartFull:not(.desktop-chart) > .reel-foot {
+  padding-left: calc(env(safe-area-inset-left) + 6px); padding-right: calc(env(safe-area-inset-right) + 6px);
+}
+#chartFull:not(.desktop-chart) .cf-steps .cf-step { width: 22px; }
+#chartFull:not(.desktop-chart) .cf-tf-steps .cf-tf-step { width: 18px; }
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { padding-left: 3px; padding-right: 3px; }
+/* 375px: the full sizes squeezed "Monthly" to 54px of its 69; these give it back. */
+@media (max-width: 380px) {
+  #chartFull:not(.desktop-chart) .reel-capsule > .reel-act { font-size: 14.5px; padding: 0 5px; }
+  #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { font-size: 14.5px; }
+  #chartFull:not(.desktop-chart) .cf-pos { font-size: 13px; }
+}
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act:first-child { border-radius: 17px 0 0 17px; }
+#chartFull:not(.desktop-chart) .reel-capsule > .reel-act:last-child  { border-radius: 0 17px 17px 0; }
 /* Footer pills sit on the glass as faint white chips. */
 #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
 #chartFull:not(.desktop-chart) .reel-foot .reel-capsule > .reel-act,
