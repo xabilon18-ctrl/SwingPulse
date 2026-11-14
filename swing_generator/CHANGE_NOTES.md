@@ -198,6 +198,15 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (fix) FOOTER AT 320PX. The #211 deploy went red after going live
+on "Verify released chart weights" (tests/chart_readability_browser.cjs, which
+only runs against production): at 320px the fixed-width timeframe pill and
+counter no longer fit, the row ran over and the timeframe › lay on top of
+Save, so the check's tap on Save never landed. Below 360px the pill and the
+counter shrink again as before (the word ellipsises) with space-between; 360px
+and up keep the fixed widths. The check fails on #211's CSS and passes with
+this, run locally on the browser fixture. style.css v436.
+
 2026-11-14 (later still) FOOTER EVEN AND STATIONARY; TIMEFRAME MENU ON THE LEFT
 (user: "place everything in the capsule evenly and make stationary ... and the
 menu ... to the left"). Phone full screen: the three groups are spaced with

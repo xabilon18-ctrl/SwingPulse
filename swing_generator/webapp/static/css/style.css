@@ -10097,6 +10097,15 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   justify-content: center; text-align: center;
 }
 #chartFull:not(.desktop-chart) .reel-foot .cf-pos { width: 4.4em; text-align: center; }
+/* Below 360px (the 320px iPhone SE) the fixed widths do not fit: the row ran
+   over and the timeframe › lay on top of Save, swallowing its taps (the
+   2026-11-14 production readability check at 320px). There the pill and the
+   counter shrink as before, the pill's word ellipsising. */
+@media (max-width: 359px) {
+  #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { width: auto; flex: 0 1 auto; min-width: 0; }
+  #chartFull:not(.desktop-chart) .reel-foot .cf-pos { width: auto; }
+  #chartFull:not(.desktop-chart) > .reel-foot { justify-content: space-between; }
+}
 /* The timeframe menu opens over the timeframe pill, now on the left. */
 #chartFull:not(.desktop-chart) .reel-tf-menu { left: 0; right: auto; }
 /* Footer pills sit on the glass as faint white chips. */
