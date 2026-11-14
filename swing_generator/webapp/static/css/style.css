@@ -9994,7 +9994,8 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    light gray", then "glossy like glass and see through like", picked from
    mock-ups: "More see through one". Each bar is one floating rounded panel of
    very light grey glass. Same day, seen on the phone: "make me see through
-   and little darker outline": the tint went 16% -> 6%, the blur 4 -> 2px and
+   and little darker outline": the tint went 16% -> 6%, the blur 4 -> 2px
+   (since removed: see the note in the rule) and
    the top shine .60 -> .28 (on the phone the shine read as a white band), and
    the white rim became a 1px grey outline; then "make outline white": a
    1px white outline (95%), the soft drop shadow kept. This replaces
@@ -10008,8 +10009,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   background:
     linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.08) 46%, rgba(255,255,255,0) 50%),
     rgba(var(--glass-tint), .06);
-  -webkit-backdrop-filter: blur(2px) saturate(150%);
-  backdrop-filter: blur(2px) saturate(150%);
+  /* NO backdrop-filter (user, 2026-11-14, on the phone: "there is a lagg
+     and misalignment with the capsule see through and background"). Safari
+     draws a blurred backdrop as its own layer, refreshed after the chart
+     moves, so while panning the blurred copy trailed the candles and sat a
+     few pixels off them. Plain transparency shows the chart itself. */
   border: 1px solid rgba(255, 255, 255, .95); border-radius: 22px;
   box-shadow: 0 6px 18px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.75);
 }
