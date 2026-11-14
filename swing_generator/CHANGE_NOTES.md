@@ -198,6 +198,21 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (latest) GLASS HEADER AND FOOTER, PHONE FULL SCREEN (user: "one
+thick header and one thick footer, with a glass like glossy ... light light
+gray", then "glossy like glass and see through like"; picked "More see through
+one" from mock-ups of frosted capsules, thin capsules and full bars). Each bar
+is one floating rounded panel (22px radius, 8px in from the screen edges):
+light grey tint at 16%, 4px backdrop blur, a white shine over the top half, a
+white rim and a faint outer hairline. Supersedes the no-band look of
+2026-11-10; the letter halo stays for readability over candles. The header's
+icons and close go 36 -> 30px wide so CHINA50 fits at 390px (at 375 it
+ellipsises as before). reelLayout already measures the panels' rects, so the
+frame and date row clear them with no JS change. Desktop and the iPad Charts
+workspace (in-flow header/footer) are unchanged. style.css v431. Test:
+app_smoke.cjs now checks a see-through tint (alpha <= 0.25), a blur, the
+rounded corners and the inset, in place of "no band and no border".
+
 2026-11-14 (later) HOURLY PUBLISH NO LONGER DIES ON A SKIPPED LEDGER. The
 07:05 SAST run (43559800125) built all its data and uploaded none of it: three
 R2 read timeouts on `signal_ledger.json` made `update_ledger` skip on purpose
