@@ -198,6 +198,10 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (evening, later) GLASS OUTLINE BACK TO WHITE (user: "No take it back
+the white"). The thin light grey outline (#213) is reverted to 1px white at 95%.
+style.css v438.
+
 2026-11-14 (evening) GLASS OUTLINE THIN LIGHT GREY (user: "Make the outline of
 the capsules light gray and thin"). The header and footer glass bars' outline
 goes from 1px white (95%) to 0.5px #c7c7cc, one device pixel on a 2x/3x

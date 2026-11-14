@@ -9998,7 +9998,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    (since removed: see the note in the rule) and
    the top shine .60 -> .28 (on the phone the shine read as a white band), and
    the white rim became a 1px grey outline; then "make outline white": a
-   1px white outline; then "light gray and thin": 0.5px #c7c7cc (see the
+   1px white outline (a thin grey one was tried and taken back, see the
    rule). The soft drop shadow stays throughout. This replaces
    the no-band look of 2026-11-10 on purpose. The letter halo stays: over a busy chart it is what keeps the
    words readable through so thin a tint. reelLayout measures both panels'
@@ -10015,10 +10015,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
      draws a blurred backdrop as its own layer, refreshed after the chart
      moves, so while panning the blurred copy trailed the candles and sat a
      few pixels off them. Plain transparency shows the chart itself. */
-  /* Thin light grey outline (user, 2026-11-14: "Make the outline of the
-     capsules light gray and thin"): half a CSS pixel, one device pixel on a
-     2x/3x iPhone, in iOS's light separator grey. Was 1px white. */
-  border: .5px solid #c7c7cc; border-radius: 22px;
+  /* White outline. A thin light grey one (0.5px #c7c7cc) was tried the same
+     evening and taken back (user: "No take it back the white"). */
+  border: 1px solid rgba(255, 255, 255, .95); border-radius: 22px;
   box-shadow: 0 6px 18px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.75);
 }
 #chartFull:not(.desktop-chart) > .cf-head {
