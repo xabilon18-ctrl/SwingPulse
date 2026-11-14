@@ -12,7 +12,17 @@ sys.path.insert(0, str(ROOT))
 from workflow_signals import RULE_VERSION
 
 
-def validate(directory):
+def validate(directory, require_ledger=True):
+    """require_ledger=False is the hourly publish (webapp/publish.py). There a
+    missing ledger_summary.json means signal_ledger.update_ledger skipped on
+    purpose: it could not read the R2 ledger, and saving without it would
+    clobber the remote copy. The upload sends only files that exist, so R2
+    keeps the last ledger, which passed this check when it was published.
+    2026-11-14 07:05 SAST: three R2 read timeouts made the ledger skip, this
+    check then died with FileNotFoundError, and the whole hour's data was not
+    uploaded over a file that had nothing new in it. Release builds (deploy,
+    signal preflight) call the CLI and stay strict: a rule change must refresh
+    the ledger."""
     def read(name):
         raw = (Path(directory) / name).read_bytes()
         return json.loads(gzip.decompress(raw) if raw[:2] == b'\x1f\x8b' else raw)
@@ -41,8 +51,13 @@ def validate(directory):
             continue
         assert setup['asOf'] == context['asOf'], 'Setup and 1H direction use different completed bars'
         assert all(level['id'] in ('D50','D250','D500','W50','W250','W500','M50') for level in setup['levels'])
-    ledger = read('ledger_summary.json')
-    assert ledger.get('rule_version') == RULE_VERSION, 'Saved signal statistics still mix old rules'
+    if (Path(directory) / 'ledger_summary.json').exists():
+        ledger = read('ledger_summary.json')
+        assert ledger.get('rule_version') == RULE_VERSION, 'Saved signal statistics still mix old rules'
+    else:
+        assert not require_ledger, 'ledger_summary.json missing: the signal ledger was not refreshed'
+        print('WARN: ledger_summary.json not refreshed this run (R2 ledger unreadable); '
+              'R2 keeps the last published copy')
     print(f'PASS: shared Daily/1H workflow for {len(rows)} rows; {setup_count} setup reference sets')
 
 
