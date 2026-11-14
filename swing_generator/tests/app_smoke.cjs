@@ -249,7 +249,7 @@ let debugPage;
   // Header and footer over the chart (user, 2026-11-05): on the phone the
   // chart fills the screen under them, each is one floating panel of
   // see-through glass (2026-11-14; no band 2026-11-10 to 2026-11-14): a faint
-  // tint with a blur, rounded, inset from the screen edges. The ticker is the
+  // tint, no blur, rounded, inset from the screen edges. The ticker is the
   // larger 19px, and the readable frame and the date row stay in the clear
   // part between them.
   {
@@ -262,12 +262,15 @@ let debugPage;
         footTop: ft.getBoundingClientRect().top, py0: cr.top + L.py0 * u, dateY: cr.top + L.dateY * u, stripY: cr.top + L.stripY * u,
         ha: alpha(h), fa: alpha(ft), overlaid: !!c.querySelector('svg.reel-svg.is-overlaid'),
         glass: [h, ft].map(e => { const s = getComputedStyle(e), r = e.getBoundingClientRect();
-          return { blur: (s.backdropFilter || s.webkitBackdropFilter || '').includes('blur'), radius: parseFloat(s.borderTopLeftRadius), left: r.left, right: innerWidth - r.right }; }),
+          return { backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none', radius: parseFloat(s.borderTopLeftRadius), left: r.left, right: innerWidth - r.right }; }),
         nameSize: parseFloat(getComputedStyle(h.querySelector('.cf-title .reel-name')).fontSize) };
     });
     assert.ok(o.overlaid && o.ch >= o.fh - 2 && o.top <= 1, 'the full-screen chart runs under the header and footer: ' + JSON.stringify(o));
     assert.ok(o.ha > 0 && o.ha <= 0.25 && o.fa > 0 && o.fa <= 0.25, 'header and footer are a see-through tint: ' + JSON.stringify(o));
-    assert.ok(o.glass.every(g => g.blur && g.radius >= 16 && g.left >= 6 && g.right >= 6), 'header and footer are floating rounded glass: ' + JSON.stringify(o));
+    assert.ok(o.glass.every(g => g.radius >= 16 && g.left >= 6 && g.right >= 6), 'header and footer are floating rounded glass: ' + JSON.stringify(o));
+    // No backdrop-filter: on iPhone Safari the blurred copy lagged and sat off
+    // the chart while panning (2026-11-14).
+    assert.ok(o.glass.every(g => g.backdrop === 'none'), 'header and footer have no backdrop blur: ' + JSON.stringify(o));
     assert.equal(o.nameSize, 19, 'full-screen ticker is 19px');
     assert.ok(o.py0 >= o.headBottom && o.dateY <= o.footTop && o.stripY > o.py0, 'frame, dates and strip sit in the clear part: ' + JSON.stringify(o));
     require('fs').mkdirSync('readability-review-results', { recursive: true });

@@ -198,6 +198,16 @@ asked for and was told. Look chosen from mock-ups: "Before" (bold symbol,
 regular %, frosted tile). Test: tests/lock_widget_test.cjs (not in CI).
 ESLint now also lints `ios-widget/` with Scriptable's globals.
 
+2026-11-14 (last) GLASS BARS LOSE THEIR BLUR (user, on the phone: "there is
+a lagg and misalignment with the capsule see through and background"). The
+header and footer had `backdrop-filter: blur(2px) saturate(150%)`. Safari
+draws a backdrop-filter as its own layer and refreshes it after the content
+underneath moves, so while the chart panned the blurred copy trailed the
+candles and sat a few pixels off them. At 2px the blur added little, so it is
+gone: the 6% tint, shine, white outline and letter halo stay, and the chart
+behind is the chart itself. app_smoke.cjs now asserts no backdrop-filter on
+the two bars. style.css v433.
+
 2026-11-14 (newest) EVERY INSTRUMENT HAS A FULL NAME; GLASS MORE SEE-THROUGH
 (user, on the phone: "Check why some have name and some don't. All should have
 names and make me see through and little darker outline"). 73 of 852 showed no
