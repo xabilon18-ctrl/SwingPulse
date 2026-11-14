@@ -9922,6 +9922,8 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
      screen (they are outside the chart's pan layer, so moving the chart never
      moves them), and a white halo on every letter keeps them readable over
      candles and lines. */
+  /* The band itself came back as floating glass on 2026-11-14: see "GLASS
+     HEADER AND FOOTER" below, which overrides this background. */
   background: transparent; border: 0; box-shadow: none;
   text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 8px rgba(255, 255, 255, .95);
 }
@@ -9986,6 +9988,53 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .cf-step { position: relative; }
 #chartFull:not(.desktop-chart) .reel-capsule > .reel-act::after,
 #chartFull:not(.desktop-chart) .cf-step::after { content: ''; position: absolute; inset: -4px 0; }
+
+/* ── GLASS HEADER AND FOOTER, phone full screen (user, 2026-11-14) ──────
+   "one thick header and one thick footer, with a glass like glossy ... light
+   light gray", then "glossy like glass and see through like", picked from
+   mock-ups: "More see through one". Each bar is one floating rounded panel of
+   very light grey glass: a 16% tint and a light 4px blur, so candles behind
+   show as soft shapes; a white shine over the top half; a bright white rim
+   and a faint outer hairline. This replaces the no-band look of 2026-11-10
+   on purpose. The letter halo stays: over a busy chart it is what keeps the
+   words readable through so thin a tint. reelLayout measures both panels'
+   real rects, so the price frame and the date row stay in the clear part.
+   Desktop and the iPad Charts workspace keep their in-flow header/footer. */
+#chartFull:not(.desktop-chart) > .cf-head,
+#chartFull:not(.desktop-chart) > .reel-foot {
+  --glass-tint: 228, 228, 233;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.60) 0%, rgba(255,255,255,.21) 46%, rgba(255,255,255,0) 50%),
+    linear-gradient(180deg, rgba(255,255,255,0) 70%, rgba(255,255,255,.35) 100%),
+    rgba(var(--glass-tint), .16);
+  -webkit-backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
+  backdrop-filter: blur(4px) saturate(170%) brightness(1.04);
+  border: 0; border-radius: 22px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.9), 0 0 0 1.5px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.10),
+              inset 0 1.5px 0 #fff, inset 0 -1px 0 rgba(255,255,255,.5);
+}
+#chartFull:not(.desktop-chart) > .cf-head {
+  top: calc(env(safe-area-inset-top) + 6px);
+  left: calc(env(safe-area-inset-left) + 8px); right: calc(env(safe-area-inset-right) + 8px);
+  padding: 8px 12px 10px;
+}
+#chartFull:not(.desktop-chart) > .reel-foot {
+  bottom: calc(var(--chart-bottom-inset) + 10px);
+  left: calc(env(safe-area-inset-left) + 8px); right: calc(env(safe-area-inset-right) + 8px);
+  padding: 11px 10px;
+}
+/* The panels' padding takes 24px of the header row: the five icons and ✕ go
+   from 36 to 30px wide so a ticker such as CHINA50 still fits beside them.
+   Each keeps its 38px height. */
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn,
+#chartFull:not(.desktop-chart) .cf-actions-more > summary,
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { width: 30px; }
+/* Footer pills sit on the glass as faint white chips. */
+#chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag,
+#chartFull:not(.desktop-chart) .reel-foot .reel-capsule > .reel-act,
+#chartFull:not(.desktop-chart) .reel-foot .cf-step {
+  background: rgba(255,255,255,.55); border-color: rgba(0,0,0,.08);
+}
 
 /* ── Close-set dots (user, 2026-11-07) ──────────────────────────────────
    "I only just asked for the spaces to be closed in ... the size is way too
