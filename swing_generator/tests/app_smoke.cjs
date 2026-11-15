@@ -393,7 +393,7 @@ let debugPage;
     // Each chip carries its count (2026-11-04), and the Class groups that
     // came over from Charts follow the classes.
     assert.deepEqual(await wlRow.locator('[data-wl-cls]').allInnerTexts(), ['All 1', 'Indices 0', 'Stocks 1', 'Forex 0', 'Ccy Index 0', 'Commodities 0', 'Crypto 0']);
-    assert.deepEqual(await wlRow.locator('[data-wl-grp]').allInnerTexts(), ['US100 0', 'US500 0', 'Banks 0', 'Energy 0', 'Tech 1', 'Semis 0', 'AI 0']);
+    assert.deepEqual(await wlRow.locator('[data-wl-grp]').allInnerTexts(), ['US100 0', 'US500 0', 'Banks 0', 'Energy 0', 'Power 0', 'Tech 1', 'Semis 0', 'AI 0']);
     await swipe(-120);
     assert.equal(await wlRow.locator('.wl2-pill.on').getAttribute('data-wl-cls'), 'Index', 'the swipe steps what the row holds');
     assert.equal(await page.locator('#wl2DdMode .wl2-mode-n').innerText(), '1', 'the dropdown counts the filters set');

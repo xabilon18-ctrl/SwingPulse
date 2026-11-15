@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-15 POWER GROUP; ENERGY BY SECTOR, NOT BY THE WORD (user asked
+whether electricity companies sit under Energy, then "Yes to both, build
+Power and deploy"). app.js v639, Instruments.txt.
+- The Watchlist Class › Groups "Energy" button matched the word "energy" in
+  group/sector/industry, so it also held the whole "AI Energy" group (VST,
+  NRG, TLN, OKLO, SMR, BE and the equipment makers HUBB, NVT, EME, BWXT, GEV)
+  while leaving out every other power company (CEG included).
+- `WL_GROUP_MATCH` in app.js: **Energy** = sector Energy plus commodities
+  whose industry is Energy (32 on 2026-11-15); **Power** (new button after
+  Energy) = industry Utilities - Regulated Electric / Independent Power
+  Producers / Diversified (27). Gas, water and waste utilities are in
+  neither. Other groups still use `matchesSearch()`. Free-text search
+  "power" uses the same three industries (`CATEGORY_ALIASES.power`).
+- BE (Bloom Energy) and SMR (NuScale) sector Utilities → Industrials: they
+  make equipment and sell no power. The weekly Yahoo-industries job never
+  changes a sector, so this holds.
+- Tests: `tests/power_group_test.cjs` (not yet in test.yml; workflow
+  changes go to the user for review), app_smoke group list gains "Power 0".
+
 2026-11-13 (20:45 SAST) WEEKLY HIDDEN, NOT DELETED (user: "hide weekly,
 don't delete just hide"). app.js v637. `config.TIMEFRAME_TABLE` gains an
 optional `hidden` (Weekly: True), passed in `SP_TIMEFRAMES`. Weekly stays

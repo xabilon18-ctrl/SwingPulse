@@ -1281,7 +1281,20 @@
   // (as Signals), and MA order + Near MA (beside Clusters, in MA). Same
   // meanings as on Charts: a group is a matchesSearch() word, as reel.cat was.
   const WL_GROUPS = [['us100', 'US100'], ['us500', 'US500'], ['banks', 'Banks'], ['energy', 'Energy'],
-                     ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
+                     ['power', 'Power'], ['tech', 'Tech'], ['semi', 'Semis'], ['ai', 'AI']];
+  // ENERGY AND POWER BY SECTOR, NOT BY THE WORD (user, 2026-11-15: "build
+  // Power"). The word "energy" also matched the "AI Energy" group, so Energy
+  // held power producers and equipment makers. Energy is now the Energy sector
+  // plus the energy commodities; Power is every electricity utility by Yahoo's
+  // industry label, so a newly added one lands here with no list to keep.
+  // Gas, water and waste utilities are in neither. Other groups keep matchesSearch().
+  const POWER_INDUSTRIES = new Set(['Utilities - Regulated Electric',
+    'Utilities - Independent Power Producers', 'Utilities - Diversified']);
+  const WL_GROUP_MATCH = {
+    energy: d => d.sector === 'Energy' || (d.sector === 'Commodities' && d.industry === 'Energy'),
+    power: d => POWER_INDUSTRIES.has(d.industry),
+  };
+  const wlGroupMatches = (d, grp) => (WL_GROUP_MATCH[grp] ? WL_GROUP_MATCH[grp](d) : matchesSearch(d, grp));
   const WL_SCOPES = [['all', 'Everything'], ['views', 'My Buy / Sell markers'], ['views-buy', 'My Buy markers'],
     ['views-sell', 'My Sell markers'], ['today', 'Fired today'], ['signal', 'Any open signal'], ['buy', 'Buys only'],
     ['sell', 'Sells only'], ['watch', 'Minor 1H swings'], ['m15sig', '1H B1 / S1 · 2 sessions'],
@@ -1819,7 +1832,7 @@
     // they score as Index, so they also appear under Indices.
     if (st.cls === 'CcyIndex') rows = rows.filter(d => (d.group || '').trim() === 'Currency Index' || (cur && alsoInGroup(d, 'Currency Index')));
     else if (st.cls && st.cls !== 'all') rows = rows.filter(d => d.asset_class === st.cls);
-    if (st.grp) rows = rows.filter(d => matchesSearch(d, st.grp));
+    if (st.grp) rows = rows.filter(d => wlGroupMatches(d, st.grp));
     if (st.sector) rows = rows.filter(d => sectorMatches(d, st.sector, st.industry));
     if (st.trend && st.trend !== 'all')
       rows = rows.filter(d => mainTrendOf(d) === st.trend);
@@ -3842,6 +3855,7 @@
     'robotics':     ['robotics'],
     'banks':        ['banks'],
     'energy':       ['energy'],
+    'power':        ['utilities - regulated electric', 'utilities - independent power producers', 'utilities - diversified'],
     'healthcare':   ['healthcare'],
     'tech':         [
       'technology',                                 // sector=Technology across all index groups
