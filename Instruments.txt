@@ -300,7 +300,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 ═══════════════════════════════════════════════════════════════════════════════
   AI ENERGY — FOREX REPLACEMENT (4)
 ═══════════════════════════════════════════════════════════════════════════════
-233  | SMR           | SMR           | AI Energy     | Utilities                 | Specialty Industrial Machinery
+233  | SMR           | SMR           | AI Energy     | Industrials               | Specialty Industrial Machinery
 234  | HUBB          | HUBB          | AI Energy     | Industrials               | Electrical Equipment & Parts
 235  | NVT           | NVT           | AI Energy     | Industrials               | Electrical Equipment & Parts
 236  | EME           | EME           | AI Energy     | Industrials               | Engineering & Construction
@@ -962,7 +962,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI ENERGY — ADDITIONS (2)
 ═══════════════════════════════════════════════════════════════════════════════
 716  | TLN           | TLN           | AI Energy     | Utilities                 | Utilities - Independent Power Producers
-717  | BE            | BE            | AI Energy     | Utilities                 | Electrical Equipment & Parts
+717  | BE            | BE            | AI Energy     | Industrials               | Electrical Equipment & Parts
 
 ═══════════════════════════════════════════════════════════════════════════════
   AI SEMICONDUCTORS — SUPPLY CHAIN (7)
