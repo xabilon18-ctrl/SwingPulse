@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (12:29 SAST) FULL-SCREEN HEADER ICONS A STEP SMALLER (user,
+screenshot of ▲ ▼ bookmark grid: "Make these slightly smaller. Not the old
+small size maybe in between this and the old"). style.css v439, phone/tablet
+full screen only (`#chartFull:not(.desktop-chart)`): glyphs 21 → 18px
+(▲ ▼, bookmark, grid, ✕), ··· 30 → 27px, halfway back to the 15 / 24px
+before 2026-11-13. Button boxes (30x38) and the row height are unchanged, so
+tap targets and the ticker's room stay as they were. Desktop unchanged.
+
 2026-11-16 (latest) OVERLAY MAs PER TIMEFRAME AGAIN, SYNCED PER TIMEFRAME
 (user: "So daily must apply across all charts but never affect other times
 frames. Same to monthly and hourly"). app.js v642, sync Worker.
