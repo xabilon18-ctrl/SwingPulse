@@ -12,7 +12,7 @@ export default [
       globals: { args: 'readonly', config: 'readonly', Script: 'readonly', ListWidget: 'readonly', Font: 'readonly',
                  Color: 'readonly', Request: 'readonly', FileManager: 'readonly' },
     },
-    rules: { ...js.configs.recommended.rules, 'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }] } },
+    rules: { ...js.configs.recommended.rules, 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }] } },
   { files: ['webapp/static/js/**/*.js', 'webapp/static/sw.js'],
     languageOptions: {
       ecmaVersion: 'latest', sourceType: 'script',
@@ -24,8 +24,10 @@ export default [
       // An empty catch is allowed only for storage / pointer-capture guards that
       // legitimately throw (private mode). Real failures go to reportFailure().
       'no-empty': ['error', { allowEmptyCatch: true }],
-      // Unused names are clutter, not bugs: reported, not failing.
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      // Unused names FAIL (2026-11-16, user: "set it up"). As a warning they
+      // never failed CI (test.yml runs eslint --quiet, which hides warnings),
+      // and 77 piled up unseen until the audit removed them in #219.
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
       // `(list.find(...) || [, fallback])[1]` is used on purpose.
       'no-sparse-arrays': 'off',
     } },

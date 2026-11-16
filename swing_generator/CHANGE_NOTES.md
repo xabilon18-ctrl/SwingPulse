@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (later) UNUSED CODE FAILS THE LINT (user, asked why clutter came
+back after the 11 Nov cleanup, then: "Yes, set it up"). eslint.config.mjs:
+no-unused-vars is an error, not a warning, for the app and the iOS widget.
+As a warning it could never fail CI, because test.yml runs `eslint --quiet`,
+which hides warnings; 77 unused names had built up unseen (removed in #219).
+The code is at zero today, so nothing else changes; from now on a session
+that leaves an unused name behind gets a red golden check and must remove
+it (or rename an intentionally unused catch/argument, which stay exempt).
+
 2026-11-16 (afternoon, review PR) RELEASE CHECKED ON A PREVIEW BEFORE
 PRODUCTION; TOKEN OFF PR RUNS; FIVE TESTS WIRED IN (user, after the audit:
 "Do all"). Workflows and CLAUDE.md, so a PR for the user to merge.
