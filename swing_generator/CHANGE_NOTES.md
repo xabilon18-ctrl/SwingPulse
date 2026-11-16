@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (15:35 SAST) WEEKLY CHART REMOVED (user: "Delete weekly no more
+hiding"; asked which of the two it meant, they chose "Remove the Weekly
+chart"). `config.TIMEFRAME_TABLE`: the W row is `enabled: False` and its
+`hidden` flag is gone (no row uses `hidden` now). Weekly is out of
+`SP_TIMEFRAMES`, so the app has no Weekly button, step, menu entry or grid
+menu, a new Monthly ladder lists 1H, D and M, and server.py serves no W chart.
+- What stays: the Weekly MA lines on 1H, Daily and Monthly charts (they are
+  read from the Daily bundle's `w` block, never from chart/W), and the
+  Watchlist strip's Week row. tools/publish_htf.py therefore still builds the
+  weekly bundles every Monday for `activity/W.json`, but writes a chart only
+  for the timeframes in `HTF_CHART_BUILDERS` (`CHART_TFS`).
+- Not deleted: the Weekly code in app.js and chart_feed.py (dormant; switching
+  the row back on restores the chart at the next Monday job), saved Weekly
+  views and Weekly-only drawings in the user's saved work (no chart shows
+  them), and the last chart/W files on R2 (nothing reads them; W is still a
+  row of the table, so `prune_retired_chart_folders` leaves them).
+- Checks: htf_feed_test.py (current table, the Monday job keeps the strip
+  without a chart), app_smoke.cjs and the ladder checks (no Weekly button, a
+  Monthly ladder's timeframes).
+
 2026-11-16 (15:15 SAST) DAILY OPENS ON THE WHOLE TERM; "SAME FRAME ON EVERY
 CHART" SWITCH (user, off their saved GOLD Daily: "Make all daily chart to
 frame like this showing a full term and the gray on the left and right. And

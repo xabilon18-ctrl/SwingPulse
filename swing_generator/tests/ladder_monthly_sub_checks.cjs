@@ -33,9 +33,8 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   const onM = await saved('M');
   assert.equal(onM.length, 1, 'the ladder drawn on Monthly is saved as a Monthly ladder');
   const d = onM[0];
-  // Weekly too, though hidden (2026-11-13): hidden is not deleted, so the
-  // ladder is there again if Weekly is shown again.
-  assert.ok(d.link && d.tfs.length === 4 && ['M', 'W', 'D', '1H'].every(t => d.tfs.includes(t)), 'all its timeframes are on by default: ' + JSON.stringify(d.tfs));
+  // Every chart timeframe; Weekly's chart was removed on 2026-11-16.
+  assert.ok(d.link && d.tfs.length === 3 && ['M', 'D', '1H'].every(t => d.tfs.includes(t)), 'all its timeframes are on by default: ' + JSON.stringify(d.tfs));
   assert.ok(!d.dash, 'it is not dashed like a Daily ladder');
   assert.equal(await page.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'no thirds on Monthly itself');
   await page.locator('#chartFull [data-act="channel"]').click();
