@@ -7,6 +7,38 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (15:15 SAST) DAILY OPENS ON THE WHOLE TERM; "SAME FRAME ON EVERY
+CHART" SWITCH (user, off their saved GOLD Daily: "Make all daily chart to
+frame like this showing a full term and the gray on the left and right. And
+how can i get a switch that i can turn on to control all charts per time frame
+just to make sure they all open in the same frame giving me the same view").
+app.js v644.
+- Daily's opening frame (`REEL_FRAME_VIEW.D`) is the current term with room
+  either side: a year and a half before its opening line to a year past its
+  closing line (mid-2023 to 2030 now; measured off the screenshot's year
+  lines). It was last year's line to two year lines ahead (2025 to 2028).
+  Price is still 'all'. A chart with a saved view still opens on that view.
+- Grid menu, under Chart range: "Same frame on every Daily chart" (named for
+  the timeframe shown; one switch per timeframe, `tfOverlay.frame[tf]`).
+  Switched on, it takes the dates on the chart the menu was opened on
+  (`reelFrameCapture`, calendar years with a fraction) and every chart on that
+  timeframe opens on them (`reelStockView`), each priced to fit its own
+  candles, MAs and drawings. Every chart also reads that chart's market for
+  its time grid, splits and swap (`reelGridScope` returns the switch's
+  `scope`), which is what puts the same shaded gaps on all of them. Saved
+  views on that timeframe are paused, not deleted. A Chart range and the
+  switch replace one another. Device only, like the rest of the grid and
+  shading settings, so phone and computer each have their own.
+- Not the same on every chart, by design: the PRICE scale (each chart fits its
+  own prices), and a chart whose history starts after the frame's first date
+  (it starts at its first bar).
+- `reelGridMenuPlace`: a menu too tall for the room under its button now
+  scrolls there instead of sliding up over the button (the extra row made it
+  cover the Grid button at 390 x 844, which then could not be tapped).
+- Checks: stock_view_test.cjs (new Daily frame on every market, a new term
+  moves it, the switch's dates, a frame in the past, off again), app_smoke.cjs
+  (switch per timeframe, replaced by a range).
+
 2026-11-16 (later) UNUSED CODE FAILS THE LINT (user, asked why clutter came
 back after the 11 Nov cleanup, then: "Yes, set it up"). eslint.config.mjs:
 no-unused-vars is an error, not a warning, for the app and the iOS widget.

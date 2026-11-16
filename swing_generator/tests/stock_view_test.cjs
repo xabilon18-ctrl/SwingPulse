@@ -19,7 +19,8 @@ const ctx = vm.createContext({
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
 vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelOpenSpec') + fn('reelStockView')
-  + 'function reelRange() { return reel.ranges[timeframe] || 0; }', ctx);
+  + 'function reelRange() { return reel.ranges[timeframe] || 0; }'
+  + 'var frameLock = null; function reelFrameLock() { return frameLock; }', ctx);
 
 const hourly = (from, to, hours) => {
   const t = [];
@@ -59,8 +60,10 @@ const nv = hourly(Date.UTC(2026, 5, 1), Date.UTC(2026, 10, 5), hours);
 const qn = ctx.reelStockView(nv, 'STOCK');
 assert.ok(near(nv.t[nv.t.length - (qn.bars - qn.future)], '2026-10-01'));
 
-// Daily, every market (2026-10-22): last year's line to two year lines ahead
-// (2025 → 2028). Round the clock (crypto) and a session a weekday.
+// Daily, every market (2026-11-16): the whole term with room either side, a
+// year and a half before its opening line to a year past its closing line
+// (mid-2023 → 2030). Round the clock (crypto) and a session a weekday.
+const nearMid = (iso, day) => Math.abs(Date.parse(iso) - Date.parse(day)) < 4 * 864e5;
 ctx.timeframe = 'D';
 const rd = [];
 for (let ms = Date.UTC(2021, 9, 1); ms <= Date.UTC(2026, 9, 16); ms += 864e5) rd.push(new Date(ms).toISOString());
@@ -70,15 +73,40 @@ for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['FX', { t: 
   delete bd._sv;
   const vd = ctx.reelStockView(bd, market);
   const fd = bd.t.length - (vd.bars - vd.future);
-  assert.ok(near(bd.t[fd], '2025-01-01'), market + ' ' + bd.t[fd]);
+  assert.ok(nearMid(bd.t[fd], '2023-07-02'), market + ' ' + bd.t[fd]);
   const frd = geometry.yearFrame(bd, bt);
-  assert.ok(Math.abs(fd + vd.bars - 1 - (frd.anchor + 2 * frd.yearBars)) <= 1, market + ' ends on the 2028 line');
+  assert.ok(Math.abs(fd + vd.bars - 1 - (frd.anchor + 4 * frd.yearBars)) <= 1, market + ' ends on the 2030 line');
+  // The whole 2025 term is inside it: both term lines, with bars before the first.
+  assert.ok(frd.anchor - frd.yearBars - fd > frd.yearBars, market + ' room before the 2025 line');
   assert.equal(vd.fit, 'all', market);
 }
-// A new year moves it on: in January 2027 it is 2026 to 2029.
+// A new year inside the term leaves it where it is; a new term moves it on.
 const jd = hourly(Date.UTC(2022, 0, 3), Date.UTC(2027, 0, 15), [0]);
 const vj = ctx.reelStockView(jd, 'STOCK');
-assert.ok(near(jd.t[jd.t.length - (vj.bars - vj.future)], '2026-01-01'));
+assert.ok(nearMid(jd.t[jd.t.length - (vj.bars - vj.future)], '2023-07-02'));
+const nt = hourly(Date.UTC(2024, 0, 2), Date.UTC(2029, 1, 15), [0]);
+const vn = ctx.reelStockView(nt, 'STOCK');
+assert.ok(nearMid(nt.t[nt.t.length - (vn.bars - vn.future)], '2027-07-02'), 'the 2029 term opens mid-2027');
+// "Same frame on every chart" (2026-11-16): the switch's dates replace the
+// timeframe's own frame on every market, and a new switch replaces the cache.
+for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd]]) {
+  ctx.frameLock = { y0: 2024, y1: 2027 };
+  const vl = ctx.reelStockView(bd, market);
+  const fl = bd.t.length - (vl.bars - vl.future);
+  assert.ok(near(bd.t[fl], '2024-01-01'), market + ' locked start ' + bd.t[fl]);
+  const frl = geometry.yearFrame(bd, bt);
+  assert.ok(Math.abs(fl + vl.bars - 1 - (frl.anchor + frl.yearBars)) <= 1, market + ' locked frame ends on the 2027 line');
+  assert.equal(vl.back, 0, market);
+  // A frame wholly in the past opens scrolled back to it, with no blank future.
+  ctx.frameLock = { y0: 2022, y1: 2024 };
+  const vp = ctx.reelStockView(bd, market);
+  assert.ok(vp.back > 0 && vp.future === 0, market + ' past frame');
+  assert.ok(near(bd.t[bd.t.length - vp.bars - vp.back], '2022-01-01'), market + ' past frame start');
+  // Off again: the timeframe's own frame is back.
+  ctx.frameLock = null;
+  const vo = ctx.reelStockView(bd, market);
+  assert.ok(nearMid(bd.t[bd.t.length - (vo.bars - vo.future)], '2023-07-02'), market + ' own frame back');
+}
 // Only these timeframes, only without a Range pill.
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
