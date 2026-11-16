@@ -147,19 +147,33 @@ let debugPage;
     await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
     assert.match(await page.locator('.reel-tf-menu').innerText(), /50 · 250 · 500/, 'the menu lists the Monthly 500');
     await page.locator('#chartReel [data-act="tf-menu"]').first().click();
-    // Switched on once, it applies on every chart (2026-11-16, "only have to
-    // be activated once and to apply across"): 1H draws it without a tap, its
-    // menu shows it on, and turning it off there turns it off on Daily too.
+    // Per timeframe, every instrument (2026-11-16: "daily must apply across
+    // all charts but never affect other time frames"): on over Daily is on
+    // for every Daily chart, off over 1H; switching it on over 1H and then
+    // off over Daily leaves 1H on.
     const monthlyLines = () => page.evaluate(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].filter(t => /^M\d/.test(t.textContent)).length);
+    const monthlySwitch = async tap => {
+      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      const sw = page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]');
+      if (tap) await sw.click();
+      const on = await sw.getAttribute('aria-checked');
+      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      return on;
+    };
+    const paintedDaily = await page.evaluate(() => [...document.querySelectorAll('#chartReel .reel-chart')].filter(h => h._reelCtx).map(h => !!h.querySelector('.reel-ov polyline')));
+    assert.ok(paintedDaily.length >= 1 && paintedDaily.every(Boolean), 'Monthly overlay on over Daily draws on every painted Daily chart: ' + JSON.stringify(paintedDaily));
     await toTf('1H');
+    assert.equal(await monthlySwitch(false), 'false', 'Monthly on over Daily is not on over 1H');
+    assert.equal(await monthlyLines(), 0, 'and 1H draws no Monthly lines');
+    assert.equal(await monthlySwitch(true), 'true');
     await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)), null, { timeout: 60000 });
-    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
-    assert.equal(await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').getAttribute('aria-checked'), 'true', 'Monthly overlay switched on over Daily is on over 1H');
-    await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
-    await page.waitForFunction(() => ![...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)));
     await toTf('D');
-    assert.equal(await monthlyLines(), 0, 'Monthly overlay switched off over 1H is off over Daily');
+    assert.equal(await monthlySwitch(true), 'false', 'Monthly switched off over Daily');
+    await page.waitForFunction(() => ![...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)));
+    await toTf('1H');
+    assert.equal(await monthlySwitch(false), 'true', 'switching Daily off leaves 1H on');
+    assert.equal(await monthlySwitch(true), 'false');
+    await toTf('D');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
   // 4H removed 2026-11-04, its chart back 2026-11-05, removed permanently

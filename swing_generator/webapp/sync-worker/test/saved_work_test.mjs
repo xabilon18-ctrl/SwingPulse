@@ -79,14 +79,25 @@ console.log('PASS: quarter thirds sync');
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{D:{division:'T',modifiedAt:5,fourths:true}}}}).chartPrefs.grids.D.fourths,true,'Term fourths sync');
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{D:{division:'T',modifiedAt:5,fourths:1}}}}).chartPrefs.grids.D.fourths,undefined,'Only true is kept');
 console.log('PASS: term fourths sync');
-// Overlay MA settings (2026-11-16): the newer record wins whole; an older
-// device's copy, or a save from an app without one, keeps the stored record.
-const ovNew={at:200,htfOn:{D:false,W:false,M:true},set:'std',maW:1,proj:{on:false,w:.6},ma:{oD:100,oW:100,oM:80,oP:100}};
-const ovOld={...ovNew,at:150,htfOn:{D:true,W:false,M:false}};
+// Overlay MA settings (2026-11-16): the record wins whole on `at`; each chart
+// timeframe's switches win on their own row stamp, so a Daily edit never
+// touches 1H or Monthly; a save without overlayPrefs keeps what is stored.
+const rec={set:'std',maW:1,proj:{on:false,w:.6},ma:{oD:100,oW:100,oM:80,oP:100}};
+const on=(D,W,M)=>({D,W,M});
+const ovNew={at:200,...rec,htf:{D:{on:on(false,false,true),at:200}}};
+const ovOld={at:150,...rec,set:'wide',htf:{D:{on:on(false,true,false),at:150}}};
 assert.deepEqual(mergeSavedWork({},{overlayPrefs:ovNew}).overlayPrefs,ovNew,'first overlay record is stored');
 assert.deepEqual(mergeSavedWork({overlayPrefs:ovNew},{overlayPrefs:ovOld}).overlayPrefs,ovNew,'an older overlay record cannot replace a newer one');
 assert.deepEqual(mergeSavedWork({overlayPrefs:ovOld},{overlayPrefs:ovNew}).overlayPrefs,ovNew,'a newer overlay record replaces the stored one');
 assert.deepEqual(mergeSavedWork({overlayPrefs:ovNew},{notes:{}}).overlayPrefs,ovNew,'a save without overlay settings keeps them');
-assert.equal('overlayPrefs' in mergeSavedWork({},{overlayPrefs:{at:0}}),false,'an unstamped record is not stored');
-console.log('PASS: overlay MA settings sync');
+assert.equal('overlayPrefs' in mergeSavedWork({},{overlayPrefs:{at:0}}),false,'an empty record is not stored');
+const hourly=mergeSavedWork({overlayPrefs:ovNew},{overlayPrefs:{htf:{'1H':{on:on(true,false,false),at:300}}}}).overlayPrefs;
+assert.deepEqual(hourly.htf.D,ovNew.htf.D,'a 1H edit leaves Daily as it was');
+assert.deepEqual(hourly.htf['1H'].on,on(true,false,false),'the 1H edit is stored');
+assert.equal(hourly.set,'std','a save with switches only keeps the record');
+const daily=mergeSavedWork({overlayPrefs:hourly},{overlayPrefs:{htf:{D:{on:on(false,false,false),at:400},'1H':{on:on(false,false,false),at:100}}}}).overlayPrefs;
+assert.deepEqual(daily.htf.D.on,on(false,false,false),'a newer Daily row wins');
+assert.deepEqual(daily.htf['1H'].on,on(true,false,false),'an older 1H row from the same save does not');
+assert.deepEqual(mergeSavedWork({overlayPrefs:{htf:{D:{on:on(false,false,true),at:0}}}},{overlayPrefs:{htf:{D:{on:on(false,true,false),at:0}}}}).overlayPrefs.htf.D.on,on(false,false,true),'unstamped on both sides: the stored row stays');
+console.log('PASS: overlay MA settings sync (record and per-timeframe switches)');
 await import('./ladder_alerts_test.mjs');

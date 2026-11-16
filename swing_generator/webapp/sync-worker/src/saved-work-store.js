@@ -62,6 +62,26 @@ export function mergeViews(previous, incoming) {
   }
   return { views, viewsMod: mods };
 }
+// Overlay MA settings (2026-11-16). `htf[tf] = {on, at}`: each chart
+// timeframe's D/W/M switches, newest row wins on its own (unstamped on both
+// sides: the stored row stays). The rest (set, maW, proj, ma) is one record
+// that the newer `at` wins whole. A save without overlayPrefs (an app before
+// v641) keeps what is stored.
+export function mergeOverlay(previous, incoming) {
+  const prev = object(previous) ? previous : {}, next = object(incoming) ? incoming : {};
+  const out = {};
+  const recordOf = o => { const { htf, ...rest } = o; return rest; };
+  if (stamp(next.at) > 0 && stamp(next.at) >= stamp(prev.at)) Object.assign(out, recordOf(next));
+  else if (stamp(prev.at) > 0) Object.assign(out, recordOf(prev));
+  const rows = {};
+  for (const src of [prev.htf, next.htf]) for (const [tf, row] of Object.entries(object(src) ? src : {})) {
+    if (!safeKey(tf) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !object(row.on)) continue;
+    const clean = { on: Object.fromEntries(['D', 'W', 'M'].map(t => [t, row.on[t] === true])), at: stamp(row.at) };
+    if (!rows[tf] || clean.at > rows[tf].at) rows[tf] = clean;
+  }
+  if (Object.keys(rows).length) out.htf = rows;
+  return Object.keys(out).length ? out : null;
+}
 export function mergeSavedWork(previous, incoming) {
   const merged = { ...previous, ...incoming };
   merged.chartPrefs = { version: 2 };
@@ -103,13 +123,8 @@ export function mergeSavedWork(previous, incoming) {
   if (!object(incoming.watchlists) || stamp(previous.watchlists?.mod) > stamp(incoming.watchlists.mod)) merged.watchlists = previous.watchlists;
   Object.assign(merged, mergeNotes(previous, incoming));
   Object.assign(merged, mergeViews(previous, incoming));
-  // Overlay MA settings (2026-11-16): one record, the newer `at` wins whole.
-  // A save without one (an app before v641) keeps the stored record.
-  const oldOv = object(previous.overlayPrefs) ? previous.overlayPrefs : null;
-  const newOv = object(incoming.overlayPrefs) && stamp(incoming.overlayPrefs.at) > 0 ? incoming.overlayPrefs : null;
-  if (newOv && (!oldOv || stamp(newOv.at) >= stamp(oldOv.at))) merged.overlayPrefs = newOv;
-  else if (oldOv) merged.overlayPrefs = oldOv;
-  else delete merged.overlayPrefs;
+  merged.overlayPrefs = mergeOverlay(previous.overlayPrefs, incoming.overlayPrefs);
+  if (!merged.overlayPrefs) delete merged.overlayPrefs;
   merged.lastModified = Math.max(stamp(previous.lastModified), stamp(incoming.lastModified));
   return merged;
 }

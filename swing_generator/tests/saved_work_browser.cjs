@@ -131,8 +131,8 @@ const { pathToFileURL } = require('node:url');
     // Overlay MAs sync across devices (2026-11-16): switched on on one device,
     // on on the other after a sync; switched off there, off here.
     const serverOverlay=()=>JSON.parse(disk.get('zabs')||'{}').overlayPrefs;
-    async function overlayM(page,tap) {
-      await page.locator('#tfBtnD').click();
+    async function overlayM(page,tap,tf='D') {
+      await page.locator('#tfBtn'+tf).click();
       await page.locator('#chartReel .reel-chart svg').first().waitFor();
       await page.locator('#chartReel [data-act="tf-menu"]').first().click();
       const sw=page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]');
@@ -142,15 +142,16 @@ const { pathToFileURL } = require('node:url');
       return on;
     }
     assert.equal(await overlayM(first,true),'true');
-    for (let i=0;i<50&&!(serverOverlay()?.htfOn?.M);i++) await new Promise(r=>setTimeout(r,100));
-    assert.equal(serverOverlay()?.htfOn?.M,true,'Switching an overlay on saves it to the server');
+    for (let i=0;i<50&&!(serverOverlay()?.htf?.D?.on?.M);i++) await new Promise(r=>setTimeout(r,100));
+    assert.equal(serverOverlay()?.htf?.D?.on?.M,true,'Switching an overlay on over Daily saves the Daily row to the server');
     await sync(second);
     assert.equal(await overlayM(second,false),'true','The overlay switched on on one device is on on the other');
+    assert.equal(await overlayM(second,false,'1H'),'false','A Daily switch from the other device leaves 1H alone');
     assert.equal(await overlayM(second,true),'false');
-    for (let i=0;i<50&&serverOverlay()?.htfOn?.M;i++) await new Promise(r=>setTimeout(r,100));
+    for (let i=0;i<50&&serverOverlay()?.htf?.D?.on?.M;i++) await new Promise(r=>setTimeout(r,100));
     await sync(first);
     assert.equal(await overlayM(first,false),'false','Switched off on the other device, off here too');
     assert.deepEqual(errors,[]);
-    console.log('PASS: two-device grid isolation and merging, Done drawing sync, offline status and recovery, note-by-note sync and offline note resend, overlay MA sync');
+    console.log('PASS: two-device grid isolation and merging, Done drawing sync, offline status and recovery, note-by-note sync and offline note resend, overlay MA sync per timeframe');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exit(1)});
