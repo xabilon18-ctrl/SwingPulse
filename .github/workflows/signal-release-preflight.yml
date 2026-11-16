@@ -1,7 +1,6 @@
 name: Validate prepared signal release
+# Manual only (2026-11-16): the push trigger named a branch from 2026-10-11.
 on:
-  push:
-    branches: [codex/signal-preflight-20261011]
   workflow_dispatch:
 permissions:
   contents: read

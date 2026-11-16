@@ -18,6 +18,9 @@ from tools.health_check import FETCH_TRIES, FETCH_WAIT, _read_all
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--live', action='store_true')
+# The page --live checks. deploy-app.yml checks the release-check preview
+# before production, then production after it.
+parser.add_argument('--url', default='https://swingpulse200.pages.dev')
 args = parser.parse_args()
 
 def live_timeframes(html):
@@ -89,7 +92,7 @@ if args.live:
     deadline = time.monotonic() + 60
     while True:
         with urllib.request.urlopen(urllib.request.Request(
-                f'https://swingpulse200.pages.dev/?releasecheck={time.time_ns()}',
+                f'{args.url.rstrip("/")}/?releasecheck={time.time_ns()}',
                 headers={'User-Agent': 'SwingPulse-releasecheck/1.0'}), timeout=20) as response:
             html = response.read().decode()
         # The timeframe buttons are built by app.js from the table the build
