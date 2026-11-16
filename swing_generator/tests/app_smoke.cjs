@@ -179,7 +179,16 @@ let debugPage;
       await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3); await page.mouse.down();
       await page.mouse.move(box.x + box.width * .8, box.y + box.height * .3, { steps: 10 }); await page.mouse.up();
       await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.back === true);
-      const early = await firstSlot();
+      // A drag carries on gliding after the finger lifts: read the start
+      // only once the chart has stopped (five equal reads, 100 ms apart).
+      let early = null;
+      for (let i = 0, same = 0; same < 5; i++) {
+        assert.ok(i < 100, 'the chart never stopped gliding');
+        await page.waitForTimeout(100);
+        const now = await firstSlot();
+        same = now === early ? same + 1 : 0;
+        early = now;
+      }
       assert.ok(early < '2001', 'scrolled back before the first bar: ' + early);
       await save.click();
       assert.equal(await firstSlot(), early, 'Save keeps a start before the first bar');
