@@ -2,7 +2,7 @@ name: Validate and deploy SwingPulse app
 
 on:
   push:
-    branches: [main, codex/restore-hourly-20261007]
+    branches: [main]
     paths:
       - 'swing_generator/**'
       - '.github/workflows/deploy-app.yml'
@@ -33,9 +33,11 @@ jobs:
     # 1.56.1 cannot install Chromium. Move both together.
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    # The Cloudflare token is given ONLY to the steps that deploy or upload
+    # (2026-11-16 audit). It used to sit here, at job level, so every PR run
+    # handed it to code from the PR branch: the engine, the build and the
+    # browser tests all ran with production credentials in their environment.
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       FETCH_MAX_AGE_HOURS: '1'
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +86,9 @@ jobs:
           PY
       - name: Check Cloudflare deployment access
         if: github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error
@@ -163,6 +168,11 @@ jobs:
           node tests/saved_work_test.cjs
           node webapp/sync-worker/test/auth_test.mjs
           node webapp/sync-worker/test/saved_work_test.mjs
+          # In no workflow until 2026-11-16 (audit): they passed, but nothing
+          # would have said when they stopped passing.
+          python3 tests/chart_cache_test.py
+          node tests/power_group_test.cjs
+          node tests/lock_widget_test.cjs
       - name: Build UI and offline browser fixtures
         working-directory: swing_generator
         run: |
@@ -173,9 +183,17 @@ jobs:
           python3 -m http.server 8000 --directory swing_generator/webapp/publish/ui > /tmp/swingpulse-preview.log 2>&1 &
           node swing_generator/tests/app_smoke.cjs
           node swing_generator/tests/saved_work_browser.cjs
+          node swing_generator/tests/ipad_workspace.cjs
+          # desktop_workspace prints its screenshots as base64 lines for the
+          # old review workflow; keep them out of the log (pipefail keeps the
+          # test's own exit status).
+          node swing_generator/tests/desktop_workspace.cjs | sed '/^REVIEW_IMAGE_/d'
       # Not on PRs: a PR run needs no Cloudflare secrets and deploys nothing.
       - name: Verify Pages deployment capability on an isolated preview
         if: github.ref != 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch codex-1h-preview
       - name: Restore market cache for production release
         if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
@@ -198,6 +216,9 @@ jobs:
       - name: Publish validated data to existing R2 bucket
         if: github.ref == 'refs/heads/main' && steps.scope.outputs.data_required == 'true'
         working-directory: swing_generator
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           python3 - <<'PY'
           import sys
@@ -208,18 +229,51 @@ jobs:
           print(f'{ok} files uploaded')
           PY
           python3 tools/health_check.py --max-age-hours 0.75
+      # PREVIEW FIRST (2026-11-16 audit). The checks below used to run only
+      # after the production deploy, so a failure found a broken app already
+      # live (9, 11 and 14 Nov). The same build now goes to a preview branch of
+      # the Pages project, the same live checks run against it, and the
+      # Workers and production deploy happen only if they pass. The preview
+      # reads the same R2 data and talks to the same Workers as production.
+      - name: Deploy UI to the release-check preview
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch release-check
+      - name: Verify the release-check preview before production
+        if: github.ref == 'refs/heads/main'
+        env:
+          SMOKE_LIVE: '1'
+          SMOKE_URL: https://release-check.swingpulse200.pages.dev/?release=${{ github.sha }}
+          DESKTOP_LIVE: '1'
+          DESKTOP_URL: https://release-check.swingpulse200.pages.dev
+          READABILITY_PRODUCTION: '1'
+        run: |
+          python3 swing_generator/tools/validate_hourly_release.py --live --url https://release-check.swingpulse200.pages.dev
+          node swing_generator/tests/app_smoke.cjs
+          node swing_generator/tests/chart_readability_browser.cjs
       # Deploy both services from this release even when an earlier commit
       # failed before publishing them. Diffing only the last commit misses that.
       - name: Deploy saved-work sync changes
         if: github.ref == 'refs/heads/main'
         working-directory: swing_generator/webapp/sync-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.45.0 deploy
       - name: Deploy hourly 24/7 data scheduler
         if: github.ref == 'refs/heads/main'
         working-directory: swing_generator/webapp/cron-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.45.0 deploy
       - name: Deploy UI to existing production Pages project
         if: github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.45.0 pages deploy swing_generator/webapp/publish/ui --project-name swingpulse200 --branch main
       - name: Verify the live app and hourly data
         if: github.ref == 'refs/heads/main'

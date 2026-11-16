@@ -84,6 +84,10 @@ jobs:
           node tests/chart_refresh_test.cjs
           node tests/freshness_test.cjs
           node webapp/sync-worker/test/auth_test.mjs
+          # In no workflow until 2026-11-16 (audit).
+          python3 tests/chart_cache_test.py
+          node tests/power_group_test.cjs
+          node tests/lock_widget_test.cjs
 
       # Does the FRONT END still agree with the payload's vocabulary? Catches
       # the class of bug where app.js tests a field for a word that field never

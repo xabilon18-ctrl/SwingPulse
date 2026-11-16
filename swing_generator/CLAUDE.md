@@ -59,7 +59,7 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
+| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
@@ -107,9 +107,13 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   `publish.yml` has no cron of its own. It runs `main.py --profile ma500`
   (with `FETCH_MAX_AGE_HOURS=1`), publishes to R2, then runs `health_check.py`
   and the shape audit.
-- **App release:** `deploy-app.yml` on PRs validates only (no secrets). On
-  `main` it validates, generates data, uploads R2, deploys the sync and cron
-  Workers and the Pages project `swingpulse200`, then checks the live app.
+- **App release:** `deploy-app.yml` on PRs validates only; the Cloudflare
+  token is set on the deploy/upload steps alone, so no PR step sees it. On
+  `main` it validates, generates data, uploads R2, deploys the UI to the
+  `release-check` preview (https://release-check.swingpulse200.pages.dev) and
+  runs the live checks against it; only if they pass does it deploy the sync
+  and cron Workers and the production Pages project, then checks the live app
+  again. The preview reads the same R2 data and Workers as production.
 - **Weekly/Monthly charts:** `publish-htf.yml`. **Watchdog:** `publish-watchdog.yml`.
 - Stale banner: the app flags `now - summary.fetched_at > 32h`.
 - A failed run sets `status.json` on R2 to `state: 'failed'` and pushes a
@@ -122,6 +126,11 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   the chart feed are gzipped under plain `.json` names; `upload_to_r2` sets
   `Content-Encoding`. Python readers must gunzip. `summary.json` stays plain
   (`publish-watchdog.yml` curls it).
+- **Page headers:** `publish.build_ui` writes a Pages `_headers` file
+  (`publish.pages_headers`: Content-Security-Policy, X-Frame-Options DENY,
+  Referrer-Policy, Permissions-Policy). A new host the front end fetches from
+  must be added to `publish.content_security_policy`; the build stops
+  (`check_policy_hosts`) when a front-end file names one that is missing.
 - Sync Worker (`webapp/sync-worker`): `/sync`, `/sync/auth`, `/sync/backup`,
   `/push/*`. A per-user password token (trust on first use); a blob is merged,
   not replaced; an empty starred list over a populated one is refused (409)
@@ -187,10 +196,14 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   time and let the golden test say whether signals moved.
 - Browser checks: `python3 webapp/publish.py --ui-only --build-only &&
   python3 tests/browser_fixture.py`, serve `webapp/publish/ui` on port 8000,
-  then `node tests/app_smoke.cjs` and `node tests/saved_work_browser.cjs`.
-- **Checks that only run AFTER a deploy** cannot be caught by the steps above:
-  `tools/validate_hourly_release.py --live` and
-  `tests/chart_readability_browser.cjs` read the live page. Before changing
+  then `node tests/app_smoke.cjs`, `node tests/saved_work_browser.cjs`,
+  `node tests/ipad_workspace.cjs` and `node tests/desktop_workspace.cjs`
+  (the last two need `@playwright/test`).
+- **Checks that only run on a deployed page** cannot be caught by the steps
+  above: `tools/validate_hourly_release.py --live [--url]` and
+  `tests/chart_readability_browser.cjs` read a deployed page. On `main` they
+  run against the `release-check` preview first, so a failure stops the
+  release before production. Before changing
   `index.html`'s structure, ids or injected tokens, grep `tools/` and `tests/`
   for what they look for (2026-11-11: the live check looked for a button id
   that had moved into JavaScript, and the deploy went red after going live).
@@ -204,5 +217,6 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   `_tf_signal_columns()`, compute in `main.py`, read in `app.js`.
 - **Change thresholds:** constants in `config.py`, then re-run the backtest.
 - **Local run:** `python3 main.py --profile ma500`; local server
-  `cd webapp && python3 server.py` → http://localhost:5050.
+  `cd webapp && python3 server.py` → http://localhost:5050 (this machine only;
+  `SWINGPULSE_HOST=0.0.0.0` opens it to the local network).
 - **Manual data run:** Actions → `publish.yml` → Run workflow.

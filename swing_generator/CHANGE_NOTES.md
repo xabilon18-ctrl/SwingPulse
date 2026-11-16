@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (afternoon, review PR) RELEASE CHECKED ON A PREVIEW BEFORE
+PRODUCTION; TOKEN OFF PR RUNS; FIVE TESTS WIRED IN (user, after the audit:
+"Do all"). Workflows and CLAUDE.md, so a PR for the user to merge.
+- deploy-app.yml on main deploys the UI to the Pages branch `release-check`
+  and runs validate_hourly_release --live (new --url), app_smoke (SMOKE_LIVE)
+  and chart_readability_browser against it. The Workers and the production
+  Pages deploy follow only if those pass; the production check runs after as
+  before. Three main deploys went red after going live in eight days
+  (9, 11, 14 Nov). Data still uploads before the preview check: the preview
+  reads production R2, so it needs the new data to test the new app.
+- The Cloudflare token moved from job level to the seven steps that deploy
+  or upload. PR runs execute the PR branch's engine, build and browser tests,
+  and all of them had the token in their environment.
+- Wired in: chart_cache_test.py, power_group_test.cjs, lock_widget_test.cjs
+  (test.yml and deploy-app.yml), ipad_workspace.cjs and desktop_workspace.cjs
+  (deploy-app.yml browser step). All passed when run by hand on 2026-11-16.
+- desktop-review.yml deleted (it ran only for codex/chart-readability-20261031
+  and was skipped on every PR); signal-release-preflight.yml is manual only;
+  deploy-app no longer triggers on codex/restore-hourly-20261007.
+
 2026-11-16 (afternoon) AUDIT FIXES: DEAD CODE, ESCAPING, SYNC WORKER, PAGE
 HEADERS, utcnow (user, after the code and app audit: "Do all"). app.js v643,
 drawing-toolbar.js v14, sync Worker, publish.py, config.py.
