@@ -148,6 +148,30 @@ let debugPage;
     assert.equal(await lockOn(), 'false', 'Daily has its own switch');
     await toTf('M');
     assert.equal(await lockOn(), 'true', 'Monthly keeps its switch');
+    // Save under the switch (2026-11-16, "it's not saving"): the dates on
+    // screen become the frame, so the chart comes back on what was saved.
+    {
+      const mHost = page.locator('#chartReel .reel-chart').first();
+      const win = () => mHost.evaluate(h => h._reelCtx.win);
+      const opened = await win();
+      let grip = null;
+      for (let i = 0; i < 40 && !grip; i++) { grip = await mHost.locator('.reel-tgrip').boundingBox(); if (!grip) await page.waitForTimeout(50); }
+      const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
+      await page.mouse.move(gx, gy); await page.mouse.down();
+      await page.mouse.move(gx - 60, gy, { steps: 8 }); await page.mouse.up();
+      await page.waitForFunction(w => document.querySelector('#chartReel .reel-chart')._reelCtx.win !== w, opened);
+      const framed = await win();
+      const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
+      await save.click();
+      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save lights up under the switch');
+      await toTf('D');
+      await toTf('M');
+      assert.equal(await win(), framed, 'under the switch a saved chart reopens on the saved dates');
+      assert.ok(Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'))).some(k => k.endsWith('|M|F')),
+        'kept under its own key, apart from the views saved before the switch');
+      await save.click();   // forget it again
+      assert.equal(await save.getAttribute('aria-pressed'), 'false');
+    }
     await setRange(65);
     assert.equal(await lockOn(), 'false', 'a Chart range replaces the frame switch');
     await setRange(0);

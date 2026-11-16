@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (19:35 SAST) SAVE WORKS UNDER "SAME FRAME ON EVERY CHART" (user,
+off a Monthly chart framed 1993 to 2045: "Monthly is like this but somehow
+it's not saving"). app.js v645. Reproduced: with the switch on, Save lit up
+and stored the view, but the switch paused saved views, so the chart reopened
+on the switch's dates. With the switch off the same view saved and reopened
+correctly, card and full screen, before and after a reload.
+- Under the switch Save now sets the frame: the dates on screen become the
+  dates for EVERY chart on that timeframe (`reelViewToggle`; only when the
+  chart was moved by more than half a bar), and this chart keeps its own
+  price scale.
+- Those views live under their own key, `NAME|TF|F` (`VIEW_FRAME_SUFFIX`), so
+  the views saved before the switch are untouched and return when it is
+  switched off. Under the switch a view's dates are never read back, only its
+  prices (`reelViewSeedTime` / `reelViewSeedPrice`).
+- The Save button is re-read when the switch (or a Chart range) flips, since
+  it now names a different view. Menu line: "Save on any chart sets the dates
+  for all". research/read_views.py reads the new key (`shared_frame`).
+- Check: app_smoke.cjs (save under the switch, reopen, own key).
+
 2026-11-16 (15:35 SAST) WEEKLY CHART REMOVED (user: "Delete weekly no more
 hiding"; asked which of the two it meant, they chose "Remove the Weekly
 chart"). `config.TIMEFRAME_TABLE`: the W row is `enabled: False` and its
