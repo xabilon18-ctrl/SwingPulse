@@ -9935,10 +9935,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 #chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn,
 #chartFull:not(.desktop-chart) .cf-actions-more > summary,
 #chartFull:not(.desktop-chart) .cf-actions > .cf-close { width: 36px; height: 38px; }
-#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn.reel-vm { font-size: 21px; padding: 0; }
-#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn > svg { width: 21px; height: 21px; }
-#chartFull:not(.desktop-chart) .cf-actions-more > summary { font-size: 30px; }
-#chartFull:not(.desktop-chart) .cf-actions > .cf-close { font-size: 21px; }
+/* A step back (user, 2026-11-16: "slightly smaller. Not the old small size
+   maybe in between this and the old"): glyphs 21 → 18px, ··· 30 → 27px,
+   halfway to the old 15 / 24px. Buttons keep their size for touch. */
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn.reel-vm { font-size: 18px; padding: 0; }
+#chartFull:not(.desktop-chart) .cf-actions > .reel-share-btn > svg { width: 18px; height: 18px; }
+#chartFull:not(.desktop-chart) .cf-actions-more > summary { font-size: 27px; }
+#chartFull:not(.desktop-chart) .cf-actions > .cf-close { font-size: 18px; }
 /* Icons (▲ ▼, bookmark, grid, ···, ✕) get the same halo as the letters. */
 #chartFull:not(.desktop-chart) > .cf-head svg {
   filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 3px #fff);
