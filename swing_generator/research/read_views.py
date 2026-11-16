@@ -64,9 +64,15 @@ def rows_of(views: dict) -> list[dict]:
             continue
         # NAME|TF is a phone view; NAME|TF|L the laptop / iPad workspace's own
         # (app.js viewKey, 2026-11-08).
+        # A trailing |F is the view saved while "Same frame on every chart"
+        # was on (app.js VIEW_FRAME_SUFFIX, 2026-11-16): its dates are the
+        # shared frame's, only its prices are the chart's own.
+        shared = key.endswith('|F')
+        key = key[:-2] if shared else key
         device = 'computer' if key.endswith('|L') else 'phone'
         name, tf = (key[:-2] if device == 'computer' else key).rsplit('|', 1)
-        row = {'name': name, 'tf': tf, 'device': device, 'class': classes.get(name, '?'), 'version': v.get('v', 1)}
+        row = {'name': name, 'tf': tf, 'device': device, 'shared_frame': shared,
+               'class': classes.get(name, '?'), 'version': v.get('v', 1)}
         if v.get('v') != 2:
             row.update(bars=v.get('bars'), pan=v.get('pan'))
             rows.append(row)

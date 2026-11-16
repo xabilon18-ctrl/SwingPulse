@@ -7286,7 +7286,7 @@
   // chart's market for its time grid and swap (`scope`, reelGridScope), so
   // the lines and the shaded gaps match too. Saved views on that timeframe
   // are PAUSED, not deleted: switch it off and each chart opens on its own
-  // again. A Chart range and this switch replace one another. Kept in
+  // again. While it is on, Save re-frames every chart (see viewKey). A Chart range and this switch replace one another. Kept in
   // tfOverlay, so on the device only: phone and computer each have their own,
   // like their saved views.
   function reelFrameLock(tf) {
@@ -7506,7 +7506,18 @@
     try { return isIPad || Math.min(screen.width, screen.height) >= 600; }
     catch (_) { return desktopChartMedia.matches; }
   })();
-  const viewKey = name => name + '|' + timeframe + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '');
+  // WHILE "SAME FRAME ON EVERY CHART" IS ON (2026-11-16, user, off a Monthly
+  // chart framed 1993 to 2045: "Monthly is like this but somehow it's not
+  // saving"). The switch paused saved views, so Save lit up and the chart
+  // still opened on the switch's dates. Save now does what it says there too:
+  // it makes the dates on screen the frame for EVERY chart on the timeframe
+  // (reelViewToggle) and keeps this chart's own price scale, under a key of
+  // its own (NAME|TF|F), so the views saved before the switch are untouched
+  // and come back when it is switched off. Under the switch a view's dates
+  // are never read back (the switch holds them); only its prices are.
+  const VIEW_FRAME_SUFFIX = '|F';
+  const viewKey = name => name + '|' + timeframe + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '')
+    + (reelFrameLock() ? VIEW_FRAME_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
     storeWork(sk(VIEW_STORE), JSON.stringify(savedViews), 'saved views')
@@ -7557,8 +7568,10 @@
   // reader's own this session — the saved view is where it OPENS.
   function reelViewSeedTime(name, bundle) {
     const v = savedViews[viewKey(name)];
-    // Paused while "Same frame on every chart" is on for this timeframe.
-    if (!v || reelFrameLock() || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
+    if (!v || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
+    // "Same frame on every chart": the switch holds the dates; the view
+    // (NAME|TF|F) only has its prices applied (reelViewSeedPrice).
+    if (reelFrameLock()) return true;
     if (v.v === 2) {
       const n = bundle.c.length;
       reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.slots, reelMaxBars(bundle, name))));
@@ -7588,7 +7601,7 @@
   const viewPricePending = new Set();
   function reelViewSeedPrice(name, bundle, host, L) {
     const v = savedViews[viewKey(name)];
-    if (!v || reelFrameLock()) return true;
+    if (!v) return true;
     if (v.v === 2) {
       if (isFinite(v.lo) && isFinite(v.hi) && v.hi > v.lo) reel.lockY.set(name, { lo: v.lo, hi: v.hi, _saved: true });
       return true;
@@ -7636,12 +7649,31 @@
     const k = viewKey(name);
     savedViews[k] = cur;
     viewsMod[k] = Math.max(Date.now(), (+viewsMod[k] || 0) + 1);
+    // "Same frame on every chart": a save with the chart moved makes its
+    // dates the frame for all of them. Half a bar of tolerance, so a save
+    // that only changed the price leaves the other charts alone.
+    const lock = reelFrameLock(), ctx = host._reelCtx;
+    const cap = lock && reelFrameCapture(ctx);
+    const fr = cap && window.SwingPulseModules.gridGeometry.yearFrame(ctx.bundle, reelBarTimes);
+    const moved = fr && Math.max(Math.abs(cap.y0 - lock.y0), Math.abs(cap.y1 - lock.y1)) * fr.yearBars > 0.5;
+    if (moved) {
+      tfOverlay.frame[timeframe] = { ...lock, ...cap, at: Date.now() };
+      ovSave();
+      reelResetPan();       // every chart opens again, on the new dates
+      viewPricePending.clear();
+    }
     // Hold the chart on exactly what was saved, so closing or opening full
     // screen shows the same frame instead of rescaling it to the other plot.
     reel.lockY.set(name, { lo: cur.lo, hi: cur.hi, _saved: true });
     viewStoreSave();
     syncPush();
     reelViewBtnSync(name);
+    if (moved) {
+      reelRepaintAll();
+      const full = chartFullEl();
+      const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+      if (fh && fh._reelCtx) reelRepaint(fh);
+    }
   }
   function reelViewForget(name) {
     const k = viewKey(name);
@@ -10163,7 +10195,7 @@
     const lock = reelFrameLock();
     const frame = `<button class="reel-tool reel-grid-switch${lock ? ' on' : ''}" data-act="frame-lock" role="menuitemcheckbox" aria-checked="${!!lock}">
         <span>Same frame on every ${TF_BY_CODE[timeframe].label} chart<em>${lock
-          ? `dates, time grid and shading from ${escText(lock.name || 'one chart')} · saved views paused`
+          ? `time grid and shading from ${escText(lock.name || 'one chart')} · Save on any chart sets the dates for all`
           : 'this chart’s dates, time grid and shading on all of them'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
     let h = `${reelTimeGridSwitch(name)}
       ${thirds}${fourths}
@@ -12829,7 +12861,10 @@
         if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
         reelRangesSave();
         // A range and "Same frame on every chart" replace one another.
-        if (bars && reelFrameLock()) { delete tfOverlay.frame[timeframe]; ovSave(); }
+        if (bars && reelFrameLock()) {
+          delete tfOverlay.frame[timeframe]; ovSave();
+          document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
+        }
         reelResetPan();       // a different window width makes old offsets meaningless
         document.querySelectorAll('.reel-grid-menu').forEach(menu => {
           menu.innerHTML = reelGridMenuHtml(menu._name);
@@ -12865,6 +12900,9 @@
           reelGridMenuPlace(menu);
         });
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn()));
+        // Save reads "Saved" for the view in use: the chart's own, or its
+        // one under the switch.
+        document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
         reelRepaintAll();
         if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
