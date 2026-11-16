@@ -114,14 +114,11 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(weekly['p'], [50, 250, 500])
         self.assertEqual(monthly['p'], [50])
 
-    def test_weekly_carries_the_monthly_overlay_over_its_whole_span(self):
-        weekly = self.built['W']['Apple']
-        mo = weekly['mo']
-        self.assertEqual(mo['p'][0], 50)
-        # It reaches back to the first weekly bar (the fixture starts in March
-        # 2016, so March is its first month), not just the Daily's five years.
-        self.assertLessEqual(pd.Timestamp(mo['t'][0]), pd.Timestamp(weekly['t'][0]) + pd.Timedelta(days=31))
-        self.assertTrue(all(len(series) == len(mo['t']) for series in mo['m']))
+    def test_no_overlay_rides_in_the_weekly_or_monthly_bundles(self):
+        # The Weekly bundle carried a Monthly overlay for the Weekly chart; the
+        # chart and the overlay went on 2026-11-16 (the activity strip reads
+        # bars and ribbon only).
+        self.assertNotIn('mo', self.built['W']['Apple'])
         self.assertNotIn('mo', self.built['M']['Apple'])
 
 
@@ -199,19 +196,19 @@ class QuoteRangeTests(unittest.TestCase):
 class WriteTests(unittest.TestCase):
     def test_own_index_and_every_chunk_written(self):
         names = [f'N{i:02d}' for i in range(12)]   # three chunks of five
-        bundles = {'N00': {'t': ['2026-07-06']}, 'N11': {'t': ['2026-07-06']}}
+        bundles = {'N00': {'t': ['2026-06-01']}, 'N11': {'t': ['2026-06-01']}}
         with tempfile.TemporaryDirectory() as out:
             out = Path(out)
-            (out / 'chart' / 'W').mkdir(parents=True)
-            (out / 'chart' / 'W' / '9.json').write_text('stale')
-            self.assertEqual(publish_htf.write(out, 'W', bundles, names, '2026-10-19'), 3)
-            files = sorted(p.name for p in (out / 'chart' / 'W').iterdir())
+            (out / 'chart' / 'M').mkdir(parents=True)
+            (out / 'chart' / 'M' / '9.json').write_text('stale')
+            self.assertEqual(publish_htf.write(out, 'M', bundles, names, '2026-10-19'), 3)
+            files = sorted(p.name for p in (out / 'chart' / 'M').iterdir())
             self.assertEqual(files, ['0.json', '1.json', '2.json', 'index.json'])
-            index = read_gz(out / 'chart' / 'W' / 'index.json')
+            index = read_gz(out / 'chart' / 'M' / 'index.json')
             self.assertEqual(index['chunks']['N11'], 2)
             self.assertEqual(index['built'], '2026-10-19')
-            self.assertEqual(read_gz(out / 'chart' / 'W' / '1.json')['data'], {})
-            self.assertEqual(set(read_gz(out / 'chart' / 'W' / '2.json')['data']), {'N11'})
+            self.assertEqual(read_gz(out / 'chart' / 'M' / '1.json')['data'], {})
+            self.assertEqual(set(read_gz(out / 'chart' / 'M' / '2.json')['data']), {'N11'})
             self.assertFalse((out / 'chart' / 'index.json').exists())
 
     def test_hourly_feed_no_longer_builds_them(self):
@@ -229,8 +226,8 @@ class WriteTests(unittest.TestCase):
 
     def test_index_files_are_never_cached(self):
         import publish
-        self.assertEqual(publish._cache_control_for('ma500/chart/W/index.json'), 'no-cache, max-age=0')
-        self.assertEqual(publish._cache_control_for('ma500/chart/W/3.json'), 'public, max-age=900')
+        self.assertEqual(publish._cache_control_for('ma500/chart/M/index.json'), 'no-cache, max-age=0')
+        self.assertEqual(publish._cache_control_for('ma500/chart/M/3.json'), 'public, max-age=900')
 
 
 
@@ -471,9 +468,11 @@ class RetiredChartPruneTests(unittest.TestCase):
             return self.p.prune_retired_chart_folders()
 
     def test_only_retired_folders_go_and_only_once(self):
-        self.assertEqual(self.run_prune(), 9)
+        self.bucket.add('ma500/activity/W.json')   # the Week strip row is not a chart folder
+        self.assertEqual(self.run_prune(), 12)
         left = {k.split('/')[2] for k in self.bucket if k.count('/') == 3}
-        self.assertEqual(left, {'1H', 'D', 'W', 'M'})
+        self.assertEqual(left, {'1H', 'D', 'M'})
+        self.assertIn('ma500/activity/W.json', self.bucket)
         self.assertIn('ma500/chart/index.json', self.bucket)
         self.calls.clear()
         self.assertEqual(self.run_prune(), 0)
@@ -504,7 +503,8 @@ class TimeframeTableTests(unittest.TestCase):
         import config
         self.assertEqual(config.TIMEFRAMES, (('1H', 'h1_'), ('D', '')))
         self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', 'D': 'build_daily'})
-        # Weekly's chart was removed on 2026-11-16 (enabled: False).
+        # Weekly's chart was removed on 2026-11-16, and its row on the same day.
+        self.assertEqual([t['code'] for t in config.TIMEFRAME_TABLE], ['1H', 'D', 'M'])
         self.assertEqual(list(config.HTF_CHART_BUILDERS), ['M'])
         self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'M'])
         for t in config.TIMEFRAME_TABLE:
@@ -512,9 +512,9 @@ class TimeframeTableTests(unittest.TestCase):
 
     def test_switching_a_row_off_removes_it_everywhere(self):
         import config
-        d = config.derive_timeframes(self._without('W'))
-        self.assertNotIn('W', d['htf_charts'])
-        self.assertNotIn('W', [t['code'] for t in d['app']])
+        d = config.derive_timeframes(self._without('M'))
+        self.assertNotIn('M', d['htf_charts'])
+        self.assertNotIn('M', [t['code'] for t in d['app']])
         d = config.derive_timeframes(self._without('1H'))
         self.assertEqual(d['signal'], (('D', ''),))
         self.assertEqual(d['run_charts'], {'D': 'build_daily'})
@@ -536,7 +536,8 @@ class TimeframeTableTests(unittest.TestCase):
         import publish
         import server
         self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M'])
-        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'W', 'M'})
+        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'M'})
+        self.assertIn('W', publish.RETIRED_CHART_TFS)
         template = (Path(__file__).resolve().parents[1] / 'webapp' / 'templates' / 'index.html').read_text()
         self.assertIn('window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;', template)
         self.assertNotIn('data-tf="', template)  # the buttons come from the table

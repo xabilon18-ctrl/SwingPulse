@@ -58,7 +58,7 @@ module.exports = async browser => {
     throw new Error('the chart never stopped scrolling');
   };
 
-  // Weekly is hidden (config `hidden`, 2026-11-13): Charts cannot switch to it.
+  // Every chart timeframe (no Weekly since 2026-11-16).
   for (const tf of ['1H', 'D', 'M']) {
     await page.locator(`#tfBtn${tf}`).click();
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);

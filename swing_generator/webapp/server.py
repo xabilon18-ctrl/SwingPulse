@@ -340,8 +340,7 @@ def _near_map_local() -> dict:
 
 @app.route('/api/chart/<tf>/index')
 def api_chart_tf_index(tf: str):
-    # Weekly and Monthly read their own index (chart/<tf>/index.json when
-    # published); locally it is the same sorted-name grouping as everything else.
+    # Monthly reads its own index (chart/M/index.json when published); locally it is the same sorted-name grouping as everything else.
     return jsonify({'tf': tf, 'chunk_size': chart_feed.CHUNK_SIZE, 'chunks': _chart_chunk_map()})
 
 

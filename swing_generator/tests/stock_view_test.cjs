@@ -123,19 +123,11 @@ for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
 
-// Weekly and Monthly (2026-10-19): on every market, from week starts (Mondays)
-// and month starts. Weekly opens on four terms, 2013 to 2029.
+// No Weekly frame: its chart was removed on 2026-11-16.
 ctx.timeframe = 'W';
 const wk = [];
 for (let ms = Date.UTC(2006, 0, 2); ms <= Date.UTC(2026, 9, 12); ms += 7 * 864e5) wk.push(new Date(ms).toISOString().slice(0, 10));
-for (const market of ['STOCK', 'BTC', 'EUR']) {
-  const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, market);
-  assert.equal(wk[wk.length - (vw.bars - vw.future)], '2012-12-31', market);   // the week holding 1 Jan 2013
-  assert.equal(vw.fit, 'all');
-}
-const vw = ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, 'STOCK');
-const frw = geometry.yearFrame({ t: wk }, bt);
-assert.ok(Math.abs(wk.length - (vw.bars - vw.future) + vw.bars - 1 - (frw.anchor + 3 * frw.yearBars)) <= 1, 'Weekly ends on the 2029 line');
+assert.equal(ctx.reelStockView({ t: wk, c: wk.map(() => 1) }, 'STOCK'), null, 'no Weekly frame');
 // Monthly opens on ALL its history, to the 2029 line.
 ctx.timeframe = 'M';
 const mo = [];
@@ -196,7 +188,7 @@ assert.equal(dw.reelDrawingRange([], src, 0, 99), null);
 // A linked drawing switched off for this timeframe does not frame it.
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H'] }], src, 0, 99))), { lo: 20, hi: 120 });
 assert.deepEqual(JSON.parse(JSON.stringify(dw.reelDrawingRange([lad, { kind: 'hline', p: 300, link: 'L1', tfs: ['1H', 'D'] }], src, 0, 99))), { lo: 20, hi: 300 });
-console.log('stock, crypto, Weekly and Monthly views: ok');
+console.log('stock, crypto and Monthly views: ok');
 
 // Sector / industry filter (2026-10-25): stock sectors only, the industry list
 // limited to the chosen sector, exact matches.

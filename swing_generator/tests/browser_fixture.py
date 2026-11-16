@@ -29,16 +29,15 @@ fires.write_text(json.dumps({'TEST': h_state[2]}))
 with patch.object(chart_feed, 'load_1h', return_value=h1), \
      patch.object(chart_feed, 'build_daily', return_value={**chart_feed._bundle(d, [50, 250, 500], '%Y-%m-%d', bars=1000, context_tf='D'), 'references': chart_feed.reference_history(d)}):
     chart_feed.build_chart_feed(str(out), str(out), {'TEST': 'TEST'}, h1_fires_path=str(fires))
-# Weekly and Monthly as tools/publish_htf.py publishes them, from a deeper
-# history than the Daily bundle carries (~25 years, so Weekly's four-term view
-# and its Monthly overlay have something behind them).
+# Monthly as tools/publish_htf.py publishes it, from a deeper history than the
+# Daily bundle carries (~25 years). There is no Weekly chart (removed
+# 2026-11-16).
 back = 1 + 0.3 * np.sin((np.arange(5000) - 5000) / 300)   # meets the fixture's first close
 pc = float(d['Close'].iloc[0]) * back
 deep = pd.concat([pd.DataFrame({'Open': pc, 'High': pc * 1.01, 'Low': pc * 0.99, 'Close': pc, 'Volume': 1000},
                                index=pd.bdate_range(end=d.index[0] - pd.Timedelta(days=1), periods=len(pc))), d])
-built, _ = publish_htf.build({'TEST': 'TEST'}, ['W', 'M'], lambda t: (deep, 'max'), workers=1)
-for tf in ('W', 'M'):
-    publish_htf.write(out, tf, built[tf], ['TEST'], str(d.index[-1].date()))
+built, _ = publish_htf.build({'TEST': 'TEST'}, ['M'], lambda t: (deep, 'max'), workers=1)
+publish_htf.write(out, 'M', built['M'], ['TEST'], str(d.index[-1].date()))
 # Active at last close (activity_feed): TEST's sector busy on Day and Week,
 # quiet on Month, so the strip shows two rows.
 for tf, period, hot in (('D', str(d.index[-1].date()), True), ('W', '2026-10-19', True), ('M', '2026-09-01', False)):

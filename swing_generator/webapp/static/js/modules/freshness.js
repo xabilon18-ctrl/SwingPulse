@@ -140,8 +140,8 @@
     const provisional = !!forming && forming.t === value;
     const end = provisional ? timestamp(forming.closes_at) : null;
     const state = provisional ? (end != null && now >= end ? 'Awaiting final update' : 'Still forming') : '';
-    // Weekly and Monthly bars are dated like Daily ones, by their first day.
-    const dated = { D: 'daily', W: 'weekly', M: 'monthly' }[tf];
+    // Monthly bars are dated like Daily ones, by their first day.
+    const dated = { D: 'daily', M: 'monthly' }[tf];
     return { label: provisional ? tf + ' candle · ' + state : 'Last completed ' + (dated || tf) + ' bar', state,
       time: chartTime(value, tf), detailTime: chartTime(value, tf, false, true),
       basis: dated ? 'session date' : 'local', age: ago(value, now) };

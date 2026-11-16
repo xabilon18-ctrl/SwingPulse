@@ -6,13 +6,14 @@
   // "add 1/2 a term under time grid"). Y10/Y20 = ten and twenty years (user,
   // 2026-10-28: "Add 5 and 10 time grids for months only", then "Replace the
   // monthy time grid 5y for Mothly with 20y", then "apply 10y time grid on
-  // weekly"): 10Y on Weekly and Monthly, 20Y on Monthly only (app.js).
+  // weekly"): 10Y and 20Y on Monthly only (app.js; Weekly's chart was removed
+  // 2026-11-16).
   // `label` is the button text.
   const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' }];
-  // Weekly and Monthly are divided by administration term, every line equal
-  // (user, 2026-10-19: "divided by administration and not by year. All must
-  // be equal").
-  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', W: 'T', M: 'T' };
+  // Monthly is divided by administration term, every line equal (user,
+  // 2026-10-19: "divided by administration and not by year. All must be
+  // equal").
+  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', M: 'T' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
     energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids' };
   // Split out of 'other' (user, 2026-10-21: "Fx, crypto, commodities, stocks
