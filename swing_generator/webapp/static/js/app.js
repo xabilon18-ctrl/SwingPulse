@@ -6034,7 +6034,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfOn: (j.htfOn && typeof j.htfOn === 'object') ? j.htfOn : undefined, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -6250,12 +6250,24 @@
   }
   const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
+  // ONE CHOICE FOR EVERY CHART (user, 2026-11-16: "The overlay MAs only have
+  // to be activated once and to apply across"). The Daily / Weekly / Monthly
+  // switches live in `tfOverlay.htfOn`, shared by every timeframe; a chart
+  // never overlays its own timeframe (ovHtfChoices). Until now each timeframe
+  // kept its own switches in `tfOverlay.htf[tf]`, so Monthly turned on over
+  // Daily was off on 1H and Monthly, and a chart opened on another timeframe
+  // (Weekly hidden 2026-11-13 sends a saved Weekly choice to Daily) showed
+  // none. The first read takes every switch that was on under ANY timeframe.
+  // `htf` is left as it was, so an older build still reads its own choices.
   function ovSel() {
-    const all = tfOverlay.htf || (tfOverlay.htf = {});
-    // v432 stored one flat {W: true, M: true} for every chart — not a
-    // per-timeframe object, so it is dropped here rather than misread.
-    if (!all[timeframe] || typeof all[timeframe] !== 'object') all[timeframe] = {};
-    return all[timeframe];
+    if (tfOverlay.htfOn && typeof tfOverlay.htfOn === 'object') return tfOverlay.htfOn;
+    const on = {};
+    Object.values(tfOverlay.htf || {}).forEach(sel => {
+      // v432 stored one flat {W: true, M: true} — not a per-timeframe object.
+      if (sel && typeof sel === 'object') OV_HTF_ALL.forEach(([tf]) => { if (sel[tf]) on[tf] = true; });
+    });
+    tfOverlay.htfOn = on;
+    return on;
   }
   function ovHtfOn(tf) { return !!ovSel()[tf] && ovHtfChoices().some(([t]) => t === tf); }
   function ovAny() { return ovHtfChoices().some(([tf]) => ovHtfOn(tf)); }
@@ -6642,7 +6654,7 @@
     };
     let h = reelWeightMenu('nativeW', 'Chart MAs') + reelWeightMenu('gridW', 'Grid lines') + `<div class="reel-ov-sep"></div>
       <div class="reel-ov-block"><label class="reel-ov-row"><span>Grid</span><input type="range" min="0" max="100" step="5" value="${g}" data-ov-tf="${timeframe}" data-ov-part="grid" aria-label="${TF_BY_CODE[timeframe].label} grid line contrast"><b>${g}%</b></label></div>
-      <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on ${TF_BY_CODE[timeframe].label}</span></div>
+      <div class="reel-ov-block"><div class="reel-ov-title">Overlay MAs<span>on every chart</span></div>
         <div class="reel-ov-row reel-ov-maw"><span>MA set</span><div class="reel-ov-sets">${Object.entries(OV_SETS).map(([k, ps]) =>
           `<button class="reel-ov-set${ovSet() === k ? ' on' : ''}" data-act="ov-set" data-v="${k}" title="${ps.join(' · ')}">${OV_SET_NAMES[k]}</button>`).join('')}</div></div></div>`;
     // One switch per higher timeframe, thinnest first.
