@@ -59,7 +59,7 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
+| `W`  | none, and NO CHART since 2026-11-16 (`enabled: False`). Only the Watchlist strip's Week row, `activity/W.json` | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays; builds the bundles, publishes no chart) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
@@ -71,6 +71,11 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   one edit; Daily cannot be switched off. A deleted timeframe needs its code
   restored from git first. Never write `timeframe === 'X' ? a : b`: loop the
   table.
+- **Weekly is switched off, not deleted** (user, 2026-11-16: "Remove the
+  Weekly chart"). The app has no Weekly chart, button or menu entry. The
+  Weekly MA lines on 1H, Daily and Monthly charts stay: they come from the
+  Daily bundle's `w` block, never from `chart/W`. No row uses `hidden` now.
+  The Weekly code in `app.js` and `chart_feed.py` is dormant.
 - Hourly entries are NOT added to the Daily performance ledger.
 - **Removed, and not to be brought back unless the user asks by name:**
   5m/10m/15m/30m/2H/4H/12H/3D charts and 30m/4H signals. The 5m download
