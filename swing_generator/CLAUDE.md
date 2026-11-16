@@ -59,13 +59,12 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
   `enabled` switch. `derive_timeframes()` produces everything else from it:
   `config.TIMEFRAMES` (signal timeframes), the hourly chart builders, the
-  Weekly/Monthly builders, the R2 prune guard, the local server's routes and
+  Monthly builder, the R2 prune guard, the local server's routes and
   the app's list (injected into `index.html` as `window.SP_TIMEFRAMES`; the
   header buttons are built from it). Switching an existing timeframe off is
   one edit; Daily cannot be switched off. A deleted timeframe needs its code
@@ -73,8 +72,11 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   table.
 - Hourly entries are NOT added to the Daily performance ledger.
 - **Removed, and not to be brought back unless the user asks by name:**
-  5m/10m/15m/30m/2H/4H/12H/3D charts and 30m/4H signals. The 5m download
-  stays for `quotes.json` and the currency indices. Their old R2 folders are
+  5m/10m/15m/30m/2H/4H/12H/3D/Weekly charts and 30m/4H signals. The 5m download
+  stays for `quotes.json` and the currency indices. Weekly (no chart since
+  2026-11-16) keeps its MA lines on other charts (the Daily bundle's `w`
+  block) and the Watchlist strip's Week row (`tools/publish_htf.py` still
+  builds weekly bundles on Mondays for `activity/W.json`). Their old R2 folders are
   deleted by `publish.prune_retired_chart_folders`.
 - **Finished bars only.** No timeframe is computed on a bar whose session is
   still open: `data_fetcher.drop_unfinished_daily` / `drop_unfinished_1h`
@@ -114,7 +116,7 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   runs the live checks against it; only if they pass does it deploy the sync
   and cron Workers and the production Pages project, then checks the live app
   again. The preview reads the same R2 data and Workers as production.
-- **Weekly/Monthly charts:** `publish-htf.yml`. **Watchdog:** `publish-watchdog.yml`.
+- **Monthly chart and the Week/Month activity rows:** `publish-htf.yml`. **Watchdog:** `publish-watchdog.yml`.
 - Stale banner: the app flags `now - summary.fetched_at > 32h`.
 - A failed run sets `status.json` on R2 to `state: 'failed'` and pushes a
   failure notification.
