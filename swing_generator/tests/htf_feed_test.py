@@ -504,8 +504,9 @@ class TimeframeTableTests(unittest.TestCase):
         import config
         self.assertEqual(config.TIMEFRAMES, (('1H', 'h1_'), ('D', '')))
         self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', 'D': 'build_daily'})
-        self.assertEqual(list(config.HTF_CHART_BUILDERS), ['W', 'M'])
-        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'W', 'M'])
+        # Weekly's chart was removed on 2026-11-16 (enabled: False).
+        self.assertEqual(list(config.HTF_CHART_BUILDERS), ['M'])
+        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'M'])
         for t in config.TIMEFRAME_TABLE:
             self.assertTrue(hasattr(chart_feed, t['builder']), t['builder'])
 
@@ -519,6 +520,13 @@ class TimeframeTableTests(unittest.TestCase):
         self.assertEqual(d['run_charts'], {'D': 'build_daily'})
         self.assertNotIn('1H', [t['code'] for t in d['app']])
 
+    def test_weekly_job_keeps_the_activity_strip_without_a_chart(self):
+        # The chart is off, the Monday job still runs: the Watchlist strip's
+        # Weekly row is built from the same bundles (2026-11-16).
+        self.assertIn('W', publish_htf.BUILDERS)
+        self.assertNotIn('W', publish_htf.CHART_TFS)
+        self.assertIn('M', publish_htf.CHART_TFS)
+
     def test_daily_cannot_be_switched_off(self):
         import config
         with self.assertRaises(ValueError):
@@ -527,7 +535,7 @@ class TimeframeTableTests(unittest.TestCase):
     def test_app_and_server_read_the_table(self):
         import publish
         import server
-        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M', 'W'])
+        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M'])
         self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'W', 'M'})
         template = (Path(__file__).resolve().parents[1] / 'webapp' / 'templates' / 'index.html').read_text()
         self.assertIn('window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;', template)

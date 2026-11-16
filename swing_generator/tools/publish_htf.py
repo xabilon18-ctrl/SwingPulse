@@ -44,9 +44,12 @@ from data_fetcher import _full_download, FETCH_WORKERS                    # noqa
 from _active_config import HTF_CHART_BUILDERS                             # noqa: E402
 
 SCHEDULE_TZ = 'Africa/Johannesburg'   # the clock the hourly runs are named in
-# Only the timeframes config.TIMEFRAME_TABLE has enabled with chart 'htf'.
-BUILDERS = {tf: fn for tf, fn in (('W', weekly_bundle), ('M', monthly_bundle))
-            if tf in HTF_CHART_BUILDERS}
+# Both are always BUILT: the Watchlist's activity strip reads the week's and
+# the month's busy sectors (activity/<tf>.json) off these bundles. A CHART is
+# published only for the timeframes config.TIMEFRAME_TABLE has enabled with
+# chart 'htf' (Weekly's chart was removed on 2026-11-16; its strip row stays).
+BUILDERS = {'W': weekly_bundle, 'M': monthly_bundle}
+CHART_TFS = frozenset(HTF_CHART_BUILDERS)
 # Below this share of instruments with a chart, something is broken (Yahoo
 # refusing the runner, an empty cache) and publishing would blank good charts.
 # Monthly is lower: it needs 50 months, Weekly 250 weeks, and young listings
@@ -167,8 +170,11 @@ def main():
         if n < need:
             raise SystemExit(f'{tf}: only {n} of {len(ticker_map)} charts built '
                              f'(need {need}) — not publishing over the live ones.')
-        chunks = write(output, tf, built[tf], list(ticker_map), now.strftime('%Y-%m-%d'))
-        print(f'  {tf}: {n} charts in {chunks} chunks', flush=True)
+        if tf in CHART_TFS:
+            chunks = write(output, tf, built[tf], list(ticker_map), now.strftime('%Y-%m-%d'))
+            print(f'  {tf}: {n} charts in {chunks} chunks', flush=True)
+        else:
+            print(f'  {tf}: chart switched off; activity only', flush=True)
         # A failure costs the Watchlist strip's Weekly/Monthly row, never the charts.
         try:
             act = write_activity(output, tf, built[tf])

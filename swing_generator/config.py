@@ -447,6 +447,12 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 #             out of the app's Charts switch, ‹ › steps and menu (Weekly,
 #             user 2026-11-13: "hide weekly, don't delete just hide").
 #             Unlike enabled: False, nothing is deleted or stops being built.
+#             No row uses it now: Weekly's chart was removed on 2026-11-16
+#             (user: "Delete weekly no more hiding"), so its row is enabled:
+#             False. tools/publish_htf.py still builds the weekly bundles on
+#             Mondays for the Watchlist strip's Weekly row; it publishes no
+#             chart. The Weekly MA lines on other charts come from the Daily
+#             bundle and are unaffected.
 #   chart     'run' = built by the hourly run (chart_feed.<builder>);
 #             'htf' = built by tools/publish_htf.py on its own schedule
 #   builder   the chart_feed function that builds its chart from the local
@@ -462,8 +468,7 @@ TIMEFRAME_TABLE = (
     {'code': 'D', 'prefix': '', 'label': 'Daily', 'name': 'Daily', 'bar': 'days', 'bar_short': '25-day',
      'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
     {'code': 'W', 'prefix': '', 'label': 'Weekly', 'name': 'Weekly', 'bar': 'weeks', 'bar_short': '25-week',
-     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': True,
-     'hidden': True},
+     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': False},
     {'code': 'M', 'prefix': '', 'label': 'Monthly', 'name': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
      'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_monthly', 'enabled': True},
 )

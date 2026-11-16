@@ -85,10 +85,9 @@ let debugPage;
   if (!live) {
     // Monthly (back 2026-10-19): chart only, read through its own chunk map,
     // with no 4H read under its name, divided by administration term with
-    // every line equal (no bold, no year lines). Weekly is built the same way
-    // but hidden from Charts (config `hidden`, 2026-11-13), so it is not
-    // opened here.
-    assert.equal(await page.locator('#tfBtnW').isHidden(), true, 'hidden Weekly has no Charts button');
+    // every line equal (no bold, no year lines). The Weekly chart was removed
+    // on 2026-11-16 (config `enabled: False`).
+    assert.equal(await page.locator('#tfBtnW').count(), 0, 'removed Weekly has no Charts button');
     const shownBars = {};
     for (const [tf, word] of [['M', 'monthly']]) {
       const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
@@ -375,11 +374,10 @@ let debugPage;
     await strip.locator('.wl2-act-hd').click();
     assert.equal(await strip.locator('.wl2-act-panel').count(), 0, 'tapping ACTIVE again closes it');
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
-    // Weekly is hidden (config `hidden`, user 2026-11-13): the week's busy
-    // sector still opens its charts, on the chart timeframe already shown.
+    // There is no Weekly chart (removed 2026-11-16): the week's busy sector
+    // still opens its charts, on the chart timeframe already shown.
     await page.locator('#chartReel .reel-card').first().waitFor();
-    assert.equal(await page.locator('#tfBtnW').getAttribute('aria-selected'), 'false', 'hidden Weekly is never switched to');
-    assert.equal(await page.locator('#tfBtnW').isHidden(), true, 'no Weekly button on Charts');
+    assert.equal(await page.locator('#tfBtnW').count(), 0, 'no Weekly button on Charts');
     assert.match(await page.locator('#reelSimBar').innerText(), /Active:\s*Technology · Week\s*1/);
     assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
     assert.equal(errors.length, 0, errors.join('\n'));
