@@ -171,6 +171,22 @@ let debugPage;
         'kept under its own key, apart from the views saved before the switch');
       await save.click();   // forget it again
       assert.equal(await save.getAttribute('aria-pressed'), 'false');
+      // Framed from BEFORE the first bar (2026-11-16: FTSE China A50 Monthly
+      // from 2000, data from 2012, jumped to 2012 on Save): the start holds,
+      // straight after Save and when the chart comes back.
+      const firstSlot = () => mHost.evaluate(h => h._reelCtx.b.t[0]);
+      const box = await mHost.boundingBox();
+      await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3); await page.mouse.down();
+      await page.mouse.move(box.x + box.width * .8, box.y + box.height * .3, { steps: 10 }); await page.mouse.up();
+      await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.back === true);
+      const early = await firstSlot();
+      assert.ok(early < '2001', 'scrolled back before the first bar: ' + early);
+      await save.click();
+      assert.equal(await firstSlot(), early, 'Save keeps a start before the first bar');
+      await toTf('D');
+      await toTf('M');
+      assert.equal(await firstSlot(), early, 'and the chart comes back on it');
+      await save.click();
     }
     await setRange(65);
     assert.equal(await lockOn(), 'false', 'a Chart range replaces the frame switch');
