@@ -19,7 +19,7 @@ out = ROOT / 'webapp' / 'publish' / 'browser-data'
 out.mkdir(parents=True, exist_ok=True)
 h1 = hourly_frame()
 d = h1.copy()
-d.index = pd.bdate_range(end=pd.Timestamp.utcnow().tz_localize(None).normalize() - pd.Timedelta(days=1), periods=len(d))
+d.index = pd.bdate_range(end=pd.Timestamp.now('UTC').tz_localize(None).normalize() - pd.Timedelta(days=1), periods=len(d))
 meta = {'name': 'TEST', 'group': 'US Equity', 'sector': 'Technology', 'industry': 'Software'}
 row, trends = main.process_instrument('TEST', d, meta, d.index[-1].date())
 h_state = main._compute_1h_state(h1, 'Equity', h1.index[-1].date())
@@ -48,7 +48,7 @@ for tf, period, hot in (('D', str(d.index[-1].date()), True), ('W', '2026-10-19'
         'sectors': [{'sector': 'Technology', 'date': period, 'members': 9, 'counted': 9, 'big': 4,
                      'up': 4, 'down': 0, 'z': 2.4 if hot else 0.1, 'hot': hot, 'tilt': 'up',
                      'top': [['TEST', 3.1, 2.6]], 'order': ['TEST'], 'history_bars': 300}]}))
-stamp = pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+stamp = pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ')
 summary = publish.build_summary(pd.DataFrame([row]), str(d.index[-1].date()))
 summary['fetched_at'] = stamp
 for filename, payload in {

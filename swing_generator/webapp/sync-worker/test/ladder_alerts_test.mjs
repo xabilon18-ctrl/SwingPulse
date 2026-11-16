@@ -93,6 +93,13 @@ try {
   disk.set(subKey('zabs', zabsTablet), JSON.stringify({ endpoint: zabsTablet }));
   assert.deepEqual((await inbox(zabsTablet)).alerts.map(a => a.pct), [2, 4], 'every one of the owner\'s devices gets them');
   assert.deepEqual((await inbox('https://example.com/x')).alerts, [], 'an unknown endpoint gets nothing');
+  // 'Aa' and 'BB' give the same 32-bit key: a colliding URL is not the device.
+  const owned = 'https://web.push.apple.com/Aa', twin = 'https://web.push.apple.com/BB';
+  assert.equal(subKey('zabs', owned), subKey('zabs', twin));
+  disk.set(subKey('zabs', owned), JSON.stringify({ endpoint: owned }));
+  assert.deepEqual((await inbox(owned)).alerts.map(a => a.pct), [2, 4]);
+  assert.deepEqual((await inbox(twin)).alerts, [], 'a URL that only shares the key gets nothing');
+  disk.delete(subKey('zabs', owned));
   status = { state: 'failed' };
   r = await notify();
   assert.equal(r.failed + r.sent + r.expired, 3, 'a failed run still reaches every phone');

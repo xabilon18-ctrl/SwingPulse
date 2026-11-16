@@ -27,7 +27,7 @@ import json
 import math
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import pandas as pd
@@ -542,7 +542,7 @@ def aggregate(trades: list[dict], since: Optional[date]) -> dict:
             'engine':         RULE_VERSION if all(t.get('rule_version') == RULE_VERSION for t in trades) else 'legacy-research',
         },
         'sample_size_warning': overall['total_trades'] < 30,
-        'generated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
+        'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
     }
 
 

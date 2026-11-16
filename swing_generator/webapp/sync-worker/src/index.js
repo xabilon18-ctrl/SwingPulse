@@ -336,8 +336,9 @@ export default {
     // asked for: its owner's ladder line alerts, or a FAILED run (the CI
     // failure step flips status.json first), which still goes to everyone.
     if (path === '/push/notify' && request.method === 'POST') {
+      // sameSecret: the same timing-independent compare the passwords use.
       const secret = request.headers.get('X-Sync-Secret');
-      if (!secret || secret !== env.SYNC_SECRET) {
+      if (!secret || !env.SYNC_SECRET || !sameSecret(secret, env.SYNC_SECRET)) {
         return json({ error: 'Unauthorized' }, 401);
       }
       // PHONE ALERTS PAUSED (user, 2026-11-04: "Switch off all phone alerts
@@ -380,11 +381,16 @@ export default {
     // that device and its push service know it. Nothing is cleared, so each
     // of the owner's devices gets them: the run's alerts are the recent ones
     // (runs are an hour apart), and the inbox keeps only INBOX_KEEP.
+    // The key is a 32-bit hash of the endpoint, so a different URL can land on
+    // the same key: the stored subscription's own endpoint must match exactly
+    // (2026-11-16 audit), or a crafted URL could read that owner's alerts.
     if (path === '/push/inbox' && request.method === 'GET') {
       const endpoint = pushEndpoint(url.searchParams.get('endpoint'));
       if (!endpoint) return json({ alerts: [] });
       for (const user of ALLOWED_USERS) {
-        if (!(await env.USER_DATA.get(subKey(user, endpoint)))) continue;
+        let stored = null;
+        try { stored = JSON.parse(await env.USER_DATA.get(subKey(user, endpoint)) || 'null'); } catch (_) {}
+        if (!stored || stored.endpoint !== endpoint) continue;
         let alerts = [];
         try { alerts = JSON.parse(await env.USER_DATA.get(`inbox:${user}`) || '[]') || []; } catch (_) {}
         const since = Date.now() - INBOX_RECENT_MS;

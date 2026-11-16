@@ -105,6 +105,8 @@ await check('old app DELETE removes none → 200', await call('DELETE', '/push/s
 console.log('\nCI push path (server-to-server, unchanged)');
 await check('notify without secret → 401', await call('POST', '/push/notify'), 401);
 await check('notify with browser token → 401', await call('POST', '/push/notify', { token: good }), 401);
+await check('notify with wrong secret → 401', await call('POST', '/push/notify', { secret: 'ci-only-secreX' }), 401);
+await check('notify with longer secret → 401', await call('POST', '/push/notify', { secret: 'ci-only-secret!' }), 401);
 KV.set('fail:zabs', '0');
 await check('notify with CI secret → 200', await call('POST', '/push/notify', { secret: 'ci-only-secret' }), 200, { sent: 0 });
 

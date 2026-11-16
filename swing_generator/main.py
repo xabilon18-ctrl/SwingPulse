@@ -506,7 +506,7 @@ def _resample_4h(df_hourly: pd.DataFrame, hours: int = 4, *, completed_only: boo
     ix = pd.DatetimeIndex(resampled.index)
     if ix.tz is not None:
         ix = ix.tz_convert('UTC').tz_localize(None)
-    return resampled[ix + pd.Timedelta(hours=hours) <= pd.Timestamp.utcnow().tz_localize(None)]
+    return resampled[ix + pd.Timedelta(hours=hours) <= pd.Timestamp.now('UTC').tz_localize(None)]
 
 
 def _frame_5m(df_5m: pd.DataFrame) -> pd.DataFrame:
@@ -787,7 +787,7 @@ def _live_intraday(state, now_utc: Optional[pd.Timestamp] = None, prefix: str = 
         return {}
     data, fires = state[0], state[1]
     data = dict(data)
-    now = now_utc if now_utc is not None else pd.Timestamp.utcnow().tz_localize(None)
+    now = now_utc if now_utc is not None else pd.Timestamp.now('UTC').tz_localize(None)
     live = [f for f in fires if f[0] >= now - pd.Timedelta(hours=FIFTEEN_MIN_SIGNAL_LIVE_HOURS)]
     if live:
         ts, code, conf, status = live[-1]

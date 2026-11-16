@@ -114,7 +114,7 @@ def main(user: str = 'zabs') -> None:
     if not marks:
         print(f'No Buy/Sell markers found for {user}.')
         return
-    now = pd.Timestamp.utcnow().tz_localize(None)
+    now = pd.Timestamp.now('UTC').tz_localize(None)
     rows = []
     for m in marks:
         tk = tick.get(m['name'])

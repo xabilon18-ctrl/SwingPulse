@@ -67,7 +67,6 @@
   const alsoInGroup = (d, g) => !!(d && (ALSO_IN_GROUP[d.instrument_name] || []).includes(g));
   let summaryData = {};
   let backtestData = null;   // { overall, by_signal, generated_at } from backtest.py
-  let ledgerData = null;     // { totals, by_signal, by_code } from signal_ledger.py (live fires)
   // Radar payloads keyed by timeframe. Daily only since 2026-09-24, when the 3D
   // and Weekly radars went with those timeframes; the 10m chart has no radar
   // and the card says so rather than letting a daily reading pass for a 10m one.
@@ -83,7 +82,6 @@
   // Watchlist tab: latest price + previous close per instrument (quotes.json).
   let quotesData = null;
   let leadersShowAll = false;
-  let sectorRadarData = null; // the active timeframe's radar (see syncRadarTf)
   const RADAR_TF_FOR = () => 'D';
   // Timeframes with no radar of their own — mirrors config.INTRADAY_PREFIXES.
   // The timeframe table (see TIMEFRAMES below). A page served without it was
@@ -94,8 +92,6 @@
   }
   const INTRADAY_TFS = new Set(SP_TF_TABLE.filter(t => t.intraday).map(t => t.code));
   // 30m added 2026-09-29; 1H back 09-27, 4H back 09-29
-  let instFlavours = {};      // { instrument_name: flavour } — sector-mood conviction layer (validated on real R 2026-07-22)
-  let flavourMkt = { market_wide: false }; // top-level market-state from instrument_flavours.json
   let aiSet = new Set();     // instruments with AI exposure
   let aiFilterActive = false;
   // iPad always gets the laptop workspace (user, 2026-11-01: "make the iPad
@@ -110,24 +106,7 @@
   const desktopChartMedia = window.matchMedia(isIPad ? '(min-width: 700px)' : '(min-width: 1024px)');
   const desktopChart = { active: false, expanded: false, collapsed: false, name: null, tf: null, frame: 0 };
   let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
-  let activeStatFilter = '';      // stat card rearrange filter
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
-  let activeTrendFilter    = ''; // pulse trend filter: 'UPTREND','DOWNTREND','NEUTRAL'
-  let activeScannerFilter = 'all';
-  // Class chips (Crypto / Indices / Banks / Tech / …). These used to work by
-  // writing their term into the search box, which made every other chip filter
-  // silently switch off — see the note on the chip handler.
-  let scannerCatFilter = '';
-  let scannerMoodFilter = 'all';   // sector-mood filter (all/confirmed/fighting/calm/distributing/active/churn/mixed/marketwide)
-  // ── Move filter (period return) ──
-  // The four period returns ship unprefixed from the pipeline (config.py
-  // OUTPUT_COLUMNS: pct_1d/pct_1w/pct_1m/pct_1y) and are DAILY-close based on
-  // every timeframe — there is no h4_pct_*, so these never go through f().
-  // Direction and size are separate axes on purpose: "any 10%+ move" and "any
-  // move up" are both things you want, and folding them into one list of
-  // up2/up5/down2/… buttons would have needed 12 rows to say the same thing.
-  const MOVE_PERIODS = { pct_1d: '1D', pct_1w: '1W', pct_1m: '1M', pct_1y: '1Y' };
-  let scannerMovePeriod = 'pct_1d';   // which return the Move filter reads
   // Gainers / losers sort on Charts and Watchlist (2026-10-27, user: "an option
   // to sort by price percentage movement"), over one of the same four periods.
   // A market with no figure for the period sorts last either way.
@@ -157,14 +136,6 @@
       return sgn * (x - y);
     });
   }
-  let scannerMoveDir = 'all';         // 'all' | 'up' | 'down'
-  let scannerMoveMin = 0;             // minimum |move| in %, 0 = any size
-  let scannerSort = 'signal';
-  let scannerView = 'list';   // 'list' | 'ranked'
-  let gpViewMode = 'region';   // 'group' | 'region'
-  let activeRegionFilter = ''; // when set, scanner filters to all groups in this region
-  const SCANNER_PAGE_SIZE = 100;   // cards rendered per page (keeps DOM manageable)
-  let scannerPage = 1;             // how many pages shown so far
   // ── Cross-device Sync ────────────────────────────────────────────────
   const SYNC_WORKER = 'https://swingpulse-sync.xabilon18.workers.dev';
   let syncUser = localStorage.getItem('sp-user') || '';
@@ -211,7 +182,6 @@
   });
 
   let userStarred = new Set(JSON.parse(localStorage.getItem(sk('swingpulse-starred')) || '[]'));
-  let charts = {};
   // ── The timeframe table — ONE definition, ordered fast to slow ────────
   // Mirrors config.TIMEFRAMES on the Python side. Every per-timeframe fact
   // lives on the row: the column prefix f() applies, the button label, and
@@ -255,7 +225,6 @@
   }
   let openModalName = null;   // instrument whose detail modal is currently open (for tf re-render)
   let trendsData = {};       // instrument_name → [{direction, start, end, days}]
-  let selectedTrendInst = null;
   localStorage.removeItem('sp-signal-history');   // retired per-device tracker (2026-07-15)
   let explanationsData = {};                                                    // instrument_name → AI text
   let instrumentNotes  = JSON.parse(localStorage.getItem(sk('sp-notes')) || '{}'); // instrument_name → note text
@@ -1487,14 +1456,13 @@
 
   // ── LIVE PRICES (2026-09-24) ─────────────────────────────────────────────
   // While the Watchlist is on screen and the page is visible, the rows in view
-  // (plus a screen either side) are re-priced every WL_LIVE_MS through the
+  // (plus a screen either side) are re-priced through the
   // cron Worker's /live relay (Yahoo spark; the browser cannot call Yahoo).
   // quotes.json says what to poll: `y` (shifted by `b` to spot/cash) and the
   // unshifted reference `yc`; whichever printed more recently is used. A
   // print's age is shown honestly: futures run 10 min behind, European
   // exchanges 15; a market with no print for an hour reads "closed".
   const WL_LIVE_URL = 'https://swingpulse-cron.xabilon18.workers.dev/live';
-  const WL_LIVE_MS = 30000;
   let wlLiveAt = 0, wlLiveUnavailable = false;
   const livePrices = modules.livePrices.create({
     url: WL_LIVE_URL, getQuotes: () => quotesData, getVisibleNames: wlVisibleNames,
@@ -2648,7 +2616,7 @@
   // Commodities and Currency are what the Class menu already picks. The
   // industry list appears once a sector is chosen and holds only that
   // sector's industries; counts are over every instrument, not the filtered
-  // list. `attr` names the data attribute: data-wl-sector, data-reel-sector.
+  // list.
   function sectorLists(sector) {
     const NON_STOCK_SECTORS = new Set(['Crypto', 'Index', 'Commodities', 'Currency']);
     const tally = keep => {
@@ -2658,18 +2626,6 @@
     };
     return { sectors: tally(d => !NON_STOCK_SECTORS.has(d.sector) && d.sector),
              industries: sector ? tally(d => d.sector === sector && d.industry) : [] };
-  }
-  function sectorMenuHtml(attr, sector, industry) {
-    const { sectors, industries } = sectorLists(sector);
-    const opt = (kind, v, label, on, n) => `<button class="fdrop-opt${on ? ' on' : ''}" data-${attr}-${kind}="${escText(v)}">`
-      + `${escText(label)}${n != null ? `<i>${n}</i>` : ''}</button>`;
-    let h = `<div class="fdrop-sec"><div class="fdrop-hd">Sector</div><div class="fdrop-opts">`
-      + opt('sector', '', 'Any', !sector) + sectors.map(([s, n]) => opt('sector', s, s, s === sector, n)).join('') + '</div></div>';
-    if (sector) {
-      h += `<div class="fdrop-sec"><div class="fdrop-hd">Industry <small>${escText(sector)}</small></div><div class="fdrop-opts">`
-        + opt('industry', '', 'Any', !industry) + industries.map(([s, n]) => opt('industry', s, s, s === industry, n)).join('') + '</div></div>';
-    }
-    return h;
   }
   function sectorMatches(d, sector, industry) {
     return (!sector || d.sector === sector) && (!industry || d.industry === industry);
@@ -2772,7 +2728,6 @@
   }
 
   function setupContextHtml(item) {
-    const c = SPTrendContext.context(item, channelTrend);
     const h1 = SPTrendContext.snapshot(item, '1H', channelTrend);
     const price = h1?.close;
     const levels = h1?.setup?.levels || [50,250,500].map(p=>({id:'D'+p,value:item['ma_'+p]}));
@@ -2967,7 +2922,7 @@
       if (wlIsDiv(x)) { rows += `<div class="mk-div">${escText(x.slice(1).trim())}</div>`; return; }
       const r = m[x];
       if (!r) return;
-      const [close, lo, hi, p50, p80, rank] = r;
+      const [close, lo, hi, , p80, rank] = r;
       const q = wlQuote(x);
       const px = q ? q.p : close;
       const mood = rank < (marketData.model.quiet_below || 20) ? ['quiet', 'Quiet'] : rank > (marketData.model.wild_above || 80) ? ['wild', 'Wild'] : ['normal', 'Normal'];
@@ -3082,13 +3037,6 @@
     });
   })();
 
-  function renderCurrentTab() {
-    const tab = currentTab;
-    if (tab === 'dashboard')   { renderDashboard(); dashHub(); renderMarketToday(); }
-    else if (tab === 'scanner')  renderAlerts();
-    else if (tab === 'trends')   renderTrendsLazy();
-    else if (tab === 'watchlist') renderWatchlist();
-  }
   // ─────────────────────────────────────────────────────────────────────────
 
   function effectiveTrend(item) {
@@ -3157,15 +3105,15 @@
     if (!nb.length) return '';
     const fam = shapeFamily(name);
     const rows = nb.slice(0, 6).map(n =>
-      `<button class="ms-row" data-act="openModal" data-arg="${n.name}" data-stop="1">`
-      + `<span class="ms-name">${n.name}</span>`
+      `<button class="ms-row" data-act="openModal" data-arg="${escText(n.name)}" data-stop="1">`
+      + `<span class="ms-name">${escText(n.name)}</span>`
       + `<span class="ms-grp">${(allData.find(d => d.instrument_name === n.name) || {}).group || ''}</span>`
       + `<span class="ms-corr">${(n.corr * 100).toFixed(0)}%</span></button>`
     ).join('');
     return `<div class="mh-shape">
       <div class="mh-shape-head">Looks like${fam ? ` <span class="ms-fam">${fam.label}</span>` : ''}</div>
       <div class="ms-rows">${rows}</div>
-      <button class="ms-compare" data-act="showSimilarCharts" data-arg="${name}">See these as charts →</button>
+      <button class="ms-compare" data-act="showSimilarCharts" data-arg="${escText(name)}">See these as charts →</button>
       <div class="ms-foot">Similarity over the last ${shapeSim.window_bars || 520} ${tfMeta().label} bars — the same bars this chart draws — with the market's common drift removed. Describes what has already happened, not a forecast.</div>
     </div>`;
   }
@@ -3201,8 +3149,7 @@
   // These screens have their own filters or use daily data. Keep their header
   // to one row instead of reserving space for a non-interactive caption.
   const TF_LOCKED_TABS = new Set(['trends', 'watchlist', 'scanner', 'dashboard']);
-  // Point sectorRadarData at the active timeframe's payload, and say on the
-  // card which period it covers.
+  // Say on the radar card which period its payload covers.
   //
   // This label is not decoration. The radar is the ONE dashboard component that
   // does not follow the timeframe switch — 4H has no radar at all, and before
@@ -3212,7 +3159,6 @@
   // matches the tab (D, W) or admits that it doesn't (4H).
   function syncRadarTf() {
     const want = RADAR_TF_FOR(timeframe);
-    sectorRadarData = sectorRadarByTf[want] || sectorRadarByTf.D || null;
     const el = document.getElementById('sectorRadarPeriod');
     if (!el) return;
     const actual = sectorRadarByTf[want] ? want : (sectorRadarByTf.D ? 'D' : null);
@@ -3641,7 +3587,7 @@
     if (_dataLoadInFlight) return;
     _dataLoadInFlight = true;
     try {
-      const [sigRes, sumRes, statusRes, aiRes, trendsRes, explRes, namesRes, btRes, ldgRes, srRes, flRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes, ...actRes] = await Promise.all([
+      const [sigRes, sumRes, statusRes, aiRes, trendsRes, explRes, namesRes, btRes, srRes, shRes, rotRes, rotPaperRes, quotesRes, alertsRes, marketRes, trendChRes, ...actRes] = await Promise.all([
         fetchJson('/api/signals', { data: [] }),
         fetchJson('/api/summary', {}),
         fetchJson('/api/status', {}),
@@ -3650,9 +3596,7 @@
         fetchJson('/api/explanations', {}),
         fetchJson('/api/names', {}),
         fetchJson('/api/backtest', null),
-        fetchJson('/api/ledger', null),
         fetchJson('/api/sector-radar', null),
-        fetchJson('/api/instrument-flavours', null),
         fetchJson('/api/shape-similarity', null),
         fetchJson('/api/rotation', null),
         fetchJson('/api/rotation-paper', null),
@@ -3680,13 +3624,10 @@
       explanationsData = explRes || {};
       namesData = namesRes || {};
       backtestData = btRes?.params?.engine === 'daily500-4h-v1' ? btRes : null;
-      ledgerData = ldgRes?.rule_version === 'daily500-4h-v1' && ldgRes.totals ? ldgRes : null;
       const _okRadar = r => (r && Array.isArray(r.sectors) && r.sectors.length) ? r : null;
       sectorRadarByTf = { D: _okRadar(srRes) };
       ACT_TFS.forEach(([tf], i) => { activityByTf[tf] = _okRadar(actRes[i]); });
       syncRadarTf();
-      instFlavours = (flRes && flRes.instruments) ? flRes.instruments : {};
-      flavourMkt = (flRes && typeof flRes.market_wide === 'boolean') ? flRes : { market_wide: false };
       shapeSim = (shRes && (shRes.by_tf || shRes.neighbours)) ? shRes
                  : { neighbours: {}, families: [], family_of: {} };
       resetInstrumentIndex();   // derived from allData, replaced above
@@ -3920,8 +3861,6 @@
     return 5;
   }
 
-  const ALL_SIGNAL_CODES = ['B1','S1','B2','S2','B3','S3','B4','S4'];
-
   function isBuy(item) {
     const sig = item[f('primary_signal')];
     if (sig) return sig.startsWith('B');
@@ -4146,8 +4085,6 @@
   //   today's daily fires   3 of 42,  7.1%   -> silent
   //   Crypto only           21 of 64, 32.8%  -> fires
   //   Commodity only        4 of 18,  22.2%  -> fires
-  const CONC_MIN_MEMBERS = 3;
-  const CONC_MIN_SHARE   = 0.20;
 
 
   // Filter predicate, shared by the Signals sheet and the Charts tab so the two
@@ -4227,7 +4164,6 @@
   ];
   TECH_THEMES.forEach(t => { t.extraSet = new Set(t.extra || []); });
 
-  const _themeExpanded = new Set();
 
 
   // ── Group Market Pulse ─────────────────────────────────────────────────
@@ -4250,9 +4186,6 @@
   // ── Volume Pulse card — RVOL + PVO rolled up by market / industry ──────
   // Market = broad asset class (assetClassOf), Industry = Instruments.txt
   // industry column, Movers = top instruments by RVOL on the active TF.
-  let vpMode = localStorage.getItem('swingpulse-vp-mode') || 'market';
-  let vpShowAll = false;
-  const VP_ROW_CAP = 12;
 
 
   // ── Sector Activity Radar — anomaly monitor, quiet on normal days ──
@@ -4262,13 +4195,6 @@
   // borderline 1.5σ day stays quiet.
   // Quiet days collapse to the header row alone; on alert days every spoke
   // carries its z value (hot = tilt color, 1σ..alert = dim "warming" tier).
-  const SR_ABBR = {
-    'Technology': 'Tech', 'Financial Services': 'Fin', 'Consumer Cyclical': 'ConsCyc',
-    'Industrials': 'Indust', 'Crypto': 'Crypto', 'Healthcare': 'Health',
-    'Consumer Defensive': 'ConsDef', 'Utilities': 'Util', 'Basic Materials': 'Matls',
-    'Communication Services': 'Comms', 'Energy': 'Energy', 'Real Estate': 'RealEst',
-    'Index': 'Indices', 'Commodities': 'Commod',
-  };
 
   // ── Sector rotation wheel (rotation.json) ─────────────────────────────────
   // DESCRIBES where money has been moving between sectors. It never names a
@@ -4529,9 +4455,6 @@
   // Breakdown of how one radar spoke was computed. Everything here already
   // ships in sector_radar.json / sector_activity.json — no new pipeline work.
   const sectorOverlay = document.getElementById('sectorOverlay');
-  const sectorBody    = document.getElementById('sectorModalBody');
-  let sectorActivity  = null;    // { updated_at, rows: [{date,sector,...}] }
-  let sectorActivityTried = false;
 
   function closeSectorInfo() { if (sectorOverlay) sectorOverlay.classList.remove('open'); }
   if (sectorOverlay) {
@@ -4543,7 +4466,6 @@
   // Cached per tf rather than in one slot: the sparkline in this modal has to
   // match the radar above it, and flipping timeframe with a single cached blob
   // would have drawn daily bars under a weekly z-score.
-  const sectorActivityByTf = {};
 
 
   // ── Signals Tab ──────────────────────────────────────────────────────
@@ -4666,23 +4588,6 @@
 
 
   // ── Grouped filter pills (dropdown behavior + Mood filter) ──
-  const MOOD_LABELS = {
-    all: '', confirmed: 'Confirmed', fighting: 'Fighting', calm: 'Calm',
-    distributing: 'Distributing', active: 'Active', churn: 'Churn',
-    mixed: 'Mixed', marketwide: 'Market-wide', unknown: 'No read',
-  };
-  // Sort pill. Every one of these already existed in the advanced sheet's Sort
-  // dropdown — three taps deep behind the sliders icon, which is where the
-  // day/year sorts had been sitting unused. The pill and the sheet's <select>
-  // are two views of the same `scannerSort`, kept in sync both ways.
-  const SORT_LABELS = {
-    signal: '', pct_1y_desc: 'Year ↓', pct_1y_asc: 'Year ↑',
-    pct_1m_desc: 'Month ↓', pct_1m_asc: 'Month ↑',
-    pct_1w_desc: 'Week ↓', pct_1w_asc: 'Week ↑',
-    pct_1d_desc: 'Day ↓', pct_1d_asc: 'Day ↑', conviction: 'Conviction',
-    radar_score: 'Radar', date_desc: 'Newest', conf_desc: 'Confidence',
-    roc_desc: 'ROC ↓', roc_asc: 'ROC ↑', order_desc: 'MA order', run_desc: 'Run',
-  };
 
 
   // Click outside closes any open filter pill (the MA-cluster pills on the
@@ -4787,8 +4692,8 @@
       <div class="trs-section">
         <div class="trs-section-title">🏆 Top 5 instruments (avg R)</div>
         <div class="trs-inst-list">
-          ${top5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${s.label}">
-            <span class="trs-inst-name">${s.label}</span>
+          ${top5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${escText(s.label)}">
+            <span class="trs-inst-name">${escText(s.label)}</span>
             <span class="trs-inst-trades">${s.total_trades} trades</span>
             <span class="trs-inst-wr">${s.win_rate}%</span>
             <span class="trs-inst-r tr-pos">+${s.avg_r}R</span>
@@ -4799,8 +4704,8 @@
       <div class="trs-section">
         <div class="trs-section-title">📉 Bottom 5 instruments (avg R)</div>
         <div class="trs-inst-list">
-          ${bottom5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${s.label}">
-            <span class="trs-inst-name">${s.label}</span>
+          ${bottom5.map(s => `<div class="trs-inst-row" data-act="closeTrackAndOpen" data-arg="${escText(s.label)}">
+            <span class="trs-inst-name">${escText(s.label)}</span>
             <span class="trs-inst-trades">${s.total_trades} trades</span>
             <span class="trs-inst-wr">${s.win_rate}%</span>
             <span class="trs-inst-r ${s.avg_r >= 0 ? 'tr-pos' : 'tr-neg'}">${s.avg_r > 0 ? '+' : ''}${s.avg_r}R</span>
@@ -4892,9 +4797,6 @@
     const buy = isBuy(item);
     const sell = isSell(item);
     const sig = item[f('primary_signal')] || '';
-    const conf = item[f('signal_confidence')] || '';
-    const confCtx = item[f('confidence_context')] || '';   // edge-audit context modifiers
-    const sigColor = buy ? 'var(--buy)' : sell ? 'var(--sell)' : 'var(--neutral)';
     const close = parseFloat(item[f('close')]);
     const maPrefix = tfMeta().prefix + 'ma_';
     const periods = activeMaPeriods();
@@ -4930,9 +4832,9 @@
         <div class="mh-top">
           <div class="mh-name-group">
             <div class="mh-name-row">
-              <div class="mh-name">${item.instrument_name}</div>
+              <div class="mh-name">${escText(item.instrument_name)}</div>
             </div>
-            ${instName(item.instrument_name) ? `<div class="inst-fullname">${instName(item.instrument_name)}</div>` : ''}
+            ${instName(item.instrument_name) ? `<div class="inst-fullname">${escText(instName(item.instrument_name))}</div>` : ''}
             <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
             ${modalShapeHtml(item)}
           </div>
@@ -4944,7 +4846,7 @@
           <div class="mh-price">${formatPrice(item[f('close')])}</div>
           <div class="mh-price-meta">
             ${changeStr ? `<span class="mh-change ${changeClass}">${priceChange >= 0 ? '▲' : '▼'} ${changeStr}</span>` : ''}
-            <button class="mh-link mh-chart-link" data-act="openChartFor" data-arg="${item.instrument_name}" data-stop="1">
+            <button class="mh-link mh-chart-link" data-act="openChartFor" data-arg="${escText(item.instrument_name)}" data-stop="1">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
               Chart
             </button>
@@ -5003,13 +4905,12 @@
           </div>
           <div class="sim-setups-grid">
             ${similar.map(s => {
-              const sBuy  = isBuy(s);
               const sSig  = s[f('primary_signal')] || '';
               const sAge  = signalAge(s[f('last_signal_date')] || s[f('date')] || '', s[f('date')]);
               const sPerf = signalPerf(s);
-              return `<div class="sim-card" data-act="openModal" data-arg="${s.instrument_name}" data-stop="1">
-                <div class="sim-card-top"><span class="sim-card-name">${s.instrument_name}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
-                <div class="sim-card-group">${s.group||''}</div>
+              return `<div class="sim-card" data-act="openModal" data-arg="${escText(s.instrument_name)}" data-stop="1">
+                <div class="sim-card-top"><span class="sim-card-name">${escText(s.instrument_name)}</span>${sSig?`<span class="feed-badge badge-${sigClass(sSig) || 'p4'}">${sSig}</span>`:''}</div>
+                <div class="sim-card-group">${escText(s.group||'')}</div>
                 <div class="sim-card-badges">
                   ${sAge.label?`<span class="sig-age ${sAge.decayClass}" style="font-size:.58rem">${sAge.label}</span>`:''}
                 </div>
@@ -5344,12 +5245,12 @@
 
       const _aiTrend = isAI(d.name);
 
-      return `<div class="trend-card${_aiTrend ? ' ai-card' : ''}" data-name="${d.name}"${extAttr} style="--tc:${color};${delay}">
+      return `<div class="trend-card${_aiTrend ? ' ai-card' : ''}" data-name="${escText(d.name)}"${extAttr} style="--tc:${color};${delay}">
         <div class="tc-header">
           <div class="tc-name-wrap">
-            <span class="tc-name">${d.name}</span>
+            <span class="tc-name">${escText(d.name)}</span>
             ${_aiTrend ? '<span class="ai-chip-mini">AI</span>' : ''}
-            <span class="tc-group">${d.group}</span>
+            <span class="tc-group">${escText(d.group)}</span>
           </div>
           <span class="tc-badge ${badgeCls}">${badgeTxt}</span>
         </div>
@@ -5376,7 +5277,6 @@
     // Click → show detail
     grid.querySelectorAll('.trend-card').forEach(card => {
       card.addEventListener('click', () => {
-        selectedTrendInst = card.dataset.name;
         grid.style.display = 'none';
         const panel = document.getElementById('trendsDetailPanel');
         panel.style.display = 'block';
@@ -5446,7 +5346,7 @@
         <div class="trend-detail-name">${escText(name)}</div>
         <div class="trend-detail-meta">
           <span class="est-trend ${estCls}">${established === 'UPTREND' ? 'Uptrend' : established === 'DOWNTREND' ? 'Downtrend' : 'Neutral'}</span>
-          <span>${item ? [item.group, item.sector].filter(Boolean).join(' · ') : ''}</span>
+          <span>${escText(item ? [item.group, item.sector].filter(Boolean).join(' · ') : '')}</span>
         </div>
       </div>
 
@@ -5544,7 +5444,7 @@
 
   // ── Public API ───────────────────────────────────────────────────────
   // ── Share card ────────────────────────────────────────────────────────
-  const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = window.SwingPulseModules.drawingIcons;
+  const { ICON_BACK } = window.SwingPulseModules.drawingIcons;
 
   // Colours a drawing can take (2026-09-15). All chosen to read on the WHITE
   // plot ground; the first is the default ink every drawing had before colour
@@ -5556,13 +5456,10 @@
   // takes its TOOL's toy colour — the same as its button in the Draw bar —
   // instead of black ink. The palette leads with those six; the older colours
   // stay valid so drawings coloured before today keep theirs.
-  const DRAW_TOY = { channel: '#3b82f6', trend: '#22c55e', hline: '#f97316',
-                     vline: '#a855f7', ladder: '#ec4899', entry: '#f59e0b' };
   //
   // DEFAULT IS BLACK again (user, same day: "the default colour is black not
   // pink"). The toy colours stay in the palette, after black.
   const DRAW_COLORS = ['#14140f', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#f59e0b', '#ef4444'];
-  const DRAW_COLORS_OK = new Set([...DRAW_COLORS, '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#9333ea']);
   // ANY colour since 2026-09-27 (user: "an option to add and adjust color and
   // the intensity of the drawing tools"): the palette stays as quick picks and a
   // colour wheel sets any #rrggbb. Checked by shape, since it lands in markup.
@@ -5753,15 +5650,14 @@
     list.innerHTML = tfNote + items.map(item => {
       const sig  = item.primary_signal;
       const buy  = sig.startsWith('B');
-      const conf = item.signal_confidence || '';
       const vol  = item.volume_spike_flag === 'yes';
-      return `<div class="notif-item" data-act="openModal" data-arg="${item.instrument_name}">
+      return `<div class="notif-item" data-act="openModal" data-arg="${escText(item.instrument_name)}">
         <span class="notif-sig ${buy ? 'notif-buy' : 'notif-sell'}">${sig}</span>
         <div class="notif-body">
           <span class="notif-name">${item.instrument_name}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
           <span class="notif-detail">${item.confirmation_status || ''}</span>
         </div>
-        <span class="notif-group">${item.group || ''}</span>
+        <span class="notif-group">${escText(item.group || '')}</span>
       </div>`;
     }).join('');
   }
@@ -6355,7 +6251,6 @@
     if (ovSet() !== 'step' || ps.length <= 4) return ps.join(' · ');
     return `every 50, ${ps[0]} to ${ps[ps.length - 1]}`;
   }
-  const OV_HTF = OV_HTF_ALL.filter(([tf]) => tf !== 'D');
   function ovHtfChoices() { return OV_HTF_ALL.filter(([tf]) => tf !== timeframe && (tf !== 'D' || tabTfs('charts').includes('D'))); }
   // PER TIMEFRAME, EVERY INSTRUMENT (user, 2026-11-16: "daily must apply
   // across all charts but never affect other time frames. Same to monthly and
@@ -7059,9 +6954,6 @@
   const REEL_ALL_FIT_REACH = 2.5;      // 4H/Daily/W/M: lines count up to 2.5 bar-ranges out
   const REEL_ALL_FIT_PAD = 0.05;       // and 5% margin top and bottom
 
-  // Empty bar-widths held back on the right, between the newest bar and the
-  // price scale.
-  const REEL_RIGHT_PAD_BARS = 10;
 
   // ...but as a SHARE of the window once the window gets small. The pad is
   // counted in bars, so a flat 10 is a tenth of a 100-bar view and HALF of a
@@ -7684,8 +7576,8 @@
   function reelCapsuleHtml(name) {
     const on = !!savedViews[viewKey(name)];
     return `<span class="reel-capsule">`
-      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${name}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
-      + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${name}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
+      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${escText(name)}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
+      + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${escText(name)}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
   // Press saves, press again forgets (user, 2026-11-01: "press, unpress,
@@ -8245,8 +8137,8 @@
     if (card && card !== host && card._reelCtx) reelRepaint(card);
   }
   function viewMarkBtns(name) {
-    return `<button class="reel-share-btn reel-vm is-buy" data-act="view-mark" data-side="buy" data-name="${name}" aria-label="Mark a buy" title="Buy">▲</button>`
-         + `<button class="reel-share-btn reel-vm is-sell" data-act="view-mark" data-side="sell" data-name="${name}" aria-label="Mark a sell" title="Sell">▼</button>`;
+    return `<button class="reel-share-btn reel-vm is-buy" data-act="view-mark" data-side="buy" data-name="${escText(name)}" aria-label="Mark a buy" title="Buy">▲</button>`
+         + `<button class="reel-share-btn reel-vm is-sell" data-act="view-mark" data-side="sell" data-name="${escText(name)}" aria-label="Mark a sell" title="Sell">▼</button>`;
   }
 
   function reelDefaultDrawing(kind, b) {
@@ -8685,8 +8577,6 @@
     chartFullSyncButtons();
     document.querySelectorAll('#chartReel .reel-card').forEach(card => {
       const name = card.dataset.name;
-      const ch   = activeChannel(name);
-      const nCh  = channelsFor(name).length;
       const tools = card.querySelector('[data-tools]');
       if (tools) tools.hidden = reel.editing !== name;
       const btn  = card.querySelector('[data-act="channel"]');
@@ -9316,10 +9206,7 @@
       const lw = d.bold ? 7 : 3;   // bold was 5 — "a bit thicker" (2026-09-30)
       const vline = `<line x1="${xl.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xr.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}" style="stroke-width:${lw}"/>`;
       const dot = `<circle cx="${x1.toFixed(1)}" cy="${y.toFixed(1)}" r="${d.bold ? 7 : 5}" class="reel-view-tri is-${side}"/>`;
-      const up = side === 'buy', s2 = d.bold ? 19 : 16, ty = up ? y + 6 : y - 6;
-      const tri = up
-        ? `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty + s2 * 1.4).toFixed(1)}Z`
-        : `M${x1.toFixed(1)} ${ty.toFixed(1)}L${(x1 + s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}L${(x1 - s2).toFixed(1)} ${(ty - s2 * 1.4).toFixed(1)}Z`;
+      const up = side === 'buy';
       // No ▲ / ▼ on the chart (user, 2026-09-30: "remove the buy and sell
       // arrows from chart") — the coloured dot, line and word carry the side.
       const ly = up ? y + 26 : y - 12;
@@ -9972,7 +9859,6 @@
     // in viewBox units, where the panel is ~880 wide and a "8 Sep" at font-size
     // 16 measures ~70.
     const LABEL_MIN_GAP = 116;
-    let lastLabelX = -Infinity;
     // Where the labels that SURVIVE the thinning actually land, and how wide
     // they are, so the end-stops below can get out of their way. Width is the
     // same estimate LABEL_MIN_GAP is built on — about 14 viewBox units per
@@ -10014,7 +9900,6 @@
       const label = (!near && room && !!t.label);
       let text = t.label;
       if (label) {
-        lastLabelX = x;
         drawnLabels.push([x, lblW(text)]);
       }
       if (label) gridLbls += `<text x="${x.toFixed(1)}" y="${L.dateY}" class="reel-axis reel-tgrid-lbl" text-anchor="middle">${text}</text>`;
@@ -10204,7 +10089,7 @@
   // range included, so a zoom always has a visible cause.
   function gridBtnOn() { return !!gridBand() || ribShade(timeframe).on || !!reelRange(); }
   function gridBtnHtml(name) {
-    return `<button class="reel-share-btn reel-grid-btn${gridBtnOn() ? ' on' : ''}" data-act="grid-menu" data-name="${name}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
+    return `<button class="reel-share-btn reel-grid-btn${gridBtnOn() ? ' on' : ''}" data-act="grid-menu" data-name="${escText(name)}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
   function reelGridMenuHtml(name) {
     const g = gridShade(timeframe), on = g.on, lvl = g.lvl, bc = g.color;
@@ -10761,7 +10646,6 @@
 
   function chartFullHtml(item) {
     const name  = item.instrument_name;
-    const ch    = activeChannel(name);
     const edit  = reel.editing === name;
     const list  = reel.list || [];
     const pos   = list.findIndex(d => d.instrument_name === name);
@@ -10792,7 +10676,7 @@
           <summary aria-label="More chart actions" title="More chart actions">···</summary>
           <div class="cf-actions-menu">
             ${chartBackBtnHtml('Previous chart')}
-            <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}<span>Share chart</span></button>
+            <button class="reel-share-btn" data-act="chart-share" data-name="${escText(name)}" aria-label="Share chart">${SHARE_ICON}<span>Share chart</span></button>
           </div>
         </details>
         ${desktopChartControls()}
@@ -10822,7 +10706,7 @@
         </div>
         <div class="cf-tf-steps">
           <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="-1" aria-label="Previous timeframe">‹</button>
-          <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
+          <button class="reel-tf-tag" data-act="tf-menu" data-name="${escText(name)}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
           <button class="cf-step cf-tf-step" data-act="chart-tf-step" data-dir="1" aria-label="Next timeframe">›</button>
         </div>
       </footer>`;
@@ -10833,7 +10717,6 @@
     const el = chartFullEl();
     if (!el || !el.classList.contains('open')) return;
     const name = el.dataset.name;
-    const ch   = activeChannel(name);
     const edit = reel.editing === name;
     const q = a => el.querySelector(`[data-act="${a}"]`);
     const b = q('channel');
@@ -10882,11 +10765,10 @@
     const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%' + (mvPer !== '1d' ? ' ' + moveLbl(mvPer) : '');
     const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
 
-    const _chNow = activeChannel(name);
     // Draw mode belongs to the CHART, not to one drawing: a locked selection no
     // longer switches the whole card out of it (2026-09-15, per-drawing props).
     const _chEditing = reel.editing === name;
-    return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${name}" data-idx="${i}">
+    return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${escText(name)}" data-idx="${i}">
       <header class="reel-head">
         <div class="reel-head-line">
           <span class="reel-name">${name}</span>
@@ -10902,8 +10784,8 @@
             ${viewMarkBtns(name)}
             ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
             ${gridBtnHtml(name)}
-            <button class="reel-share-btn" data-act="chart-expand" data-name="${name}" aria-label="Full screen chart">${EXPAND_ICON}</button>
-            <button class="reel-share-btn" data-act="chart-share" data-name="${name}" aria-label="Share chart">${SHARE_ICON}</button>
+            <button class="reel-share-btn" data-act="chart-expand" data-name="${escText(name)}" aria-label="Full screen chart">${EXPAND_ICON}</button>
+            <button class="reel-share-btn" data-act="chart-share" data-name="${escText(name)}" aria-label="Share chart">${SHARE_ICON}</button>
           </div>
         </div>
       </header>
@@ -10914,10 +10796,10 @@
       ${reelToolbarHtml(name, _chEditing)}
 
       <footer class="reel-foot">
-        <button class="reel-tf-tag" data-act="tf-menu" data-name="${name}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
+        <button class="reel-tf-tag" data-act="tf-menu" data-name="${escText(name)}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
         <div class="reel-foot-actions">
           ${reelCapsuleHtml(name)}
-          <button class="reel-act" data-act="detail" data-name="${name}">Details</button>
+          <button class="reel-act" data-act="detail" data-name="${escText(name)}">Details</button>
         </div>
       </footer>
     </article>`;
@@ -11288,7 +11170,7 @@
 
     // Brand colours, fixed: the frame is dark in both app themes.
     const AMBER = '#fbbf24', BUY = '#10b981', SELL = '#ef4444';
-    const TXT = '#f5f5f4', MUTED = '#a1a1aa', DIM = '#71717a';
+    const TXT = '#f5f5f4', MUTED = '#a1a1aa';
     const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
     const sideCol = _sig.startsWith('B') ? BUY : _sig.startsWith('S') ? SELL : AMBER;
 
@@ -11385,7 +11267,7 @@
       px = pill(px, arrow + trend.charAt(0) + trend.slice(1).toLowerCase(),
                 { fill: hexA(tc, 0.14), stroke: hexA(tc, 0.5), color: tc });
     }
-    if (sig) px = pill(px, sig, { fill: sideCol, color: '#0c0c0b', glow: sideCol });
+    if (sig) pill(px, sig, { fill: sideCol, color: '#0c0c0b', glow: sideCol });
     ctx.restore();
 
     // The plot, inset on its own ground with rounded corners.
@@ -12375,7 +12257,7 @@
     // Building all ~800 up front was ~70k elements, 0.84s to open the tab and
     // 0.6s of layout on every flip, measured.
     host.innerHTML = reel.list.map((it, i) =>
-      `<article class="reel-card reel-shell" data-name="${it.instrument_name}" data-idx="${i}"></article>`).join('');
+      `<article class="reel-card reel-shell" data-name="${escText(it.instrument_name)}" data-idx="${i}"></article>`).join('');
     reelObserve();
     // Paint what is already on screen directly. IntersectionObserver is
     // supposed to deliver an initial callback for every observed target, but

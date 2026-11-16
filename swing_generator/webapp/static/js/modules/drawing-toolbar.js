@@ -2,8 +2,8 @@
 (function(root) {
   'use strict';
   function create(deps) {
-    const { activeChannel, channelsFor, chKey, getTimeframe, getEditing, zeroShown, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack, chartTfs, drawShownTfs } = deps;
-    const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_BACK, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = root.SwingPulseModules.drawingIcons;
+    const { activeChannel, channelsFor, chKey, getTimeframe, zeroShown, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, ladderStack, chartTfs, drawShownTfs } = deps;
+    const { TOOL_CHANNEL, TOOL_TREND, TOOL_HLINE, TOOL_VLINE, TOOL_LADDER, TOOL_CIRCLE, TOOL_TRIANGLE, TOOL_ENTRY, TOOL_BUY, TOOL_SELL, ICON_UNDO, ICON_REDO, ICON_COPY, ICON_LOCK, ICON_UNLOCK, ICON_TRASH } = root.SwingPulseModules.drawingIcons;
   // Toolbar visibility is independent of drawing mode and selection.
   const drawToolsCollapsed = new Set(), drawMoreOpen = new Set();
   const DRAW_TOOL_INFO = {

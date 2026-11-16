@@ -509,12 +509,30 @@ TF_PREFIXES = tuple(p for _, p in TIMEFRAMES)
 TF_CODE_BY_PREFIX = {p: c for c, p in TIMEFRAMES}
 
 
+# Columns that only mean something on Daily. On an intraday prefix they were
+# blank on every row (confidence context, watch and turning-point flags: the
+# context rules are Daily-only) or computed and read by nothing (ribbon slope,
+# rollover): 2026-11-16 audit, shape_audit "dead"/"orphan column".
+# Daily keeps them: CONTEXT_RULES reads rollover_stage.
+_DAILY_ONLY_COLUMNS = {
+    'confidence_context', 'watch_flag', 'potential_turning_point_flag',
+    'ribbon_slope_pct', 'rollover_score', 'rollover_max', 'rollover_dir', 'rollover_stage',
+}
+
+
 # Helper: per-timeframe signal/indicator columns
 def _tf_signal_columns(prefix, ma_periods=None):
     """Return signal-related column names for a timeframe prefix."""
     if ma_periods is None:
         ma_periods = MA_PERIODS
     p = prefix
+    cols = _all_tf_signal_columns(p, ma_periods)
+    if p in INTRADAY_PREFIXES:
+        cols = [c for c in cols if c[len(p):] not in _DAILY_ONLY_COLUMNS]
+    return cols
+
+
+def _all_tf_signal_columns(p, ma_periods):
     return [
         f'{p}date', *([f'{p}datetime'] if p in INTRADAY_PREFIXES else []),
         f'{p}open', f'{p}high', f'{p}low', f'{p}close', f'{p}volume',

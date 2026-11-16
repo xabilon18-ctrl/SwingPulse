@@ -19,7 +19,7 @@ import config
 
 
 def hourly_frame(periods=1600):
-    end = pd.Timestamp.utcnow().tz_localize(None).floor('h') - pd.Timedelta(hours=1)
+    end = pd.Timestamp.now('UTC').tz_localize(None).floor('h') - pd.Timedelta(hours=1)
     t = pd.date_range(end=end, periods=periods, freq='h', tz='UTC')
     c = 100 + 15 * np.sin(np.arange(len(t)) / 70)
     c[-1] = 130  # a fresh full-ribbon cross for liveness and alert checks

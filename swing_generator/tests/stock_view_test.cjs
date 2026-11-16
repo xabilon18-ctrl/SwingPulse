@@ -168,14 +168,8 @@ const sx = vm.createContext({
     { sector: 'Crypto', industry: 'Coin' }, { sector: 'Index', industry: 'US Index' },
   ],
 });
-vm.runInContext(fn('sectorLists') + fn('sectorMenuHtml') + fn('sectorMatches') + fn('sectorDropValue'), sx);
-const menu = sx.sectorMenuHtml('wl', '', '');
-assert.ok(/data-wl-sector="Technology">Technology<i>3<\/i>/.test(menu) && /data-wl-sector="Healthcare"/.test(menu), menu);
-assert.ok(!/Crypto|US Index/.test(menu), 'Class covers crypto and indices');
-assert.ok(!/data-wl-industry/.test(menu), 'No industry list before a sector is chosen');
-const tech = sx.sectorMenuHtml('reel', 'Technology', 'Software');
-assert.ok(/data-reel-industry="Semiconductors">Semiconductors<i>2<\/i>/.test(tech) && !/Biotechnology/.test(tech), tech);
-assert.ok(/class="fdrop-opt on" data-reel-industry="Software"/.test(tech));
+vm.runInContext(fn('sectorLists') + fn('sectorMatches') + fn('sectorDropValue'), sx);
+assert.deepEqual(JSON.parse(JSON.stringify(sx.sectorLists('Technology'))), {sectors: [['Healthcare', 1], ['Technology', 3]], industries: [['Semiconductors', 2], ['Software', 1]]});
 assert.equal(sx.sectorMatches({ sector: 'Technology', industry: 'Software' }, 'Technology', ''), true);
 assert.equal(sx.sectorMatches({ sector: 'Technology', industry: 'Software' }, 'Technology', 'Semiconductors'), false);
 assert.equal(sx.sectorMatches({ sector: 'Healthcare' }, 'Technology', ''), false);

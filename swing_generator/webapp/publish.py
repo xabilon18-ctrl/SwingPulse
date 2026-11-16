@@ -1072,6 +1072,65 @@ def prune_retired_chart_folders(r2_prefix=R2_DATA_PREFIX, max_workers=8):
 # UI build (Cloudflare Pages — only needed when frontend changes)
 # ---------------------------------------------------------------------------
 
+# The only hosts the page talks to. Adding one (a CDN, an API) means adding it
+# here too, or the browser refuses the request.
+SYNC_WORKER_URL = 'https://swingpulse-sync.xabilon18.workers.dev'
+CRON_WORKER_URL = 'https://swingpulse-cron.xabilon18.workers.dev'
+
+
+def content_security_policy() -> str:
+    return '; '.join((
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob:",
+        f"connect-src 'self' {R2_PUBLIC_URL} {SYNC_WORKER_URL} {CRON_WORKER_URL}",
+        "worker-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ))
+
+
+def check_policy_hosts(script_dir: str) -> None:
+    """Stop the build when the front end names a host the policy would block.
+
+    Without this a new fetch() to a new host works in every local test (the
+    local servers send no policy) and fails only on the live site."""
+    import glob
+    import re as _re
+    allowed = set(content_security_policy().split('connect-src ', 1)[1].split(';', 1)[0].split())
+    allowed |= {'https://fonts.googleapis.com', 'https://fonts.gstatic.com'}
+    files = glob.glob(os.path.join(script_dir, 'static', '**', '*.js'), recursive=True)
+    files.append(os.path.join(script_dir, 'templates', 'index.html'))
+    missing = set()
+    for path in files:
+        with open(path) as f:
+            text = f.read()
+        for origin in _re.findall(r'https://[A-Za-z0-9.-]+', text):
+            if origin not in allowed:
+                missing.add(f'{origin} ({os.path.relpath(path, script_dir)})')
+    if missing:
+        raise SystemExit('Content-Security-Policy would block: ' + ', '.join(sorted(missing))
+                         + '. Add the host to content_security_policy() in publish.py.')
+
+
+def pages_headers() -> str:
+    """The Pages `_headers` file: one block for every path."""
+    return '\n'.join((
+        '/*',
+        f'  Content-Security-Policy: {content_security_policy()}',
+        '  X-Content-Type-Options: nosniff',
+        '  X-Frame-Options: DENY',
+        '  Referrer-Policy: strict-origin-when-cross-origin',
+        '  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()',
+        '',
+    ))
+
+
 def build_ui():
     """Build a minimal UI-only directory with app.js patched to use R2 URLs."""
     ui_dir     = os.path.join(PUBLISH_DIR, 'ui')
@@ -1182,6 +1241,15 @@ def build_ui():
         sw = sw.replace('SW_R2_BASE_URL', R2_BASE_URL.rstrip('/'))
         with open(os.path.join(ui_dir, 'sw.js'), 'w') as f:
             f.write(sw)
+
+    # Response headers for Cloudflare Pages (2026-11-16 audit: the site sent
+    # no Content-Security-Policy). index.html still uses inline scripts and
+    # onclick= handlers, so script-src keeps 'unsafe-inline'; what this does
+    # enforce is WHERE the page may connect (R2 and the two Workers), no
+    # plugins, no <base> rewrite, and no framing by another site.
+    check_policy_hosts(SCRIPT_DIR)
+    with open(os.path.join(ui_dir, '_headers'), 'w') as f:
+        f.write(pages_headers())
 
     # LAST, after every literal rewrite above (they match source text, and the
     # minifier changes quotes and spacing).

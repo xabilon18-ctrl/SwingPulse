@@ -670,6 +670,11 @@ def api_refresh():
 
 
 if __name__ == '__main__':
+    # This machine only by default (2026-11-16 audit): 0.0.0.0 put the API,
+    # including POST /api/refresh, on every network the laptop joined. The
+    # serveo tunnel scripts forward to localhost, so they are unaffected.
+    # SWINGPULSE_HOST=0.0.0.0 opens it to the local network again.
+    host = os.environ.get('SWINGPULSE_HOST', '127.0.0.1')
     print('\n  SwingPulse Dashboard')
-    print('  http://localhost:5050\n')
-    app.run(debug=False, host='0.0.0.0', port=5050)
+    print(f'  http://{"localhost" if host == "127.0.0.1" else host}:5050\n')
+    app.run(debug=False, host=host, port=5050)

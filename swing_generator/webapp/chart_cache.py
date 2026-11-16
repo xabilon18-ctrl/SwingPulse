@@ -119,7 +119,7 @@ class Store:
     def __init__(self, cache_dir: str, now: pd.Timestamp | None = None):
         self.cache_dir = cache_dir
         self.root = os.path.join(cache_dir, CACHE_SUBDIR)
-        self.now = now if now is not None else pd.Timestamp.utcnow().tz_localize(None)
+        self.now = now if now is not None else pd.Timestamp.now('UTC').tz_localize(None)
         self.engine = engine_hash()
         self._digests: dict[str, str] = {}
         self.hits = 0

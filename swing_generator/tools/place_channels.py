@@ -145,7 +145,7 @@ def kv_get(user: str) -> dict:
 
 def kv_put(user: str, blob: dict, tag: str) -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
-    stamp = _dt.datetime.utcnow().strftime('%Y-%m-%dT%H%M')
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%dT%H%M')
     path = os.path.join(OUT_DIR, f'{user}_post_{tag}_{stamp}.json')
     with open(path, 'w') as f:
         json.dump(blob, f)
@@ -156,7 +156,7 @@ def kv_put(user: str, blob: dict, tag: str) -> None:
 
 def backup(user: str, blob: dict, tag: str) -> str:
     os.makedirs(OUT_DIR, exist_ok=True)
-    stamp = _dt.datetime.utcnow().strftime('%Y-%m-%dT%H%M')
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%dT%H%M')
     path = os.path.join(OUT_DIR, f'{user}_backup_before_{tag}_{stamp}.json')
     with open(path, 'w') as f:
         json.dump(blob, f)
@@ -307,7 +307,7 @@ def main() -> None:
     blob = kv_get(a.user)                                          # fresh, right before the write
     print('backup:', backup(a.user, blob, 'auto_channels'))
     now = int(time.time() * 1000)
-    made = _dt.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    made = _dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
     written, skipped, respected = [], [], []
     # A chart the user edited after the last auto run, with no auto channel left on
     # it, is a DELETION — their answer is "no trend here". Never put one back
