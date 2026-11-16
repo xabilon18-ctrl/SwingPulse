@@ -7,6 +7,29 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (latest) OVERLAY MAs PER TIMEFRAME AGAIN, SYNCED PER TIMEFRAME
+(user: "So daily must apply across all charts but never affect other times
+frames. Same to monthly and hourly"). app.js v642, sync Worker.
+- "Apply across" meant every instrument on that timeframe, not every
+  timeframe: v640 (entry below) misread it. The D/W/M switches are again
+  kept per chart timeframe in `tfOverlay.htf[tf]`, shared by every
+  instrument on it; v640 had left `htf` untouched, so each timeframe's
+  choices from before come back. The v640/v641 `htfOn` key is dropped on
+  load (a switch changed while v640/v641 was live is not carried over).
+- Sync: `overlayPrefs.htf[tf] = {on: {D, W, M}, at}`, one row per chart
+  timeframe, stamped in `tfOverlay.htfMod[tf]` when its switch is tapped
+  (`ovHtfStamp`); newest row wins on its own in the app (`ovMergeRemote`)
+  and the Worker (`mergeOverlay`), so a Daily edit never touches 1H or
+  Monthly on any device. Unstamped rows (choices made before the sync) are
+  uploaded when the server has none; unstamped on both sides, the server's
+  stays. MA set, width, Projected MAs and overlay lightness stay one record
+  on `at`, as in v641.
+- Menu heading: "Overlay MAs on every Daily chart" (the shown timeframe).
+- Tests: app_smoke (on over Daily: every painted Daily chart, not 1H; on
+  over 1H then off over Daily leaves 1H on), saved_work_browser (a Daily
+  switch synced from the other device leaves 1H alone), sync-worker
+  saved_work_test (rows merge independently).
+
 2026-11-16 (later) OVERLAY MAs SYNC ACROSS DEVICES (user: "Yes, sync them
 across devices too"). app.js v641, sync Worker.
 - One record on the sync blob, `overlayPrefs` = {at, htfOn {D,W,M}, set,
