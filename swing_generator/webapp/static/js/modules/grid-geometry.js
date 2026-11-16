@@ -124,9 +124,9 @@
         permanent(anchor + (y - year) * yearBars - from, String(y), 'annual');
       }
     } else if (tf === 'D') {
-      // Daily's bold term lines over its year grid. Weekly and Monthly have
-      // none: their DIVISION is the term (chartPreferences default 'T'), so
-      // every line there is the same light line.
+      // Daily's bold term lines over its year grid. Monthly has none:
+      // its DIVISION is the term (chartPreferences default 'T'), so every line
+      // there is the same light line.
       for (let y = firstYear; y <= year + 4; y++) {
         if (!isTermYear(y)) continue;
         permanent(anchor + (y - year) * yearBars - from, termLabel(y), 'admin');

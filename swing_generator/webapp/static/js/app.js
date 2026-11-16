@@ -205,14 +205,6 @@
   // Daily. Charts and the signal tabs remember their timeframe separately.
   const SIGNAL_TFS = new Set(TIMEFRAMES.filter(t => t.signals).map(t => t.code));
   const TAB_TFS = { charts: TIMEFRAMES.map(t => t.code), trends: ['D'], dashboard: ['D'], watchlist: ['D'] };
-  // HIDDEN, NOT REMOVED (user, 2026-11-13: "hide weekly, don't delete just
-  // hide"). A `hidden` row of config.TIMEFRAME_TABLE is still built, its MAs
-  // still overlay other charts, and drawings keep it in their timeframes
-  // (tabTfs('charts') still lists it), so un-hiding brings everything back.
-  // Only the ways of GOING to it skip it: the header button, the full-screen
-  // ‹ › steps, the timeframe menu, the drawing chips and a saved choice.
-  const tfHidden = c => !!(TF_BY_CODE[c] && TF_BY_CODE[c].hidden);
-  const chartNavTfs = () => tabTfs('charts').filter(c => !tfHidden(c));
   const tabTfs = tab => TAB_TFS[tab] || [...SIGNAL_TFS];
   const tfPrefs = { signals: 'D', charts: 'D' };
   // Run fn with the signal timeframe active when the current one is a chart
@@ -1062,7 +1054,6 @@
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
     const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '12H': 720 }[timeframe];
-    if (timeframe === 'W') return `${n}w`;
     if (timeframe === 'M') return `${n}mo`;
     if (!per) return `${n}d`;
     const mins = n * per;
@@ -3139,7 +3130,7 @@
   function syncTfButtons() {
     const allowed = new Set(tabTfs(currentTab));
     document.querySelectorAll('.tf-switch-btn').forEach(b => {
-      b.hidden = !allowed.has(b.dataset.tf) || tfHidden(b.dataset.tf);
+      b.hidden = !allowed.has(b.dataset.tf);
       const on = b.dataset.tf === timeframe;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -3183,7 +3174,7 @@
 
   // A reader's choice: only timeframes this tab can show, remembered per side.
   function setTimeframe(tf, anchorName) {
-    if (!isTf(tf) || !tabTfs(currentTab).includes(tf) || tfHidden(tf)) return;
+    if (!isTf(tf) || !tabTfs(currentTab).includes(tf)) return;
     if (currentTab === 'charts') tfPrefs.charts = tf;
     else if (currentTab !== 'trends' && currentTab !== 'dashboard' && currentTab !== 'watchlist') tfPrefs.signals = tf;
     try {
@@ -3228,10 +3219,9 @@
     const migrateTf = tf => tf === '30m' ? '1H' : tf;
     const _savedTf = migrateTf(localStorage.getItem('swingpulse-tf'));
     const _savedChartTf = migrateTf(localStorage.getItem('swingpulse-chart-tf'));
-    // A saved timeframe that no longer exists (1H/4H/3D/W/10m) opens on Daily.
+    // A saved timeframe that no longer exists (4H/3D/W/10m) opens on Daily.
     if (SIGNAL_TFS.has(_savedTf)) tfPrefs.signals = _savedTf;
-    // ...and so does a hidden one (Weekly, 2026-11-13).
-    const chartTfOk = tf => chartNavTfs().includes(tf);
+    const chartTfOk = tf => tabTfs('charts').includes(tf);
     tfPrefs.charts = chartTfOk(_savedChartTf) ? _savedChartTf : (chartTfOk(_savedTf) ? _savedTf : 'D');
     localStorage.setItem('swingpulse-tf', tfPrefs.signals);
     localStorage.setItem('swingpulse-chart-tf', tfPrefs.charts);
@@ -3899,10 +3889,10 @@
   // ── "Worth the cost?" (2026-09-11) ──────────────────────────────────────
   // The stop the backtest and ledger grade with is 2×ATR(14). When that is a
   // small share of price, financing and spread are a big share of the risk:
-  // stops under ~3.0% on Daily and ~6.8% on Weekly lost money after costs in
-  // testing — on random entries as much as on signals, so it is a cost fact,
-  // not a signal claim. Shown only where something fired.
-  const COST_TIGHT = { D: { pct: 3.0, r: '−0.22R' }, W: { pct: 6.8, r: '−0.21R' } };
+  // stops under ~3.0% on Daily lost money after costs in testing — on random
+  // entries as much as on signals, so it is a cost fact, not a signal claim.
+  // Shown only where something fired.
+  const COST_TIGHT = { D: { pct: 3.0, r: '−0.22R' } };
   function stopPctOf(item) {
     const a = parseFloat(item[f('atr_pct')]);
     return isFinite(a) && a > 0 ? a * 2 : null;
@@ -5491,7 +5481,7 @@
   const drawingToolbar = window.SwingPulseModules.drawingToolbar.create({
     activeChannel, channelsFor, chKey, drawCanStep, DRAW_FILLABLE, drawFillColor, drawFillA, DRAW_COLORS, FILL_MIN, FILL_MAX, DRAW_BOLDABLE, ladderStack: (d, dir) => ladderStack(d, dir),
     getTimeframe: () => timeframe, getEditing: () => reel.editing, zeroShown: name => reelZeroShown(name),
-    chartTfs: () => chartNavTfs(), drawShownTfs,
+    chartTfs: () => tabTfs('charts'), drawShownTfs,
   });
   const drawToolsCollapsed = drawingToolbar.collapsed, drawMoreOpen = drawingToolbar.moreOpen;
   function reelZeroShown(name) { const lk = reel.lockY.get(name); return !!(lk && lk._zero); }
@@ -5737,7 +5727,7 @@
     if (!allData.some(d => d.instrument_name === name)) return;
     const t = String(at || '').replace('T', ' ');
     navigateToTab('charts');
-    let want = isTf(tf) && chartNavTfs().includes(tf) ? tf : timeframe;
+    let want = isTf(tf) && tabTfs('charts').includes(tf) ? tf : timeframe;
     const ts = reelParseTs(t);
     if (want !== 'D' && isFinite(ts)) {
       const data = await reelLoadChunk(name, want);
@@ -5895,7 +5885,7 @@
     editing: null,           // instrument whose channels are being edited, or null
     activeCh: new Map(),     // "name|tf" → index of the channel Lock/Clear act on
     index:  null,            // { chunk_size, bars, chunks: {name: chunkId} }
-    tfIndex: new Map(),      // 'W' | 'M' → their own { chunks } (OWN_INDEX_TFS)
+    tfIndex: new Map(),      // 'M' → its own { chunks } (OWN_INDEX_TFS)
     chunks: new Map(),       // "D:3" → { name: bundle }
     inflight: new Map(),     // "D:3" → Promise
     list:   [],              // filtered+sorted rows, in reel order
@@ -5914,7 +5904,7 @@
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
   const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
-                     'W': 7 * 864e5, 'M': 31 * 864e5 };
+                     'M': 31 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -6067,7 +6057,8 @@
   }
   // BLUE BARS ON HIGH VOLUME (user, 2026-11-09: "turning the daily, weekly and
   // monthly ... bars blue whenever volume is above average? But this must have
-  // switch for on and off"). One setting for Daily, Weekly and Monthly, kept
+  // switch for on and off"). One setting for Daily and Monthly (Weekly too
+  // until its chart was removed, 2026-11-16), kept
   // with the other chart settings (tfOverlay, synced): 0 = off, 2 = over twice
   // the average (default), 1.5 = over 1.5x it. The average is each bar's own last
   // VOLUME_LOOKBACK (25) bars, the same one behind VOL SPIKE
@@ -6080,7 +6071,7 @@
   // almost every bar blue). Above average is gone as a choice; a stored 1
   // reads as 2.
   const VOL_BLUE_STEPS = [[2, '2× average'], [1.5, '1.5× average']];
-  const VOL_BLUE_TFS = new Set(['D', 'W', 'M']);
+  const VOL_BLUE_TFS = new Set(['D', 'M']);
   const VOL_AVG_BARS = 25;
   function volBlue() {
     const v = tfOverlay.volBlue;
@@ -6271,22 +6262,19 @@
   // The bundle to load for the overlay: the Daily one on an intraday chart
   // whenever any line is switched on (it carries Weekly and Monthly too); none
   // on Daily, which carries its own.
-  // Overlay lines a chart's OWN bundle carries: Daily carries W and M; Weekly
-  // carries M over its whole history (chart_feed.weekly_bundle, user
-  // 2026-10-19: "we will need the monthly overlay on weekly").
+  // Overlay lines a chart's OWN bundle carries: Daily carries W and M.
   // MONTHLY OVERLAY FROM THE WHOLE HISTORY (user, 2026-10-28: "Add the 500ma
   // and where it shows it show and where it does not it doesn't really
   // matter", "like on the monthly MAs"). The Daily bundle's `mo` is rolled
   // over the 13-year Daily cache, so a Monthly 250 or 500 never warms there.
   // The Monthly chart's own bundle (publish_htf, whole Yahoo history) holds
-  // every closed month, so on every chart but Weekly (whose own `mo` is
-  // already whole-history) the overlay rolls its Monthly lines from those
-  // closes, then appends the months the Daily feed has that the Monthly job
+  // every closed month, so on every chart the overlay rolls its Monthly lines
+  // from those closes, then appends the months the Daily feed has that the Monthly job
   // has not published yet, the one in progress included. Labels follow
   // chart_feed._htf_mas: a month by its last day, the one in progress by its
   // newest day. A period the history cannot warm is simply not drawn.
   const OV_ALL_PERIODS = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
-  function ovWantsDeepMonthly() { return ovHtfOn('M') && timeframe !== 'M' && timeframe !== 'W'; }
+  function ovWantsDeepMonthly() { return ovHtfOn('M') && timeframe !== 'M'; }
   async function ovLoadHtf(name) {
     const o = ovOtherTf();
     await Promise.all([o && reelLoadChunk(name, o), ovWantsDeepMonthly() && reelLoadChunk(name, 'M')]);
@@ -6327,16 +6315,10 @@
     if (mo === undefined) { mo = ovDeepMonthly(mb, hb.mo, since); mb._ovDeep = { shallow: hb.mo, since, mo }; }
     return mo ? Object.assign(Object.create(hb), { mo }) : hb;
   }
-  const OV_OWN_HTF = { D: ['W', 'M'], W: ['M'] };
-  const OV_HTF_KEY = { W: 'w', M: 'mo' };
-  function ovOwnHtf(b) {
-    const src = b && (b._src || b);
-    return src && OV_OWN_HTF[timeframe] && OV_OWN_HTF[timeframe].some(tf => src[OV_HTF_KEY[tf]]) ? src : null;
-  }
+  // Every other chart takes its overlay lines from the Daily bundle.
   function ovOtherTf() {
     if (timeframe === 'D') return null;
-    const own = OV_OWN_HTF[timeframe] || [];
-    return ovHtfChoices().some(([tf]) => ovHtfOn(tf) && !own.includes(tf)) ? 'D' : null;
+    return ovHtfChoices().some(([tf]) => ovHtfOn(tf)) ? 'D' : null;
   }
   function ovApplyVars() {
     const st = document.documentElement.style;
@@ -6354,11 +6336,10 @@
   ovApplyVars();
   // A bundle already in the cache, or null — the synchronous read the renderer
   // needs; reelPaint and chartFullOpen load it before painting.
-  // Weekly and Monthly are published by their own job (tools/publish_htf.py),
-  // with their own name -> chunk map in chart/<tf>/index.json. They never fall
-  // back to the shared map: R2 still holds W and M chunks from before they were
-  // removed, grouped differently, and those must not draw as current.
-  const OWN_INDEX_TFS = new Set(['W', 'M']);
+  // Monthly is published by its own job (tools/publish_htf.py), with its own
+  // name -> chunk map in chart/M/index.json. It never falls back to the shared
+  // map: chunks grouped differently must not draw as current.
+  const OWN_INDEX_TFS = new Set(['M']);
   function reelChunkId(name, tf) {
     const idx = OWN_INDEX_TFS.has(tf) ? reel.tfIndex.get(tf) : reel.index;
     return idx && idx.chunks ? idx.chunks[name] : undefined;
@@ -6756,7 +6737,7 @@
     return reelIndexPromise;
   }
 
-  // Weekly / Monthly index, memoised like reelLoadIndex. Missing (before their
+  // Monthly's index, memoised like reelLoadIndex. Missing (before their
   // first publish) reads as empty: "no chart data", never another map.
   const reelTfIndexPromises = new Map();
   function reelLoadTfIndex(tf) {
@@ -6774,8 +6755,8 @@
   // explicitly because they are daily by definition.
   async function reelLoadChunk(name, tf) {
     tf = tf || timeframe;
-    // Weekly/Monthly also wait for the main index: its `novol` list (Daily
-    // decides) hides the volume strip on all three timeframes.
+    // Monthly also waits for the main index: its `novol` list (Daily
+    // decides) hides the volume strip on both timeframes.
     await (OWN_INDEX_TFS.has(tf) ? Promise.all([reelLoadTfIndex(tf), reelLoadIndex()]) : reelLoadIndex());
     const cid = reelChunkId(name, tf);
     if (cid === undefined) return null;
@@ -6891,7 +6872,7 @@
   // Bars a lighter black than the price bars: there, not shouting, and NOT
   // grey (user, 2026-11-08: "not gray and not too black"; 0.55 read grey).
   const REEL_VOL_BAR_OPACITY = 0.8;
-  const REEL_VOL_TFS = new Set(['D', 'W', 'M']);
+  const REEL_VOL_TFS = new Set(['D', 'M']);
   function reelLayout(host) {
     const cw = host.clientWidth  || 360;
     const ch = host.clientHeight || 440;
@@ -7210,11 +7191,9 @@
     '1H': { unit: 1 / 12,  fit: 'centre' },
     'D':  { term: 4, before: 1.5, after: 1, fit: 'all' },
   };
-  // WEEKLY AND MONTHLY (back 2026-10-19), the same on every market, ending on
-  // the current term's closing line: Weekly opens on FOUR terms (2013 to
-  // 2029), Monthly on ALL its history (user: "W 4 terms, M all"). Price 'all'.
+  // MONTHLY (back 2026-10-19), the same on every market, ending on the
+  // current term's closing line, on ALL its history (user: "M all"). Price 'all'.
   const REEL_SLOW_VIEW = {
-    'W': { term: 4, terms: 4, fit: 'all' },
     'M': { term: 4, all: true, fit: 'all' },
   };
   function reelOpenSpec() {
@@ -7343,9 +7322,8 @@
   function reelOverlayRange(name, t0, t1, b) {
     const ovTf = ovOtherTf();
     const ob = ovTf && reelCachedBundle(name, ovTf);
-    // Weekly's Monthly lines come from its own bundle (ovOwnHtf). Daily's own
-    // W/M lines have never been part of its fit, and still are not.
-    const hb = ovHtfView(name, (timeframe !== 'D' && ovOwnHtf(b)) || ob, b);
+    // Daily's own W/M lines have never been part of its fit, and still are not.
+    const hb = ovHtfView(name, ob, b);
     if (!hb || !ovAny()) return null;
     let lo = Infinity, hi = -Infinity;
     const lines = [];
@@ -7757,7 +7735,7 @@
     return any;
   }
   // Unset = the timeframe's opening position: 0 (newest bar at the right
-  // edge), except where an opening view applies (1H, 4H, Daily, Weekly, Monthly),
+  // edge), except where an opening view applies (1H, Daily, Monthly),
   // which opens with the rest of its frame as blank space (reelStockView).
   function reelPanOf(name, bundle) {
     if (reel.pan.has(name)) return reel.pan.get(name);
@@ -8446,9 +8424,10 @@
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
-  // MONTHLY LADDERS ON WEEKLY TOO, ONCE PER DEVICE (2026-11-13, "make weekly
-  // by 2 ... make all active as a default"): Monthly ladders drawn before get
-  // every timeframe a new one shows on. Their chips still turn any off.
+  // MONTHLY LADDERS ON EVERY TIMEFRAME, ONCE PER DEVICE (2026-11-13, "make
+  // all active as a default"): Monthly ladders drawn before get every
+  // timeframe a new one shows on (now Daily and 1H; Weekly until its chart was
+  // removed, 2026-11-16). Their chips still turn any off.
   const LADDER_MW_KEY = 'sp-ladder-mw-2026-11-13';
   function ladderMonthlyAllOnce() {
     try { if (localStorage.getItem(sk(LADDER_MW_KEY))) return 0; } catch (_) { return 0; }
@@ -9083,14 +9062,14 @@
   // parts, every 1% (user, same day: "Let's do 1h by 10"; before that
   // eight, "Make 1h 8 instead of 6", six, the thirds halved, and for an
   // hour fifteen, the thirds in five). Ten does not line up with the Daily
-  // thirds, so 1H does not show them. On Weekly each 10% gap in TWO, every 5% (user, same day:
-  // "make weekly by 2 ... make all active as a default": a new Monthly
-  // ladder shows on Monthly, Weekly, Daily and 1H).
+  // thirds, so 1H does not show them. A new Monthly ladder shows on Monthly,
+  // Daily and 1H (user, same day: "make all active as a default"; Weekly,
+  // split in two, until its chart was removed on 2026-11-16).
   // LADDER_HOME_SUB[home][tf] = the tiers, coarse to fine: [3] is thirds;
   // two tiers ([3, 2]) draw the coarse one darker (.reel-ladder-mid). Keep
   // sync-worker ladder-alerts.js HOME_SUB equal to the 1H tiers (alerts are
   // 1H steps, as for Daily).
-  const LADDER_HOME_SUB = { M: { W: [2], D: [3], '1H': [10] } };
+  const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // The tiers each 10% gap of ladder d is split into on timeframe tf,
@@ -9519,11 +9498,11 @@
   // One equal grid for every chart in a market group/timeframe, saved and synced.
   const GRID_DIVISIONS = modules.chartPreferences.choices;
   // The Term and Half-term divisions (four- and two-year) are offered on the slow charts only.
-  const TERM_GRID_TFS = new Set(['D', 'W', 'M']);
+  const TERM_GRID_TFS = new Set(['D', 'M']);
   const TERM_GRID_CODES = new Set(['T', 'T2']);
-  // Ten years on Weekly and Monthly (user, 2026-10-28: "apply 10y time grid on
-  // weekly"), twenty on Monthly only.
-  const LONG_GRID_TFS = { Y10: new Set(['W', 'M']), Y20: new Set(['M']) };
+  // Ten and twenty years on Monthly only (Weekly also had ten until its chart
+  // was removed, 2026-11-16).
+  const LONG_GRID_TFS = { Y10: new Set(['M']), Y20: new Set(['M']) };
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
@@ -9605,8 +9584,8 @@
 
   // ── Volume strip (2026-11-08, user) ──────────────────────────────────────
   // Took the trend strip's place under the price (user: "remove the trend
-  // line strip, then replace it with the volume at the bottom"). Daily,
-  // Weekly and Monthly only — each its own bars' volume; 1H ships none.
+  // line strip, then replace it with the volume at the bottom"). Daily and
+  // Monthly only — each its own bars' volume; 1H ships none.
   //
   // One soft black bar per price bar, standing up from the floor of the band, and
   // ONE dashed black line across it at the instrument's average volume: a bar
@@ -10097,7 +10076,7 @@
     const _editing = reel.editing === name;
     const _ovTf = ovOtherTf();
     const _ovB  = _ovTf && reelCachedBundle(name, _ovTf);
-    const _htf  = ovHtfView(name, timeframe === 'D' ? (b._src || b) : (ovOwnHtf(b) || _ovB), b);
+    const _htf  = ovHtfView(name, timeframe === 'D' ? (b._src || b) : _ovB, b);
     const _ovOn = !!_htf && ovAny();
     // With the overlay on, this timeframe's drawings take its own contrast too —
     // except while they are being edited, when they must be seen.
@@ -10254,7 +10233,7 @@
       const vb = volBlue();
       h += `<div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${vb ? ' on' : ''}" data-act="volblue-set" data-part="on" role="menuitemcheckbox" aria-checked="${!!vb}">
-        <span>Blue bars on high volume<em>Daily, Weekly and Monthly · vs each bar's last 25</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+        <span>Blue bars on high volume<em>Daily and Monthly · vs each bar's last 25</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
       if (vb) h += `<div class="reel-grid-row">${VOL_BLUE_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === vb ? ' on' : ''}" data-act="volblue-set" data-part="lvl" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
@@ -10324,7 +10303,7 @@
     const menu = document.createElement('div');
     menu.className = 'reel-tf-menu';
     menu.setAttribute('role', 'menu');
-    menu.innerHTML = chartNavTfs().map(code => {
+    menu.innerHTML = tabTfs('charts').map(code => {
       const on = code === timeframe;
       return `<button class="reel-tf-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-act="tf-set" data-tf="${code}" data-name="${escText(name)}">${escText(TF_BY_CODE[code].label)}</button>`;
     }).join('') + `<div class="reel-ov-panel">${reelOvMenuHtml()}</div>`;
@@ -10591,10 +10570,10 @@
         // ‹ › around the timeframe pill (user, 2026-11-13: "an option to
         // screen through times by clicking right or left like the
         // instrument"): the next / previous chart timeframe in the switch's
-        // order (1H, Daily, Monthly; Weekly hidden), wrapping like the instruments.
+        // order (1H, Daily, Monthly), wrapping like the instruments.
         const tfStep = e.target.closest('[data-act="chart-tf-step"]');
         if (tfStep) {
-          const tfs = chartNavTfs(), i = tfs.indexOf(timeframe);
+          const tfs = tabTfs('charts'), i = tfs.indexOf(timeframe);
           if (chartFullName && tfs.length > 1) reelSwitchTf(chartFullName, tfs[((i < 0 ? 0 : i) + (+tfStep.dataset.dir) + tfs.length) % tfs.length]);
           return;
         }

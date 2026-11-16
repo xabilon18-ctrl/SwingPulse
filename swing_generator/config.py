@@ -434,7 +434,7 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 
 # THE timeframe table — every timeframe the app knows, ONE row each, ordered
 # fast to slow. To switch a timeframe off, set `enabled` to False; the run,
-# the chart feed, the Weekly/Monthly job, the local server and the app's
+# the chart feed, the Monthly job, the local server and the app's
 # Charts switch all read this table, so nothing else needs editing.
 #
 #   code      what the app and the chart feed call it
@@ -443,32 +443,26 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 #   signals   the hourly run computes signal columns for it (main.py)
 #   intraday  bars within a day: rows carry a {prefix}datetime
 #   name      the full name on the chart's timeframe button ('Hourly' for 1H)
-#   hidden    optional; True keeps the timeframe built and on R2 but leaves it
-#             out of the app's Charts switch, ‹ › steps and menu (Weekly,
-#             user 2026-11-13: "hide weekly, don't delete just hide").
-#             Unlike enabled: False, nothing is deleted or stops being built.
-#             No row uses it now: Weekly's chart was removed on 2026-11-16
-#             (user: "Delete weekly no more hiding"), so its row is enabled:
-#             False. tools/publish_htf.py still builds the weekly bundles on
-#             Mondays for the Watchlist strip's Weekly row; it publishes no
-#             chart. The Weekly MA lines on other charts come from the Daily
-#             bundle and are unaffected.
 #   chart     'run' = built by the hourly run (chart_feed.<builder>);
 #             'htf' = built by tools/publish_htf.py on its own schedule
 #   builder   the chart_feed function that builds its chart from the local
-#             cache (the hourly run, and server.py for W/M; publish_htf.py
-#             builds W/M from the whole Yahoo history instead)
+#             cache (the hourly run, and server.py for M; publish_htf.py
+#             builds M from the whole Yahoo history instead)
+#
+# Weekly has no row: its chart was removed on 2026-11-16 (user: "Delete
+# weekly no more hiding") and its dormant code deleted the same day.
+# tools/publish_htf.py still builds weekly bundles on Mondays, for the
+# Watchlist strip's Week row only (activity/W.json), and the Weekly MA lines
+# on other charts come from the Daily bundle's `w` block.
 #
 # A timeframe whose builder or signal code no longer exists (5m, 10m, 15m,
-# 30m, 2H, 4H, 12H, 3D were deleted) cannot be switched back on here alone:
+# 30m, 2H, 4H, 12H, 3D, W were deleted) cannot be switched back on here alone:
 # restore its code from git history first. History: CHANGE_NOTES.md.
 TIMEFRAME_TABLE = (
     {'code': '1H', 'prefix': 'h1_', 'label': '1H', 'name': 'Hourly', 'bar': 'hourly bars', 'bar_short': '25-bar',
      'signals': True, 'intraday': True, 'chart': 'run', 'builder': 'build_1h', 'enabled': True},
     {'code': 'D', 'prefix': '', 'label': 'Daily', 'name': 'Daily', 'bar': 'days', 'bar_short': '25-day',
      'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
-    {'code': 'W', 'prefix': '', 'label': 'Weekly', 'name': 'Weekly', 'bar': 'weeks', 'bar_short': '25-week',
-     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_weekly', 'enabled': False},
     {'code': 'M', 'prefix': '', 'label': 'Monthly', 'name': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
      'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_monthly', 'enabled': True},
 )
@@ -492,8 +486,7 @@ def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
         'app': [{'code': t['code'], 'prefix': t['prefix'], 'label': t['label'],
                  'name': t.get('name', t['label']), 'bar': t['bar'],
                  'barShort': t['bar_short'], 'signals': t['signals'], 'intraday': t['intraday'],
-                 **({} if t['signals'] else {'chartOnly': True}),
-                 **({'hidden': True} if t.get('hidden') else {})} for t in enabled],
+                 **({} if t['signals'] else {'chartOnly': True})} for t in enabled],
     }
 
 

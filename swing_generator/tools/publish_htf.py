@@ -1,4 +1,5 @@
-"""Publish the Weekly and Monthly charts from each instrument's whole history.
+"""Publish the Monthly chart, and the Weekly and Monthly activity strip rows,
+from each instrument's whole history.
 
 User, 2026-10-19: "weekly run every Monday and monthly between 3-5" (the 3rd to
 the 5th), then "we will need to go back further here ... but these need not
@@ -11,17 +12,18 @@ run with the daily and hourly runs". So this is its own job
     month's 3rd-5th and the next. Rebuilding them hourly would only re-upload
     the same chunks.
   * They need far more history than the 13-year Daily cache (HISTORY_YEARS):
-    Weekly opens on four terms (2013-2029) with an MA500 that wants ~10 years
-    before that, Monthly on everything there is. So each run downloads the
+    Monthly opens on everything there is, and a weekly MA500 wants ~10 years
+    of weeks. So each run downloads the
     instrument's WHOLE daily history from Yahoo (period='max'), adjusted the
     same way the Daily cache is, and keeps none of it — a fresh pull is always
     adjusted for the latest split or dividend. A failed pull falls back to the
     Daily cache, which the workflow restores read-only: a shallower chart beats
     none.
 
-Each timeframe is published as chart/<W|M>/<chunk>.json plus its own
-chart/<W|M>/index.json (name -> chunk). The hourly chart/index.json says nothing
-about them, so neither job can leave the other's map out of step.
+Monthly is published as chart/M/<chunk>.json plus its own chart/M/index.json
+(name -> chunk). The hourly chart/index.json says nothing about it, so neither
+job can leave the other's map out of step. Weekly publishes no chart (removed
+2026-11-16), only activity/W.json for the Watchlist strip's Week row.
 
     python3 tools/publish_htf.py              # what is due today (SAST)
     python3 tools/publish_htf.py --tf W M     # these, whatever the day
@@ -47,7 +49,8 @@ SCHEDULE_TZ = 'Africa/Johannesburg'   # the clock the hourly runs are named in
 # Both are always BUILT: the Watchlist's activity strip reads the week's and
 # the month's busy sectors (activity/<tf>.json) off these bundles. A CHART is
 # published only for the timeframes config.TIMEFRAME_TABLE has enabled with
-# chart 'htf' (Weekly's chart was removed on 2026-11-16; its strip row stays).
+# chart 'htf': Monthly. Weekly's chart was removed on 2026-11-16 (its dormant
+# code deleted the same day); its strip row stays.
 BUILDERS = {'W': weekly_bundle, 'M': monthly_bundle}
 CHART_TFS = frozenset(HTF_CHART_BUILDERS)
 # Below this share of instruments with a chart, something is broken (Yahoo
@@ -174,7 +177,7 @@ def main():
             chunks = write(output, tf, built[tf], list(ticker_map), now.strftime('%Y-%m-%d'))
             print(f'  {tf}: {n} charts in {chunks} chunks', flush=True)
         else:
-            print(f'  {tf}: chart switched off; activity only', flush=True)
+            print(f'  {tf}: activity only (no chart)', flush=True)
         # A failure costs the Watchlist strip's Weekly/Monthly row, never the charts.
         try:
             act = write_activity(output, tf, built[tf])

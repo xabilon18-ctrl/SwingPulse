@@ -7,6 +7,32 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (22:00 SAST) DORMANT WEEKLY CHART CODE DELETED (user: "it's time
+to remove that weekly code that is dormant"). app.js v647. Follows the
+15:35 entry below, which switched the Weekly chart off and left its code.
+- `config.TIMEFRAME_TABLE` has no W row, and the `hidden` flag (built only
+  for Weekly) is gone from the table, `derive_timeframes` and app.js
+  (`tfHidden`, `chartNavTfs`).
+- app.js: the Weekly chart's opening frame (`REEL_SLOW_VIEW.W`), its own
+  chunk index, its Monthly overlay path (`OV_OWN_HTF.W`, `ovOwnHtf`), the
+  `w` bar label, its cost line, its volume strip and blue-bar switch, its
+  10Y/term grids, its ladder halves (`LADDER_HOME_SUB.M.W`) and its grid
+  default (chart-preferences `W: 'T'`), and freshness's weekly bar word.
+- chart_feed.weekly_bundle no longer carries the Monthly overlay (`mo`); it
+  was there only for the Weekly chart.
+- R2: W joins `RETIRED_CHART_TFS`, so the next hourly publish deletes the
+  old chart/W files once (activity/W.json is a different folder and stays).
+- What stays, unchanged: the Weekly MA lines on 1H, Daily and Monthly (from
+  the Daily bundle's `w` block), the Watchlist strip's Week row and its
+  Monday job (tools/publish_htf.py, `build_weekly` for the local server),
+  and the Watchlist's "Near Weekly MA" filter.
+- Not touched: Weekly views, grid choices and Weekly-only drawings already
+  in saved work. Nothing reads them; they were left rather than deleted from
+  the user's data.
+- Tests: htf_feed_test (table, prune now takes chart/W but not activity/W,
+  the chunk writer on M), stock_view_test (no Weekly frame), time_grid_test,
+  freshness_test, browser fixture without a Weekly chart.
+
 2026-11-16 (21:30 SAST) A SAVED FRAME THAT STARTS BEFORE THE DATA NO LONGER
 JUMPS (user, FTSE China A50 Monthly framed 2000 to 2047, data from 2012:
 "i want to save the 1st attachment view and when i save it jumps"). app.js

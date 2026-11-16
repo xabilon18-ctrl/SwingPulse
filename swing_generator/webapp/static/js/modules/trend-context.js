@@ -19,8 +19,8 @@
   }
   function native(row, tf, channels) {
     if (tf === 'D') return daily(row, channels);
-    // Only 1H has a native read (4H removed 2026-11-07). The Weekly and Monthly
-    // charts have none, and must not fall through to the 1H columns below.
+    // Only 1H has a native read (4H removed 2026-11-07). The Monthly chart
+    // has none, and must not fall through to the 1H columns below.
     if (tf !== '1H') return UNKNOWN;
     const measured = snapshot(row, tf, channels);
     if (measured) {

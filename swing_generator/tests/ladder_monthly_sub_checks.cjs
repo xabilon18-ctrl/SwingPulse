@@ -83,9 +83,6 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(w.lbl.length && w.lbl.every(x => x >= 800), 'Daily: the Monthly 10% labels are bold: ' + JSON.stringify(w));
   await close();
 
-  // Weekly (each 10% gap in two) is not checked here while Weekly is hidden
-  // (config `hidden`, 2026-11-13): Charts cannot open it.
-
   // 1H: each Monthly 10% gap in ten, no thirds.
   // A ladder sized on Monthly spans far more than a 1H screen, so put this
   // one around the 1H price (a 10% gap = the visible range / 3) and leave
@@ -127,5 +124,5 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   assert.ok(labels.some(t => /^\d*[1-9]%$/.test(t)) && !labels.some(t => /\.\d+%$/.test(t)), '1H: whole-number 1% steps, no thirds or eighths: ' + labels.join(' '));
   await close();
 
-  console.log('PASS: Monthly ladder on every timeframe by default: halves on Weekly, thirds on Daily, tenths on 1H, bold 10% labels');
+  console.log('PASS: Monthly ladder on every timeframe by default: thirds on Daily, tenths on 1H, bold 10% labels');
 };

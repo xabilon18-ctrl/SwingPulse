@@ -140,13 +140,13 @@ assert.match(c.reelTimeGridSwitchHtml('STOCK'),/data-grid-scope="stocks"/);
 assert.match(c.reelTimeGridSwitchHtml('INDEX'),/Time grid · Indices/);
 assert.equal(context().reelGridDivision('1H','stocks').code,'M');
 assert.equal(context().reelGridDivision('1H','indices').code,'Q');
-// Weekly (bars stamped on Mondays) and Monthly (on the 1st), back 2026-10-19:
+// Monthly (bars stamped on the 1st), back 2026-10-19:
 // divided by administration TERM, every line equal (user: "divided by
 // administration and not by year. All must be equal") — no year lines, no bold.
 const weeks = [], months = [];
 for (let ms = Date.UTC(2006, 0, 2); ms < Date.UTC(2026, 9, 12); ms += 7 * 864e5) weeks.push(new Date(ms).toISOString().slice(0, 10));
 for (let y = 2006; y <= 2026; y++) for (let m = 0; m < 12 && (y < 2026 || m < 9); m++) months.push(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
-for (const [tf, t] of [['W', weeks], ['M', months]]) {
+for (const [tf, t] of [['M', months]]) {
   assert.equal(c.reelGridDivision(tf).code, 'T', `${tf} opens on the term grid`);
   const lines = c.reelTimeGrid({ t }, tf);
   assert.ok(lines.every(l => l.division === 'T' && !l.admin && !l.annual && !l.quarter && !l.fixedOnly), `${tf}: term lines only, all equal`);
@@ -160,19 +160,19 @@ for (const [tf, t] of [['W', weeks], ['M', months]]) {
   lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, `${tf} shading alternates term by term`));
 }
 // Term is offered on the slow charts only, and Daily keeps its bold terms.
-c.timeframe = 'W';
+c.timeframe = 'M';
 assert.match(c.reelTimeGridSwitchHtml(), /data-division="T"/);
 c.timeframe = '1H';
 assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T"/);
 assert.ok(c.reelTimeGrid({ t: weeks }, 'D').some(l => l.admin), 'Daily keeps its term lines');
 // Half term (user, 2026-10-28: "add 1/2 a term under time grid"): a line
 // every two years from 2025, on the slow charts only, beside Term.
-c.timeframe = 'W';
+c.timeframe = 'M';
 assert.match(c.reelTimeGridSwitchHtml(), /data-division="T2"[^>]*>½T</);
 assert.ok(c.reelTimeGridSwitchHtml().indexOf('data-division="T2"') < c.reelTimeGridSwitchHtml().indexOf('data-division="T"'), '½T sits before T');
 c.timeframe = '1H';
 assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="T2"/);
-for (const [tf, t] of [['W', weeks], ['M', months], ['D', weeks]]) {
+for (const [tf, t] of [['M', months], ['D', weeks]]) {
   assert.equal(c.reelSetGridDivision(tf, 'T2'), true);
   assert.equal(c.reelGridDivision(tf).code, 'T2');
   const lines = c.reelTimeGrid({ t }, tf), half = lines.filter(l => !l.fixedOnly);
@@ -199,26 +199,6 @@ assert.ok(mHtml.indexOf('data-division="T"') < mHtml.indexOf('data-division="Y10
 for (const tf of ['D', '1H']) {
   c.timeframe = tf;
   assert.doesNotMatch(c.reelTimeGridSwitchHtml(), /data-division="Y10"|data-division="Y20"/, `no 10Y/20Y on ${tf}`);
-}
-// 10Y on Weekly too (user, 2026-10-28: "apply 10y time grid on weekly"); 20Y
-// stays Monthly only. Weekly bars are Monday-stamped, so a decade line lands
-// on the first week of its year.
-c.timeframe = 'W';
-const wHtml = c.reelTimeGridSwitchHtml();
-assert.match(wHtml, /data-division="Y10"[^>]*>10Y</, '10Y on Weekly');
-assert.doesNotMatch(wHtml, /data-division="Y20"/, 'no 20Y on Weekly');
-assert.ok(wHtml.indexOf('data-division="T"') < wHtml.indexOf('data-division="Y10"'), 'Weekly: T before 10Y');
-assert.equal(c.reelSetGridDivision('W', 'Y10'), true);
-assert.equal(context().reelGridDivision('W').code, 'Y10', 'Weekly 10Y is saved');
-{
-  const lines = c.reelTimeGrid({ t: weeks }, 'W');
-  assert.ok(lines.every(l => l.division === 'Y10' && !l.fixedOnly && !l.admin), 'Weekly 10Y: its own lines only');
-  assert.deepEqual(lines.map(l => l.year).filter(y => y >= 2000 && y <= 2040), [2000, 2010, 2020, 2030, 2040]);
-  const y2020 = lines.find(l => l.year === 2020);
-  assert.ok(Math.abs(y2020.fi - weeks.findIndex(d => d >= '2020-01-01')) < 1, 'Weekly 2020 line on its week');
-  const gap = lines[1].fi - lines[0].fi;
-  lines.slice(2).forEach((l, i) => assert.ok(Math.abs(l.fi - lines[i + 1].fi - gap) < 1e-9, 'Weekly decades are equal'));
-  lines.slice(1).forEach((l, i) => assert.notEqual(l.par, lines[i].par, 'Weekly shading alternates'));
 }
 for (const [code, want] of [['Y10', [2000, 2010, 2020, 2030, 2040]], ['Y20', [2000, 2020, 2040]]]) {
   assert.equal(c.reelSetGridDivision('M', code), true);
@@ -303,9 +283,9 @@ console.log('PASS: quarter thirds switch');
   assert.equal(q.reelTimeGrid(bd, 'D').some(l => l.fourth), false, 'No fourths on the Year grid');
   q.reelSetGridDivision('D', 'T', 'other');
   assert.equal(context().reelTimeGrid(bd, 'D').some(l => l.fourth), true, 'The switch is saved and survives a division change');
-  q.reelSetGridDivision('W', 'T', 'other');
-  q.chartPreferences.setFourths('W', true, 'other');
-  assert.equal(q.reelTimeGrid(bd, 'W').some(l => l.fourth), false, 'Daily only');
+  q.reelSetGridDivision('M', 'T', 'other');
+  q.chartPreferences.setFourths('M', true, 'other');
+  assert.equal(q.reelTimeGrid(bd, 'M').some(l => l.fourth), false, 'Daily only');
   assert.equal(q.chartPreferences.snapshot().grids['D'].fourths, true);
   assert.equal(preferences.clean({ grids: { D: { division: 'T', modifiedAt: 1, fourths: 'yes' } } }).grids['D'].fourths, undefined);
 }

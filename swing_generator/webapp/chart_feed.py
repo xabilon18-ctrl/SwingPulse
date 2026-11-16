@@ -141,10 +141,10 @@ BARS_BY_TF = {
     '15m': 6000,   # two months of a 24/7 instrument
     'D':  1300,   # ~5 years   (93% of instruments have this much daily history)
     '3D': 1040,   # ~8.5 years
-    # Weekly and Monthly (back 2026-10-19) are built from each instrument's
-    # WHOLE Yahoo history (tools/publish_htf.py), not the 13-year Daily cache:
-    # Weekly carries ~25 years behind its four-term opening view, Monthly
-    # every month there is (^GSPC goes back to 1927).
+    # Weekly and Monthly are built from each instrument's WHOLE Yahoo history
+    # (tools/publish_htf.py), not the 13-year Daily cache. Monthly carries
+    # every month there is (^GSPC goes back to 1927). Weekly has no chart
+    # since 2026-11-16; its bundle only feeds the activity strip's Week row.
     'W':  1300,   # ~25 years
     'M':  1200,   # 100 years — in practice all of it
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
@@ -461,30 +461,29 @@ def _read_daily(cache_dir: str, ticker: str) -> pd.DataFrame | None:
 
 
 def build_weekly(cache_dir: str, ticker: str) -> dict | None:
-    """Weekly chart from the Daily cache — the local dev server's path. The
-    published one is weekly_bundle over the instrument's whole history."""
+    """Weekly bundle from the Daily cache, for the local server's Week row of
+    the Watchlist activity strip. There is no Weekly chart (removed
+    2026-11-16); the published bundles are weekly_bundle over the whole
+    Yahoo history (tools/publish_htf.py)."""
     df = _read_daily(cache_dir, ticker)
     return None if df is None else weekly_bundle(ticker, df)
 
 
 def build_monthly(cache_dir: str, ticker: str) -> dict | None:
-    """Monthly chart from the Daily cache; see build_weekly."""
+    """Monthly chart from the Daily cache — the local dev server's path. The
+    published one is monthly_bundle over the instrument's whole history."""
     df = _read_daily(cache_dir, ticker)
     return None if df is None else monthly_bundle(ticker, df)
 
 
 def weekly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
-    """Weekly chart from daily bars, as deep as `df` goes.
+    """Weekly bars and ribbon from daily bars, as deep as `df` goes.
 
-    520 weekly bars is ~10 years, which is what the MA500 anchor needs to
-    be drawn at all — so a weekly chart deliberately shows far more calendar
-    time than a daily one. Volume is included, as on daily. Price is scaled the
-    way build_daily scales it, so a week closes where the Daily chart says.
-
-    Carries the MONTHLY overlay MAs itself (`mo`, user 2026-10-19: "we will
-    need the monthly overlay on weekly"), rolled over the same whole history,
-    so they reach back as far as the weekly bars do. The Daily bundle's `mo`
-    only spans the Daily chart's ~5 years.
+    Read only by the Watchlist activity strip's Week row
+    (webapp/activity_feed.py via tools/publish_htf.py): the Weekly chart was
+    removed on 2026-11-16, and with it the Monthly overlay this bundle carried
+    for that chart. Price is scaled the way build_daily scales it, so a week
+    closes where the Daily chart says.
     """
     df = scale_daily(ticker, df)
     weekly = _resample_weekly(df)
@@ -492,16 +491,10 @@ def weekly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     if len(periods) < MIN_RIBBON_LINES:
         return None
     # Stamped on the week's MONDAY, not the Friday _resample_weekly labels it by
-    # (that label is what drops the week in progress). The app places every bar
-    # at its start, as Daily is — an end stamp would put each week, the year
-    # lines and the overlay one bar apart. TradingView stamps weeks this way too.
+    # (that label is what drops the week in progress): every bar is dated by its
+    # start, as Daily and Monthly are.
     weekly.index = weekly.index - pd.Timedelta(days=4)
-    out = _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
-    if out:
-        mo = _htf_mas(df, out['t'][0], _resample_monthly, OVERLAY_MA_PERIODS)
-        if mo:
-            out['mo'] = mo
-    return out
+    return _bundle(weekly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['W'])
 
 
 def monthly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
@@ -517,7 +510,7 @@ def monthly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     periods = [p for p in MA_PERIODS if p <= len(monthly)]
     if not periods:
         return None
-    # Stamped on the 1st, for the reason in build_weekly.
+    # Stamped on the 1st: the app places every bar at its start, as Daily is.
     monthly.index = monthly.index.to_period('M').to_timestamp()
     return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
 
