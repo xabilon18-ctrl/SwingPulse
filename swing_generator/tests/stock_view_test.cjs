@@ -102,6 +102,18 @@ for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd
   const vp = ctx.reelStockView(bd, market);
   assert.ok(vp.back > 0 && vp.future === 0, market + ' past frame');
   assert.ok(near(bd.t[bd.t.length - vp.bars - vp.back], '2022-01-01'), market + ' past frame start');
+  // A frame starting before the first bar keeps its start (2026-11-16, a
+  // young listing framed from 2000 jumped to its first bar on Save): `lead`
+  // blank slots before the data, the window as wide as the dates.
+  ctx.frameLock = { y0: 2015, y1: 2027 };
+  const vb = ctx.reelStockView(bd, market);
+  const frb = geometry.yearFrame(bd, bt);
+  assert.ok(vb.lead > 0, market + ' lead before the data');
+  assert.ok(Math.abs(vb.bars - 12 * frb.yearBars) <= 2, market + ' window spans 2015 to 2027: ' + vb.bars);
+  assert.ok(Math.abs(-vb.lead - (frb.anchor - 11 * frb.yearBars)) <= 1, market + ' starts on the 2015 line');
+  // The timeframes' own frames still start on the data.
+  ctx.frameLock = null;
+  assert.equal(ctx.reelStockView(bd, market).lead, 0, market + ' own frame starts on the data');
   // Off again: the timeframe's own frame is back.
   ctx.frameLock = null;
   const vo = ctx.reelStockView(bd, market);

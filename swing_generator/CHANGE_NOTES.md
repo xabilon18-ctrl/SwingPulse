@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (21:30 SAST) A SAVED FRAME THAT STARTS BEFORE THE DATA NO LONGER
+JUMPS (user, FTSE China A50 Monthly framed 2000 to 2047, data from 2012:
+"i want to save the 1st attachment view and when i save it jumps"). app.js
+v646. Reproduced with "Same frame on every chart" on: Save took the dates on
+screen, but `reelStockView` cut a frame's start to the first bar
+(`Math.max(0, start)`), so the left edge jumped to 2012 and the window lost
+half its width.
+- Under the switch a frame keeps its start: `lead` blank slots before the
+  data, put on the chart as a scrolled-back window (`reelFrameSeedBack`, the
+  way a saved view that starts there is seeded). The price still fits the
+  opening way until the chart is moved (`reelFrameSeeded`). The timeframes'
+  own frames still start on the data.
+- A price lock no longer keeps the dates off: Save sets one and repaints at
+  once, which left the jump on screen until the chart was reopened.
+- Not reproduced: the price scale changing too in the user's second
+  screenshot. In every local run the saved prices held.
+- Checks: stock_view_test.cjs (a frame before the data keeps its start),
+  app_smoke.cjs (Save before the first bar holds, then and on return).
+
 2026-11-16 (19:35 SAST) SAVE WORKS UNDER "SAME FRAME ON EVERY CHART" (user,
 off a Monthly chart framed 1993 to 2045: "Monthly is like this but somehow
 it's not saving"). app.js v645. Reproduced: with the switch on, Save lit up

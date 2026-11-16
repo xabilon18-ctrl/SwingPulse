@@ -7266,12 +7266,19 @@
       start = fr.anchor + (k - 1) * u;
       endAt = fr.anchor + (k + 1) * u;
     }
-    const from = Math.max(0, Math.floor(start));
+    // A frame that starts before the first bar (a young listing under "Same
+    // frame on every chart") keeps its start: `lead` blank slots before the
+    // data, seeded as a scrolled-back window by reelFrameSeedBack. It used to
+    // be cut to the first bar, so Save jumped the view (2026-11-16, user, FTSE
+    // China A50 Monthly framed from 2000, data from 2012). Only the switch
+    // asks for that; the timeframes' own frames still start on the data.
+    const from = lock ? Math.floor(start) : Math.max(0, Math.floor(start));
+    const lead = Math.max(0, -from);
     const end = Math.ceil(endAt);
     const future = Math.max(0, end - last);
     const bars = Math.max(REEL_MIN_WINDOW_BARS, end - from + 1);
     // `back`: a frame that ends before the newest bar opens scrolled back to it.
-    return (bundle._sv = { bars, fit: spec ? spec.fit : 'all', back: Math.max(0, last - end),
+    return (bundle._sv = { bars, lead, fit: spec ? spec.fit : 'all', back: Math.max(0, last - end),
       future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
   }
 
@@ -7292,6 +7299,27 @@
   function reelFrameLock(tf) {
     const f = (tfOverlay.frame || {})[tf || timeframe];
     return f && Number.isFinite(f.y0) && Number.isFinite(f.y1) && f.y1 > f.y0 ? f : null;
+  }
+  // A frame starting before the first bar cannot be an opening view (those
+  // start on the data); it is put on the chart as the scrolled-back window it
+  // is, like a saved view that starts there (reelViewSeedTime). Remembered so
+  // the price still fits the opening way until the reader moves the chart.
+  const reelFrameSeeds = new Map();
+  function reelFrameSeedBack(name, bundle) {
+    // A price lock (the saved view's, or the reader's own) is no reason to
+    // leave the dates: Save sets one and repaints straight away.
+    if (!reelFrameLock() || reelRange() || reel.pan.has(name) || reel.tzoom.has(name)) return false;
+    const sv = reelStockView(bundle, name);
+    if (!sv || !sv.lead) return false;
+    reel.tzoom.set(name, sv.bars);
+    reel.pan.set(name, 0);
+    // first slot = n - W - pan (reelSlice), so pan = n - W + lead.
+    reelSetPan(name, bundle.c.length - sv.bars + sv.lead, bundle, true);
+    reelFrameSeeds.set(name, reel.pan.get(name) + ':' + reel.tzoom.get(name));
+    return true;
+  }
+  function reelFrameSeeded(name) {
+    return reel.pan.has(name) && reelFrameSeeds.get(name) === reel.pan.get(name) + ':' + reel.tzoom.get(name);
   }
   // The dates on screen, read off the chart's last paint.
   function reelFrameCapture(ctx) {
@@ -9664,6 +9692,9 @@
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
     const _seeded  = reelViewSeedTime(item.instrument_name, bundle);
+    // After the saved view: under the switch it sets only the price, and
+    // the dates are the switch's.
+    reelFrameSeedBack(item.instrument_name, bundle);
     const _winBars = reelWindowBars(bundle, item.instrument_name);
     const _pan     = reelPanOf(item.instrument_name, bundle);
     const _future  = Math.max(0, -_pan);
@@ -9692,7 +9723,7 @@
     // the overlay MAs and drawings too. Once the reader zooms or pans, the fit is the
     // bars' alone again.
     const _nm = item.instrument_name;
-    const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
+    const _sv = (!reel.tzoom.has(_nm) && !reel.pan.has(_nm)) || reelFrameSeeded(_nm) ? reelStockView(bundle, _nm) : null;
     let _ovFit = _sv && _sv.fit !== 'centre'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
     if (_sv && _sv.fit === 'all') {
