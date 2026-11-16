@@ -197,7 +197,7 @@
   // Migrate legacy (non-namespaced) data into the user's own bucket on first run
   function migrateUserData() {
     if (!syncUser) return;
-    ['swingpulse-starred','sp-notes','sp-channels','sp-open-trades','sp-closed-trades','sp-last-modified'].forEach(base => {
+    ['swingpulse-starred','sp-notes','sp-channels','sp-open-trades','sp-closed-trades','sp-last-modified','sp-overlay'].forEach(base => {
       const legacy = localStorage.getItem(base);
       if (legacy !== null && localStorage.getItem(sk(base)) === null) {
         localStorage.setItem(sk(base), legacy);
@@ -640,6 +640,7 @@
       const drawingsChanged = channelMergeRemote(remote, remote.lastModified > localMod);
       const notesChanged = notesMergeRemote(remote, remote.lastModified > localMod);
       viewsMergeRemote(remote);
+      ovMergeRemote(remote);
       if (notesChanged && !(remote.lastModified > localMod) && allData.length) renderAll();
       if (drawingsChanged && !(remote.lastModified > localMod)) {
         try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); }
@@ -652,7 +653,7 @@
       if (!syncDrawTimer && (Object.keys(channelMod).some(k => (+channelMod[k] || 0) > (+rMod[k] || 0)) ||
                              Object.keys(notesMod).some(k => (+notesMod[k] || 0) > (+rNotes[k] || 0)) ||
                              Object.keys(viewsMod).some(k => (+viewsMod[k] || 0) > (+rViews[k] || 0)) ||
-                             chartPreferences.pending(remote.chartPrefs)))
+                             chartPreferences.pending(remote.chartPrefs) || ovSyncPending(remote)))
         syncPushNow();
       if (remote.lastModified > localMod) {
         syncApplyRemote(remote);
@@ -704,6 +705,7 @@
       }
       if (notesMergeRemote(remote, false) && allData.length) renderAll();
       viewsMergeRemote(remote);
+      ovMergeRemote(remote);
     } catch (e) {
       if (syncUser === user) {
         syncUnavailable = true; savedWork?.updateStatus();
@@ -716,6 +718,8 @@
     const payload = { notes: instrumentNotes, notesMod, channels: instChannels,
                       channelsMod: channelMod, watchlists: wlStore, chartPrefs: chartPreferences.snapshot(),
                       views: savedViews, viewsMod, lastModified: Date.now() };
+    const overlayPrefs = ovSyncPayload();
+    if (overlayPrefs) payload.overlayPrefs = overlayPrefs;
     if (stars.length || intentional) payload.starred = stars;
     const clearing = intentional && !stars.length ? '&allowEmpty=1' : '';
     const body = JSON.stringify(payload);
@@ -3536,7 +3540,7 @@
     instChannels = nextChannels; channelMod = nextMods;
     instrumentNotes = data.notes; notesMod = nextNotesMod; wlStore = nextLists; savedViews = data.views; viewsMod = nextViewsMod;
     for (const k of Object.keys(tfOverlay)) delete tfOverlay[k];
-    Object.assign(tfOverlay, data.overlay); ovApplyVars(); chartPreferences.reload();
+    Object.assign(tfOverlay, data.overlay); tfOverlay.syncSnap = ''; ovSave(); ovApplyVars(); chartPreferences.reload();
     drawUndo.clear(); drawRedo.clear(); reel.editing = null; channelSnapAll();
     try { localStorage.setItem(sk(SYNC_DRAW_DIRTY), '1'); } catch (_) {}
     syncPending = true;
@@ -6034,7 +6038,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfOn: (j.htfOn && typeof j.htfOn === 'object') ? j.htfOn : undefined, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfOn: (j.htfOn && typeof j.htfOn === 'object') ? j.htfOn : undefined, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast, syncAt: +j.syncAt || 0, syncSnap: typeof j.syncSnap === 'string' ? j.syncSnap : '' };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -6206,8 +6210,76 @@
     return any ? mask : null;
   }
   function ovSave() {
+    ovSyncStamp();
     scheduleWorkBackup();
     storeWork(sk('sp-overlay'), JSON.stringify(tfOverlay), 'chart layers');
+  }
+  // OVERLAY MAs SYNC ACROSS DEVICES (user, 2026-11-16: "sync them across
+  // devices too"). One record, `overlayPrefs` on the sync blob: the D/W/M
+  // switches, MA set, width, Projected MAs and the overlay lightness sliders.
+  // Newest edit wins as a whole (`at`, ms), here and in the Worker. Every
+  // other chart layer setting (grid, shading, fades) stays on the device.
+  // `syncSnap` is what `syncAt` stamped; a save that changes none of these
+  // fields leaves the stamp alone and sends nothing.
+  const OV_SYNC_LAYERS = ['oD', 'oW', 'oM', 'oP'];
+  function ovSyncSnapshot() {
+    const sel = ovSel(), pj = ovProj();
+    return { htfOn: Object.fromEntries(OV_HTF_ALL.map(([tf]) => [tf, !!sel[tf]])), set: ovSet(), maW: ovMaW('D'),
+      proj: { on: pj.on, w: pj.w }, ma: Object.fromEntries(OV_SYNC_LAYERS.map(k => [k, ovLayer(k).ma])) };
+  }
+  function ovSyncStamp(at) {
+    const snap = JSON.stringify(ovSyncSnapshot());
+    if (at == null && snap === tfOverlay.syncSnap) return false;
+    tfOverlay.syncSnap = snap;
+    tfOverlay.syncAt = at == null ? Date.now() : at;
+    if (at == null) syncPush();
+    return true;
+  }
+  function ovSyncPayload() {
+    if (!(tfOverlay.syncAt > 0) || !tfOverlay.syncSnap) return null;
+    try { return { at: tfOverlay.syncAt, ...JSON.parse(tfOverlay.syncSnap) }; } catch (_) { return null; }
+  }
+  // Settings made before this shipped carry no stamp. A device with any of its
+  // own (not the defaults) stamps them 1, so a server copy that has none gets
+  // them, and any real edit on another device (a clock time) still wins.
+  function ovSyncLegacy(remote) {
+    if (tfOverlay.syncAt > 0 || (remote && remote.overlayPrefs)) return;
+    const snap = JSON.stringify(ovSyncSnapshot());
+    const blank = JSON.stringify({ htfOn: Object.fromEntries(OV_HTF_ALL.map(([tf]) => [tf, false])), set: 'std', maW: 0.6,
+      proj: { on: false, w: 0.6 }, ma: Object.fromEntries(OV_SYNC_LAYERS.map(k => [k, 100])) });
+    if (snap !== blank) { ovSyncStamp(1); storeWork(sk('sp-overlay'), JSON.stringify(tfOverlay), 'chart layers'); }
+  }
+  function ovSyncPending(remote) {
+    return (tfOverlay.syncAt || 0) > (+(remote && remote.overlayPrefs && remote.overlayPrefs.at) || 0);
+  }
+  // Take the server's copy when it is newer (on a tie, when it differs: the
+  // two legacy stamps of 1). Each field is checked; a bad one keeps this
+  // device's value. Returns true when anything on screen changed.
+  function ovMergeRemote(remote) {
+    ovSyncLegacy(remote);
+    const r = remote && remote.overlayPrefs;
+    if (!r || typeof r !== 'object' || !(+r.at > 0)) return false;
+    const mine = tfOverlay.syncAt || 0;
+    if (+r.at < mine) return false;
+    const before = JSON.stringify(ovSyncSnapshot());
+    if (+r.at === mine && tfOverlay.syncSnap === before) return false;
+    if (r.htfOn && typeof r.htfOn === 'object') tfOverlay.htfOn = Object.fromEntries(OV_HTF_ALL.filter(([tf]) => r.htfOn[tf] === true).map(([tf]) => [tf, true]));
+    if (OV_SETS[r.set]) tfOverlay.set = r.set;
+    if (OV_MA_WIDTHS.some(([v]) => v === r.maW)) (tfOverlay.maW || (tfOverlay.maW = {})).D = r.maW;
+    if (r.proj && typeof r.proj === 'object') {
+      const pj = ovProj();
+      pj.on = r.proj.on === true;
+      if (OV_MA_WIDTHS.some(([v]) => v === r.proj.w)) pj.w = r.proj.w;
+    }
+    if (r.ma && typeof r.ma === 'object') OV_SYNC_LAYERS.forEach(k => { const v = r.ma[k]; if (Number.isFinite(v) && v >= 0 && v <= 100) ovLayer(k).ma = v; });
+    ovSyncStamp(+r.at);
+    storeWork(sk('sp-overlay'), JSON.stringify(tfOverlay), 'chart layers');
+    scheduleWorkBackup();
+    if (tfOverlay.syncSnap === before) return false;
+    ovApplyVars();
+    document.querySelectorAll('.reel-ov-panel').forEach(p => { p.innerHTML = reelOvMenuHtml(); });
+    ovRefresh().catch(e => reportFailure('repaint overlay', e));
+    return true;
   }
   // What the overlay draws (user, 2026-09-28): MOVING AVERAGES ONLY, from the
   // higher timeframes, each one its own switch — "if i only want daily alone

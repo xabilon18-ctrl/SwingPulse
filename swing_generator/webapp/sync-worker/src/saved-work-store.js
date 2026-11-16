@@ -103,6 +103,13 @@ export function mergeSavedWork(previous, incoming) {
   if (!object(incoming.watchlists) || stamp(previous.watchlists?.mod) > stamp(incoming.watchlists.mod)) merged.watchlists = previous.watchlists;
   Object.assign(merged, mergeNotes(previous, incoming));
   Object.assign(merged, mergeViews(previous, incoming));
+  // Overlay MA settings (2026-11-16): one record, the newer `at` wins whole.
+  // A save without one (an app before v641) keeps the stored record.
+  const oldOv = object(previous.overlayPrefs) ? previous.overlayPrefs : null;
+  const newOv = object(incoming.overlayPrefs) && stamp(incoming.overlayPrefs.at) > 0 ? incoming.overlayPrefs : null;
+  if (newOv && (!oldOv || stamp(newOv.at) >= stamp(oldOv.at))) merged.overlayPrefs = newOv;
+  else if (oldOv) merged.overlayPrefs = oldOv;
+  else delete merged.overlayPrefs;
   merged.lastModified = Math.max(stamp(previous.lastModified), stamp(incoming.lastModified));
   return merged;
 }
