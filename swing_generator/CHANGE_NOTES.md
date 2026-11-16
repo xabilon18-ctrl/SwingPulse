@@ -7,6 +7,43 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (later) OVERLAY MAs SYNC ACROSS DEVICES (user: "Yes, sync them
+across devices too"). app.js v641, sync Worker.
+- One record on the sync blob, `overlayPrefs` = {at, htfOn {D,W,M}, set,
+  maW, proj {on, w}, ma {oD, oW, oM, oP}}: the switches, MA set, width,
+  Projected MAs and the overlay lightness sliders. Grid, shading, fades and
+  the other chart layer settings stay on the device.
+- Newest edit wins whole: the app stamps `tfOverlay.syncAt` only when one of
+  these fields changes (`ovSyncStamp`, from `ovSave`), sends it on every
+  push, and takes the server's copy on pull/push when newer
+  (`ovMergeRemote`). The Worker keeps the newer `at`
+  (`saved-work-store.mergeSavedWork`); a save without the record (older app)
+  keeps the stored one.
+- Settings from before this carry stamp 1 when they differ from the
+  defaults, so the first device to sync uploads them and any real edit wins.
+- `sp-overlay` joins `migrateUserData`: settings saved before signing in
+  move into the signed-in user's key instead of being left behind.
+- A restore from saved work stamps the restored overlay as a new edit.
+- Tests: sync-worker saved_work_test (newer wins, older/absent keeps),
+  saved_work_browser (on on one device is on on the other, and off back).
+
+2026-11-16 OVERLAY MAs: SWITCHED ON ONCE, ON EVERY CHART (user: "The
+overlay MAs only have to be activated once and to apply across and now they
+gone"). app.js v640.
+- Cause: the Daily / Weekly / Monthly overlay switches were kept per chart
+  timeframe (`tfOverlay.htf[tf]`). Monthly turned on over Daily stayed off
+  on 1H, and a chart opened on another timeframe showed none (Weekly hidden
+  on 2026-11-13 sends a saved Weekly choice to Daily, whose switches were
+  separate). Width, MA set and Projected MAs were already one choice.
+- Now one set of switches, `tfOverlay.htfOn` ({D, W, M}), for every chart;
+  a chart still never overlays its own timeframe. The first read takes every
+  switch that was on under ANY timeframe, so earlier choices come back.
+  `htf` is left untouched (an older build still reads it). The menu heading
+  reads "Overlay MAs on every chart".
+- Still device-local like before (backed up with saved work, not synced).
+- Test: app_smoke (Monthly on over Daily draws on 1H and shows on in its
+  menu; off over 1H is off over Daily).
+
 2026-11-15 POWER GROUP; ENERGY BY SECTOR, NOT BY THE WORD (user asked
 whether electricity companies sit under Energy, then "Yes to both, build
 Power and deploy"). app.js v639, Instruments.txt.

@@ -79,4 +79,14 @@ console.log('PASS: quarter thirds sync');
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{D:{division:'T',modifiedAt:5,fourths:true}}}}).chartPrefs.grids.D.fourths,true,'Term fourths sync');
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{D:{division:'T',modifiedAt:5,fourths:1}}}}).chartPrefs.grids.D.fourths,undefined,'Only true is kept');
 console.log('PASS: term fourths sync');
+// Overlay MA settings (2026-11-16): the newer record wins whole; an older
+// device's copy, or a save from an app without one, keeps the stored record.
+const ovNew={at:200,htfOn:{D:false,W:false,M:true},set:'std',maW:1,proj:{on:false,w:.6},ma:{oD:100,oW:100,oM:80,oP:100}};
+const ovOld={...ovNew,at:150,htfOn:{D:true,W:false,M:false}};
+assert.deepEqual(mergeSavedWork({},{overlayPrefs:ovNew}).overlayPrefs,ovNew,'first overlay record is stored');
+assert.deepEqual(mergeSavedWork({overlayPrefs:ovNew},{overlayPrefs:ovOld}).overlayPrefs,ovNew,'an older overlay record cannot replace a newer one');
+assert.deepEqual(mergeSavedWork({overlayPrefs:ovOld},{overlayPrefs:ovNew}).overlayPrefs,ovNew,'a newer overlay record replaces the stored one');
+assert.deepEqual(mergeSavedWork({overlayPrefs:ovNew},{notes:{}}).overlayPrefs,ovNew,'a save without overlay settings keeps them');
+assert.equal('overlayPrefs' in mergeSavedWork({},{overlayPrefs:{at:0}}),false,'an unstamped record is not stored');
+console.log('PASS: overlay MA settings sync');
 await import('./ladder_alerts_test.mjs');
