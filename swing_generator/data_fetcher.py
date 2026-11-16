@@ -436,7 +436,7 @@ def _drop_priceless(df: pd.DataFrame) -> pd.DataFrame:
 # bars OUT, the re-request pulls late corrections IN.
 
 def _utc_now() -> pd.Timestamp:
-    return pd.Timestamp.utcnow().tz_localize(None)
+    return pd.Timestamp.now('UTC').tz_localize(None)
 
 
 def drop_unfinished_daily(df: pd.DataFrame) -> pd.DataFrame:

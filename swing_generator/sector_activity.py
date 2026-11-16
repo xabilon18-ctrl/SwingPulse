@@ -41,7 +41,7 @@ import os
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -153,7 +153,7 @@ def _activity_url(tf: str) -> str:
 
 
 def _now() -> str:
-    return datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+    return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
 
 def _sector_maps() -> tuple[dict, dict]:
@@ -174,7 +174,7 @@ def load_activity(tf: str = 'D') -> tuple[dict, bool]:
     fresher computation). Returns (rows, safe_to_save)."""
     remote, local = {}, {}
     remote_ok = False
-    url = f'{_activity_url(tf)}?t={int(datetime.utcnow().timestamp())}'
+    url = f'{_activity_url(tf)}?t={int(datetime.now(timezone.utc).timestamp())}'
     for attempt in range(3):
         try:
             req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache',
@@ -543,7 +543,7 @@ def backfill(tf: str = 'D') -> None:
     # 400 daily bars is ~1.6 years, 200 weekly bars ~4, 260 3-day bars ~3.
     _days_per_bar = {'D': 1.6, '3D': 4.35, 'W': 7.2}
     span_days = int(spec['retain'] * _days_per_bar.get(tf, 1.6))
-    cutoff = str((pd.Timestamp.utcnow().tz_localize(None)
+    cutoff = str((pd.Timestamp.now('UTC').tz_localize(None)
                   - pd.Timedelta(days=span_days)).date())
     print(f'Backfilling sector activity [{tf}] since {cutoff} '
           f'({len(insts)} instruments, production-parity engine)...')

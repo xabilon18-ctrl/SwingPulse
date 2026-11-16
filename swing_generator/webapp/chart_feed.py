@@ -1021,7 +1021,7 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         rd = {tf: {n: channel_read(b, tf) for n, b in built.get(tf, {}).items()} for tf in SIGNAL_CHART_TFS}
         tc = {tf: {n: v[0] for n, v in m.items()} for tf, m in rd.items()}
         since = {tf: {n: v[1] for n, v in m.items() if v[1]} for tf, m in rd.items()}
-        payload = {'generated_at': pd.Timestamp.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
+        payload = {'generated_at': pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ'), 'tf': tc, 'since': since, 'workflow': workflow_context(built), 'workflow_version': 1}
         # Currency focus (2026-10-05): the strongest vs weakest major currency index
         # and the pairs their cross current runs through. A failure costs the card.
         try:

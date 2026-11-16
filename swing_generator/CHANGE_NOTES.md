@@ -7,6 +7,46 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-16 (afternoon) AUDIT FIXES: DEAD CODE, ESCAPING, SYNC WORKER, PAGE
+HEADERS, utcnow (user, after the code and app audit: "Do all"). app.js v643,
+drawing-toolbar.js v14, sync Worker, publish.py, config.py.
+- Dead code: the 77 names ESLint flagged as unused are gone (ESLint now 0
+  warnings). Among them the app no longer downloads ledger_summary.json and
+  instrument_flavours.json on start: it stored them in variables nothing read.
+  The R2 files still publish (health_check and validate_workflow_release read
+  them). sectorMenuHtml went with its test assertions; sectorLists,
+  sectorMatches and sectorDropValue are still tested. The shape audit's
+  orphan count went UP by five (confidence_context, pct_1w/1m/1y): the only
+  literal mentions it had found were in that dead code, so it is now more
+  accurate, not worse. The pct_ ones are read by building the name.
+- Hourly payload: eight Daily-only columns no longer ship with an h1_ prefix
+  (config._DAILY_ONLY_COLUMNS): confidence_context, watch_flag,
+  potential_turning_point_flag (blank on every row) and ribbon_slope_pct and
+  the four rollover_* (read by nothing). Daily keeps them; CONTEXT_RULES
+  reads rollover_stage. Golden snapshot identical.
+- Escaping: 32 places put an instrument name, group or sector into HTML
+  without escText; all now escape it. No current name contains a quote or
+  bracket, so nothing visible changes.
+- Sync Worker: /push/notify compares SYNC_SECRET with the same
+  timing-independent sameSecret as the passwords; /push/inbox now requires
+  the stored subscription's endpoint to equal the one asked for, since the
+  KV key is only a 32-bit hash of it ('Aa'/'BB' collide; test added).
+- Page headers: build_ui writes a Pages `_headers` file with a
+  Content-Security-Policy (connect-src limited to R2 and the two Workers;
+  script-src still allows inline because index.html uses onclick=),
+  X-Frame-Options DENY, Referrer-Policy and Permissions-Policy.
+  check_policy_hosts stops the build if any front-end file names an https
+  host the policy would block. Checked: app_smoke, saved_work_browser,
+  ipad_workspace and desktop_workspace run behind a server sending these
+  headers with 0 policy violations (the same logger caught 120 with
+  connect-src 'none').
+- Local server binds 127.0.0.1 unless SWINGPULSE_HOST is set; the serveo
+  tunnel scripts forward to localhost and are unaffected.
+- datetime.utcnow / pd.Timestamp.utcnow (deprecated) replaced in 19 places.
+- Not changed: signal_rule_version still reads 'daily500-4h-v1'. It is the
+  ledger's rule identity (signal_ledger separates records by it and the app
+  checks it), so renaming it would split the ledger's history.
+
 2026-11-16 (12:29 SAST) FULL-SCREEN HEADER ICONS A STEP SMALLER (user,
 screenshot of ▲ ▼ bookmark grid: "Make these slightly smaller. Not the old
 small size maybe in between this and the old"). style.css v439, phone/tablet

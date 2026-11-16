@@ -127,7 +127,7 @@ def read_one(name: str, tf: str, d: dict, ticker: str) -> dict:
     row = {'name': name, 'chart': d.get('tf') or tf, 'kind': d.get('kind'),
            'made': d.get('made'), 'moved': d.get('ed')}
     f = frame_for(ticker, row['chart'])
-    atr = daily_atr(ticker, d.get('made') or pd.Timestamp.utcnow())
+    atr = daily_atr(ticker, d.get('made') or pd.Timestamp.now('UTC'))
     if f is None or not len(f) or not atr:
         row['note'] = 'no bars for this chart'
         return row

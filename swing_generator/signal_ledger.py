@@ -25,7 +25,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -52,7 +52,7 @@ CURRENT_CODES = {'B1', 'B2', 'B3', 'B4', 'S1', 'S2', 'S3', 'S4'}
 
 
 def _now() -> str:
-    return datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+    return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
 
 def _name_to_ticker() -> dict:
@@ -73,7 +73,7 @@ def load_ledger() -> tuple[dict, bool]:
     retries make the fetch itself reliable."""
     remote, local = {}, {}
     remote_ok = False
-    url = f'{R2_LEDGER_URL}?t={int(datetime.utcnow().timestamp())}'
+    url = f'{R2_LEDGER_URL}?t={int(datetime.now(timezone.utc).timestamp())}'
     for attempt in range(3):
         try:
             req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache',
