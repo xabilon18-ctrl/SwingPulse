@@ -137,6 +137,21 @@ let debugPage;
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
     await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
+    // "Same frame on every chart" (2026-11-16): one switch per timeframe in
+    // the same menu. Taken from the opening frame it changes nothing on
+    // screen; a Chart range switches it off again.
+    const lockOn = () => gridMenu(m => m.locator('[data-act="frame-lock"]').getAttribute('aria-checked'));
+    await gridMenu(m => m.locator('[data-act="frame-lock"]').click());
+    assert.equal(await lockOn(), 'true', 'Monthly: same frame on every chart is on');
+    assert.equal(await firstShown(), shownBars.M, 'the frame taken is the one that was on screen');
+    assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while the frame switch is on');
+    await toTf('D');
+    assert.equal(await lockOn(), 'false', 'Daily has its own switch');
+    await toTf('M');
+    assert.equal(await lockOn(), 'true', 'Monthly keeps its switch');
+    await setRange(65);
+    assert.equal(await lockOn(), 'false', 'a Chart range replaces the frame switch');
+    await setRange(0);
     // The Monthly overlay on Daily rolls from the Monthly chart's whole history
     // (2026-10-28, "like on the monthly MAs"). The fixture's Daily bundle
     // carries no Monthly lines at all and its Monthly chart 25 years, so an
