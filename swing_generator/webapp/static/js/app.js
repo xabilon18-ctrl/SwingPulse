@@ -10599,6 +10599,7 @@
     el.className = 'reel-card chart-full open';
     el.dataset.name = name;
     el.innerHTML = chartFullHtml(item);
+    chartAutoAdopt();
     chartAutoSync();
     chartHistNote(name);
     document.body.classList.add('chart-full-open');
@@ -10689,8 +10690,14 @@
   // Watchlist, from the chart on screen to the LAST one and stops there
   // (Play on the last chart starts again from 1). Any touch on the chart
   // screen pauses it and closes the menu; the counter then shows a paused
-  // mark and the menu offers Continue. Leaving full screen ends it. The speed
-  // is remembered on the device.
+  // mark and the menu offers Continue. The speed is remembered on the device.
+  // CONTINUE PICKS UP WHERE IT LEFT OFF (user, 2026-11-17: "If I pause then
+  // replay it must continue from where it left off not start over"). The
+  // chart the run is on is remembered per list (chartAutoAt, on the device),
+  // so Continue goes back to it even after browsing other charts with ‹ ›,
+  // leaving full screen (which pauses rather than ends the run), switching
+  // lists and coming back, or reopening the app. Stop, or reaching the last
+  // chart, forgets it.
   const CHART_AUTO_SPEEDS = [3000, 5000, 10000, 20000];
   const CHART_AUTO_KEY = 'sp-chart-auto-ms';
   const chartAuto = { on: false, paused: false, menu: false, timer: 0, ms: 5000 };
@@ -10699,6 +10706,42 @@
     if (CHART_AUTO_SPEEDS.includes(v)) chartAuto.ms = v;
   } catch (_) {}
   let chartFullStepping = false;
+  const CHART_AUTO_AT_KEY = 'sp-chart-auto-at';
+  let chartAutoAt = {};
+  try {
+    const v = JSON.parse(localStorage.getItem(CHART_AUTO_AT_KEY) || '{}');
+    if (v && typeof v === 'object' && !Array.isArray(v)) chartAutoAt = v;
+  } catch (_) {}
+  // Which list the charts come from: the Watchlist's list and filters as it
+  // names them, or a "Charts like X" set.
+  function chartAutoListKey() {
+    if (reel.similarTo) return 'like:' + reel.similarTo;
+    return reel.listSet && reel.listSet.label ? 'list:' + reel.listSet.label : 'all';
+  }
+  function chartAutoRemember(name) {
+    const k = chartAutoListKey();
+    delete chartAutoAt[k];
+    if (name) chartAutoAt[k] = name;     // re-added last: newest at the end
+    const keys = Object.keys(chartAutoAt);
+    for (const old of keys.slice(0, Math.max(0, keys.length - 30))) delete chartAutoAt[old];
+    try { localStorage.setItem(CHART_AUTO_AT_KEY, JSON.stringify(chartAutoAt)); } catch (_) {}
+  }
+  // The chart this list's run left off at, if it is still in the list.
+  function chartAutoLeftAt() {
+    const at = chartAutoAt[chartAutoListKey()];
+    return at && (reel.list || []).some(d => d.instrument_name === at) ? at : null;
+  }
+  // Opening full screen on a list with a run left off shows it paused there.
+  function chartAutoAdopt() {
+    if (chartAuto.on || !chartAutoLeftAt()) return;
+    chartAuto.on = true; chartAuto.paused = true; chartAuto.menu = false;
+  }
+  // Leaving full screen pauses the run; Continue picks it up later.
+  function chartAutoLeave() {
+    chartAutoClear();
+    if (chartAuto.on && chartFullName && !chartAuto.paused) chartAutoRemember(chartFullName);
+    chartAuto.on = false; chartAuto.paused = false; chartAuto.menu = false;
+  }
 
   function chartAutoPos() {
     const list = reel.list || [];
@@ -10720,12 +10763,14 @@
     if (!chartFullName || i < 0 || n < 2) { chartAutoStop(); return; }
     chartFullStep(1);
     // The last chart of the list ends the run.
-    if (i + 1 >= n - 1) { chartAuto.on = false; chartAuto.paused = false; chartAutoSync(); return; }
+    if (i + 1 >= n - 1) { chartAuto.on = false; chartAuto.paused = false; chartAutoRemember(null); chartAutoSync(); return; }
+    chartAutoRemember(chartFullName);
     chartAutoSchedule();
   }
   function chartAutoStop() {
     chartAutoClear();
     chartAuto.on = false; chartAuto.paused = false; chartAuto.menu = false;
+    chartAutoRemember(null);
     chartAutoSync();
   }
   function chartAutoInterrupt() {
@@ -10750,9 +10795,13 @@
       if (chartAuto.on && !chartAuto.paused) { chartAuto.paused = true; chartAutoClear(); chartAutoSync(); return; }
       const { i, n } = chartAutoPos();
       if (i < 0 || n < 2) return;
+      // Continue goes back to the chart the run left off at.
+      const at = chartAuto.on && chartAutoLeftAt();
       chartAuto.on = true; chartAuto.paused = false;
+      if (at && at !== chartFullName) chartFullGo(at);
       // Play on the last chart starts the list again from 1.
-      if (i >= n - 1) chartFullStep(1);
+      else if (!at && i >= n - 1) chartFullStep(1);
+      chartAutoRemember(chartFullName);
       chartAutoSync();
       chartAutoSchedule();
     }
@@ -10762,7 +10811,11 @@
     const left = i < 0 ? 0 : Math.max(0, n - 1 - i);
     const playing = chartAuto.on && !chartAuto.paused, paused = chartAuto.on && chartAuto.paused;
     const label = playing ? '❚❚ Pause' : paused ? '▶ Continue' : '▶ Play';
-    const note = playing ? `Playing · ${left} to go` : paused ? `Paused · ${left} to go`
+    const at = paused && chartAutoLeftAt();
+    const atI = at ? (reel.list || []).findIndex(d => d.instrument_name === at) : -1;
+    const note = playing ? `Playing · ${left} to go`
+      : paused && at && at !== chartFullName ? `Paused at ${at} (${atI + 1}/${n})`
+      : paused ? `Paused · ${left} to go`
       : left ? `Plays the next ${left} chart${left === 1 ? '' : 's'} of this list` : 'Plays this list from 1';
     const speeds = CHART_AUTO_SPEEDS.map(ms => {
       const on = ms === chartAuto.ms;
@@ -10805,7 +10858,17 @@
     // reads as broken rather than as "you have reached the end".
     const j = (i + dir + n) % n;
     if (j === i) return;                     // a one-chart list has nowhere to go
-    const next = list[j];
+    chartFullGoTo(list[j], dir);
+  }
+  // Full screen on another chart of the list, the reel behind on its card.
+  function chartFullGo(name) {
+    const list = reel.list || [];
+    const i = list.findIndex(d => d.instrument_name === chartFullName);
+    const j = list.findIndex(d => d.instrument_name === name);
+    if (j < 0 || j === i) return;
+    chartFullGoTo(list[j], j > i ? 1 : -1);
+  }
+  function chartFullGoTo(next, dir) {
     if (desktopChart.active) { desktopChartSelect(next.instrument_name); return; }
     chartFullStepping = true;
     try { chartFullClose(); } finally { chartFullStepping = false; }
@@ -10827,9 +10890,9 @@
   }
 
   function chartFullClose() {
-    // Leaving full screen ends auto-play; stepping to the next chart (which
-    // closes and reopens) does not.
-    if (!chartFullStepping) chartAutoStop();
+    // Leaving full screen pauses auto-play (chartAutoLeave); stepping to the
+    // next chart (which closes and reopens) does not.
+    if (!chartFullStepping) chartAutoLeave();
     const el = chartFullEl();
     // Put the reader's own price scale back — the one full screen imposed was
     // ours, not theirs, and leaving it would zoom the card out on return.

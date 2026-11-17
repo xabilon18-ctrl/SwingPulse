@@ -37,8 +37,17 @@ selected list or watchlist."
   pauses it and closes the menu (`chartAutoInterrupt`); the counter dims with
   a small ▶ mark, and the menu then offers Continue. While playing, a bar under
   the counter fills over the wait.
-- Leaving full screen stops it; stepping (which closes and reopens full
-  screen) does not (`chartFullStepping`).
+- Continue picks up WHERE IT LEFT OFF (user, same day: "If I pause then
+  replay it must continue from where it left off not start over"). The
+  run's chart is remembered per list (`chartAutoListKey`: the Watchlist's
+  list label, or "Charts like X") in localStorage `sp-chart-auto-at`, so
+  Continue jumps back to it (`chartFullGo`) after browsing with ‹ ›, after
+  leaving full screen (`chartAutoLeave` pauses, it does not end the run),
+  after switching lists and back, or after reopening the app. Opening full
+  screen on that list shows it paused there (`chartAutoAdopt`); the menu
+  says "Paused at NAME (n/N)". Stop or reaching the last chart forgets it.
+  Stepping (which closes and reopens full screen) is not leaving
+  (`chartFullStepping`).
 - Speed is per device: localStorage `sp-chart-auto-ms`.
 - Test: `tests/chart_autoplay_checks.cjs` (in app_smoke, local and live).
   Locally it serves two copies of TEST so there is a list to play.
