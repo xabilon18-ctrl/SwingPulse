@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (15:14 SAST) NEW LADDERS AND CHANNELS START DASHED. app.js v648,
+drawing-toolbar.js v15. User: "mage the ladder default ddash line and the
+trend or channel dash line as default", then "Just do the default on ladder
+and channel only". `channelAdd` sets `dash: true` on every new ladder and
+channel the user draws. Auto-fitted channels (`reelSeedChannels`) and drawings
+already saved are unchanged. A Monthly ladder starts dashed and Thick, and a
+Daily ladder starts dashed and Thin, so weight still tells them apart. The
+Dotted button still switches either one back.
+Considered and dropped at the user's request: tap bands on a ladder's split
+lines (the thirds of a Monthly ladder on Daily have none, so a tap there
+selects nothing; the user prefers it that way) and a dash option for trend
+lines.
+
 2026-11-17 (14:30 SAST) WATCHLIST DIVISIONS IN GOLD. style.css v440. User,
 with a screenshot of the "EU" division in their list: "Make these to have a
 complimenting color". `.wl2-udiv` (a division in one of the user's lists)

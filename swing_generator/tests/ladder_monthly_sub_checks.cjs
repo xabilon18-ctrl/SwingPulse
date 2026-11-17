@@ -6,8 +6,7 @@ const assert = require('node:assert/strict');
 // small grey ones ("3.3%", "6.7%"), and Monthly itself never shows them.
 // Then on 1H (2026-11-13: "build on top of the original") each third is
 // replaced by ten equal parts per Monthly 10% gap ("Let's do 1h by 10"); the
-// thirds do not line up with tenths, so 1H does not show them. It is not a Daily ladder: not
-// dashed, and its own 10% gaps are never split straight into five.
+// thirds do not line up with tenths, so 1H does not show them. It is not a Daily ladder: its own 10% gaps are never split straight into five.
 module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill(name);
@@ -35,7 +34,12 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   const d = onM[0];
   // Every chart timeframe; Weekly's chart was removed on 2026-11-16.
   assert.ok(d.link && d.tfs.length === 3 && ['M', 'D', '1H'].every(t => d.tfs.includes(t)), 'all its timeframes are on by default: ' + JSON.stringify(d.tfs));
-  assert.ok(!d.dash, 'it is not dashed like a Daily ladder');
+  // New ladders start dashed (user, 2026-11-17). Set this one back to dotted
+  // so the checks below can still tell its lines from the dashed Daily
+  // ladder drawn earlier on the same chart.
+  assert.ok(d.dash === true && d.strokeWeight === 3, 'a new Monthly ladder starts dashed and Thick: ' + JSON.stringify({ dash: d.dash, w: d.strokeWeight }));
+  await tb.locator('[data-act="draw-dash"][data-v="0"]').click();
+  assert.ok(!(await saved('M'))[0].dash, 'set back to dotted');
   assert.equal(await page.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'no thirds on Monthly itself');
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
