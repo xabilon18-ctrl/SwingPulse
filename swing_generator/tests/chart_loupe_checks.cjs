@@ -23,12 +23,15 @@ module.exports = async function checkChartLoupe(page0, live = false) {
   await page.waitForTimeout(700);
   await lens.waitFor({ timeout: 2000 });
   const at0 = await lens.boundingBox();
-  assert.ok(at0.y + 140 < y, 'the lens sits above the finger: ' + JSON.stringify({ lens: at0, y }));
+  assert.ok(at0.width >= 190, 'the lens is 190px across: ' + at0.width);
+  assert.ok(at0.y + at0.height < y, 'the lens sits above the finger: ' + JSON.stringify({ lens: at0, y }));
   assert.match(await lens.locator('.reel-loupe-read').innerText(), /\d/, 'it reads the price under the finger');
   assert.equal(await lens.locator('svg').count(), 1, 'it shows a copy of the chart');
-  await page.mouse.move(x - 80, y + 40, { steps: 6 });
+  // Right and down: a 190px lens clamped at the chart's left edge would not
+  // follow a move to the left from here.
+  await page.mouse.move(x + 60, y + 40, { steps: 6 });
   const at1 = await lens.boundingBox();
-  assert.ok(Math.abs((at0.x - at1.x) - 80) < 2 && Math.abs((at1.y - at0.y) - 40) < 2, 'it follows the finger: ' + JSON.stringify({ at0, at1 }));
+  assert.ok(Math.abs((at1.x - at0.x) - 60) < 2 && Math.abs((at1.y - at0.y) - 40) < 2, 'it follows the finger: ' + JSON.stringify({ at0, at1 }));
   assert.equal(await frame(), f0, 'the chart does not pan under the lens');
   await page.mouse.up();
   assert.equal(await lens.count(), 0, 'letting go removes it');
