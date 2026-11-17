@@ -7,6 +7,28 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (15:35 SAST) CHART AUTO-PLAY FROM THE COUNTER. app.js v649,
+style.css v441. User, with a screenshot of the full-screen ‹ 31/37 › counter:
+"press in the middle ... a menu pop that allows me to press play and have the
+chart auto change by themselves. The menu should disappear if I tap on a chart
+and I should have an option to continue after looking at the chart and making
+changes. The auto play must have different speeds. And this must apply per
+selected list or watchlist."
+- `.cf-pos` is now a button (`chart-auto-menu`) that opens `.cf-auto-menu`
+  above it: Play / Pause / Continue, speeds 3s 5s 10s 20s, Stop.
+- `chartAuto` in app.js steps `reel.list` (the list selected on the
+  Watchlist) with `chartFullStep(1)` from the chart on screen to the LAST one,
+  then stops; Play on the last chart starts again from 1.
+- Any pointerdown on the full-screen chart outside the counter and menu
+  pauses it and closes the menu (`chartAutoInterrupt`); the counter dims with
+  a small ▶ mark, and the menu then offers Continue. While playing, a bar under
+  the counter fills over the wait.
+- Leaving full screen stops it; stepping (which closes and reopens full
+  screen) does not (`chartFullStepping`).
+- Speed is per device: localStorage `sp-chart-auto-ms`.
+- Test: `tests/chart_autoplay_checks.cjs` (in app_smoke, local and live).
+  Locally it serves two copies of TEST so there is a list to play.
+
 2026-11-17 (15:14 SAST) NEW LADDERS AND CHANNELS START DASHED. app.js v648,
 drawing-toolbar.js v15. User: "mage the ladder default ddash line and the
 trend or channel dash line as default", then "Just do the default on ladder
