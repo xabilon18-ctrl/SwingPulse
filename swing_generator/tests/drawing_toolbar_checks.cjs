@@ -125,7 +125,12 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     assert.equal(await weights.count(),3,'A channel offers three line weights');
     assert.equal(await toolbar.locator('[data-act="draw-weight"][data-v="1"]').getAttribute('aria-pressed'),'true','Thin is the default');
     // New channels start dashed (user, 2026-11-17).
-    assert.equal((await channelOn()).dash,true,'A new channel is saved dashed');
+    // Read THIS chart's newest channel: on the live site other instruments
+    // carry saved channels too (the 2026-11-17 release check read one of those).
+    const newest=await page.evaluate(([tf])=>{const n=document.getElementById('chartFull').dataset.name;
+      const all=JSON.parse(localStorage.getItem('sp-channels')||'{}');
+      return ((all[n]&&all[n][tf])||[]).filter(d=>d&&d.kind==='channel').pop()||null;},[ownTf]);
+    assert.equal(newest&&newest.dash,true,'A new channel is saved dashed');
     assert.equal(await toolbar.locator('[data-act="draw-dash"][data-v="1"]').getAttribute('aria-pressed'),'true','The Dashed button is on');
     assert.ok(await page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge.is-dash').count()>0,'Its edges draw dashed');
     const edgeW=()=>page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge').first().evaluate(el=>parseFloat(getComputedStyle(el).strokeWidth));
