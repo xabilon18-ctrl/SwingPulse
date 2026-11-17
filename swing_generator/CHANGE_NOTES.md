@@ -16,6 +16,14 @@ take `user-select: none` and `-webkit-touch-callout: none`; inputs and text
 areas inside full screen keep selection. Buttons also take `touch-action:
 manipulation` (no double-tap zoom on fast repeated ‹ › taps). Test: the
 selection asserts at the start of `tests/chart_autoplay_checks.cjs`.
+Same release: the bigger-magnifier release (#233) went red in "Verify the
+live app" (production): its live check got the new style.css with the old
+app.js, a 190px lens placed as a 140px one, seconds after the deploy, although
+`tests/live_release_wait.cjs` had passed. That wait read every file at a fresh
+`?releasewait=` address; the page loads `app.js?v=650`. It now also waits until
+the exact `static/...?v=N` addresses the live index.html names serve this
+build's bytes. Production answers `max-age=0, must-revalidate`, so the mix
+lasted seconds and no phone keeps it.
 
 2026-11-17 (15:59 SAST) MAGNIFIER LENS BIGGER. app.js v650, style.css v442.
 User: "make the circle for the magnifying bigger". The long-press lens is

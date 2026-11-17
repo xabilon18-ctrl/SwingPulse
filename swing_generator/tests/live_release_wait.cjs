@@ -23,6 +23,21 @@ module.exports = async function waitForLiveRelease(origin, { timeoutMs = 120000,
   };
   walk(path.join(built, 'static'));
   if (!files.length) throw new Error('No built scripts or styles to compare the live site against');
+  // ALSO the exact addresses the page loads (2026-11-17). The fresh
+  // ?releasewait= reads above can all be new while the page's own
+  // `static/js/app.js?v=650` still answers with the previous deployment for a
+  // few seconds: the bigger-magnifier release's live check got the new
+  // style.css with the old app.js (a 190px lens placed as a 140px one) right
+  // after this wait had passed. The page's own references come from the live
+  // index.html, so this follows whatever versions it names.
+  const pageRefs = async () => {
+    try {
+      const res = await fetch(`${origin}/?releasewait=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return [];
+      const html = await res.text();
+      return [...new Set([...html.matchAll(/(?:src|href)="\/?(static\/[^"?]+\.(?:js|css))(\?v=\d+)"/g)].map(m => m[1] + m[2]))];
+    } catch (err) { return []; }
+  };
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const stale = [];
@@ -33,6 +48,16 @@ module.exports = async function waitForLiveRelease(origin, { timeoutMs = 120000,
         if (res.ok) body = Buffer.from(await res.arrayBuffer());
       } catch (err) { body = null; }   // a failed read counts as not released yet and is retried
       if (!body || !body.equals(fs.readFileSync(path.join(built, file)))) stale.push(file);
+    }
+    for (const ref of await pageRefs()) {
+      const file = ref.split('?')[0];
+      if (!files.includes(file)) continue;
+      let body = null;
+      try {
+        const res = await fetch(`${origin}/${ref}`, { cache: 'no-store' });
+        if (res.ok) body = Buffer.from(await res.arrayBuffer());
+      } catch (err) { body = null; }
+      if (!body || !body.equals(fs.readFileSync(path.join(built, file)))) stale.push(ref);
     }
     if (!stale.length) return files.length;
     if (Date.now() >= deadline) throw new Error(`Live site still serves an older build of: ${stale.join(', ')}`);
