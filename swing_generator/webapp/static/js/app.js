@@ -8568,6 +8568,11 @@
     const def = reelDefaultDrawing(kind || 'channel', ctx.b._bars || ctx.b);
     if (!def) return;
     if (!def.made) def.made = new Date().toISOString();   // drawn by the user (see reelSeedChannels)
+    // Ladders and channels start DASHED (user, 2026-11-17: "Just do the
+    // default on ladder and channel only"). Set here, not in reelDefault*, so
+    // the auto-fitted channels (reelSeedChannels) keep their look. Dotted is
+    // one tap away in the properties row.
+    if (def.kind === 'ladder' || def.kind === 'channel') def.dash = true;
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
     // (ladderSubTiers; 4H was off 2026-11-04, back 2026-11-05). The
     // timeframe chips still turn any of them on or off.
@@ -8580,8 +8585,8 @@
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
     // three there, and on 1H in ten (LADDER_HOME_SUB,
-    // 2026-11-13). It keeps the new-ladder look
-    // (dotted, Thick), which tells it from the dashed Thin Daily ladders.
+    // 2026-11-13). It keeps the new-ladder weight (Thick), which tells it
+    // from the Thin Daily ladders now both start dashed (2026-11-17).
     else if (def.kind === 'ladder' && LADDER_HOME_SUB[timeframe]) {
       def.link = drawLinkId();
       def.home = timeframe;

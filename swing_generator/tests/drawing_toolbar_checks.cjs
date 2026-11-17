@@ -124,6 +124,10 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     const weights=toolbar.locator('[data-act="draw-weight"]');
     assert.equal(await weights.count(),3,'A channel offers three line weights');
     assert.equal(await toolbar.locator('[data-act="draw-weight"][data-v="1"]').getAttribute('aria-pressed'),'true','Thin is the default');
+    // New channels start dashed (user, 2026-11-17).
+    assert.equal((await channelOn()).dash,true,'A new channel is saved dashed');
+    assert.equal(await toolbar.locator('[data-act="draw-dash"][data-v="1"]').getAttribute('aria-pressed'),'true','The Dashed button is on');
+    assert.ok(await page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge.is-dash').count()>0,'Its edges draw dashed');
     const edgeW=()=>page.locator('#chartFull .reel-draw.is-sel .reel-ch-edge').first().evaluate(el=>parseFloat(getComputedStyle(el).strokeWidth));
     const thin=await edgeW();
     await toolbar.locator('[data-act="draw-weight"][data-v="3"]').click();
