@@ -8790,7 +8790,11 @@ body.chart-full-open { overflow: hidden; }
 /* Watchlist divisions (2026-09-24) */
 .wl2-ediv { background: rgba(255,255,255,.03); }
 .wl2-divname { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding-left: 4px; }
-.wl2-udiv { color: var(--text-secondary); }
+/* The user's own divisions take the gold accent, as they already do in edit
+   mode (.wl2-divname), with a faint gold rule under them (user, 2026-11-17:
+   "make these to have a complimenting color"). Group headings of the
+   All-markets view stay muted grey. */
+.wl2-udiv { color: var(--accent); border-bottom-color: var(--accent-glow); }
 
 /* ── Drawing tools as colourful toys (2026-09-24, user) ─────────────────────
    Each tool its own bright colour, rounded, with a chunky raised edge that
