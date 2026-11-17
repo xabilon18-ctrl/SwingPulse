@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (16:19 SAST) NO TEXT SELECTION ON THE CHART SCREEN. style.css v443.
+User, with a screenshot of iOS "Copy | Look Up | Translate" and selection
+handles over the full-screen ‹ chart button: "This can't keep happening".
+Holding or double-tapping a control selected its text. Now `#chartFull` and
+everything in it, every `button` / `[role="button"]` and every `.reel-foot`
+take `user-select: none` and `-webkit-touch-callout: none`; inputs and text
+areas inside full screen keep selection. Buttons also take `touch-action:
+manipulation` (no double-tap zoom on fast repeated ‹ › taps). Test: the
+selection asserts at the start of `tests/chart_autoplay_checks.cjs`.
+
 2026-11-17 (15:59 SAST) MAGNIFIER LENS BIGGER. app.js v650, style.css v442.
 User: "make the circle for the magnifying bigger". The long-press lens is
 190px across (`REEL_LOUPE_R` 95), up from 140; zoom unchanged at 2.2x, so it

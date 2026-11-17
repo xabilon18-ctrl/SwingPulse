@@ -45,6 +45,12 @@ async function checkChartAutoplay(page0, live = false) {
   const full = page.locator('#chartFull');
   const counter = full.locator('.cf-pos');
   const at = async () => (await counter.innerText()).trim();
+  // No text selection or iOS callout on the chart screen's controls (user,
+  // 2026-11-17: "Copy | Look Up | Translate" popped up over the ‹ button).
+  const sel = await page.evaluate(() => ['[data-act="chart-full-step"]', '.cf-pos', '.reel-tf-tag', '.reel-name', '.reel-chart']
+    .map(q => { const e = document.querySelector('#chartFull ' + q); const c = e && getComputedStyle(e); return [q, c && (c.userSelect || c.webkitUserSelect), c && c.touchAction]; }));
+  for (const [q, us] of sel) assert.equal(us, 'none', `${q} cannot be selected as text: ` + JSON.stringify(sel));
+  assert.equal(sel[0][2], 'manipulation', 'the ‹ › buttons take no double-tap zoom');
   const start = await at();
   const [i0, n] = start.split('/').map(Number);
   assert.ok(n >= 3, 'the fixture list has charts to play: ' + start);

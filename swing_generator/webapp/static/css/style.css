@@ -10228,3 +10228,17 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   background: rgba(17,17,17,.85); color: #fff; font-size: 12px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── No text selection on the chart screen (user, 2026-11-17, a screenshot
+   of iOS "Copy | Look Up | Translate" over the ‹ chart button: "This can't
+   keep happening"). Held or double-tapped controls were being read as text
+   to select. The whole full-screen chart, its header, tool bar and footer,
+   and every button in the app, take no selection and no iOS long-press
+   callout; buttons also take no double-tap zoom (touch-action manipulation),
+   which made fast repeated ‹ › taps feel sticky. Fields you type into keep
+   normal selection. */
+#chartFull, #chartFull *, button, [role="button"], .reel-foot, .reel-foot * {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#chartFull :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+button, [role="button"] { touch-action: manipulation; }
