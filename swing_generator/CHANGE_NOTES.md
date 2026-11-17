@@ -7,6 +7,11 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (15:59 SAST) MAGNIFIER LENS BIGGER. app.js v650, style.css v442.
+User: "make the circle for the magnifying bigger". The long-press lens is
+190px across (`REEL_LOUPE_R` 95), up from 140; zoom unchanged at 2.2x, so it
+shows more of the chart around the finger. Readout moved to 196px.
+
 2026-11-17 (15:40 SAST) MAGNIFIER ON LONG PRESS. app.js v649, style.css
 v441 (same release as auto-play below). User: "add a magnifying glass when i
 long press on the chart that moves with my finger".
