@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (14:30 SAST) WATCHLIST DIVISIONS IN GOLD. style.css v440. User,
+with a screenshot of the "EU" division in their list: "Make these to have a
+complimenting color". `.wl2-udiv` (a division in one of the user's lists)
+went from `--text-secondary` grey to `--accent` gold, with its underline in
+`--accent-glow`, matching edit mode's `.wl2-divname`. The `.wl2-group`
+headings of the All-markets view are unchanged (muted grey).
+
 2026-11-16 (22:00 SAST) DORMANT WEEKLY CHART CODE DELETED (user: "it's time
 to remove that weekly code that is dormant"). app.js v647. Follows the
 15:35 entry below, which switched the Weekly chart off and left its code.
