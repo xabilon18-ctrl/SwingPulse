@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (16:23 SAST) MAGNIFIER 240px AT 1.8x. app.js v651, style.css v444.
+User: "Zoom out a lil on the magnifying glass and increase the size again".
+`REEL_LOUPE_R` 95 -> 120 (240px across), `REEL_LOUPE_ZOOM` 2.2 -> 1.8; the
+lens now spans about 1.5x as wide a patch of chart (133 vs 86px of
+chart across). Readout at 246px.
+
 2026-11-17 (16:19 SAST) NO TEXT SELECTION ON THE CHART SCREEN. style.css v443.
 User, with a screenshot of iOS "Copy | Look Up | Translate" and selection
 handles over the full-screen ‹ chart button: "This can't keep happening".

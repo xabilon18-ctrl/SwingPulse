@@ -11933,13 +11933,14 @@
   // I long press on the chart that moves with my finger"). Full screen only:
   // a card's vertical drag belongs to the feed's scroll (touch-action pan-y),
   // which would cancel the press as soon as the finger moved up or down.
-  // Holding still for REEL_LOUPE_MS opens a round lens (190px since
-  // 2026-11-17, "make the circle bigger"; it was 140) above the finger
+  // Holding still for REEL_LOUPE_MS opens a round lens (240px at 1.8x since
+  // 2026-11-17, "zoom out a lil ... and increase the size again"; it was
+  // 140px, then 190px, at 2.2x) above the finger
   // showing the chart under it REEL_LOUPE_ZOOM times larger, with the price
   // and bar date under the fingertip. It follows the finger until release;
   // the chart does not pan meanwhile. The lens is a copy of the chart's SVG
   // made once per press, inside the chart box so the chart's styles apply.
-  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 95, REEL_LOUPE_ZOOM = 2.2, REEL_LOUPE_GAP = 34;
+  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 120, REEL_LOUPE_ZOOM = 1.8, REEL_LOUPE_GAP = 34;
   function reelLoupeEnd(host) { host.querySelectorAll(':scope > .reel-loupe').forEach(l => l.remove()); }
   function reelLoupeMove(host, cx, cy) {
     const svg = host.querySelector('svg.reel-svg'), ctx = host._reelCtx;
