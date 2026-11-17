@@ -22,8 +22,9 @@ app.js, a 190px lens placed as a 140px one, seconds after the deploy, although
 `tests/live_release_wait.cjs` had passed. That wait read every file at a fresh
 `?releasewait=` address; the page loads `app.js?v=650`. It now also waits until
 the exact `static/...?v=N` addresses the live index.html names serve this
-build's bytes. Production answers `max-age=0, must-revalidate`, so the mix
-lasted seconds and no phone keeps it.
+build's bytes. `_headers` sets no Cache-Control for static files, so Pages'
+default (revalidate on every load) applies and a phone should not keep the
+mix; not checked from the build machine, which cannot reach the live site.
 
 2026-11-17 (15:59 SAST) MAGNIFIER LENS BIGGER. app.js v650, style.css v442.
 User: "make the circle for the magnifying bigger". The long-press lens is
