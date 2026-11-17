@@ -10572,6 +10572,8 @@
         if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
         const step = e.target.closest('[data-act="chart-full-step"]');
         if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
+        const auto = e.target.closest('[data-act^="chart-auto-"]');
+        if (auto) { chartAutoAct(auto); return; }
         // ‹ › around the timeframe pill (user, 2026-11-13: "an option to
         // screen through times by clicking right or left like the
         // instrument"): the next / previous chart timeframe in the switch's
@@ -10584,10 +10586,21 @@
         }
         window.__reelBtnAct(e);
       });
+      // Any touch on the chart screen outside the auto-play controls pauses
+      // auto-play and closes its menu (user, 2026-11-17: "The menu should
+      // disappear if I tap on a chart"). Capture phase, so it runs before the
+      // chart's own gestures; it claims nothing.
+      el.addEventListener('pointerdown', e => {
+        if (!chartAuto.on && !chartAuto.menu) return;
+        if (e.target.closest('.cf-auto-menu, [data-act="chart-auto-menu"]')) return;
+        chartAutoInterrupt();
+      }, true);
     }
     el.className = 'reel-card chart-full open';
     el.dataset.name = name;
     el.innerHTML = chartFullHtml(item);
+    chartAutoAdopt();
+    chartAutoSync();
     chartHistNote(name);
     document.body.classList.add('chart-full-open');
     if (desktopChart.active) desktopChartPlace(el);
@@ -10669,6 +10682,167 @@
     return px > 0 && L.H > 0 ? px * (L.py1 - L.py0) / L.H : 0;
   }
 
+  // AUTO-PLAY THROUGH THE LIST (user, 2026-11-17: "press in the middle ...
+  // a menu pop that allows me to press play and have the chart auto change by
+  // themselves ... different speeds ... per selected list or watchlist").
+  // The ‹ 31/37 › counter opens a menu: Play / Pause / Continue and a speed.
+  // It steps through reel.list, the charts of the list selected on the
+  // Watchlist, from the chart on screen to the LAST one and stops there
+  // (Play on the last chart starts again from 1). Any touch on the chart
+  // screen pauses it and closes the menu; the counter then shows a paused
+  // mark and the menu offers Continue. The speed is remembered on the device.
+  // CONTINUE PICKS UP WHERE IT LEFT OFF (user, 2026-11-17: "If I pause then
+  // replay it must continue from where it left off not start over"). The
+  // chart the run is on is remembered per list (chartAutoAt, on the device),
+  // so Continue goes back to it even after browsing other charts with ‹ ›,
+  // leaving full screen (which pauses rather than ends the run), switching
+  // lists and coming back, or reopening the app. Stop, or reaching the last
+  // chart, forgets it.
+  const CHART_AUTO_SPEEDS = [3000, 5000, 10000, 20000];
+  const CHART_AUTO_KEY = 'sp-chart-auto-ms';
+  const chartAuto = { on: false, paused: false, menu: false, timer: 0, ms: 5000 };
+  try {
+    const v = +localStorage.getItem(CHART_AUTO_KEY);
+    if (CHART_AUTO_SPEEDS.includes(v)) chartAuto.ms = v;
+  } catch (_) {}
+  let chartFullStepping = false;
+  const CHART_AUTO_AT_KEY = 'sp-chart-auto-at';
+  let chartAutoAt = {};
+  try {
+    const v = JSON.parse(localStorage.getItem(CHART_AUTO_AT_KEY) || '{}');
+    if (v && typeof v === 'object' && !Array.isArray(v)) chartAutoAt = v;
+  } catch (_) {}
+  // Which list the charts come from: the Watchlist's list and filters as it
+  // names them, or a "Charts like X" set.
+  function chartAutoListKey() {
+    if (reel.similarTo) return 'like:' + reel.similarTo;
+    return reel.listSet && reel.listSet.label ? 'list:' + reel.listSet.label : 'all';
+  }
+  function chartAutoRemember(name) {
+    const k = chartAutoListKey();
+    delete chartAutoAt[k];
+    if (name) chartAutoAt[k] = name;     // re-added last: newest at the end
+    const keys = Object.keys(chartAutoAt);
+    for (const old of keys.slice(0, Math.max(0, keys.length - 30))) delete chartAutoAt[old];
+    try { localStorage.setItem(CHART_AUTO_AT_KEY, JSON.stringify(chartAutoAt)); } catch (_) {}
+  }
+  // The chart this list's run left off at, if it is still in the list.
+  function chartAutoLeftAt() {
+    const at = chartAutoAt[chartAutoListKey()];
+    return at && (reel.list || []).some(d => d.instrument_name === at) ? at : null;
+  }
+  // Opening full screen on a list with a run left off shows it paused there.
+  function chartAutoAdopt() {
+    if (chartAuto.on || !chartAutoLeftAt()) return;
+    chartAuto.on = true; chartAuto.paused = true; chartAuto.menu = false;
+  }
+  // Leaving full screen pauses the run; Continue picks it up later.
+  function chartAutoLeave() {
+    chartAutoClear();
+    if (chartAuto.on && chartFullName && !chartAuto.paused) chartAutoRemember(chartFullName);
+    chartAuto.on = false; chartAuto.paused = false; chartAuto.menu = false;
+  }
+
+  function chartAutoPos() {
+    const list = reel.list || [];
+    return { i: list.findIndex(d => d.instrument_name === chartFullName), n: list.length };
+  }
+  function chartAutoClear() { if (chartAuto.timer) { clearTimeout(chartAuto.timer); chartAuto.timer = 0; } }
+  function chartAutoSchedule() {
+    chartAutoClear();
+    if (!chartAuto.on || chartAuto.paused) return;
+    chartAuto.timer = setTimeout(chartAutoTick, chartAuto.ms);
+    // Restart the counter's progress bar for the new wait.
+    const pos = chartFullEl()?.querySelector('.cf-pos');
+    if (pos) { pos.classList.remove('is-playing'); void pos.offsetWidth; pos.classList.add('is-playing'); }
+  }
+  function chartAutoTick() {
+    chartAuto.timer = 0;
+    if (!chartAuto.on || chartAuto.paused) return;
+    const { i, n } = chartAutoPos();
+    if (!chartFullName || i < 0 || n < 2) { chartAutoStop(); return; }
+    chartFullStep(1);
+    // The last chart of the list ends the run.
+    if (i + 1 >= n - 1) { chartAuto.on = false; chartAuto.paused = false; chartAutoRemember(null); chartAutoSync(); return; }
+    chartAutoRemember(chartFullName);
+    chartAutoSchedule();
+  }
+  function chartAutoStop() {
+    chartAutoClear();
+    chartAuto.on = false; chartAuto.paused = false; chartAuto.menu = false;
+    chartAutoRemember(null);
+    chartAutoSync();
+  }
+  function chartAutoInterrupt() {
+    if (chartAuto.on && !chartAuto.paused) { chartAuto.paused = true; chartAutoClear(); }
+    chartAuto.menu = false;
+    chartAutoSync();
+  }
+  function chartAutoAct(btn) {
+    const act = btn.dataset.act;
+    if (act === 'chart-auto-menu') { chartAuto.menu = !chartAuto.menu; chartAutoSync(); return; }
+    if (act === 'chart-auto-speed') {
+      const v = +btn.dataset.ms;
+      if (!CHART_AUTO_SPEEDS.includes(v)) return;
+      chartAuto.ms = v;
+      try { localStorage.setItem(CHART_AUTO_KEY, String(v)); } catch (_) {}
+      chartAutoSync();
+      chartAutoSchedule();
+      return;
+    }
+    if (act === 'chart-auto-stop') { chartAutoStop(); return; }
+    if (act === 'chart-auto-play') {
+      if (chartAuto.on && !chartAuto.paused) { chartAuto.paused = true; chartAutoClear(); chartAutoSync(); return; }
+      const { i, n } = chartAutoPos();
+      if (i < 0 || n < 2) return;
+      // Continue goes back to the chart the run left off at.
+      const at = chartAuto.on && chartAutoLeftAt();
+      chartAuto.on = true; chartAuto.paused = false;
+      if (at && at !== chartFullName) chartFullGo(at);
+      // Play on the last chart starts the list again from 1.
+      else if (!at && i >= n - 1) chartFullStep(1);
+      chartAutoRemember(chartFullName);
+      chartAutoSync();
+      chartAutoSchedule();
+    }
+  }
+  function chartAutoMenuHtml() {
+    const { i, n } = chartAutoPos();
+    const left = i < 0 ? 0 : Math.max(0, n - 1 - i);
+    const playing = chartAuto.on && !chartAuto.paused, paused = chartAuto.on && chartAuto.paused;
+    const label = playing ? '❚❚ Pause' : paused ? '▶ Continue' : '▶ Play';
+    const at = paused && chartAutoLeftAt();
+    const atI = at ? (reel.list || []).findIndex(d => d.instrument_name === at) : -1;
+    const note = playing ? `Playing · ${left} to go`
+      : paused && at && at !== chartFullName ? `Paused at ${at} (${atI + 1}/${n})`
+      : paused ? `Paused · ${left} to go`
+      : left ? `Plays the next ${left} chart${left === 1 ? '' : 's'} of this list` : 'Plays this list from 1';
+    const speeds = CHART_AUTO_SPEEDS.map(ms => {
+      const on = ms === chartAuto.ms;
+      return `<button class="cf-auto-speed${on ? ' on' : ''}" data-act="chart-auto-speed" data-ms="${ms}" role="menuitemradio" aria-checked="${on}">${ms / 1000}s</button>`;
+    }).join('');
+    return `<div class="cf-auto-menu" role="menu" aria-label="Auto-play">`
+      + `<div class="cf-auto-note">${escText(note)}</div>`
+      + `<button class="cf-auto-play${playing ? ' on' : ''}" data-act="chart-auto-play" role="menuitem">${label}</button>`
+      + `<div class="cf-auto-speeds" role="group" aria-label="Seconds per chart">${speeds}</div>`
+      + (chartAuto.on ? `<button class="cf-auto-stop" data-act="chart-auto-stop" role="menuitem">Stop</button>` : '')
+      + `</div>`;
+  }
+  // Puts the counter's state and the menu on the screen as they are now.
+  function chartAutoSync() {
+    const el = chartFullEl();
+    if (!el) return;
+    el.querySelectorAll('.cf-auto-menu').forEach(m => m.remove());
+    const pos = el.querySelector('.cf-pos');
+    if (!pos) return;
+    pos.classList.toggle('is-playing', chartAuto.on && !chartAuto.paused);
+    pos.classList.toggle('is-paused', chartAuto.on && chartAuto.paused);
+    pos.style.setProperty('--cf-auto-ms', chartAuto.ms + 'ms');
+    pos.setAttribute('aria-expanded', String(chartAuto.menu));
+    const foot = pos.closest('.reel-foot');
+    if (chartAuto.menu && foot) foot.insertAdjacentHTML('beforeend', chartAutoMenuHtml());
+  }
+
   // Step to the neighbouring chart WITHOUT leaving full screen (2026-09-11).
   // The reel behind steps with it, so closing lands on the chart you were last
   // looking at rather than the one you opened.
@@ -10684,9 +10858,20 @@
     // reads as broken rather than as "you have reached the end".
     const j = (i + dir + n) % n;
     if (j === i) return;                     // a one-chart list has nowhere to go
-    const next = list[j];
+    chartFullGoTo(list[j], dir);
+  }
+  // Full screen on another chart of the list, the reel behind on its card.
+  function chartFullGo(name) {
+    const list = reel.list || [];
+    const i = list.findIndex(d => d.instrument_name === chartFullName);
+    const j = list.findIndex(d => d.instrument_name === name);
+    if (j < 0 || j === i) return;
+    chartFullGoTo(list[j], j > i ? 1 : -1);
+  }
+  function chartFullGoTo(next, dir) {
     if (desktopChart.active) { desktopChartSelect(next.instrument_name); return; }
-    chartFullClose();
+    chartFullStepping = true;
+    try { chartFullClose(); } finally { chartFullStepping = false; }
     // Put the reel behind on the SAME card. reelStepBy() scrolls exactly one
     // screen, which is right for a neighbour and wrong for a wrap: stepping
     // back from chart 1 would scroll off the top and leave the reel on the
@@ -10705,6 +10890,9 @@
   }
 
   function chartFullClose() {
+    // Leaving full screen pauses auto-play (chartAutoLeave); stepping to the
+    // next chart (which closes and reopens) does not.
+    if (!chartFullStepping) chartAutoLeave();
     const el = chartFullEl();
     // Put the reader's own price scale back — the one full screen imposed was
     // ours, not theirs, and leaving it would zoom the card out on return.
@@ -10773,7 +10961,8 @@
     const fullRow = full && full !== name ? `<div class="cf-fullname" title="${escText(full)}">${escText(full)}</div>` : '';
     const steps = pos < 0 ? '' :
       `<button class="cf-step" data-act="chart-full-step" data-dir="-1" aria-label="Previous chart">‹</button>`
-      + `<span class="cf-pos">${pos + 1}/${list.length}</span>`
+      // The counter opens the auto-play menu (chartAuto, 2026-11-17).
+      + `<button class="cf-pos" data-act="chart-auto-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Chart ${pos + 1} of ${list.length}: auto-play">${pos + 1}/${list.length}</button>`
       + `<button class="cf-step" data-act="chart-full-step" data-dir="1" aria-label="Next chart">›</button>`;
     return `
       <header class="cf-head">
@@ -11740,6 +11929,58 @@
     };
   }
 
+  // MAGNIFIER ON LONG PRESS (user, 2026-11-17: "add a magnifying glass when
+  // I long press on the chart that moves with my finger"). Full screen only:
+  // a card's vertical drag belongs to the feed's scroll (touch-action pan-y),
+  // which would cancel the press as soon as the finger moved up or down.
+  // Holding still for REEL_LOUPE_MS opens a round lens above the finger
+  // showing the chart under it REEL_LOUPE_ZOOM times larger, with the price
+  // and bar date under the fingertip. It follows the finger until release;
+  // the chart does not pan meanwhile. The lens is a copy of the chart's SVG
+  // made once per press, inside the chart box so the chart's styles apply.
+  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 70, REEL_LOUPE_ZOOM = 2.2, REEL_LOUPE_GAP = 34;
+  function reelLoupeEnd(host) { host.querySelectorAll(':scope > .reel-loupe').forEach(l => l.remove()); }
+  function reelLoupeMove(host, cx, cy) {
+    const svg = host.querySelector('svg.reel-svg'), ctx = host._reelCtx;
+    if (!svg || !ctx) return;
+    let lens = host.querySelector(':scope > .reel-loupe');
+    if (!lens) {
+      lens = document.createElement('div');
+      lens.className = 'reel-loupe';
+      lens.setAttribute('aria-hidden', 'true');
+      const copy = svg.cloneNode(true);
+      copy.removeAttribute('id');
+      copy.style.width = '100%'; copy.style.height = '100%';
+      lens.innerHTML = '<div class="reel-loupe-glass"><div class="reel-loupe-inner"></div></div><div class="reel-loupe-read"></div>';
+      lens.querySelector('.reel-loupe-inner').appendChild(copy);
+      host.appendChild(lens);
+    }
+    const hr = host.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+    if (!sr.width || !sr.height) return;
+    const Z = REEL_LOUPE_ZOOM, R = REEL_LOUPE_R;
+    const px = Math.max(0, Math.min(sr.width, cx - sr.left)), py = Math.max(0, Math.min(sr.height, cy - sr.top));
+    const inner = lens.querySelector('.reel-loupe-inner');
+    inner.style.width = (sr.width * Z) + 'px';
+    inner.style.height = (sr.height * Z) + 'px';
+    inner.style.transform = `translate(${(R - px * Z).toFixed(1)}px, ${(R - py * Z).toFixed(1)}px)`;
+    // Above the finger, so the finger never covers it; below it near the top.
+    const fx = cx - hr.left, fy = cy - hr.top;
+    let cyL = fy - R - REEL_LOUPE_GAP;
+    if (cyL - R < 0) cyL = fy + R + REEL_LOUPE_GAP;
+    const left = Math.max(0, Math.min(hr.width - 2 * R, fx - R));
+    lens.style.transform = `translate(${left.toFixed(1)}px, ${(cyL - R).toFixed(1)}px)`;
+    // Price and bar date under the fingertip.
+    const { L, sc, bw } = ctx;
+    const xv = px / sr.width * L.W, yv = py / sr.height * L.H;
+    const parts = [];
+    if (yv >= L.py0 && yv <= L.py1) { const p = sc.inv(yv); if (isFinite(p)) parts.push(formatPrice(p)); }
+    const n = ctx.b && ctx.b.c ? ctx.b.c.length : 0, i = Math.round((xv - L.x0 - bw / 2) / bw);
+    if (bw > 0 && i >= 0 && i < n) { const d = reelDateForBarIndex(ctx.b, i); if (d) parts.push(String(d).replace('T', ' ').slice(0, 16)); }
+    const read = lens.querySelector('.reel-loupe-read');
+    read.textContent = parts.join(' · ');
+    read.hidden = !parts.length;
+  }
+
   function reelWireChart(host) {
     if (host.dataset.gestureWired) return;
     host.dataset.gestureWired = '1';
@@ -11756,6 +11997,8 @@
     // pinch. Keyed by pointerId; the values are updated in place on move.
     const pts = new Map();
     let pinch = null;        // spreads + windows captured when the 2nd finger landed
+    let holdTimer = 0;       // long press -> magnifier (reelLoupeMove)
+    const holdCancel = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; } };
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
     // page is visible, but a backgrounded or hidden tab never runs it — and a
@@ -11777,7 +12020,8 @@
       // Second finger down: whatever this was becomes a pinch. A channel
       // handle is the exception — that drag is a deliberate edit and a stray
       // second touch must not turn it into a zoom.
-      if (pts.size === 2 && mode !== 'handle') {
+      holdCancel();
+      if (pts.size === 2 && mode !== 'handle' && mode !== 'loupe') {
         const pair = [...pts.values()];
         mode  = 'pinch';
         pinch = {
@@ -11862,6 +12106,22 @@
       tapPick = (_di !== undefined && _di !== '' && !isNaN(+_di))
         ? { di: +_di, x: ev.clientX, y: ev.clientY, t: Date.now() } : null;
 
+      // A finger held still opens the magnifier (full screen only; see
+      // reelLoupeMove). A handle grab below claims the gesture first.
+      if (host.closest('#chartFull') && !(reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h)) {
+        const hp = pid;
+        holdTimer = setTimeout(() => {
+          holdTimer = 0;
+          if (pid !== hp || mode !== null || pts.size !== 1) return;
+          mode = 'loupe';
+          tapPick = null;
+          try { host.setPointerCapture(pid); } catch (_) {}
+          host.classList.add('is-loupe');
+          const at = pts.get(pid);
+          if (at) reelLoupeMove(host, at.x, at.y);
+        }, REEL_LOUPE_MS);
+      }
+
       // A handle grab wins immediately — no axis lock, because dragging a
       // handle straight up is a legitimate gesture and must not scroll away.
       if (reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h) {
@@ -11905,6 +12165,9 @@
 
       if (ev.pointerId !== pid) return;
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
+
+      if (holdTimer && Math.hypot(dx, dy) > TAP_SLOP_PX) holdCancel();
+      if (mode === 'loupe') { ev.preventDefault(); reelLoupeMove(host, ev.clientX, ev.clientY); return; }
 
       if (mode === 'yzoom') {
         ev.preventDefault();
@@ -12126,6 +12389,7 @@
 
     const finish = ev => {
       pts.delete(ev.pointerId);
+      if (ev.pointerId === pid) holdCancel();
 
       if (mode === 'pinch') {
         tapPick = null;
@@ -12173,11 +12437,12 @@
       // otherwise open the instrument modal every time you panned. A grab on
       // the price scale that never moved is NOT suppressed — it was a tap, and
       // taps on the chart open the instrument.
-      if (mode === 'pan' || mode === 'handle' ||
+      if (mode === 'pan' || mode === 'handle' || mode === 'loupe' ||
           ((mode === 'yzoom' || mode === 'tzoom') && grab && grab.moved)) {
         reel.lastGestureAt = Date.now();
       }
-      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching');
+      if (mode === 'loupe') reelLoupeEnd(host);
+      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching', 'is-loupe');
       try { host.releasePointerCapture(pid); } catch (_) {}
       pid = null; mode = null; handle = null; chIdx = -1; grab = null; moveStart = null;
     };
