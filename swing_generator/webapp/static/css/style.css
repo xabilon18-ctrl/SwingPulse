@@ -10204,14 +10204,14 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .cf-auto-stop { padding: 8px 12px; font-size: .82rem; font-weight: 600; color: var(--text-secondary); }
 @media (prefers-reduced-motion: reduce) { .cf-pos.is-playing::after { animation: none; transform: none; } }
 
-/* ── Magnifier on long press (user, 2026-11-17; 190px, was 140) ── a round lens above the
+/* ── Magnifier on long press (user, 2026-11-17; 240px at 1.8x, was 140 then 190 at 2.2x) ── a round lens above the
    finger with the chart under it enlarged (reelLoupeMove). No long-press
    callout or text selection on the full-screen chart, which would otherwise
    pop up under the held finger on iOS. */
 #chartFull .reel-chart { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.reel-loupe { position: absolute; left: 0; top: 0; z-index: 9; width: 190px; pointer-events: none; will-change: transform; }
+.reel-loupe { position: absolute; left: 0; top: 0; z-index: 9; width: 240px; pointer-events: none; will-change: transform; }
 .reel-loupe-glass {
-  position: relative; width: 190px; height: 190px; border-radius: 50%; overflow: hidden;
+  position: relative; width: 240px; height: 240px; border-radius: 50%; overflow: hidden;
   background: #fff; border: 2px solid #111; box-shadow: 0 6px 20px rgba(0,0,0,.35);
 }
 .reel-loupe-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -10223,8 +10223,22 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-loupe-glass::before { width: 18px; height: 1.5px; margin: -0.75px 0 0 -9px; }
 .reel-loupe-glass::after  { width: 1.5px; height: 18px; margin: -9px 0 0 -0.75px; }
 .reel-loupe-read {
-  position: absolute; left: 50%; top: 196px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 246px; transform: translateX(-50%);
   padding: 3px 8px; border-radius: 999px; white-space: nowrap;
   background: rgba(17,17,17,.85); color: #fff; font-size: 12px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── No text selection on the chart screen (user, 2026-11-17, a screenshot
+   of iOS "Copy | Look Up | Translate" over the ‹ chart button: "This can't
+   keep happening"). Held or double-tapped controls were being read as text
+   to select. The whole full-screen chart, its header, tool bar and footer,
+   and every button in the app, take no selection and no iOS long-press
+   callout; buttons also take no double-tap zoom (touch-action manipulation),
+   which made fast repeated ‹ › taps feel sticky. Fields you type into keep
+   normal selection. */
+#chartFull, #chartFull *, button, [role="button"], .reel-foot, .reel-foot * {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#chartFull :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+button, [role="button"] { touch-action: manipulation; }

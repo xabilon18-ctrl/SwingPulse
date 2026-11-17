@@ -23,11 +23,11 @@ module.exports = async function checkChartLoupe(page0, live = false) {
   await page.waitForTimeout(700);
   await lens.waitFor({ timeout: 2000 });
   const at0 = await lens.boundingBox();
-  assert.ok(at0.width >= 190, 'the lens is 190px across: ' + at0.width);
+  assert.ok(at0.width >= 240, 'the lens is 240px across: ' + at0.width);
   assert.ok(at0.y + at0.height < y, 'the lens sits above the finger: ' + JSON.stringify({ lens: at0, y }));
   assert.match(await lens.locator('.reel-loupe-read').innerText(), /\d/, 'it reads the price under the finger');
   assert.equal(await lens.locator('svg').count(), 1, 'it shows a copy of the chart');
-  // Right and down: a 190px lens clamped at the chart's left edge would not
+  // Right and down: a 240px lens clamped at the chart's left edge would not
   // follow a move to the left from here.
   await page.mouse.move(x + 60, y + 40, { steps: 6 });
   const at1 = await lens.boundingBox();
