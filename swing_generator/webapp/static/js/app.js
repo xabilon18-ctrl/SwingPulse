@@ -11866,6 +11866,58 @@
     };
   }
 
+  // MAGNIFIER ON LONG PRESS (user, 2026-11-17: "add a magnifying glass when
+  // I long press on the chart that moves with my finger"). Full screen only:
+  // a card's vertical drag belongs to the feed's scroll (touch-action pan-y),
+  // which would cancel the press as soon as the finger moved up or down.
+  // Holding still for REEL_LOUPE_MS opens a round lens above the finger
+  // showing the chart under it REEL_LOUPE_ZOOM times larger, with the price
+  // and bar date under the fingertip. It follows the finger until release;
+  // the chart does not pan meanwhile. The lens is a copy of the chart's SVG
+  // made once per press, inside the chart box so the chart's styles apply.
+  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 70, REEL_LOUPE_ZOOM = 2.2, REEL_LOUPE_GAP = 34;
+  function reelLoupeEnd(host) { host.querySelectorAll(':scope > .reel-loupe').forEach(l => l.remove()); }
+  function reelLoupeMove(host, cx, cy) {
+    const svg = host.querySelector('svg.reel-svg'), ctx = host._reelCtx;
+    if (!svg || !ctx) return;
+    let lens = host.querySelector(':scope > .reel-loupe');
+    if (!lens) {
+      lens = document.createElement('div');
+      lens.className = 'reel-loupe';
+      lens.setAttribute('aria-hidden', 'true');
+      const copy = svg.cloneNode(true);
+      copy.removeAttribute('id');
+      copy.style.width = '100%'; copy.style.height = '100%';
+      lens.innerHTML = '<div class="reel-loupe-glass"><div class="reel-loupe-inner"></div></div><div class="reel-loupe-read"></div>';
+      lens.querySelector('.reel-loupe-inner').appendChild(copy);
+      host.appendChild(lens);
+    }
+    const hr = host.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+    if (!sr.width || !sr.height) return;
+    const Z = REEL_LOUPE_ZOOM, R = REEL_LOUPE_R;
+    const px = Math.max(0, Math.min(sr.width, cx - sr.left)), py = Math.max(0, Math.min(sr.height, cy - sr.top));
+    const inner = lens.querySelector('.reel-loupe-inner');
+    inner.style.width = (sr.width * Z) + 'px';
+    inner.style.height = (sr.height * Z) + 'px';
+    inner.style.transform = `translate(${(R - px * Z).toFixed(1)}px, ${(R - py * Z).toFixed(1)}px)`;
+    // Above the finger, so the finger never covers it; below it near the top.
+    const fx = cx - hr.left, fy = cy - hr.top;
+    let cyL = fy - R - REEL_LOUPE_GAP;
+    if (cyL - R < 0) cyL = fy + R + REEL_LOUPE_GAP;
+    const left = Math.max(0, Math.min(hr.width - 2 * R, fx - R));
+    lens.style.transform = `translate(${left.toFixed(1)}px, ${(cyL - R).toFixed(1)}px)`;
+    // Price and bar date under the fingertip.
+    const { L, sc, bw } = ctx;
+    const xv = px / sr.width * L.W, yv = py / sr.height * L.H;
+    const parts = [];
+    if (yv >= L.py0 && yv <= L.py1) { const p = sc.inv(yv); if (isFinite(p)) parts.push(formatPrice(p)); }
+    const n = ctx.b && ctx.b.c ? ctx.b.c.length : 0, i = Math.round((xv - L.x0 - bw / 2) / bw);
+    if (bw > 0 && i >= 0 && i < n) { const d = reelDateForBarIndex(ctx.b, i); if (d) parts.push(String(d).replace('T', ' ').slice(0, 16)); }
+    const read = lens.querySelector('.reel-loupe-read');
+    read.textContent = parts.join(' · ');
+    read.hidden = !parts.length;
+  }
+
   function reelWireChart(host) {
     if (host.dataset.gestureWired) return;
     host.dataset.gestureWired = '1';
@@ -11882,6 +11934,8 @@
     // pinch. Keyed by pointerId; the values are updated in place on move.
     const pts = new Map();
     let pinch = null;        // spreads + windows captured when the 2nd finger landed
+    let holdTimer = 0;       // long press -> magnifier (reelLoupeMove)
+    const holdCancel = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; } };
 
     // Coalesce redraws to one per frame. rAF is the right scheduler while the
     // page is visible, but a backgrounded or hidden tab never runs it — and a
@@ -11903,7 +11957,8 @@
       // Second finger down: whatever this was becomes a pinch. A channel
       // handle is the exception — that drag is a deliberate edit and a stray
       // second touch must not turn it into a zoom.
-      if (pts.size === 2 && mode !== 'handle') {
+      holdCancel();
+      if (pts.size === 2 && mode !== 'handle' && mode !== 'loupe') {
         const pair = [...pts.values()];
         mode  = 'pinch';
         pinch = {
@@ -11988,6 +12043,22 @@
       tapPick = (_di !== undefined && _di !== '' && !isNaN(+_di))
         ? { di: +_di, x: ev.clientX, y: ev.clientY, t: Date.now() } : null;
 
+      // A finger held still opens the magnifier (full screen only; see
+      // reelLoupeMove). A handle grab below claims the gesture first.
+      if (host.closest('#chartFull') && !(reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h)) {
+        const hp = pid;
+        holdTimer = setTimeout(() => {
+          holdTimer = 0;
+          if (pid !== hp || mode !== null || pts.size !== 1) return;
+          mode = 'loupe';
+          tapPick = null;
+          try { host.setPointerCapture(pid); } catch (_) {}
+          host.classList.add('is-loupe');
+          const at = pts.get(pid);
+          if (at) reelLoupeMove(host, at.x, at.y);
+        }, REEL_LOUPE_MS);
+      }
+
       // A handle grab wins immediately — no axis lock, because dragging a
       // handle straight up is a legitimate gesture and must not scroll away.
       if (reel.editing === ctx.name && ev.target && ev.target.dataset && ev.target.dataset.h) {
@@ -12031,6 +12102,9 @@
 
       if (ev.pointerId !== pid) return;
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
+
+      if (holdTimer && Math.hypot(dx, dy) > TAP_SLOP_PX) holdCancel();
+      if (mode === 'loupe') { ev.preventDefault(); reelLoupeMove(host, ev.clientX, ev.clientY); return; }
 
       if (mode === 'yzoom') {
         ev.preventDefault();
@@ -12252,6 +12326,7 @@
 
     const finish = ev => {
       pts.delete(ev.pointerId);
+      if (ev.pointerId === pid) holdCancel();
 
       if (mode === 'pinch') {
         tapPick = null;
@@ -12299,11 +12374,12 @@
       // otherwise open the instrument modal every time you panned. A grab on
       // the price scale that never moved is NOT suppressed — it was a tap, and
       // taps on the chart open the instrument.
-      if (mode === 'pan' || mode === 'handle' ||
+      if (mode === 'pan' || mode === 'handle' || mode === 'loupe' ||
           ((mode === 'yzoom' || mode === 'tzoom') && grab && grab.moved)) {
         reel.lastGestureAt = Date.now();
       }
-      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching');
+      if (mode === 'loupe') reelLoupeEnd(host);
+      host.classList.remove('is-yzooming', 'is-tzooming', 'is-panning', 'is-pinching', 'is-loupe');
       try { host.releasePointerCapture(pid); } catch (_) {}
       pid = null; mode = null; handle = null; chIdx = -1; grab = null; moveStart = null;
     };

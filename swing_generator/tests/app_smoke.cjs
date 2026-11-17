@@ -389,6 +389,7 @@ let debugPage;
   if (!live) await require('./dotted_lines_checks.cjs')(page);
   if (!live) await require('./chart_tf_step_checks.cjs')(page);
   await require('./chart_autoplay_checks.cjs')(page, live);
+  await require('./chart_loupe_checks.cjs')(page, live);
   if (!live) await require('./ladder_monthly_sub_checks.cjs')(page);
   if (!live) await require('./ladder_cleanup_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));

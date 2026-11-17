@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-17 (15:40 SAST) MAGNIFIER ON LONG PRESS. app.js v649, style.css
+v441 (same release as auto-play below). User: "add a magnifying glass when i
+long press on the chart that moves with my finger".
+- Full screen only (`reelWireChart`, mode `'loupe'`): a finger held within
+  TAP_SLOP_PX for `REEL_LOUPE_MS` (450ms) opens `.reel-loupe`, a 140px round
+  lens 34px above the finger (below it near the top), showing a copy of the
+  chart SVG at `REEL_LOUPE_ZOOM` (2.2x) with a red cross-hair, and the price
+  and bar date under the fingertip. It follows the finger; the chart does not
+  pan; release removes it and suppresses the click. Cards are left out: their
+  vertical drag belongs to the feed scroll (touch-action pan-y).
+- A handle grab in Draw mode and a second finger (pinch) never open it.
+- `#chartFull .reel-chart` turns off the iOS long-press callout and selection.
+- Test: `tests/chart_loupe_checks.cjs` (in app_smoke).
+
 2026-11-17 (15:35 SAST) CHART AUTO-PLAY FROM THE COUNTER. app.js v649,
 style.css v441. User, with a screenshot of the full-screen ‹ 31/37 › counter:
 "press in the middle ... a menu pop that allows me to press play and have the

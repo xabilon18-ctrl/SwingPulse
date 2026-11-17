@@ -10203,3 +10203,28 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .cf-auto-speed.on { color: var(--accent); background: var(--bg-hover); border-color: var(--accent); }
 .cf-auto-stop { padding: 8px 12px; font-size: .82rem; font-weight: 600; color: var(--text-secondary); }
 @media (prefers-reduced-motion: reduce) { .cf-pos.is-playing::after { animation: none; transform: none; } }
+
+/* ── Magnifier on long press (user, 2026-11-17) ── a round lens above the
+   finger with the chart under it enlarged (reelLoupeMove). No long-press
+   callout or text selection on the full-screen chart, which would otherwise
+   pop up under the held finger on iOS. */
+#chartFull .reel-chart { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.reel-loupe { position: absolute; left: 0; top: 0; z-index: 9; width: 140px; pointer-events: none; will-change: transform; }
+.reel-loupe-glass {
+  position: relative; width: 140px; height: 140px; border-radius: 50%; overflow: hidden;
+  background: #fff; border: 2px solid #111; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+.reel-loupe-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.reel-loupe-inner svg { display: block; }
+/* Cross-hair: the exact point under the fingertip. */
+.reel-loupe-glass::before, .reel-loupe-glass::after {
+  content: ''; position: absolute; left: 50%; top: 50%; background: rgba(220,38,38,.85); z-index: 1;
+}
+.reel-loupe-glass::before { width: 18px; height: 1.5px; margin: -0.75px 0 0 -9px; }
+.reel-loupe-glass::after  { width: 1.5px; height: 18px; margin: -9px 0 0 -0.75px; }
+.reel-loupe-read {
+  position: absolute; left: 50%; top: 146px; transform: translateX(-50%);
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+  background: rgba(17,17,17,.85); color: #fff; font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

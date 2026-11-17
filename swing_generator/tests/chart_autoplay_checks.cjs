@@ -33,7 +33,7 @@ async function fixturePage(page) {
   return p;
 }
 
-module.exports = async function checkChartAutoplay(page0, live = false) {
+async function checkChartAutoplay(page0, live = false) {
   const page = live ? page0 : await fixturePage(page0);
   // The smoke page runs on an installed clock; this one may not.
   const wait = ms => page.waitForTimeout(ms);
@@ -108,3 +108,5 @@ module.exports = async function checkChartAutoplay(page0, live = false) {
   if (!live) await page.close();
   console.log('PASS: chart auto-play from the counter (play, speeds, tap to pause, continue, stop, ends on close)');
 };
+module.exports = checkChartAutoplay;
+module.exports.fixturePage = fixturePage;
