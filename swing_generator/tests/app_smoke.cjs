@@ -139,24 +139,30 @@ let debugPage;
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
     await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
-    // "Same frame on every chart" (2026-11-16): one switch per timeframe in
-    // the same menu. Taken from the opening frame it changes nothing on
-    // screen; a Chart range switches it off again.
+    // "Same frame" (2026-11-16; per market since 2026-11-21): one switch per
+    // timeframe and market in the same menu. It never changes the chart it is
+    // switched on from; a Chart range switches it off again.
     const lockOn = () => gridMenu(m => m.locator('[data-act="frame-lock"]').getAttribute('aria-checked'));
     await gridMenu(m => m.locator('[data-act="frame-lock"]').click());
     assert.equal(await lockOn(), 'true', 'Monthly: same frame on every chart is on');
-    assert.equal(await firstShown(), shownBars.M, 'the frame taken is the one that was on screen');
+    assert.equal(await firstShown(), shownBars.M, 'the chart it is switched on from does not move');
+    const storedFrame = () => page.evaluate(() => {
+      const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay'));
+      return ((JSON.parse(localStorage.getItem(k) || '{}').frame || {}).M || {}).stocks || null;
+    });
+    assert.equal((await storedFrame()).name, 'TEST', 'kept as the Stocks frame, taken on this chart');
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while the frame switch is on');
     await toTf('D');
     assert.equal(await lockOn(), 'false', 'Daily has its own switch');
     await toTf('M');
     assert.equal(await lockOn(), 'true', 'Monthly keeps its switch');
-    // Save under the switch (2026-11-16, "it's not saving"): the dates on
-    // screen become the frame, so the chart comes back on what was saved.
+    // Save on the chart the frame came from (2026-11-21): its own view, under
+    // its own key, and the frame for the other Stocks charts moves with it.
     {
       const mHost = page.locator('#chartReel .reel-chart').first();
       const win = () => mHost.evaluate(h => h._reelCtx.win);
       const opened = await win();
+      const before = await storedFrame();
       let grip = null;
       for (let i = 0; i < 40 && !grip; i++) { grip = await mHost.locator('.reel-tgrip').boundingBox(); if (!grip) await page.waitForTimeout(50); }
       const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
@@ -169,9 +175,11 @@ let debugPage;
       assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save lights up under the switch');
       await toTf('D');
       await toTf('M');
-      assert.equal(await win(), framed, 'under the switch a saved chart reopens on the saved dates');
-      assert.ok(Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'))).some(k => k.endsWith('|M|F')),
-        'kept under its own key, apart from the views saved before the switch');
+      assert.equal(await win(), framed, 'the saved chart reopens on its saved view');
+      const keys = Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}')));
+      assert.ok(keys.some(k => /\|M(\|L)?$/.test(k)) && !keys.some(k => k.endsWith('|F')), 'saved under its own key: ' + keys);
+      const after = await storedFrame();
+      assert.ok(after.y1 - after.y0 !== before.y1 - before.y0, 'the frame for the other Stocks charts follows the save');
       await save.click();   // forget it again
       assert.equal(await save.getAttribute('aria-pressed'), 'false');
       // Framed from BEFORE the first bar (2026-11-16: FTSE China A50 Monthly

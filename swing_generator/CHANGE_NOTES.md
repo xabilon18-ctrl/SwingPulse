@@ -7,6 +7,33 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (00:30 SAST) "SAME FRAME" IS PER MARKET AND LEAVES THE SOURCE
+CHART ALONE (user: "if i open an instrument and i analyze it and save it's
+frame view, then once I switch it on then the saved view must then apply to
+that sector or other instruments but not changing the one I am working on but
+other similar to it"). app.js v654. Asked which group and what happens to
+charts with their own saved view, they chose "Same market" and "Keep their
+own". Replaces the 2026-11-16 design below, which framed EVERY chart on the
+timeframe, all markets, paused every saved view (the one being worked on
+included) and let Save on any chart re-frame all of them.
+- One switch per timeframe AND market (`reelMarketScope`: Stocks, Indices,
+  Energy, Commodities, Crypto, Currencies, Other), stored as
+  `tfOverlay.frame[tf][scope]` (`reelFrames`, `reelFrameOf`). The old
+  one-per-timeframe shape is read as the frame of the market it was taken on.
+- Switching it on takes the chart's SAVED VIEW dates when it has one
+  (`reelFrameFromView`), else the dates on screen, and keeps that chart where
+  it is (`reelResetPanExcept`).
+- `reelFrameLock(name)` frames a chart only if it is in that market, is not
+  the chart the frame came from, and has no saved view of its own.
+- Save is always the chart's own view (`NAME|TF`); the `|F` key is no longer
+  written or read. Saving the source chart again moves the frame for the
+  others. `|F` views already saved are left in the data, unread.
+- A chart no longer reads another market's time grid under the switch
+  (`reelGridScope` is the chart's own market).
+- Menu line: "Same frame on other <Market> <TF> charts".
+- Checks: stock_view_test.cjs (per-market rules, old shape), time_grid_test.cjs,
+  app_smoke.cjs (source chart unchanged, own key, frame follows its save).
+
 2026-11-20 (14:57 SAST) NEW LISTINGS NO LONGER FAIL THE HEALTH CHECK. User:
 "Ran failed". The 14:05 and 14:35 SAST publish runs uploaded fine but went
 red on `health_check.py`: "1 instrument(s) missing from the run —

@@ -119,6 +119,40 @@ for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd
   const vo = ctx.reelStockView(bd, market);
   assert.ok(nearMid(bd.t[bd.t.length - (vo.bars - vo.future)], '2023-07-02'), market + ' own frame back');
 }
+// "Same frame" per MARKET (2026-11-21, user: the saved view "must then apply
+// to that sector or other instruments but not changing the one I am working
+// on"; they chose the market as the group and "keep their own"): a frame
+// reaches the other charts of its market on its timeframe, never the chart
+// it came from, a chart with its own saved view, another market or another
+// timeframe. The 2026-11-16 shape (one frame per timeframe) is read as the
+// frame of the market it was taken on.
+{
+  const line = name => { const a = source.indexOf(`  const ${name} = `); return source.slice(a, source.indexOf(';\n', a) + 2); };
+  const fx = vm.createContext({
+    timeframe: 'D', tfOverlay: {}, savedViews: {},
+    GRID_SCOPE_LABELS: { stocks: 1, commodities: 1, crypto: 1, other: 1 },
+    instrumentByName: n => ({ GOLD: 'commodities', SILVER: 'commodities', WTI: 'commodities', AAPL: 'stocks', BTC: 'crypto' }[n]),
+    reelMarketScope: scope => scope || 'other',
+    viewKey: (n, tf) => n + '|' + (tf || fx.timeframe),
+  });
+  vm.runInContext(line('frameOk') + fn('reelFrames') + fn('reelFrameOf') + line('reelScopeOfName') + fn('reelFrameLock'), fx);
+  // Legacy shape: one frame for the whole timeframe, taken on GOLD.
+  fx.tfOverlay.frame = { D: { y0: 2023.5, y1: 2030, scope: 'commodities', name: 'GOLD' } };
+  assert.equal(fx.reelFrameLock('SILVER').y0, 2023.5, 'another commodity takes the frame');
+  assert.equal(fx.reelFrameLock('GOLD'), null, 'the chart it came from is left alone');
+  assert.equal(fx.reelFrameLock('AAPL'), null, 'a stock is not framed by a commodity');
+  assert.equal(fx.reelFrameLock('BTC'), null, 'nor is crypto');
+  assert.equal(fx.reelFrameLock('SILVER', 'M'), null, 'nor another timeframe');
+  fx.savedViews['WTI|D'] = { v: 2 };
+  assert.equal(fx.reelFrameLock('WTI'), null, 'a chart with its own saved view keeps it');
+  // A second market's frame alongside the first.
+  fx.tfOverlay.frame.D.stocks = { y0: 2020, y1: 2026, scope: 'stocks', name: 'AAPL' };
+  assert.equal(fx.reelFrameLock('SILVER').y0, 2023.5);
+  assert.equal(fx.reelFrameLock('AAPL'), null);
+  assert.equal(fx.reelFrameOf('stocks').y0, 2020);
+  assert.equal(fx.reelFrameLock(''), null);
+}
+console.log('same frame per market: ok');
 // Only these timeframes, only without a Range pill.
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);
