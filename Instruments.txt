@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (852)
+  GANN SCANNER — FULL INSTRUMENT LIST (853)
   Generated: 11 Jul 2026   |   Currency restored: 25 Aug 2026 (57 pairs, #742-798)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -878,12 +878,13 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 678  | HCA           | HCA           | US500         | Healthcare                | Medical Care Facilities
 
 ═══════════════════════════════════════════════════════════════════════════════
-  ARTIFICIAL INTELLIGENCE — PURE PLAYS (4)
+  ARTIFICIAL INTELLIGENCE — PURE PLAYS (5)
 ═══════════════════════════════════════════════════════════════════════════════
 679  | AI            | C3AI          | AI Theme      | Technology                | Software - Infrastructure
 680  | SOUN          | SOUN          | AI Theme      | Technology                | Software - Application
 681  | BBAI          | BBAI          | AI Theme      | Technology                | Information Technology Services
 682  | CBRS          | CEREBRAS      | AI Theme      | Technology                | Semiconductors
+859  | ANT           | ANTHROPIC     | AI Theme      | Technology                | Software - Infrastructure
 
 ═══════════════════════════════════════════════════════════════════════════════
   BLOCKCHAIN & CRYPTO EQUITY (4)
@@ -1181,7 +1182,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   Currency other crosses .....  10  (restored 2026-08-25)
   Currency Scandinavian ......   5  (restored 2026-08-25)
   Currency Exotic ............  24  (restored 2026-08-25 — EMEA 12 / Americas 4 / Asia 8)
-  AI Theme ................   5  (C3AI, SOUN, BBAI, CEREBRAS, CRWV)
+  AI Theme ................   6  (C3AI, SOUN, BBAI, CEREBRAS, CRWV, ANTHROPIC — Nasdaq IPO 2026-11-19)
   Blockchain ..............  15  (COIN, MARA, RIOT, MSTR, CLSK, HUT, WULF, IREN, HOOD,
                                  CIRCLE, GALAXY, BULLISH, GEMINI, FIGURE, ETORO — 2026-11-04)
   Space ...................   8  (RKLB, ASTS, LUNR, IRDM, PLANET, GSAT, VSAT, RDW)
@@ -1192,5 +1193,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 852  (load_instruments() count, 2026-11-13)
+  TOTAL .................. 853  (load_instruments() count, 2026-11-20)
 ═══════════════════════════════════════════════════════════════════════════════

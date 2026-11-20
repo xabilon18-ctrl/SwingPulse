@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (13:14 SAST) ANTHROPIC ADDED (ANT). User: "Add anthropic to the list".
+`../Instruments.txt` #859 `ANT | ANTHROPIC | AI Theme | Technology |
+Software - Infrastructure`, in the AI pure plays beside CEREBRAS (853
+instruments). Anthropic listed on the Nasdaq on 2026-11-19 (IPO priced
+2026-11-18). With one or two daily bars it is skipped by
+`data_fetcher._fetch_all_parallel` until it has MIN_ROWS_REQUIRED (10) daily
+bars, about 3 Dec 2026, then lists with price only; MA50 and signals follow
+at 50 bars, the 1H chart at 200 hourly bars, as for CEREBRAS. Not fetched
+from the build machine (Yahoo is not reachable there).
+
 2026-11-20 (13:07 SAST) 2H AND 4H REMOVED FOR GOOD. app.js v653, style.css v446,
 chart-preferences.js v14, grid-geometry.js v19. User, the same day they went
 live (12:35 SAST): "2 and 4h will never be used ever again", then "Remove now".
