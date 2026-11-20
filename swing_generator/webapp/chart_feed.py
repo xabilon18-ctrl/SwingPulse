@@ -88,10 +88,6 @@ CARRY_MONTHS_1H = 6
 # ~1,000 on a US stock (12 vs 4 bars a day).
 CARRY_MONTHS_2H = 12
 
-# The 4H bundle (back 2026-11-20, chart only): everything the ~2-year hourly
-# cache holds past MA500's warm-up, up to BARS_BY_TF['4H'] — as the 4H chart
-# carried until it was removed on 2026-11-07.
-
 # The 10m bundle (back 2026-10-03, chart only, week grid): two months, so the
 # month the chart opens on has a month of panning behind it.
 CARRY_MONTHS_10M = 2
@@ -153,12 +149,8 @@ BARS_BY_TF = {
     'M':  1200,   # 100 years — in practice all of it
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
     '1H': 4500,
-    # 2H (2026-10-01, back 2026-11-20): the ceiling on CARRY_MONTHS_2H of a
-    # 24/7 instrument.
+    # 2H (2026-10-01): the ceiling on CARRY_MONTHS_2H of a 24/7 instrument.
     '2H': 4400,
-    # 4H (back 2026-11-20): the whole ~2-year hourly cache of a 24/7
-    # instrument (~3,900 bars); a US stock has ~1,100.
-    '4H': 4400,
     # 12H (2026-10-01): as deep as the Daily. A 24h market only reaches ~960
     # bars past MA500's warm-up (the hourly cache is ~2 years).
     '12H': 1300,
@@ -458,53 +450,6 @@ def build_1h(cache_dir: str, ticker: str) -> dict | None:
     deep = max(0, min(n_deep, BARS_BY_TF['1H'] + DEEP_BARS_BY_TF['1H'], max(warm_cap, 1)) - bars)
     return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars, context_tf='1H', deep=deep),
                            df_1h, frame, 1)
-
-
-def _frame_nh(df_1h: pd.DataFrame, hours: int) -> pd.DataFrame:
-    """The 1H chart's frame in N-hour bars counted from each session's own
-    open (main._resample_4h), so a US stock is 2 bars a session on 4H and 4 on
-    2H whatever the season, as TradingView draws them."""
-    return _resample_4h(_frame_1h(df_1h), hours=hours)
-
-
-def build_2h(cache_dir: str, ticker: str) -> dict | None:
-    """2H chart (back 2026-11-20, chart only): build_1h's feed in
-    session-anchored 2-hour bars, EXACT 50/250/500, CARRY_MONTHS_2H of
-    calendar, capped so MA500 is warm at the left edge, with its forming bar."""
-    df_1h = load_1h(ticker)
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _frame_nh(df_1h, 2)
-    if len(frame) < 2:
-        return None
-    periods = _m1h_ma_periods(frame)
-    if len(periods) < MIN_RIBBON_LINES:
-        return None
-    cutoff = frame.index[-1] - pd.DateOffset(months=CARRY_MONTHS_2H)
-    n_carry = int((frame.index > cutoff).sum()) or len(frame)
-    warm_cap = len(frame) - max(periods)
-    bars = min(n_carry, BARS_BY_TF['2H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars), df_1h, frame, 2)
-
-
-def build_4h(cache_dir: str, ticker: str) -> dict | None:
-    """4H chart (back 2026-11-20, chart only): build_1h's feed in
-    session-anchored 4-hour bars, EXACT 50/250/500, carrying everything the
-    hourly cache holds past MA500's warm-up, with its forming bar. A young
-    listing draws with MA50 alone (2026-10-28, CEREBRAS): only no MA at all
-    means no chart."""
-    df_1h = load_1h(ticker)
-    if df_1h is None or df_1h.empty:
-        return None
-    frame = _frame_nh(df_1h, 4)
-    if len(frame) < 2:
-        return None
-    periods = _m1h_ma_periods(frame)
-    if not periods:
-        return None
-    warm_cap = len(frame) - max(periods)
-    bars = min(len(frame), BARS_BY_TF['4H'], max(warm_cap, 1))
-    return _attach_forming(_bundle(frame, periods, '%Y-%m-%d %H:%M', bars=bars), df_1h, frame, 4)
 
 
 def _read_daily(cache_dir: str, ticker: str) -> pd.DataFrame | None:

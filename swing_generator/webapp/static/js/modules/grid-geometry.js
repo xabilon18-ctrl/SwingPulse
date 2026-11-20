@@ -117,7 +117,7 @@
       line[kind] = true;
       line.label = label;
     };
-    if (tf === '1H' || tf === '2H' || tf === '4H') {
+    if (tf === '1H') {
       // Bold lines one YEAR apart on 1H (1H was quarters until
       // 2026-11-01; user: "the bolded vertical lines should be 1 year apart").
       for (let y = firstYear; y <= year + 4; y++) {
