@@ -58,8 +58,10 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 | Code | Signals | Prefix | Where it is built |
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
+| `2H` | none (chart only, in the 1H button's drop-down, since 2026-11-20) | — | `chart_feed.build_2h` (1H feed, bars counted from each session's open) |
+| `4H` | none (chart only, in the 1H button's drop-down, since 2026-11-20) | — | `chart_feed.build_4h` (as 2H, 4-hour bars) |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
+| `W`  | none; no chart since 2026-11-16, its bundles feed only the Watchlist strip's Week row | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
@@ -72,8 +74,12 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   restored from git first. Never write `timeframe === 'X' ? a : b`: loop the
   table.
 - Hourly entries are NOT added to the Daily performance ledger.
+- **Grouped timeframes:** a table row with `group` (2H and 4H, `group:
+  '1H'`) has no header button of its own; the group's button opens the one
+  last used, and while one is on it opens a drop-down of the group.
 - **Removed, and not to be brought back unless the user asks by name:**
-  5m/10m/15m/30m/2H/4H/12H/3D charts and 30m/4H signals. The 5m download
+  5m/10m/15m/30m/12H/3D charts and 30m/4H signals. (2H and 4H charts came
+  back on 2026-11-20 at the user's request, charts only.) The 5m download
   stays for `quotes.json` and the currency indices. Their old R2 folders are
   deleted by `publish.prune_retired_chart_folders`.
 - **Finished bars only.** No timeframe is computed on a bar whose session is
