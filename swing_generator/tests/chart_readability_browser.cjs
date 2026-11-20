@@ -23,8 +23,11 @@ async function verifyProduction(page) {
 const out='readability-review-results';fs.mkdirSync(out,{recursive:true});
 async function ready(page){await page.waitForFunction(()=>document.querySelector('#chartFullHost')?._reelCtx&&document.querySelector('#chartFullHost .reel-native-ma'),{timeout:60000});}
 async function open(page,width){
-  await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.locator('.up-skip').waitFor({timeout:60000});await page.locator('.up-skip').click();
+  const load=async()=>{await page.goto(url,{waitUntil:'domcontentloaded'});await page.locator('.up-skip').waitFor({timeout:60000});};
+  await load();
+  // Live: the browser must run this build's files (live_page_build.cjs).
+  if(live)await require('./live_page_build.cjs')(page,url,{reload:load});
+  await page.locator('.up-skip').click();
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#tfBtn1H').click();
   if(width<1024){await page.locator('#chartReel .reel-native-ma').first().waitFor({timeout:60000});await page.locator('#chartReel [data-act="chart-expand"]').first().click();}
