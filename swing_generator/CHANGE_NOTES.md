@@ -7,6 +7,17 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (12:16 SAST) LIVE CHECKS LEAVE FULL SCREEN; LIVE ORDER RUN LOCALLY. Tests only.
+The #236 release (2H/4H, ladder fixes) stopped at "Verify the release-check
+preview" (before production; the live app was unchanged, the 2H/4H data was
+on R2 unread): `chart_tf_group_checks` could not click the Charts tab under
+the full-screen chart `chart_loupe_checks` had left open. Live runs share one
+page; locally each check opened its own, so it never showed. The magnifier
+check now closes full screen in live mode, the drop-down check closes it
+first, and `tests/live_order_checks.cjs` (in app_smoke) runs the three in the
+live order on one local page. Run that way, the old checks fail with the same
+timeout; the fixed ones pass.
+
 2026-11-20 (11:55 SAST) LADDER SPLIT LINES ZOOMED IN; DASHED LADDERS ON MEDIUM.
 app.js v652 (same release as 2H/4H below).
 - User: "the ladder lines sometimes on the 1h they do not show then on
