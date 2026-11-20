@@ -58,6 +58,9 @@ let debugPage;
     localStorage.setItem('swingpulse-reel-range', '130');
   });
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
+  // Live: the browser itself must run this build's files, not just the site
+  // as Node sees it (live_page_build.cjs, 2026-11-17).
+  if (live) await require('./live_page_build.cjs')(page, process.env.SMOKE_URL);
   await page.locator('.up-skip').click();
   await page.locator('.nav-tab[data-tab="charts"]').click();
   assert.equal(await page.locator('[data-tf="30m"]').count(), 0, 'Removed timeframe has no global or chart control');

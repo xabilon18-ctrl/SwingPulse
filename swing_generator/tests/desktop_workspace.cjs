@@ -20,8 +20,10 @@ async function fixture(page) {
   });
 }
 async function enter(page, target=url) {
-  await page.goto(target, {waitUntil:'domcontentloaded'});
-  await page.locator('.up-skip').waitFor({timeout:60000});
+  const load = async () => { await page.goto(target, {waitUntil:'domcontentloaded'}); await page.locator('.up-skip').waitFor({timeout:60000}); };
+  await load();
+  // Live: the browser must run this build's files (live_page_build.cjs).
+  if(live) await require('./live_page_build.cjs')(page, target, {reload: load});
   await page.locator('.up-skip').click();
   await page.locator('.nav-tab[data-tab="charts"]').click();
 }

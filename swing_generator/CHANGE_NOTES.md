@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (11:11 SAST) LIVE CHECKS VERIFY THE BROWSER'S OWN BUILD. Tests only.
+#234's production check ("Verify the live app", 2026-11-17 16:35 SAST) went
+red although `live_release_wait.cjs` had passed: the browser under test ran
+the previous style.css (the new no-selection rule missing; `touch-action:
+manipulation` was older). The deploy itself had gone out. Two releases in a
+row (#233 old app.js, #234 old style.css) Cloudflare answered Node with the
+new deployment and the browser opened next with the old one.
+`tests/live_page_build.cjs` now runs INSIDE the page after it loads: it reads
+every same-origin static script and stylesheet the page loaded from the
+browser cache (the copies it used), compares SHA-256 with this build, and the
+page's asset list with the built index.html; if anything differs it waits 5s
+and reloads, up to 150s, then fails naming the files. Called after the first
+load in the live runs of `app_smoke.cjs`, `desktop_workspace.cjs` and
+`chart_readability_browser.cjs`. Checked locally against a served copy with
+an altered style.css (reloads, then fails naming `style.css?v=444`) and
+against the matching build (passes first time).
+
 2026-11-17 (16:23 SAST) MAGNIFIER 240px AT 1.8x. app.js v651, style.css v444.
 User: "Zoom out a lil on the magnifying glass and increase the size again".
 `REEL_LOUPE_R` 95 -> 120 (240px across), `REEL_LOUPE_ZOOM` 2.2 -> 1.8; the
