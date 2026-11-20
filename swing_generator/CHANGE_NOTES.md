@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (13:07 SAST) 2H AND 4H REMOVED FOR GOOD. app.js v653, style.css v446,
+chart-preferences.js v14, grid-geometry.js v19. User, the same day they went
+live (12:35 SAST): "2 and 4h will never be used ever again", then "Remove now".
+- The 2H/4H part of #236 is reverted: no table rows, no `build_2h` /
+  `build_4h` / `_frame_nh`, no 1H drop-down (`TF_GROUPS`, `tfGroupMenu*`, its
+  CSS), no 4H opening frame / grid default / year lines. 2H and 4H are back in
+  `publish.RETIRED_CHART_TFS`, so the next hourly publish deletes their R2
+  folders. A saved 2H / 4H chart choice opens on Daily; the app removes the
+  `sp-tf-group-last` key.
+- Kept from #236: ladder split lines drawn when zoomed in between 10% lines
+  (`subDrawn`, `ladder_zoomed_in_checks.cjs`) and dashed ladders on Medium.
+- Kept from #238: the live checks close full screen; `live_order_checks.cjs`
+  now runs autoplay -> magnifier on one page and fails if full screen is left
+  open.
+- Release validator and `four_hour_test.py` assert 2H and 4H are gone.
+- Versions moved FORWARD past the live 2H/4H build, not back.
+
 2026-11-20 (12:16 SAST) LIVE CHECKS LEAVE FULL SCREEN; LIVE ORDER RUN LOCALLY. Tests only.
 The #236 release (2H/4H, ladder fixes) stopped at "Verify the release-check
 preview" (before production; the live app was unchanged, the 2H/4H data was
