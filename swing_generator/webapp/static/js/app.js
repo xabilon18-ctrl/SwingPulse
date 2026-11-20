@@ -196,9 +196,15 @@
   const TF_BY_CODE = Object.fromEntries(TIMEFRAMES.map(t => [t.code, t]));
   const isTf = c => Object.prototype.hasOwnProperty.call(TF_BY_CODE, c);
   const tfMeta = () => TF_BY_CODE[timeframe] || TF_BY_CODE.D;
-  // The header switch: one button per timeframe, ids tfBtn<code>.
+  // The header switch: one button per timeframe, ids tfBtn<code>. A row with
+  // a `group` (2H, 4H: user, 2026-11-20, "make both under 1h button as a
+  // drop-down") has no button of its own: it is in its group's drop-down
+  // (TF_GROUPS, tfGroupMenu), and the group's button says which member is on.
+  const TF_GROUPS = {};
+  for (const t of TIMEFRAMES) if (t.group) (TF_GROUPS[t.group] ||= [t.group]).push(t.code);
+  const tfGroupOf = code => (TF_GROUPS[code] ? code : (TF_BY_CODE[code] && TF_BY_CODE[code].group) || null);
   { const sw = document.querySelector('#tfSwitchBar .tf-switch');
-    if (sw) sw.innerHTML = TIMEFRAMES.map(t => `<button class="tf-switch-btn" id="tfBtn${t.code}" data-tf="${t.code}" role="tab" aria-selected="false"${t.chartOnly ? ' hidden' : ''}>${t.label}</button>`).join(''); }
+    if (sw) sw.innerHTML = TIMEFRAMES.filter(t => !t.group).map(t => `<button class="tf-switch-btn${TF_GROUPS[t.code] ? ' tf-group-btn' : ''}" id="tfBtn${t.code}" data-tf="${t.code}"${TF_GROUPS[t.code] ? ` data-group="${t.code}" aria-haspopup="menu"` : ''} role="tab" aria-selected="false"${t.chartOnly ? ' hidden' : ''}>${t.label}</button>`).join(''); }
 
   let timeframe = 'D';
   // Which timeframes each tab may show: Charts every timeframe, the other tabs
@@ -1053,7 +1059,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '12H': 720 }[timeframe];
+    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '4H': 240, '12H': 720 }[timeframe];
     if (timeframe === 'M') return `${n}mo`;
     if (!per) return `${n}d`;
     const mins = n * per;
@@ -3129,13 +3135,72 @@
   // Keep the header toggle buttons (and any other tf controls) in sync.
   function syncTfButtons() {
     const allowed = new Set(tabTfs(currentTab));
+    tfGroupMenuClose();
     document.querySelectorAll('.tf-switch-btn').forEach(b => {
-      b.hidden = !allowed.has(b.dataset.tf);
+      const group = b.dataset.group;
+      if (group) {
+        // The group's button stands for the member that is on, or the one
+        // last used, so a tap from Daily returns to it.
+        const members = TF_GROUPS[group].filter(c => allowed.has(c));
+        const cur = members.includes(timeframe) ? timeframe : (members.includes(tfGroupLast[group]) ? tfGroupLast[group] : members[0]);
+        b.hidden = !cur;
+        if (!cur) return;
+        b.dataset.tf = cur;
+        b.innerHTML = escText(TF_BY_CODE[cur].label) + (members.length > 1 ? '<span class="tf-caret" aria-hidden="true">▾</span>' : '');
+        b.classList.toggle('has-menu', members.length > 1);
+      } else b.hidden = !allowed.has(b.dataset.tf);
       const on = b.dataset.tf === timeframe;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
   }
+
+  // THE 1H DROP-DOWN (user, 2026-11-20). Tapping the group's button from
+  // another timeframe opens the member last used (1H the first time); tapping
+  // it while one of them is on opens the list: 1H, 2H, 4H. A tap anywhere
+  // else closes it.
+  const TF_GROUP_LAST_KEY = 'sp-tf-group-last';
+  const tfGroupLast = (() => { try { return JSON.parse(localStorage.getItem(TF_GROUP_LAST_KEY) || '{}') || {}; } catch (_) { return {}; } })();
+  function tfGroupRemember(tf) {
+    const group = tfGroupOf(tf);
+    if (!group || tfGroupLast[group] === tf) return;
+    tfGroupLast[group] = tf;
+    try { localStorage.setItem(TF_GROUP_LAST_KEY, JSON.stringify(tfGroupLast)); } catch (_) {}
+  }
+  function tfGroupMenuClose() {
+    document.querySelectorAll('.tf-group-menu').forEach(m => m.remove());
+    document.querySelectorAll('.tf-group-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  }
+  function tfGroupMenuOpen(btn) {
+    tfGroupMenuClose();
+    const allowed = new Set(tabTfs(currentTab));
+    const members = TF_GROUPS[btn.dataset.group].filter(c => allowed.has(c));
+    const menu = document.createElement('div');
+    menu.className = 'tf-group-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = members.map(c => {
+      const on = c === timeframe;
+      return `<button class="tf-group-opt${on ? ' on' : ''}" role="menuitemradio" aria-checked="${on}" data-tf="${c}">${escText(TF_BY_CODE[c].label)}</button>`;
+    }).join('');
+    menu.addEventListener('click', e => {
+      const opt = e.target.closest('.tf-group-opt');
+      if (!opt) return;
+      tfGroupMenuClose();
+      setTimeframe(opt.dataset.tf);
+    });
+    const r = btn.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 8 - Math.max(r.width, 120))) + 'px';
+    menu.style.top = (r.bottom + 6) + 'px';
+    menu.style.minWidth = Math.max(r.width, 120) + 'px';
+    document.body.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  document.addEventListener('click', e => {
+    if (!document.querySelector('.tf-group-menu')) return;
+    if (e.target.closest('.tf-group-menu, .tf-group-btn')) return;
+    tfGroupMenuClose();
+  }, true);
+  window.addEventListener('resize', () => tfGroupMenuClose());
 
   // These screens have their own filters or use daily data. Keep their header
   // to one row instead of reserving space for a non-interactive caption.
@@ -3188,6 +3253,7 @@
   // chart's own timeframe pill, which knows exactly which instrument it is on.
   function applyTimeframe(tf, anchorName) {
     if (!isTf(tf)) return;
+    tfGroupRemember(tf);
     if (tf === timeframe) return;
     // Which chart the reader is on, captured BEFORE anything re-renders:
     // renderAll() rebuilds the reel and resets its scroll, so asking afterwards
@@ -3228,9 +3294,17 @@
   } catch (e) {}
   timeframe = 'D';   // the app opens on the Dashboard, which is Daily-only
 
-  // Wire the global header timeframe toggle (4H / Daily)
+  // Wire the global header timeframe switch. The group's button (1H) opens
+  // its drop-down when one of its members is already on.
   document.querySelectorAll('.tf-switch-btn').forEach(b => {
-    b.addEventListener('click', () => setTimeframe(b.dataset.tf));
+    b.addEventListener('click', () => {
+      if (b.dataset.group && b.classList.contains('has-menu') && tfGroupOf(timeframe) === b.dataset.group) {
+        if (b.getAttribute('aria-expanded') === 'true') tfGroupMenuClose();
+        else tfGroupMenuOpen(b);
+        return;
+      }
+      setTimeframe(b.dataset.tf);
+    });
   });
   syncTfButtons();
 
@@ -5903,7 +5977,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
+  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '4H': 4 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
                      'M': 31 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
@@ -6021,7 +6095,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 0.6;
     return g;
   }
-  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '12H': 'year', 'D': 'year' };
+  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '4H': 'month', '12H': 'year', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -7187,8 +7261,13 @@
   // 30 days back / 35 ahead on crypto, forex and commodities; Daily the
   // 2025-2029 term on stocks (0 at the bottom) and indices, with 0 forced onto
   // crypto's scale.
+  //   2H — the 1H month frame (back 2026-11-20): candles twice as wide.
+  //   4H — QUARTERS (back 2026-11-20): last quarter and this one, ~200 bars
+  //        of a US stock and ~900 of crypto.
   const REEL_FRAME_VIEW = {
     '1H': { unit: 1 / 12,  fit: 'centre' },
+    '2H': { unit: 1 / 12,  fit: 'centre' },
+    '4H': { unit: 1 / 4,   fit: 'centre' },
     'D':  { term: 4, before: 1.5, after: 1, fit: 'all' },
   };
   // MONTHLY (back 2026-10-19), the same on every market, ending on the
@@ -8573,15 +8652,19 @@
     // the auto-fitted channels (reelSeedChannels) keep their look. Dotted is
     // one tap away in the properties row.
     if (def.kind === 'ladder' || def.kind === 'channel') def.dash = true;
+    // Dashed ladders start on MEDIUM (user, 2026-11-20: "the standard dash
+    // lines should be on medium and not strong"): Daily ladders started Thin
+    // and Monthly ones Thick. Thin / Thick are still a tap away.
+    if (def.kind === 'ladder') def.strokeWeight = 2;
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
     // (ladderSubTiers; 4H was off 2026-11-04, back 2026-11-05). The
     // timeframe chips still turn any of them on or off.
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
       def.tfs = tabTfs('charts').filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
-      // Daily ladders are dashed and Thin (user, 2026-11-07: "Replace all
-      // daily chart percentages lines with dash lines"; new ones too, Thin).
-      def.dash = true; def.strokeWeight = 1;
+      // Daily ladders are dashed (user, 2026-11-07: "Replace all daily chart
+      // percentages lines with dash lines"), on Medium since 2026-11-20 (above).
+      def.dash = true;
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
     // three there, and on 1H in ten (LADDER_HOME_SUB,
@@ -9158,7 +9241,7 @@
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
     const step = (d.p4 - d.p1) / 3;
     if (!isFinite(step) || step === 0) return '';
-    let out = '', drawn = 0;
+    let out = '', drawn = 0, subDrawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
     // Two tiers (none today) draw the coarse one darker (.reel-ladder-mid);
@@ -9182,6 +9265,7 @@
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
           if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
           const pct = ladderPctRound(a.pct + (z.pct - a.pct) * s / LADDER_SUB);
+          subDrawn++;
           subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${mid ? ' reel-ladder-mid' : ''}${d.dash ? ' is-dash' : ''}"/>`
             + (d.hideLabels || px < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl${mid ? ' reel-ladder-midlbl' : ''}">${pct}%</text>`);
         }
@@ -9218,7 +9302,12 @@
       drawn++;
     }
     if (d.moves) out += ladderMovesSvg(d, lines, L, sc);
-    if (!drawn) {
+    // Off-scale only when NO line is on screen. Split lines alone count
+    // (user, 2026-11-20: "sometimes on the 1h they do not show then on
+    // pinching the price ... they show"): zoomed in between two 10% lines on
+    // 1H, only the finer split lines are in view, and the whole ladder used
+    // to give way to the off-scale tag until a 10% line came back in.
+    if (!drawn && !subDrawn) {
       const above = Math.max(sc.y(d.p1 + kMin * step), sc.y(d.p1 + kMax * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">ladder ${above ? '↑' : '↓'} off-scale</text>`;
     }
@@ -9559,7 +9648,7 @@
       + `</div><span class="reel-time-grid-scope">${tf}</span><span class="reel-time-grid-note">Remembered · ${tf} only</span></div>`;
   }
 
-  const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
+  const isIntradayTf = tf => INTRADAY_TFS.has(tf);
   function reelEndStopLabel(ts) {
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';
@@ -13516,7 +13605,9 @@
           // A ladder switched to dashed starts on Thin (user, 2026-11-06:
           // "dash lines as an option for the percentage line with thin med
           // and thick. With thin being default"); Medium / Thick from there.
-          if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 1;
+          // Medium since 2026-11-20 (was Thin): "the standard dash lines
+          // should be on medium".
+          if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 2;
           if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
           // A ladder set back to dotted stays dotted (see ladderDashOnce).
           if (d.kind === 'ladder') { if (d.dash) delete d.dashOff; else d.dashOff = true; }

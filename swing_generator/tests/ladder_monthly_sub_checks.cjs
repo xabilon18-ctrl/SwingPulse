@@ -37,7 +37,8 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   // New ladders start dashed (user, 2026-11-17). Set this one back to dotted
   // so the checks below can still tell its lines from the dashed Daily
   // ladder drawn earlier on the same chart.
-  assert.ok(d.dash === true && d.strokeWeight === 3, 'a new Monthly ladder starts dashed and Thick: ' + JSON.stringify({ dash: d.dash, w: d.strokeWeight }));
+  // On Medium since 2026-11-20 ("the standard dash lines should be on medium").
+  assert.ok(d.dash === true && d.strokeWeight === 2, 'a new Monthly ladder starts dashed and Medium: ' + JSON.stringify({ dash: d.dash, w: d.strokeWeight }));
   await tb.locator('[data-act="draw-dash"][data-v="0"]').click();
   assert.ok(!(await saved('M'))[0].dash, 'set back to dotted');
   assert.equal(await page.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'no thirds on Monthly itself');

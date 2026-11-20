@@ -469,9 +469,10 @@ class RetiredChartPruneTests(unittest.TestCase):
 
     def test_only_retired_folders_go_and_only_once(self):
         self.bucket.add('ma500/activity/W.json')   # the Week strip row is not a chart folder
-        self.assertEqual(self.run_prune(), 12)
+        # 30m, 5m and W go; 4H is a chart again since 2026-11-20 and stays.
+        self.assertEqual(self.run_prune(), 9)
         left = {k.split('/')[2] for k in self.bucket if k.count('/') == 3}
-        self.assertEqual(left, {'1H', 'D', 'M'})
+        self.assertEqual(left, {'1H', '4H', 'D', 'M'})
         self.assertIn('ma500/activity/W.json', self.bucket)
         self.assertIn('ma500/chart/index.json', self.bucket)
         self.calls.clear()
@@ -502,11 +503,13 @@ class TimeframeTableTests(unittest.TestCase):
     def test_current_table(self):
         import config
         self.assertEqual(config.TIMEFRAMES, (('1H', 'h1_'), ('D', '')))
-        self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', 'D': 'build_daily'})
+        self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', '2H': 'build_2h', '4H': 'build_4h',
+                                                     'D': 'build_daily'})
         # Weekly's chart was removed on 2026-11-16, and its row on the same day.
-        self.assertEqual([t['code'] for t in config.TIMEFRAME_TABLE], ['1H', 'D', 'M'])
+        # 2H and 4H are back as charts on 2026-11-20.
+        self.assertEqual([t['code'] for t in config.TIMEFRAME_TABLE], ['1H', '2H', '4H', 'D', 'M'])
         self.assertEqual(list(config.HTF_CHART_BUILDERS), ['M'])
-        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'M'])
+        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', '2H', '4H', 'D', 'M'])
         for t in config.TIMEFRAME_TABLE:
             self.assertTrue(hasattr(chart_feed, t['builder']), t['builder'])
 
@@ -517,8 +520,22 @@ class TimeframeTableTests(unittest.TestCase):
         self.assertNotIn('M', [t['code'] for t in d['app']])
         d = config.derive_timeframes(self._without('1H'))
         self.assertEqual(d['signal'], (('D', ''),))
-        self.assertEqual(d['run_charts'], {'D': 'build_daily'})
+        self.assertEqual(d['run_charts'], {'2H': 'build_2h', '4H': 'build_4h', 'D': 'build_daily'})
         self.assertNotIn('1H', [t['code'] for t in d['app']])
+        d = config.derive_timeframes(self._without('2H', '4H'))
+        self.assertEqual(d['run_charts'], {'1H': 'build_1h', 'D': 'build_daily'})
+
+    def test_two_and_four_hour_are_charts_in_the_1h_group(self):
+        # User, 2026-11-20: "charts only and make both under 1h button as a
+        # drop-down". No signals, no column prefix, the 1H button's group.
+        import config
+        app = {t['code']: t for t in config.app_timeframes()}
+        for code in ('2H', '4H'):
+            self.assertTrue(app[code]['chartOnly'])
+            self.assertFalse(app[code]['signals'])
+            self.assertEqual(app[code]['group'], '1H')
+            self.assertNotIn(code, dict(config.TIMEFRAMES))
+        self.assertNotIn('group', app['1H'])
 
     def test_weekly_job_keeps_the_activity_strip_without_a_chart(self):
         # The chart is off, the Monday job still runs: the Watchlist strip's
@@ -535,8 +552,9 @@ class TimeframeTableTests(unittest.TestCase):
     def test_app_and_server_read_the_table(self):
         import publish
         import server
-        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M'])
-        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'M'})
+        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', '2H', '4H', 'D', 'M'])
+        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', '2H', '4H', 'D', 'M'})
+        self.assertFalse({'2H', '4H'} & set(publish.RETIRED_CHART_TFS))
         self.assertIn('W', publish.RETIRED_CHART_TFS)
         template = (Path(__file__).resolve().parents[1] / 'webapp' / 'templates' / 'index.html').read_text()
         self.assertIn('window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;', template)

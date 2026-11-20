@@ -10242,3 +10242,22 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 #chartFull :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button, [role="button"] { touch-action: manipulation; }
+
+/* ── 1H drop-down (user, 2026-11-20: 2H and 4H "under 1h button as a
+   drop-down") ── the 1H button shows the hourly timeframe that is on (or was
+   last used) with a caret; while one is on, a tap opens this list. Fixed to
+   the viewport under the button (app.js tfGroupMenuOpen). */
+.tf-caret { display: inline-block; margin-left: 4px; font-size: .7em; opacity: .75; transform: translateY(-1px); }
+.tf-group-menu {
+  position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.tf-group-opt {
+  appearance: none; border: 0; background: transparent; font-family: inherit; cursor: pointer;
+  padding: 12px 14px; border-radius: 7px; text-align: left;
+  font-size: .95rem; font-weight: 700; color: var(--text-primary);
+  -webkit-user-select: none; user-select: none; touch-action: manipulation;
+}
+.tf-group-opt:active, .tf-group-opt:hover { background: var(--bg-hover); }
+.tf-group-opt.on { color: var(--accent); background: var(--bg-hover); }

@@ -461,6 +461,14 @@ INTRADAY_PREFIXES = {'m15_', 'm30_', 'h1_', 'h4_'}
 TIMEFRAME_TABLE = (
     {'code': '1H', 'prefix': 'h1_', 'label': '1H', 'name': 'Hourly', 'bar': 'hourly bars', 'bar_short': '25-bar',
      'signals': True, 'intraday': True, 'chart': 'run', 'builder': 'build_1h', 'enabled': True},
+    # 2H and 4H (user, 2026-11-20: "charts only and make both under 1h button
+    # as a drop-down"): charts only, no signals, built each hourly run from the
+    # 1H feed in bars counted from each session's open (chart_feed.build_2h /
+    # build_4h). `group: '1H'` puts them in the 1H button's drop-down.
+    {'code': '2H', 'prefix': '', 'label': '2H', 'name': '2-hour', 'bar': '2-hour bars', 'bar_short': '25-bar',
+     'signals': False, 'intraday': True, 'chart': 'run', 'builder': 'build_2h', 'enabled': True, 'group': '1H'},
+    {'code': '4H', 'prefix': '', 'label': '4H', 'name': '4-hour', 'bar': '4-hour bars', 'bar_short': '25-bar',
+     'signals': False, 'intraday': True, 'chart': 'run', 'builder': 'build_4h', 'enabled': True, 'group': '1H'},
     {'code': 'D', 'prefix': '', 'label': 'Daily', 'name': 'Daily', 'bar': 'days', 'bar_short': '25-day',
      'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
     {'code': 'M', 'prefix': '', 'label': 'Monthly', 'name': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
@@ -486,7 +494,8 @@ def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
         'app': [{'code': t['code'], 'prefix': t['prefix'], 'label': t['label'],
                  'name': t.get('name', t['label']), 'bar': t['bar'],
                  'barShort': t['bar_short'], 'signals': t['signals'], 'intraday': t['intraday'],
-                 **({} if t['signals'] else {'chartOnly': True})} for t in enabled],
+                 **({} if t['signals'] else {'chartOnly': True}),
+                 **({'group': t['group']} if t.get('group') else {})} for t in enabled],
     }
 
 

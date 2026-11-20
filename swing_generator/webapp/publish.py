@@ -976,7 +976,8 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchange
 # from the app AND from chart_feed.CHART_BUILDERS / tools/publish_htf.py.
 # W joined on 2026-11-16 with the Weekly chart's dormant code: its activity
 # strip (activity/W.json) is a different folder and stays.
-RETIRED_CHART_TFS = ('5m', '10m', '15m', '30m', '2H', '4H', '12H', '3D', 'W')
+# 2H and 4H left the list on 2026-11-20: they are charts again.
+RETIRED_CHART_TFS = ('5m', '10m', '15m', '30m', '12H', '3D', 'W')
 # Every code in the timeframe table, enabled or not: a switched-off timeframe's
 # chart folder is never pruned by accident.
 _LIVE_CHART_TFS = tuple(t['code'] for t in TIMEFRAME_TABLE)

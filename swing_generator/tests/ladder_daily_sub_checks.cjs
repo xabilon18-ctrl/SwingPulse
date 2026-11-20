@@ -50,7 +50,8 @@ module.exports = async function checkLadderDailySub(page, name = 'TEST') {
   await page.locator('#chartFull [data-act="channel"]').click();
   await close();
 
-  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H chart (removed 2026-11-07)');
+  // 4H is in the 1H drop-down since 2026-11-20; Daily ladders stay off it.
+  assert.equal(await page.locator('#tfBtn4H').count(), 0, '4H has no header button of its own');
   for (const tf of ['1H']) {
     await openFull(tf);
     // On 1H only, the Daily 20/40/60/80% lines are bold (2026-11-03).
