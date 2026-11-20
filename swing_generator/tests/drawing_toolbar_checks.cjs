@@ -13,8 +13,9 @@ module.exports = async function checkDrawingToolbar(page, screenshots) {
     assert.equal(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder').count(),divs+1,`A new ${chartTf} ladder draws ${divs+1} lines`);
     // % labels on when placed (user, 2026-11-13; hidden from 2026-11-01).
     assert.ok(await page.locator('#chartFull .reel-draw.is-sel .reel-ladder-lbl').count()>0,'…with its % labels by default');
-    // …and on Thick (user, 2026-11-05).
-    assert.ok(await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('sp-channels')||'{}')).some(per=>Object.values(per).some(l=>Array.isArray(l)&&l.some(d=>d&&d.kind==='ladder'&&d.strokeWeight===3)))),'…and on Thick by default');
+    // …dashed and on Medium (user, 2026-11-20: "the standard dash lines
+    // should be on medium and not strong"; Thick from 2026-11-05).
+    assert.ok(await page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('sp-channels')||'{}')).some(per=>Object.values(per).some(l=>Array.isArray(l)&&l.some(d=>d&&d.kind==='ladder'&&d.dash===true&&d.strokeWeight===2)))),'…dashed and on Medium by default');
     {
       // The % labels follow the divisions: 0, 12.5, 25 ... 100 on 1H/4H.
       const pctBtn=toolbar.locator('[data-act="draw-labels"]');

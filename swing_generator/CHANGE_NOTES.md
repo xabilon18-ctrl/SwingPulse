@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (11:55 SAST) LADDER SPLIT LINES ZOOMED IN; DASHED LADDERS ON MEDIUM.
+app.js v652 (same release as 2H/4H below).
+- User: "the ladder lines sometimes on the 1h they do not show then on
+  pinching the price in that's when they show". `reelLadderSvg` counted only
+  the 10% lines as drawn: zoomed in between two of them on 1H, with only the
+  finer split lines on screen, the whole ladder gave way to the "ladder
+  off-scale" tag. Split lines on screen now count (`subDrawn`). Test:
+  `tests/ladder_zoomed_in_checks.cjs` (fails on the old code with "ladder ↓
+  off-scale", passes now).
+- User: "the standard dash lines should be on medium and not strong". New
+  ladders (Daily and Monthly) start dashed on Medium (`strokeWeight: 2`, set
+  in `channelAdd`), and switching a ladder to dashed puts it on Medium; Daily
+  started Thin and Monthly Thick. Ladders already drawn keep their weight.
+  Channels are unchanged (dashed, Thin).
+
 2026-11-20 (11:45 SAST) 2H AND 4H CHARTS BACK, IN THE 1H DROP-DOWN. app.js v652,
 style.css v445, chart-preferences.js v13, grid-geometry.js v18. User: "i want
 charts only and make both under 1h button as a drop-down".

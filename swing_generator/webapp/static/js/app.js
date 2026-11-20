@@ -8652,15 +8652,19 @@
     // the auto-fitted channels (reelSeedChannels) keep their look. Dotted is
     // one tap away in the properties row.
     if (def.kind === 'ladder' || def.kind === 'channel') def.dash = true;
+    // Dashed ladders start on MEDIUM (user, 2026-11-20: "the standard dash
+    // lines should be on medium and not strong"): Daily ladders started Thin
+    // and Monthly ones Thick. Thin / Thick are still a tap away.
+    if (def.kind === 'ladder') def.strokeWeight = 2;
     // A ladder drawn on Daily also shows on 1H and 4H, subdivided there
     // (ladderSubTiers; 4H was off 2026-11-04, back 2026-11-05). The
     // timeframe chips still turn any of them on or off.
     if (def.kind === 'ladder' && timeframe === 'D') {
       def.link = drawLinkId();
       def.tfs = tabTfs('charts').filter(t => t === 'D' || LADDER_SUB_TFS.has(t));
-      // Daily ladders are dashed and Thin (user, 2026-11-07: "Replace all
-      // daily chart percentages lines with dash lines"; new ones too, Thin).
-      def.dash = true; def.strokeWeight = 1;
+      // Daily ladders are dashed (user, 2026-11-07: "Replace all daily chart
+      // percentages lines with dash lines"), on Medium since 2026-11-20 (above).
+      def.dash = true;
     }
     // A ladder drawn on Monthly also shows on Daily, each 10% gap split in
     // three there, and on 1H in ten (LADDER_HOME_SUB,
@@ -9237,7 +9241,7 @@
   function reelLadderSvg(d, b, L, sc, bw, editing, idx, isActive) {
     const step = (d.p4 - d.p1) / 3;
     if (!isFinite(step) || step === 0) return '';
-    let out = '', drawn = 0;
+    let out = '', drawn = 0, subDrawn = 0;
     const lines = ladderLines(d, timeframe);
     const [kMin, kMax] = ladderKRange(d);
     // Two tiers (none today) draw the coarse one darker (.reel-ladder-mid);
@@ -9261,6 +9265,7 @@
           const p = a.p + (z.p - a.p) * s / LADDER_SUB, y = sc.y(p);
           if (p < -1e-9 || y < L.gTop || y > L.gBot) continue;
           const pct = ladderPctRound(a.pct + (z.pct - a.pct) * s / LADDER_SUB);
+          subDrawn++;
           subSvg += `<line x1="${L.x0}" y1="${y.toFixed(1)}" x2="${L.x1}" y2="${y.toFixed(1)}" class="reel-ladder-sub${mid ? ' reel-ladder-mid' : ''}${d.dash ? ' is-dash' : ''}"/>`
             + (d.hideLabels || px < LADDER_SUB_LBL_MIN ? '' : `<text x="${(L.x0 + 8).toFixed(1)}" y="${(y - 5).toFixed(1)}" class="reel-ladder-sublbl${mid ? ' reel-ladder-midlbl' : ''}">${pct}%</text>`);
         }
@@ -9297,7 +9302,12 @@
       drawn++;
     }
     if (d.moves) out += ladderMovesSvg(d, lines, L, sc);
-    if (!drawn) {
+    // Off-scale only when NO line is on screen. Split lines alone count
+    // (user, 2026-11-20: "sometimes on the 1h they do not show then on
+    // pinching the price ... they show"): zoomed in between two 10% lines on
+    // 1H, only the finer split lines are in view, and the whole ladder used
+    // to give way to the off-scale tag until a 10% line came back in.
+    if (!drawn && !subDrawn) {
       const above = Math.max(sc.y(d.p1 + kMin * step), sc.y(d.p1 + kMax * step)) < L.py0;
       return `<text x="${L.x1 - 6}" y="${above ? L.py0 + 34 : L.py1 - 24}" class="reel-clip-tag" text-anchor="end">ladder ${above ? '↑' : '↓'} off-scale</text>`;
     }
@@ -13595,7 +13605,9 @@
           // A ladder switched to dashed starts on Thin (user, 2026-11-06:
           // "dash lines as an option for the percentage line with thin med
           // and thick. With thin being default"); Medium / Thick from there.
-          if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 1;
+          // Medium since 2026-11-20 (was Thin): "the standard dash lines
+          // should be on medium".
+          if (d.kind === 'ladder' && btn.dataset.v === '1' && !d.dash) d.strokeWeight = 2;
           if (btn.dataset.v === '1') d.dash = true; else delete d.dash;
           // A ladder set back to dotted stays dotted (see ladderDashOnce).
           if (d.kind === 'ladder') { if (d.dash) delete d.dashOff; else d.dashOff = true; }
