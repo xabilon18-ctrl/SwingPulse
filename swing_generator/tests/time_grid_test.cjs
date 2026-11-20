@@ -120,15 +120,13 @@ assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry
 assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry:'Precious Metals'}),'commodities');
 assert.equal(c.reelGridScope(crypto),'crypto');
 assert.equal(c.reelGridScope({asset_class:'Currency',group:'Currency'}),'currency');
-// "Same frame on every chart" (2026-11-16): while it is on, every chart reads
-// the grid of the market the frame was taken on; off, its own again.
+// "Same frame" is per market since 2026-11-21: a frame never makes a chart
+// read another market's grid (it did from 2026-11-16, when one frame covered
+// every market).
 frameLock.now = { y0: 2023.5, y1: 2030, scope: 'commodities' };
-assert.equal(c.reelGridScope(crypto), 'commodities');
-assert.equal(c.reelGridScope({asset_class:'Equity'}), 'commodities');
-frameLock.now = { y0: 2023.5, y1: 2030, scope: 'nonsense' };
-assert.equal(c.reelGridScope(crypto), 'crypto', 'an unknown market is ignored');
-frameLock.now = null;
 assert.equal(c.reelGridScope(crypto), 'crypto');
+assert.equal(c.reelGridScope({asset_class:'Equity'}), 'stocks');
+frameLock.now = null;
 c.reelSetGridDivision('1H','Q','energy');
 assert.equal(c.reelTimeGrid(b24,'1H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
 assert.equal(c.reelTimeGrid(b24,'1H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
