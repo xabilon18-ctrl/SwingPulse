@@ -989,9 +989,13 @@ def fetch_5m(ticker: str, force_refresh: bool = False,
 FETCH_WORKERS = int(os.environ.get('FETCH_WORKERS', 8))
 
 
-def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
+def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind='', short=None):
     """Shared driver: fetch every instrument via fetch_fn on a thread pool.
-    Returns dict ticker → DataFrame, skipping None / too-short results."""
+    Returns dict ticker → DataFrame, skipping None / too-short results.
+
+    `short`, when given a list, collects (ticker, rows) for every instrument
+    that returned SOME bars but fewer than min_rows: a new listing waiting for
+    its history, as opposed to one that returned nothing."""
     import concurrent.futures
 
     # Synthetic instruments (currency_index.py: CCY_USD ...) have no Yahoo ticker —
@@ -1019,6 +1023,8 @@ def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
                 continue
             if len(df) < min_rows:
                 print(f'  [{done:3d}/{total}] {label}  SKIP — only {len(df)} rows (need {min_rows})')
+                if short is not None and len(df) > 0:
+                    short.append((ticker, len(df)))
                 continue
 
             data[ticker] = df
@@ -1028,7 +1034,8 @@ def _fetch_all_parallel(instruments, fetch_fn, min_rows, kind=''):
     return data
 
 
-def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str, pd.DataFrame]:
+def fetch_all(instruments: list[dict], force_refresh: bool = False,
+              short: list | None = None) -> dict[str, pd.DataFrame]:
     """Fetch daily data for every instrument. Returns dict ticker → DataFrame.
 
     NB the frames do not feed the indicators — main.py's workers re-read each
@@ -1040,6 +1047,7 @@ def fetch_all(instruments: list[dict], force_refresh: bool = False) -> dict[str,
         instruments,
         lambda t: fetch(t, force_refresh),
         min_rows=MIN_ROWS_REQUIRED,
+        short=short,
     )
     print(f'\n  Loaded {len(data)}/{len(instruments)} instruments.\n')
     return data

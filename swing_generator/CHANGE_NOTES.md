@@ -7,6 +7,20 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (14:57 SAST) NEW LISTINGS NO LONGER FAIL THE HEALTH CHECK. User:
+"Ran failed". The 14:05 and 14:35 SAST publish runs uploaded fine but went
+red on `health_check.py`: "1 instrument(s) missing from the run —
+['ANTHROPIC']", "total 851 != expected 852". ANT had 1 daily bar, so
+`fetch_all` skipped it (MIN_ROWS_REQUIRED 10), while `load_instruments()`
+still counted it as expected: every hourly run would have failed until about
+3 Dec. `_fetch_all_parallel(short=)` now collects instruments that returned
+SOME bars but too few; `main._retire_stale` writes them as `pending` in
+`retired_instruments.json`; `load_instruments()` leaves pending tickers out
+like retired ones (`instruments.pending_tickers`); `summary.json` names them
+under `pending` and the health check prints them. An instrument that returns
+NO data is still missing and still fails the check. Tests in
+`tests/retired_instruments_test.py`.
+
 2026-11-20 (13:14 SAST) ANTHROPIC ADDED (ANT). User: "Add anthropic to the list".
 `../Instruments.txt` #859 `ANT | ANTHROPIC | AI Theme | Technology |
 Software - Infrastructure`, in the AI pure plays beside CEREBRAS (853

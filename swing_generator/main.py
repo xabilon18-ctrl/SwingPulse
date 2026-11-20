@@ -1119,13 +1119,19 @@ def _process_worker(args: tuple) -> tuple:
 # Main
 # ---------------------------------------------------------------------------
 
-def _retire_stale(data: dict, inst_by_tick: dict) -> list:
+def _retire_stale(data: dict, inst_by_tick: dict, short=()) -> list:
     """Drop from `data` every instrument whose last FINISHED daily bar is more
     than STALE_INSTRUMENT_DAYS behind the run's newest, and write RETIRED_FILE
     (always — an empty list is what restores an instrument). Judged on
     finished bars, like the board health_check measures: fetch_all's frames
     still carry today's open bar on 24h markets, which would make the limit a
-    day stricter than the one it is documented to match."""
+    day stricter than the one it is documented to match.
+
+    `short` is fetch_all's list of (ticker, rows) that returned some bars but
+    fewer than MIN_ROWS_REQUIRED: new listings (ANTHROPIC on its first day,
+    2026-11-20). They are written as `pending` so the summary's expected count
+    leaves them out until they have the bars to list, instead of every run's
+    health check failing on them for two weeks."""
     import json
     from data_fetcher import drop_unfinished_daily
     last_bars = {}
@@ -1159,7 +1165,10 @@ def _retire_stale(data: dict, inst_by_tick: dict) -> list:
                    # Within the limit this run — the only evidence that lets
                    # tools/retired_issues.py say an instrument's data resumed.
                    'fresh': verdict['fresh'],
-                   'instruments': records}, f, indent=1)
+                   'instruments': records,
+                   'pending': [{'ticker': t, 'rows': n,
+                                'name': inst_by_tick.get(t, {}).get('name', t)}
+                               for t, n in short]}, f, indent=1)
     if records:
         print()
     return records
@@ -1206,7 +1215,8 @@ def main():
     # 2. Fetch / load data
     _t1 = _time.time()
     print('  Fetching daily market data ...\n')
-    data = fetch_all(instruments, force_refresh=args.refresh)
+    _short = []
+    data = fetch_all(instruments, force_refresh=args.refresh, short=_short)
 
     if not data:
         print('\n  No data available. Exiting.')
@@ -1233,7 +1243,7 @@ def main():
     # load_instruments(), which reads it — publish.py included. Before the
     # intraday downloads, so a dead ticker is not re-requested at 5m and 1h
     # every hour; `active` is the instrument list everything after this uses.
-    _retired = {r['ticker'] for r in _retire_stale(data, inst_by_tick)}
+    _retired = {r['ticker'] for r in _retire_stale(data, inst_by_tick, _short)}
     active = [i for i in instruments if i['ticker'] not in _retired]
 
     # Hourly prices are NOT downloaded (again) since 2026-09-24: they fed only

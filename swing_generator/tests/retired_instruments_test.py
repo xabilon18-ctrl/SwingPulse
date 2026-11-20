@@ -124,6 +124,36 @@ class RetireTests(unittest.TestCase):
         self.assertEqual(doc['instruments'], [])          # 10 days behind: kept
         self.assertEqual(sorted(doc['fresh']), ['BTC', 'HOLIDAY'])
 
+    def test_new_listing_is_pending_not_missing(self):
+        # 2026-11-20: ANTHROPIC listed with 1 daily bar; fetch_all skipped it
+        # (MIN_ROWS_REQUIRED 10) and every hourly health check failed on
+        # "1 instrument(s) missing". A short listing is pending, out of the
+        # expected count, and back the run it has the bars.
+        every = instruments.load_instruments(include_retired=True)
+        new = every[0]
+        main._retire_stale({}, {new['ticker']: {'name': new['name']}}, [(new['ticker'], 1)])
+        doc = json.loads(Path(self.path).read_text())
+        self.assertEqual(doc['pending'], [{'ticker': new['ticker'], 'rows': 1, 'name': new['name']}])
+        self.assertEqual(doc['instruments'], [])
+        self.assertEqual(instruments.pending_tickers(), {new['ticker']})
+        self.assertEqual(instruments.retired_tickers(), set())
+        names = {i['name'] for i in instruments.load_instruments()}
+        self.assertNotIn(new['name'], names)
+        self.assertEqual(len(names), len(every) - 1)
+        main._retire_stale({}, {})
+        self.assertEqual(len(instruments.load_instruments()), len(every))
+
+    def test_fetch_records_short_but_not_empty(self):
+        frames = {'NEW': _daily('2026-11-19', bars=1), 'NONE': None,
+                  'EMPTY': _daily('2026-11-19', bars=0), 'OLD': _daily('2026-11-19')}
+        insts = [{'ticker': t, 'name': t} for t in frames]
+        short = []
+        with patch.object(main_data_fetcher, 'FETCH_WORKERS', 1):
+            data = main_data_fetcher._fetch_all_parallel(insts, frames.get, min_rows=10, short=short)
+        self.assertEqual(list(data), ['OLD'])
+        # No data at all is a real failure the health check must still catch.
+        self.assertEqual(short, [('NEW', 1)])
+
     def test_unreadable_file_retires_nothing(self):
         for bad in ('{not json', '{"instruments": null}', '[]'):
             Path(self.path).write_text(bad)

@@ -50,12 +50,21 @@ def retired_tickers() -> set:
             if isinstance(r, dict) and 'ticker' in r}
 
 
+def pending_tickers() -> set:
+    """Tickers that returned some daily bars this run but too few to list
+    (MIN_ROWS_REQUIRED): new listings, written by main._retire_stale."""
+    return {r['ticker'] for r in load_retired().get('pending', [])
+            if isinstance(r, dict) and 'ticker' in r}
+
+
 def load_instruments(include_retired: bool = False):
     """Parse instrument file and return list of dicts.
 
     Instruments main.py retired for stale data are left out unless
     include_retired, so the published board, the summary's expected count,
-    the chart feed and the sector series all drop them together."""
+    the chart feed and the sector series all drop them together. New listings
+    still short of MIN_ROWS_REQUIRED bars (pending_tickers) are left out the
+    same way, and come back the run they have enough."""
     instruments = []
     bad = []
     with open(INSTRUMENTS_FILE, 'r', encoding='utf-8') as f:
@@ -80,7 +89,7 @@ def load_instruments(include_retired: bool = False):
             'CANONICAL_SECTORS): ' + '; '.join(bad)
         )
     if not include_retired:
-        retired = retired_tickers()
+        retired = retired_tickers() | pending_tickers()
         instruments = [i for i in instruments if i['ticker'] not in retired]
     return instruments
 

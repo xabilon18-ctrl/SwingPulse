@@ -254,6 +254,8 @@ def api_summary():
         from instruments import load_retired
         retired = [r.get('name', r.get('ticker')) for r in load_retired().get('instruments', [])
                    if isinstance(r, dict)]
+        pending = [r.get('name', r.get('ticker')) for r in load_retired().get('pending', [])
+                   if isinstance(r, dict)]
 
         return jsonify({
             'date': dt,
@@ -262,6 +264,7 @@ def api_summary():
             'missing_count': len(missing),
             'missing': missing[:50],
             'retired': retired,
+            'pending': pending,
             'trend_counts': trend_counts,
             'buy_count': int(buy_mask.sum()),
             'sell_count': int(sell_mask.sum()),
