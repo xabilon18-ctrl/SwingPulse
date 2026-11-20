@@ -7,6 +7,36 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-20 (11:45 SAST) 2H AND 4H CHARTS BACK, IN THE 1H DROP-DOWN. app.js v652,
+style.css v445, chart-preferences.js v13, grid-geometry.js v18. User: "i want
+charts only and make both under 1h button as a drop-down".
+- `config.TIMEFRAME_TABLE` has 2H and 4H rows between 1H and Daily:
+  `signals: False` (no columns, alerts, trend read or workflow), `chart:
+  'run'`, `group: '1H'`. `derive_timeframes` passes `group` to the app.
+- `chart_feed.build_2h` / `build_4h`: `load_1h` in bars counted from each
+  session's open (`_frame_nh` -> `main._resample_4h(hours=N)`, so a US stock
+  is 2 bars a session on 4H and 4 on 2H whatever the season), exact
+  50/250/500, a forming bar (`_attach_forming`). 2H carries
+  CARRY_MONTHS_2H (12); 4H everything the hourly cache holds past MA500's
+  warm-up; both capped at 4,400 bars. 4H draws with MA50 alone on a young
+  listing. No `context`, so they stay out of setup, alerts and workflow.
+- `publish.RETIRED_CHART_TFS` no longer lists 2H / 4H (the prune guard
+  would have refused a live timeframe on it).
+- App: the header's 1H button is the group's button (`TF_GROUPS`,
+  `tfGroupMenuOpen`). From another timeframe a tap opens the hourly chart
+  last used (`sp-tf-group-last`, 1H the first time); while 1H / 2H / 4H is
+  on, a tap opens the drop-down (1H, 2H, 4H). The button reads the one on,
+  with a caret. 2H / 4H have no `#tfBtn` of their own. The full-screen
+  timeframe menu and its ‹ › list all five.
+- Opening frames: 2H the 1H month frame; 4H quarters (last quarter and
+  this one), grid default Quarter, bold year lines as on 1H.
+  `isIntradayTf` reads the table.
+- Release validator: 2H / 4H in the live table, their chunk for the checked
+  instrument, the 50/250/500 ribbon, no signals, typical bar spacing.
+- Tests: `tests/chart_tf_group_checks.cjs` (app_smoke, local and live);
+  `four_hour_test.py` checks session-anchored 2H/4H bars and the forming
+  bar; the table / prune tests list 2H and 4H.
+
 2026-11-20 (11:11 SAST) LIVE CHECKS VERIFY THE BROWSER'S OWN BUILD. Tests only.
 #234's production check ("Verify the live app", 2026-11-17 16:35 SAST) went
 red although `live_release_wait.cjs` had passed: the browser under test ran

@@ -242,9 +242,9 @@ let debugPage;
     await toTf('D');
     assert.equal(errors.length, 0, errors.join('\n'));
   }
-  // 4H removed 2026-11-04, its chart back 2026-11-05, removed permanently
-  // 2026-11-07: no button, and the full-screen checks run on 1H.
-  assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H timeframe');
+  // 4H is back as a chart (2026-11-20) in the 1H button's drop-down, with
+  // no button of its own (chart_tf_group_checks.cjs); these checks run on 1H.
+  assert.equal(await page.locator('#tfBtn4H').count(), 0, '4H has no header button of its own');
   await page.locator('#tfBtn1H').click();
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('#chartReel [data-act="chart-expand"]').first().click();
@@ -393,6 +393,7 @@ let debugPage;
   if (!live) await require('./chart_tf_step_checks.cjs')(page);
   await require('./chart_autoplay_checks.cjs')(page, live);
   await require('./chart_loupe_checks.cjs')(page, live);
+  await require('./chart_tf_group_checks.cjs')(page, live);
   if (!live) await require('./ladder_monthly_sub_checks.cjs')(page);
   if (!live) await require('./ladder_cleanup_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));

@@ -1,5 +1,6 @@
 """Check the complete hourly payload before publishing, and optionally on R2."""
 import argparse
+from datetime import datetime
 import gzip
 import json
 import re
@@ -71,10 +72,10 @@ assert all(tf in trends for tf in ('1H', 'D'))
 assert '30m' not in trends, '30m trend read is back'
 assert '30m' not in index.get('events_by_tf', {}), '30m chart events are back'
 assert not any(k.startswith(('m30_', 'h4_')) for k in rows[0]), '30m/4H columns are back'
-# 4H removed 2026-11-04 as a signal timeframe and its chart removed
-# permanently 2026-11-07: no 4H trend read, chunk events or chart button.
-assert '4H' not in trends, '4H trend read is back'
-assert '4H' not in index.get('events_by_tf', {}), '4H chart events are back'
+# 4H removed 2026-11-04 as a signal timeframe: no 4H trend read or chunk
+# events. 2H and 4H are back as CHARTS ONLY on 2026-11-20 (checked below).
+assert '4H' not in trends and '2H' not in trends, '2H/4H trend read: they are charts only'
+assert not {'2H', '4H'} & set(index.get('events_by_tf', {})), '2H/4H chart events: they are charts only'
 assert len(trends['1H']) >= len(rows) * 0.8, 'Hourly chart coverage below 80%; stopping release'
 alerts = read('alerts.json')
 assert all(e[1] in ('1H', 'D') for e in alerts['ev'])
@@ -85,6 +86,19 @@ bundle = chunk['data'][name]
 assert bundle['p'] in ([50, 250], [50, 250, 500])
 assert bundle['t'] and 'sg' in bundle and 'xm' in bundle
 assert all(code in ('B1', 'S1') for _, code in bundle['sg'])
+# 2H / 4H charts (2026-11-20, chart only): built for the same instrument,
+# session-anchored bars counted from the 1H feed, the exact ribbon, and fewer
+# bars per day than 1H.
+for tf, per_hour in (('2H', 2), ('4H', 4)):
+    tf_bundle = read(f'chart/{tf}/{cid}.json')['data'].get(name)
+    assert tf_bundle and tf_bundle['t'], f'{tf} chart missing for {name}'
+    assert tf_bundle['p'] in ([50], [50, 250], [50, 250, 500]), f'{tf} ribbon is not 50/250/500'
+    assert 'sg' not in tf_bundle and 'context' not in tf_bundle, f'{tf} carries signals; it is chart only'
+    # The TYPICAL spacing: a bar starts at its first hourly bar, so a hole in
+    # the hourly feed can put one start closer to the last.
+    stamps = [datetime.strptime(t, '%Y-%m-%d %H:%M') for t in tf_bundle['t'][-60:]]
+    gaps = sorted((b - a).total_seconds() / 3600 for a, b in zip(stamps, stamps[1:]))
+    assert gaps and gaps[len(gaps) // 2] >= per_hour - 1e-9, f'{tf} bars typically under {per_hour}h apart: {gaps[:5]}'
 if args.live:
     template = (ROOT / 'webapp' / 'templates' / 'index.html').read_text()
     expected_asset = re.search(r'app\.js\?v=\d+', template).group(0)
@@ -101,9 +115,9 @@ if args.live:
         codes = live_timeframes(html)
         if codes is not None and '1H' in codes and expected_asset in html:
             assert '30m' not in codes, 'Retired 30m control remains live'
-            assert '4H' not in codes, 'Retired 4H control remains live'
+            assert '2H' in codes and '4H' in codes, '2H/4H charts missing from the live timeframe table'
             break
         assert time.monotonic() < deadline, 'Live UI is still the previous build'
         print('Waiting for the new Pages assets to reach the production URL', flush=True)
         time.sleep(5)
-print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, no 4H, B1/S1 markers, alerts and trend payloads')
+print(f'PASS: {len(rows)} instruments, {len(trends["1H"])} hourly charts, 2H/4H charts only, B1/S1 markers, alerts and trend payloads')
