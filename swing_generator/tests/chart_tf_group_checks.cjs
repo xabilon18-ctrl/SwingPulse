@@ -8,6 +8,8 @@ const { fixturePage } = require('./chart_autoplay_checks.cjs');
 module.exports = async function checkTfGroup(page0, live = false) {
   const page = live ? page0 : await fixturePage(page0);
   await page.evaluate(() => { try { localStorage.removeItem('sp-tf-group-last'); } catch (_) {} });
+  // Live runs share one page with the checks before: start out of full screen.
+  if (await page.locator('#chartFull.open').count()) await page.locator('#chartFull [data-act="chart-full-close"]').click();
   await page.locator('.nav-tab[data-tab="charts"]').click();
   await page.locator('#reelSearch').fill('');
   const btn = page.locator('#tfBtn1H');

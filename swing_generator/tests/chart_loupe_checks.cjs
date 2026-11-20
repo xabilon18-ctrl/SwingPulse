@@ -45,6 +45,8 @@ module.exports = async function checkChartLoupe(page0, live = false) {
   assert.equal(await lens.count(), 0, 'no lens on a drag');
   await page.mouse.up();
   assert.notEqual(await frame(), f0, 'the drag panned the chart');
-  if (!live) await page.close();
+  // Live runs share one page: leave full screen as the next check expects.
+  if (live) await page.locator('#chartFull [data-act="chart-full-close"]').click();
+  else await page.close();
   console.log('PASS: long-press magnifier follows the finger, reads price and date, no pan; a drag still pans');
 };
