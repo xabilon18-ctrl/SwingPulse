@@ -136,6 +136,10 @@ def build_summary(df, dt):
     # `expected`, named here so the payload says where they went.
     retired = [r.get('name', r.get('ticker')) for r in load_retired().get('instruments', [])
                if isinstance(r, dict)]
+    # New listings still short of MIN_ROWS_REQUIRED daily bars — also left out
+    # of `expected`, named so the payload says why they are not on the board.
+    pending = [r.get('name', r.get('ticker')) for r in load_retired().get('pending', [])
+               if isinstance(r, dict)]
 
     return {
         'date':             dt,
@@ -144,6 +148,7 @@ def build_summary(df, dt):
         'missing_count':    len(missing),
         'missing':          missing[:50],
         'retired':          retired,
+        'pending':          pending,
 
         'trend_counts':     trend_counts,
         'buy_count':        int(buy_mask.sum()),

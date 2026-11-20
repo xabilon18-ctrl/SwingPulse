@@ -315,6 +315,9 @@ def main():
                 f'— {(summary.get("missing") or [])[:8]}')
         else:
             print(f'  instruments               {total}/{expected} present  OK')
+        if summary.get('pending'):
+            print(f'  new listings waiting      {summary["pending"][:8]} '
+                  f'(too few daily bars to list yet)')
         if total is not None and expected is not None and total != expected:
             failures.append(f'summary.json: total {total} != expected {expected}')
 
