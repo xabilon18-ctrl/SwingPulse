@@ -9564,8 +9564,11 @@
     }
 
     return band + divs
-      + seg(dUp,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : '') + chW)
-      + seg(dDn,  'reel-ch reel-ch-edge' + (ch.dash ? ' is-dash' : '') + chW)
+      // reel-ch-line: a channel's own edges are pure black (user, 2026-11-21:
+      // "I wanted color black on channel"); trend / h / v lines share
+      // reel-ch-edge and keep the drawing colour.
+      + seg(dUp,  'reel-ch reel-ch-edge reel-ch-line' + (ch.dash ? ' is-dash' : '') + chW)
+      + seg(dDn,  'reel-ch reel-ch-edge reel-ch-line' + (ch.dash ? ' is-dash' : '') + chW)
       + seg(dMid, 'reel-ch reel-ch-mid' + (ch.dash ? ' is-dash' : '') + chW)
       // Tap targets over all three lines, so a channel can be made the active
       // drawing by touching any part of it rather than only its handles.

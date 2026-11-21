@@ -7,6 +7,39 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (15:15 SAST) CHANNEL EDGES PURE BLACK. app.js v657, style.css v451.
+User: "I wanted color black on channel then 0 level thin and black". Lines
+were already forced to #14140f (`drawColor`), drawn at 95% on channel edges.
+`reelChannelSvg` tags a channel's two edges `reel-ch-line`; CSS draws them
+#000 at full strength on every weight; the midline (already #000) goes from 90% to full. Trend,
+horizontal and vertical lines share `reel-ch-edge` and keep #14140f. The
+drawing's Intensity still applies. The zero line is as in the 14:55 entry.
+
+2026-11-21 (15:05 SAST) CHANNEL THIN AND MEDIUM NEVER ALIKE. style.css v450.
+User, after the Thin channel went to 2.6 / 2.4: "Thin and medium line must
+never be the same especially dash line". Medium channel edges 3.5 -> 4.5,
+midline 2.5 -> 3.8 (Thin 2.6 / 2.4, Thick 7.5 / 5 unchanged: about 1.7x per
+step). A dashed channel's dashes now lengthen with its weight as the older
+`is-w2` / `is-w3` channels already did: Thin 18/11 (midline 10/10), Medium
+22/12 (12/12), Thick 28/14 (15/14); before, all three drew 18/11.
+Dotted channels: Medium edges now draw the --dd-m dot and Thick --dd-l, as
+intended on 2026-11-07; the close-set rule's six :not()s outranked those
+rules, so all three weights drew Thin's dot. Fixed for channels only (the
+Daily ladder's bold 20s on 1H have the same latent issue, left alone).
+
+2026-11-21 (14:55 SAST) THIN CHANNELS AND THE ZERO LINE DRAW BLACK. style.css v449.
+User: "Make the thin channel line black. Currently grey. Then make the 0 level
+thin and black" (asked: the channel on Thin, and the price-zero line on all
+timeframes).
+- Thin channel: edges 1.4 -> 2.6 units, midline 1 -> 2.4, opacity 1. The
+  colour was already near-black (#14140f); the width (~0.5 CSS px on a phone)
+  is what antialiased it to grey. A colour the user picked still applies.
+  Medium (3.5 / 2.5) and Thick (7.5 / 5) are unchanged, so Thin and Medium
+  midlines are now close (2.4 vs 2.5).
+- Price-zero line (`.reel-zero`): #111 6 units -> #000 2.6 units, still
+  dashed 22 / 12, and no longer follows Grid weight (it was 2 / 3.5 / 6).
+  The "0" label is unchanged.
+
 2026-11-21 (03:49 SAST) SAVE A PRICE UNDER THE SWITCH (user: "Leave the price but give me
 an option to save under new conditions when the switch is on like if i open
 a price or close it"; asked and confirmed: the price of a chart following the
