@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (18:58 SAST) THIN CHANNEL A LITTLE DARKER GREY. style.css v453.
+User, after the #245 revert: "Make channel a lil darker grey". Thin channel
+edges 1.4 -> 1.9 units, midline 1 -> 1.4, both at full strength (edges were
+95%, midline 90%). A small step: #245 had taken them to 2.6 / 2.4 and pure
+black, which was reverted. Colour, Medium, Thick, dashes and the zero line
+are unchanged.
+
 2026-11-21 (15:25 SAST) PR #245 REVERTED. app.js v658, style.css v452. User:
 "Revert back", then chose "Everything today". The three entries below
 (14:55, 15:05, 15:15) are undone: channels, their Thin / Medium / Thick
