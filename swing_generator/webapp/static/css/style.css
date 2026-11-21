@@ -9787,8 +9787,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke] :is(.reel-ch-edge, .reel-ch-mid, .reel-circle, .reel-entry, .reel-ladder) {
   vector-effect: none !important;
 }
-.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 1.4 !important; }
-.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 1 !important; }
+/* Thin channel a little darker grey (user, 2026-11-21: "Make channel a lil
+   darker grey"). The colour is already near-black; at 1.4 / 1 units (~0.5 /
+   0.36 CSS px on a phone) it antialiases to a light grey. 1.9 / 1.4 at full
+   strength is a small step darker, still well under Medium (3.5 / 2.5). */
+.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 1.9 !important; stroke-opacity: 1 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 1.4 !important; stroke-opacity: 1 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 3.5 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 2.5 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 7.5 !important; }
