@@ -9796,10 +9796,18 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    width that reads black (as .reel-ladder). Colour is still the drawing's. */
 .reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 2.6 !important; stroke-opacity: 1 !important; }
 .reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 2.4 !important; stroke-opacity: 1 !important; }
-.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 3.5 !important; }
-.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 2.5 !important; }
+/* Thin and Medium must never look the same, dashed above all (user,
+   2026-11-21). Each level is about 1.7x the one below it (edges 2.6 / 4.5 /
+   7.5, midlines 2.4 / 3.8 / 5), and a dashed channel's dashes lengthen with
+   it (18/11, 22/12, 28/14), so the two differ in length as well as width. */
+.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 4.5 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 3.8 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 7.5 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 5 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-edge.is-dash { stroke-dasharray: 22 12; }
+.reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-mid.is-dash { stroke-dasharray: 12 12; }
+.reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-edge.is-dash { stroke-dasharray: 28 14; }
+.reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-mid.is-dash { stroke-dasharray: 15 14; }
 .reel-draw[data-stroke="1"][data-stroke-kind="trend"] .reel-ch-edge { stroke-width: 0.9 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="trend"] .reel-ch-edge { stroke-width: 1.7 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="trend"] .reel-ch-edge { stroke-width: 2.6 !important; }
@@ -10157,6 +10165,14 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-svg .reel-draw[data-stroke="3"] .reel-ch-edge:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-w3:not(.is-dash),
 .reel-svg .reel-draw:not([data-stroke]) .reel-ch-edge.is-bold:not(.is-dash) { stroke-dasharray: var(--dd-l) !important; }
+
+/* Channel dots by weight (2026-11-21). The two rules above for Medium / Thick
+   never applied: the close-set rule's six :not()s outrank them, so every
+   dotted channel drew Thin's dot. These carry enough weight to win, so a
+   dotted Medium / Thick channel draws its own dot (user: Thin and Medium
+   "must never be the same"). Channels only; ladders unchanged. */
+.reel-svg .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch.reel-ch-edge:not(.is-dash):not(.reel-ladder-key):not(.reel-tgrid-admin) { stroke-dasharray: var(--dd-m) !important; }
+.reel-svg .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch.reel-ch-edge:not(.is-dash):not(.reel-ladder-key):not(.reel-tgrid-admin) { stroke-dasharray: var(--dd-l) !important; }
 
 /* Failure notice and in-section error (2026-11-11): see reportFailure in app.js. */
 .sp-notice {

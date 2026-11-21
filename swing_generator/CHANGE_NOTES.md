@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (15:05 SAST) CHANNEL THIN AND MEDIUM NEVER ALIKE. style.css v450.
+User, after the Thin channel went to 2.6 / 2.4: "Thin and medium line must
+never be the same especially dash line". Medium channel edges 3.5 -> 4.5,
+midline 2.5 -> 3.8 (Thin 2.6 / 2.4, Thick 7.5 / 5 unchanged: about 1.7x per
+step). A dashed channel's dashes now lengthen with its weight as the older
+`is-w2` / `is-w3` channels already did: Thin 18/11 (midline 10/10), Medium
+22/12 (12/12), Thick 28/14 (15/14); before, all three drew 18/11.
+Dotted channels: Medium edges now draw the --dd-m dot and Thick --dd-l, as
+intended on 2026-11-07; the close-set rule's six :not()s outranked those
+rules, so all three weights drew Thin's dot. Fixed for channels only (the
+Daily ladder's bold 20s on 1H have the same latent issue, left alone).
+
 2026-11-21 (14:55 SAST) THIN CHANNELS AND THE ZERO LINE DRAW BLACK. style.css v449.
 User: "Make the thin channel line black. Currently grey. Then make the 0 level
 thin and black" (asked: the channel on Thin, and the price-zero line on all
