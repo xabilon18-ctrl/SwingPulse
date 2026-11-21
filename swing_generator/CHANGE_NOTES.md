@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (15:25 SAST) PR #245 REVERTED. app.js v658, style.css v452. User:
+"Revert back", then chose "Everything today". The three entries below
+(14:55, 15:05, 15:15) are undone: channels, their Thin / Medium / Thick
+widths and dashes, the dotted-channel dot rules and the price-zero line are
+exactly as before #245 (zero line #111, 6 units, following Grid weight).
+Versions moved FORWARD past the live #245 build, not back.
+
 2026-11-21 (15:15 SAST) CHANNEL EDGES PURE BLACK. app.js v657, style.css v451.
 User: "I wanted color black on channel then 0 level thin and black". Lines
 were already forced to #14140f (`drawColor`), drawn at 95% on channel edges.
