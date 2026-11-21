@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (14:55 SAST) THIN CHANNELS AND THE ZERO LINE DRAW BLACK. style.css v449.
+User: "Make the thin channel line black. Currently grey. Then make the 0 level
+thin and black" (asked: the channel on Thin, and the price-zero line on all
+timeframes).
+- Thin channel: edges 1.4 -> 2.6 units, midline 1 -> 2.4, opacity 1. The
+  colour was already near-black (#14140f); the width (~0.5 CSS px on a phone)
+  is what antialiased it to grey. A colour the user picked still applies.
+  Medium (3.5 / 2.5) and Thick (7.5 / 5) are unchanged, so Thin and Medium
+  midlines are now close (2.4 vs 2.5).
+- Price-zero line (`.reel-zero`): #111 6 units -> #000 2.6 units, still
+  dashed 22 / 12, and no longer follows Grid weight (it was 2 / 3.5 / 6).
+  The "0" label is unchanged.
+
 2026-11-21 (03:49 SAST) SAVE A PRICE UNDER THE SWITCH (user: "Leave the price but give me
 an option to save under new conditions when the switch is on like if i open
 a price or close it"; asked and confirmed: the price of a chart following the

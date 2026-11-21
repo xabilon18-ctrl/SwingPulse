@@ -9289,8 +9289,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-rib.up { fill: #22c55e; }
 .reel-rib.dn { fill: #ef4444; }
 
-/* Price-zero line (2026-09-30): fixed, bold, dashed; ladders never cross it. */
-.reel-zero { stroke: #111; stroke-width: 6; stroke-dasharray: 22 12; pointer-events: none; }
+/* Price-zero line (2026-09-30): fixed, dashed; ladders never cross it.
+   Thin and black on every timeframe since 2026-11-21 (user: "thin and black.
+   And it's the price level 0 on all time frames"): 2.6 units is ~1 CSS px on
+   a phone, the thinnest that still reads black. No longer follows Grid weight. */
+.reel-svg .reel-zero { stroke: #000; stroke-width: 2.6 !important; stroke-opacity: 1; stroke-dasharray: 22 12; pointer-events: none; }
 .reel-zero-lbl { fill: #111; font-size: 26px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 6px; pointer-events: none; }
 
 /* Background strength slider (2026-09-30) — replaces Faint/Light/Medium/Strong. */
@@ -9787,8 +9790,12 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke] :is(.reel-ch-edge, .reel-ch-mid, .reel-circle, .reel-entry, .reel-ladder) {
   vector-effect: none !important;
 }
-.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 1.4 !important; }
-.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 1 !important; }
+/* Thin channel reads BLACK (user, 2026-11-21: "Make the thin channel line
+   black. Currently grey"). 1.4 / 1 units drew ~0.5 / 0.36 CSS px on a phone,
+   which antialiases to grey whatever the colour; 2.6 / 2.4 is ~1 px, the
+   width that reads black (as .reel-ladder). Colour is still the drawing's. */
+.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 2.6 !important; stroke-opacity: 1 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 2.4 !important; stroke-opacity: 1 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 3.5 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="channel"] .reel-ch-mid { stroke-width: 2.5 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="channel"] .reel-ch-edge { stroke-width: 7.5 !important; }
@@ -9861,13 +9868,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-ladder-sub.is-dash { stroke-dasharray: 6 7; }
 .reel-svg[data-grid-weight="1"] .reel-tgrid { vector-effect: none !important; stroke-width: 1 !important; }
 .reel-svg[data-grid-weight="1"] .reel-tgrid-month { stroke-width: 1.4 !important; }
-.reel-svg[data-grid-weight="1"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin, .reel-zero) { stroke-width: 2 !important; }
+.reel-svg[data-grid-weight="1"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin) { stroke-width: 2 !important; }
 .reel-svg[data-grid-weight="2"] .reel-tgrid { vector-effect: none !important; stroke-width: 1.7 !important; }
 .reel-svg[data-grid-weight="2"] .reel-tgrid-month { stroke-width: 2.2 !important; }
-.reel-svg[data-grid-weight="2"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin, .reel-zero) { stroke-width: 3.5 !important; }
+.reel-svg[data-grid-weight="2"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin) { stroke-width: 3.5 !important; }
 .reel-svg[data-grid-weight="3"] .reel-tgrid { vector-effect: none !important; stroke-width: 2.6 !important; }
 .reel-svg[data-grid-weight="3"] .reel-tgrid-month { stroke-width: 3 !important; }
-.reel-svg[data-grid-weight="3"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin, .reel-zero) { stroke-width: 6 !important; }
+.reel-svg[data-grid-weight="3"] :is(.reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-admin) { stroke-width: 6 !important; }
 
 /* Properties wrap on narrow phones so every weight/action stays reachable. */
 .reel-props-main { max-width: 100%; min-width: 0; flex-wrap: wrap; justify-content: center; overflow-x: visible; }
