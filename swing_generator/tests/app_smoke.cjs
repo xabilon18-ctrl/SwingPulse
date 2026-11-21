@@ -434,6 +434,58 @@ let debugPage;
     }
     assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Daily is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));
+    // Save under the switch (2026-11-21: "give me an option to save under new
+    // conditions when the switch is on"): on a chart FOLLOWING a market's
+    // frame, the price saved under NAME|TF|F is applied with the frame's
+    // dates, and its own saved view is left alone. The fixture has one
+    // instrument, so the frame is set as if taken on another stock (OTHER),
+    // with "Also over saved charts" on so TEST's own view is set aside.
+    await page.evaluate(() => {
+      const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay')) || 'sp-overlay';
+      const ov = JSON.parse(localStorage.getItem(k) || '{}');
+      ov.frame = { M: { stocks: { y0: 2010, y1: 2030, scope: 'stocks', name: 'OTHER', over: true } } };
+      localStorage.setItem(k, JSON.stringify(ov));
+      const views = JSON.parse(localStorage.getItem('sp-views') || '{}');
+      views['TEST|M'] = { v: 2, start: '2020-01-01', slots: 40, lo: 1, hi: 2 };
+      views['TEST|M|F'] = { v: 2, start: '2015-01-01', slots: 40, lo: 7, hi: 900 };
+      localStorage.setItem('sp-views', JSON.stringify(views));
+      localStorage.setItem('swingpulse-reel-ranges', '{}');
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
+    await page.locator('.nav-tab[data-tab="charts"]').click();
+    await page.locator('#tfBtnM').click();
+    await page.waitForFunction(() => document.querySelector('#tfBtnM').getAttribute('aria-selected') === 'true');
+    await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+    {
+      const host = page.locator('#chartReel .reel-chart').first();
+      const view = () => host.evaluate(h => ({ t0: h._reelCtx.b.t[0], lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }));
+      const v = await view();
+      assert.ok(v.t0 >= '2009-06' && v.t0 < '2010-07', 'the frame\'s dates, not either saved view\'s: ' + v.t0);
+      assert.deepEqual([v.lo, v.hi], [7, 900], 'the price saved under the switch');
+      const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
+      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save reads Saved for the price under the switch');
+      assert.match(await save.getAttribute('title'), /shared frame/);
+      await save.click();   // forget the price under the switch
+      const views = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'));
+      assert.ok(!views['TEST|M|F'], 'forgotten');
+      assert.deepEqual([views['TEST|M'].lo, views['TEST|M'].hi], [1, 2], 'the chart\'s own saved view is untouched');
+      await save.click();   // and saved again: only under the switch's key
+      const again = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'));
+      assert.ok(again['TEST|M|F'] && again['TEST|M'].start === '2020-01-01', 'saved under |F, own view unchanged');
+    }
+    await page.evaluate(() => {
+      const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay'));
+      const ov = JSON.parse(localStorage.getItem(k) || '{}');
+      ov.frame = {};
+      localStorage.setItem(k, JSON.stringify(ov));
+      const views = JSON.parse(localStorage.getItem('sp-views') || '{}');
+      delete views['TEST|M']; delete views['TEST|M|F'];
+      localStorage.setItem('sp-views', JSON.stringify(views));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
+    assert.equal(errors.length, 0, errors.join('\n'));
     // Active at last close (2026-10-28): a row per timeframe with a busy
     // sector (the fixture: Technology on Day and Week, quiet on Month), and a
     // tap opens that sector's markets on Charts at that timeframe.
