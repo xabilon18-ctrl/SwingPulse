@@ -7595,7 +7595,11 @@ body {
 .reel-ch-edge { stroke-width: 2.6; stroke-dasharray: 2.6 7; stroke-opacity: .95; }
 /* Midline: black at 90%, dotted, at the ladder lines' weight (user, 2026-10-27;
    1.7 drew 0.63 CSS px on a phone and read grey). */
-.reel-ch-mid  { stroke: #000; stroke-width: 2.6; stroke-dasharray: 2.6 8; stroke-opacity: .9; }
+.reel-ch-mid  { stroke: #000; stroke-width: 2.6; stroke-dasharray: 2.6 8; stroke-opacity: 1; }
+/* A channel's edges: pure black at full strength on every weight (user,
+   2026-11-21: "I wanted color black on channel"). They were #14140f at 95%.
+   The drawing's Intensity (group opacity) still applies on top. */
+.reel-svg .reel-draw .reel-ch-edge.reel-ch-line { stroke: #000; stroke-opacity: 1 !important; }
 /* No fill between the edges. At 5% it was barely there on a dark panel, and
    what it did do was wash out the bars inside the channel — the very ones you
    drew it to look at. The two dotted edges and the midline carry it. */

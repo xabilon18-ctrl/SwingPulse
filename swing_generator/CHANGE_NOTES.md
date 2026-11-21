@@ -7,6 +7,14 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (15:15 SAST) CHANNEL EDGES PURE BLACK. app.js v657, style.css v451.
+User: "I wanted color black on channel then 0 level thin and black". Lines
+were already forced to #14140f (`drawColor`), drawn at 95% on channel edges.
+`reelChannelSvg` tags a channel's two edges `reel-ch-line`; CSS draws them
+#000 at full strength on every weight; the midline (already #000) goes from 90% to full. Trend,
+horizontal and vertical lines share `reel-ch-edge` and keep #14140f. The
+drawing's Intensity still applies. The zero line is as in the 14:55 entry.
+
 2026-11-21 (15:05 SAST) CHANNEL THIN AND MEDIUM NEVER ALIKE. style.css v450.
 User, after the Thin channel went to 2.6 / 2.4: "Thin and medium line must
 never be the same especially dash line". Medium channel edges 3.5 -> 4.5,
