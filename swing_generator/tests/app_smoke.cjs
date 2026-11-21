@@ -151,6 +151,18 @@ let debugPage;
       return ((JSON.parse(localStorage.getItem(k) || '{}').frame || {}).M || {}).stocks || null;
     });
     assert.equal((await storedFrame()).name, 'TEST', 'kept as the Stocks frame, taken on this chart');
+    // "Also over saved charts" (2026-11-21): under the frame switch only, a
+    // switch of its own, and the chart the frame came from keeps its Save.
+    const overOn = () => gridMenu(m => m.locator('[data-act="frame-over"]').getAttribute('aria-checked'));
+    assert.equal(await overOn(), 'false', 'Also over saved charts starts off');
+    await gridMenu(m => m.locator('[data-act="frame-over"]').click());
+    assert.equal(await overOn(), 'true', 'Also over saved charts switches on');
+    assert.equal((await storedFrame()).over, true, 'kept on the market frame');
+    assert.equal(await page.locator('#chartReel [data-act="chart-view-save"]').first().isDisabled(), false,
+      'the source chart keeps its Save under the override');
+    assert.equal(await firstShown(), shownBars.M, 'and does not move');
+    await gridMenu(m => m.locator('[data-act="frame-over"]').click());
+    assert.equal(await overOn(), 'false');
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while the frame switch is on');
     await toTf('D');
     assert.equal(await lockOn(), 'false', 'Daily has its own switch');
@@ -210,6 +222,7 @@ let debugPage;
     }
     await setRange(65);
     assert.equal(await lockOn(), 'false', 'a Chart range replaces the frame switch');
+    assert.equal(await gridMenu(m => m.locator('[data-act="frame-over"]').count()), 0, 'no override switch without a frame');
     await setRange(0);
     // The Monthly overlay on Daily rolls from the Monthly chart's whole history
     // (2026-10-28, "like on the monthly MAs"). The fixture's Daily bundle

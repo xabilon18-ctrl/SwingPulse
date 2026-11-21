@@ -151,6 +151,15 @@ for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd
   assert.equal(fx.reelFrameLock('AAPL'), null);
   assert.equal(fx.reelFrameOf('stocks').y0, 2020);
   assert.equal(fx.reelFrameLock(''), null);
+  // "Also over saved charts" (2026-11-21): a saved chart takes the frame
+  // too; the chart it came from still does not, and the saved view is kept.
+  fx.tfOverlay.frame.D.commodities.over = true;
+  assert.equal(fx.reelFrameLock('WTI').y0, 2023.5, 'a saved chart takes the frame under the override');
+  assert.equal(fx.reelFrameLock('GOLD'), null, 'the source chart is still left alone');
+  assert.equal(fx.reelFrameLock('AAPL'), null, 'the override stays inside its market');
+  assert.deepEqual(fx.savedViews['WTI|D'], { v: 2 }, 'the saved view is not touched');
+  fx.tfOverlay.frame.D.commodities.over = false;
+  assert.equal(fx.reelFrameLock('WTI'), null, 'off again: the saved view is back');
 }
 console.log('same frame per market: ok');
 // Only these timeframes, only without a Range pill.
