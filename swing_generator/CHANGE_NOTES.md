@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (03:21 SAST) "ALSO OVER SAVED CHARTS" (user, after the per-market
+frame went live: "Can I also get an opinion to overwrite"; asked, they chose
+to override while it is on and keep the saved views, not replace them).
+app.js v655, style.css v447.
+- Under a market's "Same frame" switch, a second switch: "Also over saved
+  charts" (`over` on `tfOverlay.frame[tf][scope]`). On, `reelFrameLock` frames
+  the charts of that market that have their own saved view too; the chart the
+  frame came from is still left alone.
+- Those charts' saved views are not touched: `reelViewSeedTime` /
+  `reelViewSeedPrice` skip them while overridden (`reelFrameOverrides`), and
+  they are back when the switch is off.
+- Their Save button is held (disabled, dimmed, with a title saying why): the
+  view on screen is the frame, and a tap on "Saved" would have forgotten the
+  chart's own view unseen.
+- Checks: stock_view_test.cjs (override in its market only, source and other
+  markets untouched, view kept), app_smoke.cjs (switch only under a frame,
+  source's Save stays usable). The fixture has one instrument, so another
+  chart taking the frame is covered by the unit test, not the browser.
+
 2026-11-21 (00:30 SAST) "SAME FRAME" IS PER MARKET AND LEAVES THE SOURCE
 CHART ALONE (user: "if i open an instrument and i analyze it and save it's
 frame view, then once I switch it on then the saved view must then apply to

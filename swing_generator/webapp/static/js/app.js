@@ -7302,12 +7302,18 @@
   const reelScopeOfName = name => reelMarketScope(name ? instrumentByName(name) : null);
   // The frame that applies to chart `name`: its market's, unless it is the
   // chart the frame was taken from or it has a saved view of its own.
+  // "Also over saved charts" (`over`, user, 2026-11-21: "Can I also get an
+  // opinion to overwrite"; asked, they chose to override while it is on and
+  // keep the saved views): a saved chart takes the frame too. Its own view is
+  // not touched and is back when that switch is off.
   function reelFrameLock(name, tf) {
     if (!name) return null;
     const f = reelFrameOf(reelScopeOfName(name), tf);
-    if (!f || f.name === name || savedViews[viewKey(name, tf)]) return null;
+    if (!f || f.name === name || (!f.over && savedViews[viewKey(name, tf)])) return null;
     return f;
   }
+  // A chart whose own saved view is set aside by "Also over saved charts".
+  const reelFrameOverrides = name => !!(name && savedViews[viewKey(name)] && reelFrameLock(name));
   // A frame starting before the first bar cannot be an opening view (those
   // start on the data); it is put on the chart as the scrolled-back window it
   // is, like a saved view that starts there (reelViewSeedTime). Remembered so
@@ -7614,6 +7620,7 @@
   function reelViewSeedTime(name, bundle) {
     const v = savedViews[viewKey(name)];
     if (!v || reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
+    if (reelFrameOverrides(name)) return false;   // the market's frame, not its own view
     if (v.v === 2) {
       const n = bundle.c.length;
       reel.tzoom.set(name, Math.max(REEL_MIN_WINDOW_BARS, Math.min(v.slots, reelMaxBars(bundle, name))));
@@ -7643,7 +7650,7 @@
   const viewPricePending = new Set();
   function reelViewSeedPrice(name, bundle, host, L) {
     const v = savedViews[viewKey(name)];
-    if (!v) return true;
+    if (!v || reelFrameOverrides(name)) return true;
     if (v.v === 2) {
       if (isFinite(v.lo) && isFinite(v.hi) && v.hi > v.lo) reel.lockY.set(name, { lo: v.lo, hi: v.hi, _saved: true });
       return true;
@@ -7663,21 +7670,26 @@
   // grow and shift the footer when Save turns into Saved.
   const viewBtnInner = on => VIEW_ICON + `<span class="reel-vb-lbl"><span>${on ? 'Saved' : 'Save'}</span><span aria-hidden="true">Saved</span></span>`;
   const viewBtnTitle = on => on ? 'View saved — tap to forget it' : 'Save this view';
+  // While "Also over saved charts" covers a chart, its Save is held: the view
+  // on screen is the market's frame, and a tap on "Saved" would forget the
+  // chart's own view without the reader seeing it.
+  const viewBtnHeldTitle = 'Showing the market’s shared frame — switch off “Also over saved charts” to use this chart’s own view';
   function reelViewBtnSync(name) {
-    const on = !!savedViews[viewKey(name)];
+    const on = !!savedViews[viewKey(name)], held = reelFrameOverrides(name);
     // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
     // .reel-view-btn class, and matching on it relabelled them "Saved" (2026-09-30).
     document.querySelectorAll(`.reel-view-btn[data-act="chart-view-save"][data-name="${CSS.escape(name)}"]`).forEach(b => {
       b.classList.toggle('on', on);
       b.innerHTML = viewBtnInner(on);
       b.setAttribute('aria-pressed', String(on));
-      b.title = viewBtnTitle(on);
+      b.title = held ? viewBtnHeldTitle : viewBtnTitle(on);
+      b.disabled = held;
     });
   }
   function reelCapsuleHtml(name) {
-    const on = !!savedViews[viewKey(name)];
+    const on = !!savedViews[viewKey(name)], held = reelFrameOverrides(name);
     return `<span class="reel-capsule">`
-      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${escText(name)}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
+      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${escText(name)}" aria-pressed="${on}" aria-label="Save this view" title="${held ? viewBtnHeldTitle : viewBtnTitle(on)}"${held ? ' disabled' : ''}>${viewBtnInner(on)}</button>`
       + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${escText(name)}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
@@ -7685,6 +7697,7 @@
   // press and unpress ... I don't want the long press"). From 2026-09 a tap
   // always saved and a 700ms HOLD forgot; that hold is gone.
   function reelViewToggle(name, host) {
+    if (reelFrameOverrides(name)) return;
     if (savedViews[viewKey(name)]) { reelViewForget(name); return; }
     const cur = reelViewCapture(host);
     if (!cur) return;
@@ -10263,8 +10276,12 @@
     const mkt = reelScopeOfName(name), lock = reelFrameOf(mkt), own = !!(name && savedViews[viewKey(name)]);
     const frame = `<button class="reel-tool reel-grid-switch${lock ? ' on' : ''}" data-act="frame-lock" role="menuitemcheckbox" aria-checked="${!!lock}">
         <span>Same frame on other ${GRID_SCOPE_LABELS[mkt]} ${TF_BY_CODE[timeframe].label} charts<em>${lock
-          ? `dates from ${escText(lock.name || 'one chart')} · charts with their own saved view keep it`
-          : `this chart’s ${own ? 'saved view' : 'dates'} on the others; it and saved charts stay as they are`}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+          ? `dates from ${escText(lock.name || 'one chart')}`
+          : `this chart’s ${own ? 'saved view' : 'dates'} on the others; it and saved charts stay as they are`}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`
+      + (!lock ? '' : `<button class="reel-tool reel-grid-switch${lock.over ? ' on' : ''}" data-act="frame-over" role="menuitemcheckbox" aria-checked="${!!lock.over}">
+        <span>Also over saved charts<em>${lock.over
+          ? 'saved charts show the frame; their own views are kept for when this is off'
+          : 'charts with their own saved view keep it'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`);
     let h = `${reelTimeGridSwitch(name)}
       ${thirds}${fourths}
       ${reelRangeSwitch()}
@@ -13212,12 +13229,15 @@
         if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
       }
-      if (btn.dataset.act === 'frame-lock') {
+      if (btn.dataset.act === 'frame-lock' || btn.dataset.act === 'frame-over') {
         const menuEl = btn.closest('.reel-grid-menu'), nm = menuEl && menuEl._name;
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
-        const frames = reelFrames(), scope = reelScopeOfName(nm);
-        if (reelFrameOf(scope)) delete frames[scope];
+        const frames = reelFrames(), scope = reelScopeOfName(nm), cur = reelFrameOf(scope);
+        if (btn.dataset.act === 'frame-over') {
+          if (!cur) return true;
+          frames[scope] = { ...cur, over: !cur.over, at: Date.now() };
+        } else if (cur) delete frames[scope];
         else {
           // The chart the menu was opened on: full screen, else its card.
           // Its saved view's dates when it has one, else those on screen.
@@ -13238,6 +13258,8 @@
           reelGridMenuPlace(menu);
         });
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn(b.dataset.name)));
+        // Save is held on the charts "Also over saved charts" covers.
+        document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
         reelRepaintAll();
         if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
