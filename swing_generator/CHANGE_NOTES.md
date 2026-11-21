@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-21 (03:49 SAST) SAVE A PRICE UNDER THE SWITCH (user: "Leave the price but give me
+an option to save under new conditions when the switch is on like if i open
+a price or close it"; asked and confirmed: the price of a chart following the
+frame, kept for while the switch is on, dates still the frame's). app.js v656,
+style.css v448. Declined at the same time: a shared % scale across charts.
+- On a chart a market's frame applies to (`reelFrameLock(name)`), Save reads
+  and writes `NAME|TF[|L]|F` (`frameViewKey`, `saveKeyOf`): only its price is
+  read back (`reelViewSeedPrice`), the dates stay the frame's
+  (`reelViewSeedTime` returns early). Its normal saved view is never touched.
+  Tap "Saved" again to go back to the auto-fitted price.
+- Replaces the held (disabled) Save of the 03:21 entry: under "Also over
+  saved charts" Save now saves this price instead, so it no longer risks the
+  chart's own view. The `:disabled` style is gone.
+- The `|F` views saved under the 2026-11-16 switch are read again, as these.
+- The chart the frame came from is unchanged: its Save is its own view and
+  moves the frame for the others.
+- Checks: app_smoke.cjs (a chart following a frame taken on another stock,
+  with "Also over saved charts" on: the frame's dates with the price saved
+  under |F, its own view untouched by forget and save).
+
 2026-11-21 (03:21 SAST) "ALSO OVER SAVED CHARTS" (user, after the per-market
 frame went live: "Can I also get an opinion to overwrite"; asked, they chose
 to override while it is on and keep the saved views, not replace them).

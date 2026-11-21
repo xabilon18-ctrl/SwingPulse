@@ -7857,8 +7857,6 @@ body {
 #chartFull .reel-capsule > .reel-act.reel-draw-btn.on {
   background: #fff3e6; border-color: #f3c99d; color: #a65a1f;
 }
-/* Held while "Also over saved charts" shows the market's frame (2026-11-21). */
-.reel-capsule > .reel-act.reel-view-btn:disabled { opacity: .45; cursor: not-allowed; }
 .reel-vb-lbl { display: inline-grid; }
 .reel-vb-lbl > span { grid-area: 1 / 1; }
 .reel-vb-lbl > span + span { visibility: hidden; }
