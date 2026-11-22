@@ -499,6 +499,22 @@ def api_alerts():
     return jsonify(out)
 
 
+@app.route('/api/holdings')
+def api_holdings():
+    """Big-fund 13F moves (holdings_feed.py), as published; null when no
+    build has been made here."""
+    for base in (OUTPUT_DIR, os.path.join(BASE_DIR, 'publish', 'data_ma500'),
+                 os.path.join(BASE_DIR, 'publish', 'htf-release'),
+                 os.path.join(BASE_DIR, 'publish', 'browser-data')):
+        path = os.path.join(base, 'holdings.json')
+        if os.path.exists(path):
+            raw = open(path, 'rb').read()
+            if raw[:2] == b'\x1f\x8b':
+                raw = gzip.decompress(raw)
+            return app.response_class(raw, mimetype='application/json')
+    return jsonify(None)
+
+
 @app.route('/api/activity/<tf>')
 def api_activity(tf):
     """Active sectors at the last close (activity_feed): the published file

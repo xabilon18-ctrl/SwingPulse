@@ -613,3 +613,61 @@ EXPECTED_MOVE_BETA = (-0.1429, 0.2915, 0.5955, 0.1930)
 EXPECTED_MOVE_K    = {'50': 1.259, '80': 2.485}
 EXPECTED_MOVE_TEST_COVERAGE = {'50': 47.8, '80': 77.5}
 
+
+# ---------------------------------------------------------------------------
+# Big-fund moves (SEC 13F) on the Monthly chart — webapp/holdings_feed.py
+# ---------------------------------------------------------------------------
+# User, 2026-11-22: "Propose the fund list with your rules", red and green
+# markers on the Monthly chart, tap one for the details, and a switch to show
+# or hide them.
+#
+# THE RULES a fund has to meet to be on this list:
+#   1. Discretionary and founder-led: one named person's decisions, and that
+#      person (or a co-founder) still runs it. Excludes quant funds
+#      (Renaissance), macro books whose 13F is mostly ETFs (Bridgewater),
+#      multi-manager platforms whose 13F is hundreds of pod trades (Point72,
+#      Millennium, Citadel) and index houses (Vanguard, BlackRock).
+#   2. At least 10 years of 13F filings, so there is a record to read.
+#   3. A US equity book of at least $1bn on its latest 13F.
+#   4. Concentrated: its ten largest holdings are at least half the book, so a
+#      change is a decision and not rebalancing noise.
+#   5. Still filing (Scion stopped after Q3 2025, Greenlight's old ID after
+#      Q4 2023: the ID list follows a fund when its filer changes).
+# tools/holdings_report.py prints every fund's numbers against rules 2-4.
+#
+# `ciks`: every SEC filer ID the fund's 13F has been filed under. When two file
+# for the same quarter, the larger book is used.
+SMART_MONEY_FUNDS = [
+    {'id': 'brk',  'name': 'Berkshire Hathaway',     'who': 'Warren Buffett (chair) · Greg Abel (CEO)', 'ciks': [1067983]},
+    {'id': 'duq',  'name': 'Duquesne Family Office', 'who': 'Stanley Druckenmiller', 'ciks': [1536411]},
+    {'id': 'psq',  'name': 'Pershing Square',        'who': 'Bill Ackman',           'ciks': [1336528, 2026053]},
+    {'id': 'app',  'name': 'Appaloosa',              'who': 'David Tepper',          'ciks': [1656456]},
+    {'id': 'bau',  'name': 'Baupost Group',          'who': 'Seth Klarman',          'ciks': [1061768]},
+    {'id': 'tpt',  'name': 'Third Point',            'who': 'Dan Loeb',              'ciks': [1040273]},
+    {'id': 'tgr',  'name': 'Tiger Global',           'who': 'Chase Coleman',         'ciks': [1167483]},
+    {'id': 'coa',  'name': 'Coatue',                 'who': 'Philippe Laffont',      'ciks': [1135730]},
+    {'id': 'vik',  'name': 'Viking Global',          'who': 'Andreas Halvorsen',     'ciks': [1103804]},
+    {'id': 'ell',  'name': 'Elliott',                'who': 'Paul Singer',           'ciks': [1791786]},
+    {'id': 'icn',  'name': 'Icahn',                  'who': 'Carl Icahn',            'ciks': [921669]},
+    {'id': 'grn',  'name': 'Greenlight Capital',     'who': 'David Einhorn',         'ciks': [1079114, 1489933]},
+    {'id': 'him',  'name': 'Himalaya Capital',       'who': 'Li Lu',                 'ciks': [1709323]},
+    {'id': 'alt',  'name': 'Altimeter',              'who': 'Brad Gerstner',         'ciks': [1541617]},
+    {'id': 'fsm',  'name': 'Fundsmith',              'who': 'Terry Smith',           'ciks': [1569205]},
+    {'id': 'trn',  'name': 'Trian',                  'who': 'Nelson Peltz',          'ciks': [1345471]},
+]
+# 13F information tables are XML from Q2 2013; the text ones before it are not read.
+SMART_MONEY_SINCE = '2013-06-30'
+# A move is shown when the stock was at least this % of the fund's 13F book in
+# either quarter, and the share count changed by at least SMART_MONEY_MIN_CHANGE
+# % (after splits), or the position is new or gone.
+SMART_MONEY_MIN_WEIGHT = 0.5
+SMART_MONEY_MIN_CHANGE = 25
+# Index charts: one marker per quarter, the net of the moves in the stocks your
+# list files under that index. `groups` = Instruments.txt Index/Group column,
+# `industry` = a regex on the Industry column.
+SMART_MONEY_INDEX_ROLLUPS = {
+    'US100': {'groups': ['US100', 'US30/US100']},
+    'US30':  {'groups': ['US30', 'US30/US100']},
+    'US500': {'groups': ['US500', 'US100', 'US30', 'US30/US100', 'NYSE']},
+    'SOX':   {'industry': r'Semiconductor'},
+}

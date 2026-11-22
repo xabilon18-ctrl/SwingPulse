@@ -543,5 +543,15 @@ class TimeframeTableTests(unittest.TestCase):
         self.assertNotIn('data-tf="', template)  # the buttons come from the table
 
 
+
+class HoldingsFeedTest(unittest.TestCase):
+    """The 13F moves builder publish_htf.py runs on the Monthly run
+    (tests/holdings_feed_test.py, offline)."""
+
+    def test_holdings_feed(self):
+        import holdings_feed_test
+        holdings_feed_test.main()
+
+
 if __name__ == '__main__':
     unittest.main()

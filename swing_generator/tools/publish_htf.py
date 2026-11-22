@@ -28,6 +28,11 @@ job can leave the other's map out of step. Weekly publishes no chart (removed
     python3 tools/publish_htf.py              # what is due today (SAST)
     python3 tools/publish_htf.py --tf W M     # these, whatever the day
     python3 tools/publish_htf.py --tf W --no-upload --output /tmp/htf
+    python3 tools/publish_htf.py --holdings-only  # the 13F markers alone
+
+The Monthly run also rebuilds holdings.json, the big-fund 13F moves behind the
+Monthly chart's markers (webapp/holdings_feed.py), when SEC_USER_AGENT is set.
+A failure there costs the markers' refresh, never the charts.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -144,6 +149,41 @@ def write_activity(output: Path, tf: str, bundles: dict) -> dict:
     return act
 
 
+def write_holdings(output: Path, built_on: str) -> bool:
+    """holdings.json and holdings_cusips.json into `output`. The CUSIP map is
+    read back from R2 first, so each run asks OpenFIGI only about new ones.
+    False (and the reason printed) when it cannot be built."""
+    import gzip
+    import json
+    import urllib.request
+    import holdings_feed as hf
+    from instruments import load_instruments
+    from publish import R2_DATA_PREFIX, R2_PUBLIC_URL
+    if not hf.SEC_UA:
+        print('  holdings: SEC_USER_AGENT not set, 13F moves not rebuilt', flush=True)
+        return False
+    known = hf.load_cusip_seed()
+    try:
+        url = f'{R2_PUBLIC_URL}/{R2_DATA_PREFIX}/holdings_cusips.json'
+        with urllib.request.urlopen(url, timeout=30) as r:
+            raw = r.read()
+        known.update(json.loads(gzip.decompress(raw) if raw[:2] == b'\x1f\x8b' else raw))
+    except Exception as exc:
+        print(f'  holdings: no CUSIP map on R2 yet ({exc}); using the committed one', flush=True)
+    try:
+        payload, cmap = hf.build(load_instruments(), hf.Http(), built_on=built_on,
+                                 known=known, log=lambda m: print(m, flush=True))
+    except Exception as exc:
+        print(f'  WARN holdings.json not built: {exc}', flush=True)
+        return False
+    if not payload['stocks']:
+        print('  WARN holdings: no moves at all - not publishing over the live file', flush=True)
+        return False
+    hf.write(output, payload)
+    _write_gz(str(output / 'holdings_cusips.json'), dict(sorted(cmap.items())))
+    return True
+
+
 def main():
     from publish import CACHE_DIR, R2_DATA_PREFIX, upload_to_r2
     from server import get_ticker_map
@@ -153,9 +193,23 @@ def main():
                     help='timeframes to publish (default: what is due today, SAST)')
     ap.add_argument('--output', default=str(ROOT / 'webapp' / 'publish' / 'htf-release'))
     ap.add_argument('--no-upload', action='store_true')
+    ap.add_argument('--holdings-only', action='store_true',
+                    help='rebuild the 13F moves alone (the run after each filing deadline)')
     args = ap.parse_args()
 
     now = pd.Timestamp.now(tz=SCHEDULE_TZ)
+    if args.holdings_only:
+        output = Path(args.output)
+        shutil.rmtree(output, ignore_errors=True)
+        output.mkdir(parents=True)
+        if not write_holdings(output, now.strftime('%Y-%m-%d')):
+            raise SystemExit('13F moves not built')
+        if not args.no_upload:
+            ok, failed = upload_to_r2(str(output), r2_prefix=R2_DATA_PREFIX)
+            if failed:
+                raise SystemExit(f'{failed} holdings files failed to upload')
+            print(f'Published {ok} files', flush=True)
+        return
     tfs = args.tf or due(now)
     if not tfs:
         print(f'Nothing due on {now:%a %Y-%m-%d} (SAST): Weekly runs on Mondays, '
@@ -184,6 +238,8 @@ def main():
             print(f'  {tf}: {act["active"]} active sectors at {act["period"]}', flush=True)
         except Exception as exc:
             print(f'  WARN activity/{tf}.json not built: {exc}', flush=True)
+    if 'M' in tfs:
+        write_holdings(output, now.strftime('%Y-%m-%d'))
     if args.no_upload:
         return
     ok, failed = upload_to_r2(str(output), r2_prefix=R2_DATA_PREFIX)

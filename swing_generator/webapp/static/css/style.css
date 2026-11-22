@@ -10246,3 +10246,40 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 #chartFull :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button, [role="button"] { touch-action: manipulation; }
+
+/* ── Big-fund moves (13F) on the Monthly chart (2026-11-22) ──────────────
+   Red ▼ above the bar = funds sold in that quarter, green ▲ below = bought.
+   Deep shades: the chart surface is light. Tap opens .fm-pop. */
+.fm-mark { stroke: #fff; stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.fm-mark.buy  { fill: #047857; }
+.fm-mark.sell { fill: #b91c1c; }
+.fm-n { font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.fm-n.buy  { fill: #047857; }
+.fm-n.sell { fill: #b91c1c; }
+.fm-band { fill: #f59e0b; opacity: .16; }
+.fm-pop {
+  --fm-text: #252a30; --fm-muted: #626a74; --fm-border: #dde1e5;
+  color-scheme: light;
+  position: absolute; z-index: 30; left: 8px; right: 8px; max-width: 440px;
+  max-height: min(70vh, 420px); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px 14px 10px; background: #fcfcfb; color: var(--fm-text);
+  border: 1px solid var(--fm-border); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(24,32,42,.16), 0 1px 4px rgba(24,32,42,.06);
+  font-size: .86rem; line-height: 1.35; text-align: left;
+}
+.fm-pop-x {
+  position: absolute; top: 4px; right: 4px; width: 36px; height: 36px;
+  border: 0; background: transparent; color: var(--fm-muted); font-size: 1rem; cursor: pointer;
+}
+.fm-pop-head { font-size: .95rem; padding-right: 34px; }
+.fm-pop-sub { color: var(--fm-muted); font-size: .78rem; margin-top: 2px; }
+.fm-pop-net { font-weight: 800; margin-top: 8px; }
+.fm-pop-net.buy, .fm-pop-sec.buy { color: #047857; }
+.fm-pop-net.sell, .fm-pop-sec.sell { color: #b91c1c; }
+.fm-pop-sec { font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; margin: 10px 0 4px; }
+.fm-pop-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-top: 1px solid var(--fm-border); }
+.fm-pop-row em { display: block; font-style: normal; color: var(--fm-muted); font-size: .8rem; margin-top: 1px; }
+.fm-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; }
+.fm-dot.buy { background: #047857; }
+.fm-dot.sell { background: #b91c1c; }
+.fm-pop-foot { color: var(--fm-muted); font-size: .72rem; margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--fm-border); }

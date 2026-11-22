@@ -5927,7 +5927,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfMod: (j.htfMod && typeof j.htfMod === 'object') ? j.htfMod : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, frame: (j.frame && typeof j.frame === 'object') ? j.frame : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast, syncAt: +j.syncAt || 0, syncSnap: typeof j.syncSnap === 'string' ? j.syncSnap : '' };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfMod: (j.htfMod && typeof j.htfMod === 'object') ? j.htfMod : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, frame: (j.frame && typeof j.frame === 'object') ? j.frame : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast, smart: j.smart, syncAt: +j.syncAt || 0, syncSnap: typeof j.syncSnap === 'string' ? j.syncSnap : '' };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -6083,6 +6083,111 @@
   // Which bars of the slice `b` traded above k x their own 25-bar average.
   // Reads the whole bundle (b._src) so the first bars on screen still have
   // their 25 bars of history. Zero volume is "not reported" and never counts.
+  // ── Big-fund moves (13F) on the Monthly chart (user, 2026-11-22) ────────
+  // "red and green markers that show the information on a pop up when I tap
+  // the marker", with "a switch for on and off". holdings.json
+  // (webapp/holdings_feed.py) is loaded the first time a chart that shows it
+  // is painted. Green = funds that bought in that quarter, red = sold; an index
+  // gets one marker, the colour of the net. modules/fund-moves.js says what
+  // they mean; this draws them and opens the pop-up.
+  const FM_TFS = new Set(['M']);
+  const FM_TAP_PX = 22;            // a tap this close (CSS px) to a marker opens it
+  let fmData = null, fmLoading = null;
+  const fmSel = { name: null, q: null };   // the quarter whose pop-up is open
+  function fmOn() { return tfOverlay.smart !== 0; }   // on until switched off
+  function fmShown() { return fmOn() && FM_TFS.has(timeframe); }
+  function fmRepaint() {
+    reelRepaintVisible();
+    const full = chartFullEl();
+    const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
+    if (fh && fh._reelCtx) reelRepaint(fh);
+  }
+  function fmLoad() {
+    if (fmData || fmLoading) return;
+    fmLoading = fetchJson('/api/holdings', null).then(d => {
+      // No file yet (or unreadable): nothing to draw, and no retry loop.
+      fmData = d && typeof d === 'object' && d.stocks ? d : { stocks: {}, indices: {}, funds: {} };
+      if (fmShown()) fmRepaint();
+    });
+  }
+  // The markers for the slice `b`, and where each one is (for the tap test).
+  function fmSvg(b, L, sc, xOf, bw, name, unit) {
+    const none = { svg: '', hits: [] };
+    if (!fmShown()) {
+      if (fmSel.name) fmClose(false);
+      return none;
+    }
+    if (!fmData) { fmLoad(); return none; }
+    const marks = modules.fundMoves.marks(fmData, name);
+    if (!marks.length) return none;
+    const at = new Map();
+    for (let i = 0; i < b.c.length; i++) at.set(String(b.t[i]).slice(0, 7), i);
+    const s = 7 / unit, h = s * 1.6, gap = 6 / unit, fs = 11 / unit;
+    let band = '', out = '';
+    const hits = [];
+    for (const m of marks) {
+      const i = at.get(String(m.q).slice(0, 7));
+      if (i == null || b.c[i] == null) continue;
+      const x = xOf(i), hi = b.h[i] ?? b.c[i], lo = b.l[i] ?? b.c[i];
+      if (fmSel.name === name && fmSel.q === m.q) {
+        const idx = modules.fundMoves.quarterOf(m.q).keys.map(k => at.get(k)).filter(v => v != null);
+        const a = Math.min(...idx), z = Math.max(...idx);
+        band = `<rect class="fm-band" x="${(xOf(a) - bw / 2).toFixed(1)}" y="${L.gTop}" width="${((z - a + 1) * bw).toFixed(1)}" height="${L.gBot - L.gTop}"/>`;
+      }
+      const tri = (dir, n) => {
+        // dir -1: red, above the high, pointing down at the bar; +1: green, below the low.
+        const tip = dir < 0 ? sc.y(hi) - gap : sc.y(lo) + gap, base = tip + dir * h;
+        const cls = dir < 0 ? 'sell' : 'buy';
+        hits.push({ x, y: (tip + base) / 2, q: m.q });
+        return `<polygon class="fm-mark ${cls}" points="${(x - s).toFixed(1)},${base.toFixed(1)} ${(x + s).toFixed(1)},${base.toFixed(1)} ${x.toFixed(1)},${tip.toFixed(1)}"/>` +
+          (n > 1 ? `<text class="fm-n ${cls}" x="${(x + s + 2 / unit).toFixed(1)}" y="${((tip + base) / 2 + fs * 0.35).toFixed(1)}" style="font-size:${fs.toFixed(1)}px">${n}</text>` : '');
+      };
+      if (m.sell) out += tri(-1, m.kind === 'stock' ? m.sell : 0);
+      if (m.buy) out += tri(1, m.kind === 'stock' ? m.buy : 0);
+    }
+    return { svg: `<g class="fm-g">${band}${out}</g>`, hits };
+  }
+  function fmHitAt(host, ctx, ev) {
+    const pt = reelSvgPoint(host, ev);
+    if (!pt || !ctx.fm || !ctx.fm.length) return null;
+    let best = null, bd = FM_TAP_PX / pt.pxPerUnit;
+    for (const h of ctx.fm) {
+      const d = Math.hypot(h.x - pt.x, h.y - pt.y);
+      if (d <= bd) { bd = d; best = h; }
+    }
+    return best;
+  }
+  function fmClose(repaint = true) {
+    document.querySelectorAll('.fm-pop').forEach(p => p.remove());
+    if (fmSel.name == null) return;
+    fmSel.name = fmSel.q = null;
+    if (repaint) fmRepaint();
+  }
+  // The pop-up sits over the top of the chart, a sibling of the chart host
+  // (whose innerHTML every repaint replaces), and keeps its taps to itself.
+  function fmOpen(host, hit) {
+    const ctx = host._reelCtx, box = host.parentElement;
+    const mark = ctx && fmData && modules.fundMoves.marks(fmData, ctx.name).find(m => m.q === hit.q);
+    if (!mark || !box) return;
+    document.querySelectorAll('.fm-pop').forEach(p => p.remove());
+    fmSel.name = ctx.name; fmSel.q = hit.q;
+    if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+    const pop = document.createElement('div');
+    pop.className = 'fm-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Big-fund moves');
+    pop.innerHTML = `<button type="button" class="fm-pop-x" data-act="fm-close" aria-label="Close">✕</button>`
+      + modules.fundMoves.popupHtml(fmData, mark, escText);
+    pop.style.top = (host.offsetTop + 6) + 'px';
+    ['pointerdown', 'pointerup', 'touchstart', 'wheel'].forEach(t => pop.addEventListener(t, e => e.stopPropagation(), { passive: true }));
+    pop.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.target.closest('[data-act="fm-close"]')) fmClose();
+    });
+    box.appendChild(pop);
+    reelRepaint(host);
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && fmSel.name) fmClose(); });
   function volBlueMask(b, name) {
     const k = volBlue();
     if (!k || !VOL_BLUE_TFS.has(timeframe) || reelVolumeHidden(name)) return null;
@@ -10180,7 +10285,8 @@
     // tap handler forced a reflow of the whole ~800-card reel (Save felt slow).
     // `win` / `pan` are the window and offset this paint used, so a gesture can
     // start from exactly what is on screen (reelSyncGestureState).
-    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L), win: _winBars, pan: _pan, back: _lead > 0 };
+    const fm = fmSvg(b, L, sc, xOf, bw, name, axisUnit);
+    host._reelCtx = { L, sc, bw, b, name, bundle, plotPx: plotPixelHeight(host, L), win: _winBars, pan: _pan, back: _lead > 0, fm: fm.hits };
     updateChartFreshness(host, bundle, name);
     reelSyncGridTag(host, tg);
 
@@ -10242,7 +10348,7 @@
 
     return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" style="${reelDotVars(L)}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}</g>${lastTag}${clipTag}${dates}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${fm.svg}</g>${lastTag}${clipTag}${dates}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%${tgripOff}" aria-hidden="true"></div>`;
   }
@@ -10318,6 +10424,12 @@
       if (vb) h += `<div class="reel-grid-row">${VOL_BLUE_STEPS.map(([v, lbl]) =>
           `<button class="reel-tool reel-grid-opt${v === vb ? ' on' : ''}" data-act="volblue-set" data-part="lvl" data-v="${v}">${lbl}</button>`).join('')}</div>`;
     }
+    if (FM_TFS.has(timeframe)) {
+      const fo = fmOn();
+      h += `<div class="reel-grid-sep"></div>
+      <button class="reel-tool reel-grid-switch${fo ? ' on' : ''}" data-act="fm-set" role="menuitemcheckbox" aria-checked="${fo}">
+        <span>Big-fund moves (13F)<em>green bought · red sold · tap a marker · US stocks and indices</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
+    }
     return h + `<div class="reel-grid-note">${TF_BY_CODE[timeframe].label} only — each timeframe keeps its own; the swap is kept per market</div>`;
   }
   function reelGridMenuClose() {
@@ -10348,18 +10460,29 @@
     menu.style.maxHeight = '';
     const w = menu.offsetWidth, h = menu.offsetHeight;
     const left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w));
+    // The phone's tab bar is drawn over the menu, so the room ends at its top.
+    const nav = document.getElementById('bottomNav'), nr = nav ? nav.getBoundingClientRect() : null;
+    const floor = nr && nr.height && nr.top > innerHeight / 2 ? Math.min(innerHeight, nr.top) : innerHeight;
     let top = r.bottom + 8;
-    if (top + h > innerHeight - 8) {
+    if (top + h > floor - 8) {
       // Too tall for the room under the button: above it if it fits there,
       // else it stays under the button and scrolls. It used to slide up over
       // its own button, which then could not be tapped to close it.
-      const room = innerHeight - 8 - top;
+      const room = floor - 8 - top;
       if (r.top - h - 8 >= 8) top = r.top - h - 8;
       else if (room >= 200) menu.style.maxHeight = room + 'px';
       else top = Math.max(8, r.top - h - 8);
     }
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
+    // The menu hangs off the card, and a card that makes `fixed` relative to
+    // itself (a transform or containment) moved it down by the card's own
+    // offset: on a phone the Grid menu opened ~160px low and its last rows,
+    // the volume and fund-move switches, were off the screen (2026-11-22).
+    // Measure where it landed and take the difference back out.
+    const got = menu.getBoundingClientRect();
+    if (Math.abs(got.top - top) > 0.5) menu.style.top = (2 * top - got.top) + 'px';
+    if (Math.abs(got.left - left) > 0.5) menu.style.left = (2 * left - got.left) + 'px';
   }
   // A scroll moves the button away from a fixed menu — close it.
   window.addEventListener('scroll', () => { if (document.querySelector('.reel-grid-menu')) reelGridMenuClose(); }, { passive: true });
@@ -12493,7 +12616,14 @@
       // After a handle drag the properties row follows the drawing just moved —
       // grabbing a handle selects that drawing, and the row must say so.
       if (mode === 'handle') { ladderScaleDrag = null; channelSave(); reelSyncChannelButtons(); }
-      if (wasTap && c && channelsFor(c.name)[pick.di]) {
+      const isTap = ev.type === 'pointerup' && mode === null
+        && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= TAP_SLOP_PX && Date.now() - downAt <= TAP_MAX_MS;
+      const fmHit = isTap && c && reel.editing !== c.name ? fmHitAt(host, c, ev) : null;
+      if (fmHit || (isTap && c && !wasTap && fmSel.name === c.name)) {
+        // The click that follows must not open the instrument.
+        if (fmHit) fmOpen(host, fmHit); else fmClose();
+        reel.lastGestureAt = Date.now();
+      } else if (wasTap && c && channelsFor(c.name)[pick.di]) {
         setActiveIdx(c.name, pick.di);
         reel.editing = c.name;
         // The click that follows this pointerup must not open the instrument.
@@ -13268,6 +13398,15 @@
         document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
         reelRepaintAll();
         if (fh && fh._reelCtx) reelRepaint(fh);
+        return true;
+      }
+      if (btn.dataset.act === 'fm-set') {
+        tfOverlay.smart = fmOn() ? 0 : 1;
+        ovSave();
+        fmClose(false);
+        fmRepaint();
+        const menu = btn.closest('.reel-grid-menu');
+        if (menu) { menu.innerHTML = reelGridMenuHtml(menu._name); reelGridMenuPlace(menu); }
         return true;
       }
       if (btn.dataset.act === 'volblue-set') {
