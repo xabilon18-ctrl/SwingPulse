@@ -36,6 +36,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -112,7 +113,8 @@ class Http:
                         body = gzip.decompress(body)
                     return body
             except urllib.error.HTTPError as e:
-                if e.code == 403 and 'sec.gov' in req.full_url:
+                host = (urllib.parse.urlsplit(req.full_url).hostname or '').lower()
+                if e.code == 403 and (host == 'sec.gov' or host.endswith('.sec.gov')):
                     raise RuntimeError('SEC refused the request (403): SEC_USER_AGENT must be '
                                        '"Name contact@address" and under 10 requests a second') from e
                 if e.code not in (429, 500, 502, 503, 504) or attempt == 4:
