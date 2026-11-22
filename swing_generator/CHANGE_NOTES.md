@@ -7,6 +7,41 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-22 (11:52 SAST) BIG-FUND 13F MOVES ON THE MONTHLY CHART. app.js v659,
+style.css v454, modules/fund-moves.js v1 (new). User: show who of the big funds
+buys and sells, as "red and green markers that show the information on a pop
+up when I tap the marker", "a switch for on and off", per quarter, and on the
+indices the stocks belong to.
+- Data: webapp/holdings_feed.py reads each fund's SEC 13F filings from Q2 2013
+  (amendments: restatement replaces, new holdings add; a fund whose filer ID
+  changed is followed across IDs, Pershing Square and Greenlight so far),
+  maps CUSIPs to tickers with OpenFIGI (map kept on R2 as
+  holdings_cusips.json), adjusts for splits (yfinance) and keeps a move when
+  the stock was >= 0.5% of the fund's book and the shares changed >= 25%, or
+  the position is new or gone. Value units are read off each filing: some
+  funds (Duquesne) still file thousands in 2026. Index charts (US100, US30,
+  US500, SOX) get one marker per quarter, the net of the moves in the stocks
+  Instruments.txt files under them. Output holdings.json on R2.
+- Funds and the five rules they meet: config.SMART_MONEY_FUNDS;
+  tools/holdings_report.py prints each fund's numbers against them.
+- Built by tools/publish_htf.py on the Monthly run (and --holdings-only), when
+  SEC_USER_AGENT is set (the SEC refuses a client with no contact address).
+  A failure costs the markers' refresh, never the charts.
+- App: on Monthly, a red marker above the quarter-end bar (funds that sold)
+  and a green one below (bought), with the number of funds when over one.
+  Tap one: a pop-up with each fund, its founder, the move, shares, rough
+  dollar size, share of the fund, and the disclosure date; the quarter is
+  shaded while it is open. Grid menu switch "Big-fund moves (13F)", on by
+  default, device-only (tfOverlay.smart).
+- Grid menu placement fixed: the menu hangs off the card, which makes
+  `fixed` relative to the card, so on a phone it opened ~160px low and its
+  bottom rows (the volume switch, now the 13F switch) were off the screen
+  or under the tab bar. It is measured and corrected, and stops above the
+  tab bar.
+- Tests: tests/holdings_feed_test.py (offline, run from htf_feed_test.py),
+  tests/fund_moves_checks.cjs (run from app_smoke.cjs; fixture in
+  browser_fixture.py).
+
 2026-11-21 (18:58 SAST) THIN CHANNEL A LITTLE DARKER GREY. style.css v453.
 User, after the #245 revert: "Make channel a lil darker grey". Thin channel
 edges 1.4 -> 1.9 units, midline 1 -> 1.4, both at full strength (edges were

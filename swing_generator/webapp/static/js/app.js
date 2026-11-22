@@ -10460,18 +10460,29 @@
     menu.style.maxHeight = '';
     const w = menu.offsetWidth, h = menu.offsetHeight;
     const left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w));
+    // The phone's tab bar is drawn over the menu, so the room ends at its top.
+    const nav = document.getElementById('bottomNav'), nr = nav ? nav.getBoundingClientRect() : null;
+    const floor = nr && nr.height && nr.top > innerHeight / 2 ? Math.min(innerHeight, nr.top) : innerHeight;
     let top = r.bottom + 8;
-    if (top + h > innerHeight - 8) {
+    if (top + h > floor - 8) {
       // Too tall for the room under the button: above it if it fits there,
       // else it stays under the button and scrolls. It used to slide up over
       // its own button, which then could not be tapped to close it.
-      const room = innerHeight - 8 - top;
+      const room = floor - 8 - top;
       if (r.top - h - 8 >= 8) top = r.top - h - 8;
       else if (room >= 200) menu.style.maxHeight = room + 'px';
       else top = Math.max(8, r.top - h - 8);
     }
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
+    // The menu hangs off the card, and a card that makes `fixed` relative to
+    // itself (a transform or containment) moved it down by the card's own
+    // offset: on a phone the Grid menu opened ~160px low and its last rows,
+    // the volume and fund-move switches, were off the screen (2026-11-22).
+    // Measure where it landed and take the difference back out.
+    const got = menu.getBoundingClientRect();
+    if (Math.abs(got.top - top) > 0.5) menu.style.top = (2 * top - got.top) + 'px';
+    if (Math.abs(got.left - left) > 0.5) menu.style.left = (2 * left - got.left) + 'px';
   }
   // A scroll moves the button away from a fixed menu — close it.
   window.addEventListener('scroll', () => { if (document.querySelector('.reel-grid-menu')) reelGridMenuClose(); }, { passive: true });

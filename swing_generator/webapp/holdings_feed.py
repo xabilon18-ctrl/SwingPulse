@@ -428,7 +428,8 @@ def index_rollups(moves_by_ticker: dict, instruments: list[dict], universe: dict
 # ── Build ────────────────────────────────────────────────────────────────────
 
 def build(instruments: list[dict], http: Http | None = None, funds=SMART_MONEY_FUNDS,
-          splits=yahoo_splits, built_on: str = '', log=print) -> tuple[dict, dict]:
+          splits=yahoo_splits, built_on: str = '', known: dict | None = None,
+          log=print) -> tuple[dict, dict]:
     """(holdings.json payload, the CUSIP map after this run)."""
     if not SEC_UA:
         raise RuntimeError('SEC_USER_AGENT is not set')
@@ -444,7 +445,7 @@ def build(instruments: list[dict], http: Http | None = None, funds=SMART_MONEY_F
     # Only a CUSIP that was ever big enough in a book to make a marker is looked up.
     need = {c for qs in quarters.values() for q in qs.values() if q['total']
             for c, p in q['pos'].items() if p['val'] / q['total'] * 100 >= SMART_MONEY_MIN_WEIGHT}
-    cmap = map_cusips(http, need, load_cusip_seed(), log=log)
+    cmap = map_cusips(http, need, load_cusip_seed() if known is None else known, log=log)
     cache: dict = {}
 
     def splits_of(t):

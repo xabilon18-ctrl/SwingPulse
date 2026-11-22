@@ -47,6 +47,22 @@ for tf, period, hot in (('D', str(d.index[-1].date()), True), ('W', '2026-10-19'
         'sectors': [{'sector': 'Technology', 'date': period, 'members': 9, 'counted': 9, 'big': 4,
                      'up': 4, 'down': 0, 'z': 2.4 if hot else 0.1, 'hot': hot, 'tilt': 'up',
                      'top': [['TEST', 3.1, 2.6]], 'order': ['TEST'], 'history_bars': 300}]}))
+# Big-fund 13F moves (holdings_feed.py) on TEST's Monthly chart: two funds
+# sold in Q3 2026 (one red marker, "2"), one bought in Q2 (one green).
+(out / 'holdings.json').write_text(json.dumps({
+    'built': '2026-11-20', 'since': '2013-06-30', 'latest': '2026-09-30',
+    'rules': {'min_w': 0.5, 'min_chg': 25},
+    'funds': {'duq': {'n': 'Duquesne Family Office', 'who': 'Stanley Druckenmiller'},
+              'tgr': {'n': 'Tiger Global', 'who': 'Chase Coleman'},
+              'app': {'n': 'Appaloosa', 'who': 'David Tepper'}},
+    'stocks': {'TEST': [
+        {'q': '2026-06-30', 'f': 'app', 'a': 'new', 'sh': 2_000_000, 'was': 0, 'w': 2.1, 'wp': 0.0,
+         'usd': 250_000_000, 'filed': '2026-08-14'},
+        {'q': '2026-09-30', 'f': 'duq', 'a': 'cut', 'sh': 456_000, 'was': 1_200_000, 'w': 1.6, 'wp': 4.1,
+         'usd': -120_000_000, 'filed': '2026-11-14'},
+        {'q': '2026-09-30', 'f': 'tgr', 'a': 'exit', 'sh': 0, 'was': 3_400_000, 'w': 0.0, 'wp': 2.0,
+         'usd': -410_000_000, 'filed': '2026-11-16'}]},
+    'indices': {}}))
 stamp = pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ')
 summary = publish.build_summary(pd.DataFrame([row]), str(d.index[-1].date()))
 summary['fetched_at'] = stamp

@@ -877,7 +877,7 @@ def upload_to_r2(data_dir, max_workers=8, retries=2, r2_prefix='', skip_unchange
                   # job's output holds only its own.
                   'activity/D.json', 'activity/W.json', 'activity/M.json',
                   # Big-fund 13F moves, from tools/publish_htf.py's Monthly run.
-                  'holdings.json']:
+                  'holdings.json', 'holdings_cusips.json']:
         p = os.path.join(data_dir, fname)
         if os.path.exists(p):
             files.append((p, _key(fname)))
