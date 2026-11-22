@@ -115,6 +115,12 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   and cron Workers and the production Pages project, then checks the live app
   again. The preview reads the same R2 data and Workers as production.
 - **Weekly/Monthly charts:** `publish-htf.yml`. **Watchdog:** `publish-watchdog.yml`.
+- **Big-fund 13F moves** (`holdings.json`, `webapp/holdings_feed.py`): rebuilt
+  by `publish-htf.yml` on the Monthly run and on its own (`--holdings-only`)
+  at 00:35 UTC on the 16th and 17th of Feb/May/Aug/Nov, two days after the
+  13F deadlines. Needs the `SEC_USER_AGENT` secret (the SEC refuses a client
+  with no contact address); without it the step is skipped. Fund list and its
+  rules: `config.SMART_MONEY_FUNDS`; check them with `tools/holdings_report.py`.
 - Stale banner: the app flags `now - summary.fetched_at > 32h`.
 - A failed run sets `status.json` on R2 to `state: 'failed'` and pushes a
   failure notification.
@@ -165,6 +171,9 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 - Helpers to reuse: `formatPrice`, `escText` and the other formatters in
   `modules/format.js`; `matchesSearch(item, query)` in `app.js`. Escape any
   data put into `innerHTML` with `escText`.
+- **Monthly 13F markers:** red above / green below the quarter-end bar,
+  tap for the pop-up (`modules/fund-moves.js`, `fmSvg`/`fmOpen` in `app.js`);
+  Grid menu switch "Big-fund moves (13F)", device-only (`tfOverlay.smart`).
 - `<body data-profile="__APP_PROFILE__">` is patched to `ma500` by
   `publish.build_ui()`.
 
