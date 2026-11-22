@@ -14,12 +14,16 @@ on:
   schedule:
     - cron: '35 0 * * 1'      # Weekly — every Monday
     - cron: '35 0 3-5 * *'    # Monthly — the 3rd, 4th and 5th
+    # Big-fund 13F moves alone, two days after each filing deadline (~14 Feb,
+    # 15 May, 14 Aug, 14 Nov): 02:35 SAST on the 16th and 17th. The Monthly
+    # run above rebuilds them too, for late filers and amendments.
+    - cron: '35 0 16,17 2,5,8,11 *'
   workflow_dispatch:
     inputs:
       tf:
-        description: 'Timeframes to publish now'
+        description: 'Timeframes to publish now (holdings = the 13F markers alone)'
         type: choice
-        options: ['W M', 'W', 'M']
+        options: ['W M', 'W', 'M', 'holdings']
         default: 'W M'
 
 # Its own lock, NOT swingpulse-publish: in that group a waiting run is dropped
@@ -76,12 +80,25 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SCHEDULE: ${{ github.event.schedule }}
           TF_INPUT: ${{ inputs.tf }}
+          # The SEC refuses 13F downloads without a contact address
+          # (webapp/holdings_feed.py). Without it the 13F step is skipped.
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
         run: |
           cd swing_generator
           # The cron that fired decides, not the date the run starts on.
           case "$SCHEDULE" in
             '35 0 * * 1')   TF=W ;;
             '35 0 3-5 * *') TF=M ;;
+            '35 0 16,17 2,5,8,11 *') TF=holdings ;;
             *)              TF="$TF_INPUT" ;;
           esac
-          python3 tools/publish_htf.py --tf $TF
+          if [ "$TF" = holdings ]; then
+            python3 tools/publish_htf.py --holdings-only
+          else
+            python3 tools/publish_htf.py --tf $TF
+          fi
+          # The fund list's numbers against its rules (config.SMART_MONEY_FUNDS),
+          # in the log for review. Never fails the run.
+          if [ -n "$SEC_USER_AGENT" ] && { [ "$TF" = holdings ] || [ "$TF" = M ]; }; then
+            python3 tools/holdings_report.py || echo "holdings report failed (log only)"
+          fi
