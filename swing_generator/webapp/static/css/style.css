@@ -7477,20 +7477,23 @@ body {
 .reel-head-line .reel-name { flex-shrink: 0; }
 .reel-head-line .reel-group { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .reel-head-meta { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
-/* The price beside the name (2026-11-23, app.js chartHeadPriceHtml): the
-   Watchlist's number, re-priced while Charts is on screen. Never truncates;
-   the full name gives way first. */
-.reel-price {
-  flex: 0 0 auto; font-size: .92rem; font-weight: 600; white-space: nowrap;
-  color: var(--text-primary); font-variant-numeric: tabular-nums;
+/* Today's % change at the right of the name line (2026-11-23, app.js
+   chartHeadChangeHtml): the Watchlist row's number and colours, green up,
+   red down, re-priced while Charts is on screen. Never truncates; the full
+   name gives way first. */
+.reel-chg {
+  flex: 0 0 auto; margin-left: auto; font-size: .92rem; font-weight: 700; white-space: nowrap;
+  color: var(--text-muted); font-variant-numeric: tabular-nums;
 }
-.reel-price[hidden] { display: none; }
-.reel-price.flash { animation: wl2flash .9s ease-out; }
-/* Full screen: on the line under the ticker, before the full name. The title
-   line is too narrow there (178px on a 390px phone, 108px at 320px, beside
-   the action buttons), so a long ticker would clip the price. */
+.reel-chg.up { color: var(--buy); }
+.reel-chg.down { color: var(--sell); }
+.reel-chg[hidden] { display: none; }
+.reel-chg.flash { animation: reel-chg-flash .9s ease-out; }
+@keyframes reel-chg-flash { from { opacity: .35; } to { opacity: 1; } }
+/* Full screen: the right end of the line under the ticker. The title line
+   beside the action buttons is too narrow (178px on a 390px phone). */
 #chartFull .cf-sub { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-#chartFull .cf-sub .reel-price { font-size: 14.5px; }
+#chartFull .cf-sub .reel-chg { font-size: 14.5px; }
 #chartFull .cf-sub .cf-fullname { flex: 1 1 auto; min-width: 0; }
 
 .reel-sig {
