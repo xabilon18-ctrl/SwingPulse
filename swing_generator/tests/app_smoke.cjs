@@ -621,6 +621,7 @@ let debugPage;
     assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
   }
   if (!live) await require('./fund_moves_checks.cjs')(browser);
+  if (!live) await require('./chart_head_price_checks.cjs')(browser);
   if (!live) await require('./dollar_index_checks.cjs')(browser);
   if (!live) await require('./back_scroll_checks.cjs')(browser);
   console.log('PASS: mobile 1H/Daily/Monthly charts (no 4H), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');

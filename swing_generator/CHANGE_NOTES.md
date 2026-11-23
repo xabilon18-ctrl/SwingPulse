@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-23 (21:14 SAST) PRICE BESIDE THE CHART'S NAME. app.js v660, style.css
+v455. User: "have the price feed on the head next to the instrument name".
+- The chart card header shows the price right after the ticker, on the same
+  line. Full screen shows it on the line under the ticker, before the full
+  name: the title line there sits beside the action buttons (178px wide on a
+  390px phone, 108px at 320px), so a long ticker (BCHAIN_NFT) with a
+  six-figure price clipped the price; on the card it fits even at 320px.
+- The number is `wlQuote`'s, the same as the Watchlist row: the newest of
+  `/live` and quotes.json. Its quote age is the tooltip; the card's % move
+  is unchanged (still the last finished Daily bar's move, not the live one).
+- The live poller (`modules/live-prices.js`, 30s) now also runs while Charts
+  is on screen, for the charts in view (a screen either side, max 20) plus
+  the one open full screen; it polls at once on entering Charts, 0.7s after
+  the reel stops scrolling, and on opening a chart not yet priced. Leaving
+  for Alerts or Market stops it, as before. Switching Charts -> Watchlist
+  restarts the clock so the rows are priced at once.
+- Test: tests/chart_head_price_checks.cjs (from app_smoke.cjs; serves its
+  own quotes.json and /live reply, as the fixture has neither).
+
 2026-11-22 (11:52 SAST) BIG-FUND 13F MOVES ON THE MONTHLY CHART. app.js v659,
 style.css v454, modules/fund-moves.js v1 (new). User: show who of the big funds
 buys and sells, as "red and green markers that show the information on a pop
