@@ -7,13 +7,17 @@
   // 2026-10-28: "Add 5 and 10 time grids for months only", then "Replace the
   // monthy time grid 5y for Mothly with 20y", then "apply 10y time grid on
   // weekly"): 10Y and 20Y on Monthly only (app.js; Weekly's chart was removed
-  // 2026-11-16).
+  // 2026-11-16). Y40/Y50/Y80/Y100 on Yearly only.
   // `label` is the button text.
-  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' }];
+  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' },
+    // Yearly's grids (user, 2026-11-23: "the time grids are 40 50 80 and 100").
+    { code: 'Y40', name: 'Forty years', parts: 1 / 40, label: '40Y' }, { code: 'Y50', name: 'Fifty years', parts: 1 / 50, label: '50Y' },
+    { code: 'Y80', name: 'Eighty years', parts: 1 / 80, label: '80Y' }, { code: 'Y100', name: 'A hundred years', parts: 1 / 100, label: '100Y' }];
   // Monthly is divided by administration term, every line equal (user,
   // 2026-10-19: "divided by administration and not by year. All must be
   // equal").
-  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', M: 'T' };
+  // Yearly (2026-11-23) opens on forty-year lines.
+  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', M: 'T', Y: 'Y40' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
     energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids' };
   // Split out of 'other' (user, 2026-10-21: "Fx, crypto, commodities, stocks
@@ -24,7 +28,7 @@
   function cleanRows(value) {
     const grids = {};
     for (const [tf, row] of Object.entries(value || {})) {
-      if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !row || !valid(row.division)) continue;
+      if (!/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf) || !row || !valid(row.division)) continue;
       if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
       grids[tf] = { division: row.division, modifiedAt: row.modifiedAt };
       // Quarter thirds (user, 2026-11-02: "just a switch to turn on and off in
@@ -86,7 +90,7 @@
     function thirds(tf, scope = 'other') { return effective(tf, scope)?.thirds === true; }
     function fourths(tf, scope = 'other') { return effective(tf, scope)?.fourths === true; }
     function set(tf, code, scope = 'other') {
-      if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
+      if (!valid(code) || !Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf)) return false;
       const rows = state[scopes[scope]], old = rows[tf], keepThirds = thirds(tf, scope), keepFourths = fourths(tf, scope);
       if (old && old.division === code) return true;
       // The split switches survive a division change, so Q and T come back as they were left.
@@ -97,7 +101,7 @@
     }
     // One switch flag on a grid row: 'thirds' (Q) or 'fourths' (T).
     function setSplit(key, tf, on, scope = 'other') {
-      if (!Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) return false;
+      if (!Object.hasOwn(scopes, scope) || !/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf)) return false;
       on = !!on;
       const now_ = { thirds: thirds(tf, scope), fourths: fourths(tf, scope) };
       if (now_[key] === on) return true;

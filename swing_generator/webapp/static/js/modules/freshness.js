@@ -127,6 +127,8 @@
     // timezone. A daily bar is a market-session date, not midnight to convert.
     const daily = tf === 'D' || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
     const d = new Date(ms);
+    // A Yearly bar is a calendar year: "2025", not its first day "1 Jan".
+    if (tf === 'Y') return String(d.getUTCFullYear());
     const date = d.toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', ...(weekday ? { weekday: 'short' } : {}),
       ...(daily ? { timeZone: 'UTC' } : {}),
@@ -141,7 +143,7 @@
     const end = provisional ? timestamp(forming.closes_at) : null;
     const state = provisional ? (end != null && now >= end ? 'Awaiting final update' : 'Still forming') : '';
     // Monthly bars are dated like Daily ones, by their first day.
-    const dated = { D: 'daily', M: 'monthly' }[tf];
+    const dated = { D: 'daily', M: 'monthly', Y: 'yearly' }[tf];
     return { label: provisional ? tf + ' candle · ' + state : 'Last completed ' + (dated || tf) + ' bar', state,
       time: chartTime(value, tf), detailTime: chartTime(value, tf, false, true),
       basis: dated ? 'session date' : 'local', age: ago(value, now) };

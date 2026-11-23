@@ -1058,6 +1058,7 @@
   function barsLabel(n) {
     const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '12H': 720 }[timeframe];
     if (timeframe === 'M') return `${n}mo`;
+    if (timeframe === 'Y') return `${n}y`;
     if (!per) return `${n}d`;
     const mins = n * per;
     return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
@@ -1555,6 +1556,7 @@
     return names.filter((n, i, a) => n && a.indexOf(n) === i).slice(0, 20);
   }
   function chartPaintLive(names) {
+    reelRepaintLiveForming(names);
     names.forEach(n => document.querySelectorAll(`[data-live-chg="${CSS.escape(n)}"]`).forEach(el => {
       const x = wlQuote(n);
       if (!x || x.pct == null) return;
@@ -5952,7 +5954,7 @@
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
   const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
-                     'M': 31 * 864e5 };
+                     'M': 31 * 864e5, 'Y': 366 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
   // grids") — the shown chart's calendar lines. Kept per timeframe with the
@@ -6277,7 +6279,7 @@
     if (at == null) syncPush();
     return true;
   }
-  const ovTfOk = tf => /^(?:\d+[mHDW]|D|W|M)$/.test(tf);
+  const ovTfOk = tf => /^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf);
   function ovHtfRow(tf) {
     const sel = (tfOverlay.htf || {})[tf];
     return Object.fromEntries(OV_HTF_ALL.map(([t]) => [t, !!(sel && typeof sel === 'object' && sel[t])]));
@@ -6492,7 +6494,7 @@
   // Monthly is published by its own job (tools/publish_htf.py), with its own
   // name -> chunk map in chart/M/index.json. It never falls back to the shared
   // map: chunks grouped differently must not draw as current.
-  const OWN_INDEX_TFS = new Set(['M']);
+  const OWN_INDEX_TFS = new Set(['M', 'Y']);   // Yearly too (2026-11-23), same job
   function reelChunkId(name, tf) {
     const idx = OWN_INDEX_TFS.has(tf) ? reel.tfIndex.get(tf) : reel.index;
     return idx && idx.chunks ? idx.chunks[name] : undefined;
@@ -7348,6 +7350,8 @@
   // current term's closing line, on ALL its history (user: "M all"). Price 'all'.
   const REEL_SLOW_VIEW = {
     'M': { term: 4, all: true, fit: 'all' },
+    // YEARLY (2026-11-23): candles only, no MA lines; the same frame as Monthly.
+    'Y': { term: 4, all: true, fit: 'all' },
   };
   function reelOpenSpec() {
     return REEL_SLOW_VIEW[timeframe] || REEL_FRAME_VIEW[timeframe] || null;
@@ -9733,6 +9737,13 @@
   // Ten and twenty years on Monthly only (Weekly also had ten until its chart
   // was removed, 2026-11-16).
   const LONG_GRID_TFS = { Y10: new Set(['M']), Y20: new Set(['M']) };
+  // Yearly's own grids and no others (user, 2026-11-23: "the time grids are
+  // 40 50 80 and 100", years per line, counted from 2000).
+  const ONLY_GRID_CODES = { Y: new Set(['Y40', 'Y50', 'Y80', 'Y100']) };
+  const ONLY_GRID_TF = Object.fromEntries(Object.entries(ONLY_GRID_CODES).flatMap(([tf, set]) => [...set].map(c => [c, tf])));
+  const gridOffered = (code, tf) => ONLY_GRID_CODES[tf] ? ONLY_GRID_CODES[tf].has(code)
+    : !ONLY_GRID_TF[code] && (!TERM_GRID_CODES.has(code) || TERM_GRID_TFS.has(tf))
+      && (!LONG_GRID_TFS[code] || LONG_GRID_TFS[code].has(tf));
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
@@ -9758,12 +9769,12 @@
     const scope = name ? reelGridScope(instrumentByName(name)) : 'other';
     const selected = reelGridDivision(timeframe, scope).code, label = GRID_SCOPE_LABELS[scope];
     return `<span class="reel-time-grid-label">Time grid · ${label}</span><div class="reel-time-grid-options" role="group" aria-label="${label}: time grid for all ${tfMeta().label} charts">`
-      + GRID_DIVISIONS.filter(d => (!TERM_GRID_CODES.has(d.code) || TERM_GRID_TFS.has(timeframe))
-        && (!LONG_GRID_TFS[d.code] || LONG_GRID_TFS[d.code].has(timeframe))).map(d => {
+      + GRID_DIVISIONS.filter(d => gridOffered(d.code, timeframe)).map(d => {
         const what = d.code === 'T' ? 'one equal part per four-year administration term'
           : d.code === 'T2' ? 'two equal parts per administration term, two years each'
           : d.code === 'Y10' ? 'one equal part per ten years'
           : d.code === 'Y20' ? 'one equal part per twenty years'
+          : /^Y\d+$/.test(d.code) ? `one equal part per ${d.code.slice(1)} years, counted from 2000`
           : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
         return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.label || d.code}</button>`;
       }).join('')
@@ -9783,6 +9794,8 @@
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
+    // A Yearly bar is its year (its 40-100-year grid often has no line in view).
+    if (timeframe === 'Y') return String(ts).slice(0, 4);
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';
   }
@@ -9881,19 +9894,57 @@
 
   // Display-only append: published completed arrays and signal indices stay
   // untouched. Repainting an already-expanded bundle must not append twice.
-  function reelDisplayBundle(bundle) {
-    const f = bundle.forming, n = bundle.t.length;
-    if (!f || !n || f.t <= bundle.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
-    const out = { ...bundle };
-    for (const key of ['t', 'o', 'h', 'l', 'c']) out[key] = [...bundle[key], f[key]];
-    out.mi = [...(bundle.mi || bundle.m[0].map((_, j) => Math.min(j * (bundle.ms || 1), n - 1))), n];
-    out.m = bundle.m.map((series, i) => [...series, f.m?.[i] ?? series[series.length - 1]]);
+  // The Yearly forming year (`live`, chart_feed.yearly_bundle) follows the
+  // live price (user, 2026-11-23: "Price changes live"): wlQuote's price, the
+  // header's, once it is newer than the daily bar the candle was built from.
+  // Its close moves to it, its high and low widen to take it, and its MA
+  // point is redone with it. A price more than 25% from the candle's own
+  // close is not the same level (a futures print against a cash index), and
+  // is not used.
+  const LIVE_FORMING_BAND = 0.25;
+  function reelLiveForming(bundle, name) {
+    const f = bundle.forming;
+    if (!f || !f.live || !name) return f;
+    const x = wlQuote(name), p = x && x.p;
+    const at = x && freshness.timestamp(x.t), asof = freshness.timestamp(f.asof);
+    if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(f.c) || f.c <= 0) return f;
+    if (at == null || asof == null || at < asof || Math.abs(p / f.c - 1) > LIVE_FORMING_BAND) return f;
+    const c = bundle.c, n = c.length;
+    const m = (bundle.p || []).map((per, i) => n >= per - 1
+      ? (c.slice(n - (per - 1)).reduce((a, v) => a + v, 0) + p) / per : (f.m || [])[i]);
+    return { ...f, c: p, h: Math.max(f.h, p), l: Math.min(f.l, p), m };
+  }
+  // Repaint the Yearly charts in view after a live price (chartPaintLive).
+  function reelRepaintLiveForming(names) {
+    if (timeframe !== 'Y') return;
+    const want = new Set(names);
+    document.querySelectorAll('#chartReel .reel-chart, #chartFull.open .reel-chart').forEach(h => {
+      const item = h._reelItem;
+      if (h._reelCtx && item && want.has(item.instrument_name) && h._reelCtx.b?.forming?.live) reelRepaint(h);
+    });
+  }
+
+  // A repaint hands back the expanded copy (ctx.bundle). A 1H forming candle
+  // is fixed, so that copy is returned as it is. A live one (Yearly) starts
+  // again from `_base`, the published bundle, to be redone with the newest
+  // price each time.
+  function reelDisplayBundle(bundle, name) {
+    const base = bundle._base || bundle;
+    if (bundle._base && !(base.forming && base.forming.live)) return bundle;
+    let src = base;
+    if (src.forming && src.forming.live) src = { ...src, forming: reelLiveForming(src, name) };
+    const f = src.forming, n = src.t.length;
+    if (!f || !n || f.t <= src.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
+    const out = { ...src, _base: base };
+    for (const key of ['t', 'o', 'h', 'l', 'c']) out[key] = [...src[key], f[key]];
+    out.mi = [...(src.mi || src.m[0].map((_, j) => Math.min(j * (src.ms || 1), n - 1))), n];
+    out.m = src.m.map((series, i) => [...series, f.m?.[i] ?? series[series.length - 1]]);
     return out;
   }
 
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
-    bundle = reelDisplayBundle(bundle);
+    bundle = reelDisplayBundle(bundle, item && item.instrument_name);
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.

@@ -20,6 +20,9 @@ run with the daily and hourly runs". So this is its own job
     Daily cache, which the workflow restores read-only: a shallower chart beats
     none.
 
+Yearly (candles only, no MA lines) is built with every Monthly run and
+published the same way, as chart/Y/<chunk>.json and chart/Y/index.json.
+
 Monthly is published as chart/M/<chunk>.json plus its own chart/M/index.json
 (name -> chunk). The hourly chart/index.json says nothing about it, so neither
 job can leave the other's map out of step. Weekly publishes no chart (removed
@@ -46,7 +49,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'webapp')]
 from chart_feed import (CHUNK_SIZE, BARS_BY_TF, _cache_name, _write_gz,   # noqa: E402
-                        weekly_bundle, monthly_bundle)
+                        weekly_bundle, monthly_bundle, yearly_bundle)
 from data_fetcher import _full_download, FETCH_WORKERS                    # noqa: E402
 from _active_config import HTF_CHART_BUILDERS                             # noqa: E402
 
@@ -56,13 +59,22 @@ SCHEDULE_TZ = 'Africa/Johannesburg'   # the clock the hourly runs are named in
 # published only for the timeframes config.TIMEFRAME_TABLE has enabled with
 # chart 'htf': Monthly. Weekly's chart was removed on 2026-11-16 (its dormant
 # code deleted the same day); its strip row stays.
-BUILDERS = {'W': weekly_bundle, 'M': monthly_bundle}
+BUILDERS = {'W': weekly_bundle, 'M': monthly_bundle, 'Y': yearly_bundle}
 CHART_TFS = frozenset(HTF_CHART_BUILDERS)
+# Yearly (user, 2026-11-23) has no schedule of its own: it rides with Monthly,
+# from the same whole-history download, on the 3rd-5th and whenever Monthly is
+# published by hand (`--tf M`, the workflow's 'M' choice). A year closes once a
+# year, so eleven of those twelve rebuilds re-upload the same bars, which is
+# cheap; the twelfth, in January, adds the year just closed.
+RIDES_WITH = {'M': 'Y'}
+# The Watchlist strip's Week and Month rows read activity/W and activity/M.
+# Yearly has no strip row.
+ACTIVITY_TFS = frozenset({'W', 'M'})
 # Below this share of instruments with a chart, something is broken (Yahoo
 # refusing the runner, an empty cache) and publishing would blank good charts.
 # Monthly is lower: it needs 50 months, Weekly 250 weeks, and young listings
 # and crypto have neither.
-MIN_COVERAGE = {'W': 0.6, 'M': 0.5}
+MIN_COVERAGE = {'W': 0.6, 'M': 0.5, 'Y': 0.5}
 
 
 def due(now: pd.Timestamp) -> list[str]:
@@ -70,8 +82,19 @@ def due(now: pd.Timestamp) -> list[str]:
     Monthly on the 3rd, 4th and 5th — once each day, the spare days covering a
     failed run."""
     now = now.tz_convert(SCHEDULE_TZ) if now.tzinfo else now
-    return [tf for tf, on in (('W', now.weekday() == 0), ('M', 3 <= now.day <= 5))
-            if on and tf in BUILDERS]
+    return with_riders([tf for tf, on in (('W', now.weekday() == 0), ('M', 3 <= now.day <= 5))
+                        if on and tf in BUILDERS])
+
+
+def with_riders(tfs: list[str]) -> list[str]:
+    """`tfs` plus what rides with them (Yearly with Monthly), when that is a
+    published chart."""
+    out = list(tfs)
+    for tf in tfs:
+        rider = RIDES_WITH.get(tf)
+        if rider and rider in CHART_TFS and rider not in out:
+            out.append(rider)
+    return out
 
 
 def fetch_deep(ticker: str, cache_dir: str) -> tuple[pd.DataFrame | None, str]:
@@ -210,10 +233,10 @@ def main():
                 raise SystemExit(f'{failed} holdings files failed to upload')
             print(f'Published {ok} files', flush=True)
         return
-    tfs = args.tf or due(now)
+    tfs = with_riders(args.tf) if args.tf else due(now)
     if not tfs:
         print(f'Nothing due on {now:%a %Y-%m-%d} (SAST): Weekly runs on Mondays, '
-              f'Monthly on the 3rd-5th.')
+              f'Monthly and Yearly on the 3rd-5th.')
         return
     ticker_map = get_ticker_map()
     print(f'Building {" + ".join(tfs)} for {len(ticker_map)} instruments '
@@ -232,6 +255,8 @@ def main():
             print(f'  {tf}: {n} charts in {chunks} chunks', flush=True)
         else:
             print(f'  {tf}: activity only (no chart)', flush=True)
+        if tf not in ACTIVITY_TFS:
+            continue
         # A failure costs the Watchlist strip's Weekly/Monthly row, never the charts.
         try:
             act = write_activity(output, tf, built[tf])
@@ -244,7 +269,7 @@ def main():
         return
     ok, failed = upload_to_r2(str(output), r2_prefix=R2_DATA_PREFIX)
     if failed:
-        raise SystemExit(f'{failed} Weekly/Monthly files failed to upload')
+        raise SystemExit(f'{failed} Weekly/Monthly/Yearly files failed to upload')
     print(f'Published {ok} files', flush=True)
 
 

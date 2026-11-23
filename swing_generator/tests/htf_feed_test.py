@@ -1,4 +1,4 @@
-"""Weekly and Monthly charts (tools/publish_htf.py), offline on the daily fixtures.
+"""Weekly, Monthly and Yearly charts (tools/publish_htf.py), offline on the daily fixtures.
 
 Checks the schedule (Mondays, the 3rd-5th, SAST), the fallback from Yahoo's
 whole history to the Daily cache, that the bundles hold closed periods stamped
@@ -44,11 +44,18 @@ class ScheduleTests(unittest.TestCase):
     def test_weekly_on_mondays_monthly_on_the_3rd_to_5th(self):
         self.assertEqual(publish_htf.due(sast('2026-10-19')), ['W'])       # a Monday
         self.assertEqual(publish_htf.due(sast('2026-10-20')), [])
+        # Yearly rides with Monthly (2026-11-23): same days, same download.
         for day in ('2026-11-03', '2026-11-04', '2026-11-05'):
-            self.assertEqual(publish_htf.due(sast(day)), ['M'], day)
+            self.assertEqual(publish_htf.due(sast(day)), ['M', 'Y'], day)
         for day in ('2026-11-01', '2026-11-06', '2026-11-07'):
             self.assertEqual(publish_htf.due(sast(day)), [], day)
-        self.assertEqual(publish_htf.due(sast('2027-05-03')), ['W', 'M'])  # Monday the 3rd
+        self.assertEqual(publish_htf.due(sast('2027-05-03')), ['W', 'M', 'Y'])  # Monday the 3rd
+
+    def test_yearly_rides_with_a_monthly_run_by_hand(self):
+        # The workflow's 'M' choice runs `--tf M`: Yearly is published with it.
+        self.assertEqual(publish_htf.with_riders(['M']), ['M', 'Y'])
+        self.assertEqual(publish_htf.with_riders(['W']), ['W'])
+        self.assertEqual(publish_htf.with_riders(['Y', 'M']), ['Y', 'M'])
 
     def test_schedule_is_read_in_sast(self):
         # 23:30 UTC on a Sunday is already Monday in SAST.
@@ -120,6 +127,55 @@ class BuildTests(unittest.TestCase):
         # bars and ribbon only).
         self.assertNotIn('mo', self.built['W']['Apple'])
         self.assertNotIn('mo', self.built['M']['Apple'])
+
+
+class YearlyTests(unittest.TestCase):
+    """Yearly (user, 2026-11-23): closed calendar years stamped on 1 January,
+    the 10-year MA where ten closed years warm it, and the year in progress
+    carried apart as a live forming candle."""
+
+    @staticmethod
+    def daily(start, end):
+        import numpy as np
+        idx = pd.bdate_range(start, end)
+        v = np.linspace(10, 50, len(idx))
+        return pd.DataFrame({'Open': v, 'High': v + 1, 'Low': v - 1, 'Close': v + 0.5, 'Volume': 1000}, index=idx)
+
+    def test_closed_years_are_the_bars_and_this_year_is_forming(self):
+        b = chart_feed.yearly_bundle('TEST', self.daily('2001-03-05', '2026-11-20'))
+        # 2001 is a first, partial year, as Monthly's first month is.
+        self.assertEqual(b['t'], [f'{y}-01-01' for y in range(2001, 2026)])
+        f = b['forming']
+        self.assertEqual((f['t'], f['closes_at'], f['asof'], f['live']),
+                         ('2026-01-01', '2027-01-01T00:00:00Z', '2026-11-20', True))
+        self.assertEqual(f['c'], 50.5)
+        self.assertGreater(f['h'], f['o'])
+
+    def test_ten_year_ma_with_the_forming_point(self):
+        b = chart_feed.yearly_bundle('TEST', self.daily('2001-03-05', '2026-11-20'))
+        self.assertEqual(b['p'], [10])
+        closes = b['c']
+        self.assertAlmostEqual(b['m'][0][-1], sum(closes[-10:]) / 10, places=3)
+        self.assertAlmostEqual(b['forming']['m'][0], (sum(closes[-9:]) + b['forming']['c']) / 10, places=3)
+
+    def test_no_ma_under_ten_closed_years(self):
+        b = chart_feed.yearly_bundle('TEST', self.daily('2019-06-03', '2026-11-20'))
+        self.assertEqual((b['p'], b['m'], b['forming']['m']), ([], [], []))
+
+    def test_a_closed_year_is_not_forming(self):
+        b = chart_feed.yearly_bundle('TEST', self.daily('2019-01-01', '2025-12-31'))
+        self.assertEqual(b['t'][-1], '2025-01-01')
+        self.assertNotIn('forming', b)
+
+    def test_too_short_is_no_chart(self):
+        # 2025 closed and 2026 forming: two years, under the three a chart needs.
+        self.assertIsNone(chart_feed.yearly_bundle('TEST', self.daily('2025-02-03', '2026-11-20')))
+
+    def test_built_with_the_htf_job_and_no_strip_row(self):
+        built, _ = publish_htf.build({'Apple': 'AAPL'}, ['M', 'Y'], lambda t: (fixture(t), 'max'), workers=1)
+        self.assertIn('Apple', built['Y'])
+        self.assertIn('Y', publish_htf.CHART_TFS)
+        self.assertNotIn('Y', publish_htf.ACTIVITY_TFS)
 
 
 class QuoteRefTests(unittest.TestCase):
@@ -504,9 +560,10 @@ class TimeframeTableTests(unittest.TestCase):
         self.assertEqual(config.TIMEFRAMES, (('1H', 'h1_'), ('D', '')))
         self.assertEqual(config.RUN_CHART_BUILDERS, {'1H': 'build_1h', 'D': 'build_daily'})
         # Weekly's chart was removed on 2026-11-16, and its row on the same day.
-        self.assertEqual([t['code'] for t in config.TIMEFRAME_TABLE], ['1H', 'D', 'M'])
-        self.assertEqual(list(config.HTF_CHART_BUILDERS), ['M'])
-        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'M'])
+        # Yearly added 2026-11-23.
+        self.assertEqual([t['code'] for t in config.TIMEFRAME_TABLE], ['1H', 'D', 'M', 'Y'])
+        self.assertEqual(list(config.HTF_CHART_BUILDERS), ['M', 'Y'])
+        self.assertEqual([t['code'] for t in config.app_timeframes()], ['1H', 'D', 'M', 'Y'])
         for t in config.TIMEFRAME_TABLE:
             self.assertTrue(hasattr(chart_feed, t['builder']), t['builder'])
 
@@ -535,8 +592,9 @@ class TimeframeTableTests(unittest.TestCase):
     def test_app_and_server_read_the_table(self):
         import publish
         import server
-        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M'])
-        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'M'})
+        self.assertEqual(sorted(server._CHART_BUILDERS), ['1H', 'D', 'M', 'Y'])
+        self.assertEqual(set(publish._LIVE_CHART_TFS), {'1H', 'D', 'M', 'Y'})
+        self.assertNotIn('Y', publish.RETIRED_CHART_TFS)
         self.assertIn('W', publish.RETIRED_CHART_TFS)
         template = (Path(__file__).resolve().parents[1] / 'webapp' / 'templates' / 'index.html').read_text()
         self.assertIn('window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;', template)

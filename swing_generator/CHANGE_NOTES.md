@@ -7,6 +7,54 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (01:29 SAST) YEARLY TIMEFRAME. app.js v662, chart-preferences.js v15,
+freshness.js v8, grid-geometry.js v20, saved-work.js v3; sync Worker. User:
+a Yearly timeframe; told only 48 of 798 instruments had the 50 years a yearly
+MA50 needs, they chose "Build without ma", then: "must run monthly ...
+showing where the candle or bar is month by month", "Maybe add 10ma" (asked:
+yes), "the time grids are 40 50 80 and 100" (asked: years per line), "Price
+changes live" (asked: the forming year follows the live price).
+- config.TIMEFRAME_TABLE row Y (chart 'htf', builder build_yearly). Button,
+  menu and ‹ › steps come from the table: 1H, Daily, Monthly, Yearly.
+- Data: chart_feed.yearly_bundle (main._resample_yearly, 'YE' stamped
+  1 Jan) from the whole Yahoo history. Closed years are the bars; the year in
+  progress rides apart as `forming` (the 1H forming hour's shape) with
+  `live: true` and `asof` (its newest daily bar). MA10 (YEARLY_MA) where ten
+  closed years warm it, plus the forming point. Three years at least
+  (YEARLY_MIN_BARS) or no chart. Published as chart/Y/<chunk>.json with its
+  own chart/Y/index.json (OWN_INDEX_TFS, like Monthly).
+- EXCEPTION to "finished bars only", Yearly only and by the user's ask: the
+  forming year is shown. It is display-only (reelDisplayBundle), never in the
+  closed arrays, and no signal reads Yearly.
+- Schedule: no new cron. tools/publish_htf.py builds Y with every M run
+  (RIDES_WITH, with_riders): the 3rd-5th, and the workflow's 'M' choice by
+  hand. No activity/Y.json (ACTIVITY_TFS = W, M). Coverage floor 50%.
+- Live: while a Yearly chart is on screen, each 30s poll (chartPaintLive ->
+  reelRepaintLiveForming) redraws it; reelLiveForming moves the forming
+  close to wlQuote's price, widens its high/low and redoes the MA10 point,
+  once the price is newer than `asof` and within 25% of the published close
+  (LIVE_FORMING_BAND; a futures print against a cash index is not used, the
+  candle shows its published close). reelDisplayBundle keeps `_base` so a
+  repaint redoes a live candle from the published bundle; a 1H forming
+  candle is returned unchanged as before.
+- Grids: Yearly offers 40Y, 50Y, 80Y and 100Y only, counted from 2000
+  (2000, 2040...; 1950, 2000, 2050...); 40Y by default. Most Yearly charts
+  start after 2000, so often no line is in view: the axis then names its two
+  ends by year (reelEndStopLabel). Monthly's grids are unchanged.
+- "Last completed yearly bar" / "Y candle · Still forming" read as the year
+  (freshness.chartTime), not "1 Jan".
+- Found while testing: four timeframe whitelists that would have dropped
+  Yearly work. saved-work.js refused the whole backup ("Invalid drawing
+  timeframe") once a Yearly drawing existed; the sync Worker's
+  saved-work-store.js dropped Yearly drawings, views, overlay rows and grid
+  choices (and did not know Y40-Y100); chart-preferences.js would not keep a
+  Yearly grid choice; app.js ovTfOk refused Yearly overlay rows. All take Y.
+- Tests: htf_feed_test (bundle, forming, MA10, schedule, riders, table),
+  tests/yearly_chart_checks.cjs (app_smoke; live forming price, off-level
+  price ignored, grids, saved choice, steps), sync-worker saved_work_test
+  (Yearly survives the merge; fails on the old Worker).
+- Data job: run publish-htf.yml with 'M' after the release (builds M and Y).
+
 2026-11-24 (00:56 SAST) TODAY'S % CHANGE ON THE CHART HEADER, NOT THE PRICE. app.js
 v661, style.css v457. User, after #250 went live: "That is not feed i wanted i
 wahted price change in percentage green up red negative or down and also on the
