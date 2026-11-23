@@ -20,7 +20,7 @@
     for (const [name, timeframes] of Object.entries(d.channels)) {
       if (name.length > 120 || !object(timeframes)) throw new Error('Invalid drawing list.');
       for (const [tf, drawings] of Object.entries(timeframes)) {
-        if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !Array.isArray(drawings) || drawings.length > 1000) throw new Error('Invalid drawing timeframe.');
+        if (!/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf) || !Array.isArray(drawings) || drawings.length > 1000) throw new Error('Invalid drawing timeframe.');
         for (const drawing of drawings) {
           if (!object(drawing) || !['channel', 'trend', 'hline', 'vline', 'ladder', 'entry', 'circle', 'triangle'].includes(drawing.kind || 'channel')) throw new Error('Invalid drawing.');
           for (const field of ['p', 'p1', 'p2', 'p3', 'p4', 'up', 'dn']) if (drawing[field] != null && !Number.isFinite(drawing[field])) throw new Error('Invalid drawing price.');

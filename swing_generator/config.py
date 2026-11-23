@@ -465,6 +465,10 @@ TIMEFRAME_TABLE = (
      'signals': True, 'intraday': False, 'chart': 'run', 'builder': 'build_daily', 'enabled': True},
     {'code': 'M', 'prefix': '', 'label': 'Monthly', 'name': 'Monthly', 'bar': 'months', 'bar_short': '25-month',
      'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_monthly', 'enabled': True},
+    # Yearly (user, 2026-11-23): candles only, no MA lines. Built with Monthly
+    # by tools/publish_htf.py.
+    {'code': 'Y', 'prefix': '', 'label': 'Yearly', 'name': 'Yearly', 'bar': 'years', 'bar_short': '25-year',
+     'signals': False, 'intraday': False, 'chart': 'htf', 'builder': 'build_yearly', 'enabled': True},
 )
 def derive_timeframes(table=TIMEFRAME_TABLE) -> dict:
     """Everything the code reads, derived from the table. A function of the

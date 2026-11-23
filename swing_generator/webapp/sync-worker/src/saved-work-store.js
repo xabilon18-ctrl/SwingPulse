@@ -5,7 +5,7 @@ const stamp = v => Number.isFinite(v) && v >= 0 ? v : 0;
 function grids(value, field) {
   const out = {};
   for (const [tf, row] of Object.entries(object(value?.[field]) ? value[field] : {})) {
-    if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y', 'T2', 'T', 'Y10', 'Y20'].includes(row.division)) continue;
+    if (!/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf) || !object(row) || !['M', 'Q', 'H', 'Y', 'T2', 'T', 'Y10', 'Y20', 'Y40', 'Y50', 'Y80', 'Y100'].includes(row.division)) continue;
     if (!Number.isFinite(row.modifiedAt) || row.modifiedAt < 0) continue;
     out[tf] = { division: row.division, modifiedAt: row.modifiedAt };
     if (row.thirds === true) out[tf].thirds = true;  // Q grid split into thirds (2026-11-02)
@@ -53,7 +53,7 @@ export function mergeViews(previous, incoming) {
   if (!object(incoming.viewsMod)) return { views, viewsMod: mods };
   const nextViews = object(incoming.views) ? incoming.views : {};
   for (const [key, at] of Object.entries(incoming.viewsMod)) {
-    if (!safeKey(key) || !/^.+\|(?:\d+[mHDW]|D|W|M)$/.test(key)) continue;
+    if (!safeKey(key) || !/^.+\|(?:\d+[mHDW]|D|W|M|Y)$/.test(key)) continue;
     const nextAt = stamp(at);
     if (!(nextAt > stamp(mods[key]))) continue;
     const view = nextViews[key];
@@ -75,7 +75,7 @@ export function mergeOverlay(previous, incoming) {
   else if (stamp(prev.at) > 0) Object.assign(out, recordOf(prev));
   const rows = {};
   for (const src of [prev.htf, next.htf]) for (const [tf, row] of Object.entries(object(src) ? src : {})) {
-    if (!safeKey(tf) || !/^(?:\d+[mHDW]|D|W|M)$/.test(tf) || !object(row) || !object(row.on)) continue;
+    if (!safeKey(tf) || !/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf) || !object(row) || !object(row.on)) continue;
     const clean = { on: Object.fromEntries(['D', 'W', 'M'].map(t => [t, row.on[t] === true])), at: stamp(row.at) };
     if (!rows[tf] || clean.at > rows[tf].at) rows[tf] = clean;
   }
@@ -107,7 +107,7 @@ export function mergeSavedWork(previous, incoming) {
     const next = object(nextChannels[name]) ? nextChannels[name] : {};
     const timeframes = new Set([...Object.keys(next), ...Object.keys(nextMods).filter(k => k.startsWith(name + '|')).map(k => k.slice(name.length + 1))]);
     for (const tf of timeframes) {
-      if (!/^(?:\d+[mHDW]|D|W|M)$/.test(tf)) continue;
+      if (!/^(?:\d+[mHDW]|D|W|M|Y)$/.test(tf)) continue;
       const key = name + '|' + tf, oldAt = stamp(mods[key]), nextAt = stamp(nextMods[key]);
       const list = next[tf];
       if (list != null && !Array.isArray(list)) continue;

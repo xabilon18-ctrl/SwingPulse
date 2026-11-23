@@ -97,6 +97,41 @@ def _resample_monthly(df_daily: pd.DataFrame) -> pd.DataFrame:
     return monthly[pd.DatetimeIndex(monthly.index).normalize() <= last_daily]
 
 
+
+def _resample_yearly(df_daily: pd.DataFrame, keep_open: bool = False) -> pd.DataFrame:
+    """Resample daily bars to calendar years, labelled by their END ('YE',
+    31 Dec). The year in progress (its label still ahead of the newest daily
+    bar) is dropped, as _resample_monthly drops the month in progress, unless
+    `keep_open`: the Yearly chart shows it as a forming candle (user,
+    2026-11-23: "showing where the candle or bar is month by month", "Price
+    changes live"), carried apart from the closed years (chart_feed
+    yearly_bundle), the way the 1H chart carries its forming hour.
+
+    CHART ONLY. No signal reads it.
+    """
+    ohlcv = ['Open', 'High', 'Low', 'Close', 'Volume']
+    cols  = [c for c in ohlcv if c in df_daily.columns]
+    if not cols or df_daily.empty:
+        return df_daily.iloc[0:0]
+
+    d = df_daily[cols].copy()
+    if getattr(d.index, 'tz', None) is not None:
+        d.index = d.index.tz_localize(None)
+
+    yearly = d.resample('YE').agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum',
+    }).dropna(subset=['Close'])
+
+    if yearly.empty:
+        return yearly
+
+    if keep_open:
+        return yearly
+    last_daily = pd.Timestamp(d.index.max()).normalize()
+    return yearly[pd.DatetimeIndex(yearly.index).normalize() <= last_daily]
+
+
 ATR_PERIOD = 14   # the true-range average backtest.py sizes its 2xATR stop with
 
 

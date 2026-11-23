@@ -51,7 +51,7 @@ from data_fetcher import (h4_ticker, load_5m, load_1h, FIVE_MIN_LEVEL_REF, _read
                           scale_daily, _utc_now)
 import exchange_feed                                    # noqa: E402
 from main import (_resample_4h,                          # noqa: E402
-                  _resample_weekly, _resample_monthly, _frame_5m, _frame_1h, _m1h_ma_periods)
+                  _resample_weekly, _resample_monthly, _resample_yearly, _frame_5m, _frame_1h, _m1h_ma_periods)
 from trend_context_feed import frame_context, workflow_context, workflow_alerts
 from setup_context import reference_history, attach_setup_context
 from chart_cache import Store, recording
@@ -147,6 +147,7 @@ BARS_BY_TF = {
     # since 2026-11-16; its bundle only feeds the activity strip's Week row.
     'W':  1300,   # ~25 years
     'M':  1200,   # 100 years — in practice all of it
+    'Y':  150,    # 150 years — all of it (US500 has the most: from 1927)
     # 1H (2026-09-27): the ceiling on CARRY_MONTHS_1H of a 24/7 instrument.
     '1H': 4500,
     # 2H (2026-10-01): the ceiling on CARRY_MONTHS_2H of a 24/7 instrument.
@@ -476,6 +477,13 @@ def build_monthly(cache_dir: str, ticker: str) -> dict | None:
     return None if df is None else monthly_bundle(ticker, df)
 
 
+def build_yearly(cache_dir: str, ticker: str) -> dict | None:
+    """Yearly chart from the Daily cache — the local dev server's path. The
+    published one is yearly_bundle over the instrument's whole history."""
+    df = _read_daily(cache_dir, ticker)
+    return None if df is None else yearly_bundle(ticker, df)
+
+
 def weekly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     """Weekly bars and ribbon from daily bars, as deep as `df` goes.
 
@@ -513,6 +521,53 @@ def monthly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     # Stamped on the 1st: the app places every bar at its start, as Daily is.
     monthly.index = monthly.index.to_period('M').to_timestamp()
     return _bundle(monthly, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['M'])
+
+
+# A Yearly chart needs this many years, the forming one included.
+YEARLY_MIN_BARS = 3
+# Yearly carries one MA, the 10-year (user, 2026-11-23: "Maybe add 10ma",
+# then yes). It is drawn only where ten closed years warm it.
+YEARLY_MA = 10
+
+
+def yearly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
+    """Yearly chart from daily bars, as deep as `df` goes (user, 2026-11-23).
+
+    The closed years are the bundle's bars, stamped on 1 January like
+    Monthly's 1st, with the 10-year MA where ten of them warm it. The year in
+    progress rides apart as `forming` (the shape _attach_forming gives the 1H
+    chart's forming hour): the app appends it for display only, and with
+    `live` set moves its close, high, low and MA point to the live price
+    while the chart is on screen. Signals and the closed arrays never see it.
+    """
+    scaled = scale_daily(ticker, df)
+    every = _resample_yearly(scaled, keep_open=True)
+    closed = _resample_yearly(scaled)
+    if len(every) < YEARLY_MIN_BARS or len(closed) < 2:
+        return None
+    closed.index = closed.index.to_period('Y').to_timestamp()
+    periods = [YEARLY_MA] if len(closed) >= YEARLY_MA else []
+    out = _bundle(closed, periods, '%Y-%m-%d', with_volume=True, bars=BARS_BY_TF['Y'])
+    if out is None or len(every) == len(closed):
+        return out
+    row = every.iloc[-1]
+    year = every.index[-1].year
+    values = {key: _round(row[col]) for key, col in
+              [('o', 'Open'), ('h', 'High'), ('l', 'Low'), ('c', 'Close')]}
+    if any(v is None for v in values.values()):
+        return out
+    last = pd.Timestamp(scaled.index.max())
+    out['forming'] = {
+        't': f'{year}-01-01',
+        'closes_at': f'{year + 1}-01-01T00:00:00Z',
+        **values,
+        'm': [_round((closed['Close'].tail(p - 1).sum() + row['Close']) / p) for p in periods],
+        # The newest daily bar it was built from; a live price newer than
+        # this moves the candle in the app.
+        'asof': (last.tz_localize(None) if last.tzinfo else last).strftime('%Y-%m-%d'),
+        'live': True,
+    }
+    return out
 
 
 # How far back quotes.json's `h` / `l` reach: a little over the hourly data

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
-import {mergeSavedWork} from '../src/saved-work-store.js';
+import {mergeSavedWork, mergeOverlay} from '../src/saved-work-store.js';
 const old={lastModified:100,notes:{A:'note'},channels:{A:{D:[{p1:1}],'1H':[{p1:2}]},B:{D:[{p1:3}]}},channelsMod:{'A|D':20,'A|1H':30,'B|D':50},chartPrefs:{version:1,grids:{D:{division:'Y',modifiedAt:25}}},watchlists:{lists:[],mod:30}};
 const incoming={lastModified:110,channels:{A:{D:[{p1:9}],'1H':[{p1:7}]}},channelsMod:{'A|D':40,'A|1H':10},chartPrefs:{grids:{'4H':{division:'Q',modifiedAt:60},D:{division:'M',modifiedAt:10}}}};
 const merged=mergeSavedWork(old,incoming);
@@ -35,6 +35,19 @@ const energy=mergeSavedWork({chartPrefs:groups},{chartPrefs:{version:2,energyGri
 assert.equal(energy.energyGrids['4H'].division,'Y');assert.equal(energy.cryptoGrids['4H'].division,'M');
 assert.equal(mergeSavedWork({chartPrefs:energy},incoming).chartPrefs.energyGrids['4H'].division,'Y','Older clients preserve energy choices');
 assert.deepEqual(mergeSavedWork({chartPrefs:{version:1,grids:{D:{division:'Y',modifiedAt:1}}}},{}).chartPrefs.energyGrids,{},'Split markets read grids at use, no copy');
+// Yearly (2026-11-23): its drawings, views and 40/50/80/100-year
+// grids survive the server merge (the timeframe and division lists left Y and
+// Y40-Y100 out, so a sync would have dropped them).
+{
+  const y=mergeSavedWork({},{channels:{A:{Y:[{p1:5}]}},channelsMod:{'A|Y':5},views:{'A|Y':{t0:1,t1:2,lo:1,hi:2}},viewsMod:{'A|Y':5},
+    chartPrefs:{version:2,grids:{Y:{division:'Y80',modifiedAt:5}},stockGrids:{Y:{division:'Y100',modifiedAt:6}}}});
+  assert.equal(y.channels.A.Y[0].p1,5,'a Yearly drawing is kept');
+  assert.ok(y.views['A|Y'],'a Yearly saved view is kept');
+  assert.equal(y.chartPrefs.grids.Y.division,'Y80');assert.equal(y.chartPrefs.stockGrids.Y.division,'Y100');
+  for (const d of ['Y40','Y50']) assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{Y:{division:d,modifiedAt:7}}}}).chartPrefs.grids.Y.division,d);
+  const ov=mergeOverlay({},{htf:{Y:{on:{M:true},at:5}}});
+  assert.equal(ov.htf.Y.on.M,true,'a Yearly overlay row is kept');
+}
 // The Term division (Weekly/Monthly, 2026-10-19) survives the server merge.
 assert.equal(mergeSavedWork({},{chartPrefs:{version:2,grids:{W:{division:'T',modifiedAt:5}}}}).chartPrefs.grids.W.division,'T');
 // Notes merge note by note (review finding 2026-10-17: a stale device wiped

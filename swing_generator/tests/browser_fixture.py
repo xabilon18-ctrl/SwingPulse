@@ -36,8 +36,10 @@ back = 1 + 0.3 * np.sin((np.arange(5000) - 5000) / 300)   # meets the fixture's 
 pc = float(d['Close'].iloc[0]) * back
 deep = pd.concat([pd.DataFrame({'Open': pc, 'High': pc * 1.01, 'Low': pc * 0.99, 'Close': pc, 'Volume': 1000},
                                index=pd.bdate_range(end=d.index[0] - pd.Timedelta(days=1), periods=len(pc))), d])
-built, _ = publish_htf.build({'TEST': 'TEST'}, ['M'], lambda t: (deep, 'max'), workers=1)
+# Yearly (2026-11-23) rides with it, from the same history: candles only.
+built, _ = publish_htf.build({'TEST': 'TEST'}, ['M', 'Y'], lambda t: (deep, 'max'), workers=1)
 publish_htf.write(out, 'M', built['M'], ['TEST'], str(d.index[-1].date()))
+publish_htf.write(out, 'Y', built['Y'], ['TEST'], str(d.index[-1].date()))
 # Active at last close (activity_feed): TEST's sector busy on Day and Week,
 # quiet on Month, so the strip shows two rows.
 for tf, period, hot in (('D', str(d.index[-1].date()), True), ('W', '2026-10-19', True), ('M', '2026-09-01', False)):
