@@ -1458,12 +1458,16 @@
   // exchanges 15; a market with no print for an hour reads "closed".
   const WL_LIVE_URL = 'https://swingpulse-cron.xabilon18.workers.dev/live';
   let wlLiveAt = 0, wlLiveUnavailable = false;
+  // The Charts tab polls the same feed for the charts in view, so the price
+  // beside each chart's name stays current (2026-11-23, chartPaintLive).
   const livePrices = modules.livePrices.create({
-    url: WL_LIVE_URL, getQuotes: () => quotesData, getVisibleNames: wlVisibleNames,
-    isActive: () => currentTab === 'watchlist' && !document.hidden,
-    onUpdate: (names, at) => { wlLiveAt = at; wlLiveUnavailable = false; wlPaintLive(names); },
-    onUnavailable: names => { wlLiveUnavailable = true; wlPaintLive(names); },
+    url: WL_LIVE_URL, getQuotes: () => quotesData,
+    getVisibleNames: () => currentTab === 'charts' ? chartVisibleNames() : wlVisibleNames(),
+    isActive: () => (currentTab === 'watchlist' || currentTab === 'charts') && !document.hidden,
+    onUpdate: (names, at) => { wlLiveAt = at; wlLiveUnavailable = false; livePaint(names); },
+    onUnavailable: names => { wlLiveUnavailable = true; livePaint(names); },
   });
+  function livePaint(names) { if (currentTab === 'charts') chartPaintLive(names); else wlPaintLive(names); }
   const wlLive = livePrices.quotes;
   function wlVisibleNames() {
     const h = window.innerHeight || 800;
@@ -1527,10 +1531,44 @@
     refreshFreshnessLabels();
   }
 
+  // PRICE BESIDE THE CHART'S NAME (user, 2026-11-23: "have the price feed on
+  // the head next to the instrument name"): the card header and the
+  // full-screen header show wlQuote's price, the newest of /live and
+  // quotes.json, the same number as the Watchlist row. The charts in view
+  // (a screen either side, and the one open full screen) are re-priced every
+  // 30s while Charts is on screen.
+  function chartHeadPriceHtml(name) {
+    const x = wlQuote(name);
+    const title = x ? freshness.quote(x.t, quoteInfo(name)).detail : '';
+    return `<span class="reel-price" data-live-price="${escText(name)}"${x ? ` title="${escText(title)}"` : ' hidden'}>${x ? escText(wlFmtPrice(x.p)) : ''}</span>`;
+  }
+  function chartVisibleNames() {
+    const h = window.innerHeight || 800;
+    const names = [...document.querySelectorAll('#chartReel .reel-card:not(.reel-shell)')].filter(c => {
+      const b = c.getBoundingClientRect();
+      return b.bottom > -h && b.top < 2 * h;
+    }).map(c => c.dataset.name);
+    if (chartFullName) names.unshift(chartFullName);
+    return names.filter((n, i, a) => n && a.indexOf(n) === i).slice(0, 20);
+  }
+  function chartPaintLive(names) {
+    names.forEach(n => document.querySelectorAll(`[data-live-price="${CSS.escape(n)}"]`).forEach(el => {
+      const x = wlQuote(n);
+      if (!x) return;
+      el.hidden = false;
+      el.title = freshness.quote(x.t, quoteInfo(n)).detail;
+      const txt = wlFmtPrice(x.p);
+      if (el.textContent !== txt) {
+        el.textContent = txt;
+        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      }
+    }));
+  }
+
   function wlLiveStart() { livePrices.start(); }
   function wlLiveStop() { livePrices.stop(); }
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) wlLiveStop(); else if (currentTab === 'watchlist') wlLiveStart();
+    if (document.hidden) wlLiveStop(); else if (currentTab === 'watchlist' || currentTab === 'charts') wlLiveStart();
   });
 
   // PULL DOWN TO UPDATE (user, 2026-09-27: "by pulling down the screen instead
@@ -3311,7 +3349,9 @@
     if (tab === 'trends') renderTrendsLazy();
     if (tab === 'watchlist') {
       const fromCharts = prevTab === 'charts';
-      renderWatchlist(); wlLiveStart();
+      // Restarted, so it polls now: coming from Charts the clock is running
+      // for the charts in view, not these rows.
+      renderWatchlist(); wlLiveStop(); wlLiveStart();
       // Back from Charts: the same list and filters (never touched from
       // there), scrolled to the chart you were last looking at when the list
       // holds it (user, 2026-11-04: "when I go back, it goes back to that
@@ -3329,6 +3369,7 @@
         reelSyncNav();
       } else renderChartsLazy();
       desktopChartSchedule(); if (backToCharts) reelRepaintVisible();
+      wlLiveStart();   // the price beside each chart's name (chartPaintLive)
     }
     if (tab === 'scanner') renderAlerts();
     if (tab === 'dashboard') renderMarketToday();
@@ -10798,6 +10839,8 @@
     el.className = 'reel-card chart-full open';
     el.dataset.name = name;
     el.innerHTML = chartFullHtml(item);
+    // Stepped to a chart not yet priced this session: price it now.
+    if (livePrices.running && !wlLive[name]) wlPollLive();
     chartAutoAdopt();
     chartAutoSync();
     chartHistNote(name);
@@ -11186,7 +11229,7 @@
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
         </div>
         </div>
-        ${fullRow}
+        <div class="cf-sub">${chartHeadPriceHtml(name)}${fullRow}</div>
         <details class="reel-data-status cf-info" data-freshness-name="${escText(name)}">
           <summary title="Chart information: moving average clusters and candle times">
             <span class="cf-info-trend">${trendContextHtml(item, timeframe, true)}</span>
@@ -11275,6 +11318,7 @@
       <header class="reel-head">
         <div class="reel-head-line">
           <span class="reel-name">${name}</span>
+          ${chartHeadPriceHtml(name)}
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
         </div>
         <div class="reel-head-row">
@@ -12793,6 +12837,8 @@
     if (host && !host.dataset.scrollWired) {
       host.dataset.scrollWired = '1';
       host.addEventListener('scroll', debounce(reelPaintVisible, 120), { passive: true });
+      // A chart scrolled into view is priced now, not on the next 30s tick.
+      host.addEventListener('scroll', debounce(() => { if (livePrices.running) wlPollLive(); }, 700), { passive: true });
     }
   }
 

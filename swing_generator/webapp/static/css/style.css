@@ -7477,6 +7477,21 @@ body {
 .reel-head-line .reel-name { flex-shrink: 0; }
 .reel-head-line .reel-group { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .reel-head-meta { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+/* The price beside the name (2026-11-23, app.js chartHeadPriceHtml): the
+   Watchlist's number, re-priced while Charts is on screen. Never truncates;
+   the full name gives way first. */
+.reel-price {
+  flex: 0 0 auto; font-size: .92rem; font-weight: 600; white-space: nowrap;
+  color: var(--text-primary); font-variant-numeric: tabular-nums;
+}
+.reel-price[hidden] { display: none; }
+.reel-price.flash { animation: wl2flash .9s ease-out; }
+/* Full screen: on the line under the ticker, before the full name. The title
+   line is too narrow there (178px on a 390px phone, 108px at 320px, beside
+   the action buttons), so a long ticker would clip the price. */
+#chartFull .cf-sub { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+#chartFull .cf-sub .reel-price { font-size: 14.5px; }
+#chartFull .cf-sub .cf-fullname { flex: 1 1 auto; min-width: 0; }
 
 .reel-sig {
   display: inline-flex; align-items: center; gap: 4px;
@@ -10119,6 +10134,32 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   #chartFull:not(.desktop-chart) .reel-foot .reel-tf-tag { width: auto; flex: 0 1 auto; min-width: 0; }
   #chartFull:not(.desktop-chart) .reel-foot .cf-pos { width: auto; }
   #chartFull:not(.desktop-chart) > .reel-foot { justify-content: space-between; }
+}
+/* Arrows hit their own button (user, 2026-11-23, phone screenshot: "the
+   arrows on both sides get mistaken for the middle button with the menu
+   button"). Measured at 390px the timeframe arrows took taps on 19px and the
+   chart arrows on 23px, flush against the 92px timeframe pill and the 62px
+   counter, so a thumb aimed at an arrow often opened the menu. Seven 44px
+   targets cannot fit one 373px row beside "Monthly ▾" and "842/850", so:
+   - Each arrow's tap area reaches 10px over its menu button's near edge and
+     5px outward (::after, above the button), about twice as wide; the
+     arrows are drawn the same size. The menus keep the middle of the pill
+     and the counter.
+   - Save | Draw give up their spare side padding (5 -> 2px; "Saved" still
+     fits) at 360px and up; the even spacing puts that room between the
+     three groups, so each arrow sits clearly with its own menu.
+   tests/footer_tap_checks.cjs taps each arrow's area at 390, 375 and 320px. */
+@media (min-width: 360px) {
+  #chartFull:not(.desktop-chart) .reel-foot .reel-capsule > .reel-act { padding-left: 2px; padding-right: 2px; }
+}
+#chartFull:not(.desktop-chart) .reel-foot .cf-step { z-index: 2; }
+#chartFull:not(.desktop-chart) .reel-foot .cf-step[data-dir="-1"]::after { inset: -6px -10px -6px -5px; }
+#chartFull:not(.desktop-chart) .reel-foot .cf-step[data-dir="1"]::after  { inset: -6px -5px -6px -10px; }
+/* 320px: the counter is only ~26px wide there, so the arrows reach 4px
+   over it, not 10, and it keeps ~18px of its own. */
+@media (max-width: 359px) {
+  #chartFull:not(.desktop-chart) .reel-foot .cf-step[data-dir="-1"]::after { inset: -6px -4px -6px -5px; }
+  #chartFull:not(.desktop-chart) .reel-foot .cf-step[data-dir="1"]::after  { inset: -6px -5px -6px -4px; }
 }
 /* The timeframe menu opens over the timeframe pill, now on the left. */
 #chartFull:not(.desktop-chart) .reel-tf-menu { left: 0; right: auto; }
