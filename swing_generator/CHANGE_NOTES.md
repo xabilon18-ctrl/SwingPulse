@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-23 (21:21 SAST) FULL-SCREEN ARROWS HIT THEIR OWN BUTTON. style.css
+v456. User (phone screenshot of the full-screen footer): "the arrows on both
+sides get mistaken for the middle button with the menu button".
+- Measured at 390px: the timeframe arrows took taps on 19px and the chart
+  arrows on 23px, 0-2px from the 92px Daily pill and the 62px counter, so a
+  thumb aimed at an arrow often opened the menu. Seven 44px targets cannot
+  fit the 373px row beside "Monthly ▾" (64px of text) and "842/850" (62px).
+- Each arrow's tap area (::after, above the menu) now reaches 10px over its
+  menu's near edge and 5px outward (4px over at <360px, where the counter is
+  ~26px wide). The arrows are drawn the same size.
+- Save | Draw side padding 5 -> 2px at 360px and up; the even spacing puts
+  that room between the three groups (3px -> 6px at 390px).
+- Tap widths at 390px, before -> after: arrows 19/23 -> 32/36px, Daily 92 ->
+  74px, counter 62 -> 48px, Save 58 -> 52px, Draw 61 -> 55px. 320px: arrows
+  18-23 -> 25-30px, counter 26 -> 25px.
+- Trade-off: a tap on the outer 10px of the Daily pill or the counter now
+  steps instead of opening the menu.
+- Test: tests/footer_tap_checks.cjs (from app_smoke.cjs; fails on the old
+  CSS at 390px with "takes taps on 19px").
+
 2026-11-23 (21:14 SAST) PRICE BESIDE THE CHART'S NAME. app.js v660, style.css
 v455. User: "have the price feed on the head next to the instrument name".
 - The chart card header shows the price right after the ticker, on the same
