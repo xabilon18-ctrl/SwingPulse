@@ -621,7 +621,7 @@ let debugPage;
     assert.deepEqual(tvRequests, [], 'nothing asks TradingView or tv-map.json');
   }
   if (!live) await require('./fund_moves_checks.cjs')(browser);
-  if (!live) await require('./chart_head_price_checks.cjs')(browser);
+  if (!live) await require('./chart_head_change_checks.cjs')(browser);
   if (!live) await require('./footer_tap_checks.cjs')(browser);
   if (!live) await require('./dollar_index_checks.cjs')(browser);
   if (!live) await require('./back_scroll_checks.cjs')(browser);

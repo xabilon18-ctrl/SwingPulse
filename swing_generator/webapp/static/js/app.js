@@ -1531,16 +1531,19 @@
     refreshFreshnessLabels();
   }
 
-  // PRICE BESIDE THE CHART'S NAME (user, 2026-11-23: "have the price feed on
-  // the head next to the instrument name"): the card header and the
-  // full-screen header show wlQuote's price, the newest of /live and
-  // quotes.json, the same number as the Watchlist row. The charts in view
-  // (a screen either side, and the one open full screen) are re-priced every
-  // 30s while Charts is on screen.
-  function chartHeadPriceHtml(name) {
-    const x = wlQuote(name);
-    const title = x ? freshness.quote(x.t, quoteInfo(name)).detail : '';
-    return `<span class="reel-price" data-live-price="${escText(name)}"${x ? ` title="${escText(title)}"` : ' hidden'}>${x ? escText(wlFmtPrice(x.p)) : ''}</span>`;
+  // TODAY'S CHANGE ON THE CHART HEADER (user, 2026-11-23: "price change in
+  // percentage green up red negative or down and also on the right"): the
+  // right end of the card's name line, and of the full-screen line under the
+  // ticker, show wlQuote's % change on the previous close, the Watchlist
+  // row's number (newest of /live and quotes.json), green up, red down. The
+  // charts in view (a screen either side, and the one open full screen) are
+  // re-priced every 30s while Charts is on screen. It replaced the price shown
+  // there on 2026-11-23 (#250): the user wanted the change, not the price.
+  function chartChgClass(x) { return 'reel-chg' + (x && x.pct > 0 ? ' up' : x && x.pct < 0 ? ' down' : ''); }
+  function chartHeadChangeHtml(name) {
+    const x = wlQuote(name), ok = x && x.pct != null;
+    const title = ok ? 'Today on the previous close · ' + freshness.quote(x.t, quoteInfo(name)).detail : '';
+    return `<span class="${chartChgClass(x)}" data-live-chg="${escText(name)}"${ok ? ` title="${escText(title)}"` : ' hidden'}>${ok ? escText(wlFmtPct(x.pct)) : ''}</span>`;
   }
   function chartVisibleNames() {
     const h = window.innerHeight || 800;
@@ -1552,16 +1555,17 @@
     return names.filter((n, i, a) => n && a.indexOf(n) === i).slice(0, 20);
   }
   function chartPaintLive(names) {
-    names.forEach(n => document.querySelectorAll(`[data-live-price="${CSS.escape(n)}"]`).forEach(el => {
+    names.forEach(n => document.querySelectorAll(`[data-live-chg="${CSS.escape(n)}"]`).forEach(el => {
       const x = wlQuote(n);
-      if (!x) return;
+      if (!x || x.pct == null) return;
       el.hidden = false;
-      el.title = freshness.quote(x.t, quoteInfo(n)).detail;
-      const txt = wlFmtPrice(x.p);
+      el.title = 'Today on the previous close · ' + freshness.quote(x.t, quoteInfo(n)).detail;
+      const txt = wlFmtPct(x.pct), cls = chartChgClass(x);
       if (el.textContent !== txt) {
         el.textContent = txt;
-        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-      }
+        el.className = cls;
+        void el.offsetWidth; el.classList.add('flash');
+      } else if (!el.className.startsWith(cls)) el.className = cls;
     }));
   }
 
@@ -11229,7 +11233,7 @@
         <button class="cf-close" data-act="chart-full-close" aria-label="Close full screen">✕</button>
         </div>
         </div>
-        <div class="cf-sub">${chartHeadPriceHtml(name)}${fullRow}</div>
+        <div class="cf-sub">${fullRow}${chartHeadChangeHtml(name)}</div>
         <details class="reel-data-status cf-info" data-freshness-name="${escText(name)}">
           <summary title="Chart information: moving average clusters and candle times">
             <span class="cf-info-trend">${trendContextHtml(item, timeframe, true)}</span>
@@ -11318,8 +11322,8 @@
       <header class="reel-head">
         <div class="reel-head-line">
           <span class="reel-name">${name}</span>
-          ${chartHeadPriceHtml(name)}
           ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
+          ${chartHeadChangeHtml(name)}
         </div>
         <div class="reel-head-row">
           <div class="reel-head-trend">

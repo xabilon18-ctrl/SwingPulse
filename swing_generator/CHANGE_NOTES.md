@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (00:56 SAST) TODAY'S % CHANGE ON THE CHART HEADER, NOT THE PRICE. app.js
+v661, style.css v457. User, after #250 went live: "That is not feed i wanted i
+wahted price change in percentage green up red negative or down and also on the
+right not left".
+- The price #250 put after the ticker is gone. In its place, at the RIGHT end
+  of the card's name line and of the full-screen line under the ticker (after
+  the full name): today's % change on the previous close, `wlQuote().pct`, the
+  Watchlist row's number, green up (--buy), red down (--sell). Full screen
+  uses its own darker --buy/--sell for the white background, as elsewhere.
+- Same live polling as #250 (30s while Charts is on screen; charts in view
+  and the one open full screen).
+- Not changed, told the user: the card's second line still shows the move
+  from the published data (`reel-move`: the last finished Daily bar's %, or
+  the Watchlist's sort period, e.g. 1W). Through a trading day it can differ
+  from the live % above it.
+- Test: tests/chart_head_change_checks.cjs (renamed from
+  chart_head_price_checks.cjs): +2.50% green on the right, then -1.00% red
+  on the right in full screen and on the card.
+
 2026-11-23 (21:21 SAST) FULL-SCREEN ARROWS HIT THEIR OWN BUTTON. style.css
 v456. User (phone screenshot of the full-screen footer): "the arrows on both
 sides get mistaken for the middle button with the menu button".
