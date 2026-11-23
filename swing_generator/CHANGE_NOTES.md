@@ -7,6 +7,33 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (01:58 SAST) LIVE LAST CANDLE ON 1H AND DAILY. app.js v663. User: "price
+feed changes must happen on open chart"; offered every timeframe with a
+forming bar, a live price line, or Yearly only, they chose every timeframe;
+told that was ~half a day and that 1H and Daily give nearly all of it, they
+chose "Do the smaller version, 1H and Daily". App only; no data change.
+- Daily: the published bundle's last bar is already today's bar in
+  progress from the hourly run (build_daily reads the cache, which keeps the
+  raw bar; checked on R2 2026-11-23). While it is open (final once the next
+  UTC day begins, drop_unfinished_daily's rule) a live price dated that UTC
+  day moves its close and widens its high/low; each MA's last ribbon point
+  moves by (price - close) / period (reelLiveLastBar).
+- 1H: the forming hour (chart_feed._attach_forming) takes a live price
+  inside its window, from its start to closes_at (reelFormingWindow). Yearly
+  keeps its own window (newer than `asof`).
+- The same 25% band (LIVE_FORMING_BAND), shared in reelLivePrice. Display
+  only: the published arrays, signals and alerts never see the live price.
+- Every 30s poll on Charts repaints the charts in view on 1H, Daily and
+  Yearly (reelRepaintLiveForming), except one a finger or the mouse is on
+  (host._reelBusy, the gesture's pointer map): a pan or drag is not cut short.
+- reelDisplayBundle(bundle, name, tf) now redoes from `_base` any bundle with
+  a live candle; reelFormingWindow and LIVE_LAST_BAR_TFS sit between it and
+  the SVG builder because tests/chart_refresh_test.cjs runs that stretch alone.
+- Monthly unchanged (its last bar is the last closed month).
+- Test: tests/live_last_bar_checks.cjs (app_smoke): Daily card and full
+  screen, MA end points, off-level price ignored, 1H forming hour, a closed
+  (yesterday) Daily bar untouched. Fails on the previous app.js.
+
 2026-11-24 (01:29 SAST) YEARLY TIMEFRAME. app.js v662, chart-preferences.js v15,
 freshness.js v8, grid-geometry.js v20, saved-work.js v3; sync Worker. User:
 a Yearly timeframe; told only 48 of 798 instruments had the 50 years a yearly
