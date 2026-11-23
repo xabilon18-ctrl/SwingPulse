@@ -59,8 +59,9 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
+| `W`  | none; no chart and no table row (removed 2026-11-16). Built only for the Watchlist strip's Week row (`activity/W.json`) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
+| `Y`  | none (chart only): candles, MA10 where 10 closed years exist, the year in progress as a live forming candle, 40/50/80/100-year grids (2026-11-23) | — | `chart_feed.yearly_bundle`, built with every `M` run (`publish_htf.RIDES_WITH`) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
   `enabled` switch. `derive_timeframes()` produces everything else from it:
@@ -81,6 +82,11 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   and the resamplers drop the bar in progress (a daily bar is final once the
   UTC day after its date has begun). Weekly/Monthly show the last CLOSED
   week/month. The cache keeps the raw bar so a late volume can still heal.
+  **One exception, Yearly (user, 2026-11-23):** it shows the year in
+  progress as a forming candle that follows the live price. It is carried
+  apart (`bundle.forming`, `live: true`), appended for display only
+  (`reelDisplayBundle`), never in the closed arrays, and no signal reads
+  Yearly. Do not extend this to another timeframe without the user asking.
 
 ## Signals
 
