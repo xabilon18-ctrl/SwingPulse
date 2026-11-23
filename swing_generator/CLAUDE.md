@@ -82,11 +82,15 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   and the resamplers drop the bar in progress (a daily bar is final once the
   UTC day after its date has begun). Weekly/Monthly show the last CLOSED
   week/month. The cache keeps the raw bar so a late volume can still heal.
-  **One exception, Yearly (user, 2026-11-23):** it shows the year in
-  progress as a forming candle that follows the live price. It is carried
-  apart (`bundle.forming`, `live: true`), appended for display only
-  (`reelDisplayBundle`), never in the closed arrays, and no signal reads
-  Yearly. Do not extend this to another timeframe without the user asking.
+  **Display exceptions (charts only; no signal, alert or ledger reads them):**
+  the Daily chart's last bar is today's bar in progress (`build_daily` reads
+  the cache, which keeps the raw bar); 1H carries the forming hour
+  (`chart_feed._attach_forming`); Yearly the year in progress
+  (`yearly_bundle`, `forming.live`). On screen, those three follow the live
+  price every 30s (user, 2026-11-23: "price feed changes must happen on open
+  chart"; `app.js reelDisplayBundle`, `reelLiveLastBar`, 25% band). Monthly
+  shows closed months only. Do not extend this to another timeframe without
+  the user asking.
 
 ## Signals
 
