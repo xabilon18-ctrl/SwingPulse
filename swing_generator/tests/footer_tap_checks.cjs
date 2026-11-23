@@ -14,8 +14,14 @@ const assert = require('node:assert/strict');
 
 module.exports = async browser => {
   const dataDir = path.resolve(__dirname, '../webapp/publish/browser-data');
-  // Minimum tap widths (px) for each arrow and what each menu keeps.
-  const want = { 390: { arrow: 30, menu: 40, gap: 5 }, 375: { arrow: 30, menu: 40, gap: 1 }, 320: { arrow: 24, menu: 22, gap: 1 } };
+  // Minimum tap widths (px) for each arrow and what each menu keeps. At 390
+  // and 375px the pill and counter have fixed widths, so these are absolute.
+  // At 320px every button is as wide as its text, which differs with the
+  // fonts installed (the CI runner draws the counter ~4px narrower than a
+  // desktop Linux), so there each button is measured against its own drawn
+  // width: an arrow takes >= 6px more than it shows, and a menu loses
+  // <= 10px (the two 4px reaches, and 2px for rounding).
+  const want = { 390: { arrow: 30, menu: 40, gap: 5 }, 375: { arrow: 30, menu: 40, gap: 1 }, 320: { relative: true, gap: 1 } };
   for (const width of [390, 375, 320]) {
     const context = await browser.newContext({ viewport: { width, height: 760 }, hasTouch: true, isMobile: true });
     const page = await context.newPage();
@@ -43,19 +49,23 @@ module.exports = async browser => {
         (spans[k] ||= []).push(x);
       }
       const box = sel => { const r = foot.querySelector(sel).getBoundingClientRect(); return [r.left, r.right]; };
-      return {
+      const drawn = Object.fromEntries([...foot.querySelectorAll('button')].map(b => [key(b), Math.round(b.getBoundingClientRect().width)]));
+      return { drawn,
         taps: Object.fromEntries(Object.entries(spans).map(([k, xs]) => [k, { w: xs.length, contiguous: xs.at(-1) - xs[0] + 1 === xs.length }])),
         tfRight: box('[data-act="chart-tf-step"][data-dir="1"]'), save: box('.reel-capsule'),
         stepLeft: box('[data-act="chart-full-step"][data-dir="-1"]'),
       };
     });
     const w = want[width], t = row.taps, at = JSON.stringify(t);
+    const minArrow = k => w.relative ? row.drawn[k] + 6 : w.arrow;
+    const minMenu = k => w.relative ? row.drawn[k] - 10 : w.menu;
+    const drawn = JSON.stringify(row.drawn);
     for (const k of ['chart-tf-step-1', 'chart-tf-step1', 'chart-full-step-1', 'chart-full-step1']) {
       assert.ok(t[k] && t[k].contiguous, `${width}px: ${k} has one tap area: ${at}`);
-      assert.ok(t[k].w >= w.arrow, `${width}px: ${k} takes taps on ${t[k] && t[k].w}px, want >= ${w.arrow}: ${at}`);
+      assert.ok(t[k].w >= minArrow(k), `${width}px: ${k} takes taps on ${t[k].w}px, want >= ${minArrow(k)}: ${at} drawn ${drawn}`);
     }
     for (const k of ['tf-menu', 'chart-auto-menu', 'chart-view-save', 'channel'])
-      assert.ok(t[k] && t[k].contiguous && t[k].w >= w.menu, `${width}px: ${k} keeps ${t[k] && t[k].w}px, want >= ${w.menu}: ${at}`);
+      assert.ok(t[k] && t[k].contiguous && t[k].w >= minMenu(k), `${width}px: ${k} keeps ${t[k] && t[k].w}px, want >= ${minMenu(k)}: ${at} drawn ${drawn}`);
     // The three groups stay apart, so each arrow reads as its menu's.
     assert.ok(row.save[0] - row.tfRight[1] >= w.gap && row.stepLeft[0] - row.save[1] >= w.gap,
       `${width}px: gaps between the groups: ${JSON.stringify(row)}`);
