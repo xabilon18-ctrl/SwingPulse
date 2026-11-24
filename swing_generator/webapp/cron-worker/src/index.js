@@ -2,7 +2,7 @@
  * SwingPulse run scheduler — see wrangler.toml for the why.
  *
  * scheduled  → POST /repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches
- *              (:05 always; :35 only when no run started since — see backup)
+ *              (:25 always; :55 only when no run started since — see backup)
  * GET /      → a one-line health check (no secrets, no side effects)
  */
 async function dispatch(env, reason) {
@@ -28,19 +28,21 @@ async function dispatch(env, reason) {
 }
 
 /**
- * Backup at :35 (2026-10-20). The :05 dispatch is a single attempt, and on
+ * Backup at :55 (2026-10-20 at :35; both moved 20 minutes on 2026-11-24 so
+ * delayed Yahoo feeds have closed the hour, see wrangler.toml). The :25
+ * dispatch is a single attempt, and on
  * 2026-10-20 the 14:05 one never reached GitHub — no run, no failure, so the
  * Publish Watchdog (which fires on a run COMPLETING) saw nothing and the app sat
  * on 13:05 data until 15:05. Here: if no run on REF was created in the last 45
- * minutes, dispatch one. A healthy :05 run was created 30 minutes earlier, so
+ * minutes, dispatch one. A healthy :25 run was created 30 minutes earlier, so
  * this normally does nothing. If GitHub cannot be asked, dispatch anyway — the
  * publish concurrency group makes a second run wait instead of overlapping.
  * A recent run that already FINISHED without success is retried too
- * (2026-10-28: the 10:05 and 11:05 runs failed and :35 skipped both, because
- * all it asked was whether a run had been created). One still running is left
- * alone; if it fails after :35 the next :05 is the retry.
+ * (2026-10-28: the 10:05 and 11:05 runs failed and the backup skipped both,
+ * because all it asked was whether a run had been created). One still running
+ * is left alone; if it fails after :55 the next :25 is the retry.
  */
-const BACKUP_CRON = '35 * * * *', RECENT_MS = 45 * 60000;
+const BACKUP_CRON = '55 * * * *', RECENT_MS = 45 * 60000;
 
 async function backup(env, reason, now = Date.now()) {
   try {
@@ -164,7 +166,7 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
     if (url.pathname === '/live') return livePrices(url);
-    return new Response('swingpulse-cron: dispatches publish.yml at :05 every hour, 24/7 including weekends\n',
+    return new Response('swingpulse-cron: dispatches publish.yml at :25 every hour, 24/7 including weekends\n',
                         { headers: { 'content-type': 'text/plain' } });
   },
 };

@@ -6,8 +6,15 @@
 # which starts within seconds. The workflow's concurrency group still stops two
 # runs overlapping.
 #
-# Every hour at :05 UTC, all day, every day. The five-minute offset gives
-# Yahoo time to publish completed hourly candles. This is also :05 in SAST.
+# Every hour at :25 UTC, all day, every day; also :25 in SAST (2026-11-24,
+# was :05). Yahoo delays CME/COMEX/NYMEX futures by 10 minutes and LSE, Xetra,
+# Paris, Milan, Madrid, Swiss and Amsterdam stocks by 15 (measured from each
+# chart's regularMarketTime). At :05 those feeds had not finished the previous
+# hour: it was published as closed with a close ~10-15 minutes early, and the
+# new hour did not exist yet, so ~180 open instruments had no forming 1H
+# candle (user: "1h bars not updating"). At :25 every feed has closed the
+# previous hour and started the next one. FX, crypto and US stocks are
+# real-time and simply land ~20 minutes later.
 #
 # Secret (set once, by hand — a fine-grained token for THIS repo only,
 # permission "Actions: Read and write"):
@@ -16,12 +23,13 @@ name               = "swingpulse-cron"
 main               = "src/index.js"
 compatibility_date = "2025-01-01"
 
-# :35 is a backup (src/index.js `backup`): it dispatches when no run was
-# created in the last 45 minutes, i.e. when the :05 dispatch was lost
-# (2026-10-20 14:05), or when the recent run has already finished without
-# success (2026-10-28). A missed hour then costs ~30 minutes, not two hours.
+# :55 is a backup (src/index.js `backup`, was :35 before 2026-11-24): it
+# dispatches when no run was created in the last 45 minutes, i.e. when the :25
+# dispatch was lost (2026-10-20 14:05, then at :05), or when the recent run
+# has already finished without success (2026-10-28). A missed hour then costs
+# ~30 minutes, not two hours.
 [triggers]
-crons = ["5 * * * *", "35 * * * *"]
+crons = ["25 * * * *", "55 * * * *"]
 
 # Keep the Worker's logs (2026-10-20). The 14:05 dispatch ran and called GitHub
 # (Cloudflare analytics: success, 1 subrequest) yet no run was created, and
