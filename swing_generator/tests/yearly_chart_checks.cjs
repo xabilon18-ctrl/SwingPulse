@@ -3,8 +3,8 @@
 // tools/publish_htf.py with Monthly (browser_fixture.py). Checks: the Yearly
 // button after Monthly, its own chunk map, the MA10 line, the forming 2026
 // candle and its "still forming" reading, its close following the live price
-// (and ignoring one off its level), the 40/50/80/100-year grids alone with 40
-// by default and a choice that is saved, and the full-screen timeframe steps
+// (and ignoring one off its level), the 10/20-year grids alone with 10 by
+// default and a choice that is saved, and the full-screen timeframe steps
 // through it. Run from app_smoke.cjs with its browser, on a page of its own.
 const fs = require('fs');
 const path = require('path');
@@ -70,10 +70,10 @@ module.exports = async browser => {
   assert.equal(chart.lastHigh, 140, 'the forming high widens to the live price');
   const closes = await host.evaluate(h => h._reelCtx.b.c.slice(-10));
   assert.ok(Math.abs(chart.maLast - closes.reduce((a, v) => a + v, 0) / 10) < 1e-6, 'the MA point is redone with the live price');
-  // 40-year lines from 2000 by default. TEST starts in 2001, so no line falls
-  // inside it (2000 and 2040 are either side): the axis names its two ends by
-  // year, not by date.
-  assert.deepEqual(chart.labels.sort(), ['2001', '2026'], 'no grid line inside 2001-2026; the ends read as years: ' + chart.labels);
+  // Ten-year lines by default (user, 2026-11-24: "10 and 20 only"): 2010 and
+  // 2020 inside TEST's 2001-2026, labelled by year.
+  assert.ok(['2010', '2020'].every(y => chart.labels.includes(y)) && chart.labels.every(y => +y % 10 === 0),
+    'ten-year lines, labelled by decade: ' + chart.labels);
   assert.equal(await host.locator('svg text').evaluateAll(ts => ts.filter(t => /\d{4}-\d{2}-\d{2}/.test(t.textContent)).length), 0,
     'no full dates on the Yearly axis');
 
@@ -93,7 +93,7 @@ module.exports = async browser => {
     return b.c[b.c.length - 1] === 125;
   }, null, { timeout: 10000 });
 
-  // The Grid menu: Yearly's grids alone, 40 on; 50 is saved across a reload.
+  // The Grid menu: 10Y and 20Y alone, 10 on; 20 is saved across a reload.
   const gridBtn = page.locator('#chartReel [data-act="grid-menu"]').first();
   const codes = async () => {
     await gridBtn.click();
@@ -101,20 +101,21 @@ module.exports = async browser => {
     return page.locator('.reel-grid-menu [data-act="time-grid-set"]').evaluateAll(es =>
       es.map(e => e.dataset.division + (e.classList.contains('on') ? '*' : '')));
   };
-  assert.deepEqual(await codes(), ['Y40*', 'Y50', 'Y80', 'Y100'], 'Yearly offers 40, 50, 80 and 100 years');
-  await page.locator('.reel-grid-menu [data-act="time-grid-set"][data-division="Y50"]').click();
+  assert.deepEqual(await codes(), ['Y10*', 'Y20'], 'Yearly offers ten and twenty years only');
+  await page.locator('.reel-grid-menu [data-act="time-grid-set"][data-division="Y20"]').click();
   await page.waitForTimeout(300);
   if (await page.locator('.reel-grid-menu').count()) await gridBtn.click();
   await open();
   if (await page.locator('#tfBtnY').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnY').click();
   await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
-  assert.deepEqual(await codes(), ['Y40', 'Y50*', 'Y80', 'Y100'], 'the Yearly grid choice is saved across a reload');
+  assert.deepEqual(await codes(), ['Y10', 'Y20*'], 'the Yearly grid choice is saved across a reload');
   await gridBtn.click();
-  // Monthly keeps its own grids and gets none of Yearly's.
+  // Monthly keeps all of its own grids, 10Y and 20Y included.
   await page.locator('#tfBtnM').click();
   await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
   const monthly = await codes();
-  assert.ok(!monthly.some(c => /^Y(40|50|80|100)/.test(c)) && monthly.some(c => /^T\*?$/.test(c)), 'Monthly grids unchanged: ' + monthly);
+  assert.ok(['Y10', 'Y20'].every(c => monthly.some(m => m.replace('*', '') === c)) && monthly.some(c => /^T\*?$/.test(c)),
+    'Monthly grids unchanged: ' + monthly);
   await gridBtn.click();
   await page.locator('#tfBtnY').click();
   await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });

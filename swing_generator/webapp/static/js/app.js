@@ -9737,12 +9737,12 @@
   // Ten and twenty years on Monthly only (Weekly also had ten until its chart
   // was removed, 2026-11-16).
   const LONG_GRID_TFS = { Y10: new Set(['M']), Y20: new Set(['M']) };
-  // Yearly's own grids and no others (user, 2026-11-23: "the time grids are
-  // 40 50 80 and 100", years per line, counted from 2000).
-  const ONLY_GRID_CODES = { Y: new Set(['Y40', 'Y50', 'Y80', 'Y100']) };
-  const ONLY_GRID_TF = Object.fromEntries(Object.entries(ONLY_GRID_CODES).flatMap(([tf, set]) => [...set].map(c => [c, tf])));
+  // Yearly offers ten and twenty years and nothing else (user, 2026-11-24:
+  // "Make yearly time grid 10 and 20 only"; 40/50/80/100 from 2026-11-23
+  // were dropped). Monthly keeps all of its own, 10Y and 20Y included.
+  const ONLY_GRID_CODES = { Y: new Set(['Y10', 'Y20']) };
   const gridOffered = (code, tf) => ONLY_GRID_CODES[tf] ? ONLY_GRID_CODES[tf].has(code)
-    : !ONLY_GRID_TF[code] && (!TERM_GRID_CODES.has(code) || TERM_GRID_TFS.has(tf))
+    : (!TERM_GRID_CODES.has(code) || TERM_GRID_TFS.has(tf))
       && (!LONG_GRID_TFS[code] || LONG_GRID_TFS[code].has(tf));
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
@@ -9774,7 +9774,6 @@
           : d.code === 'T2' ? 'two equal parts per administration term, two years each'
           : d.code === 'Y10' ? 'one equal part per ten years'
           : d.code === 'Y20' ? 'one equal part per twenty years'
-          : /^Y\d+$/.test(d.code) ? `one equal part per ${d.code.slice(1)} years, counted from 2000`
           : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
         return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.label || d.code}</button>`;
       }).join('')
@@ -9794,7 +9793,7 @@
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
-    // A Yearly bar is its year (its 40-100-year grid often has no line in view).
+    // A Yearly bar is its year (a short history may have no grid line in view).
     if (timeframe === 'Y') return String(ts).slice(0, 4);
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';

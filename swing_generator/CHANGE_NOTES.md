@@ -7,6 +7,16 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (02:04 SAST) YEARLY GRIDS 10Y AND 20Y ONLY. app.js v663,
+chart-preferences.js v16, grid-geometry.js v21. User: "Make yealy time grid 10
+and 20 only". Yearly's grid menu offers 10Y (default) and 20Y and nothing
+else (ONLY_GRID_CODES); the 40/50/80/100-year choices of 2026-11-23 are gone
+from chart-preferences and grid-geometry, and a saved one reads as the
+default. The sync Worker still accepts those codes, so a device on the older
+build cannot fail a sync. Monthly keeps all of its grids, 10Y and 20Y included.
+Test: yearly_chart_checks (10Y on by default, 20Y saved, decade labels,
+Monthly unchanged).
+
 2026-11-24 (01:58 SAST) LIVE LAST CANDLE ON 1H AND DAILY. app.js v663. User: "price
 feed changes must happen on open chart"; offered every timeframe with a
 forming bar, a live price line, or Yearly only, they chose every timeframe;
