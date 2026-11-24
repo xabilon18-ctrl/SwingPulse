@@ -59,8 +59,9 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 |------|---------|--------|-------------------|
 | `1H` | B1/S1, primary crosses, 24-hour signal lifetime, standard confidence | `h1_` | `main._compute_1h_state` / `data_fetcher.load_1h`; chart `chart_feed.build_1h` |
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
-| `W`  | none (chart only; hidden from the app's buttons, `hidden: True`, since 2026-11-13, still built) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
+| `W`  | none; no chart and no table row (removed 2026-11-16). Built only for the Watchlist strip's Week row (`activity/W.json`) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
+| `Y`  | none (chart only): candles, MA10 where 10 closed years exist, the year in progress as a live forming candle, 10- and 20-year grids (2026-11-24) | — | `chart_feed.yearly_bundle`, built with every `M` run (`publish_htf.RIDES_WITH`) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
   `enabled` switch. `derive_timeframes()` produces everything else from it:
@@ -81,6 +82,15 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
   and the resamplers drop the bar in progress (a daily bar is final once the
   UTC day after its date has begun). Weekly/Monthly show the last CLOSED
   week/month. The cache keeps the raw bar so a late volume can still heal.
+  **Display exceptions (charts only; no signal, alert or ledger reads them):**
+  the Daily chart's last bar is today's bar in progress (`build_daily` reads
+  the cache, which keeps the raw bar); 1H carries the forming hour
+  (`chart_feed._attach_forming`); Yearly the year in progress
+  (`yearly_bundle`, `forming.live`). On screen, those three follow the live
+  price every 30s (user, 2026-11-23: "price feed changes must happen on open
+  chart"; `app.js reelDisplayBundle`, `reelLiveLastBar`, 25% band). Monthly
+  shows closed months only. Do not extend this to another timeframe without
+  the user asking.
 
 ## Signals
 
@@ -134,7 +144,8 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 - Sync Worker (`webapp/sync-worker`): `/sync`, `/sync/auth`, `/sync/backup`,
   `/push/*`. A per-user password token (trust on first use); a blob is merged,
   not replaced; an empty starred list over a populated one is refused (409)
-  unless `?allowEmpty=1`; the previous blob is kept at `<user>:prev`.
+  unless `?allowEmpty=1`; a recovery copy is kept at `<user>:prev`, taken at
+  most once an hour (`PREV_EVERY_MS`): KV's free tier allows 1,000 writes a day.
 
 ## App
 
