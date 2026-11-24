@@ -61,7 +61,7 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 | `D`  | full B1–S4 set | *(none)* | `main.py`; chart `chart_feed.build_daily` |
 | `W`  | none; no chart and no table row (removed 2026-11-16). Built only for the Watchlist strip's Week row (`activity/W.json`) | — | `tools/publish_htf.py` (`publish-htf.yml`, Mondays) |
 | `M`  | none (chart only) | — | `tools/publish_htf.py` (`publish-htf.yml`, 3rd–5th of the month) |
-| `Y`  | none (chart only): candles, MA10 where 10 closed years exist, the year in progress as a live forming candle, 40/50/80/100-year grids (2026-11-23) | — | `chart_feed.yearly_bundle`, built with every `M` run (`publish_htf.RIDES_WITH`) |
+| `Y`  | none (chart only): candles, MA10 where 10 closed years exist, the year in progress as a live forming candle, 10- and 20-year grids (2026-11-24) | — | `chart_feed.yearly_bundle`, built with every `M` run (`publish_htf.RIDES_WITH`) |
 
 - **One table: `config.TIMEFRAME_TABLE`**, one row per timeframe with an
   `enabled` switch. `derive_timeframes()` produces everything else from it:
