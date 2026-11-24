@@ -144,7 +144,8 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 - Sync Worker (`webapp/sync-worker`): `/sync`, `/sync/auth`, `/sync/backup`,
   `/push/*`. A per-user password token (trust on first use); a blob is merged,
   not replaced; an empty starred list over a populated one is refused (409)
-  unless `?allowEmpty=1`; the previous blob is kept at `<user>:prev`.
+  unless `?allowEmpty=1`; a recovery copy is kept at `<user>:prev`, taken at
+  most once an hour (`PREV_EVERY_MS`): KV's free tier allows 1,000 writes a day.
 
 ## App
 
