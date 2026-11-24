@@ -6,7 +6,8 @@ on:
   # NOT scheduled here at all since 2026-09-25. GitHub queues cron runs
   # 2.5-5h late (measured Sep 2026), so every run is started by a Cloudflare
   # Cron Trigger (swing_generator/webapp/cron-worker) calling
-  # workflow_dispatch at :05 every hour, 24/7 including weekends.
+  # workflow_dispatch at :25 every hour, 24/7 including weekends (:05 until
+  # 2026-11-24; Yahoo's 10-15 minute delayed feeds had not closed the hour).
   # The repo is PUBLIC, which is what
   # makes that many runs free (GitHub Free caps PRIVATE repos at 2,000 min/mo).
 
