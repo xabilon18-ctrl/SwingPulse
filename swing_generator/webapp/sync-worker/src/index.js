@@ -58,6 +58,9 @@ const VAPID_SUBJECT = 'mailto:xabilon18@gmail.com';
 const R2_BASE = 'https://pub-e74b1a3a64724b07a76b853093e21240.r2.dev/ma500';
 const ALERT_STATE = 'alerts:state';
 const INBOX_KEEP  = 30;
+// The recovery copy (`<user>:prev`) is taken at most this often: KV's free
+// tier allows 1,000 writes a day (see the PUT /sync handler).
+export const PREV_EVERY_MS = 60 * 60 * 1000;
 const INBOX_RECENT_MS = 20 * 60 * 1000;   // what a push shows: this run's alerts
 
 const MAX_FAILS   = 10;          // wrong passwords per user…
@@ -454,9 +457,22 @@ export default {
           }, 409);
         }
 
-        // One generation of history. Enough to undo the accident that is
-        // actually plausible here (a single bad write); not a version store.
-        if (prevRaw) await env.USER_DATA.put(`${user}:prev`, prevRaw);
+        // One generation of history, refreshed AT MOST ONCE AN HOUR (user,
+        // 2026-11-24, after Cloudflare's "KV daily operation limit 50%"
+        // emails: the free tier allows 1,000 writes a day and every save
+        // cost two, this copy and the blob). `<user>:prevAt` holds when it
+        // was last taken; a save within the hour writes the blob alone. The
+        // copy is then the state before the last hour's edits rather than
+        // before the very last save: still enough to undo a bad write, which
+        // is what it is for; not a version store.
+        if (prevRaw) {
+          const takenAt = Number(await env.USER_DATA.get(`${user}:prevAt`)) || 0;
+          const now = Date.now();
+          if (!(now - takenAt < PREV_EVERY_MS)) {
+            await env.USER_DATA.put(`${user}:prev`, prevRaw);
+            await env.USER_DATA.put(`${user}:prevAt`, String(now));
+          }
+        }
         await env.USER_DATA.put(user, JSON.stringify(merged));
         return json({ ok: true, starred: (merged.starred || []).length });
       }

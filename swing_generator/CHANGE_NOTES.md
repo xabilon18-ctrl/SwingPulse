@@ -7,6 +7,24 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (05:27 SAST) SYNC RECOVERY COPY AT MOST HOURLY (KV WRITES HALVED). Sync
+Worker only; no app change. User asked what Cloudflare's emails said: "KV
+daily operation limit 50% reached" on 17 and 23 Nov. Cloudflare's GraphQL
+analytics (kvOperationsAdaptiveGroups) showed writes are the limit: 1,000 a
+day on the free tier, against 200-350 on a normal day and 616 (17 Nov) / 531
+(23 Nov) on busy ones; reads ~1.5-3k of 100k. Every PUT /sync wrote twice,
+`<user>:prev` and the blob. Offered: do nothing, take the copy hourly, or
+Workers Paid ($5/month); the user chose the hourly copy.
+- PUT /sync takes `<user>:prev` only when `<user>:prevAt` is an hour old or
+  missing (PREV_EVERY_MS), and stamps it; otherwise it writes the blob alone.
+  A save costs 1 write instead of 2, plus 2 once an hour per user.
+- The copy (GET /sync/backup, the app's "Preview previous synced copy") is
+  now the state before the latest hour of edits, not before the very last
+  save. Still one generation; the app shows its date.
+- Test: sync-worker saved_work_test (write counts with a mocked clock: 1, 3,
+  1, 1, 1, then 3 an hour on; the backup endpoint serves the copy). Fails on
+  the previous Worker.
+
 2026-11-24 (02:04 SAST) YEARLY GRIDS 10Y AND 20Y ONLY. app.js v663,
 chart-preferences.js v16, grid-geometry.js v21. User: "Make yealy time grid 10
 and 20 only". Yearly's grid menu offers 10Y (default) and 20Y and nothing

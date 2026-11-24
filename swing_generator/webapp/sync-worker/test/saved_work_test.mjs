@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import worker from '../src/index.js';
+import worker, {PREV_EVERY_MS} from '../src/index.js';
 import {mergeSavedWork, mergeOverlay} from '../src/saved-work-store.js';
 const old={lastModified:100,notes:{A:'note'},channels:{A:{D:[{p1:1}],'1H':[{p1:2}]},B:{D:[{p1:3}]}},channelsMod:{'A|D':20,'A|1H':30,'B|D':50},chartPrefs:{version:1,grids:{D:{division:'Y',modifiedAt:25}}},watchlists:{lists:[],mod:30}};
 const incoming={lastModified:110,channels:{A:{D:[{p1:9}],'1H':[{p1:7}]}},channelsMod:{'A|D':40,'A|1H':10},chartPrefs:{grids:{'4H':{division:'Q',modifiedAt:60},D:{division:'M',modifiedAt:10}}}};
@@ -20,6 +20,28 @@ assert.equal((await worker.fetch(new Request('https://worker/sync/auth?user=zabs
 assert.equal((await put(old)).status,200);assert.equal((await put(incoming)).status,200);
 const stored=JSON.parse(disk.get('zabs'));assert.equal(stored.channels.B.D[0].p1,3);
 assert.equal(JSON.parse(disk.get('zabs:prev')).channels.A.D[0].p1,1);
+// The recovery copy is taken at most once an hour (2026-11-24, KV's 1,000
+// writes a day): a save within the hour writes the blob alone.
+{
+  const d2=new Map();let writes=0;const realNow=Date.now;let clock=Date.UTC(2026,10,24,8);
+  const env2={USER_DATA:{get:async k=>d2.get(k)??null,put:async(k,v)=>{writes++;d2.set(k,v);},delete:async k=>d2.delete(k),list:async({prefix})=>({keys:[...d2.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name}))})}};
+  const save=n=>worker.fetch(new Request('https://worker/sync?user=zabs',{method:'PUT',headers:{Authorization:'Bearer test-token'},body:JSON.stringify({notes:{A:'v'+n},notesMod:{A:n}})}),env2);
+  const note=k=>JSON.parse(d2.get(k)).notes.A;
+  Date.now=()=>clock;
+  try {
+    assert.equal((await worker.fetch(new Request('https://worker/sync/auth?user=zabs',{method:'POST',headers:{Authorization:'Bearer test-token'}}),env2)).status,200);
+    writes=0;
+    await save(1);assert.equal(writes,1,'first save: the blob alone (nothing to keep yet)');
+    clock+=60e3;writes=0;await save(2);
+    assert.equal(writes,3,'second save: the recovery copy, its time, and the blob');assert.equal(note('zabs:prev'),'v1');
+    for(const n of [3,4,5]){clock+=10*60e3;writes=0;await save(n);assert.equal(writes,1,`save ${n} within the hour: the blob alone`);}
+    assert.equal(note('zabs:prev'),'v1','the copy is still the one taken an hour ago');assert.equal(note('zabs'),'v5');
+    clock+=PREV_EVERY_MS;writes=0;await save(6);
+    assert.equal(writes,3,'an hour on: the copy is refreshed');assert.equal(note('zabs:prev'),'v5');assert.equal(note('zabs'),'v6');
+    const back=await worker.fetch(new Request('https://worker/sync/backup?user=zabs',{headers:{Authorization:'Bearer test-token'}}),env2);
+    assert.equal((await back.json()).notes.A,'v5','the backup endpoint serves the recovery copy');
+  } finally { Date.now=realNow; }
+}
 const stockEdit={chartPrefs:{version:2,stockGrids:{'4H':{division:'M',modifiedAt:300}}}};
 const indexEdit={chartPrefs:{version:2,indexGrids:{'4H':{division:'H',modifiedAt:400}}}};
 await put(stockEdit);await put(indexEdit);await put(incoming);
