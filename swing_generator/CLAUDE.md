@@ -111,8 +111,10 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 ## Pipeline and schedule (times UTC as in code; SAST = UTC+2)
 
 - **Hourly data run:** the Cloudflare Cron Worker (`webapp/cron-worker`,
-  crons `5 * * * *` and `35 * * * *`) dispatches `publish.yml` at :05 every
-  hour, 24/7. The :35 run is a backup that dispatches only when no run was
+  crons `25 * * * *` and `55 * * * *`) dispatches `publish.yml` at :25 every
+  hour, 24/7. Not earlier: Yahoo delays futures by 10 minutes and European
+  exchanges by 15, and at :05 their last hour was not closed yet
+  (CHANGE_NOTES 2026-11-24). The :55 run is a backup that dispatches only when no run was
   created in the last 45 minutes or the latest one finished without success.
   `publish.yml` has no cron of its own. It runs `main.py --profile ma500`
   (with `FETCH_MAX_AGE_HOURS=1`), publishes to R2, then runs `health_check.py`
