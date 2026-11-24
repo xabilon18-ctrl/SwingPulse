@@ -6,18 +6,16 @@
   // "add 1/2 a term under time grid"). Y10/Y20 = ten and twenty years (user,
   // 2026-10-28: "Add 5 and 10 time grids for months only", then "Replace the
   // monthy time grid 5y for Mothly with 20y", then "apply 10y time grid on
-  // weekly"): 10Y and 20Y on Monthly only (app.js; Weekly's chart was removed
-  // 2026-11-16). Y40/Y50/Y80/Y100 on Yearly only.
+  // weekly"): 10Y and 20Y on Monthly, and the only grids on Yearly (app.js;
+  // Weekly's chart was removed 2026-11-16). A Yearly 40/50/80/100 choice saved
+  // on 2026-11-23/24 is no longer valid and reads as the default, 10Y.
   // `label` is the button text.
-  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' },
-    // Yearly's grids (user, 2026-11-23: "the time grids are 40 50 80 and 100").
-    { code: 'Y40', name: 'Forty years', parts: 1 / 40, label: '40Y' }, { code: 'Y50', name: 'Fifty years', parts: 1 / 50, label: '50Y' },
-    { code: 'Y80', name: 'Eighty years', parts: 1 / 80, label: '80Y' }, { code: 'Y100', name: 'A hundred years', parts: 1 / 100, label: '100Y' }];
+  const choices = [{ code: 'M', name: 'Month', parts: 12 }, { code: 'Q', name: 'Quarter', parts: 4 }, { code: 'H', name: 'Half-year', parts: 2 }, { code: 'Y', name: 'Year', parts: 1 }, { code: 'T2', name: 'Half term', parts: 0.5, label: '½T' }, { code: 'T', name: 'Term', parts: 0.25 }, { code: 'Y10', name: 'Ten years', parts: 0.1, label: '10Y' }, { code: 'Y20', name: 'Twenty years', parts: 0.05, label: '20Y' }];
   // Monthly is divided by administration term, every line equal (user,
   // 2026-10-19: "divided by administration and not by year. All must be
   // equal").
-  // Yearly (2026-11-23) opens on forty-year lines.
-  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', M: 'T', Y: 'Y40' };
+  // Yearly opens on ten-year lines (user, 2026-11-24: "10 and 20 only").
+  const defaults = { '15m': 'M', '10m': 'M', '30m': 'M', '1H': 'M', '2H': 'M', M: 'T', Y: 'Y10' };
   const scopes = { other: 'grids', stocks: 'stockGrids', indices: 'indexGrids',
     energy: 'energyGrids', commodities: 'commodityGrids', crypto: 'cryptoGrids', currency: 'currencyGrids' };
   // Split out of 'other' (user, 2026-10-21: "Fx, crypto, commodities, stocks

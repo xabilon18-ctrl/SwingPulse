@@ -9737,12 +9737,12 @@
   // Ten and twenty years on Monthly only (Weekly also had ten until its chart
   // was removed, 2026-11-16).
   const LONG_GRID_TFS = { Y10: new Set(['M']), Y20: new Set(['M']) };
-  // Yearly's own grids and no others (user, 2026-11-23: "the time grids are
-  // 40 50 80 and 100", years per line, counted from 2000).
-  const ONLY_GRID_CODES = { Y: new Set(['Y40', 'Y50', 'Y80', 'Y100']) };
-  const ONLY_GRID_TF = Object.fromEntries(Object.entries(ONLY_GRID_CODES).flatMap(([tf, set]) => [...set].map(c => [c, tf])));
+  // Yearly offers ten and twenty years and nothing else (user, 2026-11-24:
+  // "Make yearly time grid 10 and 20 only"; 40/50/80/100 from 2026-11-23
+  // were dropped). Monthly keeps all of its own, 10Y and 20Y included.
+  const ONLY_GRID_CODES = { Y: new Set(['Y10', 'Y20']) };
   const gridOffered = (code, tf) => ONLY_GRID_CODES[tf] ? ONLY_GRID_CODES[tf].has(code)
-    : !ONLY_GRID_TF[code] && (!TERM_GRID_CODES.has(code) || TERM_GRID_TFS.has(tf))
+    : (!TERM_GRID_CODES.has(code) || TERM_GRID_TFS.has(tf))
       && (!LONG_GRID_TFS[code] || LONG_GRID_TFS[code].has(tf));
   const GRID_SCOPE_LABELS = { stocks: 'Stocks', indices: 'Indices', energy: 'Energy', commodities: 'Commodities',
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
@@ -9774,7 +9774,6 @@
           : d.code === 'T2' ? 'two equal parts per administration term, two years each'
           : d.code === 'Y10' ? 'one equal part per ten years'
           : d.code === 'Y20' ? 'one equal part per twenty years'
-          : /^Y\d+$/.test(d.code) ? `one equal part per ${d.code.slice(1)} years, counted from 2000`
           : `${d.parts} equal ${d.parts === 1 ? 'part' : 'parts'} per year`;
         return `<button type="button" class="reel-tool reel-time-grid-opt${selected === d.code ? ' on' : ''}" data-act="time-grid-set" data-grid-scope="${scope}" data-division="${d.code}" aria-pressed="${selected === d.code}" aria-label="${d.name}: ${what}" title="${d.name} · ${what}">${d.label || d.code}</button>`;
       }).join('')
@@ -9794,7 +9793,7 @@
 
   const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
   function reelEndStopLabel(ts) {
-    // A Yearly bar is its year (its 40-100-year grid often has no line in view).
+    // A Yearly bar is its year (a short history may have no grid line in view).
     if (timeframe === 'Y') return String(ts).slice(0, 4);
     if (!isIntradayTf(timeframe)) return String(ts).slice(0, 10);
     return freshness.chartTime(ts, timeframe, true) + ' local';
@@ -9894,45 +9893,85 @@
 
   // Display-only append: published completed arrays and signal indices stay
   // untouched. Repainting an already-expanded bundle must not append twice.
-  // The Yearly forming year (`live`, chart_feed.yearly_bundle) follows the
-  // live price (user, 2026-11-23: "Price changes live"): wlQuote's price, the
-  // header's, once it is newer than the daily bar the candle was built from.
-  // Its close moves to it, its high and low widen to take it, and its MA
-  // point is redone with it. A price more than 25% from the candle's own
-  // close is not the same level (a futures print against a cash index), and
-  // is not used.
+  // LIVE LAST CANDLE (user, 2026-11-23: "Price changes live", then "price
+  // feed changes must happen on open chart" for 1H and Daily). While a chart
+  // is on screen, each 30s live poll (chartPaintLive) redraws it with the bar
+  // in progress following wlQuote's price, the header's: its close moves to
+  // it, its high and low widen to take it, and its MA point(s) follow. Display
+  // only: the published arrays, the signals and the alerts never see it.
+  //   1H     the forming hour (chart_feed._attach_forming), while the price
+  //          falls inside it: from its start to closes_at.
+  //   Daily  today's bar, the last one in the bundle while it is still open
+  //          (final once the next UTC day begins, drop_unfinished_daily's
+  //          rule), for a price dated that UTC day.
+  //   Yearly the forming year (`live`, chart_feed.yearly_bundle), for a
+  //          price newer than the daily bar it was built from.
+  // A price more than 25% from the candle's own close is not the same level
+  // (a futures print against a cash index) and is not used.
   const LIVE_FORMING_BAND = 0.25;
+  function reelLivePrice(name, c0, from, until) {
+    const x = name && wlQuote(name), p = x && x.p, at = x && freshness.timestamp(x.t);
+    if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(c0) || c0 <= 0 || at == null) return null;
+    if (from == null || at < from || (until != null && at >= until)) return null;
+    return Math.abs(p / c0 - 1) > LIVE_FORMING_BAND ? null : p;
+  }
   function reelLiveForming(bundle, name) {
-    const f = bundle.forming;
-    if (!f || !f.live || !name) return f;
-    const x = wlQuote(name), p = x && x.p;
-    const at = x && freshness.timestamp(x.t), asof = freshness.timestamp(f.asof);
-    if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(f.c) || f.c <= 0) return f;
-    if (at == null || asof == null || at < asof || Math.abs(p / f.c - 1) > LIVE_FORMING_BAND) return f;
+    const f = bundle.forming, w = reelFormingWindow(f);
+    const p = w && reelLivePrice(name, f.c, w[0], w[1]);
+    if (p == null) return f;
     const c = bundle.c, n = c.length;
     const m = (bundle.p || []).map((per, i) => n >= per - 1
       ? (c.slice(n - (per - 1)).reduce((a, v) => a + v, 0) + p) / per : (f.m || [])[i]);
     return { ...f, c: p, h: Math.max(f.h, p), l: Math.min(f.l, p), m };
   }
-  // Repaint the Yearly charts in view after a live price (chartPaintLive).
+  // Daily: today's bar is the bundle's last while it is still open.
+  function reelLiveLastBar(src, name) {
+    const n = src.t.length, from = n ? freshness.timestamp(src.t[n - 1]) : null;
+    if (from == null || Date.now() >= from + 864e5) return null;
+    const c0 = src.c[n - 1], p = reelLivePrice(name, c0, from, from + 864e5);
+    if (p == null || p === c0) return null;
+    const out = { ...src, c: [...src.c], h: [...src.h], l: [...src.l] };
+    out.c[n - 1] = p;
+    out.h[n - 1] = Math.max(src.h[n - 1], p);
+    out.l[n - 1] = Math.min(src.l[n - 1], p);
+    // The ribbon's last sample is the last bar's: an N-bar mean moves by
+    // the change in its newest close over N.
+    out.m = (src.m || []).map((series, i) => {
+      const per = (src.p || [])[i], s = [...series];
+      if (per && s.length) s[s.length - 1] += (p - c0) / per;
+      return s;
+    });
+    return out;
+  }
+  const LIVE_CHART_TFS = new Set(['1H', 'D', 'Y']);
+  // Redraw the charts in view after a live price (chartPaintLive). Not one a
+  // finger or the mouse is on: a pan or a drag is not cut short by a
+  // repaint; it is redrawn on the next poll.
   function reelRepaintLiveForming(names) {
-    if (timeframe !== 'Y') return;
+    if (!LIVE_CHART_TFS.has(timeframe)) return;
     const want = new Set(names);
     document.querySelectorAll('#chartReel .reel-chart, #chartFull.open .reel-chart').forEach(h => {
       const item = h._reelItem;
-      if (h._reelCtx && item && want.has(item.instrument_name) && h._reelCtx.b?.forming?.live) reelRepaint(h);
+      if (!h._reelCtx || !item || !want.has(item.instrument_name)) return;
+      if (h._reelBusy && h._reelBusy()) return;
+      reelRepaint(h);
     });
   }
 
-  // A repaint hands back the expanded copy (ctx.bundle). A 1H forming candle
-  // is fixed, so that copy is returned as it is. A live one (Yearly) starts
-  // again from `_base`, the published bundle, to be redone with the newest
-  // price each time.
-  function reelDisplayBundle(bundle, name) {
+  // A repaint hands back the expanded copy (ctx.bundle); `_base` is the
+  // published bundle it was made from. A candle that takes live prices is
+  // redone from `_base` each time, with the newest price; anything else is
+  // returned as it is, so a repaint never appends twice.
+  function reelDisplayBundle(bundle, name, tf) {
     const base = bundle._base || bundle;
-    if (bundle._base && !(base.forming && base.forming.live)) return bundle;
+    const liveForming = !!reelFormingWindow(base.forming), liveLast = !base.forming && LIVE_LAST_BAR_TFS.has(tf);
+    if (bundle._base && !liveForming && !liveLast) return bundle;
+    if (liveLast) {
+      const out = reelLiveLastBar(base, name);
+      return out ? { ...out, _base: base } : base;
+    }
     let src = base;
-    if (src.forming && src.forming.live) src = { ...src, forming: reelLiveForming(src, name) };
+    if (liveForming) src = { ...src, forming: reelLiveForming(src, name) };
     const f = src.forming, n = src.t.length;
     if (!f || !n || f.t <= src.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
     const out = { ...src, _base: base };
@@ -9942,9 +9981,20 @@
     return out;
   }
 
+  // Kept between reelDisplayBundle and the SVG builder: tests/chart_refresh_test.cjs
+  // runs that stretch of this file on its own.
+  // The time window a forming candle takes live prices in, or null.
+  function reelFormingWindow(f) {
+    if (!f) return null;
+    if (f.live) return [freshness.timestamp(f.asof), freshness.timestamp(f.closes_at)];
+    if (f.closes_at) return [freshness.timestamp(f.t), freshness.timestamp(f.closes_at)];
+    return null;
+  }
+  const LIVE_LAST_BAR_TFS = new Set(['D']);
+
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
-    bundle = reelDisplayBundle(bundle, item && item.instrument_name);
+    bundle = reelDisplayBundle(bundle, item && item.instrument_name, timeframe);
     // The window is a fixed number of SLOTS. Panning forward past the newest bar
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
@@ -12311,6 +12361,8 @@
       setTimeout(run, 60);
     };
 
+    // A finger or the mouse is on this chart (reelRepaintLiveForming waits).
+    host._reelBusy = () => pts.size > 0;
     host.addEventListener('pointerdown', ev => {
       const ctx = host._reelCtx;
       if (!ctx) return;
