@@ -7,6 +7,33 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-24 (19:30 SAST) HOURLY RUN MOVED FROM :05 TO :25. Cron Worker only
+(webapp/cron-worker); no app or engine change. User: "1h bars not updating????"
+Measured on the 18:05 SAST run (16:05 UTC): 851 1H charts, 513 with a forming
+candle; every open instrument WITHOUT one was a Yahoo-delayed feed (futures
+22, .DE 36, .PA 35, .MI 28, .MC 19, .SW 14, .AS 14, cash indices 8, .OL 3,
+.CO 3), every one WITH one real-time (FX 57, crypto 55, US stocks, .ST).
+Yahoo's regularMarketTime lagged by 10 minutes on CME/COMEX/NYMEX (GC=F,
+ES=F, BZ=F) and 15 on LSE/Xetra. Fetching at ~:06 therefore:
+- published the previous hour as closed with a close 10-15 minutes early
+  (gold 15:00 UTC bar: published 3559.88 against Yahoo's final 3567.8 less
+  the 11.82 level shift = 3555.98; open/high/low matched exactly). The next
+  run heals it (incremental re-request, keep='last'), but 1H signals and
+  alerts were computed on the short bar first;
+- had no bar for the new hour, so _attach_forming had nothing to attach
+  and the 30s live price (reelDisplayBundle) had no candle to move: those
+  charts sat still for the whole hour.
+Not the cause, checked: the fetch age gates (1H uses 0.15h), chart_cache
+(digest of the parquet read), silent download failures (no WARN in the log).
+- wrangler.toml crons "25 * * * *" (dispatch) and "55 * * * *" (backup, the
+  same 45-minute rule); BACKUP_CRON follows. Data now lands ~:31 instead of
+  ~:11 for every instrument, real-time feeds included (user chose this over
+  a delay-aware closed-bar rule that would keep :05 but hold the delayed
+  feeds' bars back an hour).
+- Test: cron_worker_test now also asserts wrangler.toml's crons are the two
+  the Worker tells apart (a backup cron the Worker did not recognise would
+  dispatch every time).
+
 2026-11-24 (05:27 SAST) SYNC RECOVERY COPY AT MOST HOURLY (KV WRITES HALVED). Sync
 Worker only; no app change. User asked what Cloudflare's emails said: "KV
 daily operation limit 50% reached" on 17 and 23 Nov. Cloudflare's GraphQL
