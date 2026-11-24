@@ -114,7 +114,7 @@ module.exports = async browser => {
   await page.locator('#tfBtnM').click();
   await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
   const monthly = await codes();
-  assert.ok(['Y10', 'Y20'].every(c => monthly.some(m => m.replace('*', '') === c)) && monthly.some(c => /^T\*?$/.test(c)),
+  assert.ok(['Y10', 'Y20'].every(c => monthly.some(m => m.replace(/\*$/, '') === c)) && monthly.some(c => /^T\*?$/.test(c)),
     'Monthly grids unchanged: ' + monthly);
   await gridBtn.click();
   await page.locator('#tfBtnY').click();
