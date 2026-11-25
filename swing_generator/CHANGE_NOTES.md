@@ -7,6 +7,27 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-25 (05:05 SAST) MAGNIFIER SHOWS WHAT IS BEHIND IT; 280px, 1px RIM.
+app.js v664, style.css v458. User: "The magnifying glass is misaligned i have
+to go up a lot to see bars that are not even high and the circle is smaller
+and border to thick".
+- Measured first (390x844 and iPhone 13 emulation, touch): the old lens was
+  exactly on the point under the fingertip (within 1px), but that point is
+  154px BELOW the glass centre (`REEL_LOUPE_R` 120 + `REEL_LOUPE_GAP` 34), so
+  the bars seen in the lens were not the bars behind it, and the finger had
+  to go that far further up. `reelLoupeMove` now magnifies the point behind
+  the lens centre; the cross-hair and the price/date readout read that point.
+  The lens sits 190px above the finger (R 140 + gap 50, room for the readout
+  pill between glass and fingertip). Near the top it stops at the chart's top
+  edge (half the glass shows); at the sides it runs off screen instead of
+  sliding sideways, so its centre never leaves its point.
+- 280px across (`REEL_LOUPE_R` 140), zoom unchanged at 1.8x. The rim is a 1px
+  ring (box-shadow) instead of a 2px border; under `box-sizing: border-box`
+  that border had also put the cross-hair 2px off the magnified point.
+- Test: `tests/chart_loupe_checks.cjs` asserts the lens is 280px and that the
+  point at the copy's centre is the point behind the glass centre (the old
+  code is 154px off).
+
 2026-11-24 (19:30 SAST) HOURLY RUN MOVED FROM :05 TO :25. Cron Worker only
 (webapp/cron-worker); no app or engine change. User: "1h bars not updating????"
 Measured on the 18:05 SAST run (16:05 UTC): 851 1H charts, 513 with a forming
