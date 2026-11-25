@@ -12114,7 +12114,24 @@
   // behind the lens centre. It follows the finger until release; the chart
   // does not pan meanwhile. The lens is a copy of the chart's SVG made once
   // per press, inside the chart box so the chart's styles apply.
+  // The price and date are written along the curve of the glass, on top of
+  // it (user, 2026-11-25: "Put the information on top of the glass and let
+  // the info follow the curve of the glass"; it was a pill under the glass):
+  // an SVG text on an arc just outside the rim. Near the top of the chart,
+  // where that arc would be off the chart, it runs along the bottom instead.
   const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 140, REEL_LOUPE_ZOOM = 1.8, REEL_LOUPE_GAP = 50;
+  const REEL_LOUPE_ARC_M = 30;   // room around the glass for the arc text
+  function reelLoupeArcSvg(R) {
+    const M = REEL_LOUPE_ARC_M, c = R + M, S = 2 * c, rt = R + 7, rb = R + 18;
+    // Top: left to right over the top (baseline outside the rim, letters
+    // outward). Bottom: left to right under the bottom (letters inward, so
+    // the baseline sits further out).
+    return `<svg class="reel-loupe-arc" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`
+      + `<path id="reelLoupeArcTop" d="M ${c - rt} ${c} A ${rt} ${rt} 0 0 1 ${c + rt} ${c}" fill="none"/>`
+      + `<path id="reelLoupeArcBot" d="M ${c - rb} ${c} A ${rb} ${rb} 0 0 0 ${c + rb} ${c}" fill="none"/>`
+      + '<text class="reel-loupe-read"><textPath href="#reelLoupeArcTop" startOffset="50%" text-anchor="middle"></textPath></text>'
+      + '</svg>';
+  }
   function reelLoupeEnd(host) { host.querySelectorAll(':scope > .reel-loupe').forEach(l => l.remove()); }
   function reelLoupeMove(host, cx, cy) {
     const svg = host.querySelector('svg.reel-svg'), ctx = host._reelCtx;
@@ -12127,7 +12144,7 @@
       const copy = svg.cloneNode(true);
       copy.removeAttribute('id');
       copy.style.width = '100%'; copy.style.height = '100%';
-      lens.innerHTML = '<div class="reel-loupe-glass"><div class="reel-loupe-inner"></div></div><div class="reel-loupe-read"></div>';
+      lens.innerHTML = '<div class="reel-loupe-glass"><div class="reel-loupe-inner"></div></div>' + reelLoupeArcSvg(REEL_LOUPE_R);
       lens.querySelector('.reel-loupe-inner').appendChild(copy);
       host.appendChild(lens);
     }
@@ -12154,9 +12171,10 @@
     if (yv >= L.py0 && yv <= L.py1) { const p = sc.inv(yv); if (isFinite(p)) parts.push(formatPrice(p)); }
     const n = ctx.b && ctx.b.c ? ctx.b.c.length : 0, i = Math.round((xv - L.x0 - bw / 2) / bw);
     if (bw > 0 && i >= 0 && i < n) { const d = reelDateForBarIndex(ctx.b, i); if (d) parts.push(String(d).replace('T', ' ').slice(0, 16)); }
-    const read = lens.querySelector('.reel-loupe-read');
-    read.textContent = parts.join(' · ');
-    read.hidden = !parts.length;
+    const read = lens.querySelector('.reel-loupe-read'), tp = read.firstChild;
+    tp.textContent = parts.join('  ·  ');
+    tp.setAttribute('href', cyL - R - REEL_LOUPE_ARC_M < 0 ? '#reelLoupeArcBot' : '#reelLoupeArcTop');
+    read.style.display = parts.length ? '' : 'none';
   }
 
   function reelWireChart(host) {

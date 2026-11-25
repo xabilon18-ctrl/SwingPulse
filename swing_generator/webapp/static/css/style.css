@@ -10257,14 +10257,16 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    (reelLoupeMove). The rim is a 1px ring drawn by box-shadow, not a border
    (user, 2026-11-25: "border to thick"; it was 2px): a border-box border
    would also shrink the glass and put the cross-hair off the centre the
-   script magnifies around. No long-press
+   script magnifies around. Light grey since 2026-11-25 ("go light again in
+   the border"). The price and date run along the rim on top of the glass
+   (.reel-loupe-arc, a text on an arc; reelLoupeArcSvg). No long-press
    callout or text selection on the full-screen chart, which would otherwise
    pop up under the held finger on iOS. */
 #chartFull .reel-chart { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .reel-loupe { position: absolute; left: 0; top: 0; z-index: 9; width: 280px; pointer-events: none; will-change: transform; }
 .reel-loupe-glass {
   position: relative; width: 280px; height: 280px; border-radius: 50%; overflow: hidden;
-  background: #fff; box-shadow: 0 0 0 1px rgba(17,17,17,.7), 0 6px 20px rgba(0,0,0,.3);
+  background: #fff; box-shadow: 0 0 0 1px rgba(17,17,17,.22), 0 4px 16px rgba(0,0,0,.16);
 }
 .reel-loupe-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .reel-loupe-inner svg { display: block; }
@@ -10274,11 +10276,13 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 }
 .reel-loupe-glass::before { width: 18px; height: 1.5px; margin: -0.75px 0 0 -9px; }
 .reel-loupe-glass::after  { width: 1.5px; height: 18px; margin: -9px 0 0 -0.75px; }
+/* The arc sits 30px (REEL_LOUPE_ARC_M) out from the glass on every side. */
+.reel-loupe-arc { position: absolute; left: -30px; top: -30px; overflow: visible; }
 .reel-loupe-read {
-  position: absolute; left: 50%; top: 286px; transform: translateX(-50%);
-  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
-  background: rgba(17,17,17,.85); color: #fff; font-size: 12px; font-weight: 700;
+  fill: #111; font-size: 13px; font-weight: 700; letter-spacing: .3px;
   font-variant-numeric: tabular-nums;
+  /* A white halo keeps it readable over the chart lines behind it. */
+  stroke: #fff; stroke-width: 4px; stroke-linejoin: round; paint-order: stroke;
 }
 
 /* ── No text selection on the chart screen (user, 2026-11-17, a screenshot

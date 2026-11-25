@@ -30,14 +30,23 @@ module.exports = async function checkChartLoupe(page0, live = false) {
   const aim = await page.evaluate(() => {
     const l = document.querySelector('#chartFull .reel-loupe');
     const g = l.querySelector('.reel-loupe-glass').getBoundingClientRect();
-    const c = l.querySelector('svg').getBoundingClientRect();
+    const c = l.querySelector('.reel-loupe-inner svg').getBoundingClientRect();
     const s = document.querySelector('#chartFull svg.reel-svg').getBoundingClientRect();
     const gx = g.x + g.width / 2, gy = g.y + g.height / 2;
     return { dx: (gx - c.x) / c.width * s.width - (gx - s.x), dy: (gy - c.y) / c.height * s.height - (gy - s.y) };
   });
   assert.ok(Math.abs(aim.dx) < 0.75 && Math.abs(aim.dy) < 0.75, 'the lens shows the chart behind its centre: ' + JSON.stringify(aim));
-  assert.match(await lens.locator('.reel-loupe-read').innerText(), /\d/, 'it reads the price under the finger');
-  assert.equal(await lens.locator('svg').count(), 1, 'it shows a copy of the chart');
+  assert.match(await lens.locator('.reel-loupe-read').textContent(), /\d/, 'it reads the price under the finger');
+  // On top of the glass, along its curve (user, 2026-11-25): the text runs on
+  // the top arc and its box sits above the glass, not under it.
+  const arc = await page.evaluate(() => {
+    const l = document.querySelector('#chartFull .reel-loupe'), g = l.querySelector('.reel-loupe-glass').getBoundingClientRect();
+    const t = l.querySelector('.reel-loupe-read'), b = t.getBoundingClientRect();
+    return { href: t.firstChild.getAttribute('href'), top: b.top, bottom: b.bottom, gTop: g.top, gMid: g.top + g.height / 2 };
+  });
+  assert.equal(arc.href, '#reelLoupeArcTop', 'the reading runs along the top of the glass');
+  assert.ok(arc.top < arc.gTop && arc.bottom < arc.gMid, 'the reading sits on top of the glass: ' + JSON.stringify(arc));
+  assert.equal(await lens.locator('.reel-loupe-inner svg').count(), 1, 'it shows a copy of the chart');
   // Right and down: it follows the finger 1:1.
   await page.mouse.move(x + 60, y + 40, { steps: 6 });
   const at1 = await lens.boundingBox();
