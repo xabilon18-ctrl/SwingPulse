@@ -19,8 +19,7 @@ const ctx = vm.createContext({
 });
 const table = name => { const a = source.indexOf(`  const ${name} = {`); return source.slice(a, source.indexOf('  };\n', a) + 5).replace('const ', 'var '); };
 vm.runInContext(table('REEL_SLOW_VIEW') + table('REEL_FRAME_VIEW') + fn('reelOpenSpec') + fn('reelStockView')
-  + 'function reelRange() { return reel.ranges[timeframe] || 0; }'
-  + 'var frameLock = null; function reelFrameLock() { return frameLock; }', ctx);
+  + 'function reelRange() { return reel.ranges[timeframe] || 0; }', ctx);
 
 const hourly = (from, to, hours) => {
   const t = [];
@@ -87,81 +86,10 @@ assert.ok(nearMid(jd.t[jd.t.length - (vj.bars - vj.future)], '2023-07-02'));
 const nt = hourly(Date.UTC(2024, 0, 2), Date.UTC(2029, 1, 15), [0]);
 const vn = ctx.reelStockView(nt, 'STOCK');
 assert.ok(nearMid(nt.t[nt.t.length - (vn.bars - vn.future)], '2027-07-02'), 'the 2029 term opens mid-2027');
-// "Same frame on every chart" (2026-11-16): the switch's dates replace the
-// timeframe's own frame on every market, and a new switch replaces the cache.
-for (const [market, bd] of [['BTC', { t: rd, c: rd.map(() => 1) }], ['STOCK', wd]]) {
-  ctx.frameLock = { y0: 2024, y1: 2027 };
-  const vl = ctx.reelStockView(bd, market);
-  const fl = bd.t.length - (vl.bars - vl.future);
-  assert.ok(near(bd.t[fl], '2024-01-01'), market + ' locked start ' + bd.t[fl]);
-  const frl = geometry.yearFrame(bd, bt);
-  assert.ok(Math.abs(fl + vl.bars - 1 - (frl.anchor + frl.yearBars)) <= 1, market + ' locked frame ends on the 2027 line');
-  assert.equal(vl.back, 0, market);
-  // A frame wholly in the past opens scrolled back to it, with no blank future.
-  ctx.frameLock = { y0: 2022, y1: 2024 };
-  const vp = ctx.reelStockView(bd, market);
-  assert.ok(vp.back > 0 && vp.future === 0, market + ' past frame');
-  assert.ok(near(bd.t[bd.t.length - vp.bars - vp.back], '2022-01-01'), market + ' past frame start');
-  // A frame starting before the first bar keeps its start (2026-11-16, a
-  // young listing framed from 2000 jumped to its first bar on Save): `lead`
-  // blank slots before the data, the window as wide as the dates.
-  ctx.frameLock = { y0: 2015, y1: 2027 };
-  const vb = ctx.reelStockView(bd, market);
-  const frb = geometry.yearFrame(bd, bt);
-  assert.ok(vb.lead > 0, market + ' lead before the data');
-  assert.ok(Math.abs(vb.bars - 12 * frb.yearBars) <= 2, market + ' window spans 2015 to 2027: ' + vb.bars);
-  assert.ok(Math.abs(-vb.lead - (frb.anchor - 11 * frb.yearBars)) <= 1, market + ' starts on the 2015 line');
-  // The timeframes' own frames still start on the data.
-  ctx.frameLock = null;
-  assert.equal(ctx.reelStockView(bd, market).lead, 0, market + ' own frame starts on the data');
-  // Off again: the timeframe's own frame is back.
-  ctx.frameLock = null;
-  const vo = ctx.reelStockView(bd, market);
-  assert.ok(nearMid(bd.t[bd.t.length - (vo.bars - vo.future)], '2023-07-02'), market + ' own frame back');
-}
-// "Same frame" per MARKET (2026-11-21, user: the saved view "must then apply
-// to that sector or other instruments but not changing the one I am working
-// on"; they chose the market as the group and "keep their own"): a frame
-// reaches the other charts of its market on its timeframe, never the chart
-// it came from, a chart with its own saved view, another market or another
-// timeframe. The 2026-11-16 shape (one frame per timeframe) is read as the
-// frame of the market it was taken on.
-{
-  const line = name => { const a = source.indexOf(`  const ${name} = `); return source.slice(a, source.indexOf(';\n', a) + 2); };
-  const fx = vm.createContext({
-    timeframe: 'D', tfOverlay: {}, savedViews: {},
-    GRID_SCOPE_LABELS: { stocks: 1, commodities: 1, crypto: 1, other: 1 },
-    instrumentByName: n => ({ GOLD: 'commodities', SILVER: 'commodities', WTI: 'commodities', AAPL: 'stocks', BTC: 'crypto' }[n]),
-    reelMarketScope: scope => scope || 'other',
-    viewKey: (n, tf) => n + '|' + (tf || fx.timeframe),
-  });
-  vm.runInContext(line('frameOk') + fn('reelFrames') + fn('reelFrameOf') + line('reelScopeOfName') + fn('reelFrameLock'), fx);
-  // Legacy shape: one frame for the whole timeframe, taken on GOLD.
-  fx.tfOverlay.frame = { D: { y0: 2023.5, y1: 2030, scope: 'commodities', name: 'GOLD' } };
-  assert.equal(fx.reelFrameLock('SILVER').y0, 2023.5, 'another commodity takes the frame');
-  assert.equal(fx.reelFrameLock('GOLD'), null, 'the chart it came from is left alone');
-  assert.equal(fx.reelFrameLock('AAPL'), null, 'a stock is not framed by a commodity');
-  assert.equal(fx.reelFrameLock('BTC'), null, 'nor is crypto');
-  assert.equal(fx.reelFrameLock('SILVER', 'M'), null, 'nor another timeframe');
-  fx.savedViews['WTI|D'] = { v: 2 };
-  assert.equal(fx.reelFrameLock('WTI'), null, 'a chart with its own saved view keeps it');
-  // A second market's frame alongside the first.
-  fx.tfOverlay.frame.D.stocks = { y0: 2020, y1: 2026, scope: 'stocks', name: 'AAPL' };
-  assert.equal(fx.reelFrameLock('SILVER').y0, 2023.5);
-  assert.equal(fx.reelFrameLock('AAPL'), null);
-  assert.equal(fx.reelFrameOf('stocks').y0, 2020);
-  assert.equal(fx.reelFrameLock(''), null);
-  // "Also over saved charts" (2026-11-21): a saved chart takes the frame
-  // too; the chart it came from still does not, and the saved view is kept.
-  fx.tfOverlay.frame.D.commodities.over = true;
-  assert.equal(fx.reelFrameLock('WTI').y0, 2023.5, 'a saved chart takes the frame under the override');
-  assert.equal(fx.reelFrameLock('GOLD'), null, 'the source chart is still left alone');
-  assert.equal(fx.reelFrameLock('AAPL'), null, 'the override stays inside its market');
-  assert.deepEqual(fx.savedViews['WTI|D'], { v: 2 }, 'the saved view is not touched');
-  fx.tfOverlay.frame.D.commodities.over = false;
-  assert.equal(fx.reelFrameLock('WTI'), null, 'off again: the saved view is back');
-}
-console.log('same frame per market: ok');
+// "Same frame" was removed on 2026-11-25 (user: "Remove the same view
+// feature"): an opening frame always starts on the data.
+assert.equal(ctx.reelStockView({ t: rd, c: rd.map(() => 1) }, 'BTC').lead, undefined, 'no lead before the data');
+assert.ok(!/reelFrameLock|frameViewKey|data-act="frame-lock"/.test(source), 'the Same frame switch is gone from app.js');
 // Only these timeframes, only without a Range pill.
 ctx.timeframe = '15m';
 assert.equal(ctx.reelStockView(hourly(Date.UTC(2026, 3, 17), Date.UTC(2026, 9, 16), hours), 'STOCK'), null);

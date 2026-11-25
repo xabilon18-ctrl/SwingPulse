@@ -139,42 +139,15 @@ let debugPage;
     assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
     await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
-    // "Same frame" (2026-11-16; per market since 2026-11-21): one switch per
-    // timeframe and market in the same menu. It never changes the chart it is
-    // switched on from; a Chart range switches it off again.
-    const lockOn = () => gridMenu(m => m.locator('[data-act="frame-lock"]').getAttribute('aria-checked'));
-    await gridMenu(m => m.locator('[data-act="frame-lock"]').click());
-    assert.equal(await lockOn(), 'true', 'Monthly: same frame on every chart is on');
-    assert.equal(await firstShown(), shownBars.M, 'the chart it is switched on from does not move');
-    const storedFrame = () => page.evaluate(() => {
-      const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay'));
-      return ((JSON.parse(localStorage.getItem(k) || '{}').frame || {}).M || {}).stocks || null;
-    });
-    assert.equal((await storedFrame()).name, 'TEST', 'kept as the Stocks frame, taken on this chart');
-    // "Also over saved charts" (2026-11-21): under the frame switch only, a
-    // switch of its own, and the chart the frame came from keeps its Save.
-    const overOn = () => gridMenu(m => m.locator('[data-act="frame-over"]').getAttribute('aria-checked'));
-    assert.equal(await overOn(), 'false', 'Also over saved charts starts off');
-    await gridMenu(m => m.locator('[data-act="frame-over"]').click());
-    assert.equal(await overOn(), 'true', 'Also over saved charts switches on');
-    assert.equal((await storedFrame()).over, true, 'kept on the market frame');
-    assert.equal(await page.locator('#chartReel [data-act="chart-view-save"]').first().isDisabled(), false,
-      'the source chart keeps its Save under the override');
-    assert.equal(await firstShown(), shownBars.M, 'and does not move');
-    await gridMenu(m => m.locator('[data-act="frame-over"]').click());
-    assert.equal(await overOn(), 'false');
-    assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while the frame switch is on');
-    await toTf('D');
-    assert.equal(await lockOn(), 'false', 'Daily has its own switch');
-    await toTf('M');
-    assert.equal(await lockOn(), 'true', 'Monthly keeps its switch');
-    // Save on the chart the frame came from (2026-11-21): its own view, under
-    // its own key, and the frame for the other Stocks charts moves with it.
+    // "Same frame" and "Also over saved charts" were removed on 2026-11-25
+    // (user: "Remove the same view feature").
+    assert.equal(await gridMenu(m => m.locator('[data-act="frame-lock"], [data-act="frame-over"]').count()), 0,
+      'no Same frame switch in the Grid menu');
+    // Save keeps the chart's own view under its own key.
     {
       const mHost = page.locator('#chartReel .reel-chart').first();
       const win = () => mHost.evaluate(h => h._reelCtx.win);
       const opened = await win();
-      const before = await storedFrame();
       let grip = null;
       for (let i = 0; i < 40 && !grip; i++) { grip = await mHost.locator('.reel-tgrip').boundingBox(); if (!grip) await page.waitForTimeout(50); }
       const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
@@ -184,17 +157,15 @@ let debugPage;
       const framed = await win();
       const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
       await save.click();
-      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save lights up under the switch');
+      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save lights up');
       await toTf('D');
       await toTf('M');
       assert.equal(await win(), framed, 'the saved chart reopens on its saved view');
       const keys = Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}')));
       assert.ok(keys.some(k => /\|M(\|L)?$/.test(k)) && !keys.some(k => k.endsWith('|F')), 'saved under its own key: ' + keys);
-      const after = await storedFrame();
-      assert.ok(after.y1 - after.y0 !== before.y1 - before.y0, 'the frame for the other Stocks charts follows the save');
       await save.click();   // forget it again
       assert.equal(await save.getAttribute('aria-pressed'), 'false');
-      // Framed from BEFORE the first bar (2026-11-16: FTSE China A50 Monthly
+      // Scrolled back BEFORE the first bar (2026-11-16: FTSE China A50 Monthly
       // from 2000, data from 2012, jumped to 2012 on Save): the start holds,
       // straight after Save and when the chart comes back.
       const firstSlot = () => mHost.evaluate(h => h._reelCtx.b.t[0]);
@@ -220,10 +191,6 @@ let debugPage;
       assert.equal(await firstSlot(), early, 'and the chart comes back on it');
       await save.click();
     }
-    await setRange(65);
-    assert.equal(await lockOn(), 'false', 'a Chart range replaces the frame switch');
-    assert.equal(await gridMenu(m => m.locator('[data-act="frame-over"]').count()), 0, 'no override switch without a frame');
-    await setRange(0);
     // The Monthly overlay on Daily rolls from the Monthly chart's whole history
     // (2026-10-28, "like on the monthly MAs"). The fixture's Daily bundle
     // carries no Monthly lines at all and its Monthly chart 25 years, so an
@@ -434,12 +401,9 @@ let debugPage;
     }
     assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Daily is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));
-    // Save under the switch (2026-11-21: "give me an option to save under new
-    // conditions when the switch is on"): on a chart FOLLOWING a market's
-    // frame, the price saved under NAME|TF|F is applied with the frame's
-    // dates, and its own saved view is left alone. The fixture has one
-    // instrument, so the frame is set as if taken on another stock (OTHER),
-    // with "Also over saved charts" on so TEST's own view is set aside.
+    // A device that had "Same frame" on before it was removed (2026-11-25):
+    // the old frame and the price saved under it (NAME|TF|F) are ignored, and
+    // the chart opens on its own saved view. Save reads and forgets that view.
     await page.evaluate(() => {
       const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay')) || 'sp-overlay';
       const ov = JSON.parse(localStorage.getItem(k) || '{}');
@@ -461,18 +425,14 @@ let debugPage;
       const host = page.locator('#chartReel .reel-chart').first();
       const view = () => host.evaluate(h => ({ t0: h._reelCtx.b.t[0], lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }));
       const v = await view();
-      assert.ok(v.t0 >= '2009-06' && v.t0 < '2010-07', 'the frame\'s dates, not either saved view\'s: ' + v.t0);
-      assert.deepEqual([v.lo, v.hi], [7, 900], 'the price saved under the switch');
+      assert.ok(v.t0 >= '2019-12' && v.t0 < '2020-02', 'the chart\'s own saved view, not the old frame: ' + v.t0);
+      assert.deepEqual([v.lo, v.hi], [1, 2], 'its own saved price, not the one saved under the switch');
       const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
-      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save reads Saved for the price under the switch');
-      assert.match(await save.getAttribute('title'), /shared frame/);
-      await save.click();   // forget the price under the switch
+      assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save reads Saved for its own view');
+      assert.doesNotMatch(await save.getAttribute('title'), /shared frame/);
+      await save.click();   // forget its own view
       const views = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'));
-      assert.ok(!views['TEST|M|F'], 'forgotten');
-      assert.deepEqual([views['TEST|M'].lo, views['TEST|M'].hi], [1, 2], 'the chart\'s own saved view is untouched');
-      await save.click();   // and saved again: only under the switch's key
-      const again = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-views') || '{}'));
-      assert.ok(again['TEST|M|F'] && again['TEST|M'].start === '2020-01-01', 'saved under |F, own view unchanged');
+      assert.ok(!views['TEST|M'], 'its own view is forgotten');
     }
     await page.evaluate(() => {
       const k = Object.keys(localStorage).find(x => x.endsWith('sp-overlay'));

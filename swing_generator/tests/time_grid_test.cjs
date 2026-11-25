@@ -7,7 +7,6 @@ const geometry = require('../webapp/static/js/modules/grid-geometry.js');
 const source = fs.readFileSync(path.join(__dirname, '../webapp/static/js/app.js'), 'utf8');
 const code = source.slice(source.indexOf('  // One equal grid for every chart'), source.indexOf('  // ── Volume strip'));
 const storage = new Map();
-const frameLock = { now: null };
 const context = () => {
   const disk = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
   const modules = { chartPreferences: preferences, gridGeometry: geometry };
@@ -20,7 +19,6 @@ const context = () => {
     assetClassOf: item => item.asset_class,
     instrumentByName: name => ({instrument_name:name,asset_class:name==='STOCK'?'Equity':name==='INDEX'?'Index':'Crypto'}),
     reelBarTimes: b => b.t.map(t => Date.parse(t)),
-    reelFrameLock: () => frameLock.now,
   });
   vm.runInContext(code, c);
   return c;
@@ -120,13 +118,7 @@ assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry
 assert.equal(c.reelGridScope({asset_class:'Commodity',group:'Commodity',industry:'Precious Metals'}),'commodities');
 assert.equal(c.reelGridScope(crypto),'crypto');
 assert.equal(c.reelGridScope({asset_class:'Currency',group:'Currency'}),'currency');
-// "Same frame" is per market since 2026-11-21: a frame never makes a chart
-// read another market's grid (it did from 2026-11-16, when one frame covered
-// every market).
-frameLock.now = { y0: 2023.5, y1: 2030, scope: 'commodities' };
-assert.equal(c.reelGridScope(crypto), 'crypto');
 assert.equal(c.reelGridScope({asset_class:'Equity'}), 'stocks');
-frameLock.now = null;
 c.reelSetGridDivision('1H','Q','energy');
 assert.equal(c.reelTimeGrid(b24,'1H',{asset_class:'Commodity',industry:'Energy'}).find(l=>!l.fixedOnly).division,'Q');
 assert.equal(c.reelTimeGrid(b24,'1H',crypto).find(l=>!l.fixedOnly).division,'Y','An energy grid leaves crypto on the other-markets grid');
