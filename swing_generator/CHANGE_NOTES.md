@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-25 (22:20 SAST) BUY / SELL MARKER LINES THICKER, NO TEXT. app.js v667,
+style.css v460. User: "Make the thick of buy and sell line thicker and remove
+any text on it".
+- Thin / Medium / Thick for Buy and Sell markers are 5 / 9 / 16 chart units
+  (were 1.3 / 3 / 7; about 1.9 / 3.4 / 6 CSS px on a phone). A new marker
+  starts on Thin, which was half a pixel. `REEL_VIEW_W` in app.js holds the
+  same numbers for markers with an old bold setting and sizes the anchor dot
+  (`r` at least 0.8 x the line width).
+- The BUY / SELL word under / over the anchor is gone (`.reel-view-lbl` and its
+  CSS removed); the green or red line and dot carry the side.
+- Test: `tests/chart_view_mark_checks.cjs` (in app_smoke) places a Buy and a
+  Sell from full screen and checks no text, Thin = 5 units, dot drawn.
+
 2026-11-25 (06:05 SAST) MAGNIFIER READING ON TOP OF THE GLASS, ALONG ITS CURVE;
 LIGHT RIM. app.js v666, style.css v459. User: "Put the information on top of
 thr glass and let the info follow the curve of the glass and go light again in
