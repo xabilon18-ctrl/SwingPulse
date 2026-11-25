@@ -7,6 +7,29 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-25 (later) "SAME FRAME" SWITCH REMOVED. app.js v665. User asked why
+their saved chart "seem to be resetting on my other charts"; one cause found
+in the code: with "Same frame" on, saving the chart the frame came from
+(reelViewToggle) and every switch tap called reelResetPanExcept, which
+cleared the zoom, scroll and price of EVERY chart on every market, not only
+the framed market's (its comment said the market's). Asked whether the switch
+was on, the user answered: "Remove the same view feature".
+- Gone from the Grid menu: "Same frame on other <Market> <TF> charts" and
+  "Also over saved charts" (data-act frame-lock / frame-over), with
+  reelFrames, reelFrameOf, reelFrameLock, frameViewKey, saveKeyOf,
+  reelFrameSeedBack/Seeded, reelFrameFromView, reelFrameCapture,
+  reelResetPanExcept and the frame branch of reelStockView (its `lead`).
+- Save is always the chart's own view (NAME|TF[|L]), as before 2026-11-16.
+  A frame still stored on a device (tfOverlay.frame) is no longer loaded and
+  drops on the next overlay save. NAME|TF[|L]|F views left in saved views are
+  not read; they stay in the synced data, unused (deleting them would cost a
+  sync write per key).
+- Unchanged: saved views, coming back to a saved chart puts it back on its
+  saved view (2026-11-03), the timeframes' opening frames, Chart range.
+- Tests: app_smoke.cjs (no switch in the menu; a device with an old frame and
+  an |F price opens on its own saved view), stock_view_test.cjs,
+  time_grid_test.cjs.
+
 2026-11-25 (05:35 SAST) READABILITY CHECK READS LINE WIDTHS RACE-FREE. Tests only.
 The #258 release (magnifier) went live and passed "Verify the live app",
 then "Verify released chart weights and exact production assets" failed at

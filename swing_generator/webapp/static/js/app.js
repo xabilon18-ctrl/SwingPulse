@@ -5974,7 +5974,7 @@
     try {
       const j = JSON.parse(localStorage.getItem(sk('sp-overlay')) || 'null');
       if (j && typeof j === 'object') {
-        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfMod: (j.htfMod && typeof j.htfMod === 'object') ? j.htfMod : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, frame: (j.frame && typeof j.frame === 'object') ? j.frame : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast, smart: j.smart, syncAt: +j.syncAt || 0, syncSnap: typeof j.syncSnap === 'string' ? j.syncSnap : '' };
+        const o = { v: j.v, set: j.set, layers: (j.layers && typeof j.layers === 'object') ? j.layers : {}, nativeW: j.nativeW || {}, gridW: j.gridW || {}, maW: (j.maW && typeof j.maW === 'object') ? j.maW : {}, shade: (j.shade && typeof j.shade === 'object') ? j.shade : {}, rib: (j.rib && typeof j.rib === 'object') ? j.rib : {}, htf: (j.htf && typeof j.htf === 'object') ? j.htf : {}, htfMod: (j.htfMod && typeof j.htfMod === 'object') ? j.htfMod : {}, proj: (j.proj && typeof j.proj === 'object') ? j.proj : {}, volBlue: j.volBlue, volBlueLast: j.volBlueLast, smart: j.smart, syncAt: +j.syncAt || 0, syncSnap: typeof j.syncSnap === 'string' ? j.syncSnap : '' };
         // v2 (2026-09-28, user: "make sure on the daily the candlesticks do not
         // vanish when i turn on the weekly and monthly overlays"). Until now a
         // timeframe's layer served BOTH roles: layers.D.bars faded the Daily
@@ -7370,22 +7370,14 @@
   }
   function reelStockView(bundle, name) {
     if (reelRange()) return null;
-    const spec = reelOpenSpec(), lock = reelFrameLock(name);
-    if (!spec && !lock) return null;
-    // Cached per bundle; a frame switched on, off or re-taken replaces it.
-    const key = lock ? lock.y0 + ':' + lock.y1 : '';
-    if (bundle._sv !== undefined && bundle._svKey === key) return bundle._sv;
-    bundle._svKey = key;
+    const spec = reelOpenSpec();
+    if (!spec) return null;
+    if (bundle._sv !== undefined) return bundle._sv;
     const fr = window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
     if (!fr) return (bundle._sv = null);
     const last = fr.n - 1;
     let start, endAt;
-    if (lock) {
-      // "Same frame on every chart" of its market: the same calendar dates.
-      const year = new Date(reelBarTimes(bundle)[last]).getUTCFullYear();
-      start = Math.round(fr.anchor + (lock.y0 - year) * fr.yearBars);
-      endAt = Math.round(fr.anchor + (lock.y1 - year) * fr.yearBars);
-    } else if (spec.years) {
+    if (spec.years) {
       const [yb, ya] = spec.years;
       start = fr.anchor - yb * fr.yearBars;
       endAt = fr.anchor + ya * fr.yearBars;
@@ -7402,128 +7394,14 @@
       start = fr.anchor + (k - 1) * u;
       endAt = fr.anchor + (k + 1) * u;
     }
-    // A frame that starts before the first bar (a young listing under "Same
-    // frame on every chart") keeps its start: `lead` blank slots before the
-    // data, seeded as a scrolled-back window by reelFrameSeedBack. It used to
-    // be cut to the first bar, so Save jumped the view (2026-11-16, user, FTSE
-    // China A50 Monthly framed from 2000, data from 2012). Only the switch
-    // asks for that; the timeframes' own frames still start on the data.
-    const from = lock ? Math.floor(start) : Math.max(0, Math.floor(start));
-    const lead = Math.max(0, -from);
+    // An opening frame starts on the data.
+    const from = Math.max(0, Math.floor(start));
     const end = Math.ceil(endAt);
     const future = Math.max(0, end - last);
     const bars = Math.max(REEL_MIN_WINDOW_BARS, end - from + 1);
     // `back`: a frame that ends before the newest bar opens scrolled back to it.
-    return (bundle._sv = { bars, lead, fit: spec ? spec.fit : 'all', back: Math.max(0, last - end),
+    return (bundle._sv = { bars, fit: spec.fit, back: Math.max(0, last - end),
       future: Math.min(future, Math.round(bars * REEL_FUTURE_FRAC)) });
-  }
-
-  // ── SAME FRAME ON EVERY CHART OF A MARKET (user, 2026-11-16: "a switch
-  // that i can turn on to control all charts per time frame"; reworked
-  // 2026-11-21: "if i open an instrument and i analyze it and save it's frame
-  // view, then once I switch it on then the saved view must then apply to
-  // that sector or other instruments but not changing the one I am working
-  // on but other similar to it"; asked, they chose the MARKET as the group
-  // and "keep their own" for charts with a saved view) ──────────────────
-  // One switch per timeframe AND market (reelMarketScope: stocks, indices,
-  // energy, commodities, crypto, currency, other), in the Grid menu.
-  // Switched on, it takes the DATES of the chart the menu was opened on (its
-  // saved view when it has one, else what is on screen; `y0`..`y1`, calendar
-  // years with a fraction) and every OTHER chart of that market on that
-  // timeframe opens on them (reelStockView), each priced to fit its own
-  // candles, MAs and drawings. Not touched: the chart the frame came from
-  // (`name`), and any chart with a saved view of its own. Saving that source
-  // chart again moves the frame with it. A Chart range and the switches
-  // replace one another. Kept in tfOverlay, so on the device only.
-  // Stored as tfOverlay.frame[tf][scope]. Until 2026-11-21 it was ONE frame
-  // per timeframe (tfOverlay.frame[tf] = { y0, y1, scope, name }) applied to
-  // every chart; that shape is read as the frame of the market it came from.
-  const frameOk = f => !!f && Number.isFinite(f.y0) && Number.isFinite(f.y1) && f.y1 > f.y0;
-  function reelFrames(tf) {
-    const all = tfOverlay.frame || (tfOverlay.frame = {});
-    const cur = all[tf || timeframe];
-    if (frameOk(cur)) {
-      const scope = Object.hasOwn(GRID_SCOPE_LABELS, cur.scope) ? cur.scope : 'other';
-      all[tf || timeframe] = { [scope]: cur };
-    } else if (!cur || typeof cur !== 'object') all[tf || timeframe] = {};
-    return all[tf || timeframe];
-  }
-  // The frame set for one market on a timeframe, or null.
-  function reelFrameOf(scope, tf) {
-    const f = reelFrames(tf)[scope];
-    return frameOk(f) ? f : null;
-  }
-  const reelScopeOfName = name => reelMarketScope(name ? instrumentByName(name) : null);
-  // The frame that applies to chart `name`: its market's, unless it is the
-  // chart the frame was taken from or it has a saved view of its own.
-  // "Also over saved charts" (`over`, user, 2026-11-21: "Can I also get an
-  // opinion to overwrite"; asked, they chose to override while it is on and
-  // keep the saved views): a saved chart takes the frame too. Its own view is
-  // not touched and is back when that switch is off.
-  function reelFrameLock(name, tf) {
-    if (!name) return null;
-    const f = reelFrameOf(reelScopeOfName(name), tf);
-    if (!f || f.name === name || (!f.over && savedViews[viewKey(name, tf)])) return null;
-    return f;
-  }
-  // SAVE UNDER THE SWITCH (user, 2026-11-21: "give me an option to save under
-  // new conditions when the switch is on", asked and confirmed: the price of
-  // a chart that follows the frame, kept for while the switch is on). A chart
-  // the frame is applied to saves under NAME|TF[|L]|F: its price only, read
-  // back only while the frame applies to it. The dates stay the frame's, and
-  // its normal saved view (NAME|TF[|L]) is never touched by it. The views
-  // saved under the 2026-11-16 switch used that key too, and are read again.
-  const frameViewKey = name => viewKey(name) + '|F';
-  // The saved view Save reads and writes for chart `name` right now.
-  const saveKeyOf = name => (reelFrameLock(name) ? frameViewKey(name) : viewKey(name));
-  // A frame starting before the first bar cannot be an opening view (those
-  // start on the data); it is put on the chart as the scrolled-back window it
-  // is, like a saved view that starts there (reelViewSeedTime). Remembered so
-  // the price still fits the opening way until the reader moves the chart.
-  const reelFrameSeeds = new Map();
-  function reelFrameSeedBack(name, bundle) {
-    // A price lock (the saved view's, or the reader's own) is no reason to
-    // leave the dates: Save sets one and repaints straight away.
-    if (!reelFrameLock(name) || reelRange() || reel.pan.has(name) || reel.tzoom.has(name)) return false;
-    const sv = reelStockView(bundle, name);
-    if (!sv || !sv.lead) return false;
-    reel.tzoom.set(name, sv.bars);
-    reel.pan.set(name, 0);
-    // first slot = n - W - pan (reelSlice), so pan = n - W + lead.
-    reelSetPan(name, bundle.c.length - sv.bars + sv.lead, bundle, true);
-    reelFrameSeeds.set(name, reel.pan.get(name) + ':' + reel.tzoom.get(name));
-    return true;
-  }
-  function reelFrameSeeded(name) {
-    return reel.pan.has(name) && reelFrameSeeds.get(name) === reel.pan.get(name) + ':' + reel.tzoom.get(name);
-  }
-  // The dates of chart `name`'s saved view (version 2), or null.
-  function reelFrameFromView(name, bundle) {
-    const v = savedViews[viewKey(name)];
-    const fr = v && v.v === 2 && bundle && window.SwingPulseModules.gridGeometry.yearFrame(bundle, reelBarTimes);
-    if (!fr || !(v.slots > 0)) return null;
-    const times = reelBarTimes(bundle), n = times.length, ts = reelParseTs(v.start);
-    if (!isFinite(ts)) return null;
-    let from = times.findIndex(t => t >= ts);
-    if (from < 0) from = n - 1;
-    if (ts < times[0]) from = Math.min(0, Math.round(reelBarIndexForDate(bundle, v.start) ?? 0));
-    const year = new Date(times[n - 1]).getUTCFullYear();
-    const at = i => year + (i - fr.anchor) / fr.yearBars;
-    return { y0: at(from), y1: at(from + v.slots - 1) };
-  }
-  // The dates on screen, read off the chart's last paint.
-  function reelFrameCapture(ctx) {
-    const src = ctx && ctx.bundle;
-    const fr = src && window.SwingPulseModules.gridGeometry.yearFrame(src, reelBarTimes);
-    if (!fr) return null;
-    // The window and offset as DRAWN (ctx.win / ctx.pan): a reset waiting for
-    // the next paint (reelBackToSaved) has already emptied reel.tzoom / pan.
-    const n = src.c.length;
-    const W = Number.isFinite(ctx.win) ? ctx.win : reelWindowBars(src, ctx.name);
-    const from = n - W - (Number.isFinite(ctx.pan) ? ctx.pan : reelPanOf(ctx.name, src));
-    const year = new Date(reelBarTimes(src)[n - 1]).getUTCFullYear();
-    const at = i => year + (i - fr.anchor) / fr.yearBars;
-    return { y0: at(from), y1: at(from + W - 1) };
   }
 
   // The highest and lowest switched-on Daily/Weekly/Monthly overlay MA inside
@@ -7723,11 +7601,8 @@
     try { return isIPad || Math.min(screen.width, screen.height) >= 600; }
     catch (_) { return desktopChartMedia.matches; }
   })();
-  // WHILE "SAME FRAME ON EVERY CHART" WAS ON (2026-11-16 to 2026-11-21) a
-  // save went under its own key, NAME|TF|F, and the switch paused every
-  // chart's own view, the one being worked on included.
-  // That key is in use again since 2026-11-21 (frameViewKey): the price a
-  // chart following a market's frame was saved with.
+  // NAME|TF[|L]|F keys left in saved views by the "Same frame" switch
+  // (2026-11-16 to 2026-11-25, removed) are no longer read.
   const viewKey = (name, tf) => name + '|' + (tf || timeframe) + (viewOnComputer ? VIEW_COMPUTER_SUFFIX : '');
   function viewStoreSave() {
     scheduleWorkBackup();
@@ -7779,9 +7654,6 @@
   // reader's own this session — the saved view is where it OPENS.
   function reelViewSeedTime(name, bundle) {
     if (reel.pan.has(name) || reel.tzoom.has(name) || reel.lockY.has(name)) return false;
-    // Following a market's frame: the dates are the frame's (reelStockView);
-    // a price saved under the switch is applied by reelViewSeedPrice.
-    if (reelFrameLock(name)) return !!savedViews[frameViewKey(name)];
     const v = savedViews[viewKey(name)];
     if (!v) return false;
     if (v.v === 2) {
@@ -7812,7 +7684,7 @@
   // A version 2 view is absolute prices and needs no height.
   const viewPricePending = new Set();
   function reelViewSeedPrice(name, bundle, host, L) {
-    const v = savedViews[saveKeyOf(name)];
+    const v = savedViews[viewKey(name)];
     if (!v) return true;
     if (v.v === 2) {
       if (isFinite(v.lo) && isFinite(v.hi) && v.hi > v.lo) reel.lockY.set(name, { lo: v.lo, hi: v.hi, _saved: true });
@@ -7833,25 +7705,21 @@
   // grow and shift the footer when Save turns into Saved.
   const viewBtnInner = on => VIEW_ICON + `<span class="reel-vb-lbl"><span>${on ? 'Saved' : 'Save'}</span><span aria-hidden="true">Saved</span></span>`;
   const viewBtnTitle = on => on ? 'View saved — tap to forget it' : 'Save this view';
-  // On a chart following a market's frame, Save is the price kept for while
-  // the switch is on (frameViewKey), and says so.
-  const viewBtnTitleOf = (name, on) => !reelFrameLock(name) ? viewBtnTitle(on)
-    : on ? 'Price saved for the shared frame — tap to forget it' : 'Save this price for while the shared frame is on';
   function reelViewBtnSync(name) {
-    const on = !!savedViews[saveKeyOf(name)];
+    const on = !!savedViews[viewKey(name)];
     // Only the Save-view button: the drawing bar's ▲ Buy / ▼ Sell share the
     // .reel-view-btn class, and matching on it relabelled them "Saved" (2026-09-30).
     document.querySelectorAll(`.reel-view-btn[data-act="chart-view-save"][data-name="${CSS.escape(name)}"]`).forEach(b => {
       b.classList.toggle('on', on);
       b.innerHTML = viewBtnInner(on);
       b.setAttribute('aria-pressed', String(on));
-      b.title = viewBtnTitleOf(name, on);
+      b.title = viewBtnTitle(on);
     });
   }
   function reelCapsuleHtml(name) {
-    const on = !!savedViews[saveKeyOf(name)];
+    const on = !!savedViews[viewKey(name)];
     return `<span class="reel-capsule">`
-      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${escText(name)}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitleOf(name, on)}">${viewBtnInner(on)}</button>`
+      + `<button class="reel-act reel-act-ch reel-view-btn${on ? ' on' : ''}" data-act="chart-view-save" data-name="${escText(name)}" aria-pressed="${on}" aria-label="Save this view" title="${viewBtnTitle(on)}">${viewBtnInner(on)}</button>`
       + `<button class="reel-act reel-act-ch reel-draw-btn${reel.editing === name ? ' on' : ''}" data-act="channel" data-name="${escText(name)}" aria-pressed="${reel.editing === name}" title="Draw">${channelBtnHtml(name)}</button>`
       + `</span>`;
   }
@@ -7859,40 +7727,20 @@
   // press and unpress ... I don't want the long press"). From 2026-09 a tap
   // always saved and a 700ms HOLD forgot; that hold is gone.
   function reelViewToggle(name, host) {
-    const k = saveKeyOf(name);
+    const k = viewKey(name);
     if (savedViews[k]) { reelViewForget(name, k); return; }
     const cur = reelViewCapture(host);
     if (!cur) return;
     savedViews[k] = cur;
     viewsMod[k] = Math.max(Date.now(), (+viewsMod[k] || 0) + 1);
-    // The chart a market's frame came from: saving it again moves the frame
-    // for the others (2026-11-21). Half a bar of tolerance, so a save that
-    // only changed the price leaves the other charts alone. Any other chart's
-    // Save is its own view, which the frame never overrides.
-    const ctx = host._reelCtx, scope = reelScopeOfName(name), src = reelFrameOf(scope);
-    const cap = src && src.name === name && reelFrameCapture(ctx);
-    const fr = cap && window.SwingPulseModules.gridGeometry.yearFrame(ctx.bundle, reelBarTimes);
-    const moved = fr && Math.max(Math.abs(cap.y0 - src.y0), Math.abs(cap.y1 - src.y1)) * fr.yearBars > 0.5;
-    if (moved) {
-      reelFrames()[scope] = { ...src, ...cap, at: Date.now() };
-      ovSave();
-      reelResetPanExcept(name);   // the other charts open again, on the new dates
-      viewPricePending.clear();
-    }
     // Hold the chart on exactly what was saved, so closing or opening full
     // screen shows the same frame instead of rescaling it to the other plot.
     reel.lockY.set(name, { lo: cur.lo, hi: cur.hi, _saved: true });
     viewStoreSave();
     syncPush();
     reelViewBtnSync(name);
-    if (moved) {
-      reelRepaintAll();
-      const full = chartFullEl();
-      const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
-      if (fh && fh._reelCtx) reelRepaint(fh);
-    }
   }
-  function reelViewForget(name, k = saveKeyOf(name)) {
+  function reelViewForget(name, k = viewKey(name)) {
     if (!savedViews[k]) return;
     delete savedViews[k];
     viewsMod[k] = Math.max(Date.now(), (+viewsMod[k] || 0) + 1);
@@ -7910,9 +7758,8 @@
   // Called on: coming back to the Charts tab, a card scrolled fully out of
   // view, full screen opening and closing. A chart with no saved view keeps
   // the reader's moves exactly as before. Returns true if anything was reset.
-  // A market's "Same frame" counts as a saved view on the charts it frames.
   function reelBackToSaved(name) {
-    if (!name || !(savedViews[viewKey(name)] || reelFrameLock(name))) return false;
+    if (!name || !savedViews[viewKey(name)]) return false;
     if (!reel.pan.has(name) && !reel.tzoom.has(name) && !reel.lockY.has(name)) return false;
     reel.pan.delete(name); reel.back.delete(name);
     reel.tzoom.delete(name);
@@ -7996,15 +7843,6 @@
   // A range change or a timeframe switch invalidates every pan offset — the
   // window is a different width, so "12 bars back" means something else.
   function reelResetPan() { reel.pan.clear(); reel.back.clear(); reel.lockY.clear(); reel.tzoom.clear(); }
-  // Every chart but `name`, which keeps what it shows: a market's "Same
-  // frame" switched on from it, or moved by saving it, re-opens the others.
-  function reelResetPanExcept(name) {
-    const keep = name && { pan: reel.pan.get(name), tzoom: reel.tzoom.get(name), lockY: reel.lockY.get(name), back: reel.back.has(name) };
-    reelResetPan();
-    if (!keep) return;
-    for (const k of ['pan', 'tzoom', 'lockY']) if (keep[k] !== undefined) reel[k].set(name, keep[k]);
-    if (keep.back) reel.back.add(name);
-  }
 
   // A drag MOVES THE WINDOW. It never resizes it: the amount of chart on screen
   // is the Range pill's business, and a drag that silently re-zoomed made
@@ -9748,8 +9586,6 @@
     crypto: 'Crypto', currency: 'Currencies', other: 'Other markets' };
   // Oil is its own market, apart from metals and crops (user, 2026-10-21:
   // "Fx, crypto, commodities, stocks and brent as energy"). Rates stay 'other'.
-  // A market's "Same frame" applies only within that market (2026-11-21),
-  // so no chart reads another market's grid any more.
   function reelGridScope(item) { return reelMarketScope(item); }
   function reelMarketScope(item) {
     if (!item) return 'other';
@@ -9999,9 +9835,6 @@
     // fills the tail of it with nothing rather than making the bars wider, so
     // bar width — the thing that makes a chart look zoomed — never changes.
     const _seeded  = reelViewSeedTime(item.instrument_name, bundle);
-    // After the saved view: under the switch it sets only the price, and
-    // the dates are the switch's.
-    reelFrameSeedBack(item.instrument_name, bundle);
     const _winBars = reelWindowBars(bundle, item.instrument_name);
     const _pan     = reelPanOf(item.instrument_name, bundle);
     const _future  = Math.max(0, -_pan);
@@ -10030,7 +9863,7 @@
     // the overlay MAs and drawings too. Once the reader zooms or pans, the fit is the
     // bars' alone again.
     const _nm = item.instrument_name;
-    const _sv = (!reel.tzoom.has(_nm) && !reel.pan.has(_nm)) || reelFrameSeeded(_nm) ? reelStockView(bundle, _nm) : null;
+    const _sv = !reel.tzoom.has(_nm) && !reel.pan.has(_nm) ? reelStockView(bundle, _nm) : null;
     let _ovFit = _sv && _sv.fit !== 'centre'
       ? reelOverlayRange(_nm, reelBarTimes(b)[0], reelBarTimes(b)[b.c.length - 1] + OV_TF_MS.D, b) : null;
     if (_sv && _sv.fit === 'all') {
@@ -10511,7 +10344,7 @@
   const GRID_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><rect x="15" y="3" width="6" height="18" fill="currentColor" opacity=".35" stroke="none"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
   // Lit while anything in the Grid menu is set on this timeframe, the Chart
   // range included, so a zoom always has a visible cause.
-  function gridBtnOn(name) { return !!gridBand() || ribShade(timeframe).on || !!reelRange() || !!(name && reelFrameOf(reelScopeOfName(name))); }
+  function gridBtnOn(name) { return !!gridBand() || ribShade(timeframe).on || !!reelRange(); }
   function gridBtnHtml(name) {
     return `<button class="reel-share-btn reel-grid-btn${gridBtnOn(name) ? ' on' : ''}" data-act="grid-menu" data-name="${escText(name)}" aria-haspopup="menu" aria-label="Grid lines and shading" title="Grid">${GRID_ICON}</button>`;
   }
@@ -10531,19 +10364,9 @@
     const fourths = timeframe !== 'D' || reelGridDivision(timeframe, scope).code !== 'T' ? ''
       : `<button class="reel-tool reel-grid-switch${fourthsOn ? ' on' : ''}" data-act="time-grid-fourths" data-grid-scope="${scope}" role="menuitemcheckbox" aria-checked="${fourthsOn}">
         <span>Split each term into 4<em>three light lines per term, one a year</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
-    const mkt = reelScopeOfName(name), lock = reelFrameOf(mkt), own = !!(name && savedViews[viewKey(name)]);
-    const frame = `<button class="reel-tool reel-grid-switch${lock ? ' on' : ''}" data-act="frame-lock" role="menuitemcheckbox" aria-checked="${!!lock}">
-        <span>Same frame on other ${GRID_SCOPE_LABELS[mkt]} ${TF_BY_CODE[timeframe].label} charts<em>${lock
-          ? `dates from ${escText(lock.name || 'one chart')} · Save on a framed chart keeps its price while this is on`
-          : `this chart’s ${own ? 'saved view' : 'dates'} on the others; it and saved charts stay as they are`}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`
-      + (!lock ? '' : `<button class="reel-tool reel-grid-switch${lock.over ? ' on' : ''}" data-act="frame-over" role="menuitemcheckbox" aria-checked="${!!lock.over}">
-        <span>Also over saved charts<em>${lock.over
-          ? 'saved charts show the frame; their own views are back when this is off'
-          : 'charts with their own saved view keep it'}</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`);
     let h = `${reelTimeGridSwitch(name)}
       ${thirds}${fourths}
       ${reelRangeSwitch()}
-      ${frame}
       <div class="reel-grid-sep"></div>
       <button class="reel-tool reel-grid-switch${on ? ' on' : ''}" data-act="grid-set" data-part="on" role="menuitemcheckbox" aria-checked="${on}">
         <span>Shade every other gap<em>${TF_BY_CODE[timeframe].label} chart</em></span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
@@ -13506,11 +13329,6 @@
         if (bars && !REEL_RANGE_STEPS.some(([v]) => v === bars)) return true;
         if (bars) reel.ranges[timeframe] = bars; else delete reel.ranges[timeframe];
         reelRangesSave();
-        // A range and "Same frame on every chart" replace one another.
-        if (bars && Object.keys(reelFrames()).length) {
-          tfOverlay.frame[timeframe] = {}; ovSave();
-          document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
-        }
         reelResetPan();       // a different window width makes old offsets meaningless
         document.querySelectorAll('.reel-grid-menu').forEach(menu => {
           menu.innerHTML = reelGridMenuHtml(menu._name);
@@ -13520,41 +13338,6 @@
         reelRepaintAll();
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
-        if (fh && fh._reelCtx) reelRepaint(fh);
-        return true;
-      }
-      if (btn.dataset.act === 'frame-lock' || btn.dataset.act === 'frame-over') {
-        const menuEl = btn.closest('.reel-grid-menu'), nm = menuEl && menuEl._name;
-        const full = chartFullEl();
-        const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
-        const frames = reelFrames(), scope = reelScopeOfName(nm), cur = reelFrameOf(scope);
-        if (btn.dataset.act === 'frame-over') {
-          if (!cur) return true;
-          frames[scope] = { ...cur, over: !cur.over, at: Date.now() };
-        } else if (cur) delete frames[scope];
-        else {
-          // The chart the menu was opened on: full screen, else its card.
-          // Its saved view's dates when it has one, else those on screen.
-          const card = nm && document.querySelector(`.reel-card[data-name="${CSS.escape(nm)}"] .reel-chart`);
-          const host = [fh, card].find(h => h && h._reelCtx && h._reelCtx.name === nm);
-          const cap = host && (reelFrameFromView(nm, host._reelCtx.bundle) || reelFrameCapture(host._reelCtx));
-          if (!cap) return true;
-          frames[scope] = { ...cap, scope, name: nm, at: Date.now() };
-          if (reel.ranges[timeframe]) { delete reel.ranges[timeframe]; reelRangesSave(); }
-        }
-        ovSave();
-        // The other charts of the market open again, on the frame or back on
-        // their own opening view. The source chart keeps what it shows.
-        reelResetPanExcept(nm);
-        viewPricePending.clear();
-        document.querySelectorAll('.reel-grid-menu').forEach(menu => {
-          menu.innerHTML = reelGridMenuHtml(menu._name);
-          reelGridMenuPlace(menu);
-        });
-        document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn(b.dataset.name)));
-        // Save is held on the charts "Also over saved charts" covers.
-        document.querySelectorAll('.reel-view-btn[data-act="chart-view-save"]').forEach(b => reelViewBtnSync(b.dataset.name));
-        reelRepaintAll();
         if (fh && fh._reelCtx) reelRepaint(fh);
         return true;
       }
