@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-25 (06:05 SAST) MAGNIFIER READING ON TOP OF THE GLASS, ALONG ITS CURVE;
+LIGHT RIM. app.js v666, style.css v459. User: "Put the information on top of
+thr glass and let the info follow the curve of the glass and go light again in
+the border".
+- The price · date pill under the glass is gone. `reelLoupeArcSvg` puts an SVG
+  `.reel-loupe-arc` 30px (`REEL_LOUPE_ARC_M`) out round the glass with the
+  reading as a `textPath` on an arc just outside the rim, over the top,
+  13px bold with a white halo. When the lens sits at the top of the chart and
+  that arc would be off it, the reading runs along the bottom arc instead.
+- Rim: 1px ring at 22% black (was 70%), softer shadow.
+- Test: `chart_loupe_checks.cjs` asserts the reading runs on the top arc and
+  sits above the glass; the copy is found as `.reel-loupe-inner svg`.
+
 2026-11-25 (later) "SAME FRAME" SWITCH REMOVED. app.js v665. User asked why
 their saved chart "seem to be resetting on my other charts"; one cause found
 in the code: with "Same frame" on, saving the chart the frame came from
