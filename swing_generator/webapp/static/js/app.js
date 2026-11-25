@@ -12281,14 +12281,17 @@
   // I long press on the chart that moves with my finger"). Full screen only:
   // a card's vertical drag belongs to the feed's scroll (touch-action pan-y),
   // which would cancel the press as soon as the finger moved up or down.
-  // Holding still for REEL_LOUPE_MS opens a round lens (240px at 1.8x since
-  // 2026-11-17, "zoom out a lil ... and increase the size again"; it was
-  // 140px, then 190px, at 2.2x) above the finger
-  // showing the chart under it REEL_LOUPE_ZOOM times larger, with the price
-  // and bar date under the fingertip. It follows the finger until release;
-  // the chart does not pan meanwhile. The lens is a copy of the chart's SVG
-  // made once per press, inside the chart box so the chart's styles apply.
-  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 120, REEL_LOUPE_ZOOM = 1.8, REEL_LOUPE_GAP = 34;
+  // Holding still for REEL_LOUPE_MS opens a round lens (280px at 1.8x since
+  // 2026-11-25; it was 140px, then 190px at 2.2x, then 240px) above the
+  // finger, showing REEL_LOUPE_ZOOM times larger the chart UNDER THE LENS
+  // (user, 2026-11-25: "misaligned ... i have to go up a lot to see bars that
+  // are not even high"): until then it showed the point under the fingertip,
+  // 154px below the glass, so a bar seen through the lens was not the bar
+  // behind it. The red cross-hair and the price and bar date read the point
+  // behind the lens centre. It follows the finger until release; the chart
+  // does not pan meanwhile. The lens is a copy of the chart's SVG made once
+  // per press, inside the chart box so the chart's styles apply.
+  const REEL_LOUPE_MS = 450, REEL_LOUPE_R = 140, REEL_LOUPE_ZOOM = 1.8, REEL_LOUPE_GAP = 50;
   function reelLoupeEnd(host) { host.querySelectorAll(':scope > .reel-loupe').forEach(l => l.remove()); }
   function reelLoupeMove(host, cx, cy) {
     const svg = host.querySelector('svg.reel-svg'), ctx = host._reelCtx;
@@ -12308,18 +12311,20 @@
     const hr = host.getBoundingClientRect(), sr = svg.getBoundingClientRect();
     if (!sr.width || !sr.height) return;
     const Z = REEL_LOUPE_ZOOM, R = REEL_LOUPE_R;
-    const px = Math.max(0, Math.min(sr.width, cx - sr.left)), py = Math.max(0, Math.min(sr.height, cy - sr.top));
+    // The lens centre sits straight above the finger, clear of it, and is
+    // the point it magnifies. Near the top of the chart it stops at the top
+    // edge (half the glass still shows); near a side it runs off the screen
+    // rather than slide sideways, so the centre always stays over its point.
+    const fx = cx - hr.left, fy = cy - hr.top;
+    const cxL = fx, cyL = Math.max(0, fy - R - REEL_LOUPE_GAP);
+    lens.style.transform = `translate(${(cxL - R).toFixed(1)}px, ${(cyL - R).toFixed(1)}px)`;
+    const px = Math.max(0, Math.min(sr.width, hr.left + cxL - sr.left));
+    const py = Math.max(0, Math.min(sr.height, hr.top + cyL - sr.top));
     const inner = lens.querySelector('.reel-loupe-inner');
     inner.style.width = (sr.width * Z) + 'px';
     inner.style.height = (sr.height * Z) + 'px';
     inner.style.transform = `translate(${(R - px * Z).toFixed(1)}px, ${(R - py * Z).toFixed(1)}px)`;
-    // Above the finger, so the finger never covers it; below it near the top.
-    const fx = cx - hr.left, fy = cy - hr.top;
-    let cyL = fy - R - REEL_LOUPE_GAP;
-    if (cyL - R < 0) cyL = fy + R + REEL_LOUPE_GAP;
-    const left = Math.max(0, Math.min(hr.width - 2 * R, fx - R));
-    lens.style.transform = `translate(${left.toFixed(1)}px, ${(cyL - R).toFixed(1)}px)`;
-    // Price and bar date under the fingertip.
+    // Price and bar date behind the lens centre.
     const { L, sc, bw } = ctx;
     const xv = px / sr.width * L.W, yv = py / sr.height * L.H;
     const parts = [];
