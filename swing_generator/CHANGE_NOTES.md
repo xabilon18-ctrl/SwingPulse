@@ -7,6 +7,19 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-25 (05:35 SAST) READABILITY CHECK READS LINE WIDTHS RACE-FREE. Tests only.
+The #258 release (magnifier) went live and passed "Verify the live app",
+then "Verify released chart weights and exact production assets" failed at
+`chart_readability_browser.cjs` "native preference restored": `NaN !== 2.45`
+at 390px after the reload. The failure screenshot shows the chart drawn with
+its MAs. Since the live last candle (2026-11-24) a live price repaints the
+open chart (`reelRepaintLiveForming`), which replaces its lines; `widthOf`
+found the line through a locator and read it in a second step, so a repaint
+in between left a detached element (computed stroke width "", NaN). It passed
+on the four releases before. `widthOf` now finds and reads the line in one
+page task, waiting up to 15s for a finite width; the card-view read uses it
+too. A missing line still fails (timeout).
+
 2026-11-25 (05:05 SAST) MAGNIFIER SHOWS WHAT IS BEHIND IT; 280px, 1px RIM.
 app.js v664, style.css v458. User: "The magnifying glass is misaligned i have
 to go up a lot to see bars that are not even high and the circle is smaller
