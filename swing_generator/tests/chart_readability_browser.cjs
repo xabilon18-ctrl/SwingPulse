@@ -37,7 +37,13 @@ async function menu(page,on=true){
   if(await page.locator('#chartFull .reel-tf-menu').count()!==Number(on))await page.locator('#chartFull [data-act="tf-menu"]').click();
 }
 async function frame(page){return page.locator('#chartFullHost').evaluate(h=>({lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi,t:h._reelCtx.b.t}));}
-async function widthOf(page,selector){return page.locator('#chartFullHost '+selector).first().evaluate(e=>parseFloat(getComputedStyle(e).strokeWidth));}
+// Found and read in ONE page task: a live price repaints the open chart
+// (reelRepaintLiveForming) and replaces its lines, so a handle taken first
+// can be detached by the time it is read (NaN; release 2026-11-25 05:18 SAST).
+async function widthOf(page,selector,root='#chartFullHost'){
+ const h=await page.waitForFunction(q=>{const e=document.querySelector(q);const v=e?parseFloat(getComputedStyle(e).strokeWidth):NaN;return Number.isFinite(v)?v:null;},root+' '+selector,{timeout:15000});
+ return h.jsonValue();
+}
 async function axis(page){return page.locator('#chartFullHost').evaluate(h=>{
  const texts=[...h.querySelectorAll('.reel-price-tick,.reel-axis-last')].map(e=>{const r=e.getBoundingClientRect();return {text:e.textContent,top:r.top,bottom:r.bottom};}).sort((a,b)=>a.top-b.top);
  const hrect=h.getBoundingClientRect();return {texts,height:hrect.height,plot:h._reelCtx.plotPx,lo:h._reelCtx.sc.lo,hi:h._reelCtx.sc.hi};
@@ -156,7 +162,7 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     await page.keyboard.press('Escape');await ready(page);
    }else{
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
-    assert.equal(await page.locator('#chartReel .reel-native-ma').first().evaluate(e=>parseFloat(getComputedStyle(e).strokeWidth)),native[0]);
+    assert.equal(await widthOf(page,'.reel-native-ma','#chartReel'),native[0]);
     await page.locator('#chartReel [data-act="chart-expand"]').first().click();await ready(page);
    }
    assert.deepEqual(await frame(page),before,'saved price range and dates survive settings/expand');
