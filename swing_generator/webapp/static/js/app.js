@@ -9343,6 +9343,9 @@
   // × moves the whole marker (it snaps to a bar, the price follows the finger),
   // and the far end makes the line longer or shorter. Colour and bold come
   // from the properties row like every other drawing.
+  // Buy / Sell marker line widths, Thin / Medium / Thick, in chart units
+  // (about 0.38 CSS px each on a phone). Kept equal to style.css.
+  const REEL_VIEW_W = [5, 9, 16];
   function reelEntrySvg(d, b, L, sc, bw, editing, idx, isActive) {
     const i1 = reelBarIndexForDate(b, d.t), i2 = reelBarIndexForDate(b, d.t2);
     if (i1 == null || i2 == null) return '';
@@ -9361,20 +9364,25 @@
       const i0 = d.t0 ? reelBarIndexForDate(b, d.t0) : i1;
       const xl = d.extL ? L.x0 : Math.min(xAt(i0 == null ? i1 : i0), x1);
       const xr = d.extR ? L.x1 : x2;
-      const lw = d.bold ? 7 : 3;   // bold was 5 — "a bit thicker" (2026-09-30)
+      // Thicker at every weight (user, 2026-11-25: "Make the thick of buy and
+      // sell line thicker"): Thin/Medium/Thick are REEL_VIEW_W, the same as
+      // the [data-stroke-kind="buy"/"sell"] rules in style.css; a marker with
+      // an old bold setting and no weight level draws with `lw`.
+      const lw = d.bold ? REEL_VIEW_W[2] : REEL_VIEW_W[1];
+      const cr = modules.chartReadability;
+      const w = cr.drawingAttrs(d) ? REEL_VIEW_W[cr.drawingLevel(d) - 1] : lw;
       const vline = `<line x1="${xl.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xr.toFixed(1)}" y2="${y.toFixed(1)}" class="${cls}" style="stroke-width:${lw}"/>`;
-      const dot = `<circle cx="${x1.toFixed(1)}" cy="${y.toFixed(1)}" r="${d.bold ? 7 : 5}" class="reel-view-tri is-${side}"/>`;
-      const up = side === 'buy';
-      // No ▲ / ▼ on the chart (user, 2026-09-30: "remove the buy and sell
-      // arrows from chart") — the coloured dot, line and word carry the side.
-      const ly = up ? y + 26 : y - 12;
-      const lbl = `<text x="${x1.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" class="reel-view-lbl is-${side}">${up ? 'BUY' : 'SELL'}</text>`;
+      // The anchor dot stays wider than the line it sits on.
+      const dot = `<circle cx="${x1.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(d.bold ? 7 : 5, w * 0.8).toFixed(1)}" class="reel-view-tri is-${side}"/>`;
+      // No ▲ / ▼ (user, 2026-09-30: "remove the buy and sell arrows from
+      // chart") and no BUY / SELL word (user, 2026-11-25: "remove any text on
+      // it"): the colour of the line and dot carries the side.
       const hitV = reelHitLine(xl, y, xr, y, idx);
       const hv = (editing)
         ? reelHandle(L, x1, y, 'e', idx, isActive)
           + (d.extR ? '' : reelHandle(L, x2, y, 'r', idx, isActive))
           + (d.extL || !d.t0 ? '' : reelHandle(L, xl, y, 'l', idx, isActive)) : '';
-      return vline + dot + lbl + hitV + hv;
+      return vline + dot + hitV + hv;
     }
     const cross = `<path d="M${(x1 - r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 + r).toFixed(1)} ${(y + r).toFixed(1)}M${(x1 + r).toFixed(1)} ${(y - r).toFixed(1)}L${(x1 - r).toFixed(1)} ${(y + r).toFixed(1)}" class="${cls} reel-entry-x"/>`;
     const hit = reelHitLine(x1 - r, y, x2, y, idx);

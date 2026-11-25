@@ -7966,9 +7966,6 @@ body {
 .reel-entry.is-sell { stroke: #dc2626; }
 .reel-view-tri.is-buy  { fill: #16a34a; }
 .reel-view-tri.is-sell { fill: #dc2626; }
-.reel-view-lbl { font-size: 20px; font-weight: 800; paint-order: stroke; stroke: #fff; stroke-width: 4px; }
-.reel-view-lbl.is-buy  { fill: #15803d; }
-.reel-view-lbl.is-sell { fill: #b91c1c; }
 .reel-share-btn.reel-vm { font-size: 15px; font-weight: 900; line-height: 1; padding: 2px 1px 2px 5px; }
 .reel-share-btn.reel-vm.is-buy  { color: #16a34a; }
 .reel-share-btn.reel-vm.is-sell { color: #dc2626; }
@@ -9836,12 +9833,15 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .reel-draw[data-stroke="2"][data-stroke-kind="entry"] .reel-entry-x { stroke-width: 3 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="entry"] .reel-entry { stroke-width: 6 !important; }
 .reel-draw[data-stroke="3"][data-stroke-kind="entry"] .reel-entry-x { stroke-width: 5 !important; }
-.reel-draw[data-stroke="1"][data-stroke-kind="buy"] .reel-entry { stroke-width: 1.3 !important; }
-.reel-draw[data-stroke="2"][data-stroke-kind="buy"] .reel-entry { stroke-width: 3 !important; }
-.reel-draw[data-stroke="3"][data-stroke-kind="buy"] .reel-entry { stroke-width: 7 !important; }
-.reel-draw[data-stroke="1"][data-stroke-kind="sell"] .reel-entry { stroke-width: 1.3 !important; }
-.reel-draw[data-stroke="2"][data-stroke-kind="sell"] .reel-entry { stroke-width: 3 !important; }
-.reel-draw[data-stroke="3"][data-stroke-kind="sell"] .reel-entry { stroke-width: 7 !important; }
+/* Buy / Sell markers thicker at every weight (user, 2026-11-25: "Make the
+   thick of buy and sell line thicker"; were 1.3 / 3 / 7). Equal to
+   REEL_VIEW_W in app.js, which also sizes the anchor dot. */
+.reel-draw[data-stroke="1"][data-stroke-kind="buy"] .reel-entry { stroke-width: 5 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="buy"] .reel-entry { stroke-width: 9 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="buy"] .reel-entry { stroke-width: 16 !important; }
+.reel-draw[data-stroke="1"][data-stroke-kind="sell"] .reel-entry { stroke-width: 5 !important; }
+.reel-draw[data-stroke="2"][data-stroke-kind="sell"] .reel-entry { stroke-width: 9 !important; }
+.reel-draw[data-stroke="3"][data-stroke-kind="sell"] .reel-entry { stroke-width: 16 !important; }
 .reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 0.9 !important; }
 .reel-draw[data-stroke="1"][data-stroke-kind="ladder"] .reel-ladder-key { stroke-width: 3.5 !important; }
 .reel-draw[data-stroke="2"][data-stroke-kind="ladder"] .reel-ladder { stroke-width: 1.7 !important; }
