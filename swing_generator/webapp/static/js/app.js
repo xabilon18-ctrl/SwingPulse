@@ -5913,7 +5913,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce], ['Monthly ladders on every timeframe', ladderMonthlyAllOnce], ['Yearly ladders linked', ladderYearlyLinkOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce], ['Monthly ladders on every timeframe', ladderMonthlyAllOnce], ['Yearly ladders linked', ladderYearlyLinkOnce], ['ladders below zero', ladderBelowZeroOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8667,6 +8667,38 @@
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
+  // LADDERS WHOLLY BELOW ZERO DELETED, ONCE PER DEVICE (2026-11-26): a ladder
+  // whose every line, stacks included, is below price 0 draws nothing on any
+  // chart. channelAdd's offset made them (see there): each tap on Ladder on a
+  // chart with many linked drawings saved one more, unseen, on every
+  // timeframe it is linked to. Deleted with all their linked copies. A ladder
+  // with any line at or above zero is not touched.
+  const LADDER_SUBZERO_KEY = 'sp-ladder-subzero-2026-11-26';
+  function ladderBelowZeroOnce() {
+    try { if (localStorage.getItem(sk(LADDER_SUBZERO_KEY))) return 0; } catch (_) { return 0; }
+    const unseen = d => {
+      if (!d || d.kind !== 'ladder') return false;
+      const ls = ladderLines(d, timeframe);
+      return ls.length > 0 && ls.every(ln => ln.p < -1e-9);
+    };
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      const per = instChannels[name] || {};
+      const lists = Object.keys(per).filter(tf => Array.isArray(per[tf]));
+      const dead = lists.flatMap(tf => per[tf].filter(unseen));
+      if (!dead.length) continue;
+      const links = new Set(dead.map(d => d.link).filter(Boolean));
+      for (const tf of lists) {
+        const keep = per[tf].filter(d => !(d && d.kind === 'ladder' && (dead.includes(d) || (d.link && links.has(d.link)))));
+        n += per[tf].length - keep.length;
+        per[tf] = keep;
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_SUBZERO_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
+    return n;
+  }
   const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-07';
   function ladderNo4hOnce() {
     try { if (localStorage.getItem(sk(LADDER_NO4H_KEY))) return 0; } catch (_) { return 0; }
@@ -8828,15 +8860,23 @@
       const ta = reelDateForBarIndex(vb, ci - halfBars), tb = reelDateForBarIndex(vb, ci + halfBars);
       if (isFinite(dp) && ta && tb) { def.p1 = mid + dp; def.p2 = mid - dp; def.t1 = ta; def.t2 = tb; }
     }
-    const n = channelsFor(name).length;
+    // Counted from the drawings this chart SHOWS, and wrapping after four
+    // steps (12 to 48% of the scale), so a new drawing always lands on screen
+    // (user, 2026-11-26: "Ladder not able to be placed on us500 monthly
+    // chart"). Every linked drawing keeps a copy in every timeframe's list
+    // (channelLinkSync), and the whole list was counted: each unseen Daily or
+    // Yearly copy pushed a new ladder 12% of the scale lower, and from about
+    // eight of them it sat below zero, where no ladder line is drawn.
+    const n = channelsFor(name).filter(d => drawShownOn(d, timeframe)).length;
     if (n && !def.side) {
       // Offset from whatever is already there — two drawings on the same pixels
       // look like one and cannot be told apart to drag.
-      const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * n;
+      const steps = (n - 1) % 4 + 1;
+      const shift = (ctx.sc.hi - ctx.sc.lo) * 0.12 * steps;
       if (def.kind === 'hline' || def.kind === 'entry') def.p -= shift;
       else if (def.kind === 'vline') {
         const fi = reelBarIndexForDate(ctx.b, def.t);
-        const dt = fi == null ? null : reelDateForBarIndex(ctx.b, Math.round(fi - ctx.b.c.length * 0.08 * n));
+        const dt = fi == null ? null : reelDateForBarIndex(ctx.b, Math.round(fi - ctx.b.c.length * 0.08 * steps));
         if (dt) def.t = dt;
       }
       else if (def.kind === 'ladder') { def.p1 -= shift; def.p4 -= shift; }
