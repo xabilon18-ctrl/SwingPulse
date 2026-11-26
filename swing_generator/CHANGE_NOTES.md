@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 A NEW LADDER ALWAYS LANDS ON SCREEN. app.js v674. User: "Ladder not
+able to be placed on us500 montly chart", then a screenshot of US500 Yearly:
+ladder selected, only a dashed line on 0.000, drawing 20/45.
+- Cause, reproduced with the live US500 Monthly data: `channelAdd` offsets a
+  new drawing by 12% of the price scale for every drawing in the chart's
+  list, and that list holds a copy of every linked drawing (Daily, Monthly,
+  Yearly ladders) whether the chart shows it or not. With many of them the
+  new ladder was saved wholly below zero, where no ladder line is drawn, so
+  the tap seemed to do nothing; each retry saved another unseen ladder.
+- Now the offset counts only drawings the chart shows (`drawShownOn`) and
+  wraps after four steps (12 / 24 / 36 / 48% of the scale), for every tool.
+- `ladderBelowZeroOnce` (key sp-ladder-subzero-2026-11-26, after the first
+  sync pull with the other ladder passes): a ladder whose every line, stacks
+  included, is below 0 is deleted with its linked copies. Any ladder with a
+  line at or above 0 is kept.
+- Test: `tests/ladder_offset_checks.cjs` (app_smoke): 25 unseen Daily ladder
+  copies in the Monthly list, a new Monthly ladder draws its lines (the old
+  code saved it at p1 -135, no line drawn); a below-zero ladder is removed
+  on all three timeframes, the Daily ladders kept.
+
 2026-11-26 BARS ON THE WRONG UNIT OR LEVEL. data_fetcher. User: "check that all bars
 are updating ... check all and time frames". A sweep of every live chart file
 (851 instruments x 1H/D/M/Y, 684 files) found:
