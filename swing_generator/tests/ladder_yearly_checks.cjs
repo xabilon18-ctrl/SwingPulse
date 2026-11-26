@@ -5,9 +5,10 @@ const zlib = require('zlib');
 
 // Yearly ladders chain down like Monthly ones (user, 2026-11-26: "I've just
 // placed a yearly chart, which should show daily and hourly. I can't see the
-// divisions on the daily"; chose "Same as Monthly" and Monthly "split in 3"):
-// a ladder drawn on Yearly is `home: 'Y'`, shown on Yearly, Monthly, Daily and
-// 1H, each 10% gap split in three on Monthly and Daily and in ten on 1H. A
+// divisions on the daily"): a ladder drawn on Yearly is `home: 'Y'`, shown on
+// Yearly, Monthly, Daily and 1H, each 10% gap split in two on Monthly, four on
+// Daily and eight on 1H (user, same day: "10% yearly is divided by 2 on
+// monthly and 4 on daily", "8 on hour"). A
 // Yearly ladder drawn before (unlinked, no home) is linked once per device.
 // Fresh context: it starts from a device with that old ladder saved.
 module.exports = async function checkLadderYearly(page) {
@@ -61,13 +62,13 @@ module.exports = async function checkLadderYearly(page) {
   await openFull('Y');
   assert.equal(await p.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'Yearly itself shows no split lines');
   await close();
-  for (const [tf, parts] of [['M', 3], ['D', 3]]) {
+  for (const [tf, parts] of [['M', 2], ['D', 4]]) {
     await openFull(tf);
     const b = await between();
     assert.equal(b.n, parts - 1, `${tf}: each Yearly 10% gap is split in ${parts}: ` + JSON.stringify(b));
     await close();
   }
-  // 1H: a 10% gap of 5 is too fine there for tenths (lines closer than
+  // 1H: a 10% gap of 5 is too fine there for eighths (lines closer than
   // LADDER_SUB_LINE_MIN are not drawn), so size the ladder to the 1H window
   // (three gaps in view), as the Monthly check does; the split does not
   // depend on the size.
@@ -87,7 +88,7 @@ module.exports = async function checkLadderYearly(page) {
   await p.locator('#reelSearch').fill('TEST');
   await openFull('1H');
   const h = await between();
-  assert.equal(h.n, 9, '1H: each Yearly 10% gap is split in 10: ' + JSON.stringify(h));
+  assert.equal(h.n, 7, '1H: each Yearly 10% gap is split in 8: ' + JSON.stringify(h));
   await close();
 
   // A ladder drawn on Yearly now is a Yearly ladder.
@@ -101,5 +102,5 @@ module.exports = async function checkLadderYearly(page) {
   assert.ok((got.D || []).some(d => d && d.link === fresh[0].link), 'its copy is on Daily');
   assert.deepEqual(errors, []);
   await context.close();
-  console.log('PASS: Yearly ladders show on Monthly and Daily in thirds and on 1H in tenths; old ones linked once');
+  console.log('PASS: Yearly ladders split in 2 on Monthly, 4 on Daily, 8 on 1H; old ones linked once');
 };
