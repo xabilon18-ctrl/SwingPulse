@@ -534,7 +534,21 @@
     // selection (user, 2026-11-01: "when I click away, I'd like for it not to
     // be selected"). Only an absent entry falls back to the newest drawing.
     if (i === -1) return -1;
-    return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
+    // ONLY A DRAWING SHOWN ON THIS CHART (user, 2026-11-26: "my Bitcoin
+    // percentage lines ... have disappeared. I didn't delete them"). A linked
+    // drawing keeps a copy in every timeframe's list, shown only where its
+    // chips say, so this chart's list can hold copies it does not draw (a
+    // Monthly ladder's copy sits in the Yearly list). After a delete the
+    // selection fell back to the LAST entry, which could be such a copy: a
+    // second tap on Delete removed a ladder the reader could not see, and the
+    // link removed it from every timeframe. Lock, colour, weight and the rest
+    // act on the same selection, so they could change one unseen too. So the
+    // FALLBACK takes the newest drawing this chart shows. A drawing the reader
+    // selected stays selected even when its own chip is switched off here, so
+    // "Show on" can switch it straight back on.
+    if (typeof i === 'number' && i >= 0 && i < list.length) return i;
+    for (let j = list.length - 1; j >= 0; j--) if (drawShownOn(list[j], timeframe)) return j;
+    return -1;
   }
 
   // Selecting a drawing is the first act of every edit — a handle grab and a tap
@@ -13623,6 +13637,11 @@
       if (btn.dataset.act === 'draw-tfs') {
         const d = activeChannel(name);
         if (d && drawToggleTf(d, btn.dataset.tf, timeframe)) {
+          // Keep it selected by name, even when switched off on this chart,
+          // so it can be switched straight back on (activeIdx's fallback
+          // never picks a drawing this chart does not show).
+          const at = channelsFor(name).indexOf(d);
+          if (at >= 0) reel.activeCh.set(name + '|' + timeframe, at);
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();

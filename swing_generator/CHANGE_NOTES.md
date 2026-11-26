@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 DELETE NEVER REMOVES A DRAWING THE CHART DOES NOT SHOW. app.js v669 (same
+release as Yearly ladders below). User: "my Bitcoin percentage lines ... have
+disappeared. I didn't delete them", drawn on Monthly, same device.
+- Cause, reproduced: a linked drawing keeps a copy in EVERY timeframe's list,
+  shown only where its chips say, so a Monthly ladder has an unseen copy in
+  the Yearly list. `activeIdx` (what Delete, Lock, colour, weight act on)
+  fell back to the LAST entry of the list when nothing was selected, as after
+  a delete. Placing a ladder on Yearly, deleting it, then tapping Delete again
+  removed the Monthly ladder's unseen copy, and channelLinkSync ("deleted
+  here, gone there too") removed it from Monthly, Daily and 1H.
+- Now the fallback is the newest drawing this chart SHOWS (drawShownOn). A
+  drawing the reader selected stays selected; "Show on" pins its drawing so
+  switching its own chip off and back on still works.
+- Recovery for lost ladders: Saved work (cloud icon) keeps 5 copies per
+  device and the server's previous copy (at most hourly).
+- Test: `tests/draw_hidden_copy_checks.cjs` (app_smoke): place, delete, then
+  Delete twice more on Yearly; the Monthly ladder survives on all four
+  timeframes (fails on the old code: removed from all four).
+
 2026-11-26 YEARLY LADDERS CHAIN DOWN TO MONTHLY, DAILY AND 1H. app.js v669, sw.js,
 sync Worker. User: "I've just placed a yearly chart, which should show daily
 and hourly. I can't see the divisions on the daily". Cause: the Yearly chart
