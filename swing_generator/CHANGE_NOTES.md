@@ -7,6 +7,30 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 MONTHLY SHOWS THE MONTH IN PROGRESS. app.js v673, chart_feed. User,
+after Brent Monthly "does not look right": it ended on October's 117.64 close
+while Brent traded near 91 (the data matched Yahoo). Asked whether Monthly
+should show the month in progress: "Yes monthly can also show progress".
+Replaces "Monthly shows closed months only".
+- Monthly/Yearly chunks come only from publish_htf (3rd-5th of the month), so
+  a forming candle built there would miss most of the month. Every hourly run
+  now writes `chart/M/forming.json` and `chart/Y/forming.json`
+  (`chart_feed.forming_feed`, from the Daily bundles it already built, today's
+  open bar included): per instrument the period in progress in yearly_bundle's
+  `forming` shape (`live`, `asof`) plus `prev`, the period before it.
+- App: `reelLoadChunk` merges the feed into every M and Y bundle
+  (`reelWithFeedForming`): `prev` as a closed bar while the chunk lacks it
+  (the 1st until publish_htf runs), then `forming` with its MA points.
+  Yearly takes the feed's copy only when it is newer than its own (its own
+  was days old: asof 2026-11-20/23 on 26 Nov). `LIVE_CHART_TFS` gains M, so
+  the open chart follows the live price as D/1H/Y do. Display only: no
+  signal, alert or ledger reads it. Local `server.py` has no forming route
+  (the chart then shows closed bars, as before).
+- Tests: htf_feed_test FormingFeedTest (Brent's November: 111.84 / 112.38 /
+  88.11 / 91.22, prev October); `tests/monthly_forming_checks.cjs` (from
+  app_smoke): last month filled in, forming candle, live price moves close,
+  high and MAs, full screen reads "Still forming".
+
 2026-11-26 REOPENS WHERE YOU LEFT OFF. app.js v672. User: the installed app "opens
 fresh and resets"; asked, chose "Always where I left off" (only the place was
 lost, not saved work). Replaces 2026-09-26's "opens on the Watchlist".
