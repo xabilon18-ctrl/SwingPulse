@@ -1827,6 +1827,14 @@
   // one chip changed, for the chip counts). Returns { rows, ranked } — ranked
   // when the filter put its matches in its own order — or { rows: null } while
   // the chart index those filters read is still loading.
+  // SEARCH FINDS EVERY INSTRUMENT (user, 2026-11-26: "make the search work in
+  // finding all instruments any list i may be"). Typed text looks through All
+  // markets whatever list is open and whatever filter is set, with the same
+  // matchesSearch() as the Charts search (name, full name, group, sector,
+  // industry, aliases). Clearing it goes back to the list and its filters,
+  // which stay set meanwhile. It used to narrow the open list.
+  const wlQuery = () => (wlUi.q || '').trim();
+  function wlSearchRows(q) { return wlBaseRows(null).filter(d => matchesSearch(d, q)); }
   function wlBaseRows(cur) {
     if (cur) { const set = new Set(cur.items); return allData.filter(d => set.has(d.instrument_name)); }
     // All markets lists an instrument under each extra group too (USDX under
@@ -1849,10 +1857,6 @@
     if (st.relation && st.relation !== 'all')
       rows = rows.filter(d => SPTrendContext.matches(d, channelTrend, {relationship:st.relation}));
     rows = rows.filter(row => clusterMatches(row, st.cluster));
-    const q = (st.q || '').trim().toLowerCase();
-    if (q) rows = rows.filter(d => d.instrument_name.toLowerCase().includes(q)
-      || (namesData[d.instrument_name] || '').toLowerCase().includes(q)
-      || String(d.group || '').toLowerCase().includes(q));
     // Same predicate the Signals sheet uses, so "near cross" cannot come to
     // mean two different things on two tabs.
     if (st.stack && st.stack !== 'all') rows = withSignalTf(() => rows.filter(d => matchesStackFilter(d, st.stack)));
@@ -1940,7 +1944,7 @@
     const inList = document.getElementById('wl2InList');
     const curList = lists.find(l => l.id === wlUi.list);
     if (inList) {
-      inList.hidden = wlUi.mode === 'lists' || !curList;
+      inList.hidden = wlUi.mode === 'lists' || !curList || !!wlQuery();
       inList.innerHTML = curList ? `${escText(curList.name)} <b aria-hidden="true">✕</b>` : '';
       inList.title = curList ? `Searching ${curList.name} only. Tap to search all markets` : '';
     }
@@ -2021,7 +2025,10 @@
     }
 
     // Rows.
-    const filt = wlApplyFilters(wlBaseRows(cur), wlUi, cur);
+    const q = wlQuery();
+    const filt = q ? { rows: wlSearchRows(q), ranked: false } : wlApplyFilters(wlBaseRows(cur), wlUi, cur);
+    // A search is laid out as All markets is (by group), not as the list.
+    const view = q ? null : cur;
     if (!filt.rows) {
       // Near MA and the intraday Signals read the chart index: load it once,
       // then draw. Nothing is shown meanwhile, so the reel cannot take a stale set.
@@ -2045,10 +2052,10 @@
     // newest intraday event, nearest MA) keeps that order under By group.
     if (filt.ranked && wlUi.sort === 'group') {
       sections = [{ title: null, rows }];
-    } else if (cur) {
+    } else if (view) {
       const byName = Object.fromEntries(rows.map(d => [d.instrument_name, d]));
       sections = [{ title: null, rows: [] }];
-      cur.items.forEach(n => {
+      view.items.forEach(n => {
         if (wlIsDiv(n)) sections.push({ title: n.slice(1), rows: [] });
         else if (byName[n]) sections[sections.length - 1].rows.push(byName[n]);
       });
@@ -2086,7 +2093,9 @@
     };
     let html = '';
     if (!rows.length) {
-      html = cur && !wlCount(cur)
+      html = q
+        ? `<div class="wl2-empty">No instrument matches “${escText(q)}”.</div>`
+        : cur && !wlCount(cur)
         ? `<div class="wl2-empty">This list is empty. Open <b>All markets</b>, tap an instrument and choose <b>Add to ${escText(cur.name)}</b>.</div>`
         : cur
           ? `<div class="wl2-empty">Nothing in <b>${escText(cur.name)}</b> matches.<br><button class="wl2-pill wl2-empty-btn" data-wl-list="all" data-wl-keep>Search all markets</button></div>`
@@ -2096,7 +2105,7 @@
       // search) is hidden with them; rows before a list's first division have
       // no heading.
       sections.forEach(sec => {
-        if (sec.title !== null) html += `<div class="wl2-group${cur ? ' wl2-udiv' : ''}">${escText(sec.title)}</div>`;
+        if (sec.title !== null) html += `<div class="wl2-group${view ? ' wl2-udiv' : ''}">${escText(sec.title)}</div>`;
         html += sec.rows.map(rowHtml).join('');
       });
     }
@@ -2114,8 +2123,10 @@
   // Its label names the list and every filter set, as the Watchlist does.
   function wlShownSet() {
     const v = wlModeValues();
-    const q = (wlUi.q || '').trim();
-    const parts = [v.cls, v.sector, v.trend, v.scope, v.cluster, q ? `“${q}”` : ''].filter(Boolean);
+    const q = wlQuery();
+    // A search is every instrument matching it, whatever list and filters.
+    if (q) return { label: `“${q}”`, names: wlShown.slice(), kind: 'wl', full: false, move: wlUi.sort === 'up' || wlUi.sort === 'down' ? wlUi.move || '1d' : '' };
+    const parts = [v.cls, v.sector, v.trend, v.scope, v.cluster].filter(Boolean);
     // "All markets" is only named when nothing narrows it.
     const label = (wlUi.list !== 'all' || !parts.length ? [v.lists, ...parts] : parts).join(' · ');
     // full: every instrument, nothing filtered (Show all would change nothing).
@@ -11292,17 +11303,13 @@
 
   function reelFiltered() {
     const rowsAll = getActiveData();
-    // The search finds inside the set in view; when nothing there matches it
-    // looks through every instrument instead (reel.searchAll), so a name
-    // typed here always finds its chart.
-    reel.searchAll = false;
-    const inSet = out => {
-      if (!reel.search) return out;
-      const hit = out.filter(d => matchesSearch(d, reel.search));
-      if (hit.length) return hit;
-      reel.searchAll = true;
-      return sortBySignal(rowsAll.filter(d => matchesSearch(d, reel.search)), 'signal');
-    };
+    // The search looks through EVERY instrument, whatever set is in view (a
+    // Watchlist list, lookalikes, a Market tap): user, 2026-11-26, "make the
+    // search work in finding all instruments any list i may be". It used to
+    // look inside the set first and only fell back to everything on no match.
+    // Clearing it goes back to the set (reel.searchAll hides its bar meanwhile).
+    reel.searchAll = !!reel.search;
+    if (reel.search) return sortBySignal(rowsAll.filter(d => matchesSearch(d, reel.search)), 'signal');
     // "Charts like X" REPLACES the list rather than narrowing it: it is an
     // explicit set in similarity order, so the pills, the search and the sort
     // are deliberately bypassed. Anchor first, then descending similarity —
@@ -11316,14 +11323,14 @@
         const d = by.get(n.name);
         if (d) out.push(d);
       });
-      return inSet(out);
+      return out;
     }
     // Opened from the Watchlist (2026-09-26, "I should only scroll through the
     // watchlist charts"): the reel is exactly the rows the Watchlist showed, in
     // its order — same REPLACE-not-narrow rule as the lookalikes above.
     if (reel.listSet) {
       const by = new Map(rowsAll.map(d => [d.instrument_name, d]));
-      return inSet(reel.listSet.names.map(n => by.get(n)).filter(Boolean));
+      return reel.listSet.names.map(n => by.get(n)).filter(Boolean);
     }
     let rows = rowsAll;
 
@@ -11332,7 +11339,6 @@
     // search, over every instrument, signals first.
     if (reel.gp)     rows = rows.filter(d => gpKeyOf(d, reel.gp.mode) === reel.gp.key);
     if (reel.cls)    rows = rows.filter(d => browseClassOf(d) === reel.cls);
-    if (reel.search) rows = rows.filter(d => matchesSearch(d, reel.search));
     if (reel.trend !== 'all') rows = rows.filter(d => mainTrendOf(d) === reel.trend);
     return sortBySignal([...rows], 'signal');
   }

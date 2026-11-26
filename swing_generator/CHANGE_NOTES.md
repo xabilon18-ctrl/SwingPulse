@@ -7,6 +7,23 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 SEARCH FINDS EVERY INSTRUMENT FROM ANY LIST. app.js v668. User: "make
+the search work in finding all instruments any list i may be".
+- Watchlist: typed text looks through All markets, whatever list is open and
+  whatever filter is set (`wlSearchRows`), with the same `matchesSearch()` as
+  Charts (name, full name, group, sector, industry, aliases; it used to match
+  only name, full name and group). Results are laid out by group as All
+  markets is; the "Searching <list> only" chip is hidden meanwhile; no match
+  reads "No instrument matches". Clearing the search goes back to the list and
+  its filters, which stay set. `wlApplyFilters` no longer applies the search,
+  so the chip counts are the list's.
+- Charts: `reelFiltered` searches every instrument whatever set is in view (a
+  Watchlist list, lookalikes, a Market tap). It used to search the set first
+  and fall back to everything only when nothing in the set matched.
+- Test: `tests/search_all_checks.cjs` (in app_smoke): a list holding TEST with
+  a Crypto filter finds TEST3 and all three TESTs; clearing restores the list
+  and filter; the Charts reel opened from the list finds TEST2 and all three.
+
 2026-11-25 (22:20 SAST) BUY / SELL MARKER LINES THICKER, NO TEXT. app.js v667,
 style.css v460. User: "Make the thick of buy and sell line thicker and remove
 any text on it".
