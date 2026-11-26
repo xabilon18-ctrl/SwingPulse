@@ -16,7 +16,10 @@ export const LADDER_SUB = 5;
 // lines are its 1H steps, like a Daily ladder's: 10 per gap. Each level
 // carries its tier: 'own' (the ladder's 10% lines), 'mid' (a coarser step
 // when there are two tiers; none today) or 'fine' (the 1H steps).
-export const HOME_SUB = { M: [10] };
+// A ladder drawn on Yearly (`home: 'Y'`, 2026-11-26) chains down the same
+// way (Monthly and Daily in three, 1H in ten): 10 alert lines per gap too.
+export const HOME_SUB = { M: [10], Y: [10] };
+const HOME_NAME = { M: 'Monthly', Y: 'Yearly' };
 // A level's %: exact to two decimals when it is (1.25), else one (app.js
 // ladderPctRound).
 const pctRound = v => { const two = Math.round(v * 100) / 100; return Math.abs(v - two) < 1e-6 ? two : Math.round(v * 10) / 10; };
@@ -123,6 +126,6 @@ export function checkAlerts({ users, quotes, state, now }) {
 // Notification text, shared by the Worker test and the service worker logic.
 export function alertTitle(a) {
   // `daily` marks the ladder's own 10% lines (the name is from Daily ladders).
-  if (a.home === 'M') return `${a.name} · ${a.daily ? 'Monthly' : a.tier === 'mid' ? 'Daily' : '1H'} ${a.pct}%`;
+  if (HOME_NAME[a.home]) return `${a.name} · ${a.daily ? HOME_NAME[a.home] : a.tier === 'mid' ? 'Daily' : '1H'} ${a.pct}%`;
   return `${a.name} · ${a.daily ? 'Daily' : '1H'} ${a.pct}%`;
 }

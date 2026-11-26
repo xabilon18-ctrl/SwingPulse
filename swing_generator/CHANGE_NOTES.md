@@ -7,6 +7,27 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 YEARLY LADDERS CHAIN DOWN TO MONTHLY, DAILY AND 1H. app.js v669, sw.js,
+sync Worker. User: "I've just placed a yearly chart, which should show daily
+and hourly. I can't see the divisions on the daily". Cause: the Yearly chart
+(2026-11-24) never got a `LADDER_HOME_SUB` entry, so a ladder drawn on Yearly
+was an ordinary unlinked drawing on the Yearly chart alone. Asked, the user
+chose "Same as Monthly" and, for Monthly, "Yes, split in 3".
+- `LADDER_HOME_SUB.Y = { M: [3], D: [3], '1H': [10] }`: a ladder drawn on
+  Yearly is `home: 'Y'`, linked, shown on Yearly, Monthly, Daily and 1H; each
+  Yearly 10% gap is split in three on Monthly and Daily, in ten on 1H. Its own
+  10% labels are bold where split, as a Monthly ladder's are.
+- `ladderYearlyLinkOnce` (key sp-ladder-yearly-2026-11-26, after the first
+  sync pull with the other ladder passes): a Yearly ladder drawn before
+  (unlinked, no home) becomes one, so the ladder already placed shows without
+  being redrawn. Linked ones keep their chips.
+- Alerts: sync Worker `HOME_SUB.Y = [10]` (1% steps like Monthly) and
+  `alertTitle` / sw.js name its own lines "Yearly".
+- Tests: `tests/ladder_yearly_checks.cjs` (app_smoke; old ladder linked, 2 /
+  2 / 9 lines between neighbouring Yearly lines on Monthly / Daily / 1H, none
+  on Yearly, a new Yearly ladder is home Y on the four); sync-worker
+  ladder_alerts_test (Yearly levels and titles).
+
 2026-11-26 SEARCH FINDS EVERY INSTRUMENT FROM ANY LIST. app.js v668. User: "make
 the search work in finding all instruments any list i may be".
 - Watchlist: typed text looks through All markets, whatever list is open and
