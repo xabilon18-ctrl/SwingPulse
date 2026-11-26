@@ -99,5 +99,50 @@ class HourlyTests(unittest.TestCase):
             self.assertFalse([c for c in main.OUTPUT_COLUMNS if c.startswith(('m30_', 'h4_'))])
 
 
+def _bars(closes, index):
+    c = np.asarray(closes, dtype=float)
+    return pd.DataFrame({'Open': c, 'High': c * 1.01, 'Low': c * 0.99, 'Close': c, 'Volume': 1}, index=index)
+
+
+class PriceUnitTests(unittest.TestCase):
+    """Bars on the wrong price unit or level (2026-11-26 sweep of every live chart)."""
+
+    def closes(self, c):
+        return data_fetcher.fix_hundredfold(_bars(c, pd.bdate_range('2024-01-01', periods=len(c))))['Close'].round(3).tolist()
+
+    def test_hundredfold_runs_are_put_back(self):
+        self.assertEqual(self.closes([134, 135, 1.36, 137, 138, 1.38, 1.40, 140]), [134, 135, 136, 137, 138, 138, 140, 140])  # EPS
+        self.assertEqual(self.closes([45, 46, 0.45, 0.46, 0.44, 45, 46]), [45, 46, 45, 46, 44, 45, 46])                       # WEZ
+        self.assertEqual(self.closes([0.48, 0.49, 50, 51]), [48, 49, 50, 51])                                                 # CPR: oldest bars
+
+    def test_one_missed_step_never_rescales_good_history(self):
+        self.assertEqual(self.closes([134, 135, 1.36, 137, 138, 0.45, 0.46, 46]), [134, 135, 136, 137, 138, 0.45, 0.46, 46])
+
+    def test_ordinary_moves_and_a_stray_high_are_handled(self):
+        frame = _bars([10, 12, 11, 13], pd.bdate_range('2024-01-01', periods=4))
+        self.assertIs(data_fetcher.fix_hundredfold(frame), frame)
+        frame.loc[frame.index[1], 'High'] = 1212.0        # a UK bar's high left in pence
+        self.assertAlmostEqual(data_fetcher.fix_hundredfold(frame)['High'].iloc[1], 12.12)
+
+    def _hourly(self, ticker, daily_closes, hourly_closes):
+        days = pd.bdate_range('2026-07-01', periods=len(daily_closes))
+        _bars(daily_closes, days).to_parquet(data_fetcher._cache_path(ticker))
+        stamps = pd.DatetimeIndex([d + pd.Timedelta(hours=h) for d in days for h in (14, 16, 19)]).tz_localize('UTC')
+        _bars(np.repeat(hourly_closes, 3), stamps).to_parquet(data_fetcher._cache_path(ticker, suffix='1h'))
+        return data_fetcher.load_1h(ticker)['Close'].to_numpy()
+
+    def test_1h_is_brought_onto_the_daily_level(self):
+        px = np.linspace(78, 82, 60)
+        fx = np.linspace(1.33, 1.35, 60)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(data_fetcher, 'CACHE_DIR', tmp):
+            split = self._hourly('APH', px, np.where(np.arange(60) < 45, px * 2, px))         # 2:1 split not adjusted
+            self.assertLess(np.abs(np.diff(np.log(split))).max(), 0.01)
+            pence = self._hourly('IHG.L', px, np.where(np.arange(60) < 40, px / fx * 100, px))  # pence, then dollars
+            self.assertLess(np.abs(np.diff(np.log(pence))).max(), 0.01)
+            self.assertAlmostEqual(pence[0], px[0], delta=px[0] * 0.01)
+            same = self._hourly('MSFT', px, px)
+            self.assertTrue(np.allclose(same, np.repeat(px, 3)))
+
+
 if __name__ == '__main__':
     unittest.main()
