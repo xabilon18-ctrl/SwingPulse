@@ -570,6 +570,70 @@ def yearly_bundle(ticker: str, df: pd.DataFrame) -> dict | None:
     return out
 
 
+# ── Month and year in progress, every hourly run (user, 2026-11-26) ─────────
+# "Yes monthly can also show progress": Brent's Monthly ended on October's
+# 117.64 close while it traded near 91. Monthly and Yearly bundles are built
+# only by tools/publish_htf.py (3rd-5th of the month), so a forming candle
+# built there would miss most of the month's range. The hourly run already
+# has every Daily bundle, so it writes chart/M/forming.json and
+# chart/Y/forming.json: per instrument the period in progress from its Daily
+# bars (today's open bar included, as the Daily chart shows it), in the shape
+# yearly_bundle gives `forming`, plus `prev`, the period before it, for the
+# days after a month (or year) closes and before publish_htf publishes it.
+# Display only: no signal, alert or ledger reads it.
+FORMING_PERIODS = {'M': 7, 'Y': 4}    # leading characters of a 'YYYY-MM-DD' date that name the period
+
+
+def _period_bounds(tf: str, key: str) -> tuple[str, str]:
+    """('YYYY-MM-01', next period's start as UTC ISO) for a 'YYYY-MM' or 'YYYY' key."""
+    if tf == 'M':
+        y, m = int(key[:4]), int(key[5:7])
+        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+        return f'{y:04d}-{m:02d}-01', f'{ny:04d}-{nm:02d}-01T00:00:00Z'
+    y = int(key)
+    return f'{y:04d}-01-01', f'{y + 1:04d}-01-01T00:00:00Z'
+
+
+def _period_bar(b: dict, idx: list[int]) -> dict | None:
+    o, c = b['o'][idx[0]], b['c'][idx[-1]]
+    hs = [b['h'][i] for i in idx if b['h'][i] is not None]
+    ls = [b['l'][i] for i in idx if b['l'][i] is not None]
+    if o is None or c is None or not hs or not ls:
+        return None
+    bar = {'o': o, 'h': max(hs + [o, c]), 'l': min(ls + [o, c]), 'c': c}
+    if 'v' in b:
+        bar['v'] = int(sum(b['v'][i] or 0 for i in idx))
+    return bar
+
+
+def forming_feed(daily: dict[str, dict]) -> dict[str, dict]:
+    """{'M': {name: forming}, 'Y': {name: forming}} from Daily bundles."""
+    out: dict[str, dict] = {tf: {} for tf in FORMING_PERIODS}
+    for name, b in daily.items():
+        t = b.get('t') or []
+        if not t:
+            continue
+        for tf, width in FORMING_PERIODS.items():
+            keys = [str(x)[:width] for x in t]
+            cur = keys[-1]
+            now_idx = [i for i in range(len(keys)) if keys[i] == cur]
+            bar = _period_bar(b, now_idx)
+            if bar is None:
+                continue
+            bar.pop('v', None)
+            start, closes_at = _period_bounds(tf, cur)
+            entry = {'t': start, 'closes_at': closes_at, **bar, 'asof': str(t[-1])[:10], 'live': True}
+            before = [i for i in range(now_idx[0]) if keys[i] < cur]
+            if before:
+                pk = keys[before[-1]]
+                prev = _period_bar(b, [i for i in before if keys[i] == pk])
+                if prev is not None:
+                    prev['t'] = _period_bounds(tf, pk)[0]
+                    entry['prev'] = prev
+            out[tf][name] = entry
+    return out
+
+
 # How far back quotes.json's `h` / `l` reach: a little over the hourly data
 # run spacing, so consecutive runs overlap rather than leave a gap.
 QUOTE_RANGE_MIN = 70
@@ -1081,6 +1145,18 @@ def build_chart_feed(output_dir: str, cache_dir: str, ticker_map: dict,
         stats['trend'] = {tf: sum(v != 'NEUTRAL' for v in m.values()) for tf, m in tc.items()}
     except Exception as exc:
         print(f'  WARN trend_channels.json not built: {exc}')
+
+    # The month and year in progress, every hourly run (see forming_feed). A
+    # failure costs the Monthly/Yearly forming candle, never the chart feed.
+    try:
+        feed = forming_feed(built.get('D', {}))
+        built_at = pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ')
+        for tf, data in feed.items():
+            os.makedirs(os.path.join(chart_dir, tf), exist_ok=True)
+            _write_gz(os.path.join(chart_dir, tf, 'forming.json'), {'tf': tf, 'built': built_at, 'data': data})
+            stats[f'forming_{tf}'] = len(data)
+    except Exception as exc:
+        print(f'  WARN chart/M|Y/forming.json not built: {exc}')
 
     for tf, bundles in built.items():
         # Full precision OHLC is only needed while building setup context.

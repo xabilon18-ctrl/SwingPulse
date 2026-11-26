@@ -602,6 +602,38 @@ class TimeframeTableTests(unittest.TestCase):
 
 
 
+class FormingFeedTest(unittest.TestCase):
+    """chart_feed.forming_feed: the month and year in progress from a Daily
+    bundle, every hourly run (user, 2026-11-26)."""
+
+    def test_month_and_year_in_progress(self):
+        import chart_feed
+        t = ['2025-12-30', '2025-12-31', '2026-10-29', '2026-10-30', '2026-11-02', '2026-11-03', '2026-11-26']
+        b = {'t': t, 'o': [1, 2, 97.96, 115.0, 111.84, 100.0, 90.57],
+             'h': [3, 4, 118.0, 117.9, 112.38, 101.0, 92.04],
+             'l': [1, 1, 96.56, 114.0, 95.0, 88.11, 89.77],
+             'c': [2, 60.85, 116.0, 117.64, 100.5, 95.0, 91.22], 'v': [1, 1, 5, 6, 7, 8, 9]}
+        feed = chart_feed.forming_feed({'BRENT': b})
+        m = feed['M']['BRENT']
+        self.assertEqual((m['t'], m['closes_at'], m['asof'], m['live']), ('2026-11-01', '2026-12-01T00:00:00Z', '2026-11-26', True))
+        self.assertEqual((m['o'], m['h'], m['l'], m['c']), (111.84, 112.38, 88.11, 91.22))
+        self.assertEqual(m['prev'], {'t': '2026-10-01', 'o': 97.96, 'h': 118.0, 'l': 96.56, 'c': 117.64, 'v': 11})
+        y = feed['Y']['BRENT']
+        self.assertEqual((y['t'], y['closes_at'], y['o'], y['h'], y['l'], y['c']),
+                         ('2026-01-01', '2027-01-01T00:00:00Z', 97.96, 118.0, 88.11, 91.22))
+        self.assertEqual(y['prev']['t'], '2025-01-01')
+        self.assertEqual(y['prev']['c'], 60.85)
+
+    def test_december_rolls_the_year(self):
+        import chart_feed
+        self.assertEqual(chart_feed._period_bounds('M', '2026-12'), ('2026-12-01', '2027-01-01T00:00:00Z'))
+
+    def test_a_priceless_period_is_left_out(self):
+        import chart_feed
+        b = {'t': ['2026-11-25', '2026-11-26'], 'o': [None, None], 'h': [None, None], 'l': [None, None], 'c': [None, None]}
+        self.assertEqual(chart_feed.forming_feed({'X': b}), {'M': {}, 'Y': {}})
+
+
 class HoldingsFeedTest(unittest.TestCase):
     """The 13F moves builder publish_htf.py runs on the Monthly run
     (tests/holdings_feed_test.py, offline)."""

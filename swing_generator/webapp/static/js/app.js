@@ -6966,6 +6966,48 @@
     reelIndexPromise = null;
     reel.tfIndex.clear();
     reelTfIndexPromises.clear();
+    reelFormingPromises.clear();
+  }
+
+  // The month / year in progress (chart_feed.forming_feed, written by every
+  // hourly run; user, 2026-11-26: "Yes monthly can also show progress").
+  // Monthly and Yearly chunks are published only by publish_htf (3rd-5th of
+  // the month), so their own copy of the period in progress is days old or
+  // missing. Missing reads as empty: the chart shows its closed bars alone.
+  const FORMING_FEED_TFS = new Set(['M', 'Y']);
+  const reelFormingPromises = new Map();
+  function reelLoadFormingFeed(tf) {
+    if (!reelFormingPromises.has(tf)) {
+      reelFormingPromises.set(tf, fetchJson(reelChunkUrl(tf, 'forming'), null)
+        .then(j => (j && j.data) || {}).catch(() => ({})));
+    }
+    return reelFormingPromises.get(tf);
+  }
+  // One feed entry onto a closed-bars bundle: `prev` as a closed bar while the
+  // bundle has not got it yet (from the 1st until publish_htf runs), then the
+  // period in progress as `forming`, the shape yearly_bundle gives it, with its
+  // MA points from the closes before it. reelDisplayBundle draws it and moves
+  // it with the live price, as on Yearly.
+  function reelWithFeedForming(bundle, f) {
+    if (!bundle || !f || !Array.isArray(bundle.t) || !bundle.t.length || !Array.isArray(bundle.c)) return bundle;
+    const maAt = (closes, c) => (bundle.p || []).map(per => closes.length >= per - 1
+      ? (closes.slice(closes.length - (per - 1)).reduce((a, v) => a + v, 0) + c) / per : null);
+    const ohlc = x => x && ['o', 'h', 'l', 'c'].every(k => Number.isFinite(x[k]));
+    let b = bundle;
+    const p = f.prev;
+    if (ohlc(p) && p.t > b.t[b.t.length - 1] && p.t < f.t) {
+      const n = b.t.length, m = maAt(b.c, p.c);
+      const mi = b.mi || (b.m || [[]])[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
+      b = { ...b, t: [...b.t, p.t], o: [...b.o, p.o], h: [...b.h, p.h], l: [...b.l, p.l], c: [...b.c, p.c],
+            mi: [...mi, n], m: (b.m || []).map((s, i) => [...s, m[i] ?? s[s.length - 1]]) };
+      if (Array.isArray(bundle.v)) b.v = [...bundle.v, Number.isFinite(p.v) ? p.v : 0];
+    }
+    if (!ohlc(f) || !(f.t > b.t[b.t.length - 1])) return b;
+    const own = b.forming;
+    if (own && own.t === f.t && String(own.asof || '') >= String(f.asof || '')) return b;
+    const rest = { ...f };
+    delete rest.prev;
+    return { ...b, forming: { ...rest, m: maAt(b.c, f.c) } };
   }
 
   function reelChunkUrl(tf, cid) {
@@ -7022,9 +7064,11 @@
     // belongs to the previous one. Hand it to the caller that asked, but do not
     // re-seed the cache reelInvalidateCache has just emptied.
     const ver = reelDataVersion;
-    const p = fetchJson(reelChunkUrl(tf, cid), null)
-      .then(j => {
+    const p = Promise.all([fetchJson(reelChunkUrl(tf, cid), null),
+                           FORMING_FEED_TFS.has(tf) ? reelLoadFormingFeed(tf) : null])
+      .then(([j, feed]) => {
         const data = (j && j.data) || {};
+        if (feed) for (const n of Object.keys(data)) data[n] = reelWithFeedForming(data[n], feed[n]);
         if (ver === reelDataVersion) reel.chunks.set(key, data);
         reel.inflight.delete(key);
         return data;
@@ -9875,8 +9919,9 @@
   //   Daily  today's bar, the last one in the bundle while it is still open
   //          (final once the next UTC day begins, drop_unfinished_daily's
   //          rule), for a price dated that UTC day.
-  //   Yearly the forming year (`live`, chart_feed.yearly_bundle), for a
-  //          price newer than the daily bar it was built from.
+  //   Monthly the forming month and Yearly the forming year (`live`,
+  //          chart_feed.forming_feed via reelWithFeedForming, user 2026-11-26),
+  //          for a price newer than the daily bar it was built from.
   // A price more than 25% from the candle's own close is not the same level
   // (a futures print against a cash index) and is not used.
   const LIVE_FORMING_BAND = 0.25;
@@ -9914,7 +9959,7 @@
     });
     return out;
   }
-  const LIVE_CHART_TFS = new Set(['1H', 'D', 'Y']);
+  const LIVE_CHART_TFS = new Set(['1H', 'D', 'M', 'Y']);
   // Redraw the charts in view after a live price (chartPaintLive). Not one a
   // finger or the mouse is on: a pan or a drag is not cut short by a
   // repaint; it is redrawn on the next poll.
