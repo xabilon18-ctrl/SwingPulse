@@ -28,6 +28,9 @@ async function fixturePage(page) {
     await route.fulfill({ contentType: 'application/json', body });
   });
   await p.setViewportSize(page.viewportSize() || { width: 390, height: 844 });
+  // These checks start from a fresh open, not from where the page before them
+  // was left (the app reopens there since 2026-11-26; resume_place_checks.cjs).
+  await p.addInitScript(() => { try { localStorage.removeItem('swingpulse-resume'); } catch (_) {} });
   await p.goto(page.url(), { waitUntil: 'networkidle' });
   if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
   return p;

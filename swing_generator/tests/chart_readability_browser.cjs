@@ -169,8 +169,10 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),saved);
    await page.reload({waitUntil:'domcontentloaded'});
    if(await page.locator('.up-skip').isVisible())await page.locator('.up-skip').click();
-   await page.locator('.nav-tab[data-tab="charts"]').click();
-   if(w<1024){await page.locator('#chartReel [data-act="chart-expand"]').first().click();}
+   // The app reopens where it was left (2026-11-26): on a phone that is this
+   // chart, full screen, without a tap; on a desktop, the Charts tab.
+   if(w<1024)await page.locator('#chartFull.open').waitFor({timeout:60000});
+   else await page.locator('.nav-tab[data-tab="charts"]').click();
    await ready(page);
    assert.equal(await widthOf(page,'.reel-native-ma'),native[0],'native preference restored');
    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-channels')),channels,'drawing weights restored without migration');
