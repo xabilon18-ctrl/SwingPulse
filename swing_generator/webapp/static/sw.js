@@ -101,7 +101,9 @@ async function showLadderAlerts(list) {
     // A Monthly ladder (home 'M') alerts on its 10% lines and its Daily thirds.
     // A Monthly ladder (home 'M') alerts on its 10% lines (Monthly), its
     // thirds (Daily) and their fifths (1H).
-    const [own, step, ownTf, stepTf] = a.home === 'M' ? ['Monthly', a.tier === 'mid' ? 'Daily' : '1H', 'M', a.tier === 'mid' ? 'D' : '1H'] : ['Daily', '1H', 'D', '1H'];
+    // A Yearly ladder (home 'Y', 2026-11-26) the same way, its 10% lines named Yearly.
+    const HOME = { M: 'Monthly', Y: 'Yearly' };
+    const [own, step, ownTf, stepTf] = HOME[a.home] ? [HOME[a.home], a.tier === 'mid' ? 'Daily' : '1H', a.home, a.tier === 'mid' ? 'D' : '1H'] : ['Daily', '1H', 'D', '1H'];
     const what = `${a.daily ? own : step} ${a.pct}%`;
     let body = `${a.dir === 'up' ? 'Up' : 'Down'} to ${fmtPrice(a.price)}, through your ${what} line at ${fmtPrice(a.level)}`;
     if (i === shown.length - 1 && extra > 0) body += ` (+${extra} more)`;

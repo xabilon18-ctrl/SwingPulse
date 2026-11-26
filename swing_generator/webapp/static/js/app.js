@@ -534,7 +534,21 @@
     // selection (user, 2026-11-01: "when I click away, I'd like for it not to
     // be selected"). Only an absent entry falls back to the newest drawing.
     if (i === -1) return -1;
-    return (typeof i === 'number' && i >= 0 && i < list.length) ? i : list.length - 1;
+    // ONLY A DRAWING SHOWN ON THIS CHART (user, 2026-11-26: "my Bitcoin
+    // percentage lines ... have disappeared. I didn't delete them"). A linked
+    // drawing keeps a copy in every timeframe's list, shown only where its
+    // chips say, so this chart's list can hold copies it does not draw (a
+    // Monthly ladder's copy sits in the Yearly list). After a delete the
+    // selection fell back to the LAST entry, which could be such a copy: a
+    // second tap on Delete removed a ladder the reader could not see, and the
+    // link removed it from every timeframe. Lock, colour, weight and the rest
+    // act on the same selection, so they could change one unseen too. So the
+    // FALLBACK takes the newest drawing this chart shows. A drawing the reader
+    // selected stays selected even when its own chip is switched off here, so
+    // "Show on" can switch it straight back on.
+    if (typeof i === 'number' && i >= 0 && i < list.length) return i;
+    for (let j = list.length - 1; j >= 0; j--) if (drawShownOn(list[j], timeframe)) return j;
+    return -1;
   }
 
   // Selecting a drawing is the first act of every edit — a handle grab and a tap
@@ -5827,7 +5841,7 @@
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
-    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce], ['Monthly ladders on every timeframe', ladderMonthlyAllOnce]]) {
+    if (pulled) for (const [what, fn] of [['ladder cleanup', ladderCleanupOnce], ['ladder 4H cleanup', ladderNo4hOnce], ['ladder thickness', ladderThickOnce], ['ladder dashes', ladderDashOnce], ['Monthly ladders on 1H', ladderMonthly1hOnce], ['old Monthly ladders', ladderOldMonthlyDeleteOnce], ['Monthly ladders on every timeframe', ladderMonthlyAllOnce], ['Yearly ladders linked', ladderYearlyLinkOnce]]) {
       try { fn(); } catch (e) { reportFailure(what, e); }
     }
   });
@@ -8516,6 +8530,26 @@
     if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
     return n;
   }
+  // YEARLY LADDERS LINKED, ONCE PER DEVICE (2026-11-26): a ladder drawn on
+  // Yearly before Yearly ladders chained down (unlinked, no `home`) becomes
+  // one, shown on Yearly, Monthly, Daily and 1H like a new one; channelSave
+  // copies it onto those charts. Linked ladders keep what their chips say.
+  const LADDER_Y_KEY = 'sp-ladder-yearly-2026-11-26';
+  function ladderYearlyLinkOnce() {
+    try { if (localStorage.getItem(sk(LADDER_Y_KEY))) return 0; } catch (_) { return 0; }
+    const tfs = tabTfs('charts').filter(t => t === 'Y' || (LADDER_HOME_SUB.Y[t] || []).length);
+    let n = 0;
+    for (const name of Object.keys(instChannels)) {
+      for (const d of (instChannels[name] || {}).Y || []) {
+        if (!d || d.kind !== 'ladder' || d.link || d.home) continue;
+        d.link = drawLinkId(); d.home = 'Y'; d.tfs = tfs.slice(); n++;
+      }
+    }
+    if (n) channelSave();
+    try { localStorage.setItem(sk(LADDER_Y_KEY), String(Date.now())); } catch (_) {}
+    if (n) { try { reelRepaintVisible(); } catch (e) { reportFailure('repaint charts', e); } }
+    return n;
+  }
   const LADDER_NO4H_KEY = 'sp-ladder-no4h-2026-11-07';
   function ladderNo4hOnce() {
     try { if (localStorage.getItem(sk(LADDER_NO4H_KEY))) return 0; } catch (_) { return 0; }
@@ -9146,7 +9180,13 @@
   // two tiers ([3, 2]) draw the coarse one darker (.reel-ladder-mid). Keep
   // sync-worker ladder-alerts.js HOME_SUB equal to the 1H tiers (alerts are
   // 1H steps, as for Daily).
-  const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] } };
+  // YEARLY LADDERS CHAIN DOWN THE SAME WAY (user, 2026-11-26: "I've just
+  // placed a yearly chart, which should show daily and hourly. I can't see
+  // the divisions on the daily"; asked, they chose "Same as Monthly" and
+  // Monthly "split in 3"). A ladder drawn on Yearly carries `home: 'Y'` and
+  // shows on Monthly and Daily with each 10% gap in three, and on 1H in ten.
+  // Yearly (2026-11-24) had no entry, so its ladders stayed on Yearly alone.
+  const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] }, Y: { M: [3], D: [3], '1H': [10] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // The tiers each 10% gap of ladder d is split into on timeframe tf,
@@ -13597,6 +13637,11 @@
       if (btn.dataset.act === 'draw-tfs') {
         const d = activeChannel(name);
         if (d && drawToggleTf(d, btn.dataset.tf, timeframe)) {
+          // Keep it selected by name, even when switched off on this chart,
+          // so it can be switched straight back on (activeIdx's fallback
+          // never picks a drawing this chart does not show).
+          const at = channelsFor(name).indexOf(d);
+          if (at >= 0) reel.activeCh.set(name + '|' + timeframe, at);
           channelSave();
           if (chHost) reelRepaint(chHost);
           reelSyncChannelButtons();
