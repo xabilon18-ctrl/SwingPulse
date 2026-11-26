@@ -17,9 +17,9 @@ export const LADDER_SUB = 5;
 // carries its tier: 'own' (the ladder's 10% lines), 'mid' (a coarser step
 // when there are two tiers; none today) or 'fine' (the 1H steps).
 // A ladder drawn on Yearly (`home: 'Y'`, 2026-11-26) chains down too: each
-// 10% gap in two on Monthly, four on Daily, eight on 1H (app.js
-// LADDER_HOME_SUB.Y). Its alert lines are its 1H steps: eight per gap.
-export const HOME_SUB = { M: [10], Y: [8] };
+// 10% gap in two on Monthly, four on Daily, ten on 1H (app.js
+// LADDER_HOME_SUB.Y). Its alert lines are its 1H steps: ten per gap (1%).
+export const HOME_SUB = { M: [10], Y: [10] };
 const HOME_NAME = { M: 'Monthly', Y: 'Yearly' };
 // A level's %: exact to two decimals when it is (1.25), else one (app.js
 // ladderPctRound).

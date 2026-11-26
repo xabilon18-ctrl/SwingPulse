@@ -7,6 +7,12 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 YEARLY LADDER 1H SPLIT 10. app.js v671, sync Worker. User: "Make 1h by
+10". `LADDER_HOME_SUB.Y['1H'] = [10]` (was 8): a Yearly 10% gap shows every 1%
+on 1H; Monthly 2 and Daily 4 unchanged. Sync Worker `HOME_SUB.Y = [10]`
+(alert lines every 1%). Tests: ladder_yearly_checks (9 lines between Yearly
+lines on 1H), ladder_alerts_test (101 levels a block).
+
 2026-11-26 YEARLY LADDER SPLITS 2 / 4 / 8. app.js v670, sync Worker. User: "10%
 yearly is divided by 2 on monthly and 4 on daily", then "8 on hour".
 - `LADDER_HOME_SUB.Y = { M: [2], D: [4], '1H': [8] }` (was 3 / 3 / 10 from the
