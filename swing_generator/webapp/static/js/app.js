@@ -105,7 +105,7 @@
     || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const desktopChartMedia = window.matchMedia(isIPad ? '(min-width: 700px)' : '(min-width: 1024px)');
   const desktopChart = { active: false, expanded: false, collapsed: false, name: null, tf: null, frame: 0 };
-  let currentTab = 'watchlist';   // the app opens on the Watchlist (user, 2026-09-26)
+  let currentTab = 'watchlist';   // first visit opens on the Watchlist; after that, where you left off (resumePlace)
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
   // Gainers / losers sort on Charts and Watchlist (2026-10-27, user: "an option
   // to sort by price percentage movement"), over one of the same four periods.
@@ -3407,11 +3407,80 @@
   }
 
   navTabs.forEach(btn => {
-    btn.addEventListener('click', () => doTabSwitch(btn));
+    btn.addEventListener('click', e => { if (e.isTrusted) resumeUserMoved = true; doTabSwitch(btn); });
   });
-  // Tab order Watchlist · Charts · Signals · Dashboard, opening on the
-  // Watchlist (user, 2026-09-26). Run the switch once so its side effects
-  // (timeframe, header, live prices) start from the opening tab, not the markup.
+
+  // ── Where you left off (user, 2026-11-26) ─────────────────────────────
+  // The installed app "opens fresh and resets": iOS closes a backgrounded
+  // home-screen app to free memory, and checkForAppUpdate reloads it after
+  // every deploy, and both dropped you on the Watchlist at the top. The user
+  // chose "Always where I left off", replacing 2026-09-26's "opens on the
+  // Watchlist": the tab, the chart on screen with the list it came from, its
+  // timeframe, full screen, and the page scroll are saved when the app is
+  // hidden or reloads (resumeSave) and put back on the next start
+  // (resumePlace). A first visit still opens on the Watchlist, and a
+  // notification or chart link in the URL wins over the saved place.
+  const RESUME_KEY = 'swingpulse-resume';
+  const resumeLinked = (() => { const q = new URLSearchParams(window.location.search); return q.has('chart') || q.has('open'); })();
+  const resumeSaved = (() => {
+    try { const v = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); return v && typeof v === 'object' ? v : null; }
+    catch (_) { return null; }
+  })();
+  // Nothing is saved over the old place until it has been put back, so an
+  // update reload during start-up keeps it; a tap or scroll of your own
+  // before the data arrives cancels putting it back.
+  let resumeApplied = false;
+  let resumeUserMoved = false;
+  for (const ev of ['touchstart', 'wheel', 'keydown']) {
+    window.addEventListener(ev, () => { resumeUserMoved = true; }, { once: true, passive: true });
+  }
+  function resumeSave() {
+    if (!resumeApplied) return;
+    const s = { tab: currentTab, y: Math.round(window.scrollY || 0) };
+    if (currentTab === 'charts') {
+      s.chart = chartFullName || reelLastSeen || reelVisibleName() || '';
+      s.tf = timeframe;
+      s.full = !!chartFullName && !desktopChart.active;
+      if (reel.listSet) s.set = reel.listSet;
+    }
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify(s)); } catch (_) {}
+  }
+  async function resumePlace() {
+    const s = resumeSaved;
+    if (!s || resumeLinked || resumeUserMoved || typeof s.tab !== 'string') return;
+    const tabBtn = document.querySelector(`.nav-tab[data-tab="${CSS.escape(s.tab)}"]`);
+    if (!tabBtn) return;
+    if (s.tab === 'charts') {
+      const name = typeof s.chart === 'string' ? s.chart : '';
+      if (!name || !allData.some(d => d.instrument_name === name)) { navigateToTab('charts'); return; }
+      if (currentTab !== 'charts') navigateToTab('charts');
+      if (s.tf !== timeframe) setTimeframe(s.tf, name);   // ignores one Charts cannot show
+      const set = s.set && Array.isArray(s.set.names) ? s.set : null;
+      const names = set ? set.names.filter(n => typeof n === 'string') : [];
+      openChartFor(name, names.length ? {
+        label: String(set.label || ''), names, kind: String(set.kind || ''),
+        full: !!set.full, move: String(set.move || ''),
+      } : null);
+      if (s.full && !desktopChart.active) await chartFullOpen(name);
+      return;
+    }
+    if (s.tab !== currentTab) navigateToTab(s.tab);
+    // The page scroll: wait (briefly) for the tab to be tall enough to hold it.
+    const y = Math.max(0, Number(s.y) || 0);
+    for (let i = 0; y > 0 && i < 20 && !resumeUserMoved; i++) {
+      if (document.documentElement.scrollHeight - window.innerHeight >= y) break;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    if (y > 0 && !resumeUserMoved) window.scrollTo({ top: y, behavior: 'instant' });
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) resumeSave(); });
+  window.addEventListener('pagehide', resumeSave);
+
+  // Tab order Watchlist · Charts · Alerts · Market. Run the switch once so its
+  // side effects (timeframe, header, live prices) start from the opening tab,
+  // not the markup. Always the Watchlist here: the saved tab is put back by
+  // resumePlace once the data is in (and the rest of this file has run, which
+  // the Charts tab's code needs).
   { const wb = document.querySelector('.nav-tab[data-tab="watchlist"]'); if (wb) doTabSwitch(wb); }
 
 
@@ -5838,6 +5907,9 @@
   if (!syncUser) showUserPicker();
   // Initial load — pull watchlist sync after data is ready
   loadAll().then(async () => {
+    // Back to where you were before anything else re-renders (see resumePlace).
+    try { await resumePlace(); } catch (e) { reportFailure('reopening where you left off', e); }
+    finally { resumeApplied = true; }
     let pulled = true;
     if (syncUser) { const pull = syncPull(); syncCatchUpDrawings(); pulled = (await pull) !== false; }
     // After the pull, never on a copy that may be out of date (see the function).
@@ -5879,6 +5951,7 @@
         // code (CDN lag), don't reload again — wait for the next deploy.
         if (sessionStorage.getItem('sp-reload-build') === String(build)) return;
         sessionStorage.setItem('sp-reload-build', String(build));
+        resumeSave();   // the new build opens where this one was
         // Query-string navigation instead of reload(): iOS PWAs can serve the
         // cached shell on reload(), but a new URL forces a fresh HTML fetch.
         window.location.replace('/?b=' + build);

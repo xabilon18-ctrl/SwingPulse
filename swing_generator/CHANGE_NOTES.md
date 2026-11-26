@@ -7,6 +7,27 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 REOPENS WHERE YOU LEFT OFF. app.js v672. User: the installed app "opens
+fresh and resets"; asked, chose "Always where I left off" (only the place was
+lost, not saved work). Replaces 2026-09-26's "opens on the Watchlist".
+- Causes: iOS closes a backgrounded home-screen app to free memory, and
+  `checkForAppUpdate` reloads after every deploy (4–11 a day that week). The
+  tab, chart and scroll lived only in memory, so both landed on the Watchlist.
+- `resumeSave` writes `swingpulse-resume` (tab, page scroll; on Charts the chart
+  on screen, its timeframe, full screen, and the list set it came from) on
+  hide, pagehide and just before the update reload. `resumePlace` puts it back
+  after the first data load. Start-up still switches to the Watchlist first
+  (the Charts code needs the whole file run); a first visit stays there.
+- Not put back: a chart link or notification in the URL wins; a touch, wheel
+  or key before the data arrives cancels it. Nothing is saved over the old
+  place until it has been put back. The pan/zoom of a chart is not restored
+  (it goes back to its saved view, as on any return to Charts).
+- Tests: `tests/resume_place_checks.cjs` (from app_smoke): first visit on
+  Watchlist; Charts + Monthly + full screen survive a reload; closed full
+  screen stays closed; Market tab and scroll; a chart link wins. Fails on the
+  old code. `fixturePage` clears the saved place so its checks start fresh;
+  chart_readability_browser's phone reload now expects full screen back.
+
 2026-11-26 YEARLY LADDER 1H SPLIT 10. app.js v671, sync Worker. User: "Make 1h by
 10". `LADDER_HOME_SUB.Y['1H'] = [10]` (was 8): a Yearly 10% gap shows every 1%
 on 1H; Monthly 2 and Daily 4 unchanged. Sync Worker `HOME_SUB.Y = [10]`
