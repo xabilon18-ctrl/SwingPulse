@@ -7,6 +7,37 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 BARS ON THE WRONG UNIT OR LEVEL. data_fetcher. User: "check that all bars
+are updating ... check all and time frames". A sweep of every live chart file
+(851 instruments x 1H/D/M/Y, 684 files) found:
+- x100 unit slips: Yahoo prints some JSE bars in rand among cents. Daily EPS
+  (11 runs since 2024), MCZ, WEZ (2025-06-10 to 2026-06-02), SBK, PAN, CPR;
+  1H KP2. `fix_hundredfold` pairs each x1/100 close step with the next x100
+  one and puts the run between on its neighbours' unit; a FIRST unpaired step
+  moves the oldest bars onto the newer unit; any other unpaired step is left
+  alone (one missed step must never rescale good history). Also moves an
+  Open/High/Low left 100x off its own close (UK bars: BP, SHEL, NWG ...).
+  Runs in `repair_daily` (every Daily reader) and `load_1h`. After it the
+  sweep finds no x100 step left except QUBT 2018 (x1/200) and US03M 2020
+  (yield near zero), both real.
+- 1H on another level than Daily: IHG 10,420 -> 140 and CPG 2,073 -> 26.69.
+  Yahoo moved those London listings from pence to US dollars (~2 Jan 2026);
+  its hourly history keeps the old bars in pence. APH and MNST 1H halved on
+  their 2:1 splits: the hourly cache only appends. `align_hourly_level`
+  (in `load_1h`, own feed only, before fix_hundredfold, whose band would
+  read x1/75 as pence-to-pounds) scales older hourly bars by Daily close /
+  last hourly close (5-date rolling median) where the recent dates agree
+  within 10% and a block of older dates is off by more than x1.45.
+- Going forward, `fetch_hourly` runs `_history_mismatch` on the overlap it
+  downloads (Yahoo re-adjusts it after a split) and re-downloads the full
+  hourly history, as `fetch()` does for Daily.
+- Not changed: MRNA (+177%) and JMAT (+33%) agree on 1H and Daily (real
+  moves). REC_IT (1H since 19 Nov, Daily since 24 Nov) and EPS 1H (since
+  24 Nov) are stale; not addressed here.
+- Tests: hourly_test PriceUnitTests (EPS/WEZ/CPR runs, a missed step,
+  a stray high, a 2:1 split and a pence-to-dollar switch on 1H, a normal
+  stock untouched). Golden snapshot identical.
+
 2026-11-26 MONTHLY SHOWS THE MONTH IN PROGRESS. app.js v673, chart_feed. User,
 after Brent Monthly "does not look right": it ended on October's 117.64 close
 while Brent traded near 91 (the data matched Yahoo). Asked whether Monthly

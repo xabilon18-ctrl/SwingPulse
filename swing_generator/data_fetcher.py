@@ -196,14 +196,139 @@ def _trade_dates(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
     return (ny + pd.Timedelta(hours=6)).tz_localize(None).normalize()
 
 
+# ── Bars printed in a unit 100x off (2026-11-26) ───────────────────────────
+# User: "check that all bars are updating ... check all and time frames". A
+# sweep of every live chart found Yahoo printing some JSE bars in rand among
+# bars in cents (and the reverse): EPS 134 -> 1.34 -> 134 eleven times since
+# 2024, MCZ 192 -> 1.92, WEZ 0.45 for a whole year (2025-06-10 to 2026-06-02),
+# SBK, PAN, CPR, and on 1H KP2 72 -> 0.71 -> 71. One such bar drags every MA
+# that spans it. A one-bar step of x100 (or x1/100) in the close is never a
+# market move, so the bars are put back on the unit of the NEWEST bar.
+HUNDRED_STEP = (70.0, 140.0)    # a close-to-close ratio in this band (or its inverse) is a unit slip
+
+
+def fix_hundredfold(df: pd.DataFrame) -> pd.DataFrame:
+    """df with every bar on the newest bar's price unit (a copy when changed).
+
+    A run of bars between a x1/100 step and the next x100 step (or the other
+    way round) is put back on its neighbours' unit; the oldest bars before a
+    first, unpaired step go onto the newer unit. An Open/High/Low left on the
+    other unit than its own bar's close (100x off it) is moved to the close's.
+    Volume is untouched."""
+    if df is None or df.empty or 'Close' not in df.columns or len(df) < 2:
+        return df
+    c = df['Close'].to_numpy(dtype=float)
+    lo, hi = HUNDRED_STEP
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r = c[1:] / c[:-1]                      # r[i]: bar i+1 against bar i
+    up = (r >= lo) & (r <= hi)                  # bar i+1 is 100x bar i: bar i is in the smaller unit
+    down = (r >= 1 / hi) & (r <= 1 / lo)
+    cols = [k for k in ('Open', 'High', 'Low', 'Close') if k in df.columns]
+    vals = {k: df[k].to_numpy(dtype=float) for k in cols}
+    with np.errstate(divide='ignore', invalid='ignore'):
+        stray = {k: ((vals[k] / c >= lo) & (vals[k] / c <= hi), (c / vals[k] >= lo) & (c / vals[k] <= hi))
+                 for k in cols if k != 'Close'}
+    if not up.any() and not down.any() and not any(a.any() or b.any() for a, b in stray.values()):
+        return df
+    # Pair each step with the next one the other way: the bars between them
+    # are the slip. Only a first step left unpaired puts everything before it
+    # (the oldest bars) on the newer unit; any other unpaired step is left as
+    # it is, so one missed step can never rescale good history.
+    steps = [(i, 1 if up[i] else -1) for i in np.flatnonzero(up | down)]
+    g = np.ones(len(c))
+    k = 0
+    while k < len(steps):
+        i, sign = steps[k]
+        if k + 1 < len(steps) and steps[k + 1][1] == -sign:
+            j = steps[k + 1][0]
+            g[i + 1:j + 1] = 100.0 if sign < 0 else 0.01
+            k += 2
+            continue
+        if k == 0:
+            g[:i + 1] = 100.0 if sign > 0 else 0.01
+        k += 1
+    out = df.copy()
+    for k in cols:
+        v = vals[k].copy()
+        if k != 'Close':
+            big, small = stray[k]
+            v[big] /= 100.0
+            v[small] *= 100.0
+        out[k] = v * g
+    return out
+
+
+# ── 1H on the Daily's price level (2026-11-26) ──────────────────────────────
+# The same sweep: IHG and CPG's 1H read 10,420 -> 140 and 2,073 -> 26.69 on
+# one bar. Yahoo moved those London listings from pence to US dollars around
+# 2 Jan 2026 and its hourly history still holds the old bars in pence (the
+# Daily history was converted). APH and MNST's 1H halve on their 2:1 splits:
+# the hourly cache only appends and never re-checks old bars the way fetch()
+# does. Either way the older hourly bars sit on another level than the Daily
+# of the same instrument, which IS consistent. Measured on each trade date as
+# Daily close / last hourly close: where the recent dates agree (within 10%)
+# and a block of older dates ending at a cut sits off by more than x1.45
+# (a split or a currency; a contract-month spread is under 10%), those older
+# hourly bars are scaled by that ratio (5-date rolling median). Read time
+# only; the cache on disk is not touched.
+HOURLY_LEVEL_BREAK = 1.45
+HOURLY_LEVEL_AGREE = 0.10
+
+
+def align_hourly_level(ticker: str, hourly: pd.DataFrame | None) -> pd.DataFrame | None:
+    if hourly is None or hourly.empty or 'Close' not in hourly.columns or ticker in DAILY_SCALE_FROM_5M:
+        return hourly
+    path = _cache_path(ticker)
+    if not os.path.exists(path):
+        return hourly
+    try:
+        daily = fix_hundredfold(_read_cache(path))
+        di = pd.DatetimeIndex(daily.index)
+        if di.tz is not None:
+            di = di.tz_convert('UTC').tz_localize(None)
+        dc = pd.Series(daily['Close'].to_numpy(dtype=float), index=di.normalize())
+        dc = dc[~dc.index.duplicated(keep='last')]
+        hi = pd.DatetimeIndex(hourly.index)
+        if hi.tz is not None:
+            hi = hi.tz_convert('UTC').tz_localize(None)
+        day = hi.normalize()
+        hc = pd.Series(hourly['Close'].to_numpy(dtype=float), index=day).dropna()
+        hc = hc.groupby(level=0).last()
+        common = hc.index.intersection(dc.index)
+        if len(common) < 10:
+            return hourly
+        ratio = (dc.reindex(common) / hc.reindex(common)).replace([np.inf, -np.inf], np.nan).dropna()
+        if len(ratio) < 10 or not ((ratio.tail(5) - 1).abs() < HOURLY_LEVEL_AGREE).all():
+            return hourly
+        off = np.log(ratio).abs() > np.log(HOURLY_LEVEL_BREAK)
+        if not off.any():
+            return hourly
+        cut = off[off].index.max()
+        block = ratio[ratio.index <= cut]
+        if off.reindex(block.index).mean() < 0.8:      # stray days, not a block
+            return hourly
+        f = block.rolling(5, min_periods=1, center=True).median()
+        fac = f.reindex(f.index.union(pd.DatetimeIndex(day.unique()))).ffill().bfill()
+        per_bar = np.where(day <= cut, fac.reindex(day).to_numpy(), 1.0)
+        out = hourly.copy()
+        for k in ('Open', 'High', 'Low', 'Close'):
+            if k in out:
+                out[k] = out[k].to_numpy(dtype=float) * per_bar
+        return out
+    except Exception as exc:
+        print(f'    WARN [{ticker}] hourly level check skipped: {exc}')
+        return hourly
+
+
 def repair_daily(ticker: str, df: pd.DataFrame,
                  hourly: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Weekend stubs dropped, then flat (and, on futures, truncated) daily bars
-    rebuilt from the instrument's own hourly bars. Returns a new frame when
-    anything changed; the cache on disk is never touched. See the note above."""
+    """Weekend stubs dropped, bars printed 100x off put back (fix_hundredfold),
+    then flat (and, on futures, truncated) daily bars rebuilt from the
+    instrument's own hourly bars. Returns a new frame when anything changed;
+    the cache on disk is never touched. See the note above."""
     if df is None or df.empty or not {'Open', 'High', 'Low', 'Close'} <= set(df.columns):
         return df
-    out = drop_weekend_stubs(df)
+    out = fix_hundredfold(drop_weekend_stubs(df))
     if out.empty:
         return out
     future = str(ticker).endswith('=F')
@@ -851,6 +976,17 @@ def fetch_hourly(ticker: str, force_refresh: bool = False,
             os.utime(path, None)
             return _drop_priceless(existing)
 
+        # A split since the last run: Yahoo re-adjusts the overlap it sends
+        # back, the cache does not (2026-11-26: APH and MNST's 1H halved on
+        # their splits and stayed that way). Same check as fetch().
+        problem = _history_mismatch(existing, new_df, existing.index[-1])   # tz-aware, as the cache
+        if problem:
+            print(f'    WARN [{ticker}] hourly {problem} — re-downloading full hourly history')
+            df = _full_download(ticker, end - timedelta(days=HOURLY_HISTORY_DAYS), end, interval='1h')
+            if not df.empty:
+                _save_cache(df, path, ticker)
+                return df
+
         # Sanity guard (same as daily): an absurd discontinuity between the
         # cached series and the new bars means the cache holds bad data —
         # re-download the full hourly history instead of stitching onto it.
@@ -1274,7 +1410,14 @@ def load_1h(ticker: str) -> pd.DataFrame | None:
         return None
     ref_t = FIVE_MIN_LEVEL_REF.get(ticker)
     if not ref_t:
-        return src
+        # Its own feed: older bars brought onto the Daily's level first (a
+        # currency switch or an unadjusted split; see align_hourly_level), then
+        # stray bars 100x off put back. In that order: IHG's pence-to-dollar
+        # step (x1/75) also falls in HUNDRED_STEP and would be read as pence
+        # to pounds. A redirected feed is another contract.
+        if h4_ticker(ticker) == ticker:
+            src = align_hourly_level(ticker, src)
+        return fix_hundredfold(src)
     ref = _read_5m_raw(ref_t, suffix='1h')
     if ref is None or 'Close' not in ref:
         return src
