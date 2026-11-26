@@ -9184,9 +9184,12 @@
   // placed a yearly chart, which should show daily and hourly. I can't see
   // the divisions on the daily"; asked, they chose "Same as Monthly" and
   // Monthly "split in 3"). A ladder drawn on Yearly carries `home: 'Y'` and
-  // shows on Monthly and Daily with each 10% gap in three, and on 1H in ten.
-  // Yearly (2026-11-24) had no entry, so its ladders stayed on Yearly alone.
-  const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] }, Y: { M: [3], D: [3], '1H': [10] } };
+  // shows on Monthly, Daily and 1H with each Yearly 10% gap split: in TWO on
+  // Monthly (5%), FOUR on Daily (2.5%) and EIGHT on 1H (1.25%) (user, same
+  // day: "10% yearly is divided by 2 on monthly and 4 on daily", then "8 on
+  // hour"; it started as 3 / 3 / 10). Each halves the one above. Yearly
+  // (2026-11-24) had no entry before, so its ladders stayed on Yearly alone.
+  const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] }, Y: { M: [2], D: [4], '1H': [8] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // The tiers each 10% gap of ladder d is split into on timeframe tf,

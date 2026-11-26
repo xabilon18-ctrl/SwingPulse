@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-26 YEARLY LADDER SPLITS 2 / 4 / 8. app.js v670, sync Worker. User: "10%
+yearly is divided by 2 on monthly and 4 on daily", then "8 on hour".
+- `LADDER_HOME_SUB.Y = { M: [2], D: [4], '1H': [8] }` (was 3 / 3 / 10 from the
+  same morning): a Yearly 10% gap shows every 5% on Monthly, 2.5% on Daily and
+  1.25% on 1H; each halves the one above.
+- Alerts: sync Worker `HOME_SUB.Y = [8]` (alert lines every 1.25%).
+- Tests: `tests/ladder_yearly_checks.cjs` (1 / 3 / 7 lines between neighbouring
+  Yearly lines), sync-worker ladder_alerts_test (81 levels a block).
+
 2026-11-26 DELETE NEVER REMOVES A DRAWING THE CHART DOES NOT SHOW. app.js v669 (same
 release as Yearly ladders below). User: "my Bitcoin percentage lines ... have
 disappeared. I didn't delete them", drawn on Monthly, same device.

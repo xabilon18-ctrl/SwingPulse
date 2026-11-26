@@ -53,14 +53,16 @@ assert.deepEqual(mrun.alerts.zabs.map(alertTitle), ['GOLD · 1H 2%', 'GOLD · 1H
 mrun = checkAlerts({ users: { zabs: mblob }, quotes: { q: { GOLD: { p: 110.2, h: 110.3, l: 109.8, t: 'c' } } }, state: mrun.state, now: t0 + 2 * 3600e3 });
 assert.ok(mrun.alerts.zabs.map(alertTitle).includes('GOLD · Monthly 10%'), 'its own 10% line alerts as Monthly: ' + mrun.alerts.zabs.map(alertTitle));
 
-// A ladder drawn on Yearly (home 'Y', 2026-11-26) chains down the same way:
-// 1H steps every 1%, its own lines named Yearly.
+// A ladder drawn on Yearly (home 'Y', 2026-11-26): its 1H steps split each
+// 10% gap in eight (every 1.25%), its own lines named Yearly.
 const yearly = { ...ladder, link: 'L3', home: 'Y' };
-assert.equal(ladderAlertLevels(yearly).length, 101, 'a Yearly block has 101 alert lines: every 1%');
+const yv = ladderAlertLevels(yearly);
+assert.equal(yv.length, 81, 'a Yearly block has 81 alert lines: eight per 10% gap');
+assert.deepEqual(yv.slice(0, 9).map(l => l.pct), [0, 1.25, 2.5, 3.75, 5, 6.25, 7.5, 8.75, 10]);
 const yblob = { channels: { GOLD: { Y: [yearly], M: [{ ...yearly }], D: [{ ...yearly }], '1H': [{ ...yearly }] } } };
 let yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 109.8, t: 'a' } } }, state: {}, now: t0 });
-yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 111.2, h: 111.3, l: 109.8, t: 'b' } } }, state: yrun.state, now: t0 + 3600e3 });
-assert.deepEqual(yrun.alerts.zabs.map(alertTitle), ['GOLD · Yearly 10%', 'GOLD · 1H 11%'], 'a Yearly ladder alerts once, its own line named Yearly: ' + yrun.alerts.zabs.map(alertTitle));
+yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 111.3, h: 111.4, l: 109.8, t: 'b' } } }, state: yrun.state, now: t0 + 3600e3 });
+assert.deepEqual(yrun.alerts.zabs.map(alertTitle), ['GOLD · Yearly 10%', 'GOLD · 1H 11.25%'], 'a Yearly ladder alerts once, its own line named Yearly: ' + yrun.alerts.zabs.map(alertTitle));
 
 // The Worker: /push/notify checks the alerts, stores them for the owner and
 // pushes ONLY the owner's phones; a failed run still reaches every phone;
