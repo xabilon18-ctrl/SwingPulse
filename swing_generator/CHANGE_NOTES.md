@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) SHARE CHECK IGNORES THE LIVE COUNTDOWN. The first main
+release of the live-bar marker (#275) stopped at "Verify the release-check
+preview": app_smoke's "#chartFull chart is unchanged by sharing it" compares
+the chart's SVG before and after a share, and on live data the 1H bar's
+countdown (`data-live-left`) had ticked in between. Production was not
+touched. The check now blanks that text in both copies, so only a change the
+share makes still fails it. Run locally against release-check before the
+re-release: app_smoke (SMOKE_LIVE) and chart_readability_browser pass.
+
 2026-11-27 LIVE BAR: NO FROZEN HALF-HOUR, AND A DOT + TIME LEFT. app.js v675,
 style.css v463. User: "price is updating but charts not", "I think i also
 need a way to see it"; picked A + G from mock-ups (pulsing dot on the live
