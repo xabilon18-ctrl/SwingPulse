@@ -1071,7 +1071,7 @@
   // A bar count as the reader's unit: days on Daily, TRADING time intraday
   // ("30m", "3h") — a 30m run of 4 bars is two hours, not four days.
   function barsLabel(n) {
-    const per = { '10m': 10, '15m': 15, '30m': 30, '1H': 60, '2H': 120, '12H': 720 }[timeframe];
+    const per = { '1H': 60 }[timeframe];
     if (timeframe === 'M') return `${n}mo`;
     if (timeframe === 'Y') return `${n}y`;
     if (!per) return `${n}d`;
@@ -4317,7 +4317,7 @@
       <div class="mh-section">
         <div class="mh-section-title">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-          Track Record on ${name}
+          Track Record on ${escText(name)}
         </div>
         <div class="ir-overall">
           <span><strong>${o.total_trades}</strong> trades</span>
@@ -5035,7 +5035,7 @@
               <div class="mh-name">${escText(item.instrument_name)}</div>
             </div>
             ${instName(item.instrument_name) ? `<div class="inst-fullname">${escText(instName(item.instrument_name))}</div>` : ''}
-            <div class="mh-group-lbl">${item.group || ''}${item.sector ? ' · ' + item.sector : ''}</div>
+            <div class="mh-group-lbl">${escText(item.group || '')}${item.sector ? ' · ' + escText(item.sector) : ''}</div>
             ${modalShapeHtml(item)}
           </div>
           <div class="mh-sig-wrap">
@@ -5853,8 +5853,8 @@
       return `<div class="notif-item" data-act="openModal" data-arg="${escText(item.instrument_name)}">
         <span class="notif-sig ${buy ? 'notif-buy' : 'notif-sell'}">${sig}</span>
         <div class="notif-body">
-          <span class="notif-name">${item.instrument_name}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
-          <span class="notif-detail">${item.confirmation_status || ''}</span>
+          <span class="notif-name">${escText(item.instrument_name)}${vol ? ' <span class="notif-vol">VOL</span>' : ''}</span>
+          <span class="notif-detail">${escText(item.confirmation_status || '')}</span>
         </div>
         <span class="notif-group">${escText(item.group || '')}</span>
       </div>`;
@@ -6118,7 +6118,7 @@
   // drawings controlled per time frame"): bars, ribbon and drawings each get an
   // opacity, applied through CSS custom properties so a slider moves without a
   // repaint. Device-only, like saved views.
-  const OV_TF_MS = { '10m': 10 * 60e3, '15m': 15 * 60e3, '30m': 30 * 60e3, '1H': 36e5, '2H': 2 * 36e5, '12H': 12 * 36e5, 'D': 864e5,
+  const OV_TF_MS = { '1H': 36e5, 'D': 864e5,
                      'M': 31 * 864e5, 'Y': 366 * 864e5 };
   const OV_PARTS = [['bars', 'Bars'], ['ma', 'MAs'], ['draw', 'Drawings']];
   // Grid contrast (user, 2026-09-26: "remember i need to be able to contrast the
@@ -6236,7 +6236,7 @@
     if (!OV_MA_WIDTHS.some(([v]) => v === g.w)) g.w = 0.6;
     return g;
   }
-  const OV_PROJ_DIV = { '10m': 'month', '15m': 'week', '30m': 'month', '1H': 'month', '2H': 'month', '12H': 'year', 'D': 'year' };
+  const OV_PROJ_DIV = { '1H': 'month', 'D': 'year' };
   // The instant the NEXT division after the one holding `t` ends (UTC).
   function ovProjEnd(t) {
     const d = new Date(t), Y = d.getUTCFullYear(), M = d.getUTCMonth();
@@ -7489,40 +7489,13 @@
     const n = bundle.c.length;
     const qv = name && reelStockView(bundle, name);
     if (qv) return qv.bars;
-    if (timeframe === '15m' || timeframe === '30m' || timeframe === '1H' || timeframe === '2H') {
-      // 30m (2026-09-29) opens exactly as the 15m it replaced did.
-      // 1H (2026-09-27) opens on a full calendar month on EVERY instrument —
-      // the month view it was brought back for — framed the 15m way.
-      // 15m OPENS on the user's own view (2026-09-25, read off their ETHUSD
-      // screenshot): REEL_15M_VIEW.days of bars filling the left part of the
-      // plot, REEL_15M_VIEW.future of the width left empty for the future.
-      if (bundle._defBars) return bundle._defBars;
-      const n = bundle.c.length;
-      if (n < 2) return n;
-      const bt = reelBarTimes(bundle);
-      // Stocks and cash indices (a session a day) open on a FULL CALENDAR
-      // MONTH (user: "for stock is full month view"); round-the-clock markets
-      // on 8⅓ days. Either way that is ~550-800 bars, so a candle is about as
-      // wide on both.
-      // 30m opens on ~6½ WEEKS (47 days) on EVERY instrument (user, 2026-09-30:
-      // "same thing to 30m" — STX/TDY/TEL screenshots, 13 Aug to 29 Sep).
-      const days = timeframe === '30m' ? 47
-        : timeframe === '15m' && reel15mIs24h(bundle) ? REEL_15M_VIEW.days : null;
-      const last = new Date(bt[n - 1]);
-      const cut = days != null ? bt[n - 1] - days * 86400000
-        // 1H opens on TWO calendar months (user, 2026-09-30: "let's do 1h like
-        // this" — FRA40/IT40/NETH25/SPAIN35/SW20 screenshots, ~29 Jul to 29 Sep).
-        // 2H (2026-10-01) opens on THREE calendar months, between the two.
-        : Date.UTC(last.getUTCFullYear(), last.getUTCMonth() - ({ '1H': 2, '2H': 3 }[timeframe] || 1), last.getUTCDate(),
-                   last.getUTCHours(), last.getUTCMinutes());
-      let k = n - 1;
-      while (k > 0 && bt[k - 1] >= cut) k--;
-      const data = Math.max(REEL_MIN_WINDOW_BARS, n - k);
-      return (bundle._defBars = data);   // no 24% future any more — see reelRightPadBars
-    }
-    if (timeframe === '10m') {
-      if (bundle._defBars) return bundle._defBars;
-      return (bundle._defBars = Math.min(n, reelBarsInSpan(bundle, 1, 0)));
+    if (timeframe === '1H') {
+      // 1H (2026-09-27) opens on TWO calendar months on EVERY instrument (user,
+      // 2026-09-30: "let's do 1h like this" — FRA40/IT40/NETH25/SPAIN35/SW20
+      // screenshots, ~29 Jul to 29 Sep). No future padding — see reelRightPadBars.
+      // The 15m/30m/2H views that shared this branch went with those timeframes.
+      if (!bundle._defBars) bundle._defBars = reelBarsInSpan(bundle, 2, 0);
+      return bundle._defBars;
     }
     return Math.min(n, REEL_DEFAULT_WINDOW_BARS);
   }
@@ -7698,15 +7671,9 @@
     if (z) return Math.max(REEL_MIN_WINDOW_BARS, Math.min(Math.round(z), reelMaxBars(bundle, name)));
     const w = reelRange();
     if (w && w < n) return w;
-    // 5m opens on a calendar span — see reelDefaultBars.
     return reelDefaultBars(bundle, name);
   }
 
-  // THE 15m OPENING VIEW (user, 2026-09-25: "use this scale to make every
-  // 15min chart i flip through the same ... only when i flip and open ... but
-  // still adjustable"), from the user's ETHUSD full-screen screenshot: 8⅓ days
-  // of bars (a full month on stocks, see reelDefaultBars), the last one ~76%
-  // of the way across (24% future).
   // PRICE fits the chart's OWN bars (a fixed 21% of price was "only right for
   // crypto" — a stock's week is a flat line in it): centred on the latest
   // close ("placed somewhat in the middle") and tall enough that the furthest
@@ -7714,15 +7681,6 @@
   // its bars across ~85% of the plot. Card and full screen each fit their own
   // plot. Only the view a chart OPENS on: any drag or zoom takes over, and
   // double-tap comes back to it.
-  const REEL_15M_VIEW = { days: 8 + 1 / 3, future: 0.24, fill: 0.85 };
-  // Round the clock (crypto, forex, futures: up to 48 thirty-minute bars a UTC
-  // day) or a session a day (stocks, cash indices: 10-17). Measured off the bundle.
-  function reel15mIs24h(bundle) {
-    if (bundle._is24h != null) return bundle._is24h;
-    const days = new Set(bundle.t.map(t => String(t).slice(0, 10))).size || 1;
-    // 15m: up to 96 a day on 24h markets, 20-34 on stocks; 30m half that.
-    return (bundle._is24h = bundle.t.length / days > (timeframe === '15m' ? 60 : 30));
-  }
   // Same relative frame on 1H and Daily, using each visible swing's actual
   // range rather than a fixed percentage that flattens quieter instruments.
   // `extra` ({lo, hi}) widens the fit to more than the bars — the overlay
@@ -9957,7 +9915,7 @@
       + `</div><span class="reel-time-grid-scope">${tf}</span><span class="reel-time-grid-note">Remembered · ${tf} only</span></div>`;
   }
 
-  const isIntradayTf = tf => ['10m', '15m', '30m', '1H', '2H', '12H'].includes(tf);
+  const isIntradayTf = tf => INTRADAY_TFS.has(tf);
   function reelEndStopLabel(ts) {
     // A Yearly bar is its year (a short history may have no grid line in view).
     if (timeframe === 'Y') return String(ts).slice(0, 4);

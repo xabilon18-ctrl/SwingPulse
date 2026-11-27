@@ -156,7 +156,14 @@ async function authorize(request, env, user, out = {}, { allowClaim = false } = 
   }
   await env.USER_DATA.put(failPrefix + Date.now().toString(36) + crypto.randomUUID().slice(0, 8), '1',
                           { expirationTtl: FAIL_WINDOW });
-  await env.USER_DATA.put(flagKey, '1', { expirationTtl: FAIL_WINDOW });
+  // The flag is written only when it is missing (2026-11-27 audit). Writing
+  // it on every wrong guess made each one cost two of the free tier's 1,000
+  // daily KV writes: MAX_FAILS guesses an hour against both users, from
+  // anyone, used up to 960 of them and left none for the owners' saves.
+  // A read is cheap (100,000 a day).
+  if (!(await env.USER_DATA.get(flagKey))) {
+    await env.USER_DATA.put(flagKey, '1', { expirationTtl: FAIL_WINDOW });
+  }
   return json({ error: 'bad_password' }, 401);
 }
 
