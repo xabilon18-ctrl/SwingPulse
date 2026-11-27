@@ -88,6 +88,11 @@ jobs:
           python3 tests/chart_cache_test.py
           node tests/power_group_test.cjs
           node tests/lock_widget_test.cjs
+          # In no workflow until 2026-11-27 (audit): the phone ladder alerts the
+          # sync Worker sends, and the chart readability rules (round levels,
+          # weights, MA slope colour).
+          node webapp/sync-worker/test/ladder_alerts_test.mjs
+          node tests/chart_readability_test.cjs
 
       # Does the FRONT END still agree with the payload's vocabulary? Catches
       # the class of bug where app.js tests a field for a word that field never

@@ -168,6 +168,7 @@ jobs:
           node tests/saved_work_test.cjs
           node webapp/sync-worker/test/auth_test.mjs
           node webapp/sync-worker/test/saved_work_test.mjs
+          node webapp/sync-worker/test/ladder_alerts_test.mjs
           # In no workflow until 2026-11-16 (audit): they passed, but nothing
           # would have said when they stopped passing.
           python3 tests/chart_cache_test.py
