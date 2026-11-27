@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // "Move %" on a ladder (user, 2026-11-06): the actual price move of each gap
 // between two Daily 10% lines, written in the middle of the gap, through the
@@ -7,14 +8,8 @@ const assert = require('node:assert/strict');
 // steps mean the move shrinks as price climbs; a reversed ladder measures
 // down from the upper line.
 module.exports = async function checkLadderMoves(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
   const openFull = async tf => {
-    await page.locator('#tfBtn' + tf).click();
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await page.locator('#chartFull .reel-chart svg').waitFor();
+    await openChart(page, name, tf);
   };
   const close = () => page.locator('#chartFull [data-act="chart-full-close"]').click();
   const moves = () => page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-draw .reel-ladder-move')]

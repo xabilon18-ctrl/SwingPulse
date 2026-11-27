@@ -26,11 +26,11 @@ module.exports = async browser => {
   });
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  if (await page.locator('#tfBtnM').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnM').click();
-  const chart = page.locator('#chartReel .reel-chart').first();
-  await page.locator('#chartReel .reel-chart .fm-mark').first().waitFor({ timeout: 60000 });
-  const count = sel => page.locator('#chartReel .reel-chart').first().locator(sel).count();
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
+  if (await page.locator('#tfBtnM').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnM').dispatchEvent('click');
+  const chart = page.locator('#chartFull .reel-chart').first();
+  await page.locator('#chartFull .reel-chart .fm-mark').first().waitFor({ timeout: 60000 });
+  const count = sel => page.locator('#chartFull .reel-chart').first().locator(sel).count();
   assert.equal(await count('.fm-mark.sell'), 1, 'one red marker for the quarter two funds sold');
   assert.equal(await count('.fm-mark.buy'), 1, 'one green marker for the quarter a fund bought');
   assert.equal(await chart.locator('.fm-n.sell').textContent(), '2', 'the red marker says two funds');
@@ -52,7 +52,7 @@ module.exports = async browser => {
   await pop.locator('[data-act="fm-close"]').click();
   await page.waitForFunction(() => !document.querySelector('.fm-pop'));
   assert.equal(await count('.fm-band'), 0, 'no shading once closed');
-  const grid = page.locator('#chartReel [data-act="grid-menu"]').first();
+  const grid = page.locator('#chartFull [data-act="grid-menu"]').first();
   const flip = async () => {
     await grid.click();
     const sw = page.locator('.reel-grid-menu [data-act="fm-set"]');
@@ -62,10 +62,10 @@ module.exports = async browser => {
     return on;
   };
   assert.equal(await flip(), 'false', 'the switch turns the markers off');
-  await page.waitForFunction(() => !document.querySelector('#chartReel .reel-chart .fm-mark'));
+  await page.waitForFunction(() => !document.querySelector('#chartFull .reel-chart .fm-mark'));
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /sp-overlay/.test(k)))).smart), 0, 'and it is remembered');
   assert.equal(await flip(), 'true', 'and back on');
-  await page.locator('#chartReel .reel-chart .fm-mark').first().waitFor();
+  await page.locator('#chartFull .reel-chart .fm-mark').first().waitFor();
   assert.deepEqual(errors, [], errors.join('\n'));
   await page.close();
   console.log('PASS: big-fund 13F markers on Monthly (red/green, tap pop-up, quarter shading, close, on/off switch remembered)');

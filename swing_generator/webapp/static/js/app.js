@@ -105,6 +105,7 @@
     || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const desktopChartMedia = window.matchMedia(isIPad ? '(min-width: 700px)' : '(min-width: 1024px)');
   const desktopChart = { active: false, expanded: false, collapsed: false, name: null, tf: null, frame: 0 };
+  let chartFullName = null;      // the chart open full screen / in the workspace (declared early: doTabSwitch reads it at start-up)
   let currentTab = 'watchlist';   // first visit opens on the Watchlist; after that, where you left off (resumePlace)
   let activeHmLegendFilter = ''; // legend click hard-filter: 'buy','sell','neutral','watch'
   // Gainers / losers sort on Charts and Watchlist (2026-10-27, user: "an option
@@ -3279,6 +3280,9 @@
     // ribbon periods, different signal row. Redraw it on the same instrument
     // rather than bouncing the reader to the top of 700 charts.
     if (currentTab === 'charts') { tabDirty.charts = false; reelRebuildKeepingPlace(reelAnchor); }
+    // Full screen is a separate overlay the rebuild does not touch: redraw it
+    // on the same instrument at the new timeframe (the workspace does its own).
+    if (currentTab === 'charts' && chartFullName && !desktopChart.active) chartFullOpen(chartFullName);
     // If an instrument modal is open, rebuild it so its signal data matches
     // the newly selected timeframe.
     if (openModalName && typeof overlay !== 'undefined' && overlay.classList.contains('open')) {
@@ -3341,16 +3345,28 @@
   const navTabs = document.querySelectorAll('.nav-tab');
   const panes = document.querySelectorAll('.tab-pane');
 
-  function doTabSwitch(btn) {
-    const tab = btn.dataset.tab;
+  // `to` is a tab name or its nav button. Charts has no button since
+  // 2026-11-27 (user: "get rid of the chart tab but not the charts"): it is
+  // the chart screen, opened from a list (openChartFor and friends) and left
+  // with its close button (chartExit), which goes back to where it came from.
+  function doTabSwitch(to) {
+    const tab = typeof to === 'string' ? to : to.dataset.tab;
+    const btn = typeof to === 'string' ? document.querySelector(`.nav-tab[data-tab="${CSS.escape(tab)}"]`) : to;
+    // Where the chart screen goes back to, and the page scroll there.
+    if (tab === 'charts' && currentTab !== 'charts') {
+      chartReturn = { tab: currentTab, y: Math.round(window.scrollY || 0), first: '' };
+    }
     if (tab !== 'charts' && desktopChart.active) desktopChartExit();
+    // Leaving the chart screen any other way than chartExit (a notification,
+    // a link) still takes full screen down with it.
+    if (tab !== 'charts' && chartFullName) chartFullClose();
     // Leaving the charts: send any held drawing changes now (see
     // syncPushDrawings) instead of waiting out the batch clock.
     if (currentTab === 'charts' && tab !== 'charts') syncFlushDrawings();
     // Coming back to Charts: every saved chart goes back to its saved view.
     const backToCharts = tab === 'charts' && currentTab !== 'charts' && reelAllBackToSaved();
     navTabs.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
     panes.forEach(p => p.classList.remove('active'));
     const paneEl = document.getElementById('pane-' + tab);
     if (!paneEl) { console.warn('No pane for tab:', tab); return; }
@@ -3387,9 +3403,17 @@
       // there), scrolled to the chart you were last looking at when the list
       // holds it (user, 2026-11-04: "when I go back, it goes back to that
       // sector that I'm currently working on").
+      // Closed on the chart it was opened on: exactly where the list was.
       const row = fromCharts && reelLastSeen && document.querySelector(`#wl2Body [data-wl-row="${CSS.escape(reelLastSeen)}"]`);
-      if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const back = fromCharts && chartBack;
+      if (back && back.y > 0 && back.first === reelLastSeen) chartScrollBack(back.y);
+      else if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
     } else wlLiveStop();
+    // Back from the chart screen on another tab (Market, Alerts): its scroll.
+    if (prevTab === 'charts' && tab !== 'watchlist' && tab !== 'charts' && chartBack && chartBack.tab === tab) {
+      chartScrollBack(chartBack.y);
+    }
+    if (prevTab === 'charts') chartBack = null;
     if (tab === 'charts') {
       // The reel takes the Watchlist's view when that has changed since it
       // last did (reelFollowWatchlist), starting from its first chart.
@@ -3401,6 +3425,10 @@
       } else renderChartsLazy();
       desktopChartSchedule(); if (backToCharts) reelRepaintVisible();
       wlLiveStart();   // the price beside each chart's name (chartPaintLive)
+      // Whoever opened the chart screen opens the chart on it in the same
+      // turn (openChartFor ...). If nothing did, show the one last looked
+      // at rather than an empty screen.
+      Promise.resolve().then(chartScreenEnsure);
     }
     if (tab === 'scanner') renderAlerts();
     if (tab === 'dashboard') renderMarketToday();
@@ -3409,6 +3437,36 @@
   navTabs.forEach(btn => {
     btn.addEventListener('click', e => { if (e.isTrusted) resumeUserMoved = true; doTabSwitch(btn); });
   });
+
+  // ── The chart screen (2026-11-27) ─────────────────────────────────────
+  // chartReturn: the tab (and its page scroll) the chart screen was opened
+  // from; `first` is the chart it opened on. chartBack holds it while the
+  // tab switch back puts the scroll back.
+  let chartReturn = null, chartBack = null;
+  function chartScrollBack(y) {
+    try { window.scrollTo({ top: y, behavior: 'instant' }); }
+    catch (_) { document.scrollingElement.scrollTop = y; }
+  }
+  function chartScreenEnsure() {
+    if (currentTab !== 'charts' || chartFullName || desktopChart.active) return;
+    const list = reel.list || [];
+    if (!list.length) { chartExit(); return; }
+    const name = list.some(d => d.instrument_name === reelLastSeen) ? reelLastSeen : list[0].instrument_name;
+    chartFullOpen(name);
+  }
+  // Close the chart screen: back to the tab it was opened from (the Watchlist
+  // when that is not known), on the same list, scrolled to the chart last
+  // looked at (user, 2026-11-27: "when i close the chart i should land back
+  // in the watchlist i am working on").
+  function chartExit() {
+    const name = chartFullName || desktopChart.name;
+    if (name) reelLastSeen = name;
+    chartBack = chartReturn || { tab: 'watchlist', y: 0, first: '' };
+    chartReturn = null;
+    let tab = chartBack.tab;
+    if (!tab || tab === 'charts' || !document.getElementById('pane-' + tab)) tab = 'watchlist';
+    doTabSwitch(tab);
+  }
 
   // ── Where you left off (user, 2026-11-26) ─────────────────────────────
   // The installed app "opens fresh and resets": iOS closes a backgrounded
@@ -3440,20 +3498,23 @@
     if (currentTab === 'charts') {
       s.chart = chartFullName || reelLastSeen || reelVisibleName() || '';
       s.tf = timeframe;
-      s.full = !!chartFullName && !desktopChart.active;
       if (reel.listSet) s.set = reel.listSet;
+      if (chartReturn && chartReturn.tab) s.back = chartReturn.tab;
     }
     try { localStorage.setItem(RESUME_KEY, JSON.stringify(s)); } catch (_) {}
   }
   async function resumePlace() {
     const s = resumeSaved;
     if (!s || resumeLinked || resumeUserMoved || typeof s.tab !== 'string') return;
-    const tabBtn = document.querySelector(`.nav-tab[data-tab="${CSS.escape(s.tab)}"]`);
-    if (!tabBtn) return;
+    // The chart screen has no tab button (2026-11-27): its pane is enough.
+    if (!document.getElementById('pane-' + s.tab)) return;
     if (s.tab === 'charts') {
       const name = typeof s.chart === 'string' ? s.chart : '';
-      if (!name || !allData.some(d => d.instrument_name === name)) { navigateToTab('charts'); return; }
+      if (!name || !allData.some(d => d.instrument_name === name)) { navigateToTab('watchlist'); return; }
       if (currentTab !== 'charts') navigateToTab('charts');
+      // Closing goes back to the tab it was opened from before the restart.
+      if (chartReturn && typeof s.back === 'string' && s.back !== 'charts'
+          && document.getElementById('pane-' + s.back)) chartReturn.tab = s.back;
       if (s.tf !== timeframe) setTimeframe(s.tf, name);   // ignores one Charts cannot show
       const set = s.set && Array.isArray(s.set.names) ? s.set : null;
       const names = set ? set.names.filter(n => typeof n === 'string') : [];
@@ -3461,7 +3522,6 @@
         label: String(set.label || ''), names, kind: String(set.kind || ''),
         full: !!set.full, move: String(set.move || ''),
       } : null);
-      if (s.full && !desktopChart.active) await chartFullOpen(name);
       return;
     }
     if (s.tab !== currentTab) navigateToTab(s.tab);
@@ -4573,6 +4633,8 @@
     reelHoldSet();
     navigateToTab('charts');
     buildReel();
+    // The first chart of what was tapped (the workspace picks its own).
+    if (!desktopChartEligible() && reel.list.length) chartFullGoOpen(reel.list[0].instrument_name);
   }
 
   // ── Tab navigation helper ─────────────────────────────────────────────
@@ -4582,6 +4644,7 @@
     if (tabName === 'flow')  tabName = 'dashboard';
     const btn = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     if (btn) btn.click();
+    else if (document.getElementById('pane-' + tabName)) doTabSwitch(tabName);
   }
 
 
@@ -5638,7 +5701,6 @@
   }
 
 
-  const EXPAND_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
   // Bookmark — "save this view". Filled (CSS .on) when the chart has one.
   const VIEW_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
@@ -5870,8 +5932,8 @@
     for (let i = 0; i < 40 && !allData.length; i++) await new Promise(r => setTimeout(r, 250));
     if (!allData.some(d => d.instrument_name === name)) return;
     const t = String(at || '').replace('T', ' ');
-    navigateToTab('charts');
-    let want = isTf(tf) && tabTfs('charts').includes(tf) ? tf : timeframe;
+    // Decided before the chart screen opens, so it opens once, on this chart.
+    let want = isTf(tf) && tabTfs('charts').includes(tf) ? tf : tfPrefs.charts;
     const ts = reelParseTs(t);
     if (want !== 'D' && isFinite(ts)) {
       const data = await reelLoadChunk(name, want);
@@ -5879,14 +5941,16 @@
       const t0 = b && b.t.length ? reelParseTs(b.t[0]) : NaN;
       if (!b || !(ts >= t0)) want = 'D';
     }
+    if (currentTab !== 'charts') {
+      tfPrefs.charts = want;
+      try { localStorage.setItem('swingpulse-chart-tf', want); } catch (_) {}
+      navigateToTab('charts');
+    }
     if (want !== timeframe) setTimeframe(want, name);
     reel.pan.delete(name); reel.back.delete(name);
     reel.lockY.delete(name);
     reel.tzoom.delete(name);
     openChartFor(name);
-    const card = [...document.querySelectorAll('#chartReel .reel-card')].find(c => c.dataset.name === name);
-    const host = card && card.querySelector('.reel-chart');
-    if (host && host._reelCtx) reelRepaint(host);
   }
 
   window.SP = { openModal, wlPick, navigateToTab, shareCard, showUserPicker, hideUserPicker, openTrackRecord, closeTrackAndOpen, togglePush, toggleNotifPanel,
@@ -6917,7 +6981,6 @@
   // timeframe first), and the pills say what they show.
   async function ovRefresh() {
     document.querySelectorAll('.reel-tf-tag').forEach(t => { t.innerHTML = reelTfTagHtml(); });
-    reelRepaintAll();
     const full = chartFullEl();
     const host = full && full.classList.contains('open') && full.querySelector('.reel-chart');
     if (host && host._reelCtx) {
@@ -10851,9 +10914,8 @@
     if (!isTf(tf) || tf === timeframe) return;
     const full = chartFullName;
     setTimeframe(tf, name);
-    // Full screen is a separate overlay the reel rebuild does not touch, so it
-    // is redrawn on the same instrument at the new timeframe.
-    if (full) chartFullOpen(full);
+    // applyTimeframe redraws full screen; the workspace is redrawn here.
+    if (full && desktopChart.active) chartFullOpen(full);
   }
 
   // ── Full-screen chart ────────────────────────────────────────────────
@@ -10865,7 +10927,6 @@
   // dispatch finds its chart host with closest('.reel-card'), and giving it the
   // same shape means the controls behave identically without a second copy.
 
-  let chartFullName = null;
   let chartFullPrevLock = undefined;   // the reader's own price scale, put back on close
   // Price span the full-screen view opened with. The baseline a zoom done
   // while expanded is measured against, so the ratio can be carried back to
@@ -10932,8 +10993,6 @@
       list.hidden = desktopChart.expanded;
       list.setAttribute('aria-expanded', String(!desktopChart.collapsed));
     }
-    const close = el.querySelector('[data-act="chart-full-close"]');
-    if (close) close.hidden = true;
   }
   function desktopChartToggleExpand(force) {
     if (!desktopChart.active) return;
@@ -10965,7 +11024,8 @@
     if (!desktopChartEligible() || !(reel.list || []).some(d => d.instrument_name === name)) return;
     desktopChart.name = name;
     desktopChartMount();
-    if (!force && chartFullName === name && desktopChart.tf === timeframe && chartFullEl()?.classList.contains('open')) {
+    const el = chartFullEl();
+    if (!force && chartFullName === name && desktopChart.tf === timeframe && el?.classList.contains('open') && el.classList.contains('desktop-chart')) {
       desktopChartHighlight(); return;
     }
     if (chartFullName) chartFullClose();
@@ -11017,11 +11077,11 @@
   }
   desktopChartMedia.addEventListener('change', () => {
     if (currentTab !== 'charts') return;
-    const name = chartFullName || desktopChart.name, expanded = desktopChart.expanded;
+    const name = chartFullName || desktopChart.name;
     if (!desktopChartMedia.matches) {
       desktopChartExit();
       reelRebuildKeepingPlace(name);
-      if (expanded && name) chartFullOpen(name);
+      if (name) chartFullOpen(name); else chartScreenEnsure();
     } else {
       desktopChart.name = name;
       desktopChartRender();
@@ -11058,6 +11118,8 @@
               || allData.find(d => d.instrument_name === name);
     if (!item) return;
     chartFullName = name;
+    if (chartReturn && !chartReturn.first) chartReturn.first = name;
+    if (currentTab === 'charts') reelLastSeen = name;   // where closing lands on the list
     if (desktopChartEligible()) { desktopChart.name = name; desktopChart.tf = timeframe; desktopChartMount(); }
 
     let el = chartFullEl();
@@ -11069,7 +11131,7 @@
         if (e.target.closest('[data-act]')) el.querySelectorAll('.cf-actions-more[open]').forEach(box => { box.open = false; });
         if (e.target.closest('[data-act="desktop-expand"]')) { desktopChartToggleExpand(); return; }
         if (e.target.closest('[data-act="desktop-list-toggle"]')) { desktopChartToggleList(); return; }
-        if (e.target.closest('[data-act="chart-full-close"]')) { chartFullClose(); return; }
+        if (e.target.closest('[data-act="chart-full-close"]')) { chartExit(); return; }
         const step = e.target.closest('[data-act="chart-full-step"]');
         if (step) { if (!step.disabled) chartFullStep(+step.dataset.dir); return; }
         const auto = e.target.closest('[data-act^="chart-auto-"]');
@@ -11360,7 +11422,7 @@
     // reads as broken rather than as "you have reached the end".
     const j = (i + dir + n) % n;
     if (j === i) return;                     // a one-chart list has nowhere to go
-    chartFullGoTo(list[j], dir);
+    chartFullGoTo(list[j]);
   }
   // Full screen on another chart of the list, the reel behind on its card.
   function chartFullGo(name) {
@@ -11368,27 +11430,11 @@
     const i = list.findIndex(d => d.instrument_name === chartFullName);
     const j = list.findIndex(d => d.instrument_name === name);
     if (j < 0 || j === i) return;
-    chartFullGoTo(list[j], j > i ? 1 : -1);
+    chartFullGoTo(list[j]);
   }
-  function chartFullGoTo(next, dir) {
+  function chartFullGoTo(next) {
     if (desktopChart.active) { desktopChartSelect(next.instrument_name); return; }
-    chartFullStepping = true;
-    try { chartFullClose(); } finally { chartFullStepping = false; }
-    // Put the reel behind on the SAME card. reelStepBy() scrolls exactly one
-    // screen, which is right for a neighbour and wrong for a wrap: stepping
-    // back from chart 1 would scroll off the top and leave the reel on the
-    // wrong instrument once full screen closes. Position by the card itself,
-    // the way reelRebuildKeepingPlace() and openChartFor() already do.
-    const host = document.getElementById('chartReel');
-    const el = host && host.querySelector(`.reel-card[data-name="${CSS.escape(next.instrument_name)}"]`);
-    if (host && el) {
-      host.scrollTop = el.offsetTop - host.offsetTop;
-      reelPaintVisible();
-      reelSyncNav();
-    } else {
-      reelStepBy(dir);                       // card not built yet — old behaviour
-    }
-    chartFullOpen(next.instrument_name);
+    chartFullGoOpen(next.instrument_name);
   }
 
   function chartFullClose() {
@@ -11542,76 +11588,6 @@
     reelSyncChannelButtons();
   }
 
-  // ── Card shell ───────────────────────────────────────────────────────
-
-
-  // The Daily main trend, its word alone ("Main ▲ Up") — the card's header
-  // line; the full-screen view keeps the whole sentence (reelTrendlineHtml).
-  function reelTrendMini(item) {
-    const c = SPTrendContext.context(item, channelTrend);
-    const color = c.main === 'UPTREND' ? 'up' : c.main === 'DOWNTREND' ? 'down' : 'flat';
-    return `<span class="sp-trend-context reel-trend-mini" data-main-trend="${c.main}" title="Daily main trend as of ${escText(c.asOf || 'unavailable')}"><b class="${color}">Main ${SPTrendContext.glyph(c.main)} ${SPTrendContext.label(c.main)}</b></span>`;
-  }
-
-  // THE CARD HEADER IS TWO LINES (user, 2026-11-04: "the instrument name is
-  // important, and what the full name is ... whether it's up or down ... the
-  // rest can be removed so that we can make the small minimized view of the
-  // chart a little bit bigger"): the ticker and its full name, then the Daily
-  // main trend and the day's move with the chart buttons beside them. Gone
-  // from the card: group, trend detail sentence, MA cluster badge, signal
-  // badge, "% alike", Near-MA badge and the bar/data time line. The
-  // full-screen view still carries all of it.
-  function reelCardHtml(item, i) {
-    const name  = item.instrument_name;
-    // Opened from a Watchlist sorted by gainers/losers over a longer period,
-    // the card shows that LIVE move (labelled), so the order matches the number.
-    const mvPer = (reel.listSet && reel.listSet.move) || '1d';
-    const mvRaw = mvPer !== '1d' ? liveMovePct(item, mvPer) : parseFloat(item.pct_1d);
-    const mv    = mvRaw == null ? NaN : mvRaw;
-    const mvTxt = isNaN(mv) ? '' : (mv >= 0 ? '+' : '') + mv.toFixed(2) + '%' + (mvPer !== '1d' ? ' ' + moveLbl(mvPer) : '');
-    const mvCls = isNaN(mv) ? '' : mv >= 0 ? 'up' : 'down';
-
-    // Draw mode belongs to the CHART, not to one drawing: a locked selection no
-    // longer switches the whole card out of it (2026-09-15, per-drawing props).
-    const _chEditing = reel.editing === name;
-    return `<article class="reel-card${_chEditing ? ' ch-editing' : ''}" data-name="${escText(name)}" data-idx="${i}">
-      <header class="reel-head">
-        <div class="reel-head-line">
-          <span class="reel-name">${name}</span>
-          ${instName(name) ? `<span class="reel-fullname">${escText(instName(name))}</span>` : ''}
-          ${chartHeadChangeHtml(name)}
-        </div>
-        <div class="reel-head-row">
-          <div class="reel-head-trend">
-            ${reelTrendMini(item)}
-            ${mvTxt ? `<span class="reel-move ${mvCls}">${mvTxt}</span>` : ''}
-          </div>
-          <div class="reel-head-meta">
-            ${chartBackBtnHtml()}
-            ${viewMarkBtns(name)}
-            ${wlMarkBtn(name, 'reel-share-btn', 'wl-pick')}
-            ${gridBtnHtml(name)}
-            <button class="reel-share-btn" data-act="chart-expand" data-name="${escText(name)}" aria-label="Full screen chart">${EXPAND_ICON}</button>
-            <button class="reel-share-btn" data-act="chart-share" data-name="${escText(name)}" aria-label="Share chart">${SHARE_ICON}</button>
-          </div>
-        </div>
-      </header>
-
-      <div class="reel-chart" id="reelChart-${i}">
-        <div class="reel-skel"><span></span></div>
-      </div>
-      ${reelToolbarHtml(name, _chEditing)}
-
-      <footer class="reel-foot">
-        <button class="reel-tf-tag" data-act="tf-menu" data-name="${escText(name)}" aria-haspopup="menu" aria-label="Change timeframe">${reelTfTagHtml()}</button>
-        <div class="reel-foot-actions">
-          ${reelCapsuleHtml(name)}
-          <button class="reel-act" data-act="detail" data-name="${escText(name)}">Details</button>
-        </div>
-      </footer>
-    </article>`;
-  }
-
   // ── Filtering ────────────────────────────────────────────────────────
 
   function reelFiltered() {
@@ -11693,72 +11669,6 @@
       if (!best || Math.abs(atr) < Math.abs(best.atr)) best = { key, atr, pct };
     }
     return best;
-  }
-
-  // ── Lazy paint ───────────────────────────────────────────────────────
-
-  // Build the real card in place of its shell (see buildReel). Returns the card.
-  function reelFill(idx) {
-    const host = document.getElementById('chartReel');
-    const el = host && host.children[idx];
-    if (!el || !el.classList.contains('reel-shell')) return el;
-    const item = reel.list[idx];
-    if (!item) return el;
-    const tpl = document.createElement('template');
-    tpl.innerHTML = reelCardHtml(item, idx).trim();
-    const card = tpl.content.firstElementChild;
-    if (!card) return el;
-    if (reel.io) { reel.io.unobserve(el); reel.io.observe(card); }
-    el.replaceWith(card);
-    return card;
-  }
-  // Back to an empty shell — for cards far from the screen. The card being
-  // drawn on, and the one open full screen, are never emptied.
-  const REEL_KEEP_BUILT = 12;
-  function reelEmpty(idx) {
-    const host = document.getElementById('chartReel');
-    const el = host && host.children[idx];
-    if (!el || el.classList.contains('reel-shell')) return;
-    const name = el.dataset.name;
-    if (reel.editing === name || chartFullName === name) return;
-    const shell = document.createElement('article');
-    shell.className = 'reel-card reel-shell';
-    shell.dataset.name = name;
-    shell.dataset.idx = String(idx);
-    if (reel.io) { reel.io.unobserve(el); reel.io.observe(shell); }
-    el.replaceWith(shell);
-    reel.drawn.delete(idx);
-  }
-
-  async function reelPaint(idx) {
-    const item = reel.list[idx];
-    if (!item) return;
-    reelFill(idx);
-    const host = document.getElementById('reelChart-' + idx);
-    const pkey = timeframe + OV_HTF_ALL.filter(([tf]) => ovHtfOn(tf)).map(([tf]) => '+' + tf).join('');
-    if (!host || host.dataset.painted === pkey) return;
-
-    const name = item.instrument_name;
-    const data = await reelLoadChunk(name);
-    await ovLoadHtf(name);
-
-    // The user may have scrolled far away, or flipped timeframe, while the
-    // chunk was in flight — re-check before touching the DOM.
-    const stillThere = document.getElementById('reelChart-' + idx);
-    if (!stillThere || reel.list[idx] !== item) return;
-
-    const bundle = data && data[name];
-    if (!bundle) {
-      stillThere.innerHTML = '<div class="reel-nodata">No chart data for this instrument</div>';
-      stillThere.dataset.painted = pkey;
-      return;
-    }
-    stillThere.innerHTML = reelChartSvg(bundle, item, stillThere);
-    reelMatchPhoneStrokes(stillThere);
-    stillThere.dataset.painted = pkey;
-    stillThere._reelItem = item;
-    reelWireChart(stillThere);
-    reel.drawn.add(idx);
   }
 
   // Redraw ONE chart in place — used by the pan drag and the channel drag,
@@ -13073,55 +12983,6 @@
     });
   }
 
-  function reelObserve() {
-    if (reel.io) reel.io.disconnect();
-    // rootMargin pre-paints roughly one screen either side, so a normal scroll
-    // never lands on a blank card.
-    reel.io = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        const idx = +e.target.dataset.idx;
-        if (e.isIntersecting) {
-          reelPaint(idx);
-        } else if (!e.target.classList.contains('reel-shell')
-                   && document.querySelectorAll('#chartReel .reel-card:not(.reel-shell)').length > REEL_KEEP_BUILT) {
-          // Keep the DOM light on an 800-card reel: cards well out of view go
-          // back to empty shells. The shell keeps its height, so scroll
-          // position holds.
-          reelEmpty(idx);
-        }
-      }
-    }, { root: null, rootMargin: '120% 0px', threshold: 0 });
-
-    document.querySelectorAll('#chartReel .reel-card').forEach(el => reel.io.observe(el));
-
-    // A saved chart that leaves the screen entirely comes back on its saved
-    // view (2026-11-03, see reelBackToSaved). No margin: this is the real
-    // screen edge, not the pre-paint band above. It is repainted while still
-    // out of sight, so the reader never sees it jump.
-    if (reel.backIo) reel.backIo.disconnect();
-    reel.backIo = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        // Not the chart open in full screen: the reader is looking at it there,
-        // whatever its card behind is doing (2026-11-03).
-        if (e.isIntersecting || e.target.dataset.name === chartFullName) continue;
-        if (!reelBackToSaved(e.target.dataset.name)) continue;
-        const h = e.target.querySelector('.reel-chart');
-        if (h && h._reelCtx && h._reelItem) reelRepaint(h);
-      }
-    }, { root: null, threshold: 0 });
-    document.querySelectorAll('#chartReel .reel-card').forEach(el => reel.backIo.observe(el));
-
-    // Belt and braces: if the observer is not delivering, scrolling still
-    // paints. Cheap — reelPaint early-exits on anything already drawn.
-    const host = document.getElementById('chartReel');
-    if (host && !host.dataset.scrollWired) {
-      host.dataset.scrollWired = '1';
-      host.addEventListener('scroll', debounce(reelPaintVisible, 120), { passive: true });
-      // A chart scrolled into view is priced now, not on the next 30s tick.
-      host.addEventListener('scroll', debounce(() => { if (livePrices.running) wlPollLive(); }, 700), { passive: true });
-    }
-  }
-
   // The pane is a fixed layer, so it needs the topbar's real height — which
   // moves with the notch inset and the tf-switch row. Measured, not assumed.
   function reelSyncTop() {
@@ -13146,123 +13007,33 @@
     if (count) {
       count.textContent = reel.list.length + (reel.list.length === 1 ? ' chart' : ' charts');
     }
-    if (desktopChartEligible()) {
-      host.innerHTML = '';
-      if (empty) empty.style.display = 'none';
-      reelSyncPills(); desktopChartSchedule();
-      return;
-    }
-    if (!reel.list.length) {
-      host.innerHTML = '';
-      if (empty) {
-        empty.textContent = reel.search ? 'No chart matches that search.' : 'Nothing to show here.';
-        empty.style.display = '';
-      }
-      reelSyncPills();      // the chips must show what emptied the list
-      reelSyncNav();
-      return;
-    }
+    // No cards since 2026-11-27 (user: "no more chart tabs with the
+    // minimized charts gone as well"): reel.list is the list the chart screen
+    // steps through, shown full screen on a phone and in the laptop / iPad
+    // workspace (desktopChartRender).
+    host.innerHTML = '';
     if (empty) empty.style.display = 'none';
-
-    // SHELLS, not cards (2026-09-25, "why is the app slow"): an empty article
-    // per instrument keeps the scroll height, the snap points and the
-    // data-name/data-idx every lookup uses; the ~85-element card is built only
-    // when it comes near the screen (reelFill) and emptied again far away.
-    // Building all ~800 up front was ~70k elements, 0.84s to open the tab and
-    // 0.6s of layout on every flip, measured.
-    host.innerHTML = reel.list.map((it, i) =>
-      `<article class="reel-card reel-shell" data-name="${escText(it.instrument_name)}" data-idx="${i}"></article>`).join('');
-    reelObserve();
-    // Paint what is already on screen directly. IntersectionObserver is
-    // supposed to deliver an initial callback for every observed target, but
-    // it is asynchronous and, in some engines, does not fire at all until the
-    // page is composited — which left the first card spinning forever. The
-    // observer still handles everything the reader scrolls to.
-    reelPaintVisible();
     reelSyncPills();
-    reelSyncNav();
-  }
-
-  // Drop every drawn chart and redraw what is on screen — for changes that
-  // alter the drawing but not the list (range, resize).
-  function reelRepaintAll() {
-    document.querySelectorAll('#chartReel .reel-chart[data-painted]').forEach(el => {
-      el.innerHTML = '<div class="reel-skel"><span></span></div>';
-      delete el.dataset.painted;
-    });
-    reel.drawn.clear();
-    reelPaintVisible();
-  }
-
-  // Paint every card intersecting the viewport right now.
-  function reelPaintVisible() {
-    document.querySelectorAll('#chartReel .reel-card').forEach(c => {
-      const r = c.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < window.innerHeight) {
-        reelPaint(+c.dataset.idx);
-        // A card painted before it had a size (pre-painted off screen) is still
-        // waiting for its saved price window — now it is on screen, apply it.
-        const host = document.getElementById('reelChart-' + c.dataset.idx);
-        if (host && host._reelCtx && viewPricePending.has(c.dataset.name)) reelRepaint(host);
-      }
-    });
+    if (desktopChartEligible()) desktopChartSchedule();
   }
 
   // Rebuild without losing the reader's place — used on timeframe flip, where
   // the instrument under your thumb should stay under your thumb.
-  function reelRebuildKeepingPlace(anchorName) {
-    const host = document.getElementById('chartReel');
-    if (!host || !host.children.length) { buildReel(); return; }
-    if (!anchorName) anchorName = reelVisibleName();
+  function reelRebuildKeepingPlace() {
+    // The chart in view is the one open (chartFullName); only the list behind
+    // it is rebuilt.
     buildReel();
-    if (!anchorName) return;
-    const el = host.querySelector(`.reel-card[data-name="${CSS.escape(anchorName)}"]`);
-    if (!el) return;
-    // Position the container directly rather than scrollIntoView, which can
-    // scroll the page around the fixed pane instead of the reel itself.
-    host.scrollTop = el.offsetTop - host.offsetTop;
-    reelPaintVisible();
-    reelSyncNav();
   }
 
   function reelVisibleName() {
-    if (desktopChart.active) return chartFullName || desktopChart.name;
-    const cards = document.querySelectorAll('#chartReel .reel-card');
-    for (const c of cards) {
-      const r = c.getBoundingClientRect();
-      if (r.bottom > window.innerHeight * 0.35) return c.dataset.name;
-    }
-    return null;
+    return chartFullName || desktopChart.name || null;
   }
 
   // ── Filter wiring ────────────────────────────────────────────────────
 
-  // ── Reel navigation: one chart at a time ──────────────────────────────────
-  // The reel is a snap container (scroll-snap-type: y mandatory) whose cards are
-  // each 100% of its height, so "next chart" is exactly one clientHeight. Done
-  // by scrolling rather than by index because the scroll position is the single
-  // source of truth — a flick, a wheel, a key and a tap all move the same thing,
-  // and nothing can drift out of sync with a separately tracked index.
+  // ── Stepping: the next / previous chart of the list ──────────────────
   function reelStepBy(dir) {
-    if (desktopChart.active) { chartFullStep(dir); return; }
-    const el = document.getElementById('chartReel');
-    if (!el || !el.clientHeight) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    el.scrollBy({ top: dir * el.clientHeight, behavior: reduce ? 'auto' : 'smooth' });
-    // Refresh the buttons and the counter once the scroll has settled rather
-    // than leaving it to the scroll event. Relying on that alone left `prev`
-    // stuck disabled after stepping down — one step forward and no way back —
-    // wherever those events are throttled or suppressed.
-    clearTimeout(reel._navSettle);
-    reel._navSettle = setTimeout(() => {
-      reelSyncNav();
-      // Paint whatever we landed on rather than waiting on the
-      // IntersectionObserver. Stepping is a scroll, so the observer
-      // normally handles it — but this is the same insurance the nav
-      // state needed, and an unpainted chart is the one failure a reader
-      // cannot work around. reelPaint no-ops on anything already drawn.
-      reelPaintVisible();
-    }, reduce ? 0 : 420);
+    if (desktopChart.active || chartFullName) chartFullStep(dir);
   }
 
   function reelSyncNav() {
@@ -13438,22 +13209,13 @@
     chartHist.jumping = true;
     const full = !!chartFullName;
     if (target.tf !== timeframe && isTf(target.tf)) setTimeframe(target.tf, target.name);
-    const host = document.getElementById('chartReel');
-    const find = () => host && host.querySelector(`.reel-card[data-name="${CSS.escape(target.name)}"]`);
-    let el = find();
-    // Filtered out since (a search, a pill): clear the filters rather than
-    // leave Back doing nothing.
-    if (!el) {
-      const rst = document.getElementById('reelReset');
-      if (rst) rst.click();
-      el = find();
+    // Filtered out since (a search, another list): every instrument rather
+    // than leave Back doing nothing.
+    if (!(reel.list || []).some(d => d.instrument_name === target.name)) {
+      reel.similarTo = ''; reel.listSet = null; reelFiltersOff(); buildReel(); reelSyncSimBar();
     }
-    if (host && el) {
-      host.scrollTop = el.offsetTop - host.offsetTop;
-      reelPaintVisible();
-      reelSyncNav();
-    }
-    if (full) chartFullOpen(target.name);
+    if (desktopChart.active) desktopChartSelect(target.name);
+    else if (full) chartFullGoOpen(target.name);
     // Settle straight onto the target as the current chart.
     chartHist.cur = null;
     chartHistNote(target.name);
@@ -13531,27 +13293,22 @@
     if (!reel.listSet) reelWlSig = null;
     buildReel();
     reelSyncSimBar();
-    const host = document.getElementById('chartReel');
-    const find = () => host && host.querySelector(`.reel-card[data-name="${CSS.escape(name)}"]`);
-    let el = find();
-    // A search left on the Charts tab can hide the very chart asked for, and
-    // the reel then sat on whatever was first — "Chart" on MSFT showed AVGO
-    // (2026-09-15). Clear it in that case, and only then; past that, every
-    // instrument.
-    const inReel = () => el || (desktopChartEligible() && reel.list.some(d => d.instrument_name === name));
-    if (!inReel() && reel.search) { reelSearchSet(''); buildReel(); el = find(); }
+    // A search left on the chart screen (laptop / iPad workspace) can hide
+    // the very chart asked for: clear it in that case, and only then; past
+    // that, every instrument.
+    const inReel = () => (reel.list || []).some(d => d.instrument_name === name);
+    if (!inReel() && reel.search) { reelSearchSet(''); buildReel(); }
     if (!inReel()) {
       reel.similarTo = ''; reel.listSet = null; reelFiltersOff(); buildReel(); reelSyncSimBar();
-      el = find();
     }
-    if (host && el) {
-      // Position the container itself; scrollIntoView can scroll the page
-      // around the fixed pane instead of the reel.
-      host.scrollTop = el.offsetTop - host.offsetTop;
-    }
-    reelPaintVisible();
-    reelSyncNav();
     if (desktopChartEligible()) desktopChartSelect(name);
+    else chartFullGoOpen(name);
+  }
+  // Full screen on `name`, replacing whichever chart is up.
+  function chartFullGoOpen(name) {
+    if (chartFullName === name && chartFullEl()?.classList.contains('open')) return;
+    if (chartFullName) { chartFullStepping = true; try { chartFullClose(); } finally { chartFullStepping = false; } }
+    chartFullOpen(name);
   }
 
   function showSimilarCharts(name) {
@@ -13563,10 +13320,9 @@
     closeModal();
     navigateToTab('charts');
     buildReel();
-    const el = document.getElementById('chartReel');
-    if (el) el.scrollTop = 0;          // start on the instrument you came from
     reelSyncSimBar();
-    reelSyncNav();
+    // Starts on the instrument you came from.
+    if (desktopChartEligible()) desktopChartSelect(name); else chartFullGoOpen(name);
   }
 
   function clearSimilarCharts() {
@@ -13628,15 +13384,7 @@
     }
 
     window.addEventListener('resize', debounce(() => {
-      if (currentTab !== 'charts') return;
-      reelSyncTop();
-      // Card height changed, so every drawn chart's viewBox aspect is stale.
-      document.querySelectorAll('#chartReel .reel-chart[data-painted]').forEach(el => {
-        el.innerHTML = '<div class="reel-skel"><span></span></div>';
-        delete el.dataset.painted;
-      });
-      reel.drawn.clear();
-      reelPaintVisible();
+      if (currentTab === 'charts') reelSyncTop();
     }, 250));
 
     // ONE dispatch for the card buttons, used by the reel AND by the full-screen
@@ -13680,7 +13428,6 @@
           reelGridMenuPlace(menu);
         });
         document.querySelectorAll('.reel-grid-btn').forEach(b => b.classList.toggle('on', gridBtnOn(b.dataset.name)));
-        reelRepaintAll();
         const full = chartFullEl();
         const fh = full && full.classList.contains('open') && full.querySelector('.reel-chart');
         if (fh && fh._reelCtx) reelRepaint(fh);

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -30,13 +31,7 @@ module.exports = async function checkLadderZeroScale(page) {
   }, seed);
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   if (await p.locator('.up-skip').isVisible()) await p.locator('.up-skip').click();
-  await p.locator('.nav-tab[data-tab="charts"]').click();
-  await p.locator('#reelSearch').fill('TEST');
-  await p.locator('#tfBtnD').click();
-  const card = p.locator('.reel-card[data-name="TEST"]');
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await p.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(p, 'TEST', 'D');
   await p.locator('#chartFull [data-act="channel"]').click();
   const ln = p.locator('#chartFull .reel-draw .reel-ladder').nth(3);
   const lb = await ln.boundingBox();

@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async browser => {
   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -50,27 +51,19 @@ module.exports = async browser => {
   }, sel);
   const waitText = (sel, text) => page.waitForFunction(([s, t]) => document.querySelector(s)?.textContent.trim() === t, [sel, text], { timeout: 5000 });
 
-  // The card: +2.50% (live 102.50 on 100), green, at the right of the name line.
-  const CARD = '#chartReel .reel-card:not(.reel-shell) .reel-head-line .reel-chg';
+  // Full screen: +2.50% (live 102.50 on 100), green, at the right end of
+  // the line under the ticker; repainted red when the market turns down.
+  // (The small chart cards that also showed it were removed on 2026-11-27.)
+  const FULL = '#chartFull.open .cf-sub .reel-chg';
   const callsBefore = liveCalls;
   livePrice = 102.5;
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator(CARD).first().waitFor();
-  await waitText(CARD, '+2.50%');
-  assert.ok(liveCalls > callsBefore, 'Charts polls the live feed');
-  let c = await look(CARD);
-  assert.equal(c.colour, c.up, 'up is green: ' + JSON.stringify(c));
-  assert.ok(c.rightGap <= 1 && c.left > c.lineLeft + c.lineWidth / 2, 'the change sits at the right end of the name line: ' + JSON.stringify(c));
-  assert.equal(await page.locator('#chartReel .reel-price').count(), 0, 'the price is gone from the card');
-  const hh = await page.locator('#chartReel .reel-card:not(.reel-shell) .reel-head').first().evaluate(h => h.getBoundingClientRect().height);
-  assert.ok(hh <= 60, 'the card header stays two short lines: ' + hh + 'px');
-
-  // Full screen: the right end of the line under the ticker, repainted red
-  // when the market turns down.
-  const FULL = '#chartFull.open .cf-sub .reel-chg';
-  await page.locator('#chartReel [data-act="chart-expand"]').first().click();
+  await openChart(page, 'TEST');
   await page.locator(FULL).waitFor();
-  assert.equal((await look(FULL)).text, '+2.50%');
+  await waitText(FULL, '+2.50%');
+  assert.ok(liveCalls > callsBefore, 'the chart screen polls the live feed');
+  let c = await look(FULL);
+  assert.equal(c.colour, c.up, 'up is green: ' + JSON.stringify(c));
+  assert.equal(await page.locator('#chartFull .reel-price').count(), 0, 'no price, the change only');
   livePrice = 99;
   await page.clock.fastForward(31000);   // the 30s clock
   await waitText(FULL, '−1.00%');
@@ -78,16 +71,13 @@ module.exports = async browser => {
   assert.equal(c.colour, c.down, 'down is red: ' + JSON.stringify(c));
   assert.ok(c.rightGap <= 1 && c.left > c.lineLeft + c.lineWidth / 2, 'the change sits at the right end in full screen: ' + JSON.stringify(c));
   await page.locator('[data-act="chart-full-close"]').click();
-  await waitText(CARD, '−1.00%');
-  c = await look(CARD);
-  assert.equal(c.colour, c.down, 'the card turned red too: ' + JSON.stringify(c));
 
   // Leaving Charts for a tab with no prices stops the polling.
   await page.locator('.nav-tab[data-tab="scanner"]').click();
   const stopped = liveCalls;
   await page.clock.fastForward(31000);
   await page.waitForTimeout(300);
-  assert.equal(liveCalls, stopped, 'no polling off the Watchlist and Charts');
+  assert.equal(liveCalls, stopped, 'no polling off the Watchlist and the chart screen');
   assert.deepEqual(errors, []);
   await page.context().close();
 };

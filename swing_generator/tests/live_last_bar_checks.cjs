@@ -4,7 +4,7 @@
 // with its last bar re-dated, its 1H bundle with a forming hour for the
 // current hour, a quote, and a live relay whose price the test sets.
 // Checks: today's open Daily bar and the forming hour follow the live price
-// (close, high, MA end points), on the card and in full screen; a price off
+// (close, high, MA end points), on the full-screen chart; a price off
 // the candle's level changes nothing; yesterday's closed bar takes no live
 // price, and today's bar opens from it when the run has not added it yet;
 // a live bar has its dot. Run from app_smoke.cjs with its browser, on pages of its own.
@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async browser => {
   const errors = [];
@@ -65,19 +66,17 @@ module.exports = async browser => {
     await page.clock.install();
     await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
-    if (await page.locator('#tfBtnD').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnD').click();
-    await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+    await openChart(page, 'TEST', 'D');
     return s;
   }
-  const lastBar = (page, sel = '#chartReel .reel-chart') => page.evaluate(sel => {
+  const lastBar = (page, sel = '#chartFull .reel-chart') => page.evaluate(sel => {
     const ctx = document.querySelector(sel)?._reelCtx, b = ctx && ctx.b;
     if (!b) return null;
     const n = b.t.length, pub = ctx.bundle && (ctx.bundle._base || ctx.bundle);
     return { t: b.t[n - 1], c: b.c[n - 1], h: b.h[n - 1], p: b.p, m: b.m.map(x => x[x.length - 1]),
       base: pub ? pub.c[pub.c.length - 1] : null };
   }, sel);
-  const waitClose = (page, v, sel = '#chartReel .reel-chart') => page.waitForFunction(([v, sel]) => {
+  const waitClose = (page, v, sel = '#chartFull .reel-chart') => page.waitForFunction(([v, sel]) => {
     const b = document.querySelector(sel)?._reelCtx?.b;
     return b && Math.abs(b.c[b.c.length - 1] - v) < 1e-9;
   }, [v, sel], { timeout: 10000 });
@@ -97,29 +96,25 @@ module.exports = async browser => {
     `MA${per} end point follows: ${after.m[i]} vs ${before.m[i]}`));
   assert.equal(after.base, c0, 'the published bundle is untouched');
   // A live bar carries the dot on its close (user, 2026-11-27, A + G).
-  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count() > 0, true, 'the live bar has its dot');
+  assert.equal(await s.page.locator('#chartFull .reel-live-mark').count() > 0, true, 'the live bar has its dot');
   // A price off the level (+60%) is not used: back to the published close.
   s.live = +(c0 * 1.6).toFixed(4);
   await poll(s.page);
   await waitClose(s.page, c0);
-  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count(), 0, 'a bar not following the price has no dot');
-  // The open full-screen chart follows it too.
-  s.live = up;
-  await poll(s.page);
-  await waitClose(s.page, up);
-  await s.page.locator('#chartReel [data-act="chart-expand"]').first().click();
-  await s.page.locator('#chartFull.open .reel-chart svg').waitFor({ timeout: 60000 });
+  assert.equal(await s.page.locator('#chartFull .reel-live-mark').count(), 0, 'a bar not following the price has no dot');
+  // Closed and opened again, it is still on the live price.
+  await s.page.locator('[data-act="chart-full-close"]').click();
   const down = +(c0 * 0.98).toFixed(4);
   s.live = down;
+  await openChart(s.page, 'TEST');
   await poll(s.page);
   await waitClose(s.page, down, '#chartFull .reel-chart');
   assert.equal((await lastBar(s.page, '#chartFull .reel-chart')).t, today);
-  await s.page.locator('[data-act="chart-full-close"]').click();
 
   // 1H: the forming hour follows the live price.
-  await s.page.locator('#tfBtn1H').click();
+  await s.page.locator('#tfBtn1H').dispatchEvent('click');
   await s.page.waitForFunction(() => {
-    const b = document.querySelector('#chartReel .reel-chart')?._reelCtx?.b;
+    const b = document.querySelector('#chartFull .reel-chart')?._reelCtx?.b;
     return b && b.forming && b.t[b.t.length - 1] === b.forming.t;
   }, null, { timeout: 60000 });
   const h1 = +(s.hourClose * 1.01).toFixed(4);
@@ -130,8 +125,8 @@ module.exports = async browser => {
   assert.equal(hb.t, fmtHour(hour), 'the forming hour is the last candle');
   assert.equal(hb.h, h1, 'its high widens to the live price');
   // ...with the dot, and no time-left box under the price tag (removed 2026-11-27).
-  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count() > 0, true, 'the forming hour has its dot');
-  assert.equal(await s.page.locator('#chartReel .reel-live-left, #chartReel [data-live-left]').count(), 0, 'no countdown under the price tag');
+  assert.equal(await s.page.locator('#chartFull .reel-live-mark').count() > 0, true, 'the forming hour has its dot');
+  assert.equal(await s.page.locator('#chartFull .reel-live-left, #chartFull [data-live-left]').count(), 0, 'no countdown under the price tag');
   await s.context.close();
 
   // DAILY, the last bar is yesterday's (closed) and the run has not added
@@ -145,7 +140,7 @@ module.exports = async browser => {
   const opened = await lastBar(s.page);
   assert.equal(opened.t, today, 'today\'s bar is started from the live price');
   assert.equal(opened.base, s.dailyClose, 'the published bundle is untouched');
-  const prior = await s.page.evaluate(() => { const b = document.querySelector('#chartReel .reel-chart')._reelCtx.b, n = b.t.length;
+  const prior = await s.page.evaluate(() => { const b = document.querySelector('#chartFull .reel-chart')._reelCtx.b, n = b.t.length;
     return { t: b.t[n - 2], c: b.c[n - 2], o: b.o[n - 1] }; });
   assert.deepEqual(prior, { t: yesterday, c: s.dailyClose, o: s.dailyClose }, 'a closed Daily bar keeps its close; the new one opens at it');
   await s.context.close();

@@ -25,10 +25,10 @@ async function enter(page, target=url) {
   // Live: the browser must run this build's files (live_page_build.cjs).
   if(live) await require('./live_page_build.cjs')(page, target, {reload: load});
   await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
 }
 async function ready(page, desktop=true) {
-  const selector = desktop ? '#chartFullHost' : '#chartReel .reel-chart';
+  const selector = desktop ? '#chartFullHost' : '#chartFull .reel-chart';
   await page.waitForFunction(s => {
     const h=document.querySelector(s);
     return h?._reelCtx && h.querySelector('svg') && h.clientHeight > 100;
@@ -131,7 +131,7 @@ async function layout(page) {
     await page.locator('#reelSearch').fill('');await ready(page);
     // Existing save action and drawing gestures, including restored absolute scale.
     if(!live) {
-      await page.locator('#tfBtn1H').click();await ready(page);
+      await page.locator('#tfBtn1H').dispatchEvent('click');await ready(page);
       const full=page.locator('#chartFull');
       await full.locator('[data-act="channel"]').click();
       await full.locator('.reel-toolbar [data-kind="ladder"]').click();
@@ -158,23 +158,29 @@ async function layout(page) {
       assert.equal(await page.locator('#desktopChartWorkspace').count(),0);
       assert.equal(await page.locator('#pane-charts > #reelFilterBar').count(),1);
       assert.equal(await page.locator('[data-act="desktop-expand"]').count(),0);
-      assert.ok(await page.locator('#chartReel .reel-card').count()>0);
+      assert.ok(await page.locator('#chartFull').count()>0);
+      // Narrower than the workspace, the chart goes full screen (no cards
+      // since 2026-11-27).
+      assert.equal(await page.locator('#chartFull.open:not(.desktop-chart)').count(),1,'full screen at '+width);
       if(width===390) {
-        await page.locator('#chartReel [data-act="chart-expand"]').first().click();
         await page.locator('#chartFullHost svg').waitFor();
         assert.equal(await page.locator('#chartFull').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
         await page.screenshot({path:output+'/phone-unchanged.png'});
-        await page.locator('#chartFull [data-act="chart-full-close"]').click();
       }
     }
     await page.setViewportSize({width:1366,height:768});await ready(page);
     await page.locator('.nav-tab[data-tab="watchlist"]').click();
     assert.equal(await page.locator('#desktopChartWorkspace').count(),0,'leave charts cleans up desktop workspace');
-    await page.locator('.nav-tab[data-tab="charts"]').click();await ready(page);
+    await page.evaluate(() => window.SP.navigateToTab('charts'));await ready(page);
+    // The workspace's close button goes back to the Watchlist (2026-11-27).
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    await page.waitForFunction(()=>document.querySelector('#pane-watchlist').classList.contains('active'));
+    assert.equal(await page.locator('#desktopChartWorkspace').count(),0,'close leaves no workspace');
+    assert.equal(await page.locator('.nav-tab.active').getAttribute('data-tab'),'watchlist','close lands on the Watchlist');
     assert.equal(errors.length,0,errors.join('\n'));
     assert.deepEqual(writes,[],'no production user-data writes');
     fs.writeFileSync(output+'/layout.json',JSON.stringify(report,null,2));
-    console.log('PASS desktop layout, sizes, collapse, expand/restore, timeframes, filters, phone transitions, production-write isolation');
+    console.log('PASS desktop layout, sizes, collapse, expand/restore, timeframes, filters, phone transitions, close to the Watchlist, production-write isolation');
   } catch(error) {
     await page.screenshot({path:output+'/failure.png'}).catch(()=>{});
     console.error('Page errors:', errors);

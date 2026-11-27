@@ -35,14 +35,17 @@ async function open(browser, {ua, touch, width, height}) {
   await page.goto(url, {waitUntil: 'domcontentloaded'});
   await page.locator('.up-skip').waitFor({timeout: 60000});
   await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
+  // The chart opens from the Watchlist (no Charts tab since 2026-11-27).
+  await page.locator('#wl2Search').fill('TEST');
+  await page.locator('#wl2Body .wl2-row[data-wl-row="TEST"]').click();
+  await page.locator('.wl2-sheet [data-wl-act="chart"]').click();
   // Chart.js comes from a CDN; a sandbox without it raises this one error,
   // which has nothing to do with the layout under test.
   const pageErrors = () => errors.filter(e => !(cdnBlocked && /Chart is not defined/.test(e)));
   return {context, page, pageErrors};
 }
 async function ready(page, desktop) {
-  const selector = desktop ? '#chartFullHost' : '#chartReel .reel-chart';
+  const selector = desktop ? '#chartFullHost' : '#chartFull .reel-chart';
   await page.waitForFunction(s => {
     const h = document.querySelector(s);
     return h?._reelCtx && h.querySelector('svg') && h.clientHeight > 100;
@@ -72,7 +75,17 @@ async function assertWorkspace(page, label) {
 async function assertPhone(page, label) {
   await ready(page, false);
   assert.equal(await page.locator('#desktopChartWorkspace').count(), 0, label + ': no workspace');
-  assert.ok(await page.locator('#chartReel .reel-card').count() > 0, label + ': phone chart cards');
+  assert.ok(await page.locator('#chartFull.open:not(.desktop-chart)').count() > 0, label + ': phone full-screen chart');
+}
+// The close button goes back to the Watchlist, in either layout.
+async function assertCloses(page, label) {
+  const close = page.locator('#chartFull [data-act="chart-full-close"]');
+  assert.ok(await close.isVisible(), label + ': a close button');
+  await close.click();
+  await page.waitForFunction(() => document.querySelector('#pane-watchlist').classList.contains('active'));
+  assert.equal(await page.locator('#desktopChartWorkspace').count(), 0, label + ': closed, no workspace left');
+  assert.equal(await page.locator('#chartFull.open').count(), 0, label + ': closed, no chart left open');
+  assert.equal(await page.locator('.nav-tab.active').getAttribute('data-tab'), 'watchlist', label + ': back on the Watchlist');
 }
 
 (async () => {
@@ -86,6 +99,7 @@ async function assertPhone(page, label) {
         const label = `${name} ${width}x${height}`;
         report.push({label, ...(await assertWorkspace(page, label))});
         if (width === 820 && ua === MAC_UA) await page.screenshot({path: output + '/ipad-portrait.png'});
+        await assertCloses(page, label);
         assert.deepEqual(pageErrors(), [], label + ': page errors');
         await context.close();
       }
@@ -107,6 +121,7 @@ async function assertPhone(page, label) {
     for (const [ua, touch, width, height, label] of [[MAC_UA, 0, 820, 1180, 'Mac window 820'], [PHONE_UA, 5, 430, 932, 'iPhone']]) {
       const {context, page, pageErrors} = await open(browser, {ua, touch, width, height});
       await assertPhone(page, label);
+      await assertCloses(page, label);
       assert.deepEqual(pageErrors(), [], label + ': page errors');
       await context.close();
     }
@@ -116,6 +131,6 @@ async function assertPhone(page, label) {
       await context.close();
     }
     fs.writeFileSync(output + '/layout.json', JSON.stringify(report, null, 2));
-    console.log('PASS iPad laptop workspace at every full-screen size; Slide Over, Mac windows and phones unchanged');
+    console.log('PASS iPad laptop workspace at every full-screen size, opened from the Watchlist and closed back to it; Slide Over, Mac windows and phones full screen');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

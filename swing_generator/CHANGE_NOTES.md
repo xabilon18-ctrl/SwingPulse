@@ -7,6 +7,41 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) CHARTS TAB REMOVED; CHARTS OPEN FROM THE LIST. app.js v678,
+style.css v465. User: "It's time to get rid of the chart tab but not the
+charts ... the minimized charts gone as well. So from the watchlist i should
+be able to open the full screen chart and when i close the chart i should
+land back in the watchlist i am working on." iPad / laptop: "we keep the side
+by side".
+- No Charts button in the bottom nav; no reel of small chart cards. 'charts'
+  stays as an internal screen (`#pane-charts`, `currentTab === 'charts'`): it
+  is entered only through `openChartFor` and friends (Watchlist "Open chart
+  in app", Market, Alerts, Active sectors, details, notification links,
+  resume) and shows the chart full screen on a phone (`#chartFull`) or in the
+  laptop / iPad workspace (`desktopChart*`, unchanged layout).
+- Close (`chart-full-close`, now also shown in the workspace) runs
+  `chartExit`: back to the tab the chart was opened from (`chartReturn`,
+  default Watchlist), on the same list and filters; the page scroll is put
+  back exactly when closed on the chart it opened on, otherwise the row of
+  the chart last looked at is centred. The resume save keeps that tab
+  (`s.back`).
+- `buildReel` builds only `reel.list` (what ‹ › step through). Removed:
+  `reelCardHtml`, `reelTrendMini`, `reelFill`, `reelEmpty`, `reelPaint`,
+  `reelObserve`, `reelPaintVisible`, `reelRepaintAll`, `EXPAND_ICON`,
+  `#reelNav` / `#reelEmpty`. `navigateToTab` / `doTabSwitch` accept a tab
+  name with no button. A timeframe change redraws the open full screen in
+  `applyTimeframe`. `chartFullName` is declared at the top (start-up reads it).
+- Fixed on the way (iPad test): rotating from Slide Over back to full width
+  left the chart full screen over the workspace (`desktopChartSelect` now
+  also checks `desktop-chart`).
+- Tests: `tests/chart_open.cjs` opens a chart as the list does; every check
+  that opened a card and pressed expand now opens the chart directly.
+  charts_row_checks / search_all_checks check opening from a filtered list
+  or search and closing back to it; ipad_workspace / desktop_workspace check
+  the workspace opens from the Watchlist and its close returns there;
+  resume_place_checks: closing after a resume returns to the Watchlist.
+  Card-only assertions (card header, card vs full-screen framing) removed.
+
 2026-11-27 CURRENCY LADDER SET. app.js v677, sync Worker. User: "I need a different
 ladder for anything currency related. Fx and their indices ... 10% yearly - M/3,
 D/6, H/12 ... when i ask you to adjust the ladder you must ask which one".

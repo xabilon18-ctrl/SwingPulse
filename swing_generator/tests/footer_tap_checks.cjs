@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async browser => {
   const dataDir = path.resolve(__dirname, '../webapp/publish/browser-data');
@@ -36,8 +37,8 @@ module.exports = async browser => {
     });
     await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
-    await page.locator('#chartReel [data-act="chart-expand"]').first().click();
+    await page.evaluate(() => window.SP.navigateToTab('charts'));
+    await openChart(page, 'TEST');
     await page.locator('#chartFull.open .reel-foot .cf-pos').waitFor();
 
     const row = await page.evaluate(() => {

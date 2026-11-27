@@ -23,8 +23,8 @@ module.exports = async browser => {
   });
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  const chart = page.locator('#chartReel .reel-chart').first();
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
+  const chart = page.locator('#chartFull .reel-chart').first();
   await chart.locator('svg').waitFor({ timeout: 60000 });
 
   // What is on screen: the window, how many of its slots are blank before the
@@ -60,7 +60,7 @@ module.exports = async browser => {
 
   // Every chart timeframe (no Weekly since 2026-11-16).
   for (const tf of ['1H', 'D', 'M']) {
-    await page.locator(`#tfBtn${tf}`).click();
+    await page.locator(`#tfBtn${tf}`).dispatchEvent('click');
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
     await chart.locator('svg').waitFor({ timeout: 60000 });
     await page.waitForTimeout(300);
@@ -78,14 +78,14 @@ module.exports = async browser => {
 
     // A view saved while scrolled back opens scrolled back: leave the
     // timeframe and return, and the same blank is in front of the bars.
-    await page.locator('#chartReel .reel-view-btn[data-act="chart-view-save"]').first().click();
+    await page.locator('#chartFull .reel-view-btn[data-act="chart-view-save"]').first().click();
     const other = tf === 'D' ? 'M' : 'D';
-    await page.locator(`#tfBtn${other}`).click();
+    await page.locator(`#tfBtn${other}`).dispatchEvent('click');
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${other}`);
-    await page.locator(`#tfBtn${tf}`).click();
+    await page.locator(`#tfBtn${tf}`).dispatchEvent('click');
     await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
     await chart.locator('svg').waitFor({ timeout: 60000 });
-    await page.waitForFunction(w => { const c = document.querySelector('#chartReel .reel-chart')._reelCtx; return c && c.win === w; }, back.win);
+    await page.waitForFunction(w => { const c = document.querySelector('#chartFull .reel-chart')._reelCtx; return c && c.win === w; }, back.win);
     const again = await read();
     assert.ok(Math.abs(again.lead - back.lead) <= 1, `${tf} saved view reopens scrolled back (${again.lead} of ${back.lead} blank slots)`);
 

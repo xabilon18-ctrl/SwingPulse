@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // A ladder drawn on Monthly also shows on Daily, where each Monthly 10% gap
 // is split into three (user, 2026-11-13: "Daily goes into monthly 10% 3
@@ -8,14 +9,8 @@ const assert = require('node:assert/strict');
 // replaced by ten equal parts per Monthly 10% gap ("Let's do 1h by 10"); the
 // thirds do not line up with tenths, so 1H does not show them. It is not a Daily ladder: its own 10% gaps are never split straight into five.
 module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
   const openFull = async tf => {
-    await page.evaluate(t => document.getElementById('tfBtn' + t).click(), tf);
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await page.locator('#chartFull .reel-chart svg').waitFor();
+    await openChart(page, name, tf);
   };
   const close = () => page.locator('#chartFull [data-act="chart-full-close"]').click();
   const saved = tf => page.evaluate(([n, t]) => {
@@ -107,8 +102,6 @@ module.exports = async function checkLadderMonthlySub(page, name = 'TEST') {
   }, [name, win]);
   await page.reload({ waitUntil: 'networkidle' });
   if (await page.locator('.up-skip').isVisible().catch(() => false)) await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
   await openFull('1H');
   const tiers = () => page.evaluate(() => {
     const y = e => +e.getAttribute('y1');

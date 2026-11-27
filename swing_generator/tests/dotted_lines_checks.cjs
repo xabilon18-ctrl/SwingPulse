@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // Close-set dots (user, 2026-11-07, with a TradingView screenshot: "The dots
 // look properly close together and tiny"; then "I only just asked for the
@@ -8,11 +9,6 @@ const assert = require('node:assert/strict');
 // that on screen, whatever the chart's size, with square ends, and must keep
 // the thickness it had before (viewBox units: timeline 1, last-price 1.6).
 module.exports = async function checkDottedLines(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
-  await page.locator('#tfBtnD').click();
-  await card.locator('.reel-chart svg').waitFor();
   const measure = scope => page.evaluate(sel => {
     const svg = document.querySelector(sel);
     const k = svg.getScreenCTM().a;                     // CSS px per viewBox unit
@@ -32,10 +28,8 @@ module.exports = async function checkDottedLines(page, name = 'TEST') {
       assert.ok(Math.abs(v.dot - 1.2) < 0.05 && Math.abs(v.gap - 2) < 0.05 && v.cap === 'butt' && Math.abs(v.wUnits - was[k]) < 1e-6,
         where + ' ' + k + ': 1.2 dot, 2 gap, square ends, thickness unchanged: ' + JSON.stringify(v));
   };
-  check('card', await measure('.reel-card[data-name="' + name + '"] .reel-chart svg'));
-  await card.locator('[data-act="chart-expand"]').click();
-  await page.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(page, name, 'D');
   check('full screen', await measure('#chartFull .reel-chart svg'));
   await page.locator('#chartFull [data-act="chart-full-close"]').click();
-  console.log('PASS: dotted lines are close-set (1.2 dot, 2 gap, thickness unchanged) on the card and full screen');
+  console.log('PASS: dotted lines are close-set (1.2 dot, 2 gap, thickness unchanged) on the full-screen chart');
 };

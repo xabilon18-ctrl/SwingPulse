@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async browser => {
   const errors = [];
@@ -61,13 +62,13 @@ module.exports = async browser => {
   await page.clock.install();
   await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#tfBtnM').click();
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
+  await page.locator('#tfBtnM').dispatchEvent('click');
   await page.waitForFunction(() => document.querySelector('#tfBtnM').getAttribute('aria-selected') === 'true');
-  await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+  await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
 
   const tail = () => page.evaluate(() => {
-    const ctx = document.querySelector('#chartReel .reel-chart')?._reelCtx, b = ctx && ctx.bundle;
+    const ctx = document.querySelector('#chartFull .reel-chart')?._reelCtx, b = ctx && ctx.bundle;
     if (!b) return null;
     const k = b.t.length;
     return { t: b.t.slice(-2), c: b.c.slice(-2), h: b.h[k - 1], l: b.l[k - 1], o: b.o[k - 1],
@@ -84,7 +85,7 @@ module.exports = async browser => {
   s.live = up;
   await page.clock.fastForward(31000);
   await page.waitForFunction(v => {
-    const b = document.querySelector('#chartReel .reel-chart')?._reelCtx?.bundle;
+    const b = document.querySelector('#chartFull .reel-chart')?._reelCtx?.bundle;
     return b && Math.abs(b.c[b.c.length - 1] - v) < 1e-9;
   }, up, { timeout: 10000 });
   const t1 = await tail();
@@ -92,7 +93,7 @@ module.exports = async browser => {
   t1.p.forEach((per, i) => assert.ok(t1.m[i] > t0.m[i], `MA${per} end point follows the live price up`));
 
   // Full screen reads the last bar as the month in progress.
-  await page.locator('#chartReel [data-act="chart-expand"]').first().click();
+  await openChart(page, 'TEST');
   await page.locator('#chartFull.open .reel-chart svg').waitFor({ timeout: 60000 });
   await page.locator('#chartFull .cf-info summary').click();
   await page.waitForFunction(() => /forming/i.test(document.querySelector('#chartFull .cf-info')?.innerText || ''), null, { timeout: 10000 });

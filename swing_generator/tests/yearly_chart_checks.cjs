@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async browser => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -36,7 +37,7 @@ module.exports = async browser => {
   const open = async () => {
     await page.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
+    await page.evaluate(() => window.SP.navigateToTab('charts'));
   };
   await page.clock.install();
   await open();
@@ -46,9 +47,9 @@ module.exports = async browser => {
   // Its own chunk map, like Monthly.
   const index = page.waitForResponse(r => r.url().includes('/ma500/chart/Y/index.json'));
   const chunk = page.waitForResponse(r => r.url().includes('/ma500/chart/Y/0.json'));
-  await page.locator('#tfBtnY').click();
+  await page.locator('#tfBtnY').dispatchEvent('click');
   await Promise.all([index, chunk]);
-  const host = page.locator('#chartReel .reel-chart').first();
+  const host = page.locator('#chartFull .reel-chart').first();
   await host.locator('svg').waitFor({ timeout: 60000 });
   const read = () => host.evaluate(h => {
     const b = h._reelCtx.b, svg = h.querySelector('svg'), n = b.t.length;
@@ -59,7 +60,7 @@ module.exports = async browser => {
   });
   // The live price (140, inside the band around the published close 130) is in.
   await page.waitForFunction(() => {
-    const h = document.querySelector('#chartReel .reel-chart'), b = h && h._reelCtx && h._reelCtx.b;
+    const h = document.querySelector('#chartFull .reel-chart'), b = h && h._reelCtx && h._reelCtx.b;
     return b && b.c[b.c.length - 1] === 140;
   }, null, { timeout: 10000 });
   let chart = await read();
@@ -82,19 +83,19 @@ module.exports = async browser => {
   livePrice = 400;
   await page.clock.fastForward(31000);
   await page.waitForFunction(() => {
-    const b = document.querySelector('#chartReel .reel-chart')._reelCtx.b;
+    const b = document.querySelector('#chartFull .reel-chart')._reelCtx.b;
     return b.c[b.c.length - 1] === 130;
   }, null, { timeout: 10000 });
   assert.equal((await read()).lastHigh, 131, 'its published high, not 400');
   livePrice = 125;
   await page.clock.fastForward(31000);
   await page.waitForFunction(() => {
-    const b = document.querySelector('#chartReel .reel-chart')._reelCtx.b;
+    const b = document.querySelector('#chartFull .reel-chart')._reelCtx.b;
     return b.c[b.c.length - 1] === 125;
   }, null, { timeout: 10000 });
 
   // The Grid menu: 10Y and 20Y alone, 10 on; 20 is saved across a reload.
-  const gridBtn = page.locator('#chartReel [data-act="grid-menu"]').first();
+  const gridBtn = page.locator('#chartFull [data-act="grid-menu"]').first();
   const codes = async () => {
     await gridBtn.click();
     await page.locator('.reel-grid-menu').waitFor();
@@ -106,22 +107,22 @@ module.exports = async browser => {
   await page.waitForTimeout(300);
   if (await page.locator('.reel-grid-menu').count()) await gridBtn.click();
   await open();
-  if (await page.locator('#tfBtnY').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnY').click();
-  await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+  if (await page.locator('#tfBtnY').getAttribute('aria-selected') !== 'true') await page.locator('#tfBtnY').dispatchEvent('click');
+  await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
   assert.deepEqual(await codes(), ['Y10', 'Y20*'], 'the Yearly grid choice is saved across a reload');
   await gridBtn.click();
   // Monthly keeps all of its own grids, 10Y and 20Y included.
-  await page.locator('#tfBtnM').click();
-  await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+  await page.locator('#tfBtnM').dispatchEvent('click');
+  await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
   const monthly = await codes();
   assert.ok(['Y10', 'Y20'].every(c => monthly.some(m => m.replace(/\*$/, '') === c)) && monthly.some(c => /^T\*?$/.test(c)),
     'Monthly grids unchanged: ' + monthly);
   await gridBtn.click();
-  await page.locator('#tfBtnY').click();
-  await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+  await page.locator('#tfBtnY').dispatchEvent('click');
+  await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
 
   // Full screen: the last bar reads as the forming year, and ‹ › step M <- Y -> 1H.
-  await page.locator('#chartReel [data-act="chart-expand"]').first().click();
+  await openChart(page, 'TEST');
   await page.locator('#chartFull.open .reel-chart svg').waitFor({ timeout: 60000 });
   await page.locator('#chartFull .cf-info summary').click();
   await page.waitForFunction(() => /forming/i.test(document.querySelector('#chartFull .cf-info')?.innerText || ''), null, { timeout: 10000 });

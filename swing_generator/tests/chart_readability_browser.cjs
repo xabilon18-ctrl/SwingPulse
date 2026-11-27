@@ -28,9 +28,10 @@ async function open(page,width){
   // Live: the browser must run this build's files (live_page_build.cjs).
   if(live)await require('./live_page_build.cjs')(page,url,{reload:load});
   await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#tfBtn1H').click();
-  if(width<1024){await page.locator('#chartReel .reel-native-ma').first().waitFor({timeout:60000});await page.locator('#chartReel [data-act="chart-expand"]').first().click();}
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
+  await page.locator('#tfBtn1H').dispatchEvent('click');
+  // The chart screen: full screen below 1024px, the workspace above (no
+  // Charts tab or small cards since 2026-11-27).
   await ready(page);
 }
 async function menu(page,on=true){
@@ -161,18 +162,18 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
     assert.equal(await widthOf(page,'.reel-native-ma'),native[0]);assert.equal(await widthOf(page,'.reel-ladder:not(.reel-ladder-key)'),weights.ladder[0]);
     await page.keyboard.press('Escape');await ready(page);
    }else{
+    // Closed and opened again (it reopens on the chart last looked at).
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
-    assert.equal(await widthOf(page,'.reel-native-ma','#chartReel'),native[0]);
-    await page.locator('#chartReel [data-act="chart-expand"]').first().click();await ready(page);
+    await page.evaluate(() => window.SP.navigateToTab('charts'));await ready(page);
    }
    assert.deepEqual(await frame(page),before,'saved price range and dates survive settings/expand');
    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),saved);
    await page.reload({waitUntil:'domcontentloaded'});
    if(await page.locator('.up-skip').isVisible())await page.locator('.up-skip').click();
    // The app reopens where it was left (2026-11-26): on a phone that is this
-   // chart, full screen, without a tap; on a desktop, the Charts tab.
+   // chart, full screen, without a tap; on a desktop, the workspace.
    if(w<1024)await page.locator('#chartFull.open').waitFor({timeout:60000});
-   else await page.locator('.nav-tab[data-tab="charts"]').click();
+   else await page.evaluate(() => window.SP.navigateToTab('charts'));
    await ready(page);
    assert.equal(await widthOf(page,'.reel-native-ma'),native[0],'native preference restored');
    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-channels')),channels,'drawing weights restored without migration');
@@ -181,6 +182,6 @@ function noOverlap(a){for(let i=1;i<a.texts.length;i++)assert.ok(a.texts[i].top>
    await context.close();
   }
   fs.writeFileSync(out+'/checks.json',JSON.stringify(report,null,2));
-  console.log('PASS universal weights, native/overlay/projection, all 10 tools, hit targets, saved settings/drawings, price framing, expanded/card views and adaptive axis');
+  console.log('PASS universal weights, native/overlay/projection, all 10 tools, hit targets, saved settings/drawings, price framing, expanded and reopened views and adaptive axis');
  }catch(e){if(currentPage&&!currentPage.isClosed()){await currentPage.screenshot({path:out+'/failure.png'});console.log('READABILITY_FAILURE='+(await currentPage.screenshot({type:'jpeg',quality:55})).toString('base64'));}throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

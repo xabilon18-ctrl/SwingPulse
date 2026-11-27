@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // A ladder drawn on Daily also shows on 1H, where each Daily 10% gap is
 // split into five (every 2%): the Daily lines keep their big black labels
@@ -6,14 +7,8 @@ const assert = require('node:assert/strict');
 // never shows the finer steps. 4H was removed permanently 2026-11-07: no
 // button, and a new Daily ladder does not list it.
 module.exports = async function checkLadderDailySub(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
   const openFull = async tf => {
-    await page.locator('#tfBtn' + tf).click();
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await page.locator('#chartFull .reel-chart svg').waitFor();
+    await openChart(page, name, tf);
   };
   const close = () => page.locator('#chartFull [data-act="chart-full-close"]').click();
   const main = () => page.locator('#chartFull .reel-draw .reel-ladder-lbl').allTextContents();

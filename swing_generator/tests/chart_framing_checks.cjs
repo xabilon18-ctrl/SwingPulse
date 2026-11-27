@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 module.exports = async function checkChartFraming(page, name = 'TEST') {
   const read = async host => {
@@ -14,22 +15,12 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     });
   };
   const near = (a,b,label) => assert.ok(Math.abs(a-b) <= Math.max(Math.abs(b)*0.015,1e-9),label+': '+a+' vs '+b);
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  if (await page.locator('#reelReset').isVisible()) await page.locator('#reelReset').click();
-  await page.locator('#reelSearch').fill(name);
   for (const tf of ['1H','D']) {   // 4H removed 2026-11-04
     // Changing timeframe clears transient zoom/pan but restores saved views.
-    await page.locator('#tfBtn'+(tf==='D'?'1H':'D')).click();
-    await page.locator('#tfBtn'+tf).click();
-    const card=page.locator('.reel-card[data-name="'+name+'"]');
-    await card.locator('.reel-chart svg').waitFor();
-    const before=await read(card.locator('.reel-chart'));
-    await card.locator('[data-act="chart-expand"]').click();
+    await openChart(page, name, tf==='D'?'1H':'D');
+    await openChart(page, name, tf);
     const host=page.locator('#chartFull .reel-chart');
-    await host.locator('svg').waitFor();
     const opened=await read(host);
-    near(opened.lo,before.lo,tf+' automatic frame does not zoom out on expand');
-    near(opened.hi,before.hi,tf+' automatic frame does not zoom out on expand');
     if (tf === 'D') {
       // Daily (years) on every market is priced 'all'
       // (REEL_FRAME_VIEW, 2026-10-22): every candle in view fits, with a
@@ -66,27 +57,17 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     const stored=await page.evaluate(()=>localStorage.getItem('sp-views'));
     const saved=JSON.parse(stored)[name+'|'+tf];
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
-    await page.locator('#tfBtn'+(tf==='D'?'1H':'D')).click();
-    await page.locator('#tfBtn'+tf).click();
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await host.locator('svg').waitFor();
+    await openChart(page, name);
     const restored=await read(host);
     // A saved view is the exact frame (app.js v553): same first candle, same
-    // window and the same price window, on full screen and on the card.
+    // window and the same price window, closed and opened again.
     assert.equal(saved.v,2,tf+' saves the exact frame');
     near(restored.slots,adjusted.slots,tf+' saved time window restores');
     assert.equal(await host.evaluate(h=>h._reelCtx.b.t[0]),saved.start,tf+' saved first candle restores');
     near(restored.lo,saved.lo,tf+' saved price floor restores');
     near(restored.hi,saved.hi,tf+' saved price top restores');
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-views')),stored,'Viewing never rewrites saved frames');
-    await page.locator('#chartFull [data-act="chart-full-close"]').click();
-    const onCard=await read(card.locator('.reel-chart'));
-    near(onCard.lo,saved.lo,tf+' card shows the saved price floor');
-    near(onCard.hi,saved.hi,tf+' card shows the saved price top');
-    // Save is a press / unpress switch (user, 2026-11-01): a second tap
-    // forgets the view, a third saves it again. No long press.
-    const saveBtn=card.locator('[data-act="chart-view-save"]');
+    const saveBtn=page.locator('#chartFull [data-act="chart-view-save"]');
     await saveBtn.click();
     assert.equal(await saveBtn.getAttribute('aria-pressed'),'false',tf+' a second tap unsaves');
     assert.equal(JSON.parse(await page.evaluate(()=>localStorage.getItem('sp-views'))||'{}')[name+'|'+tf],undefined,tf+' …and forgets the stored view');
@@ -94,31 +75,26 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
     await saveBtn.click();
     assert.equal(await saveBtn.getAttribute('aria-pressed'),'true',tf+' a third tap saves again');
     assert.equal((await saveBtn.innerText()).trim(),'Saved');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
   }
   // Coming back to a saved chart shows its saved view, even after the reader
   // dragged it this session (user, 2026-11-03: "the chart never stay on the
   // saved view"). It used to be applied only the first time a chart opened.
   {
-    const card=page.locator('.reel-card[data-name="'+name+'"]'), host=card.locator('.reel-chart');
+    const host=page.locator('#chartFull .reel-chart');
     const saved=JSON.parse(await page.evaluate(()=>localStorage.getItem('sp-views')))[name+'|D'];
     const first=()=>host.evaluate(h=>h._reelCtx.b.t[0]);
     const drag=async dx=>{const b=await host.boundingBox(), x=b.x+b.width*.5, y=b.y+b.height*.4;
       await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x+dx,y,{steps:10}); await page.mouse.up();
       await page.waitForTimeout(200);};
-    assert.equal(await first(),saved.start,'Daily card is on its saved view');
+    await openChart(page, name, 'D');
+    assert.equal(await first(),saved.start,'the Daily chart opens on its saved view');
     await drag(-200);
     assert.notEqual(await first(),saved.start,'a drag moves the saved chart');
-    await page.locator('.nav-tab[data-tab="watchlist"]').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
-    await host.locator('svg').waitFor();
-    assert.equal(await first(),saved.start,'back on Charts, the dragged chart is on its saved view');
-    await drag(-200);
-    await card.locator('[data-act="chart-expand"]').click();
-    const full=page.locator('#chartFull .reel-chart');
-    await full.locator('svg').waitFor();
-    assert.equal(await full.evaluate(h=>h._reelCtx.b.t[0]),saved.start,'full screen opens a dragged chart on its saved view');
     await page.locator('#chartFull [data-act="chart-full-close"]').click();
-    assert.equal(await first(),saved.start,'closing full screen leaves the card on its saved view');
+    await openChart(page, name, 'D');
+    assert.equal(await first(),saved.start,'reopened, the dragged chart is on its saved view');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
   }
   // A background data refresh must not change what the next drag starts from
   // (user, 2026-11-03: a saved GOLD 1H / Daily view "opened up" to the default
@@ -126,8 +102,7 @@ module.exports = async function checkChartFraming(page, name = 'TEST') {
   // chart behind full screen without repainting it; the drag then grew from
   // the DEFAULT window with the saved prices.
   {
-    const card=page.locator('.reel-card[data-name="'+name+'"]');
-    await card.locator('[data-act="chart-expand"]').click();
+    await openChart(page, name);
     const full=page.locator('#chartFull .reel-chart');
     await full.locator('svg').waitFor();
     const slots=()=>full.evaluate(h=>Math.round((h._reelCtx.L.x1-h._reelCtx.L.x0)/h._reelCtx.bw));

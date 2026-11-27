@@ -38,21 +38,23 @@ module.exports = async function checkSearchAll(page0) {
   assert.deepEqual(await rows(), [], 'cleared: back to the list and its filter');
   assert.equal(await page.locator('#wl2Lists .wl2-pill.on').getAttribute('data-wl-cls'), 'Crypto', 'the filter stayed set');
 
-  // Charts: opened from a list, the search still looks through everything.
+  // A chart opened from the list steps through that list; the search that
+  // finds every instrument is the Watchlist's (the chart screen's own search
+  // is the laptop / iPad workspace's, desktop_workspace.cjs).
   await page.locator('#wl2Lists [data-wl-cls="all"]').click();
   await page.locator('#wl2Body .wl2-row').first().click();
   await page.locator('.wl2-sheet [data-wl-act="chart"]').click();
-  await page.locator('#chartReel .reel-card').first().waitFor();
-  const cards = () => page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name).sort());
-  assert.deepEqual(await cards(), ['TEST'], 'the reel is the list');
-  await page.locator('#reelSearch').fill('TEST2');
-  await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-card')].map(c => c.dataset.name).join() === 'TEST2', null, { timeout: 5000 });
-  await page.locator('#reelSearch').fill('test');
-  await page.waitForFunction(() => document.querySelectorAll('#chartReel .reel-card').length === 3, null, { timeout: 5000 });
-  assert.deepEqual(await cards(), ['TEST', 'TEST2', 'TEST3'], 'Charts search finds every match, not just the list');
-  await page.locator('#reelSearch').fill('');
-  await page.waitForFunction(() => document.querySelectorAll('#chartReel .reel-card').length === 1, null, { timeout: 5000 });
+  await page.locator('#chartFull.open').waitFor();
+  assert.equal(await page.locator('#chartFull').getAttribute('data-name'), 'TEST');
+  assert.equal((await page.locator('#chartFull .cf-pos').innerText()).trim(), '1/1', 'the chart steps through the list');
+  await page.locator('#chartFull [data-act="chart-full-close"]').click();
+  await page.locator('#wl2Search').fill('test');
+  await page.locator('#wl2Body .wl2-row[data-wl-row="TEST2"]').click();
+  await page.locator('.wl2-sheet [data-wl-act="chart"]').click();
+  await page.locator('#chartFull.open[data-name="TEST2"]').waitFor();
+  assert.equal((await page.locator('#chartFull .cf-pos').innerText()).trim(), '2/3', 'opened from a search, it steps through every match');
+  await page.locator('#chartFull [data-act="chart-full-close"]').click();
   await page.evaluate(s => { localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(s))) localStorage.setItem(k, v); }, saved);
   await page.close();
-  console.log('PASS: search finds every instrument from any list, on Watchlist and Charts');
+  console.log('PASS: search finds every instrument from any list; a chart opened from it steps through the matches');
 };

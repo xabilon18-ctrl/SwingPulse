@@ -14,7 +14,7 @@ let debugPage;
   // Chart range lives in the first chart's Grid menu, under Time grid
   // (2026-10-28). Each helper opens the menu and closes it again.
   const gridMenu = async fn => {
-    const btn = page.locator('#chartReel [data-act="grid-menu"]').first();
+    const btn = page.locator('#chartFull [data-act="grid-menu"]').first();
     await btn.click();
     await page.locator('.reel-grid-menu').waitFor();
     try { return await fn(page.locator('.reel-grid-menu')); }
@@ -23,6 +23,12 @@ let debugPage;
   const rangeOn = () => gridMenu(m => m.locator('[data-act="range-set"].on').getAttribute('data-range'));
   const setRange = bars => gridMenu(m => m.locator(`[data-act="range-set"][data-range="${bars}"]`).click());
   let summaries = 0, chunks = 0, revision = 0;
+  // The Watchlist tab, closing the chart first when one is open (it covers
+  // the tab bar; the app reopens on it after a reload since 2026-11-26).
+  const toWatchlist = async () => {
+    if (await page.locator('#chartFull.open').count()) await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+  };
   const live = process.env.SMOKE_LIVE === '1';
   if (!live) {
     // Install before navigation so the app's interval is registered on this
@@ -62,11 +68,11 @@ let debugPage;
   // as Node sees it (live_page_build.cjs, 2026-11-17).
   if (live) await require('./live_page_build.cjs')(page, process.env.SMOKE_URL);
   await page.locator('.up-skip').click();
-  await page.locator('.nav-tab[data-tab="charts"]').click();
+  await page.evaluate(() => window.SP.navigateToTab('charts'));
   assert.equal(await page.locator('[data-tf="30m"]').count(), 0, 'Removed timeframe has no global or chart control');
   assert.equal(await page.locator('#tfBtn1H').getAttribute('aria-selected'), 'true', 'Saved 30m chart selection opens on 1H');
   assert.equal(await page.evaluate(() => localStorage.getItem('swingpulse-chart-tf')), '1H');
-  await page.locator('#tfBtn1H').click();
+  await page.locator('#tfBtn1H').dispatchEvent('click');
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
   await page.locator('.reel-chart svg').first().waitFor({ timeout: 60000 });
   assert.equal(errors.length, 0, errors.join('\n'));
@@ -95,31 +101,28 @@ let debugPage;
     for (const [tf, word] of [['M', 'monthly']]) {
       const index = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/index.json`));
       const chunk = page.waitForResponse(r => r.url().includes(`/ma500/chart/${tf}/0.json`));
-      await page.locator(`#tfBtn${tf}`).click();
+      await page.locator(`#tfBtn${tf}`).dispatchEvent('click');
       await Promise.all([index, chunk]);
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
-      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
-      const card = await page.locator('#chartReel .reel-card').first().innerText();
+      await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
+      const card = await page.locator('#chartFull').first().innerText();
       // Labels are thinned to fit, so which ones are named depends on width.
       // Labels are thinned to fit, so which terms are named depends on width.
       assert.ok(/20\d\d · (Obama|Trump|Biden)/.test(card), `${tf} is divided by term`);
-      const grid = page.locator('#chartReel .reel-card').first();
+      const grid = page.locator('#chartFull').first();
       assert.equal(await grid.locator('.reel-tgrid-admin, .reel-tgrid-year, .reel-tgrid-quarter, .reel-tgrid-month').count(), 0, `${tf} lines are all equal`);
       assert.ok(await grid.locator('line.reel-tgrid').count() >= 3, `${tf} draws its term lines`);
       assert.ok(!/\b[WM] (aligned|minor)/.test(card), `${tf} shows no borrowed 4H relation`);
-      // The card header is two lines since 2026-11-04 (ticker + full name,
-      // main trend + move): no bar/data time line on the card.
-      assert.equal(await grid.locator('[data-freshness-name]').count(), 0, `${word} card has no bar-time line`);
-      shownBars[tf] = await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
+      shownBars[tf] = await page.locator('#chartFull .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
     }
     // Chart range is PER TIMEFRAME (2026-10-28): Close up tapped on Monthly
     // zooms Monthly only; Daily keeps its opening frame, and Monthly keeps
     // the range when the reader comes back to it.
-    const firstShown = () => page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
+    const firstShown = () => page.locator('#chartFull .reel-chart').first().evaluate(h => h._reelCtx.b.c.length);
     const toTf = async tf => {
-      await page.locator(`#tfBtn${tf}`).click();
+      await page.locator(`#tfBtn${tf}`).dispatchEvent('click');
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
-      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+      await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
     };
     await toTf('D');
     shownBars.D = await firstShown();
@@ -127,7 +130,7 @@ let debugPage;
     assert.ok(shownBars.M > 65 && shownBars.D > 65, 'both charts open on more than 65 bars: ' + JSON.stringify(shownBars));
     assert.equal(await page.locator('#reelMenuSort [data-range]').count(), 0, 'Chart range is no longer in the Sort menu');
     await setRange(65);
-    await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.b.c.length === 65);
+    await page.waitForFunction(() => document.querySelector('#chartFull .reel-chart')._reelCtx.b.c.length === 65);
     await toTf('D');
     assert.equal(await rangeOn(), '0', 'Daily shows no range');
     assert.equal(await firstShown(), shownBars.D, 'Daily keeps its opening frame');
@@ -136,7 +139,7 @@ let debugPage;
     assert.equal(await firstShown(), 65, 'Monthly is still zoomed to 65 bars');
     const storedRanges = () => page.evaluate(() => JSON.parse(localStorage.getItem('swingpulse-reel-ranges')));
     assert.deepEqual(await storedRanges(), { M: 65 }, 'only the Monthly range is remembered');
-    assert.ok(await page.locator('#chartReel .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
+    assert.ok(await page.locator('#chartFull .reel-grid-btn.on').count() > 0, 'the Grid button is lit while a range is set');
     await setRange(0);
     assert.deepEqual(await storedRanges(), {}, 'Full window forgets it');
     // "Same frame" and "Also over saved charts" were removed on 2026-11-25
@@ -145,7 +148,7 @@ let debugPage;
       'no Same frame switch in the Grid menu');
     // Save keeps the chart's own view under its own key.
     {
-      const mHost = page.locator('#chartReel .reel-chart').first();
+      const mHost = page.locator('#chartFull .reel-chart').first();
       const win = () => mHost.evaluate(h => h._reelCtx.win);
       const opened = await win();
       let grip = null;
@@ -153,9 +156,9 @@ let debugPage;
       const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
       await page.mouse.move(gx, gy); await page.mouse.down();
       await page.mouse.move(gx - 60, gy, { steps: 8 }); await page.mouse.up();
-      await page.waitForFunction(w => document.querySelector('#chartReel .reel-chart')._reelCtx.win !== w, opened);
+      await page.waitForFunction(w => document.querySelector('#chartFull .reel-chart')._reelCtx.win !== w, opened);
       const framed = await win();
-      const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
+      const save = page.locator('#chartFull [data-act="chart-view-save"]').first();
       await save.click();
       assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save lights up');
       await toTf('D');
@@ -172,7 +175,7 @@ let debugPage;
       const box = await mHost.boundingBox();
       await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3); await page.mouse.down();
       await page.mouse.move(box.x + box.width * .8, box.y + box.height * .3, { steps: 10 }); await page.mouse.up();
-      await page.waitForFunction(() => document.querySelector('#chartReel .reel-chart')._reelCtx.back === true);
+      await page.waitForFunction(() => document.querySelector('#chartFull .reel-chart')._reelCtx.back === true);
       // A drag carries on gliding after the finger lifts: read the start
       // only once the chart has stopped (five equal reads, 100 ms apart).
       let early = null;
@@ -196,34 +199,34 @@ let debugPage;
     // carries no Monthly lines at all and its Monthly chart 25 years, so an
     // M250 on Daily can only come from there.
     await toTf('D');
-    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+    await page.locator('#chartFull [data-act="tf-menu"]').first().click();
     await page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]').click();
-    await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
+    await page.waitForFunction(() => [...document.querySelectorAll('#chartFull .reel-chart .reel-ov text')].some(t => t.textContent.startsWith('M250')));
     assert.match(await page.locator('.reel-tf-menu').innerText(), /50 · 250 · 500/, 'the menu lists the Monthly 500');
-    await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+    await page.locator('#chartFull [data-act="tf-menu"]').first().click();
     // Per timeframe, every instrument (2026-11-16: "daily must apply across
     // all charts but never affect other time frames"): on over Daily is on
     // for every Daily chart, off over 1H; switching it on over 1H and then
     // off over Daily leaves 1H on.
-    const monthlyLines = () => page.evaluate(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].filter(t => /^M\d/.test(t.textContent)).length);
+    const monthlyLines = () => page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-chart .reel-ov text')].filter(t => /^M\d/.test(t.textContent)).length);
     const monthlySwitch = async tap => {
-      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      await page.locator('#chartFull [data-act="tf-menu"]').first().click();
       const sw = page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]');
       if (tap) await sw.click();
       const on = await sw.getAttribute('aria-checked');
-      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      await page.locator('#chartFull [data-act="tf-menu"]').first().click();
       return on;
     };
-    const paintedDaily = await page.evaluate(() => [...document.querySelectorAll('#chartReel .reel-chart')].filter(h => h._reelCtx).map(h => !!h.querySelector('.reel-ov polyline')));
+    const paintedDaily = await page.evaluate(() => [...document.querySelectorAll('#chartFull .reel-chart')].filter(h => h._reelCtx).map(h => !!h.querySelector('.reel-ov polyline')));
     assert.ok(paintedDaily.length >= 1 && paintedDaily.every(Boolean), 'Monthly overlay on over Daily draws on every painted Daily chart: ' + JSON.stringify(paintedDaily));
     await toTf('1H');
     assert.equal(await monthlySwitch(false), 'false', 'Monthly on over Daily is not on over 1H');
     assert.equal(await monthlyLines(), 0, 'and 1H draws no Monthly lines');
     assert.equal(await monthlySwitch(true), 'true');
-    await page.waitForFunction(() => [...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)), null, { timeout: 60000 });
+    await page.waitForFunction(() => [...document.querySelectorAll('#chartFull .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)), null, { timeout: 60000 });
     await toTf('D');
     assert.equal(await monthlySwitch(true), 'false', 'Monthly switched off over Daily');
-    await page.waitForFunction(() => ![...document.querySelectorAll('#chartReel .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)));
+    await page.waitForFunction(() => ![...document.querySelectorAll('#chartFull .reel-chart .reel-ov text')].some(t => /^M\d/.test(t.textContent)));
     await toTf('1H');
     assert.equal(await monthlySwitch(false), 'true', 'switching Daily off leaves 1H on');
     assert.equal(await monthlySwitch(true), 'false');
@@ -233,14 +236,13 @@ let debugPage;
   // 4H removed 2026-11-04, its chart back 2026-11-05, removed permanently
   // 2026-11-07: no button, and the full-screen checks run on 1H.
   assert.equal(await page.locator('#tfBtn4H').count(), 0, 'no 4H timeframe');
-  await page.locator('#tfBtn1H').click();
+  await page.locator('#tfBtn1H').dispatchEvent('click');
   await page.waitForFunction(() => document.querySelector('#tfBtn1H').getAttribute('aria-selected') === 'true');
-  await page.locator('#chartReel [data-act="chart-expand"]').first().click();
   await page.locator('#chartFull .reel-chart svg').waitFor({ timeout: 60000 });
   // The shared picture is 9:16 from the tall full-screen chart and from the
   // card alike (2026-11-12: it used to copy the screen's shape, 1 : 2.5 here),
   // and making it leaves the chart on screen exactly as it was.
-  for (const scope of ['#chartFull', '#chartReel']) {
+  for (const scope of ['#chartFull']) {
     const live = () => page.evaluate(s => document.querySelector(`${s} .reel-chart svg`).outerHTML + document.querySelectorAll('.reel-chart').length, scope);
     const before = await live();
     await page.evaluate(s => document.querySelector(`${s} [data-act="chart-share"]`).click(), scope);
@@ -358,7 +360,7 @@ let debugPage;
   }
   await require('./drawing_toolbar_checks.cjs')(page);
   await require('./saved_work_checks.cjs')(page);
-  await page.locator('#tfBtn1H').click();
+  await page.locator('#tfBtn1H').dispatchEvent('click');
   await page.screenshot({ path: 'hourly-chart-mobile.png', fullPage: false });
   await page.locator('.nav-tab[data-tab="scanner"]').click();
   // Alerts: Daily and 1H since 4H went (2026-11-04).
@@ -398,14 +400,14 @@ let debugPage;
     await page.evaluate(() => localStorage.setItem('swingpulse-reel-ranges', JSON.stringify({ M: 65, W: 7, XX: 65 })));
     await page.reload({ waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
+    await page.evaluate(() => window.SP.navigateToTab('charts'));
     for (const [tf, want] of [['M', '65'], ['D', '0']]) {
-      await page.locator(`#tfBtn${tf}`).click();
+      await page.locator(`#tfBtn${tf}`).dispatchEvent('click');
       await page.waitForFunction(id => document.querySelector(id).getAttribute('aria-selected') === 'true', `#tfBtn${tf}`);
-      await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+      await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
       assert.equal(await rangeOn(), want, `${tf} range after reload`);
     }
-    assert.equal(await page.locator('#chartReel .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Daily is not zoomed by the Monthly range');
+    assert.equal(await page.locator('#chartFull .reel-chart').first().evaluate(h => h._reelCtx.b.c.length) === 65, false, 'Daily is not zoomed by the Monthly range');
     assert.equal(errors.length, 0, errors.join('\n'));
     // A device that had "Same frame" on before it was removed (2026-11-25):
     // the old frame and the price saved under it (NAME|TF|F) are ignored, and
@@ -423,17 +425,17 @@ let debugPage;
     });
     await page.reload({ waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="charts"]').click();
-    await page.locator('#tfBtnM').click();
+    await page.evaluate(() => window.SP.navigateToTab('charts'));
+    await page.locator('#tfBtnM').dispatchEvent('click');
     await page.waitForFunction(() => document.querySelector('#tfBtnM').getAttribute('aria-selected') === 'true');
-    await page.locator('#chartReel .reel-chart svg').first().waitFor({ timeout: 60000 });
+    await page.locator('#chartFull .reel-chart svg').first().waitFor({ timeout: 60000 });
     {
-      const host = page.locator('#chartReel .reel-chart').first();
+      const host = page.locator('#chartFull .reel-chart').first();
       const view = () => host.evaluate(h => ({ t0: h._reelCtx.b.t[0], lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }));
       const v = await view();
       assert.ok(v.t0 >= '2019-12' && v.t0 < '2020-02', 'the chart\'s own saved view, not the old frame: ' + v.t0);
       assert.deepEqual([v.lo, v.hi], [1, 2], 'its own saved price, not the one saved under the switch');
-      const save = page.locator('#chartReel [data-act="chart-view-save"]').first();
+      const save = page.locator('#chartFull [data-act="chart-view-save"]').first();
       assert.equal(await save.getAttribute('aria-pressed'), 'true', 'Save reads Saved for its own view');
       assert.doesNotMatch(await save.getAttribute('title'), /shared frame/);
       await save.click();   // forget its own view
@@ -455,7 +457,7 @@ let debugPage;
     // Active at last close (2026-10-28): a row per timeframe with a busy
     // sector (the fixture: Technology on Day and Week, quiet on Month), and a
     // tap opens that sector's markets on Charts at that timeframe.
-    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await toWatchlist();
     const strip = page.locator('#wl2Active');
     await strip.locator('.wl2-act-s').first().waitFor();
     // One entry per sector, then the timeframes it is busy on (none for M).
@@ -471,10 +473,12 @@ let debugPage;
     await strip.locator('[data-act-tf="W"][data-act-sector="Technology"]').click();
     // There is no Weekly chart (removed 2026-11-16): the week's busy sector
     // still opens its charts, on the chart timeframe already shown.
-    await page.locator('#chartReel .reel-card').first().waitFor();
+    await page.locator('#chartFull.open').waitFor();
     assert.equal(await page.locator('#tfBtnW').count(), 0, 'no Weekly button on Charts');
-    assert.match(await page.locator('#reelSimBar').innerText(), /Active:\s*Technology · Week\s*1/);
-    assert.deepEqual(await page.locator('#chartReel .reel-card').evaluateAll(cs => cs.map(c => c.dataset.name)), ['TEST']);
+    assert.equal(await page.locator('#chartFull').getAttribute('data-name'), 'TEST', 'the sector opens on its first chart');
+    assert.equal((await page.locator('#chartFull .cf-pos').innerText()).trim(), '1/1', 'stepping through that sector');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    assert.equal(await page.locator('.nav-tab.active').getAttribute('data-tab'), 'watchlist', 'closing goes back to the Watchlist');
     assert.equal(errors.length, 0, errors.join('\n'));
 
     // Swipe between lists (2026-10-28): left = next tab, right = previous;
@@ -483,7 +487,7 @@ let debugPage;
       lists: [{ id: 'a', name: 'Mine', items: ['§Tech names', 'TEST'] }, { id: 'b', name: 'Other', items: [] }] })));
     await page.reload({ waitUntil: 'networkidle' });
     if (await page.locator('.up-skip').isVisible()) await page.locator('.up-skip').click();
-    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await toWatchlist();
     await page.locator('#wl2Lists [data-wl-list="all"]').click();
     const onList = () => page.locator('#wl2Lists .wl2-pill.on').getAttribute('data-wl-list');
     const swipe = (dx, dy = 0) => page.evaluate(([dx, dy]) => {
@@ -574,10 +578,10 @@ let debugPage;
     // details modal, and no tv-map.json request.
     const tvRequests = [];
     page.on('request', r => { if (/tradingview|tv-map/i.test(r.url())) tvRequests.push(r.url()); });
-    await page.locator('.nav-tab[data-tab="charts"]').click();
-    await page.locator('#chartReel .reel-card footer').first().waitFor();
-    assert.equal(await page.locator('[data-act="tv"], a[href*="tradingview"]').count(), 0, 'no TradingView button on Charts');
-    await page.locator('.nav-tab[data-tab="watchlist"]').click();
+    await page.evaluate(() => window.SP.navigateToTab('charts'));
+    await page.locator('#chartFull footer').first().waitFor();
+    assert.equal(await page.locator('[data-act="tv"], a[href*="tradingview"]').count(), 0, 'no TradingView button on the chart');
+    await page.locator('#chartFull [data-act="chart-full-close"]').click();
     await page.locator('#wl2Body .wl2-row').first().click();
     assert.doesNotMatch(await page.locator('.wl2-sheet').innerText(), /tradingview/i, 'no TradingView in the instrument sheet');
     await page.locator('.wl2-sheet [data-wl-act="details"]').click();

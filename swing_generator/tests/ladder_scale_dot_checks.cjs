@@ -1,17 +1,12 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // The scale dot near the price (user, 2026-11-03, USDX trading near its
 // ladder's 200% line): a third round dot on the ladder line nearest the last
 // close. Dragging it re-spaces the ladder with 0% held, so that line follows
 // the finger, without zooming out to the 0% and 40% dots.
 module.exports = async function checkLadderScaleDot(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
-  await page.locator('#tfBtnD').click();
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await page.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(page, name, 'D');
   await page.locator('#chartFull [data-act="channel"]').click();
   await page.locator('#chartFull .reel-toolbar [data-kind="ladder"]').click();
 

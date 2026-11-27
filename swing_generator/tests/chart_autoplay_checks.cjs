@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // Chart auto-play (user, 2026-11-17): the ‹ n/N › counter in full screen opens
 // a menu with Play / Pause / Continue and four speeds. Playing steps through
@@ -40,10 +41,7 @@ async function checkChartAutoplay(page0, live = false) {
   const page = live ? page0 : await fixturePage(page0);
   // The smoke page runs on an installed clock; this one may not.
   const wait = ms => page.waitForTimeout(ms);
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill('');
-  const card = page.locator('#chartReel .reel-card').first();
-  await card.locator('[data-act="chart-expand"]').click();
+  await openChart(page, '');
   await page.locator('#chartFull .reel-chart').waitFor();
   const full = page.locator('#chartFull');
   const counter = full.locator('.cf-pos');
@@ -101,7 +99,7 @@ async function checkChartAutoplay(page0, live = false) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   const held2 = await at();
   await full.locator('[data-act="chart-full-close"]').click();
-  await page.locator('#chartReel .reel-card').first().locator('[data-act="chart-expand"]').click();
+  await openChart(page, '');
   await page.locator('#chartFull .reel-chart').waitFor();
   assert.ok(await counter.evaluate(e => e.classList.contains('is-paused')), 'reopened: still paused');
   await menuOpen();

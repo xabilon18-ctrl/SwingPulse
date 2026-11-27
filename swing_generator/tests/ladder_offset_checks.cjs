@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -46,13 +47,7 @@ module.exports = async function checkLadderOffset(page) {
   assert.deepEqual(['M', 'D', '1H'].map(tf => s[tf].filter(d => d.link === 'Lghost').length), [0, 0, 0], 'the ladder wholly below zero is deleted on every timeframe');
   assert.deepEqual(['M', 'D', '1H'].map(tf => s[tf].filter(d => /^Lday/.test(d.link)).length), [25, 25, 25], 'the Daily ladders are kept');
 
-  await p.locator('.nav-tab[data-tab="charts"]').click();
-  await p.locator('#reelSearch').fill('TEST');
-  await p.evaluate(() => document.getElementById('tfBtnM').click());
-  const card = p.locator('.reel-card[data-name="TEST"]');
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await p.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(p, 'TEST', 'M');
   assert.equal(await p.locator('#chartFull .reel-draw .reel-ladder').count(), 0, 'Monthly shows none of the Daily ladders');
   await p.locator('#chartFull [data-act="channel"]').click();
   await p.locator('#chartFull .reel-toolbar [data-kind="ladder"]').click();

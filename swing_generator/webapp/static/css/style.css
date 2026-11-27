@@ -7354,6 +7354,11 @@ body {
   --reel-top:   112px;
 }
 
+/* The chart screen shows its chart, not the pane (2026-11-27): on a phone the
+   chart is the #chartFull overlay and the pane under it holds nothing to see;
+   the laptop / iPad workspace (desktop-workspace-active) fills it. */
+#pane-charts.active:not(.desktop-workspace-active) > * { display: none; }
+
 #pane-charts.active {
   position: fixed;
   top: var(--reel-top);
