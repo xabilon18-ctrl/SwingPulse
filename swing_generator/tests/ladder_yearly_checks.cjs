@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -49,15 +50,7 @@ module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
   }
 
   if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
-  await p.locator('.nav-tab[data-tab="charts"]').click();
-  await p.locator('#reelSearch').fill('TEST');
-  const card = p.locator('.reel-card[data-name="TEST"]');
-  const openFull = async tf => {
-    await p.evaluate(t => document.getElementById('tfBtn' + t).click(), tf);
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await p.locator('#chartFull .reel-chart svg').waitFor();
-  };
+  const openFull = tf => openChart(p, 'TEST', tf);
   const close = () => p.locator('#chartFull [data-act="chart-full-close"]').click();
   // Lines between the two lowest neighbouring 10% lines in view.
   const between = () => p.evaluate(() => {
@@ -87,8 +80,6 @@ module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
     }, win);
     await p.reload({ waitUntil: 'networkidle' });
     if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
-    await p.locator('.nav-tab[data-tab="charts"]').click();
-    await p.locator('#reelSearch').fill('TEST');
   };
   for (const tf of ['M', 'D', '1H']) {
     await fitTo(tf);

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const { fixturePage } = require('./chart_autoplay_checks.cjs');
 
 // Magnifier on long press (user, 2026-11-17): holding a finger still on the
@@ -7,9 +8,7 @@ const { fixturePage } = require('./chart_autoplay_checks.cjs');
 // and letting go removes it. A quick drag still pans, with no lens.
 module.exports = async function checkChartLoupe(page0, live = false) {
   const page = live ? page0 : await fixturePage(page0);
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill('');
-  await page.locator('#chartReel .reel-card').first().locator('[data-act="chart-expand"]').click();
+  await openChart(page, '');
   await page.locator('#chartFull .reel-chart svg.reel-svg').waitFor();
   const host = page.locator('#chartFull .reel-chart');
   const box = await host.boundingBox();

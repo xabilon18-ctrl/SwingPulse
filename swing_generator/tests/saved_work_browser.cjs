@@ -3,6 +3,7 @@
 const { chromium } = require('playwright');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 (async () => {
@@ -55,21 +56,26 @@ const { pathToFileURL } = require('node:url');
         await route.fulfill({body,contentType:'application/json'});
       });
       await page.goto(process.env.SMOKE_URL||'http://127.0.0.1:8000',{waitUntil:'networkidle'});
-      await page.locator('.nav-tab[data-tab="charts"]').click();
+      await page.evaluate(() => window.SP.navigateToTab('charts'));
     }
-    await page.locator('#chartReel .reel-chart svg').first().waitFor();
+    await page.locator('#chartFull .reel-chart svg').first().waitFor();
     return page;
   }
+  // The chart covers the top bar (no Charts tab since 2026-11-27): Saved
+  // work is reached with the chart closed, the chart settings with it open.
+  const ensureChart=async page=>{if(!(await page.locator('#chartFull.open').count()))await openChart(page,'TEST');};
   async function grid(page,tf,division) {
-    await page.locator('#tfBtn'+tf).click();
-    await page.locator('#chartReel .reel-chart svg').first().waitFor();
-    await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+    await ensureChart(page);
+    await page.locator('#tfBtn'+tf).dispatchEvent('click');
+    await page.locator('#chartFull .reel-chart svg').first().waitFor();
+    await page.locator('#chartFull [data-act="grid-menu"]').first().click();
     const scope=await page.locator('.reel-grid-menu [data-division="'+division+'"]').getAttribute('data-grid-scope');
     await page.locator('.reel-grid-menu [data-division="'+division+'"]').click();
-    await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+    await page.locator('#chartFull [data-act="grid-menu"]').first().click();
     return page.evaluate(s=>window.SwingPulseModules.chartPreferences.scopes[s],scope);
   }
   async function sync(page,fail=false) {
+    if(await page.locator('#chartFull.open').count())await page.locator('#chartFull [data-act="chart-full-close"]').click();
     await page.locator('#savedWorkBtn').click();
     await page.locator('[data-work-sync]').click();
     await page.waitForFunction(fail=>document.querySelector('[data-work-message]').textContent.includes(fail?'unavailable':'Synced'),fail);
@@ -83,7 +89,7 @@ const { pathToFileURL } = require('node:url');
     await grid(second,'1H','Y'); await sync(second); await sync(first);
     assert.equal((await prefs(first))[field]['1H'].division,'Y');
     assert.equal((await prefs(first))[field]['D'].division,'H','Editing 1H preserves Daily');
-    await first.locator('#chartReel [data-act="chart-expand"]').first().click();
+    await openChart(first, 'TEST');
     await first.locator('#chartFull [data-act="channel"]').click();
     await first.locator('#chartFull [data-act="channel-add"][data-kind="hline"]').click();
     await first.locator('#chartFull [data-act="draw-done"]').click();
@@ -132,13 +138,14 @@ const { pathToFileURL } = require('node:url');
     // on on the other after a sync; switched off there, off here.
     const serverOverlay=()=>JSON.parse(disk.get('zabs')||'{}').overlayPrefs;
     async function overlayM(page,tap,tf='D') {
-      await page.locator('#tfBtn'+tf).click();
-      await page.locator('#chartReel .reel-chart svg').first().waitFor();
-      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      await ensureChart(page);
+      await page.locator('#tfBtn'+tf).dispatchEvent('click');
+      await page.locator('#chartFull .reel-chart svg').first().waitFor();
+      await page.locator('#chartFull [data-act="tf-menu"]').first().click();
       const sw=page.locator('.reel-tf-menu [data-act="ov-htf"][data-tf="M"]');
       if(tap) await sw.click();
       const on=await sw.getAttribute('aria-checked');
-      await page.locator('#chartReel [data-act="tf-menu"]').first().click();
+      await page.locator('#chartFull [data-act="tf-menu"]').first().click();
       return on;
     }
     assert.equal(await overlayM(first,true),'true');

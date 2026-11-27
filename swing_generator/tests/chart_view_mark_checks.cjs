@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const { fixturePage } = require('./chart_autoplay_checks.cjs');
 
 // Buy / Sell markers (user, 2026-11-25: "Make the thick of buy and sell line
@@ -7,9 +8,7 @@ const { fixturePage } = require('./chart_autoplay_checks.cjs');
 // an anchor dot and no BUY / SELL word.
 module.exports = async function checkViewMarks(page0) {
   const page = await fixturePage(page0);
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill('');
-  await page.locator('#chartReel .reel-card').first().locator('[data-act="chart-expand"]').click();
+  await openChart(page, '');
   await page.locator('#chartFull .reel-chart svg.reel-svg').waitFor();
   for (const side of ['buy', 'sell']) {
     await page.locator(`#chartFull [data-act="view-mark"][data-side="${side}"]`).first().click();

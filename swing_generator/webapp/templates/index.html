@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=464">
+  <link rel="stylesheet" href="/static/css/style.css?v=465">
   <script>window.__BUILD_ID__ = '__BUILDSTAMP__';</script>
 </head>
 <body data-profile="__APP_PROFILE__">
@@ -220,11 +220,14 @@
     </div>
   </div>
 
-    <!-- ========== CHARTS TAB ========== -->
-    <!-- Full-screen chart reel. One instrument per screen, snap-scrolled.
-         The timeframe comes from the global 4H/Daily switch in the topbar —
-         this tab is deliberately NOT in TF_LOCKED_TABS, so that one control
-         drives the reel like it drives everything else. -->
+    <!-- ========== CHART SCREEN (was the Charts tab) ========== -->
+    <!-- No tab button and no reel of small charts since 2026-11-27 (user:
+         "get rid of the chart tab but not the charts"). A chart opens from a
+         list (the Watchlist's Open chart, Market, Alerts) full screen on a
+         phone (#chartFull) and in the laptop / iPad workspace, which mounts
+         here; its close button goes back to where it was opened from. The
+         search bar and #chartReel stay as the workspace's search and the
+         holder the list is built against. -->
     <section class="tab-pane" id="pane-charts">
 
       <!-- Charts header (2026-11-04, user: "the chart tab can solely focus on
@@ -251,13 +254,6 @@
 
       <div class="reel" id="chartReel"></div>
 
-      <!-- Where you are in the reel. The step buttons that used to flank this
-           are gone: they sat on top of the price scale, which is a drag target
-           now, and swipe / arrow keys / j / k all still step the reel. -->
-      <div class="reel-nav" id="reelNav" hidden>
-        <span class="reel-nav-pos" id="reelNavPos" aria-live="polite"></span>
-      </div>
-      <div class="reel-empty" id="reelEmpty" style="display:none">Nothing matches those filters.</div>
 
     </section>
 
@@ -266,10 +262,6 @@
     <button class="nav-tab active" data-tab="watchlist">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></span>
       <span class="nav-tab-label">Watchlist</span>
-    </button>
-    <button class="nav-tab" data-tab="charts">
-      <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="4" x2="6" y2="20"/><rect x="3.5" y="8" width="5" height="7" rx="1"/><line x1="14" y1="4" x2="14" y2="20"/><rect x="11.5" y="6" width="5" height="9" rx="1"/><line x1="21" y1="9" x2="21" y2="20"/></svg></span>
-      <span class="nav-tab-label">Charts</span>
     </button>
     <button class="nav-tab" data-tab="scanner">
       <span class="nav-tab-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
@@ -353,7 +345,7 @@
   <script src="/static/js/modules/fund-moves.js?v=1"></script>
   <!-- config.TIMEFRAME_TABLE, filled in by publish.build_ui / server.py -->
   <script>window.SP_TIMEFRAMES = __SP_TIMEFRAMES__;</script>
-  <script src="/static/js/app.js?v=677"></script>
+  <script src="/static/js/app.js?v=678"></script>
 </body>
 </html>
 

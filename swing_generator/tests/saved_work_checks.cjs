@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const openChart=require('./chart_open.cjs');
 module.exports=async function checkSavedWork(page, screenshots) {
   const full=page.locator('#chartFull');
   await full.locator('[data-freshness-name] summary').click();
@@ -41,9 +42,11 @@ module.exports=async function checkSavedWork(page, screenshots) {
   assert.equal(saved.data.grids[gridField]['1H'].division,'H');
   assert.ok(!JSON.stringify(saved).includes('sync-token'));
   await panel.locator('[data-work-close]').click();
-  await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+  await openChart(page, '');
+  await page.locator('#chartFull [data-act="grid-menu"]').first().click();
   await page.locator('.reel-grid-menu [data-division="Q"]').click();
-  await page.locator('#chartReel [data-act="grid-menu"]').first().click();
+  await page.locator('#chartFull [data-act="grid-menu"]').first().click();
+  await page.locator('#chartFull [data-act="chart-full-close"]').click();
   await page.locator('#savedWorkBtn').click();
   const getChannels=()=>page.evaluate(()=>localStorage.getItem('sp-channels'));
   const beforeBad=await getChannels();

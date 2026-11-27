@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -29,13 +30,7 @@ module.exports = async function checkDrawHiddenCopy(page) {
   }, { TEST: { M: [mon], D: [{ ...mon }], '1H': [{ ...mon }], Y: [{ ...mon }] } });
   await p.goto(process.env.SMOKE_URL || 'http://127.0.0.1:8000', { waitUntil: 'networkidle' });
   if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
-  await p.locator('.nav-tab[data-tab="charts"]').click();
-  await p.locator('#reelSearch').fill('TEST');
-  await p.evaluate(() => document.getElementById('tfBtnY').click());
-  const card = p.locator('.reel-card[data-name="TEST"]');
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await p.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(p, 'TEST', 'Y');
   await p.locator('#chartFull [data-act="channel"]').click();
   const tb = p.locator('#chartFull .reel-toolbar');
   await tb.locator('[data-kind="ladder"]').click();

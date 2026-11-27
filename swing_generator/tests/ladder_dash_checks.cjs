@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // Dashed ladder (user, 2026-11-06: "add the dash lines as an option for the
 // percentage line with thin med and thick"; since 2026-11-07 every Daily
@@ -7,14 +8,8 @@ const assert = require('node:assert/strict');
 // dashes; Thin / Thick still work, on Daily and on 1H (4H removed 2026-11-07). The 0% / 100% ends keep their
 // own dash. Dotted stays available and is remembered (`dashOff`).
 module.exports = async function checkLadderDash(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
   const openFull = async tf => {
-    await page.locator('#tfBtn' + tf).click();
-    await card.locator('.reel-chart svg').waitFor();
-    await card.locator('[data-act="chart-expand"]').click();
-    await page.locator('#chartFull .reel-chart svg').waitFor();
+    await openChart(page, name, tf);
   };
   const close = () => page.locator('#chartFull [data-act="chart-full-close"]').click();
   const stored = () => page.evaluate(n => {

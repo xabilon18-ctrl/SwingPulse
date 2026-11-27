@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 
 // ‹ › around the full-screen timeframe pill (user, 2026-11-13: "an option to
 // screen through times by clicking right or left like the instrument"): they
@@ -6,13 +7,7 @@ const assert = require('node:assert/strict');
 // chart stays open on the same instrument, and the footer still fits on one
 // row at phone widths.
 module.exports = async function checkChartTfStep(page, name = 'TEST') {
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill(name);
-  await page.evaluate(() => document.getElementById('tfBtnD').click());
-  const card = page.locator('.reel-card[data-name="' + name + '"]');
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await page.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(page, name, 'D');
   const order = await page.evaluate(() => (window.SP_TIMEFRAMES || []).map(t => t.code));
   assert.ok(!order.includes('W'), 'removed Weekly is not stepped to: ' + JSON.stringify(order));
   assert.ok(order.length > 1, 'chart timeframes: ' + JSON.stringify(order));

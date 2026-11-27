@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const openChart = require('./chart_open.cjs');
 const { fixturePage } = require('./chart_autoplay_checks.cjs');
 
 // A ladder zoomed in between two of its 10% lines still shows (user,
@@ -17,14 +18,7 @@ module.exports = async function checkLadderZoomedIn(page0) {
     localStorage.setItem('sp-channels', JSON.stringify(all));
   });
   const page = await fixturePage(page0);
-  await page.locator('.nav-tab[data-tab="charts"]').click();
-  await page.locator('#reelSearch').fill('TEST');
-  await page.evaluate(() => document.getElementById('tfBtn1H').click());
-  await page.waitForFunction(() => localStorage.getItem('swingpulse-chart-tf') === '1H');
-  const card = page.locator('.reel-card[data-name="TEST"]');
-  await card.locator('.reel-chart svg').waitFor();
-  await card.locator('[data-act="chart-expand"]').click();
-  await page.locator('#chartFull .reel-chart svg').waitFor();
+  await openChart(page, 'TEST', '1H');
   const seen = await page.evaluate(() => {
     const g = [...document.querySelectorAll('#chartFull .reel-draw')].find(x => x.querySelector('.reel-ladder-sub, .reel-clip-tag'));
     const ctx = document.querySelector('#chartFull .reel-chart')._reelCtx;
