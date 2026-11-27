@@ -7,6 +7,37 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 LIVE BAR: NO FROZEN HALF-HOUR, AND A DOT + TIME LEFT. app.js v675,
+style.css v463. User: "price is updating but charts not", "I think i also
+need a way to see it"; picked A + G from mock-ups (pulsing dot on the live
+bar, time left under the price tag).
+- The gap: the hourly run is dispatched about :25 past (UTC) and lands about
+  :31, so from the top of each hour the published 1H bundle's forming hour
+  had already closed (closes_at passed) and nothing on screen took the live
+  price for half an hour. Daily the same from 00:00 UTC (02:00 SAST) until
+  the first run of the day. Measured on the live app 2026-11-27 08:14 UTC:
+  forming 07:00, closes_at 08:00, header price moving, chart still.
+- `reelLiveNextBar` (display only, like the rest of the live bar): when the
+  newest bar has closed and a live price falls in the next period, that
+  period's bar is drawn from it: open at the last close, close at the price,
+  high/low widened by every price seen on this page (`reelLiveSeen`), MA
+  points following. 1H after the forming hour; Daily after the UTC day turns.
+  Only for a market that traded the same period a day earlier, so a stock's
+  after-close print never opens a bar its session does not have. Monthly and
+  Yearly forming candles are not extended this way.
+- Marker: while the newest bar follows the price (`bundle._live`) and is on
+  screen, a pulsing dot on its close (`.reel-live-mark`, still under
+  prefers-reduced-motion) and, under the price tag, the time left until it
+  closes (`[data-live-left]`, ticked every second by `reelLiveLeftTick`):
+  "32:15", "13:45:10", "4d 13h". Daily shows the countdown only for a market
+  with weekend bars (closes at UTC midnight); a stock's Daily bar gets the dot
+  alone, since the chart does not know its session close.
+- Tests: chart_refresh_test.cjs (next bar on 1H and Daily, high/low kept
+  across repaints, none for a market that did not trade that hour, countdown
+  text); live_last_bar_checks.cjs (dot on a live bar, none on a rejected
+  price, time left on 1H; yesterday's closed Daily bar keeps its close and
+  today's opens at it, replacing "the last bar stays yesterday's").
+
 2026-11-27 (later) CHART GLASS GREY, NOT BLUE. style.css v462. User, after
 the blue liquid glass went live: "Change from blue to grey"; shown the grey
 beside the blue, then "Deploy". Same glass (corner shine, diagonal streak,

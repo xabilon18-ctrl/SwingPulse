@@ -6,7 +6,8 @@
 // Checks: today's open Daily bar and the forming hour follow the live price
 // (close, high, MA end points), on the card and in full screen; a price off
 // the candle's level changes nothing; yesterday's closed bar takes no live
-// price. Run from app_smoke.cjs with its browser, on pages of its own.
+// price, and today's bar opens from it when the run has not added it yet;
+// a live bar has its dot (and on 1H the time left). Run from app_smoke.cjs with its browser, on pages of its own.
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -95,10 +96,13 @@ module.exports = async browser => {
   after.p.forEach((per, i) => assert.ok(Math.abs(after.m[i] - (before.m[i] + (up - c0) / per)) < 1e-6,
     `MA${per} end point follows: ${after.m[i]} vs ${before.m[i]}`));
   assert.equal(after.base, c0, 'the published bundle is untouched');
+  // A live bar carries the dot on its close (user, 2026-11-27, A + G).
+  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count() > 0, true, 'the live bar has its dot');
   // A price off the level (+60%) is not used: back to the published close.
   s.live = +(c0 * 1.6).toFixed(4);
   await poll(s.page);
   await waitClose(s.page, c0);
+  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count(), 0, 'a bar not following the price has no dot');
   // The open full-screen chart follows it too.
   s.live = up;
   await poll(s.page);
@@ -125,16 +129,26 @@ module.exports = async browser => {
   const hb = await lastBar(s.page);
   assert.equal(hb.t, fmtHour(hour), 'the forming hour is the last candle');
   assert.equal(hb.h, h1, 'its high widens to the live price');
+  // ...with the dot, and the time left in the hour under the price tag.
+  assert.equal(await s.page.locator('#chartReel .reel-live-mark').count() > 0, true, 'the forming hour has its dot');
+  const left = await s.page.locator('#chartReel [data-live-left]').first().textContent();
+  assert.match(left, /^\d{1,2}:\d{2}$/, `time left in the hour: ${left}`);
   await s.context.close();
 
-  // DAILY, the last bar is yesterday's (closed): no live price on it.
+  // DAILY, the last bar is yesterday's (closed) and the run has not added
+  // today's yet: yesterday keeps its close, and today's bar opens at it and
+  // follows the live price (2026-11-27, the gap after the UTC day turns).
   s = await openPage(yesterday);
-  s.live = +(s.dailyClose * 1.03).toFixed(4);
+  const nextUp = +(s.dailyClose * 1.03).toFixed(4);
+  s.live = nextUp;
   await poll(s.page);
-  await s.page.waitForTimeout(800);
-  const closed = await lastBar(s.page);
-  assert.equal(closed.t, yesterday);
-  assert.equal(closed.c, s.dailyClose, 'a closed Daily bar keeps its close');
+  await waitClose(s.page, nextUp);
+  const opened = await lastBar(s.page);
+  assert.equal(opened.t, today, 'today\'s bar is started from the live price');
+  assert.equal(opened.base, s.dailyClose, 'the published bundle is untouched');
+  const prior = await s.page.evaluate(() => { const b = document.querySelector('#chartReel .reel-chart')._reelCtx.b, n = b.t.length;
+    return { t: b.t[n - 2], c: b.c[n - 2], o: b.o[n - 1] }; });
+  assert.deepEqual(prior, { t: yesterday, c: s.dailyClose, o: s.dailyClose }, 'a closed Daily bar keeps its close; the new one opens at it');
   await s.context.close();
   assert.deepEqual(errors, []);
 };

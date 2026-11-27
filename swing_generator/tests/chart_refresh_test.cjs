@@ -16,6 +16,44 @@ async function main() {
   assert.equal(JSON.stringify(closed),snapshot,'Rendering must not change signal data');
   assert.equal(display.reelDisplayBundle(shown),shown,'Repaints must not duplicate the candle');
   assert.equal(shown.sg,closed.sg,'Signal indices remain on completed bars');
+  // NEXT BAR FROM THE LIVE PRICE (2026-11-27): the forming hour has closed
+  // and the run that adds the next one has not landed.
+  const stretch = source.slice(source.indexOf('  function reelDisplayBundle('), source.indexOf('  // Build the whole chart as one SVG string.'));
+  const ts = v => { const t = String(v).trim(); return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(t) ? t + 'T00:00:00Z' : t.replace(' ', 'T') + (/Z$/.test(t) ? '' : 'Z')); };
+  let price = null;
+  const live = vm.createContext({ freshness: { timestamp: ts },
+    reelLivePrice: (name, c0, from, until) => price && price.at >= from && price.at < until ? price.p : null,
+    reelLiveForming: (b) => b.forming, reelLiveLastBar: () => null });
+  vm.runInContext(stretch, live);
+  const hourly = { t: ['2026-11-26 08:00', '2026-11-27 06:00'], o: [1, 100], h: [1, 101], l: [1, 99], c: [1, 100], p: [2], ms: 1, mi: [0, 1], m: [[1, 50]],
+    forming: { t: '2026-11-27 07:00', closes_at: '2026-11-27T08:00:00Z', o: 100, h: 103, l: 98, c: 102, m: [101] } };
+  price = { at: ts('2026-11-27 08:14'), p: 104 };
+  let next = live.reelDisplayBundle(hourly, 'BTC', '1H');
+  assert.deepEqual([next.t.at(-1), next.o.at(-1), next.c.at(-1), next.h.at(-1), next.l.at(-1)], ['2026-11-27 08:00', 102, 104, 104, 102]);
+  assert.equal(next.t.at(-2), '2026-11-27 07:00', 'the closed forming hour stays before it');
+  assert.equal(next.m[0].at(-1), (102 + 104) / 2, 'its MA point follows the price');
+  assert.deepEqual([next._live.closes, next._live.countdown], [ts('2026-11-27 09:00'), true]);
+  price = { at: ts('2026-11-27 08:20'), p: 101 };
+  next = live.reelDisplayBundle(next, 'BTC', '1H');
+  assert.deepEqual([next.c.at(-1), next.h.at(-1), next.l.at(-1)], [101, 104, 101], 'high and low keep every price seen');
+  assert.equal(next.t.length, 4, 'a repaint redoes the bar, it does not add another');
+  // A market that did not trade that hour a day earlier (a stock after its close) gets no bar.
+  const stock = { ...hourly, t: ['2026-11-25 08:00', '2026-11-27 06:00'] };
+  assert.equal(live.reelDisplayBundle(stock, 'AAPL', '1H').t.length, 3);
+  // No live price in the next hour: the chart is as published, not marked live.
+  price = null;
+  assert.equal(live.reelDisplayBundle(hourly, 'BTC', '1H')._live, undefined);
+  // Daily: the UTC day has turned before the run added the new day.
+  const daily = { t: ['2026-11-21', '2026-11-26'], o: [1, 60], h: [1, 62], l: [1, 59], c: [1, 61], p: [2], ms: 1, mi: [0, 1], m: [[1, 31]] };
+  price = { at: ts('2026-11-27 00:10'), p: 63 };
+  next = live.reelDisplayBundle(daily, 'BTC', 'D');
+  assert.deepEqual([next.t.at(-1), next.o.at(-1), next.c.at(-1)], ['2026-11-27', 61, 63]);
+  assert.equal(next._live.countdown, true, 'a market with weekend bars closes its day at UTC midnight');
+  assert.equal(live.reelDisplayBundle({ ...daily, t: ['2026-11-20', '2026-11-26'] }, 'AAPL', 'D')._live.countdown, false, 'a weekday market gets no countdown');
+  assert.equal(live.reelLeftText(32 * 60e3 + 15e3), '32:15');
+  assert.equal(live.reelLeftText(13 * 3600e3 + 45 * 60e3 + 10e3), '13:45:10');
+  assert.equal(live.reelLeftText(4 * 864e5 + 13 * 3600e3), '4d 13h');
+
   const host = { innerHTML: 'old candles', _reelItem: { instrument_name: 'BTC' } };
   const item = { instrument_name: 'BTC', price: 123 };
   const bundle = { c: [100, 123] };
