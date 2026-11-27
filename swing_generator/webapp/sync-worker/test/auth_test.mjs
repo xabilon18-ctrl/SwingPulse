@@ -116,5 +116,18 @@ await check('paused notify without secret → 401', await call('POST', '/push/no
 await check('paused notify sends nothing   → 200', await call('POST', '/push/notify', { secret: 'ci-only-secret' }), 200, { paused: true, sent: 0 });
 delete env.PUSH_PAUSED;
 
+console.log('\nKV writes per wrong guess (free tier: 1,000 writes a day)');
+{
+  const realPut = env.USER_DATA.put;
+  let puts = 0;
+  env.USER_DATA.put = async (k, v, o) => { puts++; return realPut(k, v, o); };
+  for (const k of [...KV.keys()]) if (k.startsWith('fail:zabs')) KV.delete(k);
+  for (let i = 0; i < 5; i++) await call('GET', '/sync?user=zabs', { token: bad });
+  env.USER_DATA.put = realPut;
+  // one failure key each, plus the flag once
+  await check('5 wrong guesses cost 6 writes', { status: puts === 6 ? 200 : 500, clone: () => ({ json: async () => ({ puts }) }) }, 200);
+  for (const k of [...KV.keys()]) if (k.startsWith('fail:zabs')) KV.delete(k);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

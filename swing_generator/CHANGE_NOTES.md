@@ -7,6 +7,43 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (evening) AUDIT CLEAN-UP. app.js v681, style.css v466. User: "do an
+audit of the app and the code ... clean up the code with the intent of
+unifying the app". No behaviour change intended anywhere below.
+- style.css 452 KB -> 286 KB (10,371 -> ~5,900 lines). Removed every rule
+  whose selector needs one of 981 classes that nothing in the app, its
+  templates or the Python feeds ever writes (the Signals/Breadth/AI/heatmap
+  cards and the rest of the removed screens), the comments over them, the
+  @media blocks left empty and 14 @keyframes nothing animates with. A
+  selector list keeps its live parts; a dead class inside :not()/:is()/
+  :where() keeps the selector. Checked three ways: a static scan that
+  allows for names built in code ('x-' + y, `${y}-x`, 'p' + n); a recording
+  of every class the app put in the DOM through app_smoke,
+  saved_work_browser, ipad_workspace and desktop_workspace (480 classes,
+  none of them in the removed set); and the computed style of every
+  element, old sheet against new, at phone, iPad and laptop widths on the
+  Watchlist, Alerts and Market tabs and a chart on 1H, Daily, Monthly and
+  Yearly.
+- app.js: `isIntradayTf` read a hand-kept list of six timeframes, four of
+  them removed; it now reads INTRADAY_TFS (the timeframe table).
+  `reelDefaultBars` lost its 15m/30m/2H/10m branches (unreachable), and the
+  1H branch calls `reelBarsInSpan(bundle, 2, 0)`, the same two-month span it
+  computed by hand; REEL_15M_VIEW and reel15mIs24h went with 15m.
+  `barsLabel`, OV_TF_MS and OV_PROJ_DIV dropped the removed timeframes'
+  keys. Saved-settings migrations (30m -> 1H and the like) are kept.
+- app.js escaping: the signal list showed `instrument_name` and
+  `confirmation_status` raw (the same name was escaped in the attribute
+  beside it); the detail sheet showed `group` and `sector` raw; the track
+  record title showed `name` raw. All through escText now.
+- Sync Worker: a wrong password wrote the `fail:<user>` flag on every
+  guess, two KV writes per guess. MAX_FAILS an hour against both users,
+  from anyone, could use 960 of the free tier's 1,000 daily writes and
+  leave none for saves. The flag is now written only when missing (a read
+  costs little). auth_test checks 5 wrong guesses cost 6 writes.
+- server.py (local only): the chunk and /api/alerts routes still looped over
+  15m and 30m. `_CHART_BUILDERS['15m']` raised KeyError inside a broad
+  except, so those passes did nothing; they are gone.
+
 2026-11-27 (later) TIME GRID LOST WITH A LIVE BAR. app.js v680. User, with a
 US30 Daily screenshot (saved view, no time lines, no grid tag): "the grids
 disappear". `reelBarTimes` cached a bundle's times on the bundle (`_bt`), and
