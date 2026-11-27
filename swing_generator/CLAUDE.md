@@ -24,6 +24,15 @@ that goes red. Report what is live when done.
 Claude does not merge it. Nothing in CI checks these files, and a wrong rule
 here silently changes every later session.
 
+**ASK WHICH LADDER (user, 2026-11-27: "when i ask you to adjust the ladder
+you must ask which one").** There are two ladder sets: STANDARD
+(`app.js LADDER_HOME_SUB`) and CURRENCY (`LADDER_HOME_SUB_CCY`, used on
+currency pairs, the currency indices and USDX: `ladderIsCurrency`). Before
+changing any ladder split or ladder behaviour, ask whether it is for the
+standard set, the currency set or both, unless the user has already said.
+Keep sync-worker `ladder-alerts.js` (`HOME_SUB`, `HOME_SUB_CCY`) equal to
+the 1H tiers of each set.
+
 **Change history lives in `CHANGE_NOTES.md`**, newest first: the dated feature
 notes that used to open this file, and the per-version notes for app.js and
 style.css. Read the entry for a feature before changing it, and add new entries
