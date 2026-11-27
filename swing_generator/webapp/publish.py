@@ -306,6 +306,9 @@ def build_names():
         '2822.HK':   'FTSE China A50',   # CHINA50 — SGX A50 futures at 5m
         # Crypto (strip generic " USD" suffix)
         'BTC-USD':   'Bitcoin',
+        'BTC-EUR':   'Bitcoin / Euro',
+        'BTC-GBP':   'Bitcoin / Pound',
+        'BTC-JPY':   'Bitcoin / Yen',
         'ETH-USD':   'Ethereum',
         'BNB-USD':   'BNB',
         'XRP-USD':   'XRP',

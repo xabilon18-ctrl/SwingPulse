@@ -7,6 +7,21 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 BTCEUR, BTCGBP AND BTCJPY ADDED (Crypto, 853 -> 856 instruments).
+User: "Please add btcjpy btcgbp and btceur to the list".
+- Instruments.txt #860-862 (Crypto / Layer 1), Yahoo tickers BTC-EUR,
+  BTC-GBP, BTC-JPY; prices come from the exchange, as for every crypto
+  (crypto_exchanges.py): BTCEUR and BTCGBP from Coinbase (BTC-EUR, BTC-GBP,
+  daily history from 2015, like BTCUSD), BTCJPY from Binance (BTCJPY). Coinbase
+  has no BTC-JPY, and Binance's BTCGBP stopped trading in Dec 2023, so each
+  pair reads the venue still trading it. Binance's BTCJPY starts 2024-03-12:
+  about 990 daily bars on 2026-11-27, enough for MA500 but a short Monthly and
+  Yearly chart. Volume is in each pair's own quote currency (EUR, GBP, JPY).
+- Full names in publish.py: Bitcoin / Euro, Bitcoin / Pound, Bitcoin / Yen.
+  Search needs no alias: "btc" and "bitcoin" match the names already.
+- Checked before merge: exchange_feed.download at 1d, 1h and 5m for all three
+  (latest closes 56,151 EUR, 46,980 GBP, 9,837,478 JPY).
+
 2026-11-27 BLUE LIQUID GLASS ON THE FULL-SCREEN CHART BARS. style.css v461.
 User: "Make the header and footer to have a thick shiny glass look"; picked
 the phone full-screen chart's header and footer (not the app bar and tabs).
