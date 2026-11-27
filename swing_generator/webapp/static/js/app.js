@@ -9997,9 +9997,22 @@
       if (per && s.length) s[s.length - 1] += (p - c0) / per;
       return s;
     });
+    out._live = { closes: from + 864e5, countdown: reelTradesAllDay(src) };
     return out;
   }
   const LIVE_CHART_TFS = new Set(['1H', 'D', 'M', 'Y']);
+  // The live bar's countdown ticks every second between the 30s repaints.
+  // It stops itself once no countdown is on the page.
+  let reelLiveLeftTimer = null;
+  function reelLiveLeftTick() {
+    if (reelLiveLeftTimer) return;
+    reelLiveLeftTimer = setInterval(() => {
+      const els = document.querySelectorAll('[data-live-left]');
+      if (!els.length) { clearInterval(reelLiveLeftTimer); reelLiveLeftTimer = null; return; }
+      const now = Date.now();
+      els.forEach(el => { const t = reelLeftText(Number(el.dataset.liveLeft) - now); if (el.textContent !== t) el.textContent = t; });
+    }, 1000);
+  }
   // Redraw the charts in view after a live price (chartPaintLive). Not one a
   // finger or the mouse is on: a pan or a drag is not cut short by a
   // repaint; it is redrawn on the next poll.
@@ -10023,17 +10036,35 @@
     const liveForming = !!reelFormingWindow(base.forming), liveLast = !base.forming && LIVE_LAST_BAR_TFS.has(tf);
     if (bundle._base && !liveForming && !liveLast) return bundle;
     if (liveLast) {
-      const out = reelLiveLastBar(base, name);
+      // Daily: today's bar follows the price; once the UTC day has turned and
+      // the data run has not yet added the new day, the new day's bar starts
+      // from the live price (reelLiveNextBar).
+      const out = reelLiveLastBar(base, name) || reelLiveNextBar(base, name, 864e5);
       return out ? { ...out, _base: base } : base;
     }
-    let src = base;
-    if (liveForming) src = { ...src, forming: reelLiveForming(src, name) };
+    let src = base, live = null;
+    if (liveForming) {
+      const f = reelLiveForming(src, name);
+      if (f !== src.forming) live = { closes: reelFormingWindow(src.forming)[1], countdown: true };
+      src = { ...src, forming: f };
+    }
     const f = src.forming, n = src.t.length;
     if (!f || !n || f.t <= src.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
-    const out = { ...src, _base: base };
+    let out = { ...src, _base: base };
     for (const key of ['t', 'o', 'h', 'l', 'c']) out[key] = [...src[key], f[key]];
     out.mi = [...(src.mi || src.m[0].map((_, j) => Math.min(j * (src.ms || 1), n - 1))), n];
     out.m = src.m.map((series, i) => [...series, f.m?.[i] ?? series[series.length - 1]]);
+    if (live) out._live = live;
+    // 1H: the forming hour has closed and the next run has not published the
+    // new one yet (user, 2026-11-27: "price is updating but charts not"; the
+    // runs land about half an hour into the hour). The new hour starts from
+    // the live price. Monthly/Yearly forming candles have `live` and are not
+    // extended this way.
+    else if (liveForming && !f.live) {
+      const w = reelFormingWindow(f);
+      const next = w && reelLiveNextBar(out, name, w[1] - w[0], w[1]);
+      if (next) out = { ...next, _base: base };
+    }
     return out;
   }
 
@@ -10047,6 +10078,65 @@
     return null;
   }
   const LIVE_LAST_BAR_TFS = new Set(['D']);
+
+  // NEXT BAR FROM THE LIVE PRICE (2026-11-27). The bundle's newest bar has
+  // closed (it started `len` ms before `start`) and the data run that adds the
+  // next one has not landed. A live price inside the next period becomes that
+  // period's bar: open at the last close, close at the price, high and low
+  // widened by every price seen since (reelLiveSeen, this page only). The MA
+  // points follow, as reelLiveForming's do. Display only, like the rest.
+  // Only for a market that traded the same period a day earlier, so a
+  // stock's after-close print never opens a bar the session does not have.
+  const reelLiveSeen = new Map();
+  function reelBarLabel(ms, daily) {
+    const iso = new Date(ms).toISOString();
+    return daily ? iso.slice(0, 10) : iso.slice(0, 10) + ' ' + iso.slice(11, 16);
+  }
+  function reelLiveNextBar(src, name, len, start) {
+    const n = src.t.length;
+    if (!n || !(len > 0)) return null;
+    const daily = len >= 864e5;
+    if (start == null) start = freshness.timestamp(src.t[n - 1]) + len;
+    if (!Number.isFinite(start)) return null;
+    const c0 = src.c[n - 1], p = reelLivePrice(name, c0, start, start + len);
+    if (p == null) return null;
+    const dayAgo = reelBarLabel(start - 864e5, daily);
+    let traded = false;
+    for (let i = n - 1; i >= Math.max(0, n - 40) && !traded; i--) traded = src.t[i] === dayAgo;
+    if (!traded) return null;
+    const t = reelBarLabel(start, daily), key = name + '|' + t, seen = reelLiveSeen.get(key) || { h: c0, l: c0 };
+    seen.h = Math.max(seen.h, p); seen.l = Math.min(seen.l, p);
+    reelLiveSeen.set(key, seen);
+    const out = { ...src };
+    for (const k of ['t', 'o', 'h', 'l', 'c']) out[k] = [...src[k]];
+    out.t.push(t); out.o.push(c0); out.h.push(seen.h); out.l.push(seen.l); out.c.push(p);
+    out.mi = [...(src.mi || src.m[0].map((_, j) => Math.min(j * (src.ms || 1), n - 1))), n];
+    out.m = src.m.map((series, i) => {
+      const per = (src.p || [])[i];
+      const v = per && n >= per - 1 ? (src.c.slice(n - (per - 1)).reduce((a, x) => a + x, 0) + p) / per : series[series.length - 1];
+      return [...series, v];
+    });
+    out._live = { closes: start + len, countdown: !daily || reelTradesAllDay(src) };
+    return out;
+  }
+  // A Daily bar closes at the next UTC day only for a market that trades
+  // round the clock (it has weekend bars); a stock's day ends at its close,
+  // which the chart does not know, so it gets the dot without a countdown.
+  function reelTradesAllDay(src) {
+    for (let i = src.t.length - 1; i >= Math.max(0, src.t.length - 10); i--) {
+      const d = new Date(String(src.t[i]).slice(0, 10) + 'T00:00:00Z').getUTCDay();
+      if (d === 0 || d === 6) return true;
+    }
+    return false;
+  }
+  // "32:15" under an hour, "13:45:10" under a day, then "4d 13h" / "34d".
+  function reelLeftText(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
+    const two = v => String(v).padStart(2, '0');
+    if (d >= 10) return d + 'd';
+    if (d >= 1) return d + 'd ' + h + 'h';
+    return h ? h + ':' + two(m) + ':' + two(x) : m + ':' + two(x);
+  }
 
   // Build the whole chart as one SVG string.
   function reelChartSvg(bundle, item, host) {
@@ -10301,6 +10391,24 @@
       `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" class="reel-last-tag ${lastDir}"/>` +
       `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last ${lastDir}">${reelFmtPrice(last)}</text>`;
 
+    // ── Live bar marker (user, 2026-11-27, picked A + G from mock-ups) ──
+    // While the newest bar follows the live price (reelDisplayBundle's
+    // `_live`) and is on screen: a pulsing dot on its close, and the time
+    // left until it closes under the price tag. Neither shows on a bar that
+    // is not moving, so a frozen chart no longer looks live.
+    let liveMark = '';
+    if (bundle._live && _pan <= 0 && lastY >= L.py0 && lastY <= L.py1) {
+      const lx = xOf(n - 1).toFixed(1), ly = lastY.toFixed(1);
+      liveMark = `<g class="reel-live-mark" pointer-events="none">`
+        + `<circle cx="${lx}" cy="${ly}" r="20" class="reel-live-halo ${lastDir}"/>`
+        + `<circle cx="${lx}" cy="${ly}" r="9" class="reel-live-dot ${lastDir}"/></g>`;
+      if (bundle._live.countdown && Number.isFinite(bundle._live.closes)) {
+        liveMark += `<g class="reel-live-left" pointer-events="none"><rect x="${L.x1 + 2}" y="${(lastY + 18).toFixed(1)}" width="${L.W - L.x1 - 4}" height="30" rx="4"/>`
+          + `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 41).toFixed(1)}" class="reel-axis" data-live-left="${bundle._live.closes}">${reelLeftText(bundle._live.closes - Date.now())}</text></g>`;
+        reelLiveLeftTick();
+      }
+    }
+
     // Clipped-ribbon tag — says which way the ribbon ran off and by how much,
     // so a capped scale never silently hides where the anchor is.
     let clipTag = '';
@@ -10547,7 +10655,7 @@
 
     return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" style="${reelDotVars(L)}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${fm.svg}</g>${lastTag}${clipTag}${dates}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${fm.svg}</g>${lastTag}${liveMark}${clipTag}${dates}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%${tgripOff}" aria-hidden="true"></div>`;
   }
