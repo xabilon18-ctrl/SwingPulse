@@ -7,6 +7,15 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 CURRENCY LADDER 1H SPLIT 18. app.js v682, sync Worker. User: "Divide
+currency ladder by 18 for the 1h chart and deploy". Currency set only (the
+standard set is unchanged). `LADDER_HOME_SUB_CCY.Y['1H'] = [18]` (was 12): a
+Yearly 10% gap on a currency shows every 0.56% on 1H; Monthly 3 and Daily 6
+unchanged. Sync Worker `HOME_SUB_CCY.Y = [18]` (alert lines every 0.56%).
+Tests: ladder_yearly_checks currency run (17 lines between Yearly lines on 1H;
+each chart's test ladder is now sized so a 10% gap is 60% of the window, room
+for eighteenths), ladder_alerts_test (181 levels a block).
+
 2026-11-27 (evening) AUDIT CLEAN-UP. app.js v681, style.css v466. User: "do an
 audit of the app and the code ... clean up the code with the intent of
 unifying the app". No behaviour change intended anywhere below.

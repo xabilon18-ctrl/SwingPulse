@@ -66,15 +66,16 @@ yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 111.3, h:
 assert.deepEqual(yrun.alerts.zabs.map(alertTitle), ['GOLD · Yearly 10%', 'GOLD · 1H 11%'], 'a Yearly ladder alerts once, its own line named Yearly: ' + yrun.alerts.zabs.map(alertTitle));
 
 // CURRENCY LADDERS (2026-11-27, "10% yearly - M/3, D/6, H/12"): on a
-// currency a Yearly ladder's 1H steps are twelve per 10% gap (0.83%);
+// currency a Yearly ladder's 1H steps are eighteen per 10% gap (0.56%; 1H by
+// 18 from the same day);
 // a Monthly ladder there keeps ten.
 const cv = ladderAlertLevels(yearly, true);
-assert.equal(cv.length, 121, 'a currency Yearly block has 121 alert lines: twelve per 10% gap');
-assert.deepEqual(cv.slice(0, 13).map(l => l.pct), [0, 0.8, 1.7, 2.5, 3.3, 4.2, 5, 5.8, 6.7, 7.5, 8.3, 9.2, 10]);
+assert.equal(cv.length, 181, 'a currency Yearly block has 181 alert lines: eighteen per 10% gap');
+assert.deepEqual(cv.slice(0, 19).map(l => l.pct), [0, 0.6, 1.1, 1.7, 2.2, 2.8, 3.3, 3.9, 4.4, 5, 5.6, 6.1, 6.7, 7.2, 7.8, 8.3, 8.9, 9.4, 10]);
 assert.equal(ladderAlertLevels(monthly, true).length, 101, 'a Monthly ladder on a currency keeps ten per gap');
 let crun = checkAlerts({ users: { zabs: { channels: { EURUSD: { Y: [yearly] } } } } , quotes: { q: { EURUSD: { p: 109.8, t: 'a', y: 'EURUSD=X' } } }, state: {}, now: t0 });
 crun = checkAlerts({ users: { zabs: { channels: { EURUSD: { Y: [yearly] } } } }, quotes: { q: { EURUSD: { p: 111.0, h: 111.0, l: 109.8, t: 'b', y: 'EURUSD=X' } } }, state: crun.state, now: t0 + 3600e3 });
-assert.deepEqual(crun.alerts.zabs.map(alertTitle), ['EURUSD · Yearly 10%', 'EURUSD · 1H 10.8%'], 'a currency Yearly ladder alerts on its 0.83% steps: ' + crun.alerts.zabs.map(alertTitle));
+assert.deepEqual(crun.alerts.zabs.map(alertTitle), ['EURUSD · Yearly 10%', 'EURUSD · 1H 10.6%'], 'a currency Yearly ladder alerts on its 0.56% steps: ' + crun.alerts.zabs.map(alertTitle));
 // The rule picks out exactly the Currency and Currency Index groups of
 // Instruments.txt (by their Yahoo symbol, as quotes.json carries it), plus
 // USDX, and nothing else.
