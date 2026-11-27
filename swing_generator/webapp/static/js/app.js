@@ -3325,7 +3325,7 @@
     tabDirty.charts = true;
     // If the user is already on the trends tab (e.g. background refresh), render it now
     if (currentTab === 'trends') renderTrendsLazy();
-    if (currentTab === 'charts') renderChartsLazy();
+    if (currentTab === 'charts') { renderChartsLazy(); chartScreenEnsure(); }
     if (currentTab === 'watchlist') renderWatchlist();
   }
 
@@ -3448,8 +3448,11 @@
     catch (_) { document.scrollingElement.scrollTop = y; }
   }
   function chartScreenEnsure() {
-    if (currentTab !== 'charts' || chartFullName || desktopChart.active) return;
+    if (currentTab !== 'charts' || chartFullName || desktopChartEligible()) return;
     const list = reel.list || [];
+    // Opened before the instruments have loaded (a link at start-up): wait
+    // for them (renderAll calls this again) rather than close at once.
+    if (!list.length && !allData.length) return;
     if (!list.length) { chartExit(); return; }
     const name = list.some(d => d.instrument_name === reelLastSeen) ? reelLastSeen : list[0].instrument_name;
     chartFullOpen(name);
