@@ -9435,11 +9435,12 @@
   // ask you to adjust the ladder you must ask which one").
   const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] }, Y: { M: [2], D: [4], '1H': [10] } };
   // CURRENCY: a Yearly ladder's 10% gap in THREE on Monthly (3.3%), SIX on
-  // Daily (1.67%) and TWELVE on 1H (0.83%) (user, 2026-11-27: "10% yearly -
-  // M/3, D/6, H/12"). A home missing here takes the standard set (Monthly
+  // Daily (1.67%) and EIGHTEEN on 1H (0.56%) (user, 2026-11-27: "10% yearly -
+  // M/3, D/6, H/12", then "Divide currency ladder by 18 for the 1h chart";
+  // 1H was twelve, 0.83%, for a day). A home missing here takes the standard set (Monthly
   // ladders on currency are unchanged). Keep sync-worker ladder-alerts.js
   // HOME_SUB_CCY equal to the 1H tiers.
-  const LADDER_HOME_SUB_CCY = { Y: { M: [3], D: [6], '1H': [12] } };
+  const LADDER_HOME_SUB_CCY = { Y: { M: [3], D: [6], '1H': [18] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
   // Currency pairs (group Currency), the currency indices (group Currency

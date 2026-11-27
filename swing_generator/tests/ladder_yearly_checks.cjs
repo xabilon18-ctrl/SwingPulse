@@ -14,9 +14,9 @@ const zlib = require('zlib');
 // Fresh context: it starts from a device with that old ladder saved.
 // { ccy: true }: TEST is served as a currency (group Currency), where a
 // Yearly ladder takes the CURRENCY set (user, 2026-11-27: "10% yearly -
-// M/3, D/6, H/12").
+// M/3, D/6, H/12", then 1H by 18 the same day).
 module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
-  const parts = ccy ? { M: 3, D: 6, '1H': 12 } : { M: 2, D: 4, '1H': 10 };
+  const parts = ccy ? { M: 3, D: 6, '1H': 18 } : { M: 2, D: 4, '1H': 10 };
   const context = await page.context().browser().newContext({ viewport: { width: 390, height: 844 } });
   const p = await context.newPage();
   const errors = [];
@@ -64,9 +64,10 @@ module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
   await openFull('Y');
   assert.equal(await p.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'Yearly itself shows no split lines');
   await close();
-  // Each timeframe's ladder is sized to that chart's window (three 10% gaps
-  // in view) so its finest split has room to draw (lines closer than
-  // LADDER_SUB_LINE_MIN are not drawn); the split does not depend on the size.
+  // Each timeframe's ladder is sized to that chart's window (a 10% gap is 60%
+  // of it, two 10% lines in view) so its finest split has room to draw (lines
+  // closer than LADDER_SUB_LINE_MIN are not drawn); the split does not depend
+  // on the size.
   const fitTo = async tf => {
     await openFull(tf);
     const win = await p.evaluate(() => { const h = [...document.querySelectorAll('#chartFull *')].find(e => e._reelCtx); return h && { lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }; });
@@ -75,7 +76,7 @@ module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
     await p.evaluate(w => {
       const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
       for (const list of Object.values(all.TEST || {}))
-        for (const x of list || []) if (x && x.kind === 'ladder' && x.home === 'Y') { x.p1 = w.lo + (w.hi - w.lo) * 0.2; x.p4 = x.p1 + (w.hi - w.lo); }
+        for (const x of list || []) if (x && x.kind === 'ladder' && x.home === 'Y') { x.p1 = w.lo + (w.hi - w.lo) * 0.1; x.p4 = x.p1 + (w.hi - w.lo) * 1.8; }
       localStorage.setItem('sp-channels', JSON.stringify(all));
     }, win);
     await p.reload({ waitUntil: 'networkidle' });
@@ -99,6 +100,6 @@ module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
   assert.ok((got.D || []).some(d => d && d.link === fresh[0].link), 'its copy is on Daily');
   assert.deepEqual(errors, []);
   await context.close();
-  console.log(ccy ? 'PASS: Yearly ladders on a currency split in 3 on Monthly, 6 on Daily, 12 on 1H'
+  console.log(ccy ? 'PASS: Yearly ladders on a currency split in 3 on Monthly, 6 on Daily, 18 on 1H'
                   : 'PASS: Yearly ladders split in 2 on Monthly, 4 on Daily, 10 on 1H; old ones linked once');
 };

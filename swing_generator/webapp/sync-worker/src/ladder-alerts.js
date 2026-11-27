@@ -22,9 +22,10 @@ export const LADDER_SUB = 5;
 export const HOME_SUB = { M: [10], Y: [10] };
 // CURRENCY LADDERS (user, 2026-11-27: "a different ladder for anything
 // currency related ... 10% yearly - M/3, D/6, H/12"): on a currency a Yearly
-// ladder's 1H steps are twelve per gap (0.83%) (app.js LADDER_HOME_SUB_CCY).
+// ladder's 1H steps are eighteen per gap (0.56%; twelve, 0.83%, for a day)
+// (app.js LADDER_HOME_SUB_CCY).
 // A home missing here takes HOME_SUB.
-export const HOME_SUB_CCY = { Y: [12] };
+export const HOME_SUB_CCY = { Y: [18] };
 // Currency pairs (Yahoo ...=X), the currency indices (CCY_...) and USDX, the
 // ICE dollar index the app also files under Currency Index (app.js
 // ladderIsCurrency, which reads the Instruments.txt groups; the test checks
