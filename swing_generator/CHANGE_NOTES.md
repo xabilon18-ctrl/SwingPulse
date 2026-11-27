@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) CHART GLASS GREY, NOT BLUE. style.css v462. User, after
+the blue liquid glass went live: "Change from blue to grey"; shown the grey
+beside the blue, then "Deploy". Same glass (corner shine, diagonal streak,
+1.5px gradient rim, inner glow, drop shadow); every blue is now neutral
+grey: tint rgba(200,203,210,.06), rim middle rgba(112,118,130,.32), inner
+glow rgba(100,106,118,.12), drop shadow black at .14. No size changes.
+
 2026-11-27 BLUE LIQUID GLASS ON THE FULL-SCREEN CHART BARS. style.css v461.
 User: "Make the header and footer to have a thick shiny glass look"; picked
 the phone full-screen chart's header and footer (not the app bar and tabs).
