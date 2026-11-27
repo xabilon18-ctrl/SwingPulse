@@ -7,6 +7,32 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 WHITE THEME, WITH A WHITE / DARK SWITCH. app.js v683, style.css v467,
+manifest v3. User: "Now give me a white theme for the app"; asked, chose "Switch,
+white default". Replaces "single dark theme" (app.js removed the stored theme on
+every load).
+- `[data-theme="light"]` token set in style.css: off-white page (#f4f4f2), white
+  cards and bars, ink #14140f. Green, red and amber are the darker ones the
+  full-screen chart header already used on white (#047857 / #b91c1c / #b45309,
+  accent #d97706): the dark-theme green (2.2:1) and gold (1.7:1) can't be read
+  on white. Gold pills (active tab, All markets) keep their gold.
+- The chart plot is the same in both themes: `[data-theme="light"] .reel-chart`
+  pins the dark-theme marks (it was already white).
+- Faint overlays outside the chart (38 hover washes, hairlines, chips) are
+  `rgba(var(--wash-rgb), a)`: white on Dark exactly as before, black on White.
+- WHITE THEME SURFACES block at the end of style.css: frosted top bar and
+  bottom nav, the machined card, the filter menu, three Alerts card borders,
+  the desktop chart workspace (fell back to #080909), Alerts rows, the logo.
+- Switch: sun / moon button `#themeBtn` in the top bar; `swingpulse-theme` in
+  localStorage ('dark' or 'light', default White). index.html's head script
+  sets data-theme, theme-color and the iOS status bar before the first paint,
+  so a Dark device never flashes white. Manifest splash/theme colour white.
+- Dark checked against screenshots taken before the change: unchanged apart
+  from the new button.
+- Test: `tests/theme_checks.cjs` (app_smoke): fresh device on White; one tap
+  to Dark, remembered, Dark at first paint after a reload; back to White; the
+  chart's marks identical in both.
+
 2026-11-27 CURRENCY LADDER 1H SPLIT 18. app.js v682, sync Worker. User: "Divide
 currency ladder by 18 for the 1h chart and deploy". Currency set only (the
 standard set is unchanged). `LADDER_HOME_SUB_CCY.Y['1H'] = [18]` (was 12): a

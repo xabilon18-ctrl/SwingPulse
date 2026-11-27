@@ -392,6 +392,7 @@ let debugPage;
   if (!live) await require('./ladder_yearly_checks.cjs')(page, { ccy: true });
   if (!live) await require('./draw_hidden_copy_checks.cjs')(page);
   if (!live) await require('./ladder_offset_checks.cjs')(page);
+  if (!live) await require('./theme_checks.cjs')(page);
   if (!live) await require('./ladder_cleanup_checks.cjs')(page);
   assert.equal(errors.length, 0, errors.join('\n'));
   if (!live) {

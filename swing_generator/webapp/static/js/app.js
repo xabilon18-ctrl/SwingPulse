@@ -1170,7 +1170,7 @@
     const pts = avgs.map((a, i) => isFinite(a)
       ? `${(i * bw + bw / 2).toFixed(1)},${Math.min(h - 1, h - a / max * (h - 4)).toFixed(1)}`
       : null).filter(Boolean).join(' ');
-    const line = pts ? `<polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linejoin="round" stroke-dasharray="4 3"/>` : '';
+    const line = pts ? `<polyline points="${pts}" fill="none" style="stroke:rgba(var(--wash-rgb),.5)" stroke-width="1.4" stroke-linejoin="round" stroke-dasharray="4 3"/>` : '';
     return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${bars}${line}</svg>`;
   }
 
@@ -3192,9 +3192,32 @@
   }
 
 
-  // ── Theme — single dark theme ────────────────────────────────────────
-  document.documentElement.setAttribute('data-theme', 'dark');
-  localStorage.removeItem('swingpulse-theme');
+  // ── Theme: White (default) or Dark, per device (2026-11-27) ─────────────
+  // User: "Now give me a white theme for the app"; asked, chose a switch
+  // starting on White. index.html's head script applies the saved choice
+  // before the first paint; the sun / moon button (#themeBtn) flips it. The
+  // chart's own plot looks the same in both (style.css
+  // [data-theme="light"] .reel-chart).
+  const THEME_KEY = 'swingpulse-theme';
+  function themeApply(t) {
+    const dark = t === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', dark ? '#000000' : '#f4f4f2');
+    const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (sb) sb.setAttribute('content', dark ? 'black' : 'default');
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.setAttribute('aria-label', dark ? 'Switch to white' : 'Switch to dark');
+  }
+  function themeSaved() {
+    try { return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'; } catch (_) { return 'light'; }
+  }
+  themeApply(themeSaved());
+  document.getElementById('themeBtn')?.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+    themeApply(next);
+  });
 
   // ── Timeframe Toggle ─────────────────────────────────────────────────
   // Switch the active timeframe (Daily ↔ 4H) and re-render everything.

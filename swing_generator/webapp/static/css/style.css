@@ -42,7 +42,92 @@
   --glass-border:  rgba(255,255,255,.07);
   --scrollbar-bg:  #0d0d0c;
   --scrollbar-thumb:#3a3a38;
+  /* The faint overlays (hover washes, hairlines, chips) are white on dark,
+     black on white: rgba(var(--wash-rgb), .06). */
+  --wash-rgb:      255,255,255;
+  color-scheme: dark;
 }
+
+/* ── Design Tokens (White — default since 2026-11-27) ─────────────────────
+   User: "Now give me a white theme for the app"; asked, chose a White / Dark
+   switch starting on White (#themeBtn, app.js themeApply). The ink, border,
+   green, red and amber are the ones the full-screen chart's header and footer
+   already use on white (#chartFull > .cf-head): the bright dark-theme green
+   (2.2:1) and gold (1.7:1) cannot be read on white. The chart's own plot keeps
+   the dark-theme marks (pinned below, [data-theme="light"] .reel-chart), so a
+   chart looks the same in both themes. */
+[data-theme="light"] {
+  --bg-base:       #f4f4f2;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f0f0ed;
+  --bg-card:       #ffffff;
+  --bg-hover:      #e7e7e3;
+  --bg-input:      #ffffff;
+  --border:        #dcdcd6;
+  --border-active: #a3a39c;
+  --text-primary:  #14140f;
+  --text-secondary:#52525b;
+  --text-muted:    #71717a;
+  --accent:        #d97706;
+  --accent-glow:   rgba(217,119,6,.18);
+  --buy:           #047857;
+  --buy-soft:      rgba(4,120,87,.10);
+  --buy-glow:      rgba(4,120,87,.28);
+  --sell:          #b91c1c;
+  --sell-soft:     rgba(185,28,28,.08);
+  --sell-glow:     rgba(185,28,28,.25);
+  --watch:         #b45309;
+  --watch-soft:    rgba(180,83,9,.10);
+  --watch-glow:    rgba(180,83,9,.28);
+  --volume:        #6d28d9;
+  --volume-soft:   rgba(109,40,217,.10);
+  --volume-glow:   rgba(109,40,217,.28);
+  --neutral:       #a1a1aa;
+  --neutral-soft:  rgba(113,113,122,.12);
+  --shadow:        0 2px 14px rgba(0,0,0,.07);
+  --shadow-lg:     0 12px 40px rgba(0,0,0,.14);
+  --glass:         rgba(255,255,255,.82);
+  --glass-border:  rgba(0,0,0,.08);
+  --scrollbar-bg:  #f0f0ed;
+  --scrollbar-thumb:#c9c9c4;
+  --wash-rgb:      0,0,0;
+  color-scheme: light;
+}
+/* The plot draws with the dark-theme marks in both themes: the same green,
+   red, gold and volume purple on the same white ground. */
+[data-theme="light"] .reel-chart {
+  --text-primary:  #f4f4f5;
+  --accent:        #fbbf24;
+  --accent-glow:   rgba(251,191,36,.2);
+  --buy:           #10b981;
+  --buy-soft:      rgba(16,185,129,.12);
+  --buy-glow:      rgba(16,185,129,.35);
+  --sell:          #ef4444;
+  --sell-soft:     rgba(239,68,68,.12);
+  --sell-glow:     rgba(239,68,68,.35);
+  --watch:         #f59e0b;
+  --watch-soft:    rgba(245,158,11,.12);
+  --watch-glow:    rgba(245,158,11,.35);
+  --volume:        #8b5cf6;
+  --volume-soft:   rgba(139,92,246,.12);
+  --volume-glow:   rgba(139,92,246,.35);
+  --neutral:       #52525c;
+  --neutral-soft:  rgba(82,82,92,.15);
+  --bg-base:       #000000;
+  --bg-surface:    #0d0d0c;
+  --bg-elevated:   #1a1a19;
+  --bg-card:       #121211;
+  --bg-hover:      #262625;
+  --bg-input:      #0a0a09;
+  --border-active: #4a4a46;
+  --wash-rgb:      255,255,255;
+}
+
+/* White / Dark switch (#themeBtn): the moon on White (tap for Dark), the
+   sun on Dark (tap for White). */
+.theme-btn .theme-ic-sun { display: none; }
+[data-theme="dark"] .theme-btn .theme-ic-moon { display: none; }
+[data-theme="dark"] .theme-btn .theme-ic-sun { display: block; }
 
 /* ── Loading Overlay ─────────────────────────────────────────────────── */
 #spLoader {
@@ -104,7 +189,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   background: rgba(18,18,20,.55);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(var(--wash-rgb),.06);
 }
 .topbar {
   position: relative;
@@ -114,7 +199,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   height: 58px;
   padding: 0 18px;
   background: transparent;                     /* inherits the stack's frosted material */
-  border-bottom: 1px solid rgba(255,255,255,.07);
+  border-bottom: 1px solid rgba(var(--wash-rgb),.07);
   --pulse-color: var(--accent);
 }
 
@@ -158,7 +243,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 @media (max-width: 420px) {
   .tf-switch-btn { font-size: 12.5px; letter-spacing: .01em; }
 }
-.tf-switch-btn:hover { color: var(--accent, #fbbf24); background: rgba(255,255,255,.05); }
+.tf-switch-btn:hover { color: var(--accent, #fbbf24); background: rgba(var(--wash-rgb),.05); }
 .tf-switch-btn:active { transform: scale(.96); filter: brightness(.9); }
 .tf-switch-btn.active {
   color: #0a0a0b;
@@ -193,7 +278,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   padding: 2px 7px;
   border-radius: 4px;
   color: var(--text-muted);
-  background: rgba(255,255,255,.06);
+  background: rgba(var(--wash-rgb),.06);
   border: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -231,7 +316,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .topbar-left { flex: 1; }
 .topbar-right { flex: none; gap: 4px; }
 .topbar .icon-btn { flex: none; width: 44px; height: 44px; border: 0; background: transparent; box-shadow: none; }
-.topbar .icon-btn:hover { background: rgba(255,255,255,.06); }
+.topbar .icon-btn:hover { background: rgba(var(--wash-rgb),.06); }
 .topbar .sync-name { height: 44px; max-width: 100px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
 .topbar :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -277,7 +362,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .header-freshness[data-state="stale"] .date-badge::before { background: var(--accent); }
 .header-freshness[data-state="failed"] .date-badge { color: var(--sell); }
 .header-freshness[data-state="failed"] .date-badge::before { background: var(--sell); }
-.header-freshness[open] .date-badge { background: rgba(255,255,255,.06); }
+.header-freshness[open] .date-badge { background: rgba(var(--wash-rgb),.06); }
 
 /* One compact row, with room for every action on small phones. */
 @media (max-width: 600px) {
@@ -304,8 +389,8 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   width: 38px; height: 42px;
   border: none;
   border-radius: 12px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(var(--wash-rgb),.04);
+  border: 1px solid rgba(var(--wash-rgb),.06);
   color: var(--text-secondary);
   display: grid;
   place-items: center;
@@ -1781,7 +1866,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   background: var(--accent);
   color: #0a0a0b;   /* same ink-on-amber as .tf-switch-btn.active — white on amber is barely legible */
 }
-.sig-view-btn:hover:not(.active) { background: rgba(255,255,255,.05); color: var(--text-primary); }
+.sig-view-btn:hover:not(.active) { background: rgba(var(--wash-rgb),.05); color: var(--text-primary); }
 
 /* ── Direction segmented toggle ── */
 /* (.sig-dir-row removed — the wrapper div went away when the filter chips were
@@ -1883,9 +1968,9 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   position: relative;
 }
 .sig-ctx-filters.active {
-  background: rgba(255,255,255,.08);
+  background: rgba(var(--wash-rgb),.08);
   color: var(--text-primary);
-  border-color: rgba(255,255,255,.25);
+  border-color: rgba(var(--wash-rgb),.25);
 }
 .sig-filter-badge {
   position: absolute;
@@ -1935,7 +2020,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .sig-sheet-handle {
   width: 36px;
   height: 4px;
-  background: rgba(255,255,255,.15);
+  background: rgba(var(--wash-rgb),.15);
   border-radius: 2px;
   margin: 0 auto 14px;
 }
@@ -2001,7 +2086,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   font-weight: 600;
   border: none;
   border-radius: 10px;
-  background: rgba(255,255,255,.06);
+  background: rgba(var(--wash-rgb),.06);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -2181,7 +2266,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .sig-mini-bar {
   flex: 1;
   height: 3px;
-  background: rgba(255,255,255,.06);
+  background: rgba(var(--wash-rgb),.06);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -2209,10 +2294,10 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
 .sig-badge.p2 { background: rgba(0,217,126,.12); color: var(--buy); }
 .sig-badge.p3 { background: rgba(255,181,71,.12); color: var(--watch); }
 .sig-badge.p4 { background: rgba(255,77,109,.1); color: var(--sell); }
-.sig-badge.secondary { background: rgba(255,255,255,.06); color: var(--text-muted); }
-.sig-badge.align { background: rgba(255,255,255,.06); color: var(--text-secondary); }
+.sig-badge.secondary { background: rgba(var(--wash-rgb),.06); color: var(--text-muted); }
+.sig-badge.align { background: rgba(var(--wash-rgb),.06); color: var(--text-secondary); }
 .sig-badge.age-fresh { background: rgba(0,217,126,.1); color: var(--buy); }
-.sig-badge.age-old { background: rgba(255,255,255,.04); color: var(--text-muted); }
+.sig-badge.age-old { background: rgba(var(--wash-rgb),.04); color: var(--text-muted); }
 
 /* AI analysis strip below sig-card */
 .ai-strip {
@@ -2319,7 +2404,7 @@ h3 { font-size: .9rem; color: var(--text-secondary); display: flex; align-items:
   text-decoration: none;
   padding: 4px 9px;
   border-radius: 8px;
-  background: rgba(255,255,255,.06);
+  background: rgba(var(--wash-rgb),.06);
   border: 1px solid var(--border);
   transition: all .15s;
   white-space: nowrap;
@@ -3075,16 +3160,16 @@ body[data-profile="ma200"] #heatmapCard {
 /* ── Machined card surface: soft vertical sheen + top edge highlight ──── */
 .card {
   background: linear-gradient(180deg, #171716 0%, #121211 55%, #0f0f0e 100%);
-  border: 1px solid rgba(255,255,255,.07);
+  border: 1px solid rgba(var(--wash-rgb),.07);
   border-radius: var(--radius-lg);
   padding: 18px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.05),
+    inset 0 1px 0 rgba(var(--wash-rgb),.05),
     0 1px 2px rgba(0,0,0,.5),
     0 12px 32px -16px rgba(0,0,0,.8);
 }
 .card:hover {
-  border-color: rgba(255,255,255,.11);
+  border-color: rgba(var(--wash-rgb),.11);
 }
 
 /* ── Unified section headers: gold kicker tick + spaced small caps ────── */
@@ -3120,7 +3205,7 @@ body[data-profile="ma200"] #heatmapCard {
   background: rgba(18,18,20,.55);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border-top: 1px solid rgba(255,255,255,.07);
+  border-top: 1px solid rgba(var(--wash-rgb),.07);
 }
 
 /* ── FACELIFT round 2 (v156): display type, ambiance, hero polish ─────── */
@@ -4003,7 +4088,7 @@ body {
   gap: 9px;
   margin-top: 6px;
   padding: 6px 9px 6px 7px;
-  background: rgba(255,255,255,.028);
+  background: rgba(var(--wash-rgb),.028);
   border: 1px solid var(--border);
   border-radius: 6px;
 }
@@ -4277,7 +4362,7 @@ body.chart-full-open { overflow: hidden; }
 .rot-wheel .rot-lbl-strong { fill: var(--text-primary); font-weight: 600; }
 /* Rotation board (2026-09-24) — the wheel's four quadrants as tiles. */
 .rot-board { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0 8px; }
-.rot-tile { border-radius: 10px; padding: 8px 8px 6px; background: var(--bg-elevated, rgba(255,255,255,.03)); border: 1px solid var(--border); min-height: 72px; }
+.rot-tile { border-radius: 10px; padding: 8px 8px 6px; background: var(--bg-elevated, rgba(var(--wash-rgb),.03)); border: 1px solid var(--border); min-height: 72px; }
 .rot-tile-leading   { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .rot-tile-improving { background: color-mix(in srgb, var(--volume) 12%, transparent); border-color: color-mix(in srgb, var(--volume) 40%, transparent); }
 .rot-tile-hd { display: flex; justify-content: space-between; font-size: .66rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
@@ -4288,7 +4373,7 @@ body.chart-full-open { overflow: hidden; }
 .rot-tile-n { opacity: .7; }
 .rot-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 6px; background: none; border: 0; padding: 4px 2px; color: var(--text-primary); font: inherit; font-size: .84rem; text-align: left; cursor: pointer; border-radius: 6px; }
 .rot-tile-lagging .rot-row, .rot-tile-weakening .rot-row { color: var(--text-secondary); }
-.rot-row:active { background: rgba(255,255,255,.06); }
+.rot-row:active { background: rgba(var(--wash-rgb),.06); }
 .rot-row.is-new .rot-row-name::after { content: 'new'; margin-left: 6px; font-size: .6rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); vertical-align: 1px; }
 .rot-arrow { display: inline-block; font-size: .78rem; line-height: 1; opacity: .85; flex: none; }
 .rot-tile-empty { color: var(--text-muted); font-size: .8rem; padding: 4px 2px; }
@@ -4426,7 +4511,7 @@ body.chart-full-open { overflow: hidden; }
   padding: 16px 2px 6px; border-bottom: 1px solid var(--border); }
 .wl2-row { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border);
   padding: 10px 2px; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
-.wl2-row:active { background: rgba(255,255,255,.04); }
+.wl2-row:active { background: rgba(var(--wash-rgb),.04); }
 .wl2-badge { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   color: #fff; font-weight: 800; font-size: .82rem; letter-spacing: -.02em; }
 .wl2-names { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -4448,7 +4533,7 @@ body.chart-full-open { overflow: hidden; }
 .wl2-sheet-hd { padding: 4px 4px 10px; color: var(--text-muted); }
 .wl2-sheet-hd b { color: var(--text-primary); font-size: 1.1rem; margin-right: 6px; }
 .wl2-sheet-px { margin-top: 4px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.wl2-act { display: block; text-align: center; background: var(--bg-elevated, rgba(255,255,255,.05)); border: 1px solid var(--border);
+.wl2-act { display: block; text-align: center; background: var(--bg-elevated, rgba(var(--wash-rgb),.05)); border: 1px solid var(--border);
   color: var(--text-primary); border-radius: 10px; padding: 12px; font: inherit; font-size: .95rem; cursor: pointer; text-decoration: none; }
 .wl2-cancel { color: var(--text-muted); }
 @media (min-width: 720px) { .wl2-body { column-count: 2; column-gap: 24px; } .wl2-group { break-after: avoid; } .wl2-row { break-inside: avoid; } }
@@ -4474,7 +4559,7 @@ body.chart-full-open { overflow: hidden; }
 .wl2-x { color: var(--sell); }
 
 /* Watchlist divisions (2026-09-24) */
-.wl2-ediv { background: rgba(255,255,255,.03); }
+.wl2-ediv { background: rgba(var(--wash-rgb),.03); }
 .wl2-divname { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding-left: 4px; }
 /* The user's own divisions take the gold accent, as they already do in edit
    mode (.wl2-divname), with a faint gold rule under them (user, 2026-11-17:
@@ -4814,14 +4899,14 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .al-head h2 { margin: 0; font-size: 1.15rem; }
 .al-head span { display: block; font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
 .al-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
-.al-chip { border: 1px solid var(--border, rgba(255,255,255,.12)); background: transparent; color: var(--text-muted);
+.al-chip { border: 1px solid var(--border, rgba(var(--wash-rgb),.12)); background: transparent; color: var(--text-muted);
   border-radius: 999px; padding: 5px 11px; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .al-chip.on { background: var(--accent, #f5c451); color: #111; border-color: transparent; }
-.al-sep { width: 1px; height: 18px; background: var(--border, rgba(255,255,255,.15)); margin: 0 2px; }
+.al-sep { width: 1px; height: 18px; background: var(--border, rgba(var(--wash-rgb),.15)); margin: 0 2px; }
 .al-day { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
   margin: 14px 2px 6px; font-weight: 700; }
-.al-row { display: block; width: 100%; text-align: left; background: var(--card-bg, rgba(255,255,255,.04));
-  border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 12px; padding: 9px 11px; margin: 0 0 6px;
+.al-row { display: block; width: 100%; text-align: left; background: var(--card-bg, rgba(var(--wash-rgb),.04));
+  border: 1px solid var(--border, rgba(var(--wash-rgb),.08)); border-radius: 12px; padding: 9px 11px; margin: 0 0 6px;
   color: inherit; cursor: pointer; font: inherit; }
 .al-row.al-line { border-left: 3px solid #a855f7; }
 .al-r1, .al-r2, .al-r3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
@@ -4842,11 +4927,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 .al-link { background: none; border: 0; color: #60a5fa; font: inherit; font-size: .8rem; cursor: pointer; padding: 0; }
 .al-more { width: 100%; padding: 10px; border-radius: 10px; background: transparent; color: #60a5fa;
   border: 1px dashed rgba(96,165,250,.4); font-weight: 600; margin: 4px 0; cursor: pointer; }
-.al-stats { margin: 18px 0 0; border-top: 1px solid var(--border, rgba(255,255,255,.1)); padding-top: 10px; }
+.al-stats { margin: 18px 0 0; border-top: 1px solid var(--border, rgba(var(--wash-rgb),.1)); padding-top: 10px; }
 .al-stats summary { font-weight: 700; cursor: pointer; font-size: .9rem; }
 .al-stats p { font-size: .76rem; color: var(--text-muted); margin: 6px 0 8px; }
 .al-stats table { width: 100%; border-collapse: collapse; font-size: .8rem; }
-.al-stats th, .al-stats td { padding: 5px 4px; text-align: right; border-bottom: 1px solid rgba(255,255,255,.06); }
+.al-stats th, .al-stats td { padding: 5px 4px; text-align: right; border-bottom: 1px solid rgba(var(--wash-rgb),.06); }
 .al-stats th:first-child { text-align: left; }
 .al-stats th i, .al-stats td i { display: block; font-style: normal; font-size: .68rem; color: var(--text-muted); font-weight: 400; }
 #marketToday .mk-card { margin-bottom: 12px; }
@@ -4856,7 +4941,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 
 .mk-div { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 12px 0 4px; font-weight: 700; }
 .mk-row { display: grid; grid-template-columns: minmax(0, 38%) 1fr; gap: 10px; align-items: center; width: 100%;
-  padding: 8px 2px; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.06); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  padding: 8px 2px; background: none; border: 0; border-bottom: 1px solid rgba(var(--wash-rgb),.06); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .mk-n { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .mk-n b { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-mood { font-style: normal; font-size: .66rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; align-self: flex-start; }
@@ -5233,11 +5318,11 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
 
 /* The menu */
 .fdrop-menu { position: fixed; z-index: 1000; width: 244px; overflow-y: auto; overscroll-behavior: contain;
-  padding: 4px; border-radius: 14px; background: #1c1c1b; border: 1px solid rgba(255,255,255,.09);
+  padding: 4px; border-radius: 14px; background: #1c1c1b; border: 1px solid rgba(var(--wash-rgb),.09);
   box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4); animation: fdrop-in .14s ease-out; transform-origin: top left; }
 .fdrop-menu[hidden] { display: none; }
 @keyframes fdrop-in { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
-.fdrop-sec + .fdrop-sec { border-top: 1px solid rgba(255,255,255,.07); margin-top: 4px; padding-top: 4px; }
+.fdrop-sec + .fdrop-sec { border-top: 1px solid rgba(var(--wash-rgb),.07); margin-top: 4px; padding-top: 4px; }
 .fdrop-sec:empty { display: none; }
 .fdrop-hd { padding: 8px 10px 4px; font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
   color: var(--text-muted); }
@@ -5252,7 +5337,7 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   font: inherit; font-size: .86rem; font-weight: 500; line-height: 1.25; text-align: left; white-space: normal; cursor: pointer;
   -webkit-tap-highlight-color: transparent; }
 .fdrop-menu .fdrop-opts > button:hover,
-.fdrop-menu .fdrop-opts > button:active { background: rgba(255,255,255,.06); color: var(--text-primary); }
+.fdrop-menu .fdrop-opts > button:active { background: rgba(var(--wash-rgb),.06); color: var(--text-primary); }
 .fdrop-menu .fdrop-opts > button.on,
 .fdrop-menu .fdrop-opts > button.active { background: none; color: var(--accent); font-weight: 650; }
 .fdrop-menu .fdrop-opts > button.on::after,
@@ -5912,3 +5997,46 @@ button, [role="button"] { touch-action: manipulation; }
 .fm-dot.buy { background: #047857; }
 .fm-dot.sell { background: #b91c1c; }
 .fm-pop-foot { color: var(--fm-muted); font-size: .72rem; margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--fm-border); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHITE THEME SURFACES (2026-11-27). The tokens at the top re-colour almost
+   everything; these are the surfaces drawn with literal dark colours (frosted
+   bars, the machined card, the filter menu) and the marks whose dark-theme
+   strength reads too faint or too heavy on white. Dark is untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .topbar-stack,
+[data-theme="light"] .bottom-nav,
+[data-theme="light"] nav.bottom-nav {
+  background: rgba(255,255,255,.8);
+}
+[data-theme="light"] .topbar { border-bottom-color: rgba(217,119,6,.22); }
+[data-theme="light"] .card {
+  background: #ffffff;
+  border-color: rgba(0,0,0,.07);
+  box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 28px -16px rgba(0,0,0,.18);
+}
+[data-theme="light"] .card:hover { border-color: rgba(0,0,0,.12); }
+[data-theme="light"] .logo-text {
+  background: linear-gradient(120deg, #d97706, #b45309 60%, #92400e);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme="light"] .nav-tab:not(.active) svg { opacity: .6; }
+[data-theme="light"] .nav-tab:not(.active) .nav-tab-label { opacity: .8; }
+[data-theme="light"] .nav-tab.active { box-shadow: 0 0 16px rgba(251,191,36,.35), 0 2px 6px rgba(0,0,0,.12); }
+[data-theme="light"] .fdrop-menu {
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.08);
+}
+[data-theme="light"] .sc-setup,
+[data-theme="light"] .sc-stat,
+[data-theme="light"] .sc-sig-aged { border-color: var(--border); }
+[data-theme="light"] #pane-charts.desktop-workspace-active { background: var(--bg-base); }
+[data-theme="light"] #desktopChartWatchlist { background: var(--bg-card); }
+[data-theme="light"] body {
+  background:
+    radial-gradient(900px 420px at 18% -8%, rgba(251,191,36,.06), transparent 60%),
+    var(--bg-base);
+  background-attachment: fixed;
+}
+[data-theme="light"] .al-row { background: var(--bg-card); }
