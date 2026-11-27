@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 BLUE LIQUID GLASS ON THE FULL-SCREEN CHART BARS. style.css v461.
+User: "Make the header and footer to have a thick shiny glass look"; picked
+the phone full-screen chart's header and footer (not the app bar and tabs).
+- First try (not shipped): grey tint 6% -> 16%, stronger top shine and a
+  bevel. User: "Nope doesn't look like glass". Over a white chart, tint and
+  shine alone read as white plastic, and the blur that makes glass read as
+  glass is ruled out (the 2026-11-14 Safari lag).
+- Mock-ups: liquid glass, liquid glass with blur, glossy blue. User took the
+  liquid glass, "making the first one blue and not grey and shiny", then
+  "Too blue", then picked "G", the lightest of three blues.
+- Now: a corner shine from the top left, a diagonal reflection streak, a
+  1.5px rim drawn by a gradient (white at the corners, blue along the
+  middle, border was 1px white), a blue inner glow along every edge, a 5%
+  blue tint, and a blue-grey drop shadow. Still no backdrop-filter.
+- The radius, inset, padding and every control size are unchanged; the rim
+  is 0.5px wider each side.
+- app_smoke.cjs's glass checks hold: tint alpha 0.05 (0 < alpha <= 0.25), no
+  backdrop-filter, radius 22px, 8px inset.
+
 2026-11-26 A NEW LADDER ALWAYS LANDS ON SCREEN. app.js v674. User: "Ladder not
 able to be placed on us500 montly chart", then a screenshot of US500 Yearly:
 ladder selected, only a dashed line on 0.000, drawing 20/45.
