@@ -7,6 +7,25 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) TIME GRID LOST WITH A LIVE BAR. app.js v680. User, with a
+US30 Daily screenshot (saved view, no time lines, no grid tag): "the grids
+disappear". `reelBarTimes` cached a bundle's times on the bundle (`_bt`), and
+the display copies that add a bar (`reelLiveNextBar`, today's Daily bar from
+the live price before the run adds it; `reelDisplayBundle`'s forming candle;
+`reelWithFeedForming`'s `prev`) were plain `{ ...src }` copies that carried
+that cache one date short. The Daily MA overlay on 1H / Monthly
+(`ovDailyLines`) caches the PUBLISHED Daily bundle's times, so after it the
+Daily chart's copy read no newest date, `gridGeometry.yearFrame` returned
+null and no time line was drawn until the app restarted.
+- `reelBarTimes` is now valid only for the `t` array it was made from
+  (`_btT`); the overlay's two inline `h._bt` caches use it.
+- `reelCopyForAppend` drops the bar-derived caches (`_bt`, `_sv` opening
+  view, `_defBars`, `_cma` rolled MAs) on those copies. It sits inside the
+  stretch tests/chart_refresh_test.cjs runs.
+- Test: `grid_live_bar_checks.cjs` (1H with the Daily overlay, then Daily
+  with today's live bar: grid lines and tag on open, after a poll, closed
+  and reopened; 0 lines on v679), run from app_smoke.
+
 2026-11-27 (later) CHART SCREEN WAITS FOR THE DATA. app.js v679. The first
 release of #280 stopped at "Verify the release-check preview": the live
 readability check opens the chart screen straight after start-up, before the
