@@ -7,6 +7,13 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) CHART GLASS GREY, NOT BLUE. style.css v462. User, after
+the blue liquid glass went live: "Change from blue to grey"; shown the grey
+beside the blue, then "Deploy". Same glass (corner shine, diagonal streak,
+1.5px gradient rim, inner glow, drop shadow); every blue is now neutral
+grey: tint rgba(200,203,210,.06), rim middle rgba(112,118,130,.32), inner
+glow rgba(100,106,118,.12), drop shadow black at .14. No size changes.
+
 2026-11-27 BTCEUR, BTCGBP AND BTCJPY ADDED (Crypto, 853 -> 856 instruments).
 User: "Please add btcjpy btcgbp and btceur to the list".
 - Instruments.txt #860-862 (Crypto / Layer 1), Yahoo tickers BTC-EUR,

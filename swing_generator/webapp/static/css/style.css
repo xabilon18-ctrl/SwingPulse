@@ -10029,33 +10029,34 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
    the white rim became a 1px grey outline; then "make outline white": a
    1px white outline (a thin grey one was tried and taken back, see the
    rule). The soft drop shadow stays throughout. This replaces
-   the no-band look of 2026-11-10 on purpose. Restyled 2026-11-27 as blue
-   liquid glass: see the note in the rule. The letter halo stays: over a busy chart it is what keeps the
+   the no-band look of 2026-11-10 on purpose. Restyled 2026-11-27 as
+   liquid glass, grey since the same day: see the note in the rule. The letter halo stays: over a busy chart it is what keeps the
    words readable through so thin a tint. reelLayout measures both panels'
    real rects, so the price frame and the date row stay in the clear part.
    Desktop and the iPad Charts workspace keep their in-flow header/footer. */
 #chartFull:not(.desktop-chart) > .cf-head,
 #chartFull:not(.desktop-chart) > .reel-foot {
-  /* BLUE LIQUID GLASS (user, 2026-11-27: "a thick shiny glass look"). Grey
+  /* LIQUID GLASS (user, 2026-11-27: "a thick shiny glass look"); grey since
+     the same day ("Change from blue to grey"), shipped blue first. Grey
      tint and shine alone read as white plastic ("doesn't look like glass");
      picked from mock-ups, "G": the liquid-glass look with a hint of blue
      ("Try making the first one blue and not grey and shiny", then "Too
      blue"). Still no blur (see below), so the glass comes from light:
        - a corner shine from the top left and a diagonal reflection streak;
        - the rim: a gradient under the whole panel, shown fully in the
-         1.5px border, white at the corners and blue along the middle, so
+         1.5px border, white at the corners and grey along the middle, so
          the edge catches light like a thick slab;
-       - a blue inner glow along every edge, where thick glass bends light;
-       - a 5% blue tint (background-color: app_smoke wants 0 < alpha <= .25).
+       - a grey inner glow along every edge, where thick glass bends light;
+       - a 6% grey tint (background-color: app_smoke wants 0 < alpha <= .25).
      Layer order matters: the border gradient is the bottom image and also
      shows faintly through the panel. */
   border: 1.5px solid transparent; border-radius: 22px;
   background:
     radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.85), rgba(255,255,255,.25) 35%, rgba(255,255,255,0) 60%) padding-box,
     linear-gradient(135deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.55) 52%, rgba(255,255,255,0) 60%, rgba(255,255,255,0) 80%, rgba(255,255,255,.35)) padding-box,
-    linear-gradient(rgba(140,180,235,.05), rgba(140,180,235,.05)) padding-box,
-    linear-gradient(135deg, #fff 0%, rgba(205,222,250,.6) 25%, rgba(70,120,200,.32) 55%, rgba(190,212,245,.9) 85%, #fff 100%) border-box;
-  background-color: rgba(140,180,235,.05);
+    linear-gradient(rgba(200,203,210,.06), rgba(200,203,210,.06)) padding-box,
+    linear-gradient(135deg, #fff 0%, rgba(228,230,235,.6) 25%, rgba(112,118,130,.32) 55%, rgba(214,217,223,.9) 85%, #fff 100%) border-box;
+  background-color: rgba(200,203,210,.06);
   /* NO backdrop-filter (user, 2026-11-14, on the phone: "there is a lagg
      and misalignment with the capsule see through and background"). Safari
      draws a blurred backdrop as its own layer, refreshed after the chart
@@ -10064,9 +10065,9 @@ html:has(#pane-watchlist.active) { overscroll-behavior-y: contain; }
   box-shadow:
     inset 2px 2px 1px -1px #fff,
     inset -2px -2px 1px -1px rgba(255,255,255,.9),
-    inset 0 0 16px rgba(70,120,200,.11),
+    inset 0 0 16px rgba(100,106,118,.12),
     inset 0 -6px 12px -6px rgba(255,255,255,.9),
-    0 10px 26px rgba(30,60,120,.14),
+    0 10px 26px rgba(0,0,0,.14),
     0 2px 5px rgba(0,0,0,.08);
 }
 #chartFull:not(.desktop-chart) > .cf-head {
