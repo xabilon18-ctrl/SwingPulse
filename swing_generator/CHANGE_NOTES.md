@@ -7,6 +7,18 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) CHART SCREEN WAITS FOR THE DATA. app.js v679. The first
+release of #280 stopped at "Verify the release-check preview": the live
+readability check opens the chart screen straight after start-up, before the
+instruments load, and `chartScreenEnsure` saw an empty list and closed back
+to the Watchlist (phone and laptop). Production was not touched. Now an
+empty list with no data loaded yet waits, and `renderAll` calls
+`chartScreenEnsure` again once the data is in; the laptop / iPad workspace is
+left to `desktopChartRender` (checked with `desktopChartEligible`, not
+`desktopChart.active`, which is only set a frame later). A start-up chart
+link could hit the same. Test: `chart_early_open_checks.cjs` (data held back
+2s, phone and laptop; fails on v678), run from app_smoke.
+
 2026-11-27 (later) CHARTS TAB REMOVED; CHARTS OPEN FROM THE LIST. app.js v678,
 style.css v465. User: "It's time to get rid of the chart tab but not the
 charts ... the minimized charts gone as well. So from the watchlist i should

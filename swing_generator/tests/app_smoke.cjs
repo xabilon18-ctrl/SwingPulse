@@ -598,6 +598,7 @@ let debugPage;
   if (!live) await require('./dollar_index_checks.cjs')(browser);
   if (!live) await require('./back_scroll_checks.cjs')(browser);
   if (!live) await require('./resume_place_checks.cjs')(browser);
+  if (!live) await require('./chart_early_open_checks.cjs')(browser);
   if (!live) await require('./monthly_forming_checks.cjs')(browser);
   console.log('PASS: mobile 1H/Daily/Monthly charts (no 4H), removed 30m, alerts, compact drawing toolbar, refresh and chart-cache invalidation');
   await browser.close();
