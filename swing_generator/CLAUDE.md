@@ -161,7 +161,14 @@ the result as a mobile-first web app at https://swingpulse200.pages.dev.
 
 ## App
 
-- Tabs: **Watchlist · Charts · Alerts · Market** (`index.html` nav).
+- Tabs: **Watchlist · Alerts · Market** (`index.html` nav). No Charts tab
+  and no small chart cards (user, 2026-11-27: "get rid of the chart tab but
+  not the charts"). A chart opens from a list (`openChartFor` and friends)
+  on the chart screen (`#pane-charts`, `currentTab === 'charts'`): full
+  screen on a phone (`#chartFull`), the side-by-side workspace on a laptop /
+  iPad (`desktopChart*`, kept at the user's request). Its close
+  (`chartExit`) goes back to the tab it was opened from, same list and
+  scroll. Tests open charts with `tests/chart_open.cjs`.
   - Alerts = pane `#pane-scanner`, container `#alertsPane`, data `alerts.json`
     from `webapp/alerts_feed.py`.
   - Market = pane `#pane-dashboard`, container `#marketToday`, data
