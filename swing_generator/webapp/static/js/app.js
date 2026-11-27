@@ -6826,7 +6826,7 @@
     [['M', 'mo', wW * 1.6], ['W', 'w', wW]].forEach(([tf, key, width]) => {
       const h = htf && ovHtfOn(tf) && htf[key];
       if (!h || !h.m || !h.m.length) return;
-      const ht = h._bt || (h._bt = h.t.map(reelParseTs));
+      const ht = reelBarTimes(h);
       const want = ovPeriods(tf);
       const ks = h.p.map((p, k) => want.includes(p) ? k : -1).filter(k => k >= 0);
       if (!ks.length) return;
@@ -7064,8 +7064,8 @@
     if (ohlc(p) && p.t > b.t[b.t.length - 1] && p.t < f.t) {
       const n = b.t.length, m = maAt(b.c, p.c);
       const mi = b.mi || (b.m || [[]])[0].map((_, j) => Math.min(j * (b.ms || 1), n - 1));
-      b = { ...b, t: [...b.t, p.t], o: [...b.o, p.o], h: [...b.h, p.h], l: [...b.l, p.l], c: [...b.c, p.c],
-            mi: [...mi, n], m: (b.m || []).map((s, i) => [...s, m[i] ?? s[s.length - 1]]) };
+      b = reelCopyForAppend(b, { t: [...b.t, p.t], o: [...b.o, p.o], h: [...b.h, p.h], l: [...b.l, p.l], c: [...b.c, p.c],
+            mi: [...mi, n], m: (b.m || []).map((s, i) => [...s, m[i] ?? s[s.length - 1]]) });
       if (Array.isArray(bundle.v)) b.v = [...bundle.v, Number.isFinite(p.v) ? p.v : 0];
     }
     if (!ohlc(f) || !(f.t > b.t[b.t.length - 1])) return b;
@@ -7628,7 +7628,7 @@
     [['M', 'mo'], ['W', 'w']].forEach(([tf, key]) => {
       const h = ovHtfOn(tf) && hb[key];
       if (!h || !h.m || !h.m.length) return;
-      const ht = h._bt || (h._bt = h.t.map(reelParseTs));
+      const ht = reelBarTimes(h);
       const want = ovPeriods(tf);
       h.p.forEach((p, k) => {
         if (!want.includes(p)) return;
@@ -8072,9 +8072,16 @@
     return m ? Date.parse(m[1] + 'T' + (m[2] || '00:00') + ':00Z') : NaN;
   }
 
+  // Cached per TIMES ARRAY, not per bundle (2026-11-27): the display copies
+  // ({ ...src } in reelLiveNextBar, reelDisplayBundle, reelWithFeedForming)
+  // carry the source's cache along with a longer `t`. A cache made for the
+  // published Daily bundle (ovDailyLines, the Daily MA overlay on 1H/Monthly)
+  // then came with today's live bar one date short, the grid read no newest
+  // date and drew no time lines at all until the app restarted.
   function reelBarTimes(b) {
-    if (b._bt) return b._bt;
+    if (b._bt && b._btT === b.t) return b._bt;
     b._bt = b.t.map(reelParseTs);
+    b._btT = b.t;
     return b._bt;
   }
 
@@ -10142,7 +10149,7 @@
     }
     const f = src.forming, n = src.t.length;
     if (!f || !n || f.t <= src.t[n - 1] || !['o', 'h', 'l', 'c'].every(k => Number.isFinite(f[k]))) return bundle;
-    let out = { ...src, _base: base };
+    let out = reelCopyForAppend(src, { _base: base });
     for (const key of ['t', 'o', 'h', 'l', 'c']) out[key] = [...src[key], f[key]];
     out.mi = [...(src.mi || src.m[0].map((_, j) => Math.min(j * (src.ms || 1), n - 1))), n];
     out.m = src.m.map((series, i) => [...series, f.m?.[i] ?? series[series.length - 1]]);
@@ -10160,6 +10167,15 @@
     return out;
   }
 
+  // A copy of a bundle that is about to get one more bar: without the caches
+  // worked out from the source's bars (times, opening view, default window,
+  // rolled MAs), which a plain { ...src } would carry over one bar short.
+  // (Here, inside the stretch tests/chart_refresh_test.cjs runs.)
+  function reelCopyForAppend(src, extra) {
+    const out = { ...src, ...extra };
+    for (const k of ['_bt', '_btT', '_sv', '_defBars', '_cma']) delete out[k];
+    return out;
+  }
   // Kept between reelDisplayBundle and the SVG builder: tests/chart_refresh_test.cjs
   // runs that stretch of this file on its own.
   // The time window a forming candle takes live prices in, or null.
@@ -10199,7 +10215,7 @@
     const t = reelBarLabel(start, daily), key = name + '|' + t, seen = reelLiveSeen.get(key) || { h: c0, l: c0 };
     seen.h = Math.max(seen.h, p); seen.l = Math.min(seen.l, p);
     reelLiveSeen.set(key, seen);
-    const out = { ...src };
+    const out = reelCopyForAppend(src);
     for (const k of ['t', 'o', 'h', 'l', 'c']) out[k] = [...src[k]];
     out.t.push(t); out.o.push(c0); out.h.push(seen.h); out.l.push(seen.l); out.c.push(p);
     out.mi = [...(src.mi || src.m[0].map((_, j) => Math.min(j * (src.ms || 1), n - 1))), n];
