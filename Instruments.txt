@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════════
-  GANN SCANNER — FULL INSTRUMENT LIST (853)
+  GANN SCANNER — FULL INSTRUMENT LIST (856)
   Generated: 11 Jul 2026   |   Currency restored: 25 Aug 2026 (57 pairs, #742-798)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -585,6 +585,9 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
 455  | ZIL-USD       | ZILUSDT       | Crypto        | Crypto                    | Layer 1
 456  | IOTA-USD      | IOTAUSDT      | Crypto        | Crypto                    | IoT
 457  | XTZ-USD       | XTZUSDT       | Crypto        | Crypto                    | Layer 1
+860  | BTC-EUR       | BTCEUR        | Crypto        | Crypto                    | Layer 1
+861  | BTC-GBP       | BTCGBP        | Crypto        | Crypto                    | Layer 1
+862  | BTC-JPY       | BTCJPY        | Crypto        | Crypto                    | Layer 1
 
 ═══════════════════════════════════════════════════════════════════════════════
   UK100 FTSE — ADDITIONAL (47)
@@ -1153,7 +1156,7 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   SUMMARY
 ═══════════════════════════════════════════════════════════════════════════════
   Commodities .............  18  (3 original + 12 prev + 3 new)
-  Crypto ..................  56  (20 original + 19 prev + 17 new)
+  Crypto ..................  59  (20 original + 19 prev + 17 new + BTCEUR, BTCGBP, BTCJPY 2026-11-27)
   US Indices ..............   6
   European Indices ........   8
   Canadian Index ..........   1
@@ -1193,5 +1196,5 @@ FORMAT:  #  | Yahoo Ticker  | App Name      | Index/Group   | Sector            
   AI Infra ................  10  (VRT, DLR, HPE, CLS, WDC, STX, CIEN, MDB, IRM, PWR)
   XM Index ................   5  (AI_INDX→AIQ, BCHAIN_NFT→BKCH, FAANGS_10→QQQ, EV_INDX→DRIV, CHINA_NET→KWEB)
   ─────────────────────────────
-  TOTAL .................. 853  (load_instruments() count, 2026-11-20)
+  TOTAL .................. 856  (load_instruments() count, 2026-11-27)
 ═══════════════════════════════════════════════════════════════════════════════
