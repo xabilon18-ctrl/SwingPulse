@@ -11,7 +11,11 @@ const zlib = require('zlib');
 // monthly and 4 on daily", then "Make 1h by 10"). A
 // Yearly ladder drawn before (unlinked, no home) is linked once per device.
 // Fresh context: it starts from a device with that old ladder saved.
-module.exports = async function checkLadderYearly(page) {
+// { ccy: true }: TEST is served as a currency (group Currency), where a
+// Yearly ladder takes the CURRENCY set (user, 2026-11-27: "10% yearly -
+// M/3, D/6, H/12").
+module.exports = async function checkLadderYearly(page, { ccy = false } = {}) {
+  const parts = ccy ? { M: 3, D: 6, '1H': 12 } : { M: 2, D: 4, '1H': 10 };
   const context = await page.context().browser().newContext({ viewport: { width: 390, height: 844 } });
   const p = await context.newPage();
   const errors = [];
@@ -21,6 +25,11 @@ module.exports = async function checkLadderYearly(page) {
     const rel = decodeURIComponent(new URL(route.request().url()).pathname.split('/ma500/')[1]);
     let body = fs.existsSync(path.join(dataDir, rel)) ? fs.readFileSync(path.join(dataDir, rel)) : Buffer.from('null');
     if (body[0] === 0x1f && body[1] === 0x8b) body = zlib.gunzipSync(body);
+    if (ccy && rel === 'signals.json') {
+      const j = JSON.parse(body);
+      for (const r of j.data || []) if (r.instrument_name === 'TEST') Object.assign(r, { group: 'Currency', sector: 'Currency', asset_class: 'Currency' });
+      body = JSON.stringify(j);
+    }
     await route.fulfill({ contentType: 'application/json', body });
   });
   // An old Yearly ladder: 0% at 90, a 10% gap of 5 (p4 is the 30% line).
@@ -62,35 +71,32 @@ module.exports = async function checkLadderYearly(page) {
   await openFull('Y');
   assert.equal(await p.locator('#chartFull .reel-draw .reel-ladder-sub').count(), 0, 'Yearly itself shows no split lines');
   await close();
-  for (const [tf, parts] of [['M', 2], ['D', 4]]) {
+  // Each timeframe's ladder is sized to that chart's window (three 10% gaps
+  // in view) so its finest split has room to draw (lines closer than
+  // LADDER_SUB_LINE_MIN are not drawn); the split does not depend on the size.
+  const fitTo = async tf => {
+    await openFull(tf);
+    const win = await p.evaluate(() => { const h = [...document.querySelectorAll('#chartFull *')].find(e => e._reelCtx); return h && { lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }; });
+    assert.ok(win && win.hi > win.lo, tf + ': price window found: ' + JSON.stringify(win));
+    await close();
+    await p.evaluate(w => {
+      const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
+      for (const list of Object.values(all.TEST || {}))
+        for (const x of list || []) if (x && x.kind === 'ladder' && x.home === 'Y') { x.p1 = w.lo + (w.hi - w.lo) * 0.2; x.p4 = x.p1 + (w.hi - w.lo); }
+      localStorage.setItem('sp-channels', JSON.stringify(all));
+    }, win);
+    await p.reload({ waitUntil: 'networkidle' });
+    if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
+    await p.locator('.nav-tab[data-tab="charts"]').click();
+    await p.locator('#reelSearch').fill('TEST');
+  };
+  for (const tf of ['M', 'D', '1H']) {
+    await fitTo(tf);
     await openFull(tf);
     const b = await between();
-    assert.equal(b.n, parts - 1, `${tf}: each Yearly 10% gap is split in ${parts}: ` + JSON.stringify(b));
+    assert.equal(b.n, parts[tf] - 1, `${tf}: each Yearly 10% gap is split in ${parts[tf]}${ccy ? ' (currency)' : ''}: ` + JSON.stringify(b));
     await close();
   }
-  // 1H: a 10% gap of 5 is too fine there for tenths (lines closer than
-  // LADDER_SUB_LINE_MIN are not drawn), so size the ladder to the 1H window
-  // (three gaps in view), as the Monthly check does; the split does not
-  // depend on the size.
-  await openFull('1H');
-  const win = await p.evaluate(() => { const h = [...document.querySelectorAll('#chartFull *')].find(e => e._reelCtx); return h && { lo: h._reelCtx.sc.lo, hi: h._reelCtx.sc.hi }; });
-  assert.ok(win && win.hi > win.lo, '1H: price window found: ' + JSON.stringify(win));
-  await close();
-  await p.evaluate(w => {
-    const all = JSON.parse(localStorage.getItem('sp-channels') || '{}');
-    for (const list of Object.values(all.TEST || {}))
-      for (const x of list || []) if (x && x.kind === 'ladder' && x.home === 'Y') { x.p1 = w.lo + (w.hi - w.lo) * 0.2; x.p4 = x.p1 + (w.hi - w.lo); }
-    localStorage.setItem('sp-channels', JSON.stringify(all));
-  }, win);
-  await p.reload({ waitUntil: 'networkidle' });
-  if (await p.locator('.up-skip').isVisible().catch(() => false)) await p.locator('.up-skip').click();
-  await p.locator('.nav-tab[data-tab="charts"]').click();
-  await p.locator('#reelSearch').fill('TEST');
-  await openFull('1H');
-  const h = await between();
-  assert.equal(h.n, 9, '1H: each Yearly 10% gap is split in 10: ' + JSON.stringify(h));
-  await close();
-
   // A ladder drawn on Yearly now is a Yearly ladder.
   await openFull('Y');
   await p.locator('#chartFull [data-act="channel"]').click();
@@ -102,5 +108,6 @@ module.exports = async function checkLadderYearly(page) {
   assert.ok((got.D || []).some(d => d && d.link === fresh[0].link), 'its copy is on Daily');
   assert.deepEqual(errors, []);
   await context.close();
-  console.log('PASS: Yearly ladders split in 2 on Monthly, 4 on Daily, 10 on 1H; old ones linked once');
+  console.log(ccy ? 'PASS: Yearly ladders on a currency split in 3 on Monthly, 6 on Daily, 12 on 1H'
+                  : 'PASS: Yearly ladders split in 2 on Monthly, 4 on Daily, 10 on 1H; old ones linked once');
 };

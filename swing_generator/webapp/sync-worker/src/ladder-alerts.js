@@ -20,11 +20,24 @@ export const LADDER_SUB = 5;
 // 10% gap in two on Monthly, four on Daily, ten on 1H (app.js
 // LADDER_HOME_SUB.Y). Its alert lines are its 1H steps: ten per gap (1%).
 export const HOME_SUB = { M: [10], Y: [10] };
+// CURRENCY LADDERS (user, 2026-11-27: "a different ladder for anything
+// currency related ... 10% yearly - M/3, D/6, H/12"): on a currency a Yearly
+// ladder's 1H steps are twelve per gap (0.83%) (app.js LADDER_HOME_SUB_CCY).
+// A home missing here takes HOME_SUB.
+export const HOME_SUB_CCY = { Y: [12] };
+// Currency pairs (Yahoo ...=X), the currency indices (CCY_...) and USDX, the
+// ICE dollar index the app also files under Currency Index (app.js
+// ladderIsCurrency, which reads the Instruments.txt groups; the test checks
+// this rule picks out exactly those instruments).
+export const isCurrencyQuote = (name, quote) => {
+  const y = String((quote && quote.y) || '');
+  return name === 'USDX' || /=X$/.test(y) || /^CCY_/.test(y);
+};
 const HOME_NAME = { M: 'Monthly', Y: 'Yearly' };
 // A level's %: exact to two decimals when it is (1.25), else one (app.js
 // ladderPctRound).
 const pctRound = v => { const two = Math.round(v * 100) / 100; return Math.abs(v - two) < 1e-6 ? two : Math.round(v * 10) / 10; };
-const tiersOf = d => (d && HOME_SUB[d.home]) || [LADDER_SUB];
+const tiersOf = (d, ccy) => (d && ((ccy && HOME_SUB_CCY[d.home]) || HOME_SUB[d.home])) || [LADDER_SUB];
 // The same line does not alert again for this long.
 export const REPEAT_MS = 6 * 60 * 60 * 1000;
 // Safety cap per user per run: a huge move through a wide stack of ladders
@@ -36,11 +49,12 @@ const stack = (d, dir) => Math.max(0, Math.floor(Number(d && d[dir]) || 0));
 // Every alert line of one ladder: { price, pct, daily }. Mirrors app.js
 // ladderLines (p1 = 0%, p4 = 30%, the stored step u = (p4 - p1) / 3, ten
 // steps a block, stacks continue the numbering) at the 1H 2% resolution.
-export function ladderAlertLevels(d) {
+// `ccy`: the ladder is on a currency (isCurrencyQuote).
+export function ladderAlertLevels(d, ccy = false) {
   if (!d || d.kind !== 'ladder') return [];
   const u = (Number(d.p4) - Number(d.p1)) / 3;
   if (!Number.isFinite(u) || !u || !Number.isFinite(Number(d.p1))) return [];
-  const tiers = tiersOf(d);
+  const tiers = tiersOf(d, ccy);
   const sub = tiers.reduce((x, y) => x * y, 1);
   const midEvery = tiers.length > 1 ? sub / tiers[0] : 0;
   const per = 10 * sub;                              // lines per block
@@ -101,7 +115,7 @@ export function checkAlerts({ users, quotes, state, now }) {
       const before = prev[name];
       const lo = Math.min(quote.l ?? quote.p, before ?? quote.p, quote.p);
       const hi = Math.max(quote.h ?? quote.p, before ?? quote.p, quote.p);
-      for (const lv of ladderAlertLevels(d)) {
+      for (const lv of ladderAlertLevels(d, isCurrencyQuote(name, quote))) {
         if (lv.price < lo || lv.price > hi) continue;
         const key = `${user}|${name}|${id}|${lv.pct}`;
         if (fired[key]) continue;
