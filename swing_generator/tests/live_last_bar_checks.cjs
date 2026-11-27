@@ -7,7 +7,7 @@
 // (close, high, MA end points), on the card and in full screen; a price off
 // the candle's level changes nothing; yesterday's closed bar takes no live
 // price, and today's bar opens from it when the run has not added it yet;
-// a live bar has its dot (and on 1H the time left). Run from app_smoke.cjs with its browser, on pages of its own.
+// a live bar has its dot. Run from app_smoke.cjs with its browser, on pages of its own.
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -129,10 +129,9 @@ module.exports = async browser => {
   const hb = await lastBar(s.page);
   assert.equal(hb.t, fmtHour(hour), 'the forming hour is the last candle');
   assert.equal(hb.h, h1, 'its high widens to the live price');
-  // ...with the dot, and the time left in the hour under the price tag.
+  // ...with the dot, and no time-left box under the price tag (removed 2026-11-27).
   assert.equal(await s.page.locator('#chartReel .reel-live-mark').count() > 0, true, 'the forming hour has its dot');
-  const left = await s.page.locator('#chartReel [data-live-left]').first().textContent();
-  assert.match(left, /^\d{1,2}:\d{2}$/, `time left in the hour: ${left}`);
+  assert.equal(await s.page.locator('#chartReel .reel-live-left, #chartReel [data-live-left]').count(), 0, 'no countdown under the price tag');
   await s.context.close();
 
   // DAILY, the last bar is yesterday's (closed) and the run has not added
