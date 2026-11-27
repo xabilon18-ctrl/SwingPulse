@@ -7731,7 +7731,7 @@ body {
 /* Live bar marker (2026-11-27, user picked A + G): a pulsing dot on the
    close of the bar that follows the live price, and the time left until it
    closes under the price tag. app.js draws them only while the bar is live. */
-.reel-live-dot { stroke: #fff; stroke-width: 3; }
+.reel-live-dot { stroke: #fff; stroke-width: 2; }
 .reel-live-dot.up, .reel-live-halo.up { fill: var(--reel-last-up); }
 .reel-live-dot.dn, .reel-live-halo.dn { fill: var(--reel-last-dn); }
 .reel-live-halo { opacity: .28; transform-box: fill-box; transform-origin: center; animation: reel-live-pulse 1.6s ease-out infinite; }

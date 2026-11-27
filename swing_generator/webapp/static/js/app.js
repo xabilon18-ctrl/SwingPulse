@@ -10401,7 +10401,7 @@
       const lx = xOf(n - 1).toFixed(1), ly = lastY.toFixed(1);
       liveMark = `<g class="reel-live-mark" pointer-events="none">`
         + `<circle cx="${lx}" cy="${ly}" r="20" class="reel-live-halo ${lastDir}"/>`
-        + `<circle cx="${lx}" cy="${ly}" r="9" class="reel-live-dot ${lastDir}"/></g>`;
+        + `<circle cx="${lx}" cy="${ly}" r="5" class="reel-live-dot ${lastDir}"/></g>`;
       if (bundle._live.countdown && Number.isFinite(bundle._live.closes)) {
         liveMark += `<g class="reel-live-left" pointer-events="none"><rect x="${L.x1 + 2}" y="${(lastY + 18).toFixed(1)}" width="${L.W - L.x1 - 4}" height="30" rx="4"/>`
           + `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 41).toFixed(1)}" class="reel-axis" data-live-left="${bundle._live.closes}">${reelLeftText(bundle._live.closes - Date.now())}</text></g>`;

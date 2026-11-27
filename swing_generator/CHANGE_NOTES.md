@@ -7,6 +7,11 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 (later) SMALLER LIVE DOT, SAME PULSE. app.js v676, style.css v464.
+User: "need the dot to be smaller and i like the pulse around it". The live
+bar's dot goes from r 9 with a 3-unit white ring to r 5 with a 2-unit ring;
+the pulsing halo (r 20, scale .45 to 1.25) is unchanged.
+
 2026-11-27 (later) SHARE CHECK IGNORES THE LIVE COUNTDOWN. The first main
 release of the live-bar marker (#275) stopped at "Verify the release-check
 preview": app_smoke's "#chartFull chart is unchanged by sharing it" compares
