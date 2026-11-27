@@ -9997,22 +9997,10 @@
       if (per && s.length) s[s.length - 1] += (p - c0) / per;
       return s;
     });
-    out._live = { closes: from + 864e5, countdown: reelTradesAllDay(src) };
+    out._live = true;
     return out;
   }
   const LIVE_CHART_TFS = new Set(['1H', 'D', 'M', 'Y']);
-  // The live bar's countdown ticks every second between the 30s repaints.
-  // It stops itself once no countdown is on the page.
-  let reelLiveLeftTimer = null;
-  function reelLiveLeftTick() {
-    if (reelLiveLeftTimer) return;
-    reelLiveLeftTimer = setInterval(() => {
-      const els = document.querySelectorAll('[data-live-left]');
-      if (!els.length) { clearInterval(reelLiveLeftTimer); reelLiveLeftTimer = null; return; }
-      const now = Date.now();
-      els.forEach(el => { const t = reelLeftText(Number(el.dataset.liveLeft) - now); if (el.textContent !== t) el.textContent = t; });
-    }, 1000);
-  }
   // Redraw the charts in view after a live price (chartPaintLive). Not one a
   // finger or the mouse is on: a pan or a drag is not cut short by a
   // repaint; it is redrawn on the next poll.
@@ -10045,7 +10033,7 @@
     let src = base, live = null;
     if (liveForming) {
       const f = reelLiveForming(src, name);
-      if (f !== src.forming) live = { closes: reelFormingWindow(src.forming)[1], countdown: true };
+      if (f !== src.forming) live = true;
       src = { ...src, forming: f };
     }
     const f = src.forming, n = src.t.length;
@@ -10116,26 +10104,8 @@
       const v = per && n >= per - 1 ? (src.c.slice(n - (per - 1)).reduce((a, x) => a + x, 0) + p) / per : series[series.length - 1];
       return [...series, v];
     });
-    out._live = { closes: start + len, countdown: !daily || reelTradesAllDay(src) };
+    out._live = true;
     return out;
-  }
-  // A Daily bar closes at the next UTC day only for a market that trades
-  // round the clock (it has weekend bars); a stock's day ends at its close,
-  // which the chart does not know, so it gets the dot without a countdown.
-  function reelTradesAllDay(src) {
-    for (let i = src.t.length - 1; i >= Math.max(0, src.t.length - 10); i--) {
-      const d = new Date(String(src.t[i]).slice(0, 10) + 'T00:00:00Z').getUTCDay();
-      if (d === 0 || d === 6) return true;
-    }
-    return false;
-  }
-  // "32:15" under an hour, "13:45:10" under a day, then "4d 13h" / "34d".
-  function reelLeftText(ms) {
-    const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
-    const two = v => String(v).padStart(2, '0');
-    if (d >= 10) return d + 'd';
-    if (d >= 1) return d + 'd ' + h + 'h';
-    return h ? h + ':' + two(m) + ':' + two(x) : m + ':' + two(x);
   }
 
   // Build the whole chart as one SVG string.
@@ -10391,22 +10361,18 @@
       `<rect x="${L.x1 + 2}" y="${(lastY - 16).toFixed(1)}" width="${L.W - L.x1 - 4}" height="32" rx="4" class="reel-last-tag ${lastDir}"/>` +
       `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 8).toFixed(1)}" class="reel-axis reel-axis-last ${lastDir}">${reelFmtPrice(last)}</text>`;
 
-    // ── Live bar marker (user, 2026-11-27, picked A + G from mock-ups) ──
+    // ── Live bar marker (user, 2026-11-27) ──
     // While the newest bar follows the live price (reelDisplayBundle's
-    // `_live`) and is on screen: a pulsing dot on its close, and the time
-    // left until it closes under the price tag. Neither shows on a bar that
-    // is not moving, so a frozen chart no longer looks live.
+    // `_live`) and is on screen: a pulsing dot on its close. It does not show
+    // on a bar that is not moving, so a frozen chart no longer looks live.
+    // The time-left box under the price tag was removed the same day (user:
+    // "This grey price can go").
     let liveMark = '';
     if (bundle._live && _pan <= 0 && lastY >= L.py0 && lastY <= L.py1) {
       const lx = xOf(n - 1).toFixed(1), ly = lastY.toFixed(1);
       liveMark = `<g class="reel-live-mark" pointer-events="none">`
         + `<circle cx="${lx}" cy="${ly}" r="20" class="reel-live-halo ${lastDir}"/>`
-        + `<circle cx="${lx}" cy="${ly}" r="9" class="reel-live-dot ${lastDir}"/></g>`;
-      if (bundle._live.countdown && Number.isFinite(bundle._live.closes)) {
-        liveMark += `<g class="reel-live-left" pointer-events="none"><rect x="${L.x1 + 2}" y="${(lastY + 18).toFixed(1)}" width="${L.W - L.x1 - 4}" height="30" rx="4"/>`
-          + `<text x="${(L.W - 8).toFixed(1)}" y="${(lastY + 41).toFixed(1)}" class="reel-axis" data-live-left="${bundle._live.closes}">${reelLeftText(bundle._live.closes - Date.now())}</text></g>`;
-        reelLiveLeftTick();
-      }
+        + `<circle cx="${lx}" cy="${ly}" r="5" class="reel-live-dot ${lastDir}"/></g>`;
     }
 
     // Clipped-ribbon tag — says which way the ribbon ran off and by how much,

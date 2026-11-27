@@ -241,13 +241,7 @@ let debugPage;
   // card alike (2026-11-12: it used to copy the screen's shape, 1 : 2.5 here),
   // and making it leaves the chart on screen exactly as it was.
   for (const scope of ['#chartFull', '#chartReel']) {
-    // The live bar's countdown (`data-live-left`, 2026-11-27) ticks every
-    // second on its own: it is blanked so only a change sharing makes counts.
-    const live = () => page.evaluate(s => {
-      const svg = document.querySelector(`${s} .reel-chart svg`).cloneNode(true);
-      svg.querySelectorAll('[data-live-left]').forEach(el => { el.textContent = ''; });
-      return svg.outerHTML + document.querySelectorAll('.reel-chart').length;
-    }, scope);
+    const live = () => page.evaluate(s => document.querySelector(`${s} .reel-chart svg`).outerHTML + document.querySelectorAll('.reel-chart').length, scope);
     const before = await live();
     await page.evaluate(s => document.querySelector(`${s} [data-act="chart-share"]`).click(), scope);
     await page.locator('.share-prev img').waitFor();

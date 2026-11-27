@@ -32,7 +32,7 @@ async function main() {
   assert.deepEqual([next.t.at(-1), next.o.at(-1), next.c.at(-1), next.h.at(-1), next.l.at(-1)], ['2026-11-27 08:00', 102, 104, 104, 102]);
   assert.equal(next.t.at(-2), '2026-11-27 07:00', 'the closed forming hour stays before it');
   assert.equal(next.m[0].at(-1), (102 + 104) / 2, 'its MA point follows the price');
-  assert.deepEqual([next._live.closes, next._live.countdown], [ts('2026-11-27 09:00'), true]);
+  assert.equal(next._live, true, 'the new hour is marked live');
   price = { at: ts('2026-11-27 08:20'), p: 101 };
   next = live.reelDisplayBundle(next, 'BTC', '1H');
   assert.deepEqual([next.c.at(-1), next.h.at(-1), next.l.at(-1)], [101, 104, 101], 'high and low keep every price seen');
@@ -48,11 +48,7 @@ async function main() {
   price = { at: ts('2026-11-27 00:10'), p: 63 };
   next = live.reelDisplayBundle(daily, 'BTC', 'D');
   assert.deepEqual([next.t.at(-1), next.o.at(-1), next.c.at(-1)], ['2026-11-27', 61, 63]);
-  assert.equal(next._live.countdown, true, 'a market with weekend bars closes its day at UTC midnight');
-  assert.equal(live.reelDisplayBundle({ ...daily, t: ['2026-11-20', '2026-11-26'] }, 'AAPL', 'D')._live.countdown, false, 'a weekday market gets no countdown');
-  assert.equal(live.reelLeftText(32 * 60e3 + 15e3), '32:15');
-  assert.equal(live.reelLeftText(13 * 3600e3 + 45 * 60e3 + 10e3), '13:45:10');
-  assert.equal(live.reelLeftText(4 * 864e5 + 13 * 3600e3), '4d 13h');
+  assert.equal(next._live, true, 'the new day is marked live');
 
   const host = { innerHTML: 'old candles', _reelItem: { instrument_name: 'BTC' } };
   const item = { instrument_name: 'BTC', price: 123 };
