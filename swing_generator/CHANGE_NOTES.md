@@ -7,6 +7,26 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-27 CURRENCY LADDER SET. app.js v677, sync Worker. User: "I need a different
+ladder for anything currency related. Fx and their indices ... 10% yearly - M/3,
+D/6, H/12 ... when i ask you to adjust the ladder you must ask which one".
+- Two ladder sets now: STANDARD (`LADDER_HOME_SUB`, unchanged) and CURRENCY
+  (`LADDER_HOME_SUB_CCY = { Y: { M: [3], D: [6], '1H': [12] } }`): a Yearly
+  ladder's 10% gap shows every 3.3% on Monthly, 1.67% on Daily, 0.83% on 1H.
+  A home the currency set lacks takes the standard one, so Monthly and Daily
+  ladders on currencies are unchanged.
+- Currency = group Currency (pairs), group Currency Index, and USDX (also
+  filed under Currency Index): `ladderIsCurrency(name)`. Worked out at draw
+  time, so Yearly ladders already on currencies change with no migration.
+  `reelChannelsSvg` now takes the instrument name (`reelDrawName`).
+- Alerts: sync Worker `HOME_SUB_CCY = { Y: [12] }` and `isCurrencyQuote`
+  (Yahoo `...=X`, `CCY_...`, or USDX); a test checks it picks out exactly the
+  Currency and Currency Index groups of Instruments.txt.
+- Tests: `ladder_yearly_checks.cjs` runs twice from app_smoke, the second
+  with TEST served as a currency (2 / 5 / 11 lines between Yearly lines on
+  M / D / 1H; fails on the old code); ladder_alerts_test (121 levels a block,
+  0.83% steps, the currency rule).
+
 2026-11-27 (later) SMALLER LIVE DOT, SAME PULSE; TIME-LEFT BOX REMOVED.
 app.js v676, style.css v464. User: "need the dot to be smaller and i like the
 pulse around it", then of the grey box under the price tag (BTCJPY Daily,

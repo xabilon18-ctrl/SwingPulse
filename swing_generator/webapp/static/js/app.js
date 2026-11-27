@@ -8970,7 +8970,15 @@
   // line and cannot be grabbed apart again.
   const CH_MIN_SPAN = 20;
 
-  function reelChannelsSvg(list, b, L, sc, bw, editing, activeI) {
+  // The instrument whose drawings are being drawn, for what depends on it
+  // (a currency's ladder splits, ladderSubTiers). Set around reelChannelsSvg.
+  let reelDrawName = '';
+  function reelChannelsSvg(list, b, L, sc, bw, editing, activeI, name) {
+    reelDrawName = name || '';
+    try { return reelChannelsSvgAll(list, b, L, sc, bw, editing, activeI); }
+    finally { reelDrawName = ''; }
+  }
+  function reelChannelsSvgAll(list, b, L, sc, bw, editing, activeI) {
     if (!list || !list.length) return '';
     // Each drawing is its own group: its colour is a custom property on the
     // group (every drawing class already reads --reel-ch-color), and the
@@ -9346,15 +9354,45 @@
   // "10% yearly is divided by 2 on monthly and 4 on daily", "8 on hour", then
   // "Make 1h by 10"; it started as 3 / 3 / 10). Yearly (2026-11-24) had no
   // entry before, so its ladders stayed on Yearly alone.
+  // TWO LADDER SETS (user, 2026-11-27: "I need a different ladder for
+  // anything currency related. Fx and their indices"): the STANDARD set here,
+  // and the CURRENCY set below, which replaces it on currency pairs, the
+  // currency indices and USDX (ladderIsCurrency). When the user asks to
+  // change "the ladder", ask which set they mean (user, same message: "when i
+  // ask you to adjust the ladder you must ask which one").
   const LADDER_HOME_SUB = { M: { D: [3], '1H': [10] }, Y: { M: [2], D: [4], '1H': [10] } };
+  // CURRENCY: a Yearly ladder's 10% gap in THREE on Monthly (3.3%), SIX on
+  // Daily (1.67%) and TWELVE on 1H (0.83%) (user, 2026-11-27: "10% yearly -
+  // M/3, D/6, H/12"). A home missing here takes the standard set (Monthly
+  // ladders on currency are unchanged). Keep sync-worker ladder-alerts.js
+  // HOME_SUB_CCY equal to the 1H tiers.
+  const LADDER_HOME_SUB_CCY = { Y: { M: [3], D: [6], '1H': [12] } };
   const ladderHome = d => (d && typeof d.home === 'string' && LADDER_HOME_SUB[d.home] ? d.home : null);
   const ladderIsDaily = d => !!(d && d.link && Array.isArray(d.tfs) && d.tfs.includes('D') && !ladderHome(d));
-  // The tiers each 10% gap of ladder d is split into on timeframe tf,
-  // coarse to fine ([] for none): a Daily ladder on 1H [5], a Monthly
-  // ladder on Daily [3] and on 1H [10].
-  const ladderSubTiers = (d, tf) => {
+  // Currency pairs (group Currency), the currency indices (group Currency
+  // Index) and USDX, which the app also files under Currency Index
+  // (ALSO_IN_GROUP). Keep sync-worker ladder-alerts.js isCurrencyQuote equal.
+  let ladderCcyRows = null, ladderCcySet = new Set();
+  function ladderIsCurrency(name) {
+    if (ladderCcyRows !== allData) {
+      ladderCcyRows = allData;
+      ladderCcySet = new Set(allData.filter(r => {
+        const g = (r.group || '').trim();
+        return g === 'Currency' || g === 'Currency Index' || alsoInGroup(r, 'Currency Index');
+      }).map(r => r.instrument_name));
+    }
+    return ladderCcySet.has(name);
+  }
+  // The tiers each 10% gap of ladder d on instrument `name` is split into on
+  // timeframe tf, coarse to fine ([] for none): a Daily ladder on 1H [5], a
+  // Monthly ladder on Daily [3] and on 1H [10], a Yearly ladder on a
+  // currency's 1H [12].
+  const ladderSubTiers = (d, tf, name) => {
     const h = ladderHome(d);
-    if (h) return LADDER_HOME_SUB[h][tf] || [];
+    if (h) {
+      const ccy = ladderIsCurrency(name) && LADDER_HOME_SUB_CCY[h];
+      return (ccy || LADDER_HOME_SUB[h])[tf] || [];
+    }
     return ladderIsDaily(d) && LADDER_SUB_BY_TF[tf] ? [LADDER_SUB_BY_TF[tf]] : [];
   };
   // Hide the small labels / lines once the sub-lines are this close (viewBox
@@ -9436,7 +9474,7 @@
     // Two tiers (none today) draw the coarse one darker (.reel-ladder-mid);
     // one tier otherwise. Each tier
     // shows only while its own gaps are wide enough.
-    const tiers = ladderSubTiers(d, timeframe);
+    const tiers = ladderSubTiers(d, timeframe, reelDrawName);
     const LADDER_SUB = tiers.reduce((x, y) => x * y, 1);
     const midEvery = tiers.length > 1 ? LADDER_SUB / tiers[0] : 0;
     const sub = LADDER_SUB > 1;
@@ -10537,7 +10575,7 @@
     // except while they are being edited, when they must be seen.
     const _hideOwn = _ovOn && !_editing && ovLayer(timeframe).draw === 0;
     let channel = _hideOwn ? '' : reelChannelsSvg(channelsFor(name), b, L, sc, bw,
-                                    _editing, activeIdx(name));
+                                    _editing, activeIdx(name), name);
     const ov = _ovOn ? reelOverlaySvg(ovHtfOn('D') ? _ovB : null, _htf, b, L, sc, bw) : null;
     if (ov) {
       ribbon = `<g ${ovLayerStyle(timeframe, 'ma')}>${ribbon}</g>`;

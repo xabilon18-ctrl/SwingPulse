@@ -2,7 +2,8 @@
 // it with the sync Worker tests it already lists.
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
-import { ladderAlertLevels, alertLadders, checkAlerts, alertTitle, REPEAT_MS } from '../src/ladder-alerts.js';
+import { ladderAlertLevels, alertLadders, checkAlerts, alertTitle, REPEAT_MS, isCurrencyQuote } from '../src/ladder-alerts.js';
+import { readFileSync } from 'node:fs';
 
 // A 0..100 ladder: p1 = 100, p4 = 130 → step u = 10, block 100..200.
 const ladder = { kind: 'ladder', p1: 100, p4: 130, alert: true, link: 'L1' };
@@ -63,6 +64,26 @@ const yblob = { channels: { GOLD: { Y: [yearly], M: [{ ...yearly }], D: [{ ...ye
 let yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 109.8, t: 'a' } } }, state: {}, now: t0 });
 yrun = checkAlerts({ users: { zabs: yblob }, quotes: { q: { GOLD: { p: 111.3, h: 111.4, l: 109.8, t: 'b' } } }, state: yrun.state, now: t0 + 3600e3 });
 assert.deepEqual(yrun.alerts.zabs.map(alertTitle), ['GOLD · Yearly 10%', 'GOLD · 1H 11%'], 'a Yearly ladder alerts once, its own line named Yearly: ' + yrun.alerts.zabs.map(alertTitle));
+
+// CURRENCY LADDERS (2026-11-27, "10% yearly - M/3, D/6, H/12"): on a
+// currency a Yearly ladder's 1H steps are twelve per 10% gap (0.83%);
+// a Monthly ladder there keeps ten.
+const cv = ladderAlertLevels(yearly, true);
+assert.equal(cv.length, 121, 'a currency Yearly block has 121 alert lines: twelve per 10% gap');
+assert.deepEqual(cv.slice(0, 13).map(l => l.pct), [0, 0.8, 1.7, 2.5, 3.3, 4.2, 5, 5.8, 6.7, 7.5, 8.3, 9.2, 10]);
+assert.equal(ladderAlertLevels(monthly, true).length, 101, 'a Monthly ladder on a currency keeps ten per gap');
+let crun = checkAlerts({ users: { zabs: { channels: { EURUSD: { Y: [yearly] } } } } , quotes: { q: { EURUSD: { p: 109.8, t: 'a', y: 'EURUSD=X' } } }, state: {}, now: t0 });
+crun = checkAlerts({ users: { zabs: { channels: { EURUSD: { Y: [yearly] } } } }, quotes: { q: { EURUSD: { p: 111.0, h: 111.0, l: 109.8, t: 'b', y: 'EURUSD=X' } } }, state: crun.state, now: t0 + 3600e3 });
+assert.deepEqual(crun.alerts.zabs.map(alertTitle), ['EURUSD · Yearly 10%', 'EURUSD · 1H 10.8%'], 'a currency Yearly ladder alerts on its 0.83% steps: ' + crun.alerts.zabs.map(alertTitle));
+// The rule picks out exactly the Currency and Currency Index groups of
+// Instruments.txt (by their Yahoo symbol, as quotes.json carries it), plus
+// USDX, and nothing else.
+const rows = readFileSync(new URL('../../../../Instruments.txt', import.meta.url), 'utf8').split('\n')
+  .map(l => l.split('|').map(x => x.trim())).filter(c => c.length >= 5 && /^\d+$/.test(c[0]));
+assert.ok(rows.length > 500, 'Instruments.txt read: ' + rows.length);
+const wrong = rows.filter(([, y, name, group]) => isCurrencyQuote(name, { y }) !== (group === 'Currency' || group === 'Currency Index' || name === 'USDX'));
+assert.deepEqual(wrong.map(r => r[2]), [], 'isCurrencyQuote matches the currency groups exactly');
+assert.ok(isCurrencyQuote('USD_IDX', { y: 'CCY_USD' }) && isCurrencyQuote('USDX', { y: 'DX-Y.NYB' }) && !isCurrencyQuote('US500', { y: 'ES=F' }));
 
 // The Worker: /push/notify checks the alerts, stores them for the owner and
 // pushes ONLY the owner's phones; a failed run still reaches every phone;
