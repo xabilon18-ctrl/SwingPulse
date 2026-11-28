@@ -83,7 +83,7 @@
         intensity += `<button class="reel-tool reel-grid-switch reel-fill-switch${fillOn ? ' on' : ''}" data-act="draw-fill-toggle" data-name="${name}" role="switch" aria-checked="${fillOn}"><span>Background</span><i class="reel-ov-knob" aria-hidden="true"></i></button>`;
         if (fillOn) {
           intensity += `<div class="reel-style-cols">${dots('draw-fill-color', fc, 'draw-any-fill')}</div>`
-            + `<label class="reel-ov-row reel-fill-a"><span>Strength</span><input type="range" min="${FILL_MIN}" max="${FILL_MAX}" step="1" value="${fa}" data-act="draw-fill-a" data-name="${name}" aria-label="Background strength" style="accent-color:${fc}"><b>${Math.round(fa / FILL_MAX * 100)}%</b></label>`;
+            + `<label class="reel-ov-row reel-fill-a"><span>Strength</span><input type="range" min="${FILL_MIN}" max="${FILL_MAX}" step="1" value="${fa}" data-act="draw-fill-a" data-name="${name}" aria-label="Background strength" style="accent-color:${fc};--sw:${fc}"><b>${Math.round(fa / FILL_MAX * 100)}%</b></label>`;
         }
       }
       intensity += `</div>`;

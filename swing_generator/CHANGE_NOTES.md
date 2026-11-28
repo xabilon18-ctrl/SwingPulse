@@ -7,6 +7,35 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-28 DRAWING PANEL AND COLOURED CHANNELS IN THE GLASS FAMILY. app.js v684, style.css v468,
+drawing-toolbar.js v16. User, pointing at where a channel's background is
+switched on, coloured and made light or bright: "Make that classy, just like
+the footer and the header". Phone full screen only, like the glass header and
+footer; desktop and iPad keep their panel.
+- The drawing panel takes the header/footer liquid glass (rim, corner shine,
+  reflection streak, shadows: copied from that rule, keep them in step) with an
+  88% frosted fill instead of the 6% tint: a panel of buttons over the candles
+  was unreadable at 6%. No backdrop-filter, as on the header.
+- Tool buttons keep their grey / black (drawing_toolbar_checks wants a
+  monochrome palette) and gain a top highlight; the black ones a soft sheen.
+- More is a recessed white glass well. Its divider over "Show on" is gone on a
+  channel: nothing sat above it.
+- Background: glossy colour beads, all nine on one row at 375px; the chosen
+  one steps forward in its ring. Strength track shades from a pale wash of the
+  chosen colour to the full colour (`--sw` on the slider, also set live when a
+  colour is picked on the wheel) under a white glass knob; the input stays
+  28px tall to take a thumb.
+- Checked in White and Dark: identical (the full-screen chart is white in both).
+- Then: "The channel should also have that classy look with those things that
+  you have going across the header". `app.js reelChannelGlass`: a channel with
+  Background on gets the header's glass over its colour: a gloss across the
+  band (bright at the upper edge, gone by the middle; measured perpendicular to
+  the slope so it follows the channel), the header's 135deg reflection streak
+  repeated along the channel, and a white rim inside each edge. Only on a
+  coloured band: white highlights over the white plot would not show. SVG
+  gradients only (no filters), pointer-events off. Other shapes keep the flat
+  background.
+
 2026-11-27 WHITE THEME, WITH A WHITE / DARK SWITCH. app.js v683, style.css v467,
 manifest v3. User: "Now give me a white theme for the app"; asked, chose "Switch,
 white default". Replaces "single dark theme" (app.js removed the stored theme on

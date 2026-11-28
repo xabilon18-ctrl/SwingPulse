@@ -6040,3 +6040,125 @@ button, [role="button"] { touch-action: manipulation; }
   background-attachment: fixed;
 }
 [data-theme="light"] .al-row { background: var(--bg-card); }
+
+/* ── DRAWING PANEL IN THE GLASS FAMILY (user, 2026-11-28: "make that
+   classy, just like the footer and the header") ──────────────────────────
+   The panel where a drawing's Background is switched on, coloured and made
+   lighter or brighter. Phone full screen, like the header and footer.
+   The panel: the same liquid glass as #chartFull > .cf-head / .reel-foot
+   (the corner shine, the reflection streak, the white-to-grey rim and the
+   shadows are copied from that rule; keep them in step). One difference: a
+   frosted 88% fill instead of the 6% tint. The header carries a few words;
+   this panel carries rows of buttons over the candles, and at 6% the chart
+   showed through every one of them. Still no backdrop-filter (see the
+   header's note: Safari's blurred copy lags the chart while panning).
+   The tool buttons keep their grey and their black selected state
+   (drawing_toolbar_checks wants a monochrome palette); they gain only a
+   top highlight. */
+#chartFull:not(.desktop-chart) .reel-toolbar.reel-draw-compact {
+  border: 1.5px solid transparent; border-radius: 22px; padding: 9px;
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.85), rgba(255,255,255,.25) 35%, rgba(255,255,255,0) 60%) padding-box,
+    linear-gradient(135deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.45) 52%, rgba(255,255,255,0) 60%, rgba(255,255,255,0) 80%, rgba(255,255,255,.35)) padding-box,
+    linear-gradient(rgba(246,247,249,.88), rgba(246,247,249,.88)) padding-box,
+    linear-gradient(135deg, #fff 0%, rgba(228,230,235,.6) 25%, rgba(112,118,130,.32) 55%, rgba(214,217,223,.9) 85%, #fff 100%) border-box;
+  box-shadow:
+    inset 2px 2px 1px -1px #fff,
+    inset -2px -2px 1px -1px rgba(255,255,255,.9),
+    inset 0 0 16px rgba(100,106,118,.12),
+    0 10px 26px rgba(0,0,0,.14),
+    0 2px 5px rgba(0,0,0,.08);
+}
+#chartFull:not(.desktop-chart) .reel-toolbar.reel-draw-compact.is-collapsed { border-radius: 20px; padding: 6px 8px; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-tool { border-radius: 10px; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-tool:not(.reel-swatch):not(.reel-grid-switch):not(.reel-draw-current) {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 2px rgba(20,20,15,.07);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-tool.on:not(.reel-swatch):not(.reel-grid-switch),
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-tools-row .reel-tool.is-selected,
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-draw-done {
+  background-image: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 6px rgba(20,25,30,.28);
+}
+#chartFull:not(.desktop-chart) .reel-props-main { border-top-color: rgba(20,20,15,.08); }
+
+/* More: a recessed glass well inside the panel instead of a grey box. */
+#chartFull:not(.desktop-chart) .reel-draw-more {
+  padding: 10px; border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.5));
+  border: 1px solid rgba(255,255,255,.95);
+  box-shadow: inset 0 1px 3px rgba(20,20,15,.07), 0 1px 0 rgba(20,20,15,.04);
+}
+#chartFull:not(.desktop-chart) .reel-draw-tfs,
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-panel { border-top-color: rgba(20,20,15,.08); }
+/* A channel has nothing above Show on, so its divider was a line under
+   nothing at the top of More. Only a divider BETWEEN two things. */
+.reel-draw-more > .reel-draw-tfs:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* Background on / off. */
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-switch { color: #14140f !important; font-weight: 700; letter-spacing: .01em; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-switch .reel-ov-knob {
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-switch .reel-ov-knob::after {
+  background: linear-gradient(180deg, #fff, #f1f2f4); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+
+/* Colours: glossy beads, all nine on one row at 375px (28px wrapped the
+   colour wheel onto a line of its own). The chosen one steps forward,
+   ringed in its own colour with a white gap, as before. */
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-cols { gap: 3px; padding: 2px 0 4px; flex-wrap: nowrap; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-cols .reel-swatch {
+  padding: 3px; background: transparent; box-shadow: none;
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-cols .reel-swatch i {
+  width: 26px; height: 26px;
+  background: radial-gradient(circle at 34% 28%, rgba(255,255,255,.55), rgba(255,255,255,0) 46%), var(--sw);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-cols .reel-swatch-any i {
+  background: radial-gradient(circle, var(--sw) 0 38%, transparent 40%),
+              conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ec4899, #ef4444);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-style-cols .reel-swatch.on i {
+  transform: scale(1.1);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,.22), 0 0 0 2.5px #fff, 0 0 0 4.5px var(--sw), 0 4px 10px rgba(0,0,0,.2);
+}
+
+/* Strength, light to bright: the track shades from a pale wash of the
+   chosen colour to the full colour, under a white glass knob. The input
+   stays 28px tall so the whole row takes a thumb, not only the knob. */
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a { padding: 6px 2px 0; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a span { color: #3f3f46; font-weight: 650; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a b { color: #14140f; font-variant-numeric: tabular-nums; }
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a input[type="range"] {
+  -webkit-appearance: none; appearance: none; height: 28px; margin: 0; background: transparent;
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sw, #14140f) 10%, #fff), var(--sw, #14140f));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.18), 0 1px 0 rgba(255,255,255,.9);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a input[type="range"]::-moz-range-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sw, #14140f) 10%, #fff), var(--sw, #14140f));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.18), 0 1px 0 rgba(255,255,255,.9);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin-top: -8px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #eef0f3 70%);
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25), inset 0 -1px 2px rgba(0,0,0,.08);
+}
+#chartFull:not(.desktop-chart) .reel-draw-compact .reel-fill-a input[type="range"]::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #eef0f3 70%);
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25), inset 0 -1px 2px rgba(0,0,0,.08);
+}
+
+/* Glass on a coloured channel (2026-11-28; app.js reelChannelGlass): the
+   gloss and streaks are gradients on the shape, the rim is these lines. */
+.reel-glass { pointer-events: none; }
+.reel-glass-rim { fill: none; stroke: #fff; stroke-opacity: .85; stroke-width: 2; stroke-linecap: butt; }
