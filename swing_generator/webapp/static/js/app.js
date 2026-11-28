@@ -9706,6 +9706,47 @@
   // and every channel saved before stay as they were.
   const CHANNEL_DIVS = 10;
 
+  // ── Glass on a coloured channel (user, 2026-11-28: "the channel should
+  // also have that classy look ... going across the header") ─────────────
+  // The header's liquid glass, laid over a channel whose Background is on:
+  //   - a gloss across the band, bright at the upper edge and gone by the
+  //     middle, measured ACROSS the band (perpendicular to its slope) so it
+  //     follows a sloped channel the way the header's top shine follows the
+  //     panel;
+  //   - the header's diagonal reflection streak, repeated along the channel
+  //     (one every ~370 viewBox units), since a channel runs the whole width;
+  //   - a white rim just inside each edge, like the header's white outline.
+  // Only on a coloured band: the highlights are white and the plot is white,
+  // so over nothing they would not show at all. Plain SVG gradients, no
+  // filters, so a pan costs the same as before. Ids only need to be unique
+  // in the document; each repaint replaces the chart's innerHTML.
+  let reelGlassSeq = 0;
+  function reelChannelGlass(ch, pts, XA, XB, yA, yB, dUp, dDn, slope) {
+    const k = Math.sqrt(1 + slope * slope);
+    const width = Math.abs(dDn - dUp) / k;            // across the band
+    if (!(width > 6)) return '';
+    const id = `reelGlass${++reelGlassSeq}`;
+    // Across: from the upper edge, one band-width along the normal.
+    const mx = (XA + XB) / 2, my = (yA + yB) / 2 + Math.min(dUp, dDn);
+    const nx = -slope / k, ny = 1 / k;
+    const f = v => v.toFixed(1);
+    const across = `<linearGradient id="${id}a" gradientUnits="userSpaceOnUse" x1="${f(mx)}" y1="${f(my)}" x2="${f(mx + nx * width)}" y2="${f(my + ny * width)}">`
+      + `<stop offset="0" stop-color="#fff" stop-opacity=".62"/><stop offset=".3" stop-color="#fff" stop-opacity=".2"/>`
+      + `<stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#646a76" stop-opacity=".1"/></linearGradient>`;
+    // Streaks: the header's 135deg band (a broad one and a thin one).
+    const streak = `<linearGradient id="${id}s" gradientUnits="userSpaceOnUse" spreadMethod="repeat" x1="0" y1="0" x2="260" y2="260">`
+      + `<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".4" stop-color="#fff" stop-opacity="0"/>`
+      + `<stop offset=".5" stop-color="#fff" stop-opacity=".5"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/>`
+      + `<stop offset=".72" stop-color="#fff" stop-opacity="0"/><stop offset=".75" stop-color="#fff" stop-opacity=".3"/>`
+      + `<stop offset=".78" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`;
+    const rim = 3 * k;   // a few units inside each edge
+    const top = Math.min(dUp, dDn), bot = Math.max(dUp, dDn);
+    const rimLine = off => `<line x1="${f(XA)}" y1="${f(yA + off)}" x2="${f(XB)}" y2="${f(yB + off)}" class="reel-glass-rim"/>`;
+    return `<g class="reel-glass"><defs>${across}${streak}</defs>`
+      + `<polygon points="${pts}" fill="url(#${id}a)"/><polygon points="${pts}" fill="url(#${id}s)"/>`
+      + rimLine(top + rim) + rimLine(bot - rim) + `</g>`;
+  }
+
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
     if (!ch) return '';
     const i1 = reelBarIndexForDate(b, ch.t1);
@@ -9755,9 +9796,10 @@
       `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="${cls}"/>`;
     const chW = ch.weight === 2 || ch.weight === 3 ? ` is-w${ch.weight}` : '';
 
+    const bandPts = `${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}`;
     const band = drawFillStyle(ch)
-      ? `<polygon class="reel-fill" ${drawFillStyle(ch)} points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`
-      : `<polygon class="reel-ch-band" points="${XA.toFixed(1)},${(yA + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dUp).toFixed(1)} ${XB.toFixed(1)},${(yB + dDn).toFixed(1)} ${XA.toFixed(1)},${(yA + dDn).toFixed(1)}"/>`;
+      ? `<polygon class="reel-fill" ${drawFillStyle(ch)} points="${bandPts}"/>` + reelChannelGlass(ch, bandPts, XA, XB, yA, yB, dUp, dDn, slope)
+      : `<polygon class="reel-ch-band" points="${bandPts}"/>`;
 
     let handles = '';
     if (editing) {
@@ -13850,6 +13892,14 @@
       if (r.dataset.act === 'draw-any-fill') {
         const fe = h && h.querySelector('.reel-draw.is-sel .reel-fill');
         if (fe && DRAW_HEX.test(r.value)) fe.style.fill = r.value;
+        // The Strength track shades from pale to this colour (2026-11-28).
+        if (DRAW_HEX.test(r.value)) {
+          const panel = r.closest('.reel-style-panel');
+          const slider = panel && panel.querySelector('input[data-act="draw-fill-a"]');
+          if (slider) slider.style.setProperty('--sw', r.value);
+          const sw = r.closest('.reel-swatch-any');
+          if (sw) sw.style.setProperty('--sw', r.value);
+        }
         return;
       }
       const g = h && h.querySelector('.reel-draw.is-sel');
