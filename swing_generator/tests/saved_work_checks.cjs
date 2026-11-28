@@ -32,6 +32,7 @@ module.exports=async function checkSavedWork(page, screenshots) {
   await page.locator('.reel-grid-menu [data-division="H"]').click();
   await full.locator('[data-act="grid-menu"]').click();
   await full.locator('[data-act="chart-full-close"]').click();
+  await page.locator('#userMenuBtn').click();
   await page.locator('#savedWorkBtn').click();
   const panel=page.locator('.saved-work-panel');
   const downloadWait=page.waitForEvent('download');
@@ -47,6 +48,7 @@ module.exports=async function checkSavedWork(page, screenshots) {
   await page.locator('.reel-grid-menu [data-division="Q"]').click();
   await page.locator('#chartFull [data-act="grid-menu"]').first().click();
   await page.locator('#chartFull [data-act="chart-full-close"]').click();
+  await page.locator('#userMenuBtn').click();
   await page.locator('#savedWorkBtn').click();
   const getChannels=()=>page.evaluate(()=>localStorage.getItem('sp-channels'));
   const beforeBad=await getChannels();

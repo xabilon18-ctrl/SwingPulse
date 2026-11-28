@@ -7,6 +7,30 @@ before relying on one. Add new entries at the top of the first section.
 
 ## Dated notes (newest first)
 
+2026-11-28 (later) ACCOUNT MENU IN THE HEADER; WATCHLIST FILTERS FOLD AWAY. app.js v685,
+style.css v469. User, on the header's moon, refresh, bell, cloud and "Zabs": "clean
+that section there at the top. Let Zabs have a small menu, like a pop-up menu with
+all those things, and let it be nice and clean". On the Watchlist filters: "a
+hideaway thing ... push it up to hide and then push it down to show", then "leave
+the search. The search must always be there", and redesign both to the app's clean look.
+- Header right side is one chip, `#userMenuBtn`: the initial on a gold disc, the
+  name (`#syncUserBadge`, now a span; "Sign in" when no user), a chevron. Today's
+  alert count sits on the initial (`data-count`), so it shows with the menu closed.
+- `#userMenu` drops from it: who is syncing (and "Synced just now" / "Offline ·
+  sync pending" from `syncPull`), then Alerts (with its count) · Refresh data ·
+  Dark mode (an on/off switch), then Saved work & backups · Switch user. The old
+  ids (`#pushToggleBtn`, `#refreshBtn`, `#themeBtn`, `#savedWorkBtn`) are these
+  rows, so their handlers are unchanged; `updatePushBadgeUI` now draws only the
+  row's icon. Theme and Refresh leave the menu open; the others close it.
+  Outside tap and Escape close it. Tests open the menu before tapping a row.
+- Watchlist: the search row (search, Sort, reset) always shows. The Active line,
+  the view dropdown with its chips and the count line sit on one card
+  (`#wl2Fold`) that folds under a grab handle (`#wl2Grab`): tap it, or drag it
+  up to hide and down to show (18px). Folded, the handle names what is on
+  ("Forex · 57 instruments", plus "n filters" when more than one is set).
+  Open on a new device; the device remembers (`sp-wl-filters-open`). Charts'
+  filter bar is unchanged.
+
 2026-11-28 DRAWING PANEL AND COLOURED CHANNELS IN THE GLASS FAMILY. app.js v684, style.css v468,
 drawing-toolbar.js v16. User, pointing at where a channel's background is
 switched on, coloured and made light or bright: "Make that classy, just like

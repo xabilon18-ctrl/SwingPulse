@@ -639,6 +639,7 @@
         // Full re-render so every tab (signals, scanner, watchlist) reflects synced data
         if (allData.length) renderAll();
         if (badge) { badge.title = `${syncUser} — synced just now`; }
+        userMenuStatus('Synced just now');
       }
       return true;
     } catch (e) {
@@ -646,6 +647,7 @@
       syncUnavailable = true; savedWork?.updateStatus();
       if (e.status === 401) syncPasswordRejected();
       if (badge) badge.title = `${syncUser} — offline, sync pending`;
+      userMenuStatus('Offline · sync pending');
       return false;
     }
   }
@@ -891,10 +893,65 @@
   function updateSyncBadge() {
     const badge = document.getElementById('syncUserBadge');
     if (!badge) return;
-    badge.textContent = syncUser ? syncUser.charAt(0).toUpperCase() + syncUser.slice(1) : '?';
-    badge.title = syncUser ? `Syncing as ${syncUser} — tap to switch user` : 'Tap to set user';
+    const name = syncUser ? syncUser.charAt(0).toUpperCase() + syncUser.slice(1) : '';
+    badge.textContent = name || 'Sign in';
+    badge.title = syncUser ? `Syncing as ${syncUser}` : 'No user set';
     badge.classList.toggle('sync-name-unset', !syncUser);
+    // The account menu (#userMenu): the initial on the button and in the
+    // menu's head, the full name beside it.
+    for (const id of ['userMenuAvatar', 'userMenuAvatarLg']) {
+      const a = document.getElementById(id);
+      if (a) a.textContent = name ? name.charAt(0) : '?';
+    }
+    const mn = document.getElementById('userMenuName');
+    if (mn) mn.textContent = name || 'No user set';
+    userMenuStatus(syncUser ? 'Synced across your devices' : 'Set a user to sync your lists');
+    const mb = document.getElementById('userMenuBtn');
+    if (mb) mb.setAttribute('aria-label', name ? `${name}: menu` : 'Menu');
   }
+  function userMenuStatus(text) {
+    const el = document.getElementById('userMenuSub');
+    if (el) el.textContent = text;
+  }
+
+  // ── Account menu (user, 2026-11-28: "Let Zabs have a small menu, like a
+  // pop-up menu with all those things") ────────────────────────────────────
+  // #userMenuBtn opens #userMenu. Theme and Refresh act in place and leave it
+  // open (the switch flips, the arrows spin); Alerts, Saved work and Switch
+  // user open their own panel, so the menu closes behind them.
+  function userMenuOpen(open) {
+    const menu = document.getElementById('userMenu'), btn = document.getElementById('userMenuBtn');
+    if (!menu || !btn) return;
+    if (open === menu.classList.contains('open')) return;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.classList.toggle('open', open);
+    if (open) {
+      menu.hidden = false;
+      // Next frame, so the closed state paints first and the menu animates in.
+      requestAnimationFrame(() => menu.classList.add('open'));
+    } else {
+      menu.classList.remove('open');
+      setTimeout(() => { if (!menu.classList.contains('open')) menu.hidden = true; }, 180);
+    }
+  }
+  document.getElementById('userMenuBtn')?.addEventListener('click', () => {
+    const notif = document.getElementById('notifPopup');
+    if (notif) notif.style.display = 'none';
+    userMenuOpen(!document.getElementById('userMenu')?.classList.contains('open'));
+  });
+  document.getElementById('userMenu')?.addEventListener('click', e => {
+    if (e.target.closest('#pushToggleBtn, #savedWorkBtn, #userSwitchBtn')) userMenuOpen(false);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.isConnected) return;
+    if (!e.target.closest('#userMenu, #userMenuBtn')) userMenuOpen(false);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('userMenu')?.classList.contains('open')) {
+      userMenuOpen(false);
+      document.getElementById('userMenuBtn')?.focus();
+    }
+  });
 
 
   // ── Signal Performance ("since fired") ───────────────────────────────
@@ -1036,7 +1093,9 @@
     // A bell again since the event calendar went (2026-10-21): everything
     // behind this button is today's alerts. The green live dot
     // (.push-on::after) still means push is on.
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+    // A row of the account menu since 2026-11-28: only its icon is drawn here.
+    const ic = btn.querySelector('.um-ic');
+    if (ic) ic.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
     const pt = document.getElementById('notifPushToggle');
     if (pt) {
       pt.textContent = on ? 'Push: on' : 'Push: off';
@@ -1543,7 +1602,7 @@
       if (me) me.outerHTML = wlMoveTag(allData.find(d => d.instrument_name === n), wlUi.move);
     }));
     const a = document.getElementById('wl2AsOf');
-    if (a) a.textContent = wlAsOfLine();
+    if (a) { a.textContent = wlAsOfLine(); wlFoldSummary(); }
     refreshFreshnessLabels();
   }
 
@@ -1939,6 +1998,69 @@
   }
   function wlAllCount() { return new Set(allData.map(d => d.instrument_name)).size; }
 
+  // ── Fold-away filters (user, 2026-11-28: "a hideaway thing ... push it up
+  // to hide and then push it down to show"). The search row always stays; the
+  // Active line, the view dropdown with its chips and the count line fold
+  // under a handle. Tap the handle, or drag it up to hide and down to show.
+  // Folded, the handle names what is showing ("Forex · 57 instruments") so a
+  // hidden filter is never a surprise. Open on a new device; remembered.
+  const WL_FOLD_KEY = 'sp-wl-filters-open';
+  function wlFoldIsOpen() {
+    try { return localStorage.getItem(WL_FOLD_KEY) !== '0'; } catch (_) { return true; }
+  }
+  function wlFoldSet(open, remember = true) {
+    const fold = document.getElementById('wl2Fold'), grab = document.getElementById('wl2Grab');
+    if (!fold || !grab) return;
+    fold.dataset.open = open ? '1' : '0';
+    fold.toggleAttribute('inert', !open);
+    grab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    grab.setAttribute('aria-label', open ? 'Hide filters' : 'Show filters');
+    grab.classList.toggle('folded', !open);
+    if (remember) { try { localStorage.setItem(WL_FOLD_KEY, open ? '1' : '0'); } catch (_) {} }
+    wlFoldSummary();
+  }
+  function wlFoldSummary() {
+    const sum = document.getElementById('wl2GrabSum');
+    if (!sum) return;
+    const on = document.querySelector('#wl2Lists .wl2-pill.on:not(.wl2-sub)');
+    const sub = document.querySelector('#wl2Lists .wl2-pill.wl2-sub.on');
+    const label = el => el ? [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim() : '';
+    const pick = [label(on), label(sub)].filter(Boolean).join(' › ');
+    const nSet = document.querySelector('#wl2DdMode .wl2-mode-n');
+    const extra = nSet && !nSet.hidden ? Number(nSet.textContent) : 0;
+    const count = (document.getElementById('wl2AsOf')?.textContent || '').split('·')[0].trim();
+    sum.innerHTML = [pick && `<b>${escText(pick)}</b>`, count && escText(count),
+      extra > 1 ? `${extra} filters` : ''].filter(Boolean).join('<i aria-hidden="true">·</i>');
+  }
+  (function wlFoldInit() {
+    const grab = document.getElementById('wl2Grab');
+    if (!grab) return;
+    wlFoldSet(wlFoldIsOpen(), false);
+    // Drag: a pull of 18px or more up hides, down shows. A shorter move is a tap.
+    let y0 = null, moved = false;
+    grab.addEventListener('pointerdown', e => {
+      y0 = e.clientY; moved = false;
+      try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    grab.addEventListener('pointermove', e => {
+      if (y0 === null) return;
+      const dy = e.clientY - y0;
+      grab.style.setProperty('--pull', `${Math.max(-14, Math.min(14, dy / 2))}px`);
+      if (Math.abs(dy) < 18) return;
+      const open = document.getElementById('wl2Fold')?.dataset.open === '1';
+      if (dy < 0 && open) wlFoldSet(false);
+      else if (dy > 0 && !open) wlFoldSet(true);
+      moved = true; y0 = e.clientY;
+    });
+    const end = () => { y0 = null; grab.style.removeProperty('--pull'); };
+    grab.addEventListener('pointerup', end);
+    grab.addEventListener('pointercancel', end);
+    grab.addEventListener('click', () => {
+      if (moved) { moved = false; return; }
+      wlFoldSet(document.getElementById('wl2Fold')?.dataset.open !== '1');
+    });
+  })();
+
   function renderWatchlist() {
     const body = document.getElementById('wl2Body');
     if (!body) return;
@@ -2004,6 +2126,7 @@
     if (reset) reset.hidden = !nSet && !wlSortValue().length;
     const search = document.getElementById('wl2Search'); if (search && search.value !== wlUi.q) search.value = wlUi.q;
     const searchClear = document.getElementById('wl2SearchClear'); if (searchClear) searchClear.hidden = !wlUi.q;
+    wlFoldSummary();
 
     // EDIT MODE (2026-09-24, "an option to rearrange my watchlists"): the
     // list in its own order, each row with move up / move down / remove, and
@@ -3207,7 +3330,10 @@
     const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
     if (sb) sb.setAttribute('content', dark ? 'black' : 'default');
     const btn = document.getElementById('themeBtn');
-    if (btn) btn.setAttribute('aria-label', dark ? 'Switch to white' : 'Switch to dark');
+    if (btn) {
+      btn.setAttribute('aria-label', dark ? 'Switch to white' : 'Switch to dark');
+      btn.setAttribute('aria-checked', dark ? 'true' : 'false');
+    }
   }
   function themeSaved() {
     try { return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'; } catch (_) { return 'light'; }
@@ -5849,8 +5975,13 @@
     // Gold badge = signals fired today.
     const sigs = notifItems().length;
     btn.classList.toggle('has-signals', sigs > 0);
-    if (sigs > 0) btn.dataset.count = sigs; else delete btn.dataset.count;
     btn.setAttribute('aria-label', `Alerts — ${sigs} fired today`);
+    // The count shows on the menu row and, so it is seen with the menu
+    // closed, on the account button's initial.
+    const row = document.getElementById('userMenuAlerts');
+    if (row) { row.hidden = !sigs; row.textContent = sigs || ''; }
+    const chip = document.getElementById('userMenuBtn');
+    if (chip) { if (sigs > 0) chip.dataset.count = sigs > 99 ? '99+' : sigs; else delete chip.dataset.count; }
   }
 
   function renderNotifPanel() {

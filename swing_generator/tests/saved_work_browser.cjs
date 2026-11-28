@@ -76,6 +76,7 @@ const { pathToFileURL } = require('node:url');
   }
   async function sync(page,fail=false) {
     if(await page.locator('#chartFull.open').count())await page.locator('#chartFull [data-act="chart-full-close"]').click();
+    await page.locator('#userMenuBtn').click();
     await page.locator('#savedWorkBtn').click();
     await page.locator('[data-work-sync]').click();
     await page.waitForFunction(fail=>document.querySelector('[data-work-message]').textContent.includes(fail?'unavailable':'Synced'),fail);

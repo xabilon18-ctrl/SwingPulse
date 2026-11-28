@@ -53,6 +53,7 @@ module.exports = async function checkTheme(page) {
 
   // The page fades between themes (body's .25s background transition).
   const settled = dark => p.waitForFunction(d => (getComputedStyle(document.body).backgroundColor === 'rgb(0, 0, 0)') === d, dark);
+  await p.locator('#userMenuBtn').click();
   await p.locator('#themeBtn').click();
   await settled(true);
   s = await state();
@@ -64,6 +65,7 @@ module.exports = async function checkTheme(page) {
   s = await state();
   assert.deepEqual([s.theme, s.atParse], ['dark', 'dark'], 'a Dark device is Dark from the first paint: ' + JSON.stringify(s));
 
+  await p.locator('#userMenuBtn').click();
   await p.locator('#themeBtn').click();
   await settled(false);
   s = await state();
