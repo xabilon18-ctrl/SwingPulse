@@ -9706,6 +9706,58 @@
   // and every channel saved before stay as they were.
   const CHANNEL_DIVS = 10;
 
+  // ── Road backdrop behind a channel (PROTOTYPE) ───────────────────────────
+  // Two-lane, one-way roads drawn BEHIND the candles, in their own layer, so
+  // the channel lines and the price stay on top. Flat shapes and dashes only:
+  // no blur, shadow or texture, which would cost every pan frame on a phone.
+  // Prototype switch: localStorage 'sp-road-proto' = a | b | c (see roadOffsets).
+  // The real build would read a per-channel flag (ch.road) set from the
+  // drawing toolbar, off by default.
+  const ROAD_W = 64;   // viewBox units across one road (two lanes); ~24 CSS px on a phone
+  function roadProtoMode() {
+    try { return localStorage.getItem('sp-road-proto') || ''; } catch (e) { return ''; }
+  }
+  function reelRoadsSvg(list, b, L, sc, bw) {
+    if (!list || !list.length) return '';
+    const proto = roadProtoMode();
+    return list.map(d => {
+      if (!d || (d.kind && d.kind !== 'channel') || !drawShownOn(d, timeframe)) return '';
+      const mode = d.road || proto;
+      return mode ? reelRoadSvg(d, b, L, sc, bw, mode) : '';
+    }).join('');
+  }
+  function reelRoadSvg(ch, b, L, sc, bw, mode) {
+    const i1 = reelBarIndexForDate(b, ch.t1), i2 = reelBarIndexForDate(b, ch.t2);
+    if (i1 == null || i2 == null) return '';
+    const xAt = fi => L.x0 + fi * bw + bw / 2;
+    let x1 = xAt(i1), x2 = xAt(i2);
+    const y1 = sc.y(ch.p1), y2 = sc.y(ch.p2);
+    if (Math.abs(x2 - x1) < 0.5) x2 = x1 + 0.5;
+    const slope = (y2 - y1) / (x2 - x1);
+    const dUp = sc.y(ch.p1 + ch.up) - sc.y(ch.p1);
+    const dDn = sc.y(ch.p1 + ch.dn) - sc.y(ch.p1);
+    const XA = L.x0, XB = L.x1;
+    const yA = y1 + slope * (XA - x1), yB = y1 + slope * (XB - x1);
+    // Offsets are vertical (the channel's own model). Stretch them by the
+    // slope so the road keeps the same width ACROSS it on a steep channel.
+    const k = Math.sqrt(1 + slope * slope);
+    const h = (ROAD_W / 2) * k, inset = 4 * k;
+    // A strip from offset `top` to `bot` (screen y grows downward). Time runs
+    // left to right, so on a left-hand-drive road the yellow line is the
+    // upper edge and the white line the lower one.
+    const ln = (off, cls) =>
+      `<line x1="${XA.toFixed(1)}" y1="${(yA + off).toFixed(1)}" x2="${XB.toFixed(1)}" y2="${(yB + off).toFixed(1)}" class="reel-road-line ${cls}"/>`;
+    const strip = (top, bot, lanes = true) =>
+      `<polygon class="reel-road-asphalt" points="${XA.toFixed(1)},${(yA + top).toFixed(1)} ${XB.toFixed(1)},${(yB + top).toFixed(1)} ${XB.toFixed(1)},${(yB + bot).toFixed(1)} ${XA.toFixed(1)},${(yA + bot).toFixed(1)}"/>`
+      + ln(top + inset, 'is-yellow') + ln(bot - inset, 'is-white')
+      + (lanes ? ln((top + bot) / 2, 'is-lane') : '');
+    let svg;
+    if (mode === 'c') svg = strip(dUp, dDn);                                         // inside the channel
+    else if (mode === 'b') svg = strip(dUp - 2 * h, dUp) + strip(dDn, dDn + 2 * h);  // outside, edge = kerb
+    else svg = strip(dUp - h, dUp + h) + strip(dDn - h, dDn + h);                    // centred on each edge
+    return `<g class="reel-road">${svg}</g>`;
+  }
+
   function reelChannelSvg(ch, b, L, sc, bw, editing, idx, isActive) {
     if (!ch) return '';
     const i1 = reelBarIndexForDate(b, ch.t1);
@@ -10640,6 +10692,8 @@
     const _hideOwn = _ovOn && !_editing && ovLayer(timeframe).draw === 0;
     let channel = _hideOwn ? '' : reelChannelsSvg(channelsFor(name), b, L, sc, bw,
                                     _editing, activeIdx(name), name);
+    // Roads go BEHIND everything in the plot (see reelRoadsSvg).
+    const roads = _hideOwn ? '' : reelRoadsSvg(channelsFor(name), b, L, sc, bw);
     const ov = _ovOn ? reelOverlaySvg(ovHtfOn('D') ? _ovB : null, _htf, b, L, sc, bw) : null;
     if (ov) {
       ribbon = `<g ${ovLayerStyle(timeframe, 'ma')}>${ribbon}</g>`;
@@ -10723,7 +10777,7 @@
 
     return `<svg class="reel-svg${L.overlaid ? ' is-overlaid' : ''}" style="${reelDotVars(L)}" data-grid-weight="${modules.chartReadability.level((tfOverlay.gridW || {})[timeframe])}" viewBox="0 0 ${L.W} ${L.H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Price chart with moving-average ribbon">
       <defs><clipPath id="${plotClipId}"><rect x="0" y="${L.clipTop}" width="${L.x1}" height="${L.clipBot - L.clipTop}"/></clipPath></defs>
-      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${fm.svg}</g>${lastTag}${liveMark}${clipTag}${dates}
+      <g class="reel-band-g" style="fill:var(--ov-${timeframe}-band-color,#3b82f6);opacity:var(--ov-${timeframe}-band,0)">${gridBands}</g>${grid}<g class="reel-tgrid-g" ${ovLayerStyle(timeframe, 'grid')}>${timeGrid}</g>${gridLbls}${strip}<g clip-path="url(#${plotClipId})">${roads}${ribFill}${ov ? ov.under : ''}${ribbon}${barsOut}${zeroLine}${ov ? ov.draw : ''}${channel}${fm.svg}</g>${lastTag}${liveMark}${clipTag}${dates}
     </svg><div class="reel-ygrip" data-ygrip="1" style="width:${gripPct}%" aria-hidden="true"></div>` +
       `<div class="reel-tgrip" data-tgrip="1" style="height:${tgripPct}%;right:${gripPct}%${tgripOff}" aria-hidden="true"></div>`;
   }

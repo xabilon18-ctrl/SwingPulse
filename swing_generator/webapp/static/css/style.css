@@ -3662,6 +3662,16 @@ body {
 .reel-ch-band { fill: none; stroke: none; }
 .reel-ch-note { fill: var(--text-muted); font-size: 25px; opacity: .9; }
 
+/* Road backdrop behind a channel (PROTOTYPE). The plot is white in both
+   themes, so one set of colours. Asphalt has to be grey enough for WHITE
+   markings to show on it at all. Never takes a tap. */
+.reel-road { pointer-events: none; }
+.reel-road-asphalt { fill: #3a3a3a; fill-opacity: .11; stroke: none; }
+.reel-road-line { fill: none; stroke-width: 2.4; stroke-linecap: butt; }
+.reel-road-line.is-white  { stroke: #ffffff; stroke-opacity: .95; }
+.reel-road-line.is-yellow { stroke: #e8b300; stroke-opacity: .55; }
+.reel-road-line.is-lane   { stroke: #ffffff; stroke-opacity: .95; stroke-dasharray: 26 20; }
+
 /* Vertical calendar lines — dotted, and deliberately fainter than the price
    gridlines: they are for orientation, not for reading a level off. */
 /* BLACK since 2026-09-12, at the user's request, and no longer a token: these
