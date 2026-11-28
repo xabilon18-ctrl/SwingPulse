@@ -6162,3 +6162,218 @@ button, [role="button"] { touch-action: manipulation; }
    gloss and streaks are gradients on the shape, the rim is these lines. */
 .reel-glass { pointer-events: none; }
 .reel-glass-rim { fill: none; stroke: #fff; stroke-opacity: .85; stroke-width: 2; stroke-linecap: butt; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCOUNT MENU (user, 2026-11-28: "clean that section at the top. Let Zabs
+   have a small menu, like a pop-up menu with all those things"). The header's
+   right side is one chip: the initial, the name, a chevron. Today's alert
+   count rides on the initial. The menu drops from it: who is syncing, then
+   Alerts · Refresh · Dark mode, then Saved work · Switch user.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.um-chip {
+  position: relative; flex: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 11px 0 4px; border-radius: 999px;
+  background: rgba(var(--wash-rgb),.05); border: 1px solid rgba(var(--wash-rgb),.08);
+  color: var(--text-primary); font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .18s, border-color .18s, transform .12s;
+}
+.um-chip:hover { background: rgba(var(--wash-rgb),.08); }
+.um-chip:active { transform: scale(.96); }
+.um-chip.open { background: rgba(var(--wash-rgb),.1); border-color: rgba(var(--wash-rgb),.14); }
+.um-avatar {
+  flex: none; display: grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(140deg, #fcd34d, #f59e0b 55%, #d97706);
+  color: #2a1a02; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 15px; font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 8px rgba(245,158,11,.3);
+}
+.um-chip .sync-name {
+  display: block; width: auto; height: auto; max-width: 96px; padding: 0;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: .88rem; letter-spacing: .01em; pointer-events: none;
+}
+.um-chip .sync-name-unset { color: var(--text-secondary); }
+.um-chev { flex: none; opacity: .5; transition: transform .2s; }
+.um-chip.open .um-chev { transform: rotate(180deg); }
+/* Today's alerts on the initial: a small ink badge, ringed in the bar colour. */
+.um-chip[data-count]::after {
+  content: attr(data-count);
+  position: absolute; top: -4px; left: 24px;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: var(--text-primary); color: var(--bg-surface);
+  font-size: .6rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  border: 2px solid var(--bg-base); pointer-events: none;
+}
+@media (max-width: 360px) {
+  .um-chip { gap: 6px; padding-right: 8px; }
+  .um-chip .sync-name { max-width: 64px; }
+  .um-chev { display: none; }
+}
+
+.um-menu {
+  position: fixed; z-index: 1200;
+  top: calc(env(safe-area-inset-top, 0px) + 60px); right: 10px;
+  width: min(292px, calc(100vw - 20px));
+  padding: 8px; border-radius: 22px;
+  background: var(--bg-surface);
+  border: 1px solid rgba(var(--wash-rgb),.08);
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 24px 60px -16px rgba(0,0,0,.45);
+  transform-origin: top right;
+  opacity: 0; transform: translateY(-6px) scale(.95);
+  transition: opacity .16s ease, transform .2s cubic-bezier(.2,.9,.3,1.15);
+}
+.um-menu.open { opacity: 1; transform: none; }
+.um-menu[hidden] { display: none; }
+.um-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 12px; }
+.um-avatar-lg { width: 44px; height: 44px; font-size: 19px; }
+.um-who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.um-who b { font-size: 1rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.um-who span { font-size: .74rem; color: var(--text-muted); }
+.um-group { display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 16px; background: rgba(var(--wash-rgb),.035); }
+.um-group + .um-group { margin-top: 8px; }
+.um-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 46px; padding: 0 10px 0 7px; border: 0; border-radius: 12px;
+  background: none; color: var(--text-primary);
+  font: inherit; font-size: .9rem; font-weight: 600; text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background .14s;
+}
+.um-row:hover, .um-row:focus-visible { background: rgba(var(--wash-rgb),.06); outline: none; }
+.um-row:active { background: rgba(var(--wash-rgb),.1); }
+.um-ic {
+  position: relative; flex: none; display: grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 10px;
+  background: var(--bg-elevated); color: var(--text-secondary);
+}
+.um-lbl { flex: 1; min-width: 0; }
+.um-count {
+  flex: none; display: grid; place-items: center;
+  min-width: 24px; height: 22px; padding: 0 7px; border-radius: 11px;
+  background: var(--accent-glow); color: var(--accent);
+  font-size: .74rem; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.um-count[hidden] { display: none; }
+#pushToggleBtn.has-signals .um-ic { background: var(--accent-glow); color: var(--accent); }
+/* Push on: the small green live dot, now on the bell's tile. */
+#pushToggleBtn.push-on .um-ic::after {
+  content: ''; position: absolute; bottom: 4px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--buy); border: 1.5px solid var(--bg-elevated);
+}
+/* Dark mode row: always the moon, and an on/off switch on the right. */
+.um-row.theme-btn .theme-ic-sun { display: none; }
+.um-row.theme-btn .theme-ic-moon { display: block; }
+.um-switch {
+  position: relative; flex: none; width: 44px; height: 26px; border-radius: 13px;
+  background: rgba(var(--wash-rgb),.16); transition: background .2s;
+}
+.um-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  transition: transform .24s cubic-bezier(.3,1.4,.5,1);
+}
+[data-theme="dark"] .um-switch { background: #f59e0b; }
+[data-theme="dark"] .um-switch::after { transform: translateX(18px); }
+[data-theme="dark"] .um-menu { background: #161615; border-color: rgba(255,255,255,.08); }
+[data-theme="dark"] .um-ic { background: #232321; }
+[data-theme="dark"] #pushToggleBtn.push-on .um-ic::after { border-color: #232321; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WATCHLIST HEAD + FOLD-AWAY FILTERS (user, 2026-11-28: "a hideaway thing ...
+   push it up to hide and then push it down to show", "leave the search. The
+   search must always be there"). The search row stays; the filters sit on one
+   soft card that folds under a grab handle. Folded, the handle shows what is
+   on ("Forex · 57 instruments").
+   ═══════════════════════════════════════════════════════════════════════════ */
+#pane-watchlist .wl2-head { gap: 8px; margin-bottom: 0; }
+#pane-watchlist .wl2-head .fsearch {
+  height: 44px; padding: 0 14px; border-radius: 14px;
+  background: var(--bg-surface); border: 1px solid rgba(var(--wash-rgb),.07);
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  transition: border-color .18s, box-shadow .18s;
+}
+#pane-watchlist .wl2-head .fsearch:focus-within {
+  border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow);
+}
+#pane-watchlist .wl2-head .fsearch-ic { width: 17px; height: 17px; }
+#pane-watchlist .wl2-sortbtn {
+  height: 44px; padding: 0 14px; border-radius: 14px;
+  background: var(--bg-surface); border: 1px solid rgba(var(--wash-rgb),.07);
+  color: var(--text-primary); font-size: .86rem; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+#pane-watchlist .wl2-sortbtn.on { background: var(--accent-glow); border-color: rgba(251,191,36,.4); color: var(--accent); }
+#pane-watchlist .wl2-head .fdrop-reset {
+  width: 36px; height: 36px; background: var(--bg-surface); border: 1px solid rgba(var(--wash-rgb),.07);
+}
+
+.wl2-fold {
+  display: grid; grid-template-rows: 1fr; opacity: 1;
+  transition: grid-template-rows .3s cubic-bezier(.3,.7,.2,1), opacity .22s ease;
+}
+.wl2-fold[data-open="0"] { grid-template-rows: 0fr; opacity: 0; }
+.wl2-fold-in { min-height: 0; overflow: hidden; }
+.wl2-fold-card {
+  margin-top: 10px; padding: 10px 12px 9px; border-radius: 18px;
+  background: var(--bg-surface); border: 1px solid rgba(var(--wash-rgb),.06);
+  box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+.wl2-fold-card .wl2-active { margin: 0 0 4px; }
+.wl2-fold-card .wl2-bar2 { margin: 0; gap: 6px; }
+.wl2-fold-card .wl2-mode {
+  height: 34px; padding: 0 10px 0 12px; border-radius: 11px;
+  background: var(--bg-elevated); color: var(--text-primary); font-size: .82rem;
+}
+#pane-watchlist .wl2-fold-card .wl2-asof {
+  margin: 4px 0 0; padding-top: 8px;
+  border-top: 1px solid rgba(var(--wash-rgb),.06);
+  font-size: .7rem; color: var(--text-muted);
+}
+
+.wl2-grab {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 100%; margin: 0 0 6px; padding: 8px 0 6px;
+  background: none; border: 0; font: inherit; color: var(--text-muted);
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.wl2-grab:active { cursor: grabbing; }
+.wl2-grab:focus-visible { outline: none; }
+.wl2-grab:focus-visible .wl2-grab-bar { background: var(--accent); }
+.wl2-grab-bar {
+  width: 38px; height: 5px; border-radius: 3px;
+  background: rgba(var(--wash-rgb),.16);
+  transform: translateY(var(--pull, 0px));
+  transition: transform .2s, width .2s, background .2s;
+}
+.wl2-grab:hover .wl2-grab-bar { width: 48px; background: rgba(var(--wash-rgb),.26); }
+.wl2-grab-sum { display: none; }
+.wl2-grab.folded .wl2-grab-sum {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+  padding: 6px 12px 6px 14px; border-radius: 999px;
+  background: var(--bg-surface); border: 1px solid rgba(var(--wash-rgb),.07);
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  font-size: .76rem; font-weight: 600; white-space: nowrap; overflow: hidden;
+  transform: translateY(var(--pull, 0px)); transition: transform .2s;
+}
+.wl2-grab.folded .wl2-grab-sum:empty::before { content: 'Filters'; }
+.wl2-grab-sum b { color: var(--text-primary); font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.wl2-grab-sum i { font-style: normal; opacity: .45; }
+.wl2-grab.folded .wl2-grab-sum::after {
+  content: ''; flex: none; width: 6px; height: 6px; margin: -3px 0 0 2px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); opacity: .6;
+}
+[data-theme="dark"] :is(#pane-watchlist .wl2-head .fsearch, #pane-watchlist .wl2-sortbtn, #pane-watchlist .wl2-head .fdrop-reset, .wl2-fold-card, .wl2-grab.folded .wl2-grab-sum) {
+  background: #121211; border-color: rgba(255,255,255,.07);
+}
+[data-theme="dark"] .wl2-fold-card .wl2-mode { background: #1f1f1d; }
+@media (prefers-reduced-motion: reduce) {
+  .wl2-fold, .um-menu, .um-switch::after, .wl2-grab-bar { transition: none; }
+}
+/* On the card the selected pill's glow is kept inside the row's padding, so the
+   sideways scroller does not cut it into a box. */
+#pane-watchlist .wl2-fold-card .wl2-pill.on { box-shadow: 0 2px 7px rgba(245,158,11,.32); }
